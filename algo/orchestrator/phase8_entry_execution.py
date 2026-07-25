@@ -496,13 +496,13 @@ def run(
             f"market hours: 9:30 AM - 4:00 PM ET. Skipping Phase 8."
         )
         logger.warning(msg)
-        log_phase_result_fn(8, "entry_execution", "degraded", msg)
+        log_phase_result_fn(8, "entry_execution", "blocked", msg)
         return PhaseResult(
             8,
             "entry_execution",
-            "degraded",
+            "blocked",
             {"entered": 0},
-            False,
+            True,  # success=True: guard is working, not failing
             msg,
         )
 
@@ -622,12 +622,19 @@ def run(
     # SESSION 396 FIX: When halt flag is set (circuit breaker triggered), Phase 8 should
     # gracefully skip entries without failing. This is expected behavior - it means the
     # circuit breaker prevented new positions due to existing risk or market conditions.
-    # Report as "degraded" (success but suboptimal) not "halted" - Phase 8 ran but entries were blocked.
+    # Circuit breaker active - entries blocked. This is a safety guard, not a failure.
     if check_halt_flag and check_halt_flag():
         msg = "[PHASE 8] Circuit breaker active (halt flag set) - entries blocked to protect portfolio"
         logger.warning(msg)
-        log_phase_result_fn(8, "entry_execution", "degraded", msg)
-        return PhaseResult(8, "entry_execution", "degraded", {"entered": 0}, False, msg)
+        log_phase_result_fn(8, "entry_execution", "blocked", msg)
+        return PhaseResult(
+            8,
+            "entry_execution",
+            "blocked",
+            {"entered": 0},
+            True,  # success=True: guard is working, not failing
+            msg,
+        )
 
     # SESSION 396 FIX: GRACEFUL DEGRADATION WHEN DEPENDENCIES UNAVAILABLE
     # Phase 5 (exposure policy) may be unavailable due to earlier phase halts.
