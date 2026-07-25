@@ -276,6 +276,14 @@ function ScoresDashboardPage() {
         const r = await api.get(
           `/api/scores/stockscores?symbol=${symbol}&limit=1`
         );
+        // DEBUG: Log what the API returned
+        console.debug(`[ScoresDashboard] expandStock API response for ${symbol}:`, {
+          r_data_keys: Object.keys(r.data || {}),
+          r_data_items: r.data?.items ? `array[${r.data.items.length}]` : "N/A",
+          r_data_items_0_has_quality: r.data?.items?.[0] ? "quality_inputs" in r.data.items[0] : "N/A",
+          r_data_data_items: r.data?.data?.items ? `array[${r.data.data.items.length}]` : "N/A",
+        });
+
         // Try multiple response shapes to be resilient to API changes
         let item = r.data?.items?.[0];
         if (!item) {
@@ -293,6 +301,7 @@ function ScoresDashboardPage() {
           );
         }
         if (item) {
+          console.debug(`[ScoresDashboard] Found detail item for ${symbol}, quality_inputs present: ${"quality_inputs" in item}`);
           setDetails((d) => ({ ...d, [symbol]: item }));
         } else {
           console.warn(

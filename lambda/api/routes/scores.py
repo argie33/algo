@@ -613,6 +613,14 @@ def _get_stock_scores(
 
         logger.info(f"[SCORES_API_NEW_FORMAT] Returning {items_count} items in paginated format (Session 302 fix)")
 
+        # DEBUG: Verify quality_inputs are present in returned items
+        if items:
+            sample = items[0]
+            has_quality = "quality_inputs" in sample
+            quality_keys = len(sample.get("quality_inputs", {})) if has_quality else 0
+            has_roe = sample.get("quality_inputs", {}).get("return_on_equity_pct") is not None if has_quality else False
+            logger.critical(f"[SCORES_RESPONSE_CHECK] symbol={sample.get('symbol')} quality_inputs={has_quality} keys={quality_keys} roe_present={has_roe}")
+
         result = {
             "statusCode": 200,
             "items": items,
