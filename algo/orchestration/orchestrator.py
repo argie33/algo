@@ -1936,6 +1936,8 @@ class Orchestrator:
                 "fail": "[FAIL]",
                 "error": "[ERR] ",
                 "blocked": "[BLOCK]",
+                "degraded": "[DEGRAD]",
+                "skipped": "[SKIP]",
             }.get(info["status"], "[?]   ")
             logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} - {info['summary']}")
         logger.info(f"{'#' * 70}\n")

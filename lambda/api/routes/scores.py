@@ -78,6 +78,7 @@ def handle(
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle scores")
         return error_response(code, error_type, message)
@@ -640,6 +641,7 @@ def _get_stock_scores(
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
+        Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle scores")
         return error_response(code, error_type, message)
