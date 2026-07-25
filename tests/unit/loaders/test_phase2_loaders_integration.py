@@ -48,8 +48,8 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         # Should return data_unavailable record
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["data_unavailable"])
-        # Reason is placeholder since SEC 13F parsing is not yet implemented
-        self.assertIn("not_yet_implemented", result[0]["reason"])
+        # Reason is explicit: data not found in 13F filings
+        self.assertIn("not_found_in_institutional_holdings_13f", result[0]["reason"])
 
     def test_insider_loader_explicit_failure_reason(self):
         """Loader should provide explicit failure reasons for debugging.
@@ -80,8 +80,8 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         # Should return data_unavailable with reason
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["data_unavailable"])
-        # Reason is now a placeholder since SEC 13F parsing is not yet implemented
-        self.assertIn("not_yet_implemented", result[0]["reason"])
+        # Reason is explicit: data not found in 13F filings
+        self.assertIn("not_found_in_institutional_holdings_13f", result[0]["reason"])
 
     def test_form4_plaintext_parser_robustness(self):
         """Parser should handle edge cases gracefully."""
