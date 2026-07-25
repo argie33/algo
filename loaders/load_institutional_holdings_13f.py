@@ -201,15 +201,20 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 logger.info(f"[13F] Successfully downloaded bulk dataset")
                 holdings = self._parse_13f_bulk_zip(zip_data, url)
                 if holdings:
+                    logger.info(f"[13F] Successfully parsed bulk dataset: {len(holdings)} tickers")
                     return holdings
+                else:
+                    logger.warning(f"[13F] Bulk dataset parsed but contains no holdings, trying next URL...")
 
             except urllib.error.HTTPError as e:
-                logger.debug(f"[13F] Bulk dataset HTTP {e.code}, trying fallback...")
+                logger.info(f"[13F] Bulk dataset HTTP {e.code} not available, trying next URL...")
+            except (ValueError, RuntimeError) as parse_err:
+                logger.warning(f"[13F] Bulk dataset parse failed ({type(parse_err).__name__}), trying next URL...")
             except Exception as e:
-                logger.debug(f"[13F] Bulk dataset failed ({type(e).__name__}), using fallback...")
+                logger.warning(f"[13F] Bulk dataset failed ({type(e).__name__}: {str(e)[:100]}), trying next URL...")
 
         # Fallback: Aggregate top institutional managers' recent 13F filings
-        logger.info("[13F] Using per-manager 13F aggregation (correct architecture, slower)")
+        logger.info("[13F] All bulk dataset URLs exhausted, using per-manager 13F aggregation (correct architecture, slower)")
         return self._aggregate_top_manager_13fs()
 
     def _parse_13f_bulk_zip(self, zip_data: bytes, source_url: str) -> dict[str, int]:
@@ -220,8 +225,11 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
                 info_files = [f for f in zf.namelist() if f.endswith("INFOTABLE.tsv")]
                 if not info_files:
-                    logger.warning(f"[13F] No INFOTABLE.tsv in ZIP from {source_url}")
-                    return {}
+                    raise ValueError(
+                        f"[13F CRITICAL] No INFOTABLE.tsv found in SEC bulk ZIP from {source_url}. "
+                        f"ZIP structure invalid or SEC data format changed. "
+                        f"Will fall back to per-manager aggregation."
+                    )
 
                 for info_file in info_files:
                     logger.debug(f"[13F] Parsing {info_file}...")
@@ -241,9 +249,15 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 logger.info(f"[13F] Aggregated {len(holdings_by_ticker)} tickers from bulk data")
                 return holdings_by_ticker
 
+        except ValueError as ve:
+            logger.warning(f"[13F] Bulk parse validation failed: {ve}")
+            raise
         except Exception as e:
-            logger.debug(f"[13F] Bulk parse failed: {e}")
-            return {}
+            logger.error(f"[13F CRITICAL] Bulk ZIP parsing crashed: {type(e).__name__}: {str(e)[:200]}")
+            raise RuntimeError(
+                f"[13F] Failed to parse bulk 13F ZIP from {source_url}: {type(e).__name__}. "
+                f"This indicates corrupted SEC data or network issue. Will fall back to per-manager aggregation."
+            ) from e
 
     def _generate_marketcap_estimates(self, filing_date: date) -> list[dict[str, Any]]:
         """Generate institutional ownership estimates based on company market cap.

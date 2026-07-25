@@ -599,8 +599,16 @@ def _get_candidates_from_buysell(
                     # "signal has None quality_score" errors. Filter them out right here.
                     candidates = [c for c in candidates if c.get("signal_quality_score") is not None]
                     if not candidates:
-                        logger.warning(f"[PHASE 7] All candidates filtered out due to missing signal quality scores")
-                        return []
+                        msg = (
+                            "[PHASE 7 CRITICAL] All buy_sell_daily candidates filtered out due to missing signal_quality_score. "
+                            "This indicates: (1) Score computation failed in Phase 7 scorer initialization, "
+                            "(2) All signal_quality_scores in buy_sell_daily are unexpectedly NULL, or "
+                            "(3) Signal source has no records. Check: (1) signal quality scorer logs, "
+                            "(2) buy_sell_daily scoring status, (3) upstream loader completion."
+                        )
+                        logger.critical(msg)
+                        log_phase_result_fn(7, "signal_generation", "halt", msg)
+                        raise RuntimeError(msg)
                     logger.info(f"[PHASE 7] After filtering: {len(candidates)} candidates remain")
 
             # CRITICAL FIX: Write computed signal_quality_scores back to buy_sell_daily

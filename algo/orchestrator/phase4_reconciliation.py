@@ -141,7 +141,19 @@ def run(
                 # above (already used for errors_found below) was sitting right here unused.
                 # This audit table exists specifically so an operator can see reconciliation
                 # health over time - a constant 100% defeats that purpose.
-                mismatches_count = partial_fill_result.get("mismatches", 0)
+                if "mismatches" not in partial_fill_result:
+                    raise RuntimeError(
+                        f"[PHASE 4 CRITICAL] partial_fill_result missing 'mismatches' key. "
+                        f"Result structure: {partial_fill_result}. "
+                        f"Cannot calculate reconciliation match_pct without mismatch count. "
+                        f"Check DailyReconciliation.check_partial_fills() return value."
+                    )
+                mismatches_count = partial_fill_result["mismatches"]
+                if not isinstance(mismatches_count, int) or mismatches_count < 0:
+                    raise RuntimeError(
+                        f"[PHASE 4 CRITICAL] partial_fill_result['mismatches'] invalid: {mismatches_count!r}. "
+                        f"Expected non-negative int. Cannot calculate reconciliation match_pct."
+                    )
 
                 # CRITICAL FIX: Session 345 - If auth was unavailable, reconciliation didn't actually run.
                 # Don't record 100% match when check was skipped. Use NULL to indicate check was skipped.
@@ -198,7 +210,7 @@ def run(
             # positions_count/match_pct being computed right above for the audit-log INSERT.
             result["sync_count"] = positions_count
             result["avg_match_pct"] = match_pct
-            result["errors_found"] = partial_fill_result.get("mismatches", 0)
+            result["errors_found"] = mismatches_count
             validate_phase_data(4, result)
             return PhaseResult(4, "reconciliation", "ok", result, False, None)
         else:

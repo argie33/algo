@@ -1709,11 +1709,12 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
             """)
             grades_r = cur.fetchone()
-            grades = (
-                safe_json_serialize(safe_dict_convert(grades_r))
-                if grades_r
-                else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
-            )
+            if grades_r is None:
+                raise RuntimeError(
+                    "[DASHBOARD] Grade distribution query returned no result. Database connection lost or algo_signals table missing. "
+                    "Cannot fetch grade distribution."
+                )
+            grades = safe_json_serialize(safe_dict_convert(grades_r))
 
             # Near-misses: signals with decent scores (55-69 range)
             cur.execute("""
@@ -1759,9 +1760,19 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                   AND s.signal_quality_score >= 70
             """)
             count_row = cur.fetchone()
-            if count_row:
-                count_row = safe_dict_convert(count_row)
-            qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") else 0
+            if count_row is None:
+                raise RuntimeError(
+                    "[DASHBOARD] COUNT query returned no result. Database connection lost or algo_signals table missing. "
+                    "Cannot fetch qualifying signal count."
+                )
+            count_row = safe_dict_convert(count_row)
+            n_value = count_row.get("n")
+            if n_value is None:
+                raise RuntimeError(
+                    "[DASHBOARD] COUNT(*) returned None/NULL. This is impossible - COUNT() always returns 0+. "
+                    "Database schema or query result parsing corrupted."
+                )
+            qualifying_buy_count = int(n_value)
 
             freshness = check_data_freshness(cur, "algo_signals", "signal_date", warning_days=1)
             # Ensure freshness dict has dates as strings (check_data_freshness converts them, but be explicit)
@@ -1940,19 +1951,32 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
               AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
         """)
         summary_row = cur.fetchone()
-        summary = safe_json_serialize(safe_dict_convert(summary_row)) if summary_row else {}
+        if summary_row is None:
+            raise RuntimeError(
+                "[DASHBOARD] Score summary query returned no result. Database connection lost or stock_scores table missing. "
+                "Cannot fetch score distribution metrics."
+            )
+        summary = safe_json_serialize(safe_dict_convert(summary_row))
         avg_composite = summary.get("avg_composite")
+
+        # Validate all grade counts exist (they must - COUNT(*) always returns 0+)
+        for grade in ["a", "b", "c", "d"]:
+            if grade not in summary or summary[grade] is None:
+                raise RuntimeError(
+                    f"[DASHBOARD] Grade '{grade}' missing from score summary query. "
+                    f"Database schema or query result parsing corrupted. Summary: {summary}"
+                )
 
         response = {
             "top": top_scores,
             "total": len(top_scores),
-            "universe_total": summary.get("universe_total", len(top_scores)),
+            "universe_total": summary.get("universe_total"),
             "avg_composite": round(float(avg_composite), 1) if avg_composite is not None else None,
             "grades": {
-                "a": summary.get("a", 0),
-                "b": summary.get("b", 0),
-                "c": summary.get("c", 0),
-                "d": summary.get("d", 0),
+                "a": summary["a"],
+                "b": summary["b"],
+                "c": summary["c"],
+                "d": summary["d"],
             },
         }
 
