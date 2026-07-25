@@ -626,7 +626,14 @@ function RankingsTab({
                     background: isExpanded ? "var(--surface-2)" : "transparent",
                     transition: "background 0.2s",
                   }}
-                  onClick={() => setExpandedKey(isExpanded ? null : s.symbol)}
+                  onClick={() => {
+                    if (isExpanded) {
+                      setExpandedKey(null);
+                    } else {
+                      onExpand(s.symbol);
+                      setExpandedKey(s.symbol);
+                    }
+                  }}
                 >
                   <div style={{ width: 28, fontWeight: "600", fontSize: "0.9rem", color: "var(--text-secondary)" }}>
                     {isExpanded ? "▼" : "▶"}
@@ -657,7 +664,7 @@ function RankingsTab({
                 {isExpanded && (
                   <div style={{ padding: "var(--space-4)", borderBottom: "2px solid var(--brand)", background: "var(--surface-1)" }}>
                     <StockScoreAccordion
-                      stocks={[s]}
+                      stocks={[detail && selectedSymbol === s.symbol ? detail : s]}
                       marketAvgs={marketAvgs}
                       sectorAvgs={computeSectorAvgs(all, s.sector)}
                     />

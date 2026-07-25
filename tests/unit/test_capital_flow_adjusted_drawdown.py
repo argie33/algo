@@ -13,9 +13,9 @@ from algo.infrastructure.reconciliation import _compute_adjusted_drawdown
 def test_withdrawal_does_not_inflate_drawdown() -> None:
     """A $20k withdrawal must be backed out of the peak, not counted as a loss."""
     cur = MagicMock()
-    # First call: SUM(amount) of flows <= reconcile_date -> -20000 (one withdrawal recorded)
+    # First call: COUNT(*), SUM(amount) of flows <= reconcile_date -> (1, -20000) (one withdrawal recorded)
     # Second call: MAX(adjusted_equity) of prior snapshots -> prior peak was 100000
-    cur.fetchone.side_effect = [(-20000.0,), (100000.0,)]
+    cur.fetchone.side_effect = [(1, -20000.0), (100000.0,)]
 
     portfolio_value = 80000.0  # raw equity dropped from 100k to 80k purely from the withdrawal
     net_flow, adjusted_peak, adjusted_dd = _compute_adjusted_drawdown(cur, "2026-01-01", portfolio_value)
@@ -29,7 +29,9 @@ def test_withdrawal_does_not_inflate_drawdown() -> None:
 def test_real_trading_loss_still_shows_as_drawdown() -> None:
     """With no capital flows, a genuine equity decline must still register normally."""
     cur = MagicMock()
-    cur.fetchone.side_effect = [(0.0,), (100000.0,)]
+    # First call: COUNT(*), SUM(amount) -> (0, None) when no capital flows
+    # Second call: MAX(adjusted_equity) -> prior peak was 100000
+    cur.fetchone.side_effect = [(0, None), (100000.0,)]
 
     portfolio_value = 85000.0  # genuine 15% trading loss, no withdrawals
     net_flow, adjusted_peak, adjusted_dd = _compute_adjusted_drawdown(cur, "2026-01-01", portfolio_value)
