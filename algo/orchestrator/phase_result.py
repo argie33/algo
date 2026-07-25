@@ -79,7 +79,8 @@ class PhaseResult:
 
     @property
     def ok(self) -> bool:
-        # "ok" and "degraded" are both successful states
+        # "ok", "degraded", and "skipped" are successful states
         # "degraded" means the phase worked but produced suboptimal results
+        # "skipped" means phase intentionally didn't run (due to upstream halt)
         # Only "error", "halted", "fail" are actual failures
-        return self.status in ("ok", "degraded")
+        return self.status in ("ok", "degraded", "skipped")
