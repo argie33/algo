@@ -607,7 +607,6 @@ def _get_candidates_from_buysell(
                             "(2) buy_sell_daily scoring status, (3) upstream loader completion."
                         )
                         logger.critical(msg)
-                        log_phase_result_fn(7, "signal_generation", "halt", msg)
                         raise RuntimeError(msg)
                     logger.info(f"[PHASE 7] After filtering: {len(candidates)} candidates remain")
 
