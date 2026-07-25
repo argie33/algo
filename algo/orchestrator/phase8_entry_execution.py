@@ -841,7 +841,13 @@ def run(
     # Fetch portfolio value once - avoids one Alpaca API call per symbol
     # CRITICAL FIX: Use database snapshot for atomic value, not live Alpaca fetch
     # Prevents: stale value being used for position sizing if API times out and fallback activates
-    execution_mode = config.get("execution_mode", "paper")
+    execution_mode = config.get("execution_mode")
+    if execution_mode is None:
+        raise ValueError(
+            "[PHASE 8 CRITICAL] execution_mode config missing. "
+            "Cannot determine trading mode (live vs paper). "
+            "Set explicit execution_mode in algo_config table."
+        )
     portfolio_value = None
     portfolio_value_source = None
 
@@ -918,7 +924,13 @@ def run(
     # Now: explicit validation with actionable error messages
     alpaca_key = None
     alpaca_secret = None
-    execution_mode = config.get("execution_mode", "paper")
+    execution_mode = config.get("execution_mode")
+    if execution_mode is None:
+        raise ValueError(
+            "[PHASE 8 CRITICAL] execution_mode config missing. "
+            "Cannot determine trading mode (live vs paper). "
+            "Set explicit execution_mode in algo_config table."
+        )
 
     try:
         from config.credential_manager import get_credential_manager
@@ -1419,7 +1431,21 @@ def run(
             # - NULL means signal quality was never computed (upstream data incomplete)
             # - Accepting NULL bypasses the entire quality gate, causing losses
             # - Require explicit quality score for all entries (fail-closed principle)
-            min_sqs = config.get("min_signal_quality_score", 60)
+            min_sqs_val = config.get("min_signal_quality_score")
+            if min_sqs_val is None:
+                raise ValueError(
+                    "[PHASE 8 CRITICAL] min_signal_quality_score config missing. "
+                    "Cannot gate entry quality without threshold. "
+                    "Set explicit min_signal_quality_score in algo_config table (recommended: 60-75)."
+                )
+            try:
+                min_sqs = int(min_sqs_val)
+                if min_sqs < 0 or min_sqs > 100:
+                    raise ValueError(f"min_signal_quality_score must be 0-100, got {min_sqs}")
+            except (ValueError, TypeError) as e:
+                raise ValueError(
+                    f"[PHASE 8 CRITICAL] min_signal_quality_score is invalid ({min_sqs_val}): {e}"
+                ) from e
             if sqs is None:
                 rejection_reason = f"Signal quality score unavailable (NULL) - cannot trade without quality validation"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
