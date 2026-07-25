@@ -174,32 +174,24 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
         # instead of recomputing trading day verification for each symbol.
-        if self._batch_context and "end_date" in self._batch_context:
-            end = self._batch_context["end_date"]
-        else:
-            # Fallback if batch context unavailable
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            end = now_et.date()
+        # CRITICAL: Fail-fast if batch context unavailable - do NOT silently re-compute.
+        # Batch context must be prepared before fetch_incremental() is called.
+        # Silent fallback would mask batch preparation failures (e.g., buy_sell_daily not ready).
+        if not self._batch_context:
+            raise RuntimeError(
+                "[SIGNAL_QUALITY_SCORES] CRITICAL: Batch context not initialized. "
+                "The _prepare_batch_context() method must be called before fetch_incremental(). "
+                "Cannot proceed with score computation - batch initialization failure must be visible."
+            )
 
-            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
-                end = end - timedelta(days=1)
+        if "end_date" not in self._batch_context:
+            raise RuntimeError(
+                "[SIGNAL_QUALITY_SCORES] CRITICAL: Batch context missing 'end_date'. "
+                "Batch preparation did not complete properly. "
+                "Cannot compute signal quality scores without verified end_date."
+            )
 
-            # Fallback: check buy_sell_daily max date if batch context failed
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT MAX(date) FROM buy_sell_daily WHERE signal_type IN ('BUY', 'SELL') AND date <= %s",
-                        (end,),
-                    )
-                    row = cur.fetchone()
-                    last_bs_date = row[0] if row is not None and row[0] is not None else None
-                    if last_bs_date:
-                        last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
-                        if last_bs and last_bs < end:
-                            end = last_bs
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.debug(f"Could not check buy_sell_daily max date: {e}")
+        end = self._batch_context["end_date"]
 
         # On ECS restart the in-memory watermark is empty, so since=None.
         # Use cached watermarks from batch context (loaded once for all symbols).
