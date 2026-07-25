@@ -104,11 +104,11 @@ def analyze_latest_run():
 
             cur.execute(
                 """
-                SELECT DISTINCT action_type, status, details
+                SELECT DISTINCT ON (action_type, status) action_type, status, details
                 FROM algo_audit_log
                 WHERE details @> %s
                 AND status IN ('warn', 'error', 'halt')
-                ORDER BY created_at DESC
+                ORDER BY action_type, status, created_at DESC
                 """,
                 (json.dumps({"run_id": run_id}),),
             )

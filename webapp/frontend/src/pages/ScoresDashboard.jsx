@@ -898,11 +898,15 @@ function _formatReasonDisplay(reason) {
     missing_sec_data: "No SEC data",
     insufficient_history: "Insufficient history",
     no_analyst_estimates: "Analyst data unavailable",
+    analyst_estimates_not_in_sec_filings: "Analyst data not in SEC",
     ebitda_not_extracted: "Not extracted",
+    depreciation_amortization_not_loaded: "Depreciation/amortization not loaded",
     non_dividend_paying_stock: "Non-dividend payer",
     api_error: "Data fetch error",
     unprofitable_stock: "Unprofitable stock",
     missing_price_or_shares: "Missing price/shares",
+    missing_finra_data: "FINRA data unavailable",
+    missing_price_data: "Price data unavailable",
   };
   return reasonMap[reason] || reason;
 }

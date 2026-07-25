@@ -25,22 +25,17 @@ python start_dashboard_dev.py
 python start_dashboard_dev.py -w 30
 ```
 
-**What it does (all automatic):**
-1. Runs morning pipeline (fetches prices, technicals, market status) 
-2. Checks if stock scores (fundamentals) need refresh
-3. Runs metrics pipeline only if needed (first run or stale fundamentals)
-4. **CRITICAL FIX:** ALWAYS re-fetches closing prices + regenerates buy/sell signals (2026-07-21 bug fix)
-5. Starts dev_server on localhost:3001
-6. Starts dashboard with fresh data
-7. On exit (Ctrl+C), cleans up all processes
+**What it does:**
+1. Fetches prices, technicals, market status
+2. Refreshes scores if needed
+3. Regenerates buy/sell signals (critical: always runs to avoid stale signals)
+4. Starts dev_server on localhost:3001
+5. Starts dashboard, cleans up on exit
 
 **First run:** 20-30 minutes (includes metrics pipeline for 5000+ stocks)  
 **Subsequent runs:** 5-10 minutes (skips metrics if fundamentals already fresh)
 
-**Why this is the ONLY correct way:**
-- Pre-2026-07-21: Buy/sell signals were FROZEN after first metrics run (signals pipeline was buried inside metrics, skipped by completeness gate). Dashboard showed stale signals.
-- Post-2026-07-21: Signals pipeline always runs separately, guarantees fresh trading signals every launch.
-- Manual setups inevitably skip a pipeline or run them out of order.
+This approach ensures buy/sell signals regenerate with fresh prices every time (prior bug: signals frozen after metrics run).
 
 ### AWS Mode (Production/Cloud)
 
@@ -98,13 +93,10 @@ This checks:
 
 ## System Status
 
-- **Database:** PostgreSQL, 8.6M+ prices, fresh data
-- **Dashboard (AWS):** ✅ Fully operational with Cognito authentication, credentials auto-loaded from Secrets Manager
-- **Dashboard (Local Dev):** ✅ All 26 fetchers working when using `--local` flag or detected localhost + dev_server running
-- **Dashboard Startup:** ✅ Defaults to AWS (if configured), respects `--local` flag, auto-detects localhost
-- **Circuit Breaker:** ✅ All 9 circuit breaker metrics available, auto-reset on dashboard startup
-- **Dev Server:** ✅ Startup validation included - fails fast with clear instructions
-- **Production Orchestrator:** ✅ Fully operational, manual triggers work. AWS EventBridge Scheduler setup pending.
+- **Database:** PostgreSQL, 8.6M+ prices
+- **Dashboard:** ✅ Operational (AWS + local dev)
+- **Dev Server:** ✅ Validation included
+- **Orchestrator:** ✅ All 9 phases operational
 
 ## Running Orchestrator
 
@@ -192,44 +184,6 @@ python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
 3. Fix: `python scripts/local_loader_scheduler.py --now morning` (manual refresh - see note above, `run_local_orchestrator.py` does not fetch data)
 4. See: `steering/LOADER_RECOVERY_GUIDE.md` (detailed recovery steps)
 
-## Critical Architecture: Why start_dashboard_dev.py is THE ONLY correct way
-
-**The Problem (Pre 2026-07-21):**
-
-Buy/sell signals were FROZEN if you ran loaders manually or out of order:
-1. First time you run `python start_dashboard_dev.py`: Signals pipeline regenerates signals ✓
-2. If you then manually run `python scripts/local_loader_scheduler.py --now morning` a second time
-   → Signals pipeline is skipped (it's only in the unified launcher)
-   → Prices refresh but signals DON'T
-   → Dashboard shows fresh prices but stale buy/sell signals ✗
-
-**Why `start_dashboard_dev.py` is the only solution:**
-
-Loader pipelines have dependencies:
-```
-morning (prices, technicals)
-    ↓
-signals (ALWAYS run - regenerates buy/sell from fresh prices)
-    ↓
-metrics (slow SEC data - conditional, skipped if already complete)
-```
-
-Running them individually breaks the invariant: **signals must regenerate whenever prices refresh**.
-
-**The `start_dashboard_dev.py` fix (2026-07-21):**
-- Moved signals pipeline OUT of metrics
-- Made signals ALWAYS run (never skipped)
-- Consolidated into unified launcher with explicit ordering
-- Dashboard now guarantees fresh signals on every launch
-
-**If you bypass the unified launcher, you risk:**
-- Stale buy/sell signals (most common issue)
-- Incomplete price data (if morning pipeline fails)
-- Corrupted reconciliation (if orchestrator runs on partial data)
-
-**Safe way forward:** Always use `python start_dashboard_dev.py` for local dev.
-
----
 
 ## Non-Negotiable Rules
 
