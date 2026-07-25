@@ -243,13 +243,17 @@ class TradeValidator:
         return True, None, result_dict
 
     def check_duplicate_position(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
+        # CRITICAL FIX: Check algo_trades not algo_positions. The database constraint
+        # algo_trades_symbol_open_positions_idx prevents duplicate OPEN trades at algo_trades level.
+        # Checking algo_positions only catches manually-tracked positions but misses entries
+        # that have already been inserted into algo_trades with status='open'.
         cur.execute(
             """
-            SELECT symbol FROM algo_positions
+            SELECT trade_id FROM algo_trades
             WHERE symbol = %s AND status = %s
             LIMIT 1
             """,
-            (symbol, PositionStatus.OPEN.value),
+            (symbol, "open"),
         )
         if cur.fetchone():
             return (
