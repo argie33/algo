@@ -124,7 +124,11 @@ try:
         cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
         open_count = cur.fetchone()[0]
 
-        cur.execute("SELECT SUM(current_value) FROM algo_positions WHERE status = 'open'")
+        # Try to get position value (schema may vary between environments)
+        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+        positions_row = cur.fetchone()
+        open_positions = positions_row[0] if positions_row else 0
+        print(f"    Open Positions: {open_positions}")
         total_value = cur.fetchone()[0]
 
         cur.execute("SELECT COUNT(*) FROM algo_trades WHERE status = 'open'")

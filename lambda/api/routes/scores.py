@@ -631,7 +631,6 @@ def _get_stock_scores(
                 "page": (offset // limit) + 1 if limit > 0 else 1,
                 "totalPages": ((estimated_total - 1) // limit) + 1 if limit > 0 else 1,
             },
-            "_marker": "NEW_FORMAT_SESSION_302",
         }
         if freshness:
             result["data_freshness"] = freshness
