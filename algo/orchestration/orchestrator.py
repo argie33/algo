@@ -1979,7 +1979,7 @@ class Orchestrator:
             "run_id": self.run_id,
             "run_date": self.run_date.isoformat(),
             "phases": [{"phase": n, **info} for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))],
-            "success": not (any_error or any_halt or any_degraded or any_skipped or any_blocked),
+            "success": not (any_error or any_halt or any_degraded or any_skipped),  # blocked handled separately below
             "halted": any_halt,  # Only actual halts (circuit breaker, errors) - not degraded/skipped
             "skipped": any_halt or any_degraded or any_skipped or any_blocked,  # Required by Lambda handler
             "reason": skip_reason or "none",  # Required by Lambda handler
@@ -2062,6 +2062,10 @@ class Orchestrator:
             else:
                 overall_status = "success"
                 halt_reason = None
+
+            # Update result dict to reflect overall_status determination
+            # (especially for blocked guards that ended up as ok_status)
+            result["success"] = overall_status in ("success", "ok")
 
             self.execution_tracker.save_execution_log(overall_status, halt_reason)
 
