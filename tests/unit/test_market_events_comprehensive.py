@@ -28,6 +28,9 @@ class TestMarketEventHandlerInit:
         mock_cred_manager.return_value = mock_cm
 
         config = MagicMock()
+        config.get.side_effect = lambda key, default=None: {
+            "execution_mode": "paper"
+        }.get(key, default)
         handler = MarketEventHandler(config)
 
         assert handler.config == config
@@ -44,10 +47,10 @@ class TestMarketEventHandlerInit:
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
         mock_cred_manager.return_value = mock_cm
 
-        config = {"threshold": 0.05}
+        config = {"threshold": 0.05, "execution_mode": "paper"}
         handler = MarketEventHandler(config)
 
-        assert handler.config == {"threshold": 0.05}
+        assert handler.config == {"threshold": 0.05, "execution_mode": "paper"}
 
 
 class TestCheckSingleStockHalt:
@@ -70,7 +73,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "HALTED", "tradable": False}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("AAPL")
 
         assert result is not None
@@ -97,7 +100,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "INACTIVE", "tradable": True}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("XYZ")
 
         assert result is not None
@@ -121,7 +124,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "ACTIVE", "tradable": True}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("AAPL")
 
         assert result is not None
@@ -146,7 +149,7 @@ class TestCheckSingleStockHalt:
         mock_response.status_code = 404
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("INVALID")
 
         # Code catches RuntimeError and returns error dict (graceful degradation)
@@ -171,7 +174,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.side_effect = json.JSONDecodeError("msg", "doc", 0)
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches RuntimeError and returns error dict (graceful degradation)
@@ -196,7 +199,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"tradable": True}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches ValueError and returns error dict (graceful degradation)
@@ -222,7 +225,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "ACTIVE"}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches ValueError and returns error dict (graceful degradation)
@@ -245,7 +248,7 @@ class TestCheckSingleStockHalt:
 
         mock_get.side_effect = requests.Timeout("Connection timed out")
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches Timeout and returns error dict (graceful degradation)
@@ -287,7 +290,7 @@ class TestCheckMarketCircuitBreaker:
             MagicMock(result=lambda t: fetch_bars()),
         ]
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
 
         # We need to mock the thread pool execution
         with patch("algo.infrastructure.market_events.ThreadPoolExecutor") as mock_pool:
@@ -330,7 +333,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({})
+            handler = MarketEventHandler({"execution_mode": "paper"})
             result = handler.check_market_circuit_breaker()
 
         assert result is not None
@@ -359,7 +362,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({})
+            handler = MarketEventHandler({"execution_mode": "paper"})
             result = handler.check_market_circuit_breaker()
 
         assert result is not None
@@ -388,7 +391,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({})
+            handler = MarketEventHandler({"execution_mode": "paper"})
             result = handler.check_market_circuit_breaker()
 
         assert result is None
@@ -402,7 +405,7 @@ class TestCheckMarketCircuitBreaker:
         mock_cm.get_alpaca_credentials.return_value = {"key": None, "secret": None}
         mock_cred_manager.return_value = mock_cm
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         handler.alpaca_key = None
         handler.alpaca_secret = None
 
@@ -434,7 +437,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({})
+            handler = MarketEventHandler({"execution_mode": "paper"})
             result = handler.check_market_circuit_breaker()
 
             # Code catches RuntimeError and returns error dict (graceful degradation)
@@ -460,7 +463,7 @@ class TestCheckEarlyClose:
         mock_cursor.fetchone.return_value = (True,)
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         check_date = date(2024, 11, 29)  # Day after Thanksgiving
         result = handler.check_early_close(check_date)
 
@@ -480,7 +483,7 @@ class TestCheckEarlyClose:
         mock_cursor.fetchone.return_value = (False,)
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         check_date = date(2024, 11, 27)  # Regular trading day
         result = handler.check_early_close(check_date)
 
@@ -500,7 +503,7 @@ class TestCheckEarlyClose:
         mock_cursor.fetchone.return_value = None
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         check_date = date(2024, 11, 27)
 
         with pytest.raises(RuntimeError, match="Cannot verify early close status"):
@@ -524,7 +527,7 @@ class TestCheckAfterHoursWindow:
         mock_cursor.fetchone.return_value = (False,)  # Not an early close
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
 
         # Create an Eastern time at 15:45
         from utils.infrastructure import EASTERN_TZ
@@ -548,7 +551,7 @@ class TestCheckAfterHoursWindow:
         mock_cursor.fetchone.return_value = (False,)
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
 
         from utils.infrastructure import EASTERN_TZ
 
@@ -571,7 +574,7 @@ class TestCheckAfterHoursWindow:
         mock_cursor.fetchone.return_value = (True,)  # Early close day
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
 
         from utils.infrastructure import EASTERN_TZ
 
@@ -594,7 +597,7 @@ class TestCheckAfterHoursWindow:
         mock_cursor.fetchone.return_value = (True,)
         mock_db.return_value.__enter__.return_value = mock_cursor
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
 
         from utils.infrastructure import EASTERN_TZ
 
@@ -621,7 +624,7 @@ class TestHandleSingleStockHalt:
         mock_db.return_value.__enter__.return_value = mock_cursor
         mock_db.return_value.__exit__.return_value = None
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.handle_single_stock_halt("AAPL")
 
         assert result is not None
@@ -654,7 +657,7 @@ class TestCheckDelisting:
         mock_response.json.return_value = {"status": "DELISTED"}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_delisting("OldStock")
 
         assert result is not None
@@ -680,7 +683,7 @@ class TestCheckDelisting:
         mock_response.json.return_value = {"status": "INACTIVE"}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_delisting("OLDSTOCK")
 
         assert result is not None
@@ -704,7 +707,7 @@ class TestCheckDelisting:
         mock_response.json.return_value = {"status": "ACTIVE"}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         result = handler.check_delisting("AAPL")
 
         assert result is None
@@ -722,7 +725,7 @@ class TestRunPreMarketChecks:
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
         mock_cred_manager.return_value = mock_cm
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
 
         # Mock the actual methods since ThreadPoolExecutor is hard to mock
         with (
@@ -748,7 +751,7 @@ class TestRunPreMarketChecks:
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
         mock_cred_manager.return_value = mock_cm
 
-        handler = MarketEventHandler({})
+        handler = MarketEventHandler({"execution_mode": "paper"})
         cb_result = {
             "level": 1,
             "description": "7%+ down - 15-minute halt",
