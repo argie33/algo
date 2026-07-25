@@ -991,7 +991,9 @@ def _get_portfolio_summary(cur: cursor) -> Any:
         logger.error(f"Cannot convert portfolio fields to numeric types: {e}")
         return error_response(503, "incomplete_data", "Portfolio snapshot has invalid numeric fields")
 
-    daily_change_dollars = (daily_return_pct / 100 * total_value) if total_value is not None and daily_return_pct is not None else None
+    daily_change_dollars = (
+        (daily_return_pct / 100 * total_value) if total_value is not None and daily_return_pct is not None else None
+    )
 
     # Check `is not None`, not falsiness (see comment above): cash=$0.00 (fully invested),
     # invested=$0.00 (all cash), and daily_return_pct=0.00% (flat day) are all valid, common

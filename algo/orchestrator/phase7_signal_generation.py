@@ -651,15 +651,20 @@ def _get_candidates_from_buysell(
                     for symbol, signal_date in backfill_rows:
                         try:
                             with DatabaseContext("read") as cur_tech:
-                                cur_tech.execute("""
+                                cur_tech.execute(
+                                    """
                                     SELECT rsi, macd, macd_signal
                                     FROM technical_data_daily
                                     WHERE symbol = %s AND date = %s
-                                """, (symbol, signal_date))
+                                """,
+                                    (symbol, signal_date),
+                                )
                                 tech_row = cur_tech.fetchone()
 
                             if not tech_row:
-                                logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
+                                logger.debug(
+                                    f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping"
+                                )
                                 continue
 
                             rsi, macd, macd_signal = tech_row
@@ -679,12 +684,17 @@ def _get_candidates_from_buysell(
                         try:
                             with DatabaseContext("write") as cur_write:
                                 for sqs, entry_sqs, symbol, signal_date in backfill_scores:
-                                    cur_write.execute("""
+                                    cur_write.execute(
+                                        """
                                         UPDATE buy_sell_daily
                                         SET signal_quality_score = %s, entry_quality_score = %s
                                         WHERE symbol = %s AND date = %s AND signal_quality_score IS NULL
-                                    """, (sqs, entry_sqs, symbol, signal_date))
-                            logger.info(f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily")
+                                    """,
+                                        (sqs, entry_sqs, symbol, signal_date),
+                                    )
+                            logger.info(
+                                f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily"
+                            )
                         except Exception as write_bf_e:
                             logger.warning(f"[PHASE 7 BACKFILL] Failed to write backfill scores: {write_bf_e}")
             except Exception as bf_outer_e:
@@ -835,6 +845,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # Check if latest_buysell_date is from the most recent trading day
             # Walk backwards from run_date to find the most recent trading day
             from algo.infrastructure import MarketCalendar
+
             most_recent_trading_day = run_date
             check_iterations = 0
             while most_recent_trading_day > run_date - timedelta(days=10) and check_iterations < 10:
@@ -862,7 +873,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
 
             is_trading_today = MarketCalendar.is_trading_day(run_date)
             data_is_from_recent_trading_day = latest_buysell_date >= previous_trading_day
-            data_is_within_window = (latest_buysell_date >= run_date - timedelta(days=4))  # 4-day window covers weekends
+            data_is_within_window = latest_buysell_date >= run_date - timedelta(days=4)  # 4-day window covers weekends
 
             acceptable_staleness = data_is_from_recent_trading_day or (not is_trading_today and data_is_within_window)
 
@@ -912,9 +923,8 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # defined but never checked, so a drop from the typical 300+/day to a handful of
             # signals silently passed through as "OK" - same underlying failure modes as the
             # zero-signal case above (upstream loader degradation), just not total.
-            if (
-                0 < today_count < _SIGNAL_COUNT_ANOMALY_THRESHOLD
-                and latest_buysell_date >= run_date - timedelta(days=1)
+            if 0 < today_count < _SIGNAL_COUNT_ANOMALY_THRESHOLD and latest_buysell_date >= run_date - timedelta(
+                days=1
             ):
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has only {today_count} "
@@ -1011,7 +1021,7 @@ def run(  # noqa: C901
         score_result = loader.run(
             symbols=all_symbols,
             parallelism=8,
-            backfill_days=60  # Recompute all symbols for last 60 days (overrides watermarks)
+            backfill_days=60,  # Recompute all symbols for last 60 days (overrides watermarks)
         )
         symbols_failed = score_result.get("symbols_failed", 0)
         if symbols_failed > 0:
@@ -1049,11 +1059,14 @@ def run(  # noqa: C901
             for symbol, signal_date in backfill_rows:
                 try:
                     with DatabaseContext("read") as cur_tech:
-                        cur_tech.execute("""
+                        cur_tech.execute(
+                            """
                             SELECT rsi, macd, macd_signal
                             FROM technical_data_daily
                             WHERE symbol = %s AND date = %s
-                        """, (symbol, signal_date))
+                        """,
+                            (symbol, signal_date),
+                        )
                         tech_row = cur_tech.fetchone()
 
                     if not tech_row:
@@ -1077,11 +1090,14 @@ def run(  # noqa: C901
                 try:
                     with DatabaseContext("write") as cur_write:
                         for sqs, entry_sqs, symbol, signal_date in backfill_scores:
-                            cur_write.execute("""
+                            cur_write.execute(
+                                """
                                 UPDATE buy_sell_daily
                                 SET signal_quality_score = %s, entry_quality_score = %s
                                 WHERE symbol = %s AND date = %s AND signal_quality_score IS NULL
-                            """, (sqs, entry_sqs, symbol, signal_date))
+                            """,
+                                (sqs, entry_sqs, symbol, signal_date),
+                            )
                     logger.info(f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily")
                 except Exception as write_bf_e:
                     logger.warning(f"[PHASE 7 BACKFILL] Failed to write backfill scores: {write_bf_e}")
@@ -1192,7 +1208,9 @@ def run(  # noqa: C901
             logger.warning(msg)
             log_phase_result_fn(7, "signal_generation", "no_signals", msg)
             # Report truth: no trades generated (degraded state, not success)
-            return PhaseResult(7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
+            return PhaseResult(
+                7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
+            )
     except ValueError as e:
         # CONSISTENCY FIX #2: Validation errors now raise exceptions (not silent degradation)
         # Categorize as DATA_INVALID so operators know why signals are missing
@@ -1251,7 +1269,9 @@ def run(  # noqa: C901
         )
         logger.warning(msg)
         log_phase_result_fn(7, "signal_generation", "no_signals", msg)
-        return PhaseResult(7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
+        return PhaseResult(
+            7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
+        )
 
     # All trend and close quality validation happens at SQL level in _get_candidates_from_buysell().
     # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality.

@@ -110,7 +110,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     ORDER BY filing_date DESC
                     LIMIT 1
                     """,
-                    (symbol,)
+                    (symbol,),
                 )
                 row = cur.fetchone()
 
@@ -175,6 +175,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             # Last day of month: 31, 30, 30, 31 for Mar, Jun, Sep, Dec
             # Use date arithmetic: first day of next month - 1 day
             from datetime import timedelta
+
             return date(year, month + 1, 1) - timedelta(days=1)
 
     def _fetch_sec_13f_bulk(self, year: int, quarter: int) -> dict[str, int]:
@@ -193,10 +194,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             logger.info(f"[13F] Attempting bulk dataset: {url}")
 
             try:
-                req = urllib.request.Request(
-                    url,
-                    headers={"User-Agent": "algo-trading argeropolos@gmail.com"}
-                )
+                req = urllib.request.Request(url, headers={"User-Agent": "algo-trading argeropolos@gmail.com"})
                 with urllib.request.urlopen(req, timeout=30) as response:
                     zip_data = response.read()
 
@@ -228,10 +226,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 for info_file in info_files:
                     logger.debug(f"[13F] Parsing {info_file}...")
                     with zf.open(info_file) as f:
-                        reader = csv.DictReader(
-                            io.TextIOWrapper(f, encoding="utf-8"),
-                            delimiter="\t"
-                        )
+                        reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
                         for row in reader:
                             try:
                                 ticker = row.get("ticker", "").strip().upper()
@@ -269,14 +264,12 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 # Get all stocks with available data
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT symbol, shares_outstanding
                     FROM company_info_sec
                     WHERE data_unavailable = FALSE AND shares_outstanding > 0
                     ORDER BY shares_outstanding DESC
-                    """
-                )
+                    """)
                 symbols = cur.fetchall()
 
             logger.info(f"[13F] Estimating ownership for {len(symbols)} active symbols...")
@@ -381,9 +374,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                                 "updated_at": now_et,
                             }
                         )
-                        logger.debug(
-                            f"[13F] {ticker}: {inst_shares:,.0f} / {shares_os:,.0f} = {pct:.1f}%"
-                        )
+                        logger.debug(f"[13F] {ticker}: {inst_shares:,.0f} / {shares_os:,.0f} = {pct:.1f}%")
                     else:
                         logger.debug(f"[13F] {ticker}: skipped (shares_outstanding unavailable)")
                 except Exception as e:

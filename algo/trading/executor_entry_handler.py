@@ -824,7 +824,9 @@ class EntryHandler:
         if context.sqs is not None:
             logger.debug(f"[ENTRY_HANDLER] {symbol}: sqs={context.sqs} type={type(context.sqs).__name__}")
         else:
-            logger.warning(f"[ENTRY_HANDLER] {symbol}: sqs is None in TradeContext - this will result in NULL signal_quality_score in database")
+            logger.warning(
+                f"[ENTRY_HANDLER] {symbol}: sqs is None in TradeContext - this will result in NULL signal_quality_score in database"
+            )
 
         trade_request = TradeInsertionRequest(
             trade_id=trade_id,
@@ -864,9 +866,9 @@ class EntryHandler:
             # transaction) satisfies it by commit time, but a trade whose order didn't fill
             # (e.g. "pending" in review mode) has no corresponding position ever, so
             # position_id must stay NULL for those.
-            position_id=position_id
-            if order_status in ("filled", "partially_filled", "paper_pending", "open")
-            else None,
+            position_id=(
+                position_id if order_status in ("filled", "partially_filled", "paper_pending", "open") else None
+            ),
         )
         self._insert_trade_record(cur, trade_request)
 

@@ -291,8 +291,12 @@ class RiskMetricsLoader(OptimalLoader):
                 if rows:
                     rows = [
                         (
-                            row[0].date() if hasattr(row[0], "date") else (
-                                date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
+                            (
+                                row[0].date()
+                                if hasattr(row[0], "date")
+                                else (
+                                    date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
+                                )
                             ),
                             row[1],
                         )
@@ -310,15 +314,25 @@ class RiskMetricsLoader(OptimalLoader):
                     )
                     spy_rows_raw = cur.fetchall()
                     # Normalize SPY dates to `date` objects for consistency
-                    spy_rows = [
-                        (
-                            row[0].date() if hasattr(row[0], "date") else (
-                                date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
-                            ),
-                            row[1],
-                        )
-                        for row in spy_rows_raw
-                    ] if spy_rows_raw else []
+                    spy_rows = (
+                        [
+                            (
+                                (
+                                    row[0].date()
+                                    if hasattr(row[0], "date")
+                                    else (
+                                        date(row[0].year, row[0].month, row[0].day)
+                                        if hasattr(row[0], "year")
+                                        else row[0]
+                                    )
+                                ),
+                                row[1],
+                            )
+                            for row in spy_rows_raw
+                        ]
+                        if spy_rows_raw
+                        else []
+                    )
 
             if not rows or len(rows) < 5:
                 actual_rows = len(rows) if rows else 0
@@ -341,12 +355,7 @@ class RiskMetricsLoader(OptimalLoader):
                     "reason_type": None if debt_to_assets is not None else "loader_failed",
                 }
 
-            prices = sorted(
-                [
-                    (row[0], float(row[1]))
-                    for row in rows
-                ]
-            )
+            prices = sorted([(row[0], float(row[1])) for row in rows])
 
             returns = []
             for i in range(1, len(prices)):

@@ -133,7 +133,9 @@ def _get_stock_scores(
             # Only return scores with >= 70% metric completeness per GOVERNANCE.md line 62.
             # stock_scores computes at >=50% but API must gate to >=70% for downstream use.
             # This prevents clients from receiving degraded data without visibility into completeness %.
-            where_clause += " AND sc.data_completeness >= 70 AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
+            where_clause += (
+                " AND sc.data_completeness >= 70 AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
+            )
 
         # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
         # per-symbol LATERAL lookups (price_daily/technical_data_daily) only against that
@@ -497,10 +499,12 @@ def _get_stock_scores(
             d = dict(row)
             # DEBUG: Log reason field presence for first item
             if len(items) == 0:
-                reason_fields = [k for k in d.keys() if 'unavailable_reason' in k]
+                reason_fields = [k for k in d.keys() if "unavailable_reason" in k]
                 logger.critical(f"[SCORES_API_DEBUG_DICT] {len(d)} keys in dict, {len(reason_fields)} reason fields")
                 logger.critical(f"[SCORES_API_DEBUG_REASONS] {reason_fields[:10]}")
-                logger.critical(f"[SCORES_API_DEBUG_FWD_PE] forward_pe_unavailable_reason={d.get('forward_pe_unavailable_reason')}")
+                logger.critical(
+                    f"[SCORES_API_DEBUG_FWD_PE] forward_pe_unavailable_reason={d.get('forward_pe_unavailable_reason')}"
+                )
 
             # CRITICAL FIX: Explicit data_unavailable flags for each metric
             # If a score metric is marked unavailable, include it as None (not synthetic value)
@@ -523,7 +527,9 @@ def _get_stock_scores(
             if "quality_inputs" in d:
                 logger.debug(f"Factor inputs added for {d.get('symbol')}")
             else:
-                logger.warning(f"Factor inputs NOT added for {d.get('symbol')} - quality_inputs missing after _build_factor_inputs call")
+                logger.warning(
+                    f"Factor inputs NOT added for {d.get('symbol')} - quality_inputs missing after _build_factor_inputs call"
+                )
 
             # Note: We include scores even if current prices are missing
             # Scores are computed from other factors; current price is optional for display
@@ -567,7 +573,7 @@ def _get_stock_scores(
                 "page": (offset // limit) + 1 if limit > 0 else 1,
                 "totalPages": ((estimated_total - 1) // limit) + 1 if limit > 0 else 1,
             },
-            "_marker": "NEW_FORMAT_SESSION_302"
+            "_marker": "NEW_FORMAT_SESSION_302",
         }
         if freshness:
             result["data_freshness"] = freshness

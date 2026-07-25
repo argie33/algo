@@ -61,6 +61,7 @@ class OrderManager:
         logger.info(
             f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f} to {self.alpaca_base_url}"
         )
+
         # CRITICAL: use Decimal.quantize(ROUND_HALF_UP), not Python's built-in round(), for every
         # price submitted to the broker. round() operates on binary float representation and uses
         # round-half-to-even - the classic round(2.675, 2) == 2.67 trap (2.675 isn't exactly
@@ -478,9 +479,7 @@ class OrderManager:
                     continue
 
             except (requests.RequestException, requests.Timeout) as e:
-                logger.warning(
-                    f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: API error (attempt {attempt}): {e}"
-                )
+                logger.warning(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: API error (attempt {attempt}): {e}")
                 time.sleep(poll_interval)
                 continue
 

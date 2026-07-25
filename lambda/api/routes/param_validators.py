@@ -6,6 +6,7 @@ Eliminates 200+ lines of repetitive validation boilerplate.
 Note: type: ignore comments suppress mypy false positives on self-referential
 static method calls within the class. The code is correct and type-safe.
 """
+
 # mypy: ignore-errors
 
 from __future__ import annotations

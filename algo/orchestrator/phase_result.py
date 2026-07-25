@@ -42,6 +42,7 @@ class PhaseResult:
         if phase_name is None and self.phase_num is not None:
             try:
                 from algo.orchestrator.phase_registry import PhaseRegistry
+
                 self.phase_name = PhaseRegistry.get_phase_name(self.phase_num)
             except Exception:
                 # Fallback: use provided phase_name or None if retrieval fails

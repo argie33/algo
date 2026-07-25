@@ -276,9 +276,7 @@ class PipelineHealth:
                 exact_cnt = (
                     int(exact_result.get("count", 0))
                     if isinstance(exact_result, dict)
-                    else int(exact_result[0])
-                    if exact_result
-                    else 0
+                    else int(exact_result[0]) if exact_result else 0
                 )
                 health.row_count = exact_cnt
             else:
@@ -491,10 +489,13 @@ class PipelineHealth:
                 if status.tables:
                     # Session 299 FIX: Fetch existing error_message for each table
                     # Only overwrite if health check found a NEW problem
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT table_name, error_message FROM data_loader_status
                         WHERE table_name = ANY(%s)
-                    """, (list(status.tables.keys()),))
+                    """,
+                        (list(status.tables.keys()),),
+                    )
                     existing_errors = {row[0]: row[1] for row in cur.fetchall()}
 
                     insert_values = [
@@ -510,10 +511,15 @@ class PipelineHealth:
                             # on the health panel even after the table has recovered.
                             # Otherwise (STALE/VERY_STALE/MISSING but not erroring), preserve
                             # whatever context was already recorded.
-                            table_health.error_message
+                            (
+                                table_health.error_message
                                 if table_health.status == HealthStatus.ERROR
-                                else (None if table_health.status == HealthStatus.HEALTHY
-                                      else existing_errors.get(table_health.table_name)),
+                                else (
+                                    None
+                                    if table_health.status == HealthStatus.HEALTHY
+                                    else existing_errors.get(table_health.table_name)
+                                )
+                            ),
                             # Was previously never written by any code path (a static value
                             # from a one-time seed insert, unrelated to the sla_days actually
                             # used to compute `status` above) - wire it to the real,

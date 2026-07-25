@@ -37,7 +37,9 @@ class LiquidityChecks:
             # trade) rather than fails open. A missing signal_date is no different - it
             # means we cannot verify ADV/dollar-volume/IPO-age, so silently passing here
             # would let an unvetted symbol through liquidity gating entirely.
-            logger.error(f"Liquidity checks unavailable for {symbol}: no signal_date provided - blocking as safety measure")
+            logger.error(
+                f"Liquidity checks unavailable for {symbol}: no signal_date provided - blocking as safety measure"
+            )
             return False, "Liquidity checks unavailable (no signal_date) - blocking as safety measure"
         try:
             age_passed, age_reason = self._check_price_history_age(symbol, signal_date)

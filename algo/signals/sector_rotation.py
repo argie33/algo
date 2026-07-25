@@ -287,9 +287,15 @@ class SectorRotationDetector:
 
     def _determine_rotation_signal(self, defensive_lead_score: float, weeks_persistent: int) -> str:
         """Determine rotation signal based on score and persistence."""
-        if defensive_lead_score >= DEFENSIVE_LEAD_SCORE_SEVERE_THRESHOLD and weeks_persistent >= DEFENSIVE_LEAD_SCORE_SEVERE_MIN_WEEKS:
+        if (
+            defensive_lead_score >= DEFENSIVE_LEAD_SCORE_SEVERE_THRESHOLD
+            and weeks_persistent >= DEFENSIVE_LEAD_SCORE_SEVERE_MIN_WEEKS
+        ):
             return "severe_defensive_rotation"
-        if defensive_lead_score >= DEFENSIVE_LEAD_SCORE_MODERATE_THRESHOLD and weeks_persistent >= DEFENSIVE_LEAD_SCORE_MODERATE_MIN_WEEKS:
+        if (
+            defensive_lead_score >= DEFENSIVE_LEAD_SCORE_MODERATE_THRESHOLD
+            and weeks_persistent >= DEFENSIVE_LEAD_SCORE_MODERATE_MIN_WEEKS
+        ):
             return "defensive_rotation_warning"
         if defensive_lead_score >= DEFENSIVE_LEAD_SCORE_CAUTION_THRESHOLD:
             return "mild_defensive_lead"

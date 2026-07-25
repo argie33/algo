@@ -84,8 +84,7 @@ class ShortInterestFinraLoader(OptimalLoader):
             try:
                 finra_data, settlement_date = fetcher.fetch_latest()
                 logger.info(
-                    f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols "
-                    f"for settlement date {settlement_date}"
+                    f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols " f"for settlement date {settlement_date}"
                 )
             except Exception as e_finra:
                 logger.warning(
@@ -168,9 +167,19 @@ class ShortInterestFinraLoader(OptimalLoader):
                             data_source = EXCLUDED.data_source,
                             updated_at = EXCLUDED.updated_at
                         """,
-                        (symbol, record_date, short_shares, short_pct,
-                         run_date if finra_row else None, days_to_cover, avg_daily_volume,
-                         data_unavailable, reason, "finra_query_api", now_et),
+                        (
+                            symbol,
+                            record_date,
+                            short_shares,
+                            short_pct,
+                            run_date if finra_row else None,
+                            days_to_cover,
+                            avg_daily_volume,
+                            data_unavailable,
+                            reason,
+                            "finra_query_api",
+                            now_et,
+                        ),
                     )
 
                     if data_unavailable:
@@ -202,22 +211,18 @@ class ShortInterestFinraLoader(OptimalLoader):
             # CRITICAL: Fail-fast on fatal errors (no silent fallback to empty result dict)
             # Returning a dict with status="error" masks the failure from orchestrator.
             # Re-raise to ensure orchestrator detects the failure and marks data unavailable.
-            raise RuntimeError(
-                f"[SHORT_INTEREST] Fatal loader error: {type(e).__name__}: {str(e)[:200]}"
-            ) from e
+            raise RuntimeError(f"[SHORT_INTEREST] Fatal loader error: {type(e).__name__}: {str(e)[:200]}") from e
 
     @staticmethod
     def _load_shares_outstanding() -> dict[str, int]:
         """Bulk-load the latest shares_outstanding per symbol from company_info_sec."""
         with DatabaseContext("read") as cur:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT DISTINCT ON (symbol) symbol, shares_outstanding
                 FROM company_info_sec
                 WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
                 ORDER BY symbol, filing_date DESC
-                """
-            )
+                """)
             return {row[0]: row[1] for row in cur.fetchall()}
 
 

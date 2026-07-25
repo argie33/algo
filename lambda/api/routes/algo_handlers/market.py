@@ -640,9 +640,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "tables_fresh": fresh_count,
                         "tables_stale": stale_count,
                         "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
-                        "last_checked": phase1_dict.get("last_checked").isoformat()
-                        if phase1_dict.get("last_checked")
-                        else None,
+                        "last_checked": (
+                            phase1_dict.get("last_checked").isoformat() if phase1_dict.get("last_checked") else None
+                        ),
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_1_data_check"] = None
@@ -680,18 +680,20 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
                 execution_health["phase_2_circuit_breakers"] = {
                     "any_triggered": any_triggered,
-                    "drawdown_pct": float(cb_dict["portfolio_drawdown_pct"])
-                    if cb_dict.get("portfolio_drawdown_pct") is not None
-                    else None,
-                    "daily_loss_pct": float(cb_dict["daily_loss_pct"])
-                    if cb_dict.get("daily_loss_pct") is not None
-                    else None,
-                    "weekly_loss_pct": float(cb_dict["weekly_loss_pct"])
-                    if cb_dict.get("weekly_loss_pct") is not None
-                    else None,
-                    "open_risk_pct": float(cb_dict["open_risk_pct"])
-                    if cb_dict.get("open_risk_pct") is not None
-                    else None,
+                    "drawdown_pct": (
+                        float(cb_dict["portfolio_drawdown_pct"])
+                        if cb_dict.get("portfolio_drawdown_pct") is not None
+                        else None
+                    ),
+                    "daily_loss_pct": (
+                        float(cb_dict["daily_loss_pct"]) if cb_dict.get("daily_loss_pct") is not None else None
+                    ),
+                    "weekly_loss_pct": (
+                        float(cb_dict["weekly_loss_pct"]) if cb_dict.get("weekly_loss_pct") is not None else None
+                    ),
+                    "open_risk_pct": (
+                        float(cb_dict["open_risk_pct"]) if cb_dict.get("open_risk_pct") is not None else None
+                    ),
                     "vix_level": float(cb_dict["vix_level"]) if cb_dict.get("vix_level") is not None else None,
                     "last_check": check_date_str,
                 }
@@ -714,9 +716,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 execution_health["phase_3_position_monitor"] = {
                     "open_positions": int(pos_dict["open_count"]) if pos_dict.get("open_count") else 0,
                     "oldest_days": int(pos_dict["oldest_days"]) if pos_dict.get("oldest_days") is not None else None,
-                    "max_loss_pct": float(pos_dict["max_loss_pct"])
-                    if pos_dict.get("max_loss_pct") is not None
-                    else None,
+                    "max_loss_pct": (
+                        float(pos_dict["max_loss_pct"]) if pos_dict.get("max_loss_pct") is not None else None
+                    ),
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
             logger.debug(f"[HEALTH] Phase 3 position monitor query failed: {e}")
@@ -740,9 +742,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 execution_health["phase_4_broker_reconciliation"] = {
                     "sync_count": sync_count,
                     "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
-                    "avg_match_pct": float(recon_dict["avg_match_pct"])
-                    if recon_dict.get("avg_match_pct") is not None
-                    else None,
+                    "avg_match_pct": (
+                        float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None
+                    ),
                 }
             else:
                 execution_health["phase_4_broker_reconciliation"] = None
@@ -850,12 +852,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "signals_generated": total_signals,
                         "buy_signals": buy_signals,
                         "sell_signals": sell_signals,
-                        "avg_strength": float(sig_dict["avg_strength"])
-                        if sig_dict.get("avg_strength") is not None
-                        else None,
-                        "latest_signal": sig_dict.get("latest_signal").isoformat()
-                        if sig_dict.get("latest_signal")
-                        else None,
+                        "avg_strength": (
+                            float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None
+                        ),
+                        "latest_signal": (
+                            sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None
+                        ),
                         "symbols_with_signals": sig_dict.get("symbols_with_signals") or [],
                     }
             else:
@@ -883,9 +885,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "entries_executed": total_entries,
                     "successful_entries": successful,
                     "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
-                    "avg_entry_price": float(entry_dict["avg_entry_price"])
-                    if entry_dict.get("avg_entry_price") is not None
-                    else None,
+                    "avg_entry_price": (
+                        float(entry_dict["avg_entry_price"]) if entry_dict.get("avg_entry_price") is not None else None
+                    ),
                     "symbols_entered": entry_dict.get("symbols_entered") or [],
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
@@ -904,9 +906,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 snap_dict = safe_dict_convert(snap_row)
                 execution_health["phase_9_portfolio_snapshot"] = {
                     "snapshot_count": int(snap_dict["snapshot_count"]) if snap_dict.get("snapshot_count") else 0,
-                    "latest_snapshot": snap_dict.get("latest_date").isoformat()
-                    if snap_dict.get("latest_date")
-                    else None,
+                    "latest_snapshot": (
+                        snap_dict.get("latest_date").isoformat() if snap_dict.get("latest_date") else None
+                    ),
                     "portfolio_value": float(snap_dict["latest_value"]) if snap_dict.get("latest_value") else None,
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
@@ -1159,23 +1161,25 @@ def _get_market(cur: cursor) -> Any:
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
             "put_call_ratio_data_unavailable": pcr_val is None,
-            "put_call_ratio_unavailable_reason": market_health.get("put_call_ratio_unavailable_reason")
-            if pcr_val is None
-            else None,
+            "put_call_ratio_unavailable_reason": (
+                market_health.get("put_call_ratio_unavailable_reason") if pcr_val is None else None
+            ),
             "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
             "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
             "yield_curve_data_unavailable": ycs_val is None,
-            "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason")
-            if ycs_val is None
-            else None,
+            "yield_curve_unavailable_reason": (
+                market_health.get("yield_curve_unavailable_reason") if ycs_val is None else None
+            ),
             "fed_rate_environment": market_health.get("fed_rate_environment"),
             # CRITICAL FIX: Explicitly check if fed_rate_data_unavailable is True (not False default).
             # Do NOT silently default to False if field is missing - that masks data quality issues.
             # Consistency: Put_call_ratio and yield_curve use explicit None checks, apply same pattern here.
             "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable") is True,
-            "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason")
-            if market_health.get("fed_rate_data_unavailable") is True
-            else None,
+            "fed_rate_unavailable_reason": (
+                market_health.get("fed_rate_unavailable_reason")
+                if market_health.get("fed_rate_data_unavailable") is True
+                else None
+            ),
         }
 
         return json_response(200, data)
@@ -1584,18 +1588,26 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "sectors_data_unavailable": sectors_data_unavailable,
                 "market_health": market_health,
                 # Add breadth indicators at top level
-                "adr": float(market_health.get("advance_decline_ratio"))
-                if market_health.get("advance_decline_ratio") is not None
-                else None,
-                "nh": int(market_health.get("new_highs_count"))
-                if market_health.get("new_highs_count") is not None
-                else None,
-                "nl": int(market_health.get("new_lows_count"))
-                if market_health.get("new_lows_count") is not None
-                else None,
-                "pcr": float(market_health.get("put_call_ratio"))
-                if market_health.get("put_call_ratio") is not None
-                else None,
+                "adr": (
+                    float(market_health.get("advance_decline_ratio"))
+                    if market_health.get("advance_decline_ratio") is not None
+                    else None
+                ),
+                "nh": (
+                    int(market_health.get("new_highs_count"))
+                    if market_health.get("new_highs_count") is not None
+                    else None
+                ),
+                "nl": (
+                    int(market_health.get("new_lows_count"))
+                    if market_health.get("new_lows_count") is not None
+                    else None
+                ),
+                "pcr": (
+                    float(market_health.get("put_call_ratio"))
+                    if market_health.get("put_call_ratio") is not None
+                    else None
+                ),
             },
         }
 

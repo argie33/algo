@@ -93,7 +93,13 @@ class AlignmentChecker(BaseCheck):
             buy_sell_count = dict(row).get("buy_sell_count") if hasattr(row, "keys") else None
 
             if sqs_count is None or buy_sell_count is None:
-                self.log("alignment", WARN, "signal_quality_scores", "Symbol count is NULL", {"sqs_count": sqs_count, "buy_sell_count": buy_sell_count})
+                self.log(
+                    "alignment",
+                    WARN,
+                    "signal_quality_scores",
+                    "Symbol count is NULL",
+                    {"sqs_count": sqs_count, "buy_sell_count": buy_sell_count},
+                )
                 return
 
             if buy_sell_count == 0:
@@ -160,10 +166,18 @@ class AlignmentChecker(BaseCheck):
             if row is None:
                 raise ValueError("Signal alignment query returned no results - database state corrupted")
             if isinstance(row, dict):
-                total, missing_price, missing_tech = row.get("total_signals"), row.get("missing_price"), row.get("missing_tech")
+                total, missing_price, missing_tech = (
+                    row.get("total_signals"),
+                    row.get("missing_price"),
+                    row.get("missing_tech"),
+                )
             else:
                 row_dict = dict(row) if hasattr(row, "keys") else {}
-                total, missing_price, missing_tech = row_dict.get("total_signals"), row_dict.get("missing_price"), row_dict.get("missing_tech")
+                total, missing_price, missing_tech = (
+                    row_dict.get("total_signals"),
+                    row_dict.get("missing_price"),
+                    row_dict.get("missing_tech"),
+                )
             if total is None or total == 0:
                 logger.warning("No BUY/SELL signals found in last 14 days - skipping signal alignment check")
                 return
@@ -224,7 +238,10 @@ class AlignmentChecker(BaseCheck):
                     f"{len(orphaned)} filled trades missing price history",
                     {
                         "orphaned_trades": len(orphaned),
-                        "sample": [{"trade_id": r['trade_id'], "symbol": r['symbol'], "fill_date": str(r['fill_date'])} for r in orphaned[:5]],
+                        "sample": [
+                            {"trade_id": r["trade_id"], "symbol": r["symbol"], "fill_date": str(r["fill_date"])}
+                            for r in orphaned[:5]
+                        ],
                     },
                 )
             else:

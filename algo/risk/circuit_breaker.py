@@ -537,7 +537,7 @@ class CircuitBreaker:
                   AND quantity > 0
             ) all_trades
             """,
-            (TradeStatus.CLOSED.value, '%reconciliation%', '%force%close%', '%delisted%'),
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%"),
         )
         row = cur.fetchone()
         if row is None:
@@ -560,14 +560,17 @@ class CircuitBreaker:
         # executed halts trading indefinitely if those positions are underwater.
         # Grace period: don't apply win_rate_floor until at least 10 STRATEGIC CLOSED trades exist.
         # Exclude reconciliation and force-close exits as these are not strategic outcomes.
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
               AND exit_r_multiple IS NOT NULL
               AND exit_reason NOT LIKE %s
               AND exit_reason NOT LIKE %s
               AND exit_reason NOT LIKE %s
-        """, (TradeStatus.CLOSED.value, '%reconciliation%', '%force%close%', '%delisted%'))
+        """,
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%"),
+        )
         closed_row = cur.fetchone()
         closed_count = closed_row[0] if closed_row and closed_row[0] is not None else 0
 
@@ -1012,7 +1015,10 @@ class CircuitBreaker:
         )
         row = cur.fetchone()
         if row is None or len(row) != 3 or row[0] is None:
-            return {"halted": True, "reason": f"SPY data query malformed (expected 3 columns, got {len(row) if row else 0})"}
+            return {
+                "halted": True,
+                "reason": f"SPY data query malformed (expected 3 columns, got {len(row) if row else 0})",
+            }
 
         latest = row[0]
         data_unavailable_flag = bool(row[1]) if row[1] is not None else False

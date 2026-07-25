@@ -367,7 +367,9 @@ def route_request(
     for prefix, handler in HANDLERS.items():
         if matches_route(path, prefix):
             try:
-                logger.critical(f"[ROUTE_REQUEST_MATCH] path={path} matched prefix={prefix} handler={handler.__name__ if hasattr(handler, '__name__') else type(handler).__name__}")
+                logger.critical(
+                    f"[ROUTE_REQUEST_MATCH] path={path} matched prefix={prefix} handler={handler.__name__ if hasattr(handler, '__name__') else type(handler).__name__}"
+                )
                 logger.debug(f"[ROUTE_REQUEST] Calling handler for {path} (prefix {prefix})")
                 response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
                 logger.critical(f"[ROUTE_RESPONSE] path={path} handler={prefix} status={response.get('statusCode')}")

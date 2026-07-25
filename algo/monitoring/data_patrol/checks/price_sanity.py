@@ -61,7 +61,9 @@ class PriceSanityChecker(BaseCheck):
                             samples.append({"symbol": symbol, "pct_change": float(pct_change)})
                         except (ValueError, TypeError) as e:
                             logger.warning(f"Invalid pct_change {pct_change} for {r}: {e}")
-                            samples.append({"symbol": r.get("symbol") if isinstance(r, dict) else r[0], "pct_change": None})
+                            samples.append(
+                                {"symbol": r.get("symbol") if isinstance(r, dict) else r[0], "pct_change": None}
+                            )
                 self.log(
                     "price_sanity",
                     WARN,
@@ -82,7 +84,9 @@ class PriceSanityChecker(BaseCheck):
                             samples.append({"symbol": symbol, "pct_change": float(pct_change)})
                         except (ValueError, TypeError) as e:
                             logger.warning(f"Invalid pct_change {pct_change} for {r}: {e}")
-                            samples.append({"symbol": r.get("symbol") if isinstance(r, dict) else r[0], "pct_change": None})
+                            samples.append(
+                                {"symbol": r.get("symbol") if isinstance(r, dict) else r[0], "pct_change": None}
+                            )
                 self.log(
                     "price_sanity",
                     INFO,
@@ -135,11 +139,13 @@ class PriceSanityChecker(BaseCheck):
                         symbol = r.get("symbol") if isinstance(r, dict) else r[0]
                         date = r.get("date") if isinstance(r, dict) else r[1]
                         pct_change = r.get("pct_change") if isinstance(r, dict) else r[4]
-                        samples.append({
-                            "symbol": symbol,
-                            "date": str(date),
-                            "pct_drop": round(pct_change, 1) if pct_change is not None else None,
-                        })
+                        samples.append(
+                            {
+                                "symbol": symbol,
+                                "date": str(date),
+                                "pct_drop": round(pct_change, 1) if pct_change is not None else None,
+                            }
+                        )
                     except (TypeError, KeyError, IndexError) as e:
                         logger.warning(f"Could not extract sample from {r}: {e}")
                 self.log(

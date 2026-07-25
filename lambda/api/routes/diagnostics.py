@@ -91,17 +91,19 @@ def _check_data_sync_health(cur: cursor) -> Any:
                 "view_cache": view_count,
             },
             "issues": {
-                "duplicate_symbols": [
-                    {
-                        "symbol": d[0],
-                        "status": d[1],
-                        "instances": d[2],
-                        "total_quantity": d[3],
-                    }
-                    for d in duplicates
-                ]
-                if duplicates
-                else [],
+                "duplicate_symbols": (
+                    [
+                        {
+                            "symbol": d[0],
+                            "status": d[1],
+                            "instances": d[2],
+                            "total_quantity": d[3],
+                        }
+                        for d in duplicates
+                    ]
+                    if duplicates
+                    else []
+                ),
                 "view_stale": view_count != position_count,
                 "source_mismatch": trade_count != position_count,
             },

@@ -68,6 +68,7 @@ class MarketStatusDailyLoader(OptimalLoader):
         # CRITICAL FIX: Skip loading on non-trading days
         # Markets are closed on weekends/holidays, so no new market data is available
         from algo.infrastructure import MarketCalendar
+
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
         if not MarketCalendar.is_trading_day(run_date):
@@ -105,6 +106,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             dict: Marker dict if non-trading day or data unavailable.
         """
         from algo.infrastructure import MarketCalendar
+
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
         if not MarketCalendar.is_trading_day(run_date):
@@ -156,64 +158,65 @@ class MarketStatusDailyLoader(OptimalLoader):
             # row was still marked "available", so downstream consumers gating on
             # data_unavailable would trust a NULL as "checked, fine" instead of halting.
             exposure_unavailable = bool(exposure_data.get("data_unavailable"))
-            return [{
-                "date": end_date,
-                "data_unavailable": exposure_unavailable,
-                # Always include "reason" explicitly (None on success) - bulk_insert_manager
-                # derives each row's UPSERT column list from its own dict keys, so omitting
-                # the key entirely (as the previous conditional-unpack did) meant a successful
-                # run's UPDATE never touched the reason column, leaving a stale failure message
-                # in place even though data_unavailable correctly flipped back to False
-                # (confirmed live 2026-07-20: market_health_daily showed data_unavailable=False
-                # with reason still reading a 7h-old "exposure_computation_failed" message).
-                "reason": exposure_data.get("reason") if exposure_unavailable else None,
-
-                # market_health_daily fields (column names per market_health_daily schema -
-                # health_data uses different internal key names, see _fetch_market_health)
-                "vix_level": health_data.get("vix_level"),
-                "advance_decline_ratio": health_data.get("advance_decline_ratio"),
-                "new_highs_count": health_data.get("new_highs"),
-                "new_lows_count": health_data.get("new_lows"),
-                "breadth_momentum_10d": health_data.get("breadth_momentum_10d"),
-                "up_volume_percent": health_data.get("up_volume_percent"),
-                "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
-                "yield_curve_data_unavailable": health_data.get("yield_curve_data_unavailable", False),
-                "yield_curve_unavailable_reason": health_data.get("yield_curve_unavailable_reason"),
-                "put_call_ratio": health_data.get("put_call_ratio"),
-                "put_call_ratio_data_unavailable": health_data.get("put_call_ratio_data_unavailable", False),
-                "put_call_ratio_unavailable_reason": health_data.get("put_call_ratio_unavailable_reason"),
-                "fed_rate_environment": health_data.get("fed_rate_environment"),
-                "fed_rate_data_unavailable": health_data.get("fed_rate_data_unavailable", True),
-                "fed_rate_unavailable_reason": health_data.get("fed_rate_unavailable_reason"),
-                "market_stage": stage_data.get("market_stage"),
-                "market_trend": stage_data.get("market_trend"),
-
-                # market_exposure_daily fields
-                "regime": exposure_data.get("regime"),
-                "exposure_pct": exposure_data.get("exposure_pct"),
-                "raw_score": exposure_data.get("raw_score"),
-                "halt_reasons": exposure_data.get("halt_reasons"),
-                "distribution_days": exposure_data.get("distribution_days"),
-                "factors": exposure_data.get("factors"),
-
-                # market_sentiment fields
-                "fear_greed_index": sentiment_data.get("fear_greed_index"),
-                "sentiment_score": sentiment_data.get("sentiment_score"),
-                "bullish_pct": sentiment_data.get("bullish_pct"),
-                "bearish_pct": sentiment_data.get("bearish_pct"),
-                "neutral_pct": sentiment_data.get("neutral_pct"),
-            }]
+            return [
+                {
+                    "date": end_date,
+                    "data_unavailable": exposure_unavailable,
+                    # Always include "reason" explicitly (None on success) - bulk_insert_manager
+                    # derives each row's UPSERT column list from its own dict keys, so omitting
+                    # the key entirely (as the previous conditional-unpack did) meant a successful
+                    # run's UPDATE never touched the reason column, leaving a stale failure message
+                    # in place even though data_unavailable correctly flipped back to False
+                    # (confirmed live 2026-07-20: market_health_daily showed data_unavailable=False
+                    # with reason still reading a 7h-old "exposure_computation_failed" message).
+                    "reason": exposure_data.get("reason") if exposure_unavailable else None,
+                    # market_health_daily fields (column names per market_health_daily schema -
+                    # health_data uses different internal key names, see _fetch_market_health)
+                    "vix_level": health_data.get("vix_level"),
+                    "advance_decline_ratio": health_data.get("advance_decline_ratio"),
+                    "new_highs_count": health_data.get("new_highs"),
+                    "new_lows_count": health_data.get("new_lows"),
+                    "breadth_momentum_10d": health_data.get("breadth_momentum_10d"),
+                    "up_volume_percent": health_data.get("up_volume_percent"),
+                    "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
+                    "yield_curve_data_unavailable": health_data.get("yield_curve_data_unavailable", False),
+                    "yield_curve_unavailable_reason": health_data.get("yield_curve_unavailable_reason"),
+                    "put_call_ratio": health_data.get("put_call_ratio"),
+                    "put_call_ratio_data_unavailable": health_data.get("put_call_ratio_data_unavailable", False),
+                    "put_call_ratio_unavailable_reason": health_data.get("put_call_ratio_unavailable_reason"),
+                    "fed_rate_environment": health_data.get("fed_rate_environment"),
+                    "fed_rate_data_unavailable": health_data.get("fed_rate_data_unavailable", True),
+                    "fed_rate_unavailable_reason": health_data.get("fed_rate_unavailable_reason"),
+                    "market_stage": stage_data.get("market_stage"),
+                    "market_trend": stage_data.get("market_trend"),
+                    # market_exposure_daily fields
+                    "regime": exposure_data.get("regime"),
+                    "exposure_pct": exposure_data.get("exposure_pct"),
+                    "raw_score": exposure_data.get("raw_score"),
+                    "halt_reasons": exposure_data.get("halt_reasons"),
+                    "distribution_days": exposure_data.get("distribution_days"),
+                    "factors": exposure_data.get("factors"),
+                    # market_sentiment fields
+                    "fear_greed_index": sentiment_data.get("fear_greed_index"),
+                    "sentiment_score": sentiment_data.get("sentiment_score"),
+                    "bullish_pct": sentiment_data.get("bullish_pct"),
+                    "bearish_pct": sentiment_data.get("bearish_pct"),
+                    "neutral_pct": sentiment_data.get("neutral_pct"),
+                }
+            ]
 
         except Exception as e:
             logger.error(f"[MARKET_STATUS] Fatal error: {e}", exc_info=True)
-            return [{
-                "date": date.today(),
-                "data_unavailable": True,
-                # Truncate the full formatted string (not just str(e)) to the reason column's
-                # actual VARCHAR(255) limit - see _compute_market_exposure's identical fix for
-                # why a 100-char cap silently destroys these diagnostic messages.
-                "reason": f"market_status_error: {e}"[:255],
-            }]
+            return [
+                {
+                    "date": date.today(),
+                    "data_unavailable": True,
+                    # Truncate the full formatted string (not just str(e)) to the reason column's
+                    # actual VARCHAR(255) limit - see _compute_market_exposure's identical fix for
+                    # why a 100-char cap silently destroys these diagnostic messages.
+                    "reason": f"market_status_error: {e}"[:255],
+                }
+            ]
 
     def _fetch_market_health(self, eval_date: date) -> dict[str, Any]:
         """Fetch all health metrics (VIX, breadth, yields, put/call)."""
@@ -275,18 +278,14 @@ class MarketStatusDailyLoader(OptimalLoader):
                     f"{len(last_10_dates)}/10 days of breadth history available."
                 )
             else:
-                up_days = sum(
-                    1 for d in last_10_dates if (breadth_data[d].get("advance_decline_ratio") or 0) > 1.0
-                )
+                up_days = sum(1 for d in last_10_dates if (breadth_data[d].get("advance_decline_ratio") or 0) > 1.0)
                 breadth_momentum_10d = round(up_days / 10 * 100, 2)
 
             # Up-volume percent: real market-wide volume breadth (see BreadthFetcher.
             # fetch_up_volume_percent) - optional enrichment, unavailable is non-fatal.
             up_volume_result = self._breadth_fetcher.fetch_up_volume_percent(eval_date)
             up_volume_percent = (
-                up_volume_result.get("up_volume_percent")
-                if not up_volume_result.get("data_unavailable")
-                else None
+                up_volume_result.get("up_volume_percent") if not up_volume_result.get("data_unavailable") else None
             )
 
             # Fetch yield curve (10Y-2Y spread) - use same date range as VIX
@@ -316,10 +315,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 elif isinstance(put_call_result, dict) and put_call_result.get("data_unavailable") is True:
                     # Put/call data unavailable - log at WARNING for visibility (not DEBUG)
                     put_call_unavailable = True
-                    put_call_reason = put_call_result.get('reason', 'unknown')
-                    logger.warning(
-                        f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}: {put_call_reason}"
-                    )
+                    put_call_reason = put_call_result.get("reason", "unknown")
+                    logger.warning(f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}: {put_call_reason}")
                 else:
                     put_call_unavailable = True
                     put_call_reason = "unexpected_response_format"
@@ -649,8 +646,10 @@ class MarketStatusDailyLoader(OptimalLoader):
 
 
 if __name__ == "__main__":
-    sys.exit(run_loader(
-        MarketStatusDailyLoader,
-        description="Consolidated market status (health + exposure + sentiment)",
-        global_mode=True,
-    ))
+    sys.exit(
+        run_loader(
+            MarketStatusDailyLoader,
+            description="Consolidated market status (health + exposure + sentiment)",
+            global_mode=True,
+        )
+    )

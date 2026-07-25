@@ -402,7 +402,7 @@ class ValueAtRisk:
                     snapshot_is_from_expected_day = False
                     if is_trading_today:
                         # Today is trading day: require today's snapshot
-                        snapshot_is_from_expected_day = (snapshot_date == today)
+                        snapshot_is_from_expected_day = snapshot_date == today
                     else:
                         # Today is weekend/holiday: require snapshot from most recent trading day
                         expected_trading_day = today - timedelta(days=1)
@@ -410,7 +410,7 @@ class ValueAtRisk:
                             if MarketCalendar.is_trading_day(expected_trading_day):
                                 break
                             expected_trading_day -= timedelta(days=1)
-                        snapshot_is_from_expected_day = (snapshot_date >= expected_trading_day)
+                        snapshot_is_from_expected_day = snapshot_date >= expected_trading_day
 
                     if not snapshot_is_from_expected_day:
                         calendar_age = (today - snapshot_date).days
@@ -660,7 +660,7 @@ class ValueAtRisk:
                 snapshot_is_from_expected_day = False
                 if is_trading_today:
                     # Today is trading day: require today's snapshot
-                    snapshot_is_from_expected_day = (snapshot_date == today)
+                    snapshot_is_from_expected_day = snapshot_date == today
                 else:
                     # Today is weekend/holiday: require snapshot from most recent trading day
                     expected_trading_day = today - timedelta(days=1)
@@ -668,7 +668,7 @@ class ValueAtRisk:
                         if MarketCalendar.is_trading_day(expected_trading_day):
                             break
                         expected_trading_day -= timedelta(days=1)
-                    snapshot_is_from_expected_day = (snapshot_date >= expected_trading_day)
+                    snapshot_is_from_expected_day = snapshot_date >= expected_trading_day
 
                 if not snapshot_is_from_expected_day:
                     calendar_age = (today - snapshot_date).days

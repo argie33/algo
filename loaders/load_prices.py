@@ -381,9 +381,7 @@ class PriceLoader(OptimalLoader):
                         best_size = size
 
             if best_size is not None and best_rate >= 0.5:
-                logger.debug(
-                    f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.1%})"
-                )
+                logger.debug(f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.1%})")
                 return best_size
 
         # Fallback: use default with context awareness
@@ -2029,6 +2027,7 @@ class PriceLoader(OptimalLoader):
         # Cancel timeout alarm before returning
         try:
             import signal
+
             signal.alarm(0)  # Cancel the alarm  # type: ignore[attr-defined]
             if old_handler is not None:
                 signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]

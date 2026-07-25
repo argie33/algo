@@ -401,10 +401,13 @@ class AlpacaSyncManager:
         # - NOT just because Alpaca didn't list it (could be sync lag)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT DISTINCT symbol FROM algo_positions
                 WHERE status = 'open' AND symbol != ALL(%s)
-            """, (list(alpaca_symbols),))
+            """,
+                (list(alpaca_symbols),),
+            )
             missing_positions = [row[0] for row in cur.fetchall()]
 
             if missing_positions:
@@ -417,6 +420,7 @@ class AlpacaSyncManager:
                 )
                 try:
                     from algo.reporting import notify
+
                     notify(
                         severity="warning",
                         title="Position Sync Alert - Missing at Broker",

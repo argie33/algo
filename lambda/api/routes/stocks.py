@@ -115,8 +115,7 @@ def handle(  # noqa: C901
                 return error_response(code, error_type, message)
             try:
                 interval_52w = get_interval_sql("52w")
-                deep_value_query = (
-                    f"""
+                deep_value_query = f"""
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
@@ -273,9 +272,7 @@ def handle(  # noqa: C901
                 CROSS JOIN market_median mm
                 ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
-                """
-                    % limit
-                )
+                """ % limit
 
                 # Execute with single attempt at 23s - complex multi-CTE query needs headroom.
                 # Lambda timeout is 25s; provisioned concurrency keeps instance warm so no cold-start risk.
@@ -378,8 +375,7 @@ def handle(  # noqa: C901
             """
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE """
-            + where_sql,
+            WHERE """ + where_sql,
             query_params,
         )
         count_row = cur.fetchone()

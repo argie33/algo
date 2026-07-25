@@ -30,4 +30,5 @@ def handle(
         return sync_stock_scores.handle(cur, path, method, params, body, jwt_claims)
     else:
         from routes.utils import error_response
+
         return error_response(404, "not_found", f"No admin handler for {path}")

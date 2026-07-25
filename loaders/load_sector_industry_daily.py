@@ -78,10 +78,11 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."
                 )
                 from algo.exceptions import LockAcquisitionError
+
                 raise LockAcquisitionError(
                     lock_key=self.table_name,
                     reason=f"DynamoDB lock manager unavailable: {ddb_err}",
-                    context={"table_name": self.table_name}
+                    context={"table_name": self.table_name},
                 ) from ddb_err
 
             # get_lock_manager() either returns a real lock manager or raises RuntimeError
@@ -370,15 +371,18 @@ class SectorIndustryDailyLoader(OptimalLoader):
         # Return row count for success validation (sum of all 3 tables)
         # If any table got updates, the loader succeeds
         total_rows = sum(row_counts.values())
-        logger.info(f"[SECTOR_INDUSTRY] Total rows updated: {total_rows} (perf={row_counts['sector_performance']}, rank={row_counts['sector_ranking']}, ind={row_counts['industry_ranking']})")
+        logger.info(
+            f"[SECTOR_INDUSTRY] Total rows updated: {total_rows} (perf={row_counts['sector_performance']}, rank={row_counts['sector_ranking']}, ind={row_counts['industry_ranking']})"
+        )
         # Return list with one dummy record if total_rows > 0, else empty (for run_loader success check)
         return [{"total": total_rows}] if total_rows > 0 else []
 
 
-
 if __name__ == "__main__":
-    sys.exit(run_loader(
-        SectorIndustryDailyLoader,
-        description="Consolidated sector + industry daily (performance + rankings)",
-        global_mode=True,
-    ))
+    sys.exit(
+        run_loader(
+            SectorIndustryDailyLoader,
+            description="Consolidated sector + industry daily (performance + rankings)",
+            global_mode=True,
+        )
+    )

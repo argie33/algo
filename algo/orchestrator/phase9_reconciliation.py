@@ -1113,6 +1113,7 @@ def run(
 
         # Validate schema contract before returning
         from algo.orchestrator.phase_data_contract import validate_phase_data
+
         validate_phase_data(9, data)
 
         # CRITICAL: Log final consolidated phase result (not a sub-step)

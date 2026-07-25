@@ -64,16 +64,16 @@ class SignalsDailyLoader(OptimalLoader):
                 cur.execute("DELETE FROM buy_sell_daily WHERE date = %s", (current_date,))
                 deleted_count = cur.rowcount
                 if deleted_count > 0:
-                    logger.info(f"[SESSION 357 FIX] Deleted {deleted_count} stale signals for {current_date} to force regeneration")
+                    logger.info(
+                        f"[SESSION 357 FIX] Deleted {deleted_count} stale signals for {current_date} to force regeneration"
+                    )
 
             # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
             # If user specified symbols explicitly, respect their choice
             if symbols and len(symbols) > 4000:  # Heuristic: if >4000 symbols, likely from get_active_symbols()
                 logger.info("[RUN] Len > 4000, applying universe filter")
                 with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
-                    )
+                    cur.execute("SELECT symbol FROM stock_scores WHERE data_unavailable = false")
                     scored_symbols = {row[0] for row in cur.fetchall()}
 
                 original_count = len(symbols)
@@ -107,7 +107,11 @@ class SignalsDailyLoader(OptimalLoader):
                 target_date = now_et.date()
                 max_iterations = 10
                 iterations = 0
-                while target_date > date(2020, 1, 1) and not MarketCalendar.is_trading_day(target_date) and iterations < max_iterations:
+                while (
+                    target_date > date(2020, 1, 1)
+                    and not MarketCalendar.is_trading_day(target_date)
+                    and iterations < max_iterations
+                ):
                     target_date = target_date - timedelta(days=1)
                     iterations += 1
 
@@ -127,7 +131,7 @@ class SignalsDailyLoader(OptimalLoader):
                         WHERE symbol_count >= %s
                         ORDER BY date DESC
                         LIMIT 1""",
-                        (target_date, max(1, int(len(symbols) * 0.90)))  # CRITICAL: >= 1 even if symbols empty
+                        (target_date, max(1, int(len(symbols) * 0.90))),  # CRITICAL: >= 1 even if symbols empty
                     )
 
                     # CRITICAL FIX Session 345: Validate symbols list before using in calculations
@@ -143,10 +147,7 @@ class SignalsDailyLoader(OptimalLoader):
                         price_data_count = date_result[1]
                     else:
                         # Fallback: use most recent date regardless of coverage, BUT prefer current date if it has any price data
-                        cur.execute(
-                            "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                            (target_date,)
-                        )
+                        cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (target_date,))
                         current_date_row = cur.fetchone()
                         current_date_count = current_date_row[0] if current_date_row else 0
 
@@ -154,26 +155,29 @@ class SignalsDailyLoader(OptimalLoader):
                             # Current date has acceptable coverage (80%+) - use it even if not the highest
                             price_data_date = target_date
                             price_data_count = current_date_count
-                            logger.info(f"[PRICE_FILTER] Using current date {target_date} with {current_date_count} symbols (80%+ threshold met)")
+                            logger.info(
+                                f"[PRICE_FILTER] Using current date {target_date} with {current_date_count} symbols (80%+ threshold met)"
+                            )
                         else:
                             # Fall back to most recent date with any coverage
                             cur.execute("SELECT MAX(date) FROM price_daily WHERE date <= %s", (target_date,))
                             date_row = cur.fetchone()
                             if date_row and date_row[0]:
                                 price_data_date = date_row[0]
-                                cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (price_data_date,))
+                                cur.execute(
+                                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (price_data_date,)
+                                )
                                 price_count_row = cur.fetchone()
                                 if not price_count_row:
-                                    raise RuntimeError(f"CRITICAL: No result from symbol count query for date {price_data_date}")
+                                    raise RuntimeError(
+                                        f"CRITICAL: No result from symbol count query for date {price_data_date}"
+                                    )
                                 price_data_count = price_count_row[0]
                             else:
                                 raise RuntimeError("CRITICAL: No price_daily data found. Cannot generate signals.")
 
                     # Get symbols that have price data on this date
-                    cur.execute(
-                        """SELECT DISTINCT symbol FROM price_daily WHERE date = %s""",
-                        (price_data_date,)
-                    )
+                    cur.execute("""SELECT DISTINCT symbol FROM price_daily WHERE date = %s""", (price_data_date,))
                     price_symbols = {row[0] for row in cur.fetchall()}
 
                 symbols_before_price_filter = len(symbols)
@@ -418,8 +422,7 @@ class SignalsDailyLoader(OptimalLoader):
             # First run (no watermark) - load full lookback from 120 days ago
             start = lookback_start
             logger.info(
-                f"[BUY_SELL_DAILY] {symbol}: since=None (no watermark), loading full lookback "
-                f"from {start} to {end}"
+                f"[BUY_SELL_DAILY] {symbol}: since=None (no watermark), loading full lookback " f"from {start} to {end}"
             )
         elif since >= end:
             # Watermark is at or after end_date (shouldn't happen after load_symbol reset, but guard it)
@@ -789,9 +792,7 @@ class SignalsDailyLoader(OptimalLoader):
                     f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self.decimal84_max}: {capped_cols}"
                 )
         if input_count > 0:
-            logger.info(
-                f"[TRANSFORM] Processed {input_count} rows: {len(valid_rows)} valid, {sentinel_count} sentinel"
-            )
+            logger.info(f"[TRANSFORM] Processed {input_count} rows: {len(valid_rows)} valid, {sentinel_count} sentinel")
         return valid_rows
 
 
@@ -836,9 +837,7 @@ def main() -> int:  # noqa: C901
             # Proceeding with all symbols when filter fails violates GOVERNANCE principle:
             # "Fail-fast on missing data. No silent fallbacks."
             with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
-                )
+                cur.execute("SELECT symbol FROM stock_scores WHERE data_unavailable = false")
                 scored_symbols = {row[0] for row in cur.fetchall()}
 
             if not scored_symbols:
@@ -879,9 +878,7 @@ def main() -> int:  # noqa: C901
     try:
         with DatabaseContext("read") as cur:
             # Verify price_daily is not stuck RUNNING/PENDING
-            cur.execute(
-                "SELECT status, completion_pct FROM data_loader_status WHERE table_name = 'price_daily'"
-            )
+            cur.execute("SELECT status, completion_pct FROM data_loader_status WHERE table_name = 'price_daily'")
             result = cur.fetchone()
             if result is None:
                 raise RuntimeError(
@@ -903,9 +900,13 @@ def main() -> int:  # noqa: C901
             # than "COMPLETED" in practice) is the most recent write. completion_pct is written
             # only by the loader itself and is a reliable execution signal - see
             # phase1_failsafe_retry.py for the same completion_pct-primary pattern.
-            prices_ready = (
-                prices_completion_pct is not None and prices_completion_pct >= 95.0
-            ) or prices_status in ("COMPLETED", "success", "OK", "ok", "HEALTHY")
+            prices_ready = (prices_completion_pct is not None and prices_completion_pct >= 95.0) or prices_status in (
+                "COMPLETED",
+                "success",
+                "OK",
+                "ok",
+                "HEALTHY",
+            )
             if not prices_ready:
                 logger.error(
                     f"[DEPENDENCY] Aborting buy_sell_daily: price_daily status is {prices_status}, "

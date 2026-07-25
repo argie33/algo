@@ -35,7 +35,8 @@ class SyncValueScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[tuple[Any, ...]]:
         """Fetch value_score from stock_scores for given symbol."""
         with DatabaseContext("read") as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     ss.symbol,
                     ss.value_score,
@@ -45,19 +46,25 @@ class SyncValueScoresLoader(OptimalLoader):
                 FROM stock_scores ss
                 WHERE ss.symbol = %s
                 AND ss.value_score IS NOT NULL
-            """, (symbol,))
+            """,
+                (symbol,),
+            )
 
             row = cur.fetchone()
             if not row:
                 # Symbol has no value_score in stock_scores
-                return [({"symbol": symbol, "value_score": None, "unavailable_reason": "no_stock_score_available"}, )]
+                return [({"symbol": symbol, "value_score": None, "unavailable_reason": "no_stock_score_available"},)]
 
             symbol, value_score, unavailable_reason = row
-            return [({
-                "symbol": symbol,
-                "value_score": value_score,
-                "unavailable_reason": unavailable_reason,
-            }, )]
+            return [
+                (
+                    {
+                        "symbol": symbol,
+                        "value_score": value_score,
+                        "unavailable_reason": unavailable_reason,
+                    },
+                )
+            ]
 
     def process(self, symbol: str, row: tuple[Any, ...]) -> dict[str, Any]:
         """Return the fetched value_score row."""
@@ -70,21 +77,27 @@ class SyncValueScoresLoader(OptimalLoader):
 
     def persist(self, cur: Any, symbol: str, row: dict[str, Any]) -> None:
         """Update value_metrics with value_score from stock_scores."""
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE value_metrics
             SET value_score = %s, updated_at = NOW()
             WHERE symbol = %s
-        """, (row["value_score"], symbol))
+        """,
+            (row["value_score"], symbol),
+        )
 
         if cur.rowcount == 0:
             # No row exists, insert placeholder
             logger.debug(f"[SYNC_VALUE_SCORES] {symbol}: No value_metrics row, inserting placeholder")
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO value_metrics (symbol, value_score, data_unavailable, updated_at)
                 VALUES (%s, %s, %s, NOW())
                 ON CONFLICT (symbol) DO UPDATE
                 SET value_score = EXCLUDED.value_score, updated_at = NOW()
-            """, (symbol, row["value_score"], row["value_score"] is None))
+            """,
+                (symbol, row["value_score"], row["value_score"] is None),
+            )
 
 
 def main() -> int:

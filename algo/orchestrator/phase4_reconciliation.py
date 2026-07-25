@@ -148,9 +148,7 @@ def run(
                 auth_unavailable = partial_fill_result.get("auth_unavailable", False)
                 if auth_unavailable:
                     match_pct = None  # NULL to indicate check was not performed
-                    logger.info(
-                        "[PHASE 4] Recording NULL match_pct in audit (auth unavailable, check skipped)"
-                    )
+                    logger.info("[PHASE 4] Recording NULL match_pct in audit (auth unavailable, check skipped)")
                 elif positions_count > 0:
                     match_pct = max(0.0, 100.0 * (1 - (mismatches_count / positions_count)))
                 else:
@@ -181,7 +179,9 @@ def run(
             # status (the write itself succeeded; this is "we couldn't confirm it", not "it
             # failed"), but it must not be silently absorbed into an unqualified "success" either.
             if result.get("final_verification_failed"):
-                summary += f" (WARNING: final verification failed - {result.get('final_verification_detail', 'unknown')})"
+                summary += (
+                    f" (WARNING: final verification failed - {result.get('final_verification_detail', 'unknown')})"
+                )
                 logger.warning(
                     f"[PHASE 4] Portfolio snapshot final verification failed: "
                     f"{result.get('final_verification_detail')}"

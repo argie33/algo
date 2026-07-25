@@ -408,6 +408,7 @@ def run(
         }
         # Validate schema contract before returning
         from algo.orchestrator.phase_data_contract import validate_phase_data
+
         validate_phase_data(6, result_data)
         return PhaseResult(
             6,

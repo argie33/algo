@@ -155,6 +155,7 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                 # CRITICAL FIX: Session 345 - Validate type conversion (handles NaN/Infinity/non-numeric)
                 try:
                     from utils.type_conversion import safe_float
+
                     entry_price = safe_float(signal_data["entry_price"], f"{symbol}.entry_price", allow_none=False)
                 except (ValueError, TypeError) as e:
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid entry_price: {e}")
@@ -163,14 +164,18 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
 
                 if "composite_score" in signal_data and signal_data["composite_score"] is not None:
                     try:
-                        signal_quality_score = safe_float(signal_data["composite_score"], f"{symbol}.composite_score", allow_none=False)
+                        signal_quality_score = safe_float(
+                            signal_data["composite_score"], f"{symbol}.composite_score", allow_none=False
+                        )
                     except (ValueError, TypeError) as e:
                         logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid composite_score: {e}")
                         skipped_count += 1
                         continue
                 elif "signal_quality_score" in signal_data and signal_data["signal_quality_score"] is not None:
                     try:
-                        signal_quality_score = safe_float(signal_data["signal_quality_score"], f"{symbol}.signal_quality_score", allow_none=False)
+                        signal_quality_score = safe_float(
+                            signal_data["signal_quality_score"], f"{symbol}.signal_quality_score", allow_none=False
+                        )
                     except (ValueError, TypeError) as e:
                         logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid signal_quality_score: {e}")
                         skipped_count += 1
@@ -425,6 +430,7 @@ def _batch_fetch_technical_data(
                 # CRITICAL FIX: Session 345 - Validate type conversions (handles NaN/Infinity)
                 try:
                     from utils.type_conversion import safe_float
+
                     atr_float = safe_float(atr, f"{symbol}.atr", allow_none=False)
                     sma_50_float = safe_float(sma_50, f"{symbol}.sma_50", allow_none=False)
                     close_float = safe_float(close, f"{symbol}.close", allow_none=False)
@@ -1264,15 +1270,21 @@ def run(
                 try:
                     max_risk_pct = float(max_risk_val)
                     if risk_pct > max_risk_pct:
-                        logger.info(f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}% > {max_risk_pct:.1f}%), skipping")
+                        logger.info(
+                            f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}% > {max_risk_pct:.1f}%), skipping"
+                        )
                         _log_signal_rejection(
-                            symbol, "stop_too_wide", f"Risk {risk_pct:.1f}% > {max_risk_pct:.1f}%", run_date, entry_price, risk_pct
+                            symbol,
+                            "stop_too_wide",
+                            f"Risk {risk_pct:.1f}% > {max_risk_pct:.1f}%",
+                            run_date,
+                            entry_price,
+                            risk_pct,
                         )
                         skipped_count += 1
                         continue
                 except (ValueError, TypeError) as e:
                     logger.warning(f"[PHASE 8] {symbol}: Could not parse max_risk_per_trade_pct ({max_risk_val}): {e}")
-
 
             # Position sizer will handle actual dollar risk limits using max_risk_per_trade_pct
             # The stop-loss width (risk_pct) is checked for min (1.5%) above. Position sizer
@@ -1388,7 +1400,9 @@ def run(
                             sqs = sqs_row[0] if sqs is None else sqs
                             trend_score = sqs_row[1] if trend_score is None else trend_score
                 except Exception as e:
-                    logger.warning(f"[PHASE 8] {symbol}: Could not fetch signal quality scores: {e}. Proceeding with available data.")
+                    logger.warning(
+                        f"[PHASE 8] {symbol}: Could not fetch signal quality scores: {e}. Proceeding with available data."
+                    )
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             # CRITICAL FIX (Session 372): Reject NULL signal quality scores
@@ -1543,6 +1557,7 @@ def run(
     }
     # Validate schema contract before returning
     from algo.orchestrator.phase_data_contract import validate_phase_data
+
     validate_phase_data(8, result_data)
     return PhaseResult(
         8,

@@ -95,10 +95,10 @@ def run(
             if cb_result and "error" in cb_result:
                 # CRITICAL: Market circuit breaker API failure must halt trading per GOVERNANCE.
                 # Exception: In paper mode with credential errors, log warning and continue (dev convenience)
-                error_msg = cb_result.get('description', cb_result.get('reason', 'unknown'))
-                error_reason = cb_result.get('reason', '')
-                is_credential_error = 'credential' in error_reason.lower() or '401' in error_msg.lower()
-                is_transient_error = 'timeout' in error_reason.lower() or 'connection' in error_reason.lower()
+                error_msg = cb_result.get("description", cb_result.get("reason", "unknown"))
+                error_reason = cb_result.get("reason", "")
+                is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
+                is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()
                 execution_mode = config.get("execution_mode", "paper")
 
                 if is_credential_error and execution_mode == "paper":
@@ -106,7 +106,9 @@ def run(
                         f"[PHASE 2] Market circuit breaker check skipped in paper mode (credentials unavailable). "
                         f"Production trading requires valid Alpaca credentials. Error: {error_msg}"
                     )
-                    log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)")
+                    log_phase_result_fn(
+                        2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)"
+                    )
                     # Continue without circuit breaker check in paper mode - explicitly skip market check
                     cb_result = None  # Skip market circuit breaker processing below
                 elif is_transient_error:
@@ -116,7 +118,9 @@ def run(
                         f"[PHASE 2] Transient network error checking circuit breaker (will retry next run): {error_msg}. "
                         f"Continuing with trading - if market is down, other data quality checks will catch it."
                     )
-                    log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "transient network error, proceeding with caution")
+                    log_phase_result_fn(
+                        2, "circuit_breakers", "ok_with_warning", "transient network error, proceeding with caution"
+                    )
                     # Continue without circuit breaker check on transient failure - explicitly skip market check
                     cb_result = None  # Skip market circuit breaker processing below
                 else:
@@ -245,4 +249,11 @@ def run(
         log_phase_error(2, error, log_phase_result_fn)
         logger.critical(f"[PHASE 2] Circuit breaker check failed: {str(e)[:100]}")
         log_phase_result_fn(2, "circuit_breakers", "halt", f"Check failed: {str(e)[:50]}")
-        return PhaseResult(2, "circuit_breakers", "halted", {"status": "halted", "reason": f"Circuit breaker check failed: {str(e)[:80]}"}, True, f"Circuit breaker check failed: {str(e)[:80]}")
+        return PhaseResult(
+            2,
+            "circuit_breakers",
+            "halted",
+            {"status": "halted", "reason": f"Circuit breaker check failed: {str(e)[:80]}"},
+            True,
+            f"Circuit breaker check failed: {str(e)[:80]}",
+        )

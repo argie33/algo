@@ -291,9 +291,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             is_paper_trading = self.config["alpaca_paper_trading"]
             if not isinstance(is_paper_trading, bool):
                 type_name = type(is_paper_trading).__name__
-                raise ValueError(
-                    f"[CONFIG_ERROR] alpaca_paper_trading must be bool, got {type_name}"
-                )
+                raise ValueError(f"[CONFIG_ERROR] alpaca_paper_trading must be bool, got {type_name}")
 
             if is_paper_trading:
                 logger.warning(

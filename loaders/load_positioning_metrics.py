@@ -179,11 +179,17 @@ class PositioningMetricsLoader(OptimalLoader):
                 "shares_short_prior_month": shares_short_prior_month,
                 "short_interest_trend": short_interest_trend,
                 # Session 395+: Add unavailable_reason for each metric
-                "institutional_ownership_pct_unavailable_reason": "missing_sec_data" if institutional_pct is None else None,
+                "institutional_ownership_pct_unavailable_reason": (
+                    "missing_sec_data" if institutional_pct is None else None
+                ),
                 "insider_ownership_pct_unavailable_reason": "missing_sec_data" if insider_pct is None else None,
                 "short_interest_pct_unavailable_reason": "missing_finra_data" if short_interest_pct is None else None,
-                "shares_short_prior_month_unavailable_reason": "insufficient_history" if shares_short_prior_month is None else None,
-                "short_interest_trend_unavailable_reason": "insufficient_history" if short_interest_trend is None else None,
+                "shares_short_prior_month_unavailable_reason": (
+                    "insufficient_history" if shares_short_prior_month is None else None
+                ),
+                "short_interest_trend_unavailable_reason": (
+                    "insufficient_history" if short_interest_trend is None else None
+                ),
                 "data_unavailable": all_unavailable,
                 "reason": (
                     f"short_interest:{short_interest_source};institutional:{institutional_source};insider:{insider_source}"
@@ -192,10 +198,13 @@ class PositioningMetricsLoader(OptimalLoader):
                 ),
                 "data_source": (
                     # Set data_source to the primary available source, or "none" if all unavailable
-                    short_interest_source if short_interest_source != "unavailable"
-                    else institutional_source if institutional_source != "unavailable"
-                    else insider_source if insider_source != "unavailable"
-                    else "none"
+                    short_interest_source
+                    if short_interest_source != "unavailable"
+                    else (
+                        institutional_source
+                        if institutional_source != "unavailable"
+                        else insider_source if insider_source != "unavailable" else "none"
+                    )
                 ),
                 "source_tracking": {
                     "short_interest": short_interest_source,

@@ -100,10 +100,8 @@ def _check_failsafe_retry_result(
         price_coverage_pct = None
         try:
             with DatabaseContext("read") as cur:
-                cur.execute(
-                    """SELECT completion_pct FROM data_loader_status
-                       WHERE table_name='price_daily' ORDER BY last_updated DESC LIMIT 1"""
-                )
+                cur.execute("""SELECT completion_pct FROM data_loader_status
+                       WHERE table_name='price_daily' ORDER BY last_updated DESC LIMIT 1""")
                 row = cur.fetchone()
                 if row and row[0] is not None:
                     price_coverage_pct = row[0]
@@ -421,13 +419,11 @@ def run(  # noqa: C901
 
             # CRITICAL FIX: Detect phantom rows in price_daily (NULL prices counted as fresh data)
             # These bypass the freshness check by inflating MAX(date) and symbol count
-            cur.execute(
-                """SELECT COUNT(*) as phantom_count,
+            cur.execute("""SELECT COUNT(*) as phantom_count,
                           COUNT(CASE WHEN close IS NULL THEN 1 END) as null_close_count,
                           COUNT(CASE WHEN open IS NULL THEN 1 END) as null_open_count
                    FROM price_daily
-                   WHERE date = (SELECT MAX(date) FROM price_daily)"""
-            )
+                   WHERE date = (SELECT MAX(date) FROM price_daily)""")
             phantom_row = cur.fetchone()
             if phantom_row:
                 phantom_count = phantom_row[0]
@@ -573,12 +569,10 @@ def run(  # noqa: C901
             # causing false "100% complete" when only 1 symbol out of 5000+ was actually loaded.
             # This check catches that mismatch and fails fast rather than proceeding with incomplete data.
             try:
-                cur.execute(
-                    """SELECT completion_pct, symbols_loaded, symbol_count
+                cur.execute("""SELECT completion_pct, symbols_loaded, symbol_count
                        FROM data_loader_status
                        WHERE table_name = 'price_daily'
-                       ORDER BY last_updated DESC LIMIT 1"""
-                )
+                       ORDER BY last_updated DESC LIMIT 1""")
                 loader_status_row = cur.fetchone()
                 if loader_status_row:
                     reported_pct, reported_loaded, reported_expected = loader_status_row
@@ -601,9 +595,7 @@ def run(  # noqa: C901
             # CRITICAL FIX (Session 365): Using prior_count instead of active_symbol_count
             # caused coverage > 100% when new symbols started trading. Changed to use
             # current active symbols as denominator to get true coverage percentage.
-            cur.execute(
-                """SELECT COUNT(*) FROM stock_symbols WHERE active = true"""
-            )
+            cur.execute("""SELECT COUNT(*) FROM stock_symbols WHERE active = true""")
             row = cur.fetchone()
             if row is None or row[0] is None:
                 total_active_symbols = 0
@@ -761,7 +753,7 @@ def run(  # noqa: C901
                     FROM market_health_daily
                     WHERE date = %s
                     """,
-                    (health_max_date,)
+                    (health_max_date,),
                 )
                 health_col_row = cur.fetchone()
                 total_rows, pcr_rows, vix_rows = health_col_row if health_col_row else (0, 0, 0)
@@ -1143,6 +1135,4 @@ def run(  # noqa: C901
         log_phase_result_fn(1, "error", "error", error_summary)
         phase_data = {"status": "error", "reason": f"Phase 1 failed: {error_summary}"}
         validate_phase_data(1, phase_data)
-        return PhaseResult(
-            1, "error", "error", phase_data, True, error_summary
-        )
+        return PhaseResult(1, "error", "error", phase_data, True, error_summary)

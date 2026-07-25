@@ -758,7 +758,9 @@ class PositionSizer:
         try:
             max_positions = int(max_positions_val)
         except (ValueError, TypeError) as e:
-            raise ValueError(f"[POSITION_SIZER] max_positions must be integer, got {type(max_positions_val).__name__}: {max_positions_val}") from e
+            raise ValueError(
+                f"[POSITION_SIZER] max_positions must be integer, got {type(max_positions_val).__name__}: {max_positions_val}"
+            ) from e
         if max_positions <= 0:
             raise ValueError(f"[POSITION_SIZER] max_positions must be > 0, got {max_positions}")
 
@@ -932,14 +934,18 @@ class PositionSizer:
                     # Calculate aggregate risk after this position would be added
                     new_position_risk = float(risk_dollars)
                     total_risk_after_entry = current_risk_dollars + new_position_risk
-                    total_risk_pct = (total_risk_after_entry / float(portfolio_value)) * 100.0 if float(portfolio_value) > 0 else 0.0
+                    total_risk_pct = (
+                        (total_risk_after_entry / float(portfolio_value)) * 100.0 if float(portfolio_value) > 0 else 0.0
+                    )
 
                     # Hard limit: 4% max total risk
                     max_risk_pct = 4.0
 
                     if total_risk_pct > max_risk_pct:
                         # Risk limit would be exceeded - scale down position or block
-                        available_capacity_dollars = (max_risk_pct / 100.0 * float(portfolio_value)) - current_risk_dollars
+                        available_capacity_dollars = (
+                            max_risk_pct / 100.0 * float(portfolio_value)
+                        ) - current_risk_dollars
 
                         if available_capacity_dollars <= 0:
                             # No room left - block entry entirely
@@ -953,7 +959,9 @@ class PositionSizer:
                         else:
                             # Scale down position to fit within available capacity
                             scaled_risk_dollars = Decimal(str(available_capacity_dollars))
-                            scaled_shares = int((scaled_risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+                            scaled_shares = int(
+                                (scaled_risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+                            )
 
                             if scaled_shares < 1:
                                 # Can't fit even minimum position
@@ -977,7 +985,9 @@ class PositionSizer:
                                 f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
                             )
             except Exception as e:
-                logger.warning(f"[POSITION_SIZER] {symbol}: Could not enforce total risk limit: {e}. Proceeding with calculated size.")
+                logger.warning(
+                    f"[POSITION_SIZER] {symbol}: Could not enforce total risk limit: {e}. Proceeding with calculated size."
+                )
                 # Don't fail - let the trade go through; circuit breaker will catch if aggregate risk is exceeded
 
         cascade_multiplier = (

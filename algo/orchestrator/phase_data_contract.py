@@ -197,7 +197,9 @@ PHASE_CONTRACTS = {
     ),
     # Phase 5 is CRITICAL: constraints MUST be validated separately with validate_phase_5_constraints()
     5: PhaseDataSchema(5, "EXPOSURE POLICY", required_keys=["constraints", "actions"]),
-    6: PhaseDataSchema(6, "EXIT EXECUTION", required_keys=["exits_executed"], optional_keys=["summary", "stop_raises", "errors"]),
+    6: PhaseDataSchema(
+        6, "EXIT EXECUTION", required_keys=["exits_executed"], optional_keys=["summary", "stop_raises", "errors"]
+    ),
     7: PhaseDataSchema(7, "SIGNAL GENERATION", required_keys=["qualified_trades"], optional_keys=["liquidity_passed"]),
     8: PhaseDataSchema(8, "ENTRY EXECUTION", required_keys=["entered"], optional_keys=["summary"]),
     9: PhaseDataSchema(9, "RECONCILIATION & SNAPSHOT", required_keys=["positions"], optional_keys=["summary"]),

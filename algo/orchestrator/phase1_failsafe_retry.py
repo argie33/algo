@@ -162,12 +162,15 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                         max_date = row[0]
                         # Convert date/datetime to date for comparison
                         from datetime import date as date_type
+
                         if isinstance(max_date, date_type) and not isinstance(max_date, datetime):
                             table_max_date = max_date
                         elif isinstance(max_date, datetime):
                             table_max_date = max_date.date()
                         else:
-                            logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Unexpected date type for {table_name}: {type(max_date)}")
+                            logger.warning(
+                                f"[PHASE 1 FAILSAFE LOCAL] Unexpected date type for {table_name}: {type(max_date)}"
+                            )
                             continue
 
                         # Market-aware staleness check: allow up to 10 days behind (covers weekends/holidays)
@@ -212,6 +215,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
 
                 # Run loader with force-refresh to bypass watermarks
                 import subprocess
+
                 env = os.environ.copy()
                 env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters
 
@@ -221,7 +225,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                     text=True,
                     timeout=300,
                     env=env,
-                    cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Go to repo root
+                    cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),  # Go to repo root
                 )
 
                 if result.returncode == 0:

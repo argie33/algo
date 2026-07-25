@@ -616,13 +616,13 @@ class ExitEngine:
                                        exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status = 'open'
                                        ORDER BY trade_date DESC LIMIT 1""",
-                                    (current_date, exit_price, "delisted_or_unavailable", symbol)
+                                    (current_date, exit_price, "delisted_or_unavailable", symbol),
                                 )
                                 cur.execute(
                                     """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status = 'open'""",
-                                    (symbol,)
+                                    (symbol,),
                                 )
                                 exits_executed += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
@@ -641,13 +641,13 @@ class ExitEngine:
                                    exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                    WHERE symbol = %s AND status = 'open'
                                    ORDER BY trade_date DESC LIMIT 1""",
-                                (current_date, exit_price, "no_price_data", symbol)
+                                (current_date, exit_price, "no_price_data", symbol),
                             )
                             cur.execute(
                                 """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                    updated_at = CURRENT_TIMESTAMP
                                    WHERE symbol = %s AND status = 'open'""",
-                                (symbol,)
+                                (symbol,),
                             )
                             exits_executed += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")

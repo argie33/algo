@@ -75,6 +75,7 @@ class VectorizedTechnicalLoader:
         # Markets are closed on weekends/holidays, so no new price data is available
         # Loaders should not fail just because it's Saturday - that's expected behavior
         from algo.infrastructure import MarketCalendar
+
         if not MarketCalendar.is_trading_day(end_date):
             logger.info(
                 f"[TECHNICAL_DATA] Skipping load: today ({end_date}) is not a trading day. "
@@ -584,9 +585,7 @@ class VectorizedTechnicalLoader:
         except Exception as e:
             logger.warning(f"[VCP] VCP pattern computation failed (non-blocking): {e}")
 
-    def _compute_vcp_for_symbol(
-        self, symbol: str, symbol_df: pd.DataFrame, vcp_patterns: list[dict[str, Any]]
-    ) -> None:
+    def _compute_vcp_for_symbol(self, symbol: str, symbol_df: pd.DataFrame, vcp_patterns: list[dict[str, Any]]) -> None:
         """Compute VCP pattern for a single symbol from its in-memory indicator history.
 
         No DB queries - `symbol_df` is this symbol's slice of `indicators_df`, already
@@ -914,21 +913,23 @@ class VectorizedTechnicalLoader:
             with DatabaseContext("write") as cur:
                 # Update technical_data_daily with minervini_trend_score from trend_template_data
                 # This JOIN will only populate rows where both tables have matching symbol/date
-                cur.execute(
-                    """
+                cur.execute("""
                     UPDATE technical_data_daily
                     SET minervini_trend_score = t.minervini_trend_score
                     FROM trend_template_data t
                     WHERE technical_data_daily.symbol = t.symbol
                     AND technical_data_daily.date = t.date
                     AND technical_data_daily.minervini_trend_score IS NULL
-                    """
-                )
+                    """)
                 updated = cur.rowcount
                 if updated > 0:
-                    logger.info(f"[MINERVINI] Populated {updated} rows with minervini_trend_score from trend_template_data")
+                    logger.info(
+                        f"[MINERVINI] Populated {updated} rows with minervini_trend_score from trend_template_data"
+                    )
                 else:
-                    logger.debug("[MINERVINI] No minervini scores to populate (trend_template_data may not be ready yet)")
+                    logger.debug(
+                        "[MINERVINI] No minervini scores to populate (trend_template_data may not be ready yet)"
+                    )
         except psycopg2.Error as e:
             logger.warning(
                 f"[MINERVINI] Failed to populate minervini_trend_score (non-fatal): {e}. "

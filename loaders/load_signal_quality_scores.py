@@ -63,9 +63,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 self._ensure_vcp_patterns_populated(cur)
 
                 # Check if buy_sell_daily is ready (ISSUE #27 FIX)
-                cur.execute(
-                    "SELECT status, completion_pct FROM data_loader_status WHERE table_name = 'buy_sell_daily'"
-                )
+                cur.execute("SELECT status, completion_pct FROM data_loader_status WHERE table_name = 'buy_sell_daily'")
                 result = cur.fetchone()
                 if result is None:
                     raise RuntimeError(
@@ -501,7 +499,9 @@ class SignalQualityScoresLoader(OptimalLoader):
             )
             row = cur.fetchone()
             if row is None or not row[0]:
-                logger.warning("[VCP] vcp_patterns table does not exist - will be created when technical_data_daily runs")
+                logger.warning(
+                    "[VCP] vcp_patterns table does not exist - will be created when technical_data_daily runs"
+                )
                 return
 
             # Check if vcp_patterns has any data
@@ -813,7 +813,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                 unavailable_components = {k: v for k, v in all_components.items() if v is None}
 
                 # Average the normalized components (all now on 0-100 scale)
-                composite_sqs = int(sum(normalized_components) / len(normalized_components)) if normalized_components else 0
+                composite_sqs = (
+                    int(sum(normalized_components) / len(normalized_components)) if normalized_components else 0
+                )
                 data_completeness = min(99.99, round((len(normalized_components) / 7.0) * 100, 2))
                 # Composite score is now properly normalized to 0-100 via averaging normalized components
                 # No clamping needed since all components are pre-normalized

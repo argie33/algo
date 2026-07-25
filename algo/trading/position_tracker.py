@@ -161,9 +161,7 @@ class PositionTracker:
                 )
                 cur.execute(update_sql, params)
                 rows_updated = cur.rowcount
-                logger.debug(
-                    f"[POSITION_UPDATE] update result: position={position_id}, rows_affected={rows_updated}"
-                )
+                logger.debug(f"[POSITION_UPDATE] update result: position={position_id}, rows_affected={rows_updated}")
 
             return bool(cur.rowcount > 0)
 

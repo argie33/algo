@@ -119,9 +119,7 @@ class MarketConstituentsLoader(OptimalLoader):
                     )
                     sp500_set = set()
             except Exception as e:
-                logger.warning(
-                    f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500 ({e}). Continuing without S&P 500 data."
-                )
+                logger.warning(f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500 ({e}). Continuing without S&P 500 data.")
                 sp500_set = set()
 
             # STEP 3: Fetch and index Russell 2000 constituents (optional enrichment)

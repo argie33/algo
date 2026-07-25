@@ -164,6 +164,7 @@ class StockScoresLoader(OptimalLoader):
                         if max_update_row and max_update_row[0]:
                             max_update_ts = max_update_row[0]
                             from datetime import datetime, timezone
+
                             now_utc = datetime.now(timezone.utc)
                             if max_update_ts.tzinfo is None:
                                 max_update_ts = max_update_ts.replace(tzinfo=timezone.utc)
@@ -178,7 +179,9 @@ class StockScoresLoader(OptimalLoader):
                                 )
                     except Exception as staleness_check_err:
                         # Non-fatal: log but don't halt if staleness check fails
-                        logger.warning(f"[STOCK_SCORES] Could not validate {table_name} staleness: {staleness_check_err}")
+                        logger.warning(
+                            f"[STOCK_SCORES] Could not validate {table_name} staleness: {staleness_check_err}"
+                        )
 
                 for table_name in optional_sec_metric_tables:
                     # RACE CONDITION FIX: Use single query to get both counts atomically
@@ -255,13 +258,17 @@ class StockScoresLoader(OptimalLoader):
                 config_row = config_cur.fetchone()
                 if config_row and config_row[0]:
                     self._min_completeness_threshold = float(config_row[0])
-                    logger.debug(f"[STOCK_SCORES] Using configurable completeness threshold: {self._min_completeness_threshold}%")
+                    logger.debug(
+                        f"[STOCK_SCORES] Using configurable completeness threshold: {self._min_completeness_threshold}%"
+                    )
                 else:
                     self._min_completeness_threshold = 70.0
                     logger.debug("[STOCK_SCORES] No config found, using default completeness threshold: 70%")
         except Exception as config_err:
             self._min_completeness_threshold = 70.0
-            logger.warning(f"[STOCK_SCORES] Could not load min_completeness_score config, using default 70%: {config_err}")
+            logger.warning(
+                f"[STOCK_SCORES] Could not load min_completeness_score config, using default 70%: {config_err}"
+            )
 
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -632,7 +639,7 @@ class StockScoresLoader(OptimalLoader):
             # This violates fail-fast governance: incomplete data must be marked unavailable.
             # Threshold is now configurable via algo_config.min_completeness_score (default: 70%)
             # Read threshold from cache that was loaded in _prepare_batch_context()
-            min_completeness_threshold = getattr(self, '_min_completeness_threshold', 70.0)
+            min_completeness_threshold = getattr(self, "_min_completeness_threshold", 70.0)
 
             score_available = data_completeness >= min_completeness_threshold
             if not score_available:
@@ -1136,7 +1143,9 @@ class StockScoresLoader(OptimalLoader):
                 adjustment -= 5.0
 
         # Growth signal: Positive earnings growth improves quality perception
-        earnings_growth = safe_float(metrics.get("earnings_growth_yoy"), f"{symbol}.earnings_growth_yoy", allow_none=True)
+        earnings_growth = safe_float(
+            metrics.get("earnings_growth_yoy"), f"{symbol}.earnings_growth_yoy", allow_none=True
+        )
         if earnings_growth is not None and earnings_growth > 0:
             # Growth premium: +5 for 10%+ growth, +2 for 5%+ growth
             adjustment += min(5.0, earnings_growth / 10.0)
@@ -1695,9 +1704,9 @@ class StockScoresLoader(OptimalLoader):
             elif dte <= 1.0:
                 dte_score = 100.0 - ((dte - 0.5) / 0.5) * 30  # 100→70 in [0.5, 1.0]
             elif dte <= 2.0:
-                dte_score = 70.0 - ((dte - 1.0) / 1.0) * 40   # 70→30 in [1.0, 2.0]
+                dte_score = 70.0 - ((dte - 1.0) / 1.0) * 40  # 70→30 in [1.0, 2.0]
             else:
-                dte_score = max(0, 30 - (dte - 2.0) * 15)     # Below 30 for dte > 2.0
+                dte_score = max(0, 30 - (dte - 2.0) * 15)  # Below 30 for dte > 2.0
             components.append((dte_score, 0.30))
 
         # 2. Solvency: Debt-to-assets (target D/A < 0.5, lower is better)
@@ -1717,7 +1726,7 @@ class StockScoresLoader(OptimalLoader):
             elif cr >= 1.0:
                 cr_score = 50.0 + ((cr - 1.0) / 0.5) * 30  # 50→80 in [1.0, 1.5]
             elif cr >= 0.5:
-                cr_score = (cr / 0.5) * 50                 # 0→50 in [0, 0.5]
+                cr_score = (cr / 0.5) * 50  # 0→50 in [0, 0.5]
             else:
                 cr_score = 0.0
             liquidity_scores.append(cr_score)
@@ -1727,11 +1736,11 @@ class StockScoresLoader(OptimalLoader):
             if qr >= 1.5:
                 qr_score = 100.0
             elif qr >= 1.0:
-                qr_score = 70.0 + ((qr - 1.0) / 0.5) * 30   # 70→100 in [1.0, 1.5]
+                qr_score = 70.0 + ((qr - 1.0) / 0.5) * 30  # 70→100 in [1.0, 1.5]
             elif qr >= 0.5:
-                qr_score = 35.0 + ((qr - 0.5) / 0.5) * 35   # 35→70 in [0.5, 1.0]
+                qr_score = 35.0 + ((qr - 0.5) / 0.5) * 35  # 35→70 in [0.5, 1.0]
             else:
-                qr_score = (qr / 0.5) * 35                  # 0→35 in [0, 0.5]
+                qr_score = (qr / 0.5) * 35  # 0→35 in [0, 0.5]
             liquidity_scores.append(qr_score)
 
         if liquidity_scores:
@@ -1744,9 +1753,9 @@ class StockScoresLoader(OptimalLoader):
             if cps >= 50:
                 cps_score = 100.0
             elif cps >= 10:
-                cps_score = 60.0 + ((cps - 10) / 40) * 40   # 60→100 in [$10, $50]
+                cps_score = 60.0 + ((cps - 10) / 40) * 40  # 60→100 in [$10, $50]
             else:
-                cps_score = (cps / 10) * 60                 # 0→60 in [$0, $10]
+                cps_score = (cps / 10) * 60  # 0→60 in [$0, $10]
             components.append((cps_score, 0.15))
 
         # Compute weighted average if we have any components

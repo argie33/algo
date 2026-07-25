@@ -50,7 +50,9 @@ class QualityChecker(BaseCheck):
                 row_dict = dict(row) if hasattr(row, "keys") else {}
                 today_nulls, today_total = row_dict.get("today_nulls"), row_dict.get("today_total")
             if today_total is None or today_total == 0:
-                logger.warning("price_daily today_total is 0 or NULL - skipping null anomaly check (no records for today)")
+                logger.warning(
+                    "price_daily today_total is 0 or NULL - skipping null anomaly check (no records for today)"
+                )
                 return
             if today_nulls is None:
                 today_nulls = 0
@@ -99,7 +101,7 @@ class QualityChecker(BaseCheck):
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
-            today_zero_symbols = {row['symbol'] for row in cur.fetchall()}
+            today_zero_symbols = {row["symbol"] for row in cur.fetchall()}
             today_zero_count = len(today_zero_symbols)
 
             # Symbols with zero OHLC yesterday
@@ -110,7 +112,7 @@ class QualityChecker(BaseCheck):
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
-            yesterday_zero_symbols = {row['symbol'] for row in cur.fetchall()}
+            yesterday_zero_symbols = {row["symbol"] for row in cur.fetchall()}
 
             new_zeros = today_zero_symbols - yesterday_zero_symbols
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
@@ -163,7 +165,7 @@ class QualityChecker(BaseCheck):
                   AND volume > 0
                 ORDER BY symbol
             """)
-            ident_symbols = [row['symbol'] for row in cur.fetchall()]
+            ident_symbols = [row["symbol"] for row in cur.fetchall()]
             ident_count = len(ident_symbols)
 
             # Mark suspicious OHLC in database

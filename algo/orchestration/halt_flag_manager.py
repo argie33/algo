@@ -167,7 +167,7 @@ class HaltFlagManager:
                                     ExpressionAttributeValues={
                                         ":true": True,
                                         ":orig_time": triggered_at_str,
-                                    }
+                                    },
                                 )
                                 return False
                             except Exception as cond_err:
@@ -275,10 +275,16 @@ class HaltFlagManager:
                 # Check if halt is from previous trading day (auto-expiry)
                 if triggered_at:
                     try:
-                        trigger_dt = datetime.fromisoformat(triggered_at.isoformat() if hasattr(triggered_at, 'isoformat') else triggered_at)
+                        trigger_dt = datetime.fromisoformat(
+                            triggered_at.isoformat() if hasattr(triggered_at, "isoformat") else triggered_at
+                        )
                         now_utc = datetime.now(timezone.utc)
 
-                        trigger_et = trigger_dt.astimezone(EASTERN_TZ) if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=EASTERN_TZ)
+                        trigger_et = (
+                            trigger_dt.astimezone(EASTERN_TZ)
+                            if trigger_dt.tzinfo
+                            else trigger_dt.replace(tzinfo=EASTERN_TZ)
+                        )
                         now_et = now_utc.astimezone(EASTERN_TZ)
 
                         trigger_date = trigger_et.date()
@@ -305,13 +311,15 @@ class HaltFlagManager:
                                         cur2.execute(
                                             """UPDATE algo_runtime_state SET halt_flag = FALSE, halt_count = 0
                                                WHERE state_key = %s""",
-                                            (self.HALT_FLAG_DYNAMODB_KEY,)
+                                            (self.HALT_FLAG_DYNAMODB_KEY,),
                                         )
                                 except Exception as clear_err:
                                     logger.warning(f"[HALT_FLAG] Could not auto-clear halt in RDS: {clear_err}")
                                 return False
                             else:
-                                logger.info(f"[HALT_FLAG] Halt from {trigger_date} still active before market open today")
+                                logger.info(
+                                    f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
+                                )
                                 return True
 
                         if trigger_date == now_date_et:
@@ -397,7 +405,7 @@ class HaltFlagManager:
                             ":reason": reason or "Phase 1 degraded: stale data detected",
                             ":inc": 1,
                         },
-                        RetryPolicy={'MaxAttempts': 1}  # Don't retry at boto3 level
+                        RetryPolicy={"MaxAttempts": 1},  # Don't retry at boto3 level
                     )
 
                     # Now fetch to get the updated count and log escalation if needed
@@ -436,7 +444,9 @@ class HaltFlagManager:
                             except (ValueError, KeyError) as escalation_err:
                                 logger.warning(f"Could not parse halt escalation: {escalation_err}")
                 except Exception as update_err:
-                    logger.debug(f"Failed to set DynamoDB halt flag (attempt {attempt+1}): {update_err}. Trying RDS fallback.")
+                    logger.debug(
+                        f"Failed to set DynamoDB halt flag (attempt {attempt+1}): {update_err}. Trying RDS fallback."
+                    )
                     raise
 
                 if halt_count >= 2:
@@ -447,7 +457,9 @@ class HaltFlagManager:
             except Exception as e:
                 last_error = e
                 # Fall back to RDS
-                logger.debug(f"[HALT_FLAG] DynamoDB set attempt {attempt+1}/{max_retries} failed: {e}. Using RDS fallback.")
+                logger.debug(
+                    f"[HALT_FLAG] DynamoDB set attempt {attempt+1}/{max_retries} failed: {e}. Using RDS fallback."
+                )
                 try:
                     rds_result = self._set_halt_flag_rds(reason, now_utc, now_et)
                     if not rds_result:
@@ -455,6 +467,7 @@ class HaltFlagManager:
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
                         if attempt < max_retries - 1:
                             import time
+
                             time.sleep(0.5)  # Brief backoff before retry
                             continue
                         else:
@@ -465,6 +478,7 @@ class HaltFlagManager:
                     last_error = rds_err
                     if attempt < max_retries - 1:
                         import time
+
                         time.sleep(0.5)  # Brief backoff before retry
                         continue
                     else:
@@ -482,6 +496,7 @@ class HaltFlagManager:
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successfully set."""
         import json
+
         try:
             with DatabaseContext("write") as cur:
                 state_value = json.dumps({"halt_triggered_by": "orchestrator", "reason": reason or "Phase 1 degraded"})
@@ -498,7 +513,15 @@ class HaltFlagManager:
                         halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
                         last_updated_at = CURRENT_TIMESTAMP
                     """,
-                    (self.HALT_FLAG_DYNAMODB_KEY, state_value, True, now_utc.isoformat(), reason or "Phase 1 degraded: stale data detected", 1, "orchestrator"),
+                    (
+                        self.HALT_FLAG_DYNAMODB_KEY,
+                        state_value,
+                        True,
+                        now_utc.isoformat(),
+                        reason or "Phase 1 degraded: stale data detected",
+                        1,
+                        "orchestrator",
+                    ),
                 )
             logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
             return True
@@ -644,10 +667,16 @@ class HaltFlagManager:
                     return False
 
                 try:
-                    trigger_dt = datetime.fromisoformat(triggered_at.isoformat() if hasattr(triggered_at, 'isoformat') else triggered_at)
+                    trigger_dt = datetime.fromisoformat(
+                        triggered_at.isoformat() if hasattr(triggered_at, "isoformat") else triggered_at
+                    )
                     now_utc = datetime.now(timezone.utc)
 
-                    trigger_et = trigger_dt.astimezone(EASTERN_TZ) if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=EASTERN_TZ)
+                    trigger_et = (
+                        trigger_dt.astimezone(EASTERN_TZ)
+                        if trigger_dt.tzinfo
+                        else trigger_dt.replace(tzinfo=EASTERN_TZ)
+                    )
                     now_et = now_utc.astimezone(EASTERN_TZ)
 
                     trigger_date = trigger_et.date()
@@ -672,9 +701,11 @@ class HaltFlagManager:
                                 write_cur.execute(
                                     """UPDATE algo_runtime_state SET halt_flag = FALSE, halt_count = 0
                                        WHERE state_key = %s""",
-                                    (self.HALT_FLAG_DYNAMODB_KEY,)
+                                    (self.HALT_FLAG_DYNAMODB_KEY,),
                                 )
-                            logger.info("[PROACTIVE_CLEAR] Halt flag successfully cleared (RDS). Orchestrator will proceed.")
+                            logger.info(
+                                "[PROACTIVE_CLEAR] Halt flag successfully cleared (RDS). Orchestrator will proceed."
+                            )
                             return True
 
                     return False
@@ -740,13 +771,17 @@ class HaltFlagManager:
                         "reason": reason or "Phase 1 verified: data is fresh",
                         "reset_at": now_utc.isoformat(),
                     },
-                    RetryPolicy={'MaxAttempts': 1}  # Don't retry at boto3 level, we'll do it here
+                    RetryPolicy={"MaxAttempts": 1},  # Don't retry at boto3 level, we'll do it here
                 )
-                logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
+                logger.info(
+                    f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}"
+                )
                 return True
             except Exception as e:
                 last_error = e
-                logger.debug(f"[HALT_FLAG] DynamoDB clear attempt {attempt+1}/{max_retries} failed: {e}. Will try RDS fallback.")
+                logger.debug(
+                    f"[HALT_FLAG] DynamoDB clear attempt {attempt+1}/{max_retries} failed: {e}. Will try RDS fallback."
+                )
 
                 # Try RDS fallback
                 try:
@@ -756,6 +791,7 @@ class HaltFlagManager:
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
                         if attempt < max_retries - 1:
                             import time
+
                             time.sleep(0.5)  # Brief backoff before retry
                             continue
                         else:
@@ -766,6 +802,7 @@ class HaltFlagManager:
                     last_error = rds_err
                     if attempt < max_retries - 1:
                         import time
+
                         time.sleep(0.5)  # Brief backoff before retry
                         continue
                     else:
@@ -794,7 +831,9 @@ class HaltFlagManager:
                     """,
                     (reason or "Phase 1 verified: data is fresh", now_utc, self.HALT_FLAG_DYNAMODB_KEY),
                 )
-            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'} (via RDS fallback)")
+            logger.info(
+                f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'} (via RDS fallback)"
+            )
             return True
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")

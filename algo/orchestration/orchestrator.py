@@ -374,14 +374,12 @@ class Orchestrator:
             with DatabaseContext("read") as cur:
                 # Check algo_positions table exists (critical for portfolio monitoring)
                 # Note: algo_positions is a BASE TABLE, not a view
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT EXISTS (
                         SELECT 1 FROM information_schema.tables
                         WHERE table_name = 'algo_positions' AND table_schema = 'public'
                     ) AS table_exists
-                    """
-                )
+                    """)
                 row = cur.fetchone()
                 if not row or not row.get("table_exists"):
                     logger.error(
@@ -1467,7 +1465,12 @@ class Orchestrator:
             from algo.orchestrator.phase_result import PhaseResult
 
             return PhaseResult(
-                7, "SIGNAL GENERATION & RANKING", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg
+                7,
+                "SIGNAL GENERATION & RANKING",
+                "halted",
+                {"qualified_trades": [], "liquidity_passed": 0},
+                True,
+                error_msg,
             )
 
         if phase5_result.halted:
@@ -1477,7 +1480,12 @@ class Orchestrator:
             from algo.orchestrator.phase_result import PhaseResult
 
             return PhaseResult(
-                7, "SIGNAL GENERATION & RANKING", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg
+                7,
+                "SIGNAL GENERATION & RANKING",
+                "halted",
+                {"qualified_trades": [], "liquidity_passed": 0},
+                True,
+                error_msg,
             )
 
         if not phase5_result.ok:
@@ -1487,7 +1495,12 @@ class Orchestrator:
             from algo.orchestrator.phase_result import PhaseResult
 
             return PhaseResult(
-                7, "SIGNAL GENERATION & RANKING", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg
+                7,
+                "SIGNAL GENERATION & RANKING",
+                "halted",
+                {"qualified_trades": [], "liquidity_passed": 0},
+                True,
+                error_msg,
             )
 
         exposure_constraints = executor.get_phase_data_required(5, "constraints")
@@ -1615,6 +1628,7 @@ class Orchestrator:
         # Phase 8 also has this guard, but adding it here stops pre-market runs much earlier
         # dry_run=True bypasses this to allow safe testing at any time
         from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
+
         now_et = datetime.now(EASTERN_TZ).time()
         if not self.dry_run and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
             logger.warning(

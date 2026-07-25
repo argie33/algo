@@ -96,10 +96,7 @@ class VIXFetcher:
                             "VIX loader has never run or price_daily is corrupt."
                         )
                     rows = [fallback_row]
-                    logger.info(
-                        f"[MARKET_HEALTH] Using fallback VIX from {fallback_row[0]} "
-                        "(most recent available)"
-                    )
+                    logger.info(f"[MARKET_HEALTH] Using fallback VIX from {fallback_row[0]} " "(most recent available)")
                 result = {}
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])

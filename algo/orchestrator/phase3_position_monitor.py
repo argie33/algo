@@ -134,9 +134,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             continue
 
                         if quantity is None:
-                            logger.warning(
-                                f"[PHASE 3] Skipping {symbol}: missing required quantity field"
-                            )
+                            logger.warning(f"[PHASE 3] Skipping {symbol}: missing required quantity field")
                             continue
 
                         current_price = float(current_price)
@@ -191,16 +189,20 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # Missing price data is expected during ramp-up and is handled gracefully by skipping
                 # Filter non-critical errors: missing prices, data loader lag, etc.
                 critical_errors = [
-                    e for e in update_errors
-                    if not any(phrase in e[1].lower() for phrase in [
-                        "price",
-                        "missing",
-                        "no data",
-                        "unavailable",
-                        "fallback",
-                        "ramp-up",
-                        "loader",
-                    ])
+                    e
+                    for e in update_errors
+                    if not any(
+                        phrase in e[1].lower()
+                        for phrase in [
+                            "price",
+                            "missing",
+                            "no data",
+                            "unavailable",
+                            "fallback",
+                            "ramp-up",
+                            "loader",
+                        ]
+                    )
                 ]
                 if critical_errors:
                     errors_str = "; ".join(f"{sym}({err})" for sym, err in critical_errors[:3])

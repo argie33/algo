@@ -151,16 +151,8 @@ class BuySignalGenerator:
                 )
 
                 # Build signal record
-                pct_from_sma50 = (
-                    round((close - sma_50) / sma_50 * 100, 4)
-                    if sma_50 and close and sma_50 > 0
-                    else None
-                )
-                pct_from_ema21 = (
-                    round((close - ema_21) / ema_21 * 100, 4)
-                    if ema_21 and close and ema_21 > 0
-                    else None
-                )
+                pct_from_sma50 = round((close - sma_50) / sma_50 * 100, 4) if sma_50 and close and sma_50 > 0 else None
+                pct_from_ema21 = round((close - ema_21) / ema_21 * 100, 4) if ema_21 and close and ema_21 > 0 else None
 
                 signal = {
                     "symbol": symbol,

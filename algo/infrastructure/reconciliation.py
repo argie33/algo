@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
-def _compute_adjusted_drawdown(
-    cur: Any, reconcile_date: Any, portfolio_value: float
-) -> tuple[float, float, float]:
+def _compute_adjusted_drawdown(cur: Any, reconcile_date: Any, portfolio_value: float) -> tuple[float, float, float]:
     """Cash-flow-adjusted peak/drawdown inputs (migration 1134).
 
     Raw total_portfolio_value moves for two different reasons: trading performance AND
@@ -45,7 +43,9 @@ def _compute_adjusted_drawdown(
     )
     flow_row = cur.fetchone()
     if flow_row is None or len(flow_row) < 1:
-        raise RuntimeError("[RECONCILIATION] Capital flow query returned invalid result: expected 1 column, got 0 or None")
+        raise RuntimeError(
+            "[RECONCILIATION] Capital flow query returned invalid result: expected 1 column, got 0 or None"
+        )
     net_capital_flow_cum = float(flow_row[0])
 
     adjusted_equity = portfolio_value - net_capital_flow_cum
@@ -58,9 +58,13 @@ def _compute_adjusted_drawdown(
     )
     peak_row = cur.fetchone()
     if peak_row is None or len(peak_row) < 1:
-        raise RuntimeError("[RECONCILIATION] Peak equity query returned invalid result: expected 1 column, got 0 or None")
+        raise RuntimeError(
+            "[RECONCILIATION] Peak equity query returned invalid result: expected 1 column, got 0 or None"
+        )
     prior_peak_val = peak_row[0]
-    adjusted_running_peak = max(float(prior_peak_val), adjusted_equity) if prior_peak_val is not None else adjusted_equity
+    adjusted_running_peak = (
+        max(float(prior_peak_val), adjusted_equity) if prior_peak_val is not None else adjusted_equity
+    )
 
     adjusted_drawdown_pct = 0.0
     if adjusted_running_peak > 0:
@@ -348,16 +352,21 @@ class DailyReconciliation:
                     # position_analyzer.py). Dividing by initial_capital instead makes this
                     # number drift from what "% unrealized on my open positions" should mean
                     # any time initial_capital differs from what's actually invested right now.
-                    unrealized_pnl_pct = (total_unrealized_pnl / total_cost_basis * 100) if total_cost_basis > 0 else 0.0
+                    unrealized_pnl_pct = (
+                        (total_unrealized_pnl / total_cost_basis * 100) if total_cost_basis > 0 else 0.0
+                    )
 
                     # Calculate running peak and drawdown percentage
                     # running_peak = maximum portfolio value seen up to this date
                     # drawdown_pct = how far below peak the current portfolio is
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT MAX(total_portfolio_value)
                         FROM algo_portfolio_snapshots
                         WHERE snapshot_date <= %s
-                    """, (reconcile_date,))
+                    """,
+                        (reconcile_date,),
+                    )
                     peak_result = cur.fetchone()
                     # MAX(total_portfolio_value) returns a Decimal (NUMERIC column); portfolio_value
                     # is a plain float computed above from baseline_equity/realized_pnl_today/
@@ -641,6 +650,7 @@ class DailyReconciliation:
             account_data = self._fetch_account()
             if not account_data:
                 import os
+
                 # In local test mode with auth failure, fall back to DB portfolio state
                 if os.getenv("LOCAL_MODE") == "true":
                     logger.warning(
@@ -656,7 +666,9 @@ class DailyReconciliation:
                     finally:
                         self.broker = saved_broker
                 else:
-                    logger.critical("Broker account fetch failed - reconciliation cannot proceed without live account data")
+                    logger.critical(
+                        "Broker account fetch failed - reconciliation cannot proceed without live account data"
+                    )
                     try:
                         notify(
                             "critical",
@@ -866,7 +878,11 @@ class DailyReconciliation:
                         trade_price_count += 1
 
                 if fallback_count > 0:
-                    fallback_pct = (fallback_count / (fallback_count + trade_price_count)) * 100 if (fallback_count + trade_price_count) > 0 else 0
+                    fallback_pct = (
+                        (fallback_count / (fallback_count + trade_price_count)) * 100
+                        if (fallback_count + trade_price_count) > 0
+                        else 0
+                    )
                     logger.warning(
                         f"[RECONCILIATION DATA QUALITY] {fallback_count}/{fallback_count + trade_price_count} positions using "
                         f"position_average_fallback ({fallback_pct:.1f}%) instead of trade entry_price. "
@@ -984,7 +1000,9 @@ class DailyReconciliation:
                     Decimal(str(analysis_unrealized_pnl_pct)) if analysis_unrealized_pnl_pct is not None else Decimal(0)
                 )
 
-                position_values = [p[5] for p in positions if p[5] is not None]  # position_value is now at index 5 (was 4)
+                position_values = [
+                    p[5] for p in positions if p[5] is not None
+                ]  # position_value is now at index 5 (was 4)
                 if len(position_values) < len(positions):
                     excluded_count = len(positions) - len(position_values)
                     logger.critical(
@@ -1534,8 +1552,7 @@ class DailyReconciliation:
         entry_price = estimated_exit_price (no price movement), can use the estimate if price_daily
         data hasn't loaded yet. Otherwise leaves trade pending for next run.
         """
-        cur.execute(
-            """
+        cur.execute("""
             SELECT trade_id, symbol, entry_price, stop_loss_price, entry_quantity, exit_date,
                    estimated_exit_price
             FROM algo_trades
@@ -1543,8 +1560,7 @@ class DailyReconciliation:
               AND profit_loss_dollars IS NULL
               AND estimated_exit_price IS NOT NULL
               AND exit_date <= CURRENT_DATE
-            """
-        )
+            """)
         pending = cur.fetchall()
         if not pending:
             return {"resolved": 0, "message": "No local-mode pending exits to resolve"}
@@ -1593,7 +1609,9 @@ class DailyReconciliation:
 
             entry_dec = Decimal(str(entry_price))
             qty_dec = Decimal(str(entry_qty))
-            pnl_pct = float(((fill_price - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
+            pnl_pct = float(
+                ((fill_price - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+            )
             pnl_dollars = float(((fill_price - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
             risk = float(entry_price) - float(stop_loss_price)
             exit_r_multiple = (
@@ -1657,13 +1675,11 @@ class DailyReconciliation:
         stale_threshold = timedelta(hours=2)
         critical_threshold = timedelta(hours=24)
 
-        cur.execute(
-            """SELECT trade_id, symbol, estimated_exit_price, exit_time
+        cur.execute("""SELECT trade_id, symbol, estimated_exit_price, exit_time
                FROM algo_trades
                WHERE estimated_exit_price IS NOT NULL
                  AND exit_price_reconciled_at IS NULL
-               ORDER BY exit_time ASC"""
-        )
+               ORDER BY exit_time ASC""")
         rows = cur.fetchall()
 
         if not rows:
@@ -1708,8 +1724,7 @@ class DailyReconciliation:
         symbols = ", ".join(f"{t['symbol']}({t['age_hours']}h)" for t in stale_trades[:10])
         message = (
             f"[STALE_PRICE_AUDIT] {len(stale_trades)} trade(s) still on estimated exit price "
-            f"past the {stale_threshold} threshold: {symbols}"
-            + ("..." if len(stale_trades) > 10 else "")
+            f"past the {stale_threshold} threshold: {symbols}" + ("..." if len(stale_trades) > 10 else "")
         )
         return {
             "status": status,

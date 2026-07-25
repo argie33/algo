@@ -79,7 +79,9 @@ def _apply_critical_migrations() -> tuple[bool, str]:
 
             db_config = get_db_config()
         except Exception as e:
-            logger.critical(f"[STARTUP] Could not fetch credentials from credential_manager: {e}. Cannot initialize Lambda without database access.")
+            logger.critical(
+                f"[STARTUP] Could not fetch credentials from credential_manager: {e}. Cannot initialize Lambda without database access."
+            )
             raise RuntimeError(f"Database credential fetch failed at startup: {e}") from e
 
         # GOVERNANCE: Fail-fast on missing database configuration.
@@ -92,11 +94,15 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             db_user = db_config["user"]
             db_password = db_config["password"]
         except KeyError as e:
-            logger.critical(f"[STARTUP] Database config missing required field {e}. Cannot initialize Lambda in degraded state.")
+            logger.critical(
+                f"[STARTUP] Database config missing required field {e}. Cannot initialize Lambda in degraded state."
+            )
             raise RuntimeError(f"Database config missing required field: {e}") from e
 
         if not all([db_host, db_user, db_password]):
-            logger.critical("[STARTUP] Database configuration has empty required fields. Cannot initialize Lambda with incomplete configuration.")
+            logger.critical(
+                "[STARTUP] Database configuration has empty required fields. Cannot initialize Lambda with incomplete configuration."
+            )
             raise RuntimeError("Database configuration has empty required fields")
 
         # Connect to database
@@ -1380,7 +1386,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
                 # In local dev mode, allow unauthenticated access with default dev claims
                 claims = get_dev_claims("dev-user")
                 if claims:
-                    logger.info("[DEV_AUTH] Local dev mode: allowing unauthenticated access with default dev-user claims")
+                    logger.info(
+                        "[DEV_AUTH] Local dev mode: allowing unauthenticated access with default dev-user claims"
+                    )
                     return (True, True, None, claims)
         except ImportError:
             pass  # dev_auth not available - continue to error
@@ -1743,9 +1751,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                             tz_cur.execute("SHOW timezone")
                             _NAIVE_DB_TZ_CACHE = ZoneInfo(tz_cur.fetchone()[0])
                     except Exception as tz_err:
-                        logger.warning(
-                            f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {tz_err}"
-                        )
+                        logger.warning(f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {tz_err}")
                         _NAIVE_DB_TZ_CACHE = timezone.utc
             return _NAIVE_DB_TZ_CACHE
 

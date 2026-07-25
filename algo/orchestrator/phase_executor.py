@@ -322,7 +322,9 @@ class OrchestratorPhaseExecutor:
         except RuntimeError as critical_err:
             # CRITICAL FIX: RuntimeError = governance violation. Must NOT be swallowed.
             # These include halt flag failures, data contract violations - orchestrator must crash.
-            logger.critical(f"[PHASE {phase_num}] FATAL: RuntimeError indicates governance violation - re-raising to crash orchestrator: {critical_err}")
+            logger.critical(
+                f"[PHASE {phase_num}] FATAL: RuntimeError indicates governance violation - re-raising to crash orchestrator: {critical_err}"
+            )
             raise
         except Exception as e:
             logger.exception(f"[PHASE {phase_num}] Exception during execution: {e}")

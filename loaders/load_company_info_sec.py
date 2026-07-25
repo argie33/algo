@@ -114,7 +114,9 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 else:
                     facts_obj = facts["facts"]
                     if not isinstance(facts_obj, dict) or "dei" not in facts_obj:
-                        logger.warning(f"[{symbol}] SEC API facts missing 'dei' namespace. Shares outstanding unavailable.")
+                        logger.warning(
+                            f"[{symbol}] SEC API facts missing 'dei' namespace. Shares outstanding unavailable."
+                        )
                     else:
                         dei_facts = facts_obj["dei"]
                         # EXPLICIT: Check EntityCommonStockSharesOutstanding existence

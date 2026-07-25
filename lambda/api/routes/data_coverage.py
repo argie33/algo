@@ -259,9 +259,7 @@ def get_loader_health(cur: cursor) -> Any:
         # against all known bad-status values from both vocabularies instead of one hardcoded
         # lowercase pair.
         bad_statuses = {"stale", "very_stale", "missing", "error", "failed", "timeout"}
-        stale_loaders = [
-            row[0] for row in rows if row[1] is None or str(row[1]).lower() in bad_statuses
-        ]
+        stale_loaders = [row[0] for row in rows if row[1] is None or str(row[1]).lower() in bad_statuses]
         return success_response(
             {
                 "total_tracked": len(rows),

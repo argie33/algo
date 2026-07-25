@@ -544,9 +544,7 @@ class ExitHandler:
         original_risk_dollars = risk_per_share * entry_qty_dec
         cumulative_pnl_dollars = float(cumulative_pnl_dollars_dec)
         cumulative_pnl_pct = float(
-            (cumulative_pnl_dollars_dec / original_cost_basis * Decimal(100)).quantize(
-                Decimal("0.01"), ROUND_HALF_UP
-            )
+            (cumulative_pnl_dollars_dec / original_cost_basis * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
         )
         cumulative_r_multiple = float(
             (cumulative_pnl_dollars_dec / original_risk_dollars).quantize(Decimal("0.01"), ROUND_HALF_UP)

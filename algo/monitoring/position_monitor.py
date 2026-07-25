@@ -413,7 +413,9 @@ class PositionMonitor:
 
             return recs
 
-    def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # noqa: C901
+    def _evaluate_position(
+        self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]
+    ) -> dict[str, Any]:  # noqa: C901
         (
             trade_id,
             symbol,

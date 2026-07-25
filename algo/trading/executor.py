@@ -122,9 +122,7 @@ class TradeExecutor:
         except ValueError as e:
             logger.debug(f"[EXECUTOR] Alpaca credentials not found (ValueError): {e}")
             if self.execution_mode != "paper":
-                logger.critical(
-                    f"[EXECUTOR_INIT] Non-paper mode requires Alpaca credentials, but got ValueError: {e}"
-                )
+                logger.critical(f"[EXECUTOR_INIT] Non-paper mode requires Alpaca credentials, but got ValueError: {e}")
                 raise
             logger.warning("[EXECUTOR] Alpaca credentials not found - paper trading mode without live broker")
         except (TypeError, AttributeError, KeyError) as e:
@@ -133,14 +131,10 @@ class TradeExecutor:
                 f"{type(e).__name__}: {e}. Response structure may be invalid."
             )
             if self.execution_mode != "paper":
-                raise ValueError(
-                    f"Credential manager returned invalid structure: {type(e).__name__}: {e}"
-                ) from e
+                raise ValueError(f"Credential manager returned invalid structure: {type(e).__name__}: {e}") from e
             logger.warning("[EXECUTOR] Credential structure invalid - paper trading mode without live broker")
         except Exception as e:
-            logger.exception(
-                f"[EXECUTOR] Unexpected error during credential retrieval: {type(e).__name__}: {e}"
-            )
+            logger.exception(f"[EXECUTOR] Unexpected error during credential retrieval: {type(e).__name__}: {e}")
             if self.execution_mode != "paper":
                 raise
             logger.warning("[EXECUTOR] Credential retrieval failed - paper trading mode without live broker")

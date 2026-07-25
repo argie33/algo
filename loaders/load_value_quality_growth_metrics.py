@@ -102,19 +102,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Fetch all metrics for symbol
                     metrics = self.fetch_incremental(symbol, since_date)
                     if not metrics:
-                        logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: fetch_incremental returned empty list (CRITICAL BUG)")
+                        logger.error(
+                            f"[VALUE_QUALITY_GROWTH] {symbol}: fetch_incremental returned empty list (CRITICAL BUG)"
+                        )
                         symbols_failed += 1
                         continue
 
                     # Debug: check metrics structure before unpacking
                     if not isinstance(metrics, list) or not metrics[0]:
-                        logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: metrics is {type(metrics)}, metrics[0] is {type(metrics[0]) if metrics else 'None'} (CRITICAL BUG)")
+                        logger.error(
+                            f"[VALUE_QUALITY_GROWTH] {symbol}: metrics is {type(metrics)}, metrics[0] is {type(metrics[0]) if metrics else 'None'} (CRITICAL BUG)"
+                        )
                         symbols_failed += 1
                         continue
 
                     metric_tuple = metrics[0]
                     if not isinstance(metric_tuple, tuple) or len(metric_tuple) != 3:
-                        logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: metric_tuple is {type(metric_tuple)}, len={len(metric_tuple) if hasattr(metric_tuple, '__len__') else 'unknown'} (expected tuple of 3)")
+                        logger.error(
+                            f"[VALUE_QUALITY_GROWTH] {symbol}: metric_tuple is {type(metric_tuple)}, len={len(metric_tuple) if hasattr(metric_tuple, '__len__') else 'unknown'} (expected tuple of 3)"
+                        )
                         symbols_failed += 1
                         continue
 
@@ -130,11 +136,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                                 if score_row and score_row[0] is not None:
                                     value_row["value_score"] = score_row[0]
                         except Exception as e:
-                            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Could not fetch value_score from stock_scores: {e}")
+                            logger.debug(
+                                f"[VALUE_QUALITY_GROWTH] {symbol}: Could not fetch value_score from stock_scores: {e}"
+                            )
 
                     # Check if value metrics are available (CRITICAL - value metrics required for scoring)
                     if value_row and value_row.get("data_unavailable"):
-                        logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}")
+                        logger.warning(
+                            f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}"
+                        )
                         # Still insert unavailable marker for audit trail, but don't count as success
                         with DatabaseContext("write") as cur:
                             self._insert_value_metrics(cur, value_row)
@@ -161,7 +171,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             if not quality_row.get("data_unavailable"):
                                 quality_inserts += 1
                             else:
-                                logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}")
+                                logger.warning(
+                                    f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}"
+                                )
 
                         # Insert growth metrics (same reasoning as quality metrics above).
                         if growth_row:
@@ -169,12 +181,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             if not growth_row.get("data_unavailable"):
                                 growth_inserts += 1
                             else:
-                                logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}")
+                                logger.warning(
+                                    f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}"
+                                )
 
                     symbols_succeeded += 1
 
                 except Exception as e:
                     import traceback
+
                     logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: {type(e).__name__}: {e}")
                     logger.error(f"[TRACEBACK]\n{traceback.format_exc()}")
                     symbols_failed += 1
@@ -206,7 +221,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Build bulk updates: symbol -> (today, count)
                     updates = {sym: (date.today(), 1) for sym in symbols}
                     self._watermark.advance_watermarks_bulk(updates)
-                    logger.info(f"[VALUE_QUALITY_GROWTH] Watermarks updated for {len(symbols)} symbols to {date.today()}")
+                    logger.info(
+                        f"[VALUE_QUALITY_GROWTH] Watermarks updated for {len(symbols)} symbols to {date.today()}"
+                    )
                 else:
                     logger.warning("[VALUE_QUALITY_GROWTH] No symbols processed - watermark update skipped")
             except Exception as e:
@@ -302,7 +319,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 income_rows = cur.fetchall()
                 if not income_rows:
-                    logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable")
+                    logger.warning(
+                        f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable"
+                    )
 
             # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
             value_dict = self._build_value_metrics(symbol, sec_val_row)
@@ -349,11 +368,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         except Exception as e:
             logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Fetch failed: {e}")
-            return [(
-                self._unavailable_marker("value_metrics", symbol),
-                self._unavailable_marker("quality_metrics", symbol),
-                self._unavailable_marker("growth_metrics", symbol),
-            )]
+            return [
+                (
+                    self._unavailable_marker("value_metrics", symbol),
+                    self._unavailable_marker("quality_metrics", symbol),
+                    self._unavailable_marker("growth_metrics", symbol),
+                )
+            ]
 
     def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
         """Build value_metrics from SEC valuations (yfinance-free, Session 271).
@@ -370,16 +391,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         # Extract SEC-derived valuations (all from sec_valuations table)
         # Using dict access instead of indices for clarity and robustness
-        row_dict = dict(sec_val_row) if hasattr(sec_val_row, '__getitem__') else {}
+        row_dict = dict(sec_val_row) if hasattr(sec_val_row, "__getitem__") else {}
 
         pe = row_dict.get("pe_ratio") or sec_val_row[7] if isinstance(sec_val_row, (tuple, list)) else None
         pb = row_dict.get("pb_ratio") or sec_val_row[8] if isinstance(sec_val_row, (tuple, list)) else None
         ps = row_dict.get("ps_ratio") or sec_val_row[9] if isinstance(sec_val_row, (tuple, list)) else None
         peg = row_dict.get("peg_ratio") or sec_val_row[10] if isinstance(sec_val_row, (tuple, list)) else None
         fcf_yield = row_dict.get("fcf_yield") or sec_val_row[11] if isinstance(sec_val_row, (tuple, list)) else None
-        dividend_yield = row_dict.get("dividend_yield") or sec_val_row[15] if isinstance(sec_val_row, (tuple, list)) else None
+        dividend_yield = (
+            row_dict.get("dividend_yield") or sec_val_row[15] if isinstance(sec_val_row, (tuple, list)) else None
+        )
         forward_pe = row_dict.get("forward_pe") or sec_val_row[22] if isinstance(sec_val_row, (tuple, list)) else None
-        enterprise_value = row_dict.get("enterprise_value") or sec_val_row[18] if isinstance(sec_val_row, (tuple, list)) else None
+        enterprise_value = (
+            row_dict.get("enterprise_value") or sec_val_row[18] if isinstance(sec_val_row, (tuple, list)) else None
+        )
         ev_ebitda = row_dict.get("ev_ebitda") or sec_val_row[20] if isinstance(sec_val_row, (tuple, list)) else None
         ev_revenue = row_dict.get("ev_revenue") or sec_val_row[21] if isinstance(sec_val_row, (tuple, list)) else None
 
@@ -435,7 +460,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         # DEBUG: Check quality_row structure
         if not isinstance(quality_row, (tuple, list)):
-            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row is {type(quality_row)}, not tuple/list. This is a CRITICAL BUG")
+            logger.error(
+                f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row is {type(quality_row)}, not tuple/list. This is a CRITICAL BUG"
+            )
             return self._unavailable_marker("quality_metrics", symbol)
 
         if len(quality_row) < 19:
@@ -443,12 +470,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
-            stockholders_equity = self._nan_to_none(safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True))
-            total_liabilities = self._nan_to_none(safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True))
+            stockholders_equity = self._nan_to_none(
+                safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True)
+            )
+            total_liabilities = self._nan_to_none(
+                safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
+            )
             total_assets = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.total_assets", allow_none=True))
             net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
             revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
-            operating_income = self._nan_to_none(safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True))
+            operating_income = self._nan_to_none(
+                safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True)
+            )
             current_assets = self._nan_to_none(safe_float(quality_row[6], f"{symbol}.current_assets", allow_none=True))
             current_liabilities = self._nan_to_none(
                 safe_float(quality_row[7], f"{symbol}.current_liabilities", allow_none=True)
@@ -457,14 +490,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
             )
-            shares_outstanding = self._nan_to_none(safe_float(quality_row[11], f"{symbol}.shares_outstanding", allow_none=True))
-            cost_of_revenue = self._nan_to_none(safe_float(quality_row[12], f"{symbol}.cost_of_revenue", allow_none=True))
-            operating_cash_flow = self._nan_to_none(safe_float(quality_row[13], f"{symbol}.operating_cash_flow", allow_none=True))
+            shares_outstanding = self._nan_to_none(
+                safe_float(quality_row[11], f"{symbol}.shares_outstanding", allow_none=True)
+            )
+            cost_of_revenue = self._nan_to_none(
+                safe_float(quality_row[12], f"{symbol}.cost_of_revenue", allow_none=True)
+            )
+            operating_cash_flow = self._nan_to_none(
+                safe_float(quality_row[13], f"{symbol}.operating_cash_flow", allow_none=True)
+            )
             free_cash_flow = self._nan_to_none(safe_float(quality_row[14], f"{symbol}.free_cash_flow", allow_none=True))
             dividends_paid = self._nan_to_none(safe_float(quality_row[15], f"{symbol}.dividends_paid", allow_none=True))
-            earnings_per_share = self._nan_to_none(safe_float(quality_row[16], f"{symbol}.earnings_per_share", allow_none=True))
+            earnings_per_share = self._nan_to_none(
+                safe_float(quality_row[16], f"{symbol}.earnings_per_share", allow_none=True)
+            )
             prior_year_eps = self._nan_to_none(safe_float(quality_row[17], f"{symbol}.prior_year_eps", allow_none=True))
-            prior_year_revenue = self._nan_to_none(safe_float(quality_row[18], f"{symbol}.prior_year_revenue", allow_none=True))
+            prior_year_revenue = self._nan_to_none(
+                safe_float(quality_row[18], f"{symbol}.prior_year_revenue", allow_none=True)
+            )
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -748,13 +791,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # These explain WHY a metric is NULL for users/operators
             metrics["roe_unavailable_reason"] = "missing_sec_data" if "roe" in failed_metrics else None
             metrics["roa_unavailable_reason"] = "missing_sec_data" if "roa" in failed_metrics else None
-            metrics["operating_margin_unavailable_reason"] = "missing_sec_data" if "operating_margin" in failed_metrics else None
+            metrics["operating_margin_unavailable_reason"] = (
+                "missing_sec_data" if "operating_margin" in failed_metrics else None
+            )
             metrics["net_margin_unavailable_reason"] = "missing_sec_data" if "net_margin" in failed_metrics else None
-            metrics["debt_to_equity_unavailable_reason"] = "missing_sec_data" if "debt_to_equity" in failed_metrics else None
-            metrics["current_ratio_unavailable_reason"] = "missing_sec_data" if "current_ratio" in failed_metrics else None
+            metrics["debt_to_equity_unavailable_reason"] = (
+                "missing_sec_data" if "debt_to_equity" in failed_metrics else None
+            )
+            metrics["current_ratio_unavailable_reason"] = (
+                "missing_sec_data" if "current_ratio" in failed_metrics else None
+            )
             metrics["quick_ratio_unavailable_reason"] = "missing_sec_data" if "quick_ratio" in failed_metrics else None
-            metrics["interest_coverage_unavailable_reason"] = "missing_sec_data" if "interest_coverage" in failed_metrics else None
-            metrics["debt_to_assets_unavailable_reason"] = "missing_sec_data" if "debt_to_assets" in failed_metrics else None
+            metrics["interest_coverage_unavailable_reason"] = (
+                "missing_sec_data" if "interest_coverage" in failed_metrics else None
+            )
+            metrics["debt_to_assets_unavailable_reason"] = (
+                "missing_sec_data" if "debt_to_assets" in failed_metrics else None
+            )
             metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed
 
             if failed_metrics:
@@ -881,12 +934,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return self._unavailable_marker("growth_metrics", symbol)
 
         # Initialize all *_unavailable_reason fields (Session 389)
-        metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_history" if "revenue_growth_1y" in failed_metrics else None
-        metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_history" if "revenue_growth_3y" in failed_metrics else None
-        metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_history" if "revenue_growth_5y" in failed_metrics else None
-        metrics["eps_growth_1y_unavailable_reason"] = "insufficient_history" if "eps_growth_1y" in failed_metrics else None
-        metrics["eps_growth_3y_unavailable_reason"] = "insufficient_history" if "eps_growth_3y" in failed_metrics else None
-        metrics["eps_growth_5y_unavailable_reason"] = "insufficient_history" if "eps_growth_5y" in failed_metrics else None
+        metrics["revenue_growth_1y_unavailable_reason"] = (
+            "insufficient_history" if "revenue_growth_1y" in failed_metrics else None
+        )
+        metrics["revenue_growth_3y_unavailable_reason"] = (
+            "insufficient_history" if "revenue_growth_3y" in failed_metrics else None
+        )
+        metrics["revenue_growth_5y_unavailable_reason"] = (
+            "insufficient_history" if "revenue_growth_5y" in failed_metrics else None
+        )
+        metrics["eps_growth_1y_unavailable_reason"] = (
+            "insufficient_history" if "eps_growth_1y" in failed_metrics else None
+        )
+        metrics["eps_growth_3y_unavailable_reason"] = (
+            "insufficient_history" if "eps_growth_3y" in failed_metrics else None
+        )
+        metrics["eps_growth_5y_unavailable_reason"] = (
+            "insufficient_history" if "eps_growth_5y" in failed_metrics else None
+        )
 
         if failed_metrics:
             if len(failed_metrics) == 6:
@@ -898,8 +963,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # instead of discarding the whole row. _score_growth already renormalizes over
             # available fields; it was this flag - not the scorer - that was throwing partial
             # data away before it ever got there. `reason` still records what's missing.
-            metrics["reason"] = f"Incomplete growth metrics: {', '.join(sorted(set(failed_metrics)))} failed to compute (insufficient history or invalid data)"
-            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})")
+            metrics["reason"] = (
+                f"Incomplete growth metrics: {', '.join(sorted(set(failed_metrics)))} failed to compute (insufficient history or invalid data)"
+            )
+            logger.debug(
+                f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})"
+            )
 
         return metrics
 
@@ -940,14 +1009,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
-            (row["symbol"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"],
-             row["peg_ratio"], row["dividend_yield"], row["fcf_yield"],
-             row.get("forward_pe"), row.get("enterprise_value"), row.get("ev_ebitda"), row.get("ev_revenue"),
-             row.get("value_score"), row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"],
-             row.get("pe_ratio_unavailable_reason"), row.get("pb_ratio_unavailable_reason"), row.get("ps_ratio_unavailable_reason"),
-             row.get("peg_ratio_unavailable_reason"), row.get("dividend_yield_unavailable_reason"), row.get("fcf_yield_unavailable_reason"),
-             row.get("forward_pe_unavailable_reason"), row.get("ev_ebitda_unavailable_reason"), row.get("market_cap_unavailable_reason"),
-             row.get("held_percent_insiders_unavailable_reason"), row.get("held_percent_institutions_unavailable_reason")),
+            (
+                row["symbol"],
+                row["pe_ratio"],
+                row["pb_ratio"],
+                row["ps_ratio"],
+                row["peg_ratio"],
+                row["dividend_yield"],
+                row["fcf_yield"],
+                row.get("forward_pe"),
+                row.get("enterprise_value"),
+                row.get("ev_ebitda"),
+                row.get("ev_revenue"),
+                row.get("value_score"),
+                row["data_unavailable"],
+                row.get("data_source", "sec_audited"),
+                row["updated_at"],
+                row.get("pe_ratio_unavailable_reason"),
+                row.get("pb_ratio_unavailable_reason"),
+                row.get("ps_ratio_unavailable_reason"),
+                row.get("peg_ratio_unavailable_reason"),
+                row.get("dividend_yield_unavailable_reason"),
+                row.get("fcf_yield_unavailable_reason"),
+                row.get("forward_pe_unavailable_reason"),
+                row.get("ev_ebitda_unavailable_reason"),
+                row.get("market_cap_unavailable_reason"),
+                row.get("held_percent_insiders_unavailable_reason"),
+                row.get("held_percent_institutions_unavailable_reason"),
+            ),
         )
 
     def _insert_quality_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -1003,18 +1092,47 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
-            (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
-             row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("current_ratio"),
-             row.get("quick_ratio"), row.get("interest_coverage"), row.get("quality_score"), row.get("ebitda"), row.get("ebitda_margin"), row["data_unavailable"],
-             row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"],
-             row.get("gross_margin"), row.get("roic_pct"), row.get("fcf_to_net_income"),
-             row.get("ocf_to_net_income"), row.get("payout_ratio"),
-             row.get("free_cash_flow"), row.get("operating_cash_flow"), row.get("total_debt"), row.get("total_cash"),
-             row.get("cash_per_share"), row.get("earnings_growth_yoy"), row.get("revenue_growth_yoy"),
-             row.get("roe_unavailable_reason"), row.get("roa_unavailable_reason"), row.get("operating_margin_unavailable_reason"),
-             row.get("net_margin_unavailable_reason"), row.get("debt_to_equity_unavailable_reason"), row.get("current_ratio_unavailable_reason"),
-             row.get("quick_ratio_unavailable_reason"), row.get("interest_coverage_unavailable_reason"), row.get("debt_to_assets_unavailable_reason"),
-             row.get("quality_score_unavailable_reason")),
+            (
+                row["symbol"],
+                row["roe"],
+                row.get("roa"),
+                row["operating_margin"],
+                row["net_margin"],
+                row["debt_to_equity"],
+                row.get("debt_to_assets"),
+                row.get("current_ratio"),
+                row.get("quick_ratio"),
+                row.get("interest_coverage"),
+                row.get("quality_score"),
+                row.get("ebitda"),
+                row.get("ebitda_margin"),
+                row["data_unavailable"],
+                row.get("reason"),
+                row.get("data_source", "sec_audited"),
+                row["updated_at"],
+                row.get("gross_margin"),
+                row.get("roic_pct"),
+                row.get("fcf_to_net_income"),
+                row.get("ocf_to_net_income"),
+                row.get("payout_ratio"),
+                row.get("free_cash_flow"),
+                row.get("operating_cash_flow"),
+                row.get("total_debt"),
+                row.get("total_cash"),
+                row.get("cash_per_share"),
+                row.get("earnings_growth_yoy"),
+                row.get("revenue_growth_yoy"),
+                row.get("roe_unavailable_reason"),
+                row.get("roa_unavailable_reason"),
+                row.get("operating_margin_unavailable_reason"),
+                row.get("net_margin_unavailable_reason"),
+                row.get("debt_to_equity_unavailable_reason"),
+                row.get("current_ratio_unavailable_reason"),
+                row.get("quick_ratio_unavailable_reason"),
+                row.get("interest_coverage_unavailable_reason"),
+                row.get("debt_to_assets_unavailable_reason"),
+                row.get("quality_score_unavailable_reason"),
+            ),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
