@@ -497,14 +497,16 @@ def run(
         )
         logger.warning(msg)
         log_phase_result_fn(8, "entry_execution", "blocked", msg)
-        return PhaseResult(
+        result = PhaseResult(
             8,
             "entry_execution",
             "blocked",
             {"entered": 0},
-            True,  # success=True: guard is working, not failing
+            True,  # halted=True: guard is protecting orchestrator from pre/after-hours
             msg,
         )
+        logger.info(f"[PHASE 8 DEBUG] Market hours guard returning: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
+        return result
 
     # CRITICAL GUARD: Check for pending/recent orders that may still be filling
     # If orders from prior run are still pending, executing new entries risks duplicates
@@ -532,7 +534,7 @@ def run(
                 )
                 logger.warning(msg)
                 log_phase_result_fn(8, "entry_execution", "blocked", msg)
-                return PhaseResult(
+                result = PhaseResult(
                     8,
                     "entry_execution",
                     "blocked",
@@ -540,6 +542,8 @@ def run(
                     False,  # halted=False: guard worked but didn't halt orchestration
                     msg,
                 )
+                logger.info(f"[PHASE 8 DEBUG] Returning PhaseResult: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
+                return result
     except Exception as e:
         logger.error(f"[PHASE 8] Error checking for pending orders: {e}")
         # Don't halt on this check - log and continue
