@@ -441,7 +441,11 @@ class OptimalLoader:
             # enforcement self-kills at this same limit, and the finally-release below
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
+            # LOCAL MODE: Use 10 minutes (600s) for faster recovery from crashed loaders during dev
+            # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
+            is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
+            default_ttl = "600" if is_local_mode else "7200"
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", default_ttl))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
@@ -642,7 +646,11 @@ class OptimalLoader:
             # enforcement self-kills at this same limit, and the finally-release below
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
+            # LOCAL MODE: Use 10 minutes (600s) for faster recovery from crashed loaders during dev
+            # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
+            is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
+            default_ttl = "600" if is_local_mode else "7200"
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", default_ttl))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
