@@ -802,6 +802,8 @@ def run(  # noqa: C901
                 union_parts = []
                 for table_name in date_checked_tables.keys():
                     date_col = date_column_overrides.get(table_name, "date")
+                    if date_col is None:
+                        raise RuntimeError(f"[PHASE 1] Table {table_name} missing date_column_override - cannot determine date column")
                     union_parts.append(f"SELECT '{table_name}' as tbl, MAX({date_col}) as max_dt FROM {table_name}")
 
                 union_query = " UNION ALL ".join(union_parts)
@@ -826,7 +828,13 @@ def run(  # noqa: C901
                 for table_name, description in date_checked_tables.items():
                     is_halt_table = table_name in halt_tables
                     # Use per-table reference date where applicable (e.g., market_health uses VIX date)
-                    ref_date = table_reference_dates.get(table_name, max_date)
+                    # CRITICAL: Fail fast if table reference date not defined - prevents staleness misreporting
+                    if table_name not in table_reference_dates:
+                        raise RuntimeError(
+                            f"[PHASE 1] CRITICAL: Table {table_name} missing reference date in table_reference_dates. "
+                            f"Cannot determine staleness baseline. This table must have an explicit reference date."
+                        )
+                    ref_date = table_reference_dates[table_name]
                     try:
                         table_max_date = max_dates.get(table_name)
 

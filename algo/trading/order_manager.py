@@ -461,7 +461,7 @@ class OrderManager:
                         return (True, float(filled_price), "")
 
                     elif status in ("cancelled", "rejected", "expired"):
-                        reason = data.get("cancel_reason", status)
+                        reason = data["cancel_reason"]
                         error_msg = f"Order {status}: {reason}"
                         logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
                         return (False, None, error_msg)

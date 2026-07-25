@@ -304,7 +304,7 @@ class ExposurePolicy:
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
         if "force_exit_negative_r" not in tier:
             raise ValueError(
-                f"Risk tier '{tier.get('name', 'UNKNOWN')}' missing required 'force_exit_negative_r' configuration. "
+                f"Risk tier '{tier['name']}' missing required 'force_exit_negative_r' configuration. "
                 "Cannot apply risk management without explicit force-exit policy."
             )
         force_exit_neg = tier["force_exit_negative_r"]

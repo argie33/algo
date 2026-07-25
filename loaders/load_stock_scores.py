@@ -593,7 +593,13 @@ class StockScoresLoader(OptimalLoader):
                 ("momentum", clamped_momentum),
             ]:
                 # Only use base weight if metric is available
-                if not score_availability.get(metric_name, False):
+                # CRITICAL: Require explicit availability flag for each metric (fail-fast if missing)
+                if metric_name not in score_availability:
+                    raise ValueError(
+                        f"[STOCK_SCORES] {symbol}: availability flag missing for '{metric_name}' metric. "
+                        f"All metrics must have explicit availability status in score_availability dict."
+                    )
+                if not score_availability[metric_name]:
                     continue  # Skip unavailable metrics (don't give their weight to others)
 
                 weight = normalized_weights[metric_name]

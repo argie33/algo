@@ -694,7 +694,10 @@ def _release_combo_locks(lock_manager: Any, active: list["ConsolidatedFinancialS
 
 def main() -> int:
     """Wrapped main with exception handling for data_unavailable markers."""
-    statement_type = os.environ.get("LOADER_STATEMENT_TYPE", "income").lower()
+    try:
+        statement_type = os.environ["LOADER_STATEMENT_TYPE"].lower()
+    except KeyError:
+        raise ValueError("CRITICAL: LOADER_STATEMENT_TYPE environment variable not set. Must be 'income', 'balance', 'cashflow', or 'all'.")
 
     # Handle 'all' mode (load all statement types and periods sequentially)
     if statement_type == "all":
@@ -706,7 +709,7 @@ def main() -> int:
     except Exception as e:
         logger.error(f"[FINANCIAL_STATEMENTS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         try:
-            period = os.environ.get("LOADER_PERIOD", "annual")
+            period = os.environ["LOADER_PERIOD"]
             config = get_statement_config(statement_type, period)
             table_name = config["table_name"]
 
@@ -757,8 +760,12 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         period: str | None = None,
         sec_client: SecEdgarClient | None = None,
     ):
-        statement_type = (statement_type or os.environ.get("LOADER_STATEMENT_TYPE", "income")).lower()
-        period = (period or os.environ.get("LOADER_PERIOD", "annual")).lower()
+        if statement_type is None:
+            statement_type = os.environ["LOADER_STATEMENT_TYPE"]
+        statement_type = statement_type.lower()
+        if period is None:
+            period = os.environ["LOADER_PERIOD"]
+        period = period.lower()
 
         logger.info(f"[FINANCIAL_STATEMENTS] Initializing: statement_type={statement_type}, period={period}")
 

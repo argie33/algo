@@ -90,14 +90,14 @@ def run(
             "drawdown_pct": safe_get_check_value(checks, "drawdown"),
             "daily_loss_pct": safe_get_check_value(checks, "daily_loss"),
             "vix_level": safe_get_check_value(checks, "vix_spike"),
-            "any_triggered": result.get("halted", False),
+            "any_triggered": result["halted"],
         }
 
         if verbose:
             for name, state in result["checks"].items():
-                flag = "[HALT]" if state.get("halted") else "[OK]  "
+                flag = "[HALT]" if state["halted"] else "[OK]  "
                 label = state.get("label", name)
-                logger.info(f"  {flag} {label:40s}: {state.get('reason', '')}")
+                logger.info(f"  {flag} {label:40s}: {state['reason']}")
 
         # Publish per-breaker CloudWatch metrics (non-blocking)
         try:
@@ -110,7 +110,7 @@ def run(
                         f"Circuit breaker check failed: 'checks' must be dict, got {type(checks).__name__}"
                     )
                 for name, state in checks.items():
-                    _m.put_circuit_breaker(name, bool(state.get("halted")))
+                    _m.put_circuit_breaker(name, bool(state["halted"]))
         except (OSError, RuntimeError) as e:
             logger.error(f"Metrics publishing failed (non-critical): {e}")
 
@@ -122,8 +122,8 @@ def run(
             if cb_result and "error" in cb_result:
                 # CRITICAL: Market circuit breaker API failure must halt trading per GOVERNANCE.
                 # Exception: In paper mode with credential errors, log warning and continue (dev convenience)
-                error_msg = cb_result.get("description", cb_result.get("reason", "unknown"))
-                error_reason = cb_result.get("reason", "")
+                error_msg = cb_result.get("description") or cb_result.get("reason") or "market circuit breaker error"
+                error_reason = cb_result["reason"]
                 is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
                 is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()
                 execution_mode = config.get("execution_mode")
@@ -163,8 +163,8 @@ def run(
                         f"Check MarketEventHandler API connectivity and data availability."
                     )
             elif cb_result and "error" not in cb_result:
-                halt_level = cb_result.get("level", "?")
-                halt_reason = cb_result.get("description", "market circuit breaker triggered")
+                halt_level = cb_result["level"]
+                halt_reason = cb_result["description"]
                 if verbose:
                     logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
                 alerts.send_position_alert(

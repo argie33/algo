@@ -179,13 +179,13 @@ class MarketStatusDailyLoader(OptimalLoader):
                     "breadth_momentum_10d": health_data.get("breadth_momentum_10d"),
                     "up_volume_percent": health_data.get("up_volume_percent"),
                     "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
-                    "yield_curve_data_unavailable": health_data.get("yield_curve_data_unavailable", False),
+                    "yield_curve_data_unavailable": health_data["yield_curve_data_unavailable"],
                     "yield_curve_unavailable_reason": health_data.get("yield_curve_unavailable_reason"),
                     "put_call_ratio": health_data.get("put_call_ratio"),
-                    "put_call_ratio_data_unavailable": health_data.get("put_call_ratio_data_unavailable", False),
+                    "put_call_ratio_data_unavailable": health_data["put_call_ratio_data_unavailable"],
                     "put_call_ratio_unavailable_reason": health_data.get("put_call_ratio_unavailable_reason"),
                     "fed_rate_environment": health_data.get("fed_rate_environment"),
-                    "fed_rate_data_unavailable": health_data.get("fed_rate_data_unavailable", True),
+                    "fed_rate_data_unavailable": health_data["fed_rate_data_unavailable"],
                     "fed_rate_unavailable_reason": health_data.get("fed_rate_unavailable_reason"),
                     "market_stage": stage_data.get("market_stage"),
                     "market_trend": stage_data.get("market_trend"),
@@ -394,6 +394,10 @@ class MarketStatusDailyLoader(OptimalLoader):
             result = exposure.compute(eval_date, force_recompute=False)
 
             if not result or result.get("data_unavailable"):
+                if not result:
+                    reason = "exposure_no_result"
+                else:
+                    reason = result["reason"] if "reason" in result else "exposure_data_unavailable"
                 unavailable_result = {
                     "regime": None,
                     "exposure_pct": None,
@@ -402,7 +406,7 @@ class MarketStatusDailyLoader(OptimalLoader):
                     "distribution_days": None,
                     "factors": None,
                     "data_unavailable": True,
-                    "reason": result.get("reason", "exposure_data_unavailable") if result else "exposure_no_result",
+                    "reason": reason,
                 }
                 # CRITICAL FIX: Persist unavailable exposure data to market_exposure_daily
                 # even when unavailable, so the table gets updated with data_unavailable=True

@@ -35,7 +35,7 @@ class MarketFactorCalculator:
         """
         score = factor.get("score")
         if score is None:
-            factor_name = factor.get("name", "unknown")
+            factor_name = factor["name"]
             raise ValueError(
                 f"[MARKET_FACTOR] Missing score for factor '{factor_name}'. "
                 f"Market factors are critical for exposure calculation - missing data must be explicit."
@@ -44,7 +44,7 @@ class MarketFactorCalculator:
         try:
             score = float(score)
         except (ValueError, TypeError) as e:
-            factor_name = factor.get("name", "unknown")
+            factor_name = factor["name"]
             raise ValueError(
                 f"[MARKET_FACTOR] Invalid score for factor '{factor_name}': {score!r}. "
                 f"Cannot compute exposure with non-numeric factor scores."

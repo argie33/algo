@@ -1096,9 +1096,7 @@ def run(
             # GOVERNANCE: Reconciliation is non-negotiable. Using estimated/cached portfolio state
             # instead of broker source-of-truth masks data sync issues and leads to position sizing errors.
             # Better to halt explicitly and require broker access than to silently degrade.
-            error_msg = str(
-                result.get("reason") or result.get("error") or "(reconciliation failed with no error details)"
-            )
+            error_msg = str(result["reason"])
 
             logger.critical(
                 f"[PHASE 9] CRITICAL: Reconciliation failed: {error_msg}. "

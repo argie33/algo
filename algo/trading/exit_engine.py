@@ -741,7 +741,7 @@ class ExitEngine:
                         if "success" not in result:
                             raise RuntimeError("Exit trade result missing 'success' field")
                         success = result["success"]
-                        message = result.get("message", "(no message provided)")
+                        message = result["message"]
 
                         if fraction == 0 and success:
                             logger.info(f"      -> Stop raised to ${new_stop:.2f}")

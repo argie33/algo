@@ -1500,7 +1500,7 @@ def run(
                         entered_prices.append(entry_price)
 
                         logger.info(
-                            f"[PHASE 8] {symbol}: ENTERED trade_id={result['trade_id']} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
+                            f"[PHASE 8] {symbol}: ENTERED trade_id={result['trade_id']} alpaca_order_id={result['alpaca_order_id']} status={result['status']}"
                         )
 
                         if max_entries and executed_count >= max_entries:
@@ -1509,8 +1509,8 @@ def run(
                             break
 
                     else:
-                        message = result.get("message", "unknown error")
-                        status = result.get("status", "unknown")
+                        message = result["message"]
+                        status = result["status"]
                         logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
 
                         failed_count += 1
@@ -1537,7 +1537,7 @@ def run(
 
         except (RuntimeError, ValueError, TypeError, AttributeError) as e:
             logger.error(
-                f"[PHASE 8] Error processing {signal.get('symbol', '?')}: {e}",
+                f"[PHASE 8] Error processing {signal['symbol']}: {e}",
                 exc_info=True,
             )
 
