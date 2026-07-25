@@ -1032,7 +1032,7 @@ class ExitEngine:
         rows = cur.fetchall()
 
         if not rows or len(rows[0]) < 2:
-            error_msg = f"Price data missing for {symbol} - cannot evaluate exits"
+            error_msg = f"[404] Price data missing for {symbol} - symbol unavailable or delisted - cannot evaluate exits"
 
             logger.error(error_msg)
 
@@ -1041,14 +1041,14 @@ class ExitEngine:
         cur_price = float(rows[0][1]) if rows[0][1] is not None else None
 
         if cur_price is None:
-            error_msg = f"Current price is NULL for {symbol}"
+            error_msg = f"[404] Current price is NULL for {symbol} - symbol unavailable or delisted"
 
             logger.error(error_msg)
 
             raise RuntimeError(error_msg)
 
         if len(rows) < 2:
-            error_msg = f"Previous close data unavailable for {symbol} (need 2+ trading days)"
+            error_msg = f"[404] Previous close data unavailable for {symbol} (need 2+ trading days) - symbol unavailable or delisted"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
