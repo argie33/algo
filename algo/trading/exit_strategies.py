@@ -142,7 +142,21 @@ class ExitStrategy(ABC):
                 "fraction": decision["fraction"],
             }
             if include_new_stop:
-                kwargs["new_stop"] = decision.get("new_stop")
+                # CRITICAL: new_stop MUST be present if requested - don't silently default to None
+                if "new_stop" not in decision:
+                    raise ValueError(
+                        f"[EXIT_STRATEGY] Exit decision requested new_stop but field missing. "
+                        f"Decision keys: {list(decision.keys())}. "
+                        f"Cannot create exit signal with incomplete stop-loss data."
+                    )
+                new_stop_val = decision["new_stop"]
+                if new_stop_val is None:
+                    raise ValueError(
+                        f"[EXIT_STRATEGY] Exit decision new_stop is NULL. "
+                        f"Cannot create exit signal with missing stop-loss price. "
+                        f"Stage: {decision.get('stage')}, Reason: {decision.get('reason')}"
+                    )
+                kwargs["new_stop"] = new_stop_val
             return ExitSignal(**kwargs)
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 

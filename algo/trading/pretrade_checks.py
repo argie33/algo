@@ -154,11 +154,30 @@ class PreTradeChecks:
                         minutes_since_close = (
                             datetime.now(timezone.utc) - closed_at.replace(tzinfo=timezone.utc)
                         ).total_seconds() / 60
-                        reentry_cooldown_minutes = (
-                            self.config.get("reentry_cooldown_minutes", 30)
-                            if isinstance(self.config, dict)
-                            else getattr(self.config, "reentry_cooldown_minutes", 30)
-                        )
+
+                        # CRITICAL: reentry_cooldown_minutes must be explicitly configured
+                        # This prevents flip-flop trading (re-entering position immediately after close)
+                        # No silent 30-minute default - must be explicit.
+                        if isinstance(self.config, dict):
+                            reentry_cooldown_minutes = self.config.get("reentry_cooldown_minutes")
+                        else:
+                            reentry_cooldown_minutes = getattr(self.config, "reentry_cooldown_minutes", None)
+
+                        if reentry_cooldown_minutes is None:
+                            raise ValueError(
+                                "[PRE-TRADE CRITICAL] reentry_cooldown_minutes config missing. "
+                                "Cannot determine flip-flop prevention period. "
+                                "Set explicit reentry_cooldown_minutes in algo_config table (recommended: 30-60 minutes)."
+                            )
+
+                        try:
+                            reentry_cooldown_minutes = int(reentry_cooldown_minutes)
+                            if reentry_cooldown_minutes < 0:
+                                raise ValueError("reentry_cooldown_minutes must be non-negative")
+                        except (ValueError, TypeError) as e:
+                            raise ValueError(
+                                f"[PRE-TRADE CRITICAL] reentry_cooldown_minutes is invalid ({reentry_cooldown_minutes}): {e}"
+                            ) from e
 
                         if minutes_since_close < reentry_cooldown_minutes:
                             return (
