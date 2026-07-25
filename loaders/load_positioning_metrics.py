@@ -73,6 +73,8 @@ class PositioningMetricsLoader(OptimalLoader):
         short_interest_source = None
         shares_short_prior_month = None
         short_interest_trend = None
+        short_ratio = None
+        short_percent_of_float = None
 
         try:
             with DatabaseContext("read") as cur:
@@ -83,7 +85,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 # no loader had ever populated) with no new data source needed.
                 cur.execute(
                     """
-                    SELECT short_pct, short_shares, settlement_date
+                    SELECT short_pct, short_shares, settlement_date, days_to_cover, avg_daily_volume
                     FROM short_interest_finra
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY settlement_date DESC LIMIT 2
@@ -95,6 +97,9 @@ class PositioningMetricsLoader(OptimalLoader):
             if short_rows and short_rows[0][0] is not None:
                 short_interest_pct = short_rows[0][0]
                 short_interest_source = "finra"
+                # Get short_ratio (days to cover) from FINRA
+                if short_rows[0][3] is not None:
+                    short_ratio = float(short_rows[0][3])
             else:
                 short_interest_source = "unavailable"
 
@@ -109,6 +114,27 @@ class PositioningMetricsLoader(OptimalLoader):
                         short_interest_trend = "decreasing"
                     else:
                         short_interest_trend = "stable"
+
+            # Calculate short_percent_of_float if we have shares outstanding
+            if short_rows and short_rows[0][1] is not None:  # short_shares
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT shares_outstanding FROM company_info_sec
+                            WHERE symbol = %s AND data_unavailable = FALSE
+                            ORDER BY filing_date DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        shares_row = cur.fetchone()
+
+                    if shares_row and shares_row[0] is not None and shares_row[0] > 0:
+                        short_shares = float(short_rows[0][1])
+                        shares_outstanding = float(shares_row[0])
+                        short_percent_of_float = (short_shares / shares_outstanding) * 100
+                except Exception as e:
+                    logger.debug(f"[POSITIONING] {symbol}: Could not calculate short_percent_of_float: {e}")
         except Exception as e:
             # Table may not exist or loader not running yet - treat as optional
             logger.debug(f"[POSITIONING] {symbol}: short_interest_finra unavailable: {e}")
@@ -178,6 +204,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_interest_pct": short_interest_pct,
                 "shares_short_prior_month": shares_short_prior_month,
                 "short_interest_trend": short_interest_trend,
+                "short_percent_of_float": short_percent_of_float,
+                "short_ratio": short_ratio,
                 # Session 395+: Add unavailable_reason for each metric
                 "institutional_ownership_pct_unavailable_reason": (
                     "missing_sec_data" if institutional_pct is None else None
@@ -190,6 +218,20 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_interest_trend_unavailable_reason": (
                     "insufficient_history" if short_interest_trend is None else None
                 ),
+                "short_percent_of_float_unavailable_reason": (
+                    "missing_sec_data" if short_percent_of_float is None else None
+                ),
+                "short_ratio_unavailable_reason": (
+                    "missing_finra_data" if short_ratio is None else None
+                ),
+                # These require enhanced 13F data extraction not yet implemented
+                "top_10_institutions_pct": None,
+                "top_10_institutions_pct_unavailable_reason": "institutional_data_not_available",
+                "institutional_holders_count": None,
+                "institutional_holders_count_unavailable_reason": "institutional_data_not_available",
+                # A/D rating not implemented
+                "ad_rating": None,
+                "ad_rating_unavailable_reason": "ad_rating_not_available",
                 "data_unavailable": all_unavailable,
                 "reason": (
                     f"short_interest:{short_interest_source};institutional:{institutional_source};insider:{insider_source}"
