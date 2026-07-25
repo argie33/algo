@@ -1334,7 +1334,7 @@ def run(  # noqa: C901
         )
 
     for sig in quality_filtered:
-        sqs = sig.get("signal_quality_score")
+        sqs: int | float | None = sig.get("signal_quality_score")
         if sqs is None:
             # Should never reach here due to final filter above - this is a logic error in the filter
             logger.error(

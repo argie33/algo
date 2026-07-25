@@ -1978,7 +1978,7 @@ class PriceLoader(OptimalLoader):
         # Mitigation: Set 30min hard timeout, log progress every batch, fail-closed on timeout
         overall_timeout_sec = 1800  # 30 minutes - more than enough for ~5000 symbols at 0.7s per symbol
 
-        def timeout_handler(signum, frame):
+        def timeout_handler(signum: int, frame: Any) -> None:
             elapsed = time.time() - start
             raise RuntimeError(
                 f"[PRICE_LOADER TIMEOUT] Loader exceeded {overall_timeout_sec}s timeout after {elapsed:.0f}s. "
@@ -1990,8 +1990,8 @@ class PriceLoader(OptimalLoader):
         # Set timeout only if running in an environment that supports signals
         old_handler = None
         try:
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(overall_timeout_sec)
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
+            signal.alarm(overall_timeout_sec)  # type: ignore[attr-defined]
         except (ValueError, AttributeError, OSError):
             # Windows or environments that don't support SIGALRM - skip timeout protection
             logger.warning("[PRICE_LOADER] Timeout protection unavailable on this platform (SIGALRM not supported)")
@@ -2029,9 +2029,9 @@ class PriceLoader(OptimalLoader):
         # Cancel timeout alarm before returning
         try:
             import signal
-            signal.alarm(0)  # Cancel the alarm
+            signal.alarm(0)  # Cancel the alarm  # type: ignore[attr-defined]
             if old_handler is not None:
-                signal.signal(signal.SIGALRM, old_handler)
+                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
         except (ValueError, AttributeError, OSError):
             pass  # Timeout protection not available on this platform
 
