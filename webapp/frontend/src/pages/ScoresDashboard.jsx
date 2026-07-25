@@ -663,11 +663,15 @@ function RankingsTab({
                 {/* ─── Expanded Detail Row ─── */}
                 {isExpanded && (
                   <div style={{ padding: "var(--space-4)", borderBottom: "2px solid var(--brand)", background: "var(--surface-1)" }}>
-                    <StockScoreAccordion
-                      stocks={[detail && selectedSymbol === s.symbol ? detail : s]}
-                      marketAvgs={marketAvgs}
-                      sectorAvgs={computeSectorAvgs(all, s.sector)}
-                    />
+                    {detail?.error ? (
+                      <div className="alert alert-danger">{detail.error}</div>
+                    ) : (
+                      <StockScoreAccordion
+                        stocks={[detail && selectedSymbol === s.symbol && "quality_inputs" in detail ? detail : s]}
+                        marketAvgs={marketAvgs}
+                        sectorAvgs={computeSectorAvgs(all, s.sector)}
+                      />
+                    )}
                   </div>
                 )}
               </div>
