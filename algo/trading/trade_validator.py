@@ -290,12 +290,16 @@ class TradeValidator:
         return False, None, None
 
     def check_open_position_in_symbol(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
+        # CRITICAL FIX: Must check algo_trades for open status, not algo_positions.
+        # The constraint algo_trades_symbol_open_positions_idx enforces at the algo_trades level.
+        # Checking algo_positions only catches manually-tracked positions but misses entries
+        # in algo_trades that have status='open' (the source of the constraint violation).
         cur.execute(
-            "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
-            (symbol, PositionStatus.OPEN.value),
+            "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status = %s LIMIT 1",
+            (symbol, "open"),
         )
         if cur.fetchone():
-            return True, f"Already have open position in {symbol}"
+            return True, f"Already have open position in {symbol} (existing trade in progress)"
         return False, None
 
     def check_signal_fingerprint_duplicate(
