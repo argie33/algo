@@ -639,20 +639,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("ebitda_margin")
 
             # ROIC: (EBIT * (1 - tax_rate)) / Invested Capital
-            # Using approximation: (Operating Income * 0.75) / (Total Assets - Current Liabilities)
-            # (assuming 25% effective tax rate as industry average)
-            if operating_income is not None and total_assets is not None and current_liabilities is not None:
-                try:
-                    ebit_after_tax = operating_income * 0.75
-                    invested_capital = total_assets - current_liabilities
-                    if invested_capital != 0:
-                        metrics["roic_pct"] = float((ebit_after_tax / invested_capital) * 100)
-                    else:
-                        failed_metrics.append("roic_pct")
-                except (ValueError, TypeError):
-                    failed_metrics.append("roic_pct")
-            else:
-                failed_metrics.append("roic_pct")
+            # CRITICAL FIX: Actual effective tax rate varies widely (5-35%+ by jurisdiction/structure).
+            # Hardcoded 25% assumption is synthetic data - fail-fast without it.
+            # To compute ROIC, need actual income tax from SEC - not currently loaded.
+            # Mark unavailable rather than using fallback approximation.
+            failed_metrics.append("roic_pct")
 
             # FCF to Net Income = Free Cash Flow / Net Income
             if free_cash_flow is not None and net_income is not None and net_income != 0:

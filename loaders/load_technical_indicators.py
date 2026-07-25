@@ -951,7 +951,15 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
     # Old: "RUNNING", "COMPLETED", "FAILED"
     # New: "loading", "ok", "error"
     status_map = {"RUNNING": "loading", "COMPLETED": "ok", "FAILED": "error"}
-    db_status = status_map.get(status, status)  # Use mapped value or original if not in map
+    # CRITICAL FIX: Do not silently fall back to unknown status values.
+    # If caller passes invalid status, fail-fast with clear error.
+    db_status = status_map.get(status)
+    if db_status is None:
+        raise ValueError(
+            f"[TECHNICAL_INDICATORS] Invalid status '{status}'. "
+            f"Must be one of: {', '.join(status_map.keys())}. "
+            f"Unexpected status could corrupt data_loader_status. Fail-fast to prevent data corruption."
+        )
 
     with DatabaseContext("write") as cur:
         if status == "RUNNING":

@@ -122,8 +122,10 @@ def run(
             if cb_result and "error" in cb_result:
                 # CRITICAL: Market circuit breaker API failure must halt trading per GOVERNANCE.
                 # Exception: In paper mode with credential errors, log warning and continue (dev convenience)
-                error_msg = cb_result.get("description") or cb_result.get("reason") or "market circuit breaker error"
-                error_reason = cb_result["reason"]
+                error_reason = cb_result.get("reason")
+                if error_reason is None:
+                    error_reason = cb_result.get("description") or "market circuit breaker error"
+                error_msg = error_reason
                 is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
                 is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()
                 execution_mode = config.get("execution_mode")
