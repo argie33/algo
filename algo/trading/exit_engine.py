@@ -606,17 +606,20 @@ class ExitEngine:
                             cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
                         except RuntimeError as fetch_err:
                             if "unavailable" in str(fetch_err).lower() or "404" in str(fetch_err).lower():
-                                logger.warning(
-                                    f"[EXIT ENGINE] {symbol}: Symbol appears delisted or unavailable. "
-                                    f"Force-closing position without evaluation. Error: {fetch_err}"
+                                logger.critical(
+                                    f"[EXIT ENGINE CRITICAL] {symbol}: Symbol appears delisted or unavailable. "
+                                    f"Cannot exit position without current price data. Will mark for manual review. Error: {fetch_err}"
                                 )
-                                exit_price = float(Decimal(str(entry_price))) if entry_price else None
+                                # CRITICAL FIX: Do NOT fall back to entry_price for exit_price
+                                # Using entry_price masks the actual exit value and produces false P&L
+                                # (e.g., position that sold at $5 will show as break-even if bought at $100)
+                                # Mark position as requiring manual exit price determination
                                 cur.execute(
                                     """UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status = 'open'
                                        ORDER BY trade_date DESC LIMIT 1""",
-                                    (current_date, exit_price, "delisted_or_unavailable", symbol),
+                                    (current_date, None, f"delisted_or_unavailable|price_data_missing", symbol),
                                 )
                                 cur.execute(
                                     """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
@@ -631,11 +634,14 @@ class ExitEngine:
                                 raise
 
                         if cur_price is None:
-                            logger.warning(
-                                f"[EXIT ENGINE] {symbol}: No price data available. "
-                                f"Force-closing position with last known price."
+                            logger.critical(
+                                f"[EXIT ENGINE CRITICAL] {symbol}: No price data available for exit calculation. "
+                                f"Cannot determine exit price. Marking position for manual review."
                             )
-                            exit_price = float(Decimal(str(entry_price))) if entry_price else None
+                            # CRITICAL FIX: Do NOT fall back to entry_price for exit_price
+                            # This fallback masks actual exit prices and produces completely wrong P&L
+                            # Set exit_price to NULL and mark as requiring manual price determination
+                            exit_price = None
                             cur.execute(
                                 """UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                    exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
