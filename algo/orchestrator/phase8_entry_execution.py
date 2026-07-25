@@ -1394,37 +1394,24 @@ def run(
                     f"cannot execute trade without relative strength validation."
                 )
 
-            # SESSION 367 FIX: Fetch signal quality scores (SQS & trend score) from signal_quality_scores table
-            # These are computed by Phase 7's signal quality scorer and used for position validation
+            # FAIL-FAST: Signal quality score is REQUIRED for entry validation
+            # Phase 7 must compute and pass signal_quality_score for all qualified trades
+            # Do NOT fall back to composite_score (different methodology)
+            # Do NOT fall back to database lookup (indicates Phase 7 computation failed)
             sqs = signal.get("signal_quality_score")
-            # CRITICAL FIX (Session 379): If signal_quality_score is not present, try composite_score as fallback
-            # Phase 7 sets both fields, but composite_score might be more reliably populated
+
             if sqs is None:
-                sqs = signal.get("composite_score")
+                rejection_reason = (
+                    f"Signal quality score missing from Phase 7 output. "
+                    f"Phase 7 must compute signal_quality_score for all trades. "
+                    f"Reject signal to prevent entry without quality validation."
+                )
+                logger.error(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
+                _log_signal_rejection(symbol, "quality_gate_missing", rejection_reason, run_date, entry_price, risk_pct)
+                skipped_count += 1
+                continue
 
             trend_score = signal.get("trend_template_score")
-
-            # If not in signal dict, fetch from database (fallback for earlier Signal 7 runs)
-            if sqs is None or trend_score is None:
-                try:
-                    with DatabaseContext("read") as cur_sqs:
-                        cur_sqs.execute(
-                            """
-                            SELECT composite_sqs, trend_template_score
-                            FROM signal_quality_scores
-                            WHERE symbol = %s AND date = %s
-                            LIMIT 1
-                            """,
-                            (symbol, run_date),
-                        )
-                        sqs_row = cur_sqs.fetchone()
-                        if sqs_row:
-                            sqs = sqs_row[0] if sqs is None else sqs
-                            trend_score = sqs_row[1] if trend_score is None else trend_score
-                except Exception as e:
-                    logger.warning(
-                        f"[PHASE 8] {symbol}: Could not fetch signal quality scores: {e}. Proceeding with available data."
-                    )
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             # CRITICAL FIX (Session 372): Reject NULL signal quality scores

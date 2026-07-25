@@ -911,18 +911,16 @@ class DailyReconciliation:
                     open_trades AS (
                         SELECT DISTINCT ON (at.symbol)
                             at.symbol, at.entry_quantity as quantity,
-                            COALESCE(NULLIF(at.entry_price, 0), ap.avg_entry_price) as avg_entry_price,
-                            CASE
-                                WHEN at.entry_price IS NOT NULL AND at.entry_price > 0 THEN 'trade_price'
-                                ELSE 'position_average_fallback'
-                            END as entry_price_source,
+                            at.entry_price as avg_entry_price,
+                            'trade_price' as entry_price_source,
                             lp.current_price,
                             (at.entry_quantity * lp.current_price) as position_value
                         FROM algo_trades at
-                        LEFT JOIN algo_positions ap ON at.symbol = ap.symbol AND ap.status IN ('open', 'paper_open')
                         LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
                         WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
                           AND at.exit_date IS NULL
+                          AND at.entry_price IS NOT NULL
+                          AND at.entry_price > 0
                         ORDER BY at.symbol, at.trade_date DESC
                     )
                     SELECT symbol, quantity, avg_entry_price, entry_price_source, current_price, position_value
@@ -933,27 +931,12 @@ class DailyReconciliation:
 
                 positions = cur.fetchall()
 
-                # CRITICAL AUDIT: Track entry price fallback usage (data quality metric)
-                fallback_count = 0
-                trade_price_count = 0
-                for pos in positions:
-                    entry_source = pos[3] if len(pos) > 3 else None  # entry_price_source column
-                    if entry_source == "position_average_fallback":
-                        fallback_count += 1
-                    elif entry_source == "trade_price":
-                        trade_price_count += 1
-
-                if fallback_count > 0:
-                    fallback_pct = (
-                        (fallback_count / (fallback_count + trade_price_count)) * 100
-                        if (fallback_count + trade_price_count) > 0
-                        else 0
-                    )
+                # FAIL-FAST: All trades must have explicit entry_price for accurate P&L
+                # Do NOT fall back to position.avg_entry_price (different calculation, corrupts P&L)
+                if not positions:
                     logger.warning(
-                        f"[RECONCILIATION DATA QUALITY] {fallback_count}/{fallback_count + trade_price_count} positions using "
-                        f"position_average_fallback ({fallback_pct:.1f}%) instead of trade entry_price. "
-                        f"This indicates missing algo_trades.entry_price data (check trade recorder). "
-                        f"P&L calculations may be inaccurate. If >= 5% fallback rate, escalate to data engineering."
+                        "[RECONCILIATION] No open trades with valid entry_price found. "
+                        "Either all trades closed or entry_price data missing. P&L calculation skipped for this run."
                     )
 
                 # CRITICAL VALIDATION: Check for invalid entry prices that would break P&L calculations
