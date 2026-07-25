@@ -808,6 +808,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["debt_to_assets_unavailable_reason"] = (
                 "missing_sec_data" if "debt_to_assets" in failed_metrics else None
             )
+            # Phase 3 Expansion (Session 357+): New metrics - initialize their _unavailable_reason fields
+            metrics["gross_margin_unavailable_reason"] = "missing_sec_data" if "gross_margin" in failed_metrics else None
+            metrics["ebitda_margin_unavailable_reason"] = "missing_sec_data" if "ebitda_margin" in failed_metrics else None
+            metrics["roic_pct_unavailable_reason"] = "missing_sec_data" if "roic_pct" in failed_metrics else None
+            metrics["fcf_to_net_income_unavailable_reason"] = (
+                "missing_sec_data" if "fcf_to_net_income" in failed_metrics else None
+            )
+            metrics["ocf_to_net_income_unavailable_reason"] = (
+                "missing_sec_data" if "ocf_to_net_income" in failed_metrics else None
+            )
+            metrics["payout_ratio_unavailable_reason"] = "missing_sec_data" if "payout_ratio" in failed_metrics else None
+            metrics["free_cash_flow_unavailable_reason"] = "missing_sec_data" if "free_cash_flow" in failed_metrics else None
+            metrics["operating_cash_flow_unavailable_reason"] = (
+                "missing_sec_data" if "operating_cash_flow" in failed_metrics else None
+            )
+            metrics["total_debt_unavailable_reason"] = "missing_sec_data" if "total_debt" in failed_metrics else None
+            metrics["total_cash_unavailable_reason"] = "missing_sec_data" if "total_cash" in failed_metrics else None
+            metrics["cash_per_share_unavailable_reason"] = "missing_sec_data" if "cash_per_share" in failed_metrics else None
+            metrics["ebitda_unavailable_reason"] = "missing_sec_data" if "ebitda" in failed_metrics else None
+            metrics["earnings_growth_yoy_unavailable_reason"] = (
+                "missing_sec_data" if "earnings_growth_yoy" in failed_metrics else None
+            )
+            metrics["revenue_growth_yoy_unavailable_reason"] = (
+                "missing_sec_data" if "revenue_growth_yoy" in failed_metrics else None
+            )
             metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed
 
             if failed_metrics:
