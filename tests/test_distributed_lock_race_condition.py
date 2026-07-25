@@ -17,19 +17,33 @@ from utils.db.dynamo_lock import DynamoDBLockManager
 
 
 def test_get_lock_manager_always_returns_dynamodb():
-    """Verify get_lock_manager() ALWAYS returns DynamoDBLockManager, never FileLockManager."""
+    """Verify get_lock_manager() ALWAYS returns DynamoDBLockManager (not FileLockManager), when LOCAL_MODE=false.
+
+    In LOCAL_MODE=true, falls back to RDSLockManager (which is still a distributed lock, not file-based).
+    """
     from utils.db.local_file_lock import get_lock_manager
 
-    with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb:
-        # Mock DynamoDBLockManager to bypass actual AWS calls
-        mock_lock_manager = MagicMock()
-        mock_dynamodb.return_value = mock_lock_manager
+    # Temporarily unset LOCAL_MODE so DynamoDB is tried (production behavior)
+    original_local_mode = os.environ.get("LOCAL_MODE")
+    try:
+        os.environ.pop("LOCAL_MODE", None)
 
-        result = get_lock_manager()
+        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb:
+            # Mock DynamoDBLockManager to bypass actual AWS calls
+            mock_lock_manager = MagicMock()
+            mock_lock_manager.is_available = True
+            mock_lock_manager.acquire.return_value = True  # Test acquire succeeds
+            mock_dynamodb.return_value = mock_lock_manager
 
-        # Verify it's the DynamoDB manager, not FileLockManager
-        assert result is mock_lock_manager
-        assert isinstance(result, MagicMock)  # Our mock
+            result = get_lock_manager()
+
+            # Verify it's the DynamoDB manager, not FileLockManager
+            assert result is mock_lock_manager
+            assert isinstance(result, MagicMock)  # Our mock
+    finally:
+        # Restore LOCAL_MODE
+        if original_local_mode is not None:
+            os.environ["LOCAL_MODE"] = original_local_mode
 
 
 def test_get_lock_manager_falls_back_to_rds_if_dynamodb_unavailable():
