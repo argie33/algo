@@ -502,7 +502,7 @@ def run(
             "entry_execution",
             "blocked",
             {"entered": 0},
-            True,  # halted=True: guard is protecting orchestrator from pre/after-hours
+            False,  # halted=False: guard is just blocking entries, not halting orchestration
             msg,
         )
         logger.info(f"[PHASE 8 DEBUG] Market hours guard returning: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
@@ -636,7 +636,7 @@ def run(
             "entry_execution",
             "blocked",
             {"entered": 0},
-            True,  # success=True: guard is working, not failing
+            False,  # halted=False: guard is blocking entries, not halting orchestration
             msg,
         )
 
