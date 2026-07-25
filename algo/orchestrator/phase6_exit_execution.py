@@ -60,7 +60,13 @@ def run(
         # ISSUE #4 FIX: Check if paper mode is active FIRST before validating position_recs
         # In paper mode, Phase 3 intentionally skips position monitoring (it's a live-trading risk feature)
         # so position_recs will be empty. This is expected behavior, not an error.
-        execution_mode_check = config.get("execution_mode", "paper")
+        execution_mode_check = config.get("execution_mode")
+        if execution_mode_check is None:
+            raise ValueError(
+                "[PHASE 6 CRITICAL] execution_mode config missing. "
+                "Cannot determine trading mode (live vs paper). "
+                "Set explicit execution_mode in algo_config table."
+            )
         # CRITICAL FIX: Require explicit config - fail-fast if missing
         # No silent fallback to False (which would attempt live trading)
         if "alpaca_paper_trading" not in config:

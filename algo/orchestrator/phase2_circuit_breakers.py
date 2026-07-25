@@ -126,7 +126,13 @@ def run(
                 error_reason = cb_result.get("reason", "")
                 is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
                 is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()
-                execution_mode = config.get("execution_mode", "paper")
+                execution_mode = config.get("execution_mode")
+                if execution_mode is None:
+                    raise ValueError(
+                        "[PHASE 2 CRITICAL] execution_mode config missing. "
+                        "Cannot determine trading mode (live vs paper). "
+                        "Set explicit execution_mode in algo_config table."
+                    )
 
                 if is_credential_error and execution_mode == "paper":
                     logger.warning(
