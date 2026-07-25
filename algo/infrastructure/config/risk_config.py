@@ -34,22 +34,33 @@ class RiskConfig:
         """
         self.parent = parent
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str) -> Any:
         """Get risk configuration value.
+
+        FAIL-FAST: All risk management parameters must be explicitly configured.
+        No silent defaults allowed - missing config could cause unsafe position sizing.
 
         Delegates to parent AlgoConfig.get(), which handles:
         - Type validation via VALIDATION_SCHEMA
-        - Fallback to defaults
-        - Fail-closed values for critical thresholds
+        - Explicit error if key missing
 
         Args:
             key: Configuration key (e.g., "base_risk_pct")
-            default: Default value if key missing
 
         Returns:
-            Configuration value or default
+            Configuration value (or raises if missing)
+
+        Raises:
+            ValueError: If configuration key not found or invalid
         """
-        return self.parent.get(key, default)
+        value = self.parent.get(key)
+        if value is None:
+            raise ValueError(
+                f"[CONFIG CRITICAL] Risk parameter '{key}' is missing. "
+                f"Cannot proceed with position sizing without explicit {key}. "
+                f"Check algo_config table has this key with a valid value."
+            )
+        return value
 
     def set(
         self,

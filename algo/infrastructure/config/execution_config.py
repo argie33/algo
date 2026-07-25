@@ -33,22 +33,34 @@ class ExecutionConfig:
         """
         self.parent = parent
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str) -> Any:
         """Get execution configuration value.
+
+        FAIL-FAST: Execution mode and trading parameters must be explicitly configured.
+        No silent defaults allowed.
 
         Delegates to parent AlgoConfig.get(), which handles:
         - Database lookup
         - Type validation via VALIDATION_SCHEMA
-        - Fallback to defaults
+        - Explicit error if key missing
 
         Args:
             key: Configuration key
-            default: Default value if key missing
 
         Returns:
-            Configuration value or default
+            Configuration value (or raises if missing)
+
+        Raises:
+            ValueError: If configuration key not found or invalid
         """
-        return self.parent.get(key, default)
+        value = self.parent.get(key)
+        if value is None:
+            raise ValueError(
+                f"[CONFIG CRITICAL] Execution parameter '{key}' is missing. "
+                f"Execution mode and trading parameters must be explicit. "
+                f"Check algo_config table has '{key}' with a valid value."
+            )
+        return value
 
     def set(
         self,

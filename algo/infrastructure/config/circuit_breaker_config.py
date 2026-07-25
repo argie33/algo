@@ -38,22 +38,33 @@ class CircuitBreakerConfig:
         """
         self.parent = parent
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str) -> Any:
         """Get circuit breaker configuration value.
+
+        FAIL-FAST: All circuit breaker safety thresholds must be explicitly configured.
+        No silent defaults allowed - missing config is a fatal error.
 
         Delegates to parent AlgoConfig.get(), which handles:
         - Type validation via VALIDATION_SCHEMA
-        - Fallback to defaults
-        - Fail-closed values for critical thresholds
+        - Explicit error if key missing
 
         Args:
             key: Configuration key (e.g., "max_daily_loss_pct")
-            default: Default value if key missing
 
         Returns:
-            Configuration value or default
+            Configuration value (or raises if missing)
+
+        Raises:
+            ValueError: If configuration key not found or invalid
         """
-        return self.parent.get(key, default)
+        value = self.parent.get(key)
+        if value is None:
+            raise ValueError(
+                f"[CONFIG CRITICAL] Circuit breaker safety parameter '{key}' is missing. "
+                f"Cannot proceed with trading without explicit {key}. "
+                f"Check algo_config table has this key with a valid value."
+            )
+        return value
 
     def set(
         self,

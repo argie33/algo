@@ -36,22 +36,33 @@ class TradingConfig:
         """
         self.parent = parent
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str) -> Any:
         """Get trading configuration value.
+
+        FAIL-FAST: All trading safety thresholds must be explicitly configured.
+        No silent defaults allowed - missing config could bypass quality gates or risk limits.
 
         Delegates to parent AlgoConfig.get(), which handles:
         - Type validation via VALIDATION_SCHEMA
-        - Fallback to defaults
-        - Fail-closed values for critical thresholds
+        - Explicit error if key missing
 
         Args:
             key: Configuration key (e.g., "min_signal_quality_score")
-            default: Default value if key missing
 
         Returns:
-            Configuration value or default
+            Configuration value (or raises if missing)
+
+        Raises:
+            ValueError: If configuration key not found or invalid
         """
-        return self.parent.get(key, default)
+        value = self.parent.get(key)
+        if value is None:
+            raise ValueError(
+                f"[CONFIG CRITICAL] Trading parameter '{key}' is missing. "
+                f"Trading safety thresholds must be explicit. "
+                f"Check algo_config table has '{key}' with a valid value."
+            )
+        return value
 
     def set(
         self,
