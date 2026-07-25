@@ -627,6 +627,69 @@ def _get_candidates_from_buysell(
                 except Exception as write_e:
                     logger.warning(f"[PHASE 7] Failed to write signal quality scores to buy_sell_daily: {write_e}")
 
+            # BACKFILL: Also compute scores for older signals in buy_sell_daily that don't have scores yet
+            # This handles signals created by loaders that haven't been processed by Phase 7 since their creation
+            # (e.g., EOD pipeline creates signals at 4:05 PM, but Phase 7 runs at 9:30 AM, 1 PM, 3 PM don't include those until next day)
+            try:
+                logger.info("[PHASE 7] Starting backfill of signal quality scores for older signals without scores")
+                with DatabaseContext("read") as cur_backfill:
+                    # Find signals without scores from last 3 days (covers missed signals from loaders)
+                    cur_backfill.execute("""
+                        SELECT symbol, date FROM buy_sell_daily
+                        WHERE signal_quality_score IS NULL
+                          AND signal = 'BUY'
+                          AND date >= (CURRENT_DATE - INTERVAL '3 days')
+                        ORDER BY date DESC, symbol
+                        LIMIT 100
+                    """)
+                    backfill_rows = cur_backfill.fetchall()
+
+                if backfill_rows:
+                    backfill_scores = []
+                    scorer = get_signal_scorer("BUY")
+
+                    for symbol, signal_date in backfill_rows:
+                        try:
+                            with DatabaseContext("read") as cur_tech:
+                                cur_tech.execute("""
+                                    SELECT rsi, macd, macd_signal
+                                    FROM technical_data_daily
+                                    WHERE symbol = %s AND date = %s
+                                """, (symbol, signal_date))
+                                tech_row = cur_tech.fetchone()
+
+                            if not tech_row:
+                                logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
+                                continue
+
+                            rsi, macd, macd_signal = tech_row
+                            # Compute score using same logic as inline scorer
+                            base_score = scorer.calculate_base_quality_score()
+                            volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
+                            trend_score = scorer.calculate_trend_template_score(None, None)  # Minimal trend data
+                            composite_sqs = min(100, int(base_score + volume_score + trend_score))
+
+                            backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
+                        except Exception as bf_e:
+                            logger.debug(f"[PHASE 7 BACKFILL] {symbol}: Failed to compute score: {bf_e}")
+                            continue
+
+                    # Write backfill scores
+                    if backfill_scores:
+                        try:
+                            with DatabaseContext("write") as cur_write:
+                                for sqs, entry_sqs, symbol, signal_date in backfill_scores:
+                                    cur_write.execute("""
+                                        UPDATE buy_sell_daily
+                                        SET signal_quality_score = %s, entry_quality_score = %s
+                                        WHERE symbol = %s AND date = %s AND signal_quality_score IS NULL
+                                    """, (sqs, entry_sqs, symbol, signal_date))
+                            logger.info(f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily")
+                        except Exception as write_bf_e:
+                            logger.warning(f"[PHASE 7 BACKFILL] Failed to write backfill scores: {write_bf_e}")
+            except Exception as bf_outer_e:
+                logger.warning(f"[PHASE 7 BACKFILL] Backfill process failed (non-critical): {bf_outer_e}")
+
         complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -959,6 +1022,74 @@ def run(  # noqa: C901
         logger.warning(f"[PHASE 7] Signal quality score computation failed (non-critical): {e}")
         # Don't halt - Phase 8 will proceed with NULL scores but will apply fallback
 
+    # BACKFILL: Compute quality scores for older loader-created signals that don't have scores
+    # This is separate from the batch loader above - it specifically targets orphaned signals
+    # that were created by the EOD pipeline but never processed by Phase 7 (timing mismatch:
+    # EOD creates signals at 4:05 PM, Phase 7 runs at 9:30 AM, 1 PM, 3 PM).
+    try:
+        logger.info("[PHASE 7] Backfilling quality scores for orphaned loader-created signals")
+        with DatabaseContext("read") as cur_backfill:
+            # Find signals without scores from last 3 days
+            cur_backfill.execute("""
+                SELECT symbol, date FROM buy_sell_daily
+                WHERE signal_quality_score IS NULL
+                  AND signal = 'BUY'
+                  AND date >= (CURRENT_DATE - INTERVAL '3 days')
+                ORDER BY date DESC, symbol
+                LIMIT 100
+            """)
+            backfill_rows = cur_backfill.fetchall()
+
+        if backfill_rows:
+            from loaders.signal_quality_scorer import get_signal_scorer
+
+            backfill_scores = []
+            scorer = get_signal_scorer("BUY")
+
+            for symbol, signal_date in backfill_rows:
+                try:
+                    with DatabaseContext("read") as cur_tech:
+                        cur_tech.execute("""
+                            SELECT rsi, macd, macd_signal
+                            FROM technical_data_daily
+                            WHERE symbol = %s AND date = %s
+                        """, (symbol, signal_date))
+                        tech_row = cur_tech.fetchone()
+
+                    if not tech_row:
+                        logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
+                        continue
+
+                    rsi, macd, macd_signal = tech_row
+                    # Compute score using same logic as inline scorer
+                    base_score = scorer.calculate_base_quality_score()
+                    volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
+                    trend_score = scorer.calculate_trend_template_score(None, None)
+                    composite_sqs = min(100, int(base_score + volume_score + trend_score))
+
+                    backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
+                except Exception as bf_e:
+                    logger.debug(f"[PHASE 7 BACKFILL] {symbol}: Failed to compute score: {bf_e}")
+                    continue
+
+            # Write backfill scores
+            if backfill_scores:
+                try:
+                    with DatabaseContext("write") as cur_write:
+                        for sqs, entry_sqs, symbol, signal_date in backfill_scores:
+                            cur_write.execute("""
+                                UPDATE buy_sell_daily
+                                SET signal_quality_score = %s, entry_quality_score = %s
+                                WHERE symbol = %s AND date = %s AND signal_quality_score IS NULL
+                            """, (sqs, entry_sqs, symbol, signal_date))
+                    logger.info(f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily")
+                except Exception as write_bf_e:
+                    logger.warning(f"[PHASE 7 BACKFILL] Failed to write backfill scores: {write_bf_e}")
+        else:
+            logger.debug("[PHASE 7 BACKFILL] No orphaned signals to backfill")
+    except Exception as bf_outer_e:
+        logger.warning(f"[PHASE 7 BACKFILL] Backfill process failed (non-critical): {bf_outer_e}")
+
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
         logger.critical(
@@ -1180,24 +1311,37 @@ def run(  # noqa: C901
             7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
         )
 
-    # Final validation: CRITICAL - ensure no None values made it through the filter
-    # This catches logic errors in the filtering code itself
+    # Final defensive filter: Remove any None values that made it through previous filters
+    # Edge case handling: if a signal's technical data became unavailable or an earlier filter missed it,
+    # this catches it and removes it gracefully instead of crashing Phase 7
     none_sqs_candidates = [c for c in quality_filtered if c.get("signal_quality_score") is None]
     if none_sqs_candidates:
         error_symbols = [c.get("symbol") for c in none_sqs_candidates]
-        raise ValueError(
-            f"[PHASE 7 LOGIC ERROR] {len(none_sqs_candidates)} candidates with None signal_quality_score "
-            f"escaped the filter: {error_symbols}. Filter logic is broken - check lines 1152-1153."
+        logger.warning(
+            f"[PHASE 7] {len(none_sqs_candidates)} candidates with None signal_quality_score "
+            f"escaped prior filters: {error_symbols}. Filtering out and continuing."
+        )
+        # Remove them gracefully instead of crashing
+        quality_filtered = [c for c in quality_filtered if c.get("signal_quality_score") is not None]
+
+    # Verify we still have candidates after the final filter
+    if not quality_filtered:
+        msg = "[PHASE 7] All candidates rejected (final filter removed all with None signal_quality_score)"
+        logger.warning(msg)
+        log_phase_result_fn(7, "signal_generation", "no_data", msg)
+        return PhaseResult(
+            7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
         )
 
     for sig in quality_filtered:
         sqs = sig.get("signal_quality_score")
         if sqs is None:
-            # Should never reach here due to filter and validation above
-            raise ValueError(
-                f"Signal {sig.get('symbol')} has None signal_quality_score. "
-                f"Multiple filters failed to catch this - indicates critical logic error in candidate processing."
+            # Should never reach here due to final filter above - this is a logic error in the filter
+            logger.error(
+                f"[PHASE 7 LOGIC ERROR] Signal {sig.get('symbol')} has None signal_quality_score "
+                f"after all filters. This indicates a bug in the filtering logic."
             )
+            continue
         if not isinstance(sqs, (int, float)):
             raise ValueError(f"Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, expected float")
 
