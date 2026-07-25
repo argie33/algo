@@ -444,8 +444,12 @@ class OptimalLoader:
             # LOCAL MODE: Use 10 minutes (600s) for faster recovery from crashed loaders during dev
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
             is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            default_ttl = "600" if is_local_mode else "7200"
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", default_ttl))
+            # CRITICAL: In LOCAL_MODE, always use 600s regardless of LOADER_SLA_TIMEOUT_SECONDS env var
+            # This ensures fast lock recovery during development without requiring env var management
+            if is_local_mode:
+                lock_ttl = 600
+            else:
+                lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
@@ -660,8 +664,12 @@ class OptimalLoader:
             # LOCAL MODE: Use 10 minutes (600s) for faster recovery from crashed loaders during dev
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
             is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            default_ttl = "600" if is_local_mode else "7200"
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", default_ttl))
+            # CRITICAL: In LOCAL_MODE, always use 600s regardless of LOADER_SLA_TIMEOUT_SECONDS env var
+            # This ensures fast lock recovery during development without requiring env var management
+            if is_local_mode:
+                lock_ttl = 600
+            else:
+                lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
