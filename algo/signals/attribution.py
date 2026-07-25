@@ -66,8 +66,8 @@ class SignalAttributionEngine:
                 }
             }
         """
-        # Swing components deprecated - return unavailable data
-        logger.warning(
+        # Swing components deprecated - return unavailable data (this is expected)
+        logger.debug(
             "[ATTRIBUTION] Swing score components are deprecated. Signal attribution analysis is no longer available."
         )
         return {
@@ -95,8 +95,8 @@ class SignalAttributionEngine:
                 'correction': {component: ic_data},
             }
         """
-        # Swing components deprecated - return unavailable data
-        logger.warning(
+        # Swing components deprecated - return unavailable data (this is expected)
+        logger.debug(
             "[ATTRIBUTION] Swing score components are deprecated. "
             "Regime-specific signal attribution analysis is no longer available."
         )
