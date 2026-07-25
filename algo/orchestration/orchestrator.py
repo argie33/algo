@@ -608,38 +608,40 @@ class Orchestrator:
         Automatically called during preflight checks to maintain lock table health.
         Session 391: Fixed stale signal_quality_scores lock that held 2-hour TTL.
         Session 398: Be more aggressive - delete locks held > 1 hour even if not expired.
+        Session 428: Further improvement - lower threshold to 10 min and alert on stuck locks.
         """
         try:
             with DatabaseContext("write") as cur:
-                # Delete expired locks OR locks held for > 30 minutes (indicates hung loader)
-                # 30 minutes is a reasonable upper bound for any loader's runtime.
+                # First: Alert on stuck locks BEFORE deleting them (for debugging)
+                # Stuck locks indicate loader crash/hang - need visibility
                 cur.execute("""
-                    DELETE FROM loader_execution_locks
-                    WHERE expires_at <= CURRENT_TIMESTAMP
-                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > 1800
-                """)
-                deleted_count = cur.rowcount
-
-                if deleted_count > 0:
-                    logger.info(f"[LOCK_CLEANUP] Cleaned up {deleted_count} loader lock(s) (expired or held > 30min)")
-
-                # Log any active long-running locks (> 10 minutes)
-                cur.execute("""
-                    SELECT loader_name, locked_at, expires_at,
+                    SELECT loader_name, locked_at,
                            EXTRACT(EPOCH FROM (NOW() - locked_at)) as duration_sec
                     FROM loader_execution_locks
                     WHERE EXTRACT(EPOCH FROM (NOW() - locked_at)) > 600
                     ORDER BY locked_at ASC
                 """)
-                long_locks = cur.fetchall()
-                if long_locks:
-                    logger.warning(
-                        f"[LOCK_CLEANUP] {len(long_locks)} loader lock(s) still held > 10 minutes: "
-                        + ", ".join([f"{name}({dur:.0f}s)" for name, _, _, dur in long_locks])
+                stuck_locks = cur.fetchall()
+                if stuck_locks:
+                    logger.critical(
+                        f"[LOCK_CLEANUP ALERT] {len(stuck_locks)} loader lock(s) held > 10 minutes (loader crash/hang suspected): "
+                        + ", ".join([f"{name}({dur:.0f}s)" for name, _, dur in stuck_locks])
                     )
+
+                # Second: Delete expired locks OR locks held > 10 minutes (more aggressive than 30min)
+                # Loaders should complete within 10 minutes - anything longer indicates failure
+                cur.execute("""
+                    DELETE FROM loader_execution_locks
+                    WHERE expires_at <= CURRENT_TIMESTAMP
+                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > 600
+                """)
+                deleted_count = cur.rowcount
+
+                if deleted_count > 0:
+                    logger.info(f"[LOCK_CLEANUP] Force-deleted {deleted_count} stuck loader lock(s) (held > 10min)")
         except Exception as e:
-            logger.warning(f"[LOCK_CLEANUP] Could not clean expired locks: {e}")
-            # Don't halt trading for lock cleanup - it's advisory
+            logger.critical(f"[LOCK_CLEANUP FAILED] Could not clean expired locks: {e}. Loader pipeline may be blocked!")
+            # Don't halt trading, but make this CRITICAL so ops team sees it
 
     def _wait_for_critical_loaders_proactive(self, max_wait_seconds: int = 300) -> bool:
         """Actively wait for critical loaders to complete before Phase 1.
