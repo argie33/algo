@@ -143,49 +143,47 @@ class PreTradeChecks:
                 recently_closed_row = cur.fetchone()
                 if recently_closed_row:
                     pos_id, closed_at = recently_closed_row
-                    # Fail-fast: if closed_at is missing, something is wrong with the data
                     if closed_at is None:
-                        logger.warning(
-                            f"[PRE-TRADE] {symbol}: Position {pos_id} marked closed but closed_at is NULL. "
-                            "Cannot evaluate recent close cooldown. Allowing entry (data integrity issue)."
+                        raise ValueError(
+                            f"[PRE-TRADE CRITICAL] {symbol}: Position {pos_id} marked closed but closed_at is NULL. "
+                            "Cannot evaluate flip-flop cooldown period without close timestamp. "
+                            "This indicates database data corruption. Blocking entry to prevent uncontrolled re-entries."
                         )
+
+                    minutes_since_close = (
+                        datetime.now(timezone.utc) - closed_at.replace(tzinfo=timezone.utc)
+                    ).total_seconds() / 60
+
+                    # CRITICAL: reentry_cooldown_minutes must be explicitly configured
+                    # This prevents flip-flop trading (re-entering position immediately after close)
+                    if isinstance(self.config, dict):
+                        reentry_cooldown_minutes = self.config.get("reentry_cooldown_minutes")
                     else:
-                        # Calculate minutes since close (using CURRENT_TIMESTAMP for consistency with DB)
-                        minutes_since_close = (
-                            datetime.now(timezone.utc) - closed_at.replace(tzinfo=timezone.utc)
-                        ).total_seconds() / 60
+                        reentry_cooldown_minutes = getattr(self.config, "reentry_cooldown_minutes", None)
 
-                        # CRITICAL: reentry_cooldown_minutes must be explicitly configured
-                        # This prevents flip-flop trading (re-entering position immediately after close)
-                        # No silent 30-minute default - must be explicit.
-                        if isinstance(self.config, dict):
-                            reentry_cooldown_minutes = self.config.get("reentry_cooldown_minutes")
-                        else:
-                            reentry_cooldown_minutes = getattr(self.config, "reentry_cooldown_minutes", None)
+                    if reentry_cooldown_minutes is None:
+                        raise ValueError(
+                            "[PRE-TRADE CRITICAL] reentry_cooldown_minutes config missing. "
+                            "Cannot determine flip-flop prevention period. "
+                            "Set explicit reentry_cooldown_minutes in algo_config table (recommended: 30-60 minutes)."
+                        )
 
-                        if reentry_cooldown_minutes is None:
-                            raise ValueError(
-                                "[PRE-TRADE CRITICAL] reentry_cooldown_minutes config missing. "
-                                "Cannot determine flip-flop prevention period. "
-                                "Set explicit reentry_cooldown_minutes in algo_config table (recommended: 30-60 minutes)."
-                            )
+                    try:
+                        reentry_cooldown_minutes = int(reentry_cooldown_minutes)
+                        if reentry_cooldown_minutes < 0:
+                            raise ValueError("reentry_cooldown_minutes must be non-negative")
+                    except (ValueError, TypeError) as e:
+                        raise ValueError(
+                            f"[PRE-TRADE CRITICAL] reentry_cooldown_minutes is invalid ({reentry_cooldown_minutes}): {e}"
+                        ) from e
 
-                        try:
-                            reentry_cooldown_minutes = int(reentry_cooldown_minutes)
-                            if reentry_cooldown_minutes < 0:
-                                raise ValueError("reentry_cooldown_minutes must be non-negative")
-                        except (ValueError, TypeError) as e:
-                            raise ValueError(
-                                f"[PRE-TRADE CRITICAL] reentry_cooldown_minutes is invalid ({reentry_cooldown_minutes}): {e}"
-                            ) from e
-
-                        if minutes_since_close < reentry_cooldown_minutes:
-                            return (
-                                False,
-                                f"Position {symbol} closed {minutes_since_close:.0f}m ago, "
-                                f"cooldown {reentry_cooldown_minutes}m required (closed_at={closed_at}). "
-                                f"Re-entry blocked to prevent flip-flop trading.",
-                            )
+                    if minutes_since_close < reentry_cooldown_minutes:
+                        return (
+                            False,
+                            f"Position {symbol} closed {minutes_since_close:.0f}m ago, "
+                            f"cooldown {reentry_cooldown_minutes}m required (closed_at={closed_at}). "
+                            f"Re-entry blocked to prevent flip-flop trading.",
+                        )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(f"[PRE-TRADE] Database error checking duplicate/recent position for {symbol}: {e}")
             raise ValueError(f"Cannot validate duplicate/recent position check for {symbol}: {e}") from e
@@ -220,55 +218,51 @@ class PreTradeChecks:
                 )
                 row = cur.fetchone()
                 if not row:
-                    # GOVERNANCE: no silent fallback - sector/industry concentration limits
-                    # cannot be evaluated for this symbol (~5% of the active universe lacks
-                    # a company_profile row) and the trade proceeds without that check. Make
-                    # the gap visible in logs rather than passing quietly, so it's traceable
-                    # if concentration risk builds up in symbols missing this data.
-                    logger.warning(
-                        f"[PRE-TRADE] {symbol}: no company_profile row - sector/industry "
-                        f"concentration limits NOT evaluated for this trade."
+                    raise ValueError(
+                        f"[PRE-TRADE CRITICAL] {symbol}: company_profile not found. "
+                        f"Cannot evaluate sector/industry concentration limits (required risk controls). "
+                        f"Blocking entry - load_company_profile must run fresh for all symbols."
                     )
-                if row:
-                    sector, industry = row
 
-                    try:
-                        max_sector_positions = int(self.config["max_positions_per_sector"])
-                        max_industry_positions = int(self.config["max_positions_per_industry"])
-                    except KeyError as e:
-                        raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+                sector, industry = row
 
-                    cur.execute(
-                        """SELECT COUNT(*) FROM algo_positions ap
-                           LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
-                           WHERE ap.status = %s AND cp.sector = %s""",
-                        ("open", sector),
+                try:
+                    max_sector_positions = int(self.config["max_positions_per_sector"])
+                    max_industry_positions = int(self.config["max_positions_per_industry"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+                cur.execute(
+                    """SELECT COUNT(*) FROM algo_positions ap
+                       LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                       WHERE ap.status = %s AND cp.sector = %s""",
+                    ("open", sector),
+                )
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError(f"Sector count query failed for {sector}")
+                sector_count = row[0]
+                if sector_count >= max_sector_positions:
+                    return (
+                        False,
+                        f"Sector {sector} at limit ({sector_count}/{max_sector_positions} positions)",
                     )
-                    row = cur.fetchone()
-                    if row is None or row[0] is None:
-                        raise RuntimeError(f"Sector count query failed for {sector}")
-                    sector_count = row[0]
-                    if sector_count >= max_sector_positions:
-                        return (
-                            False,
-                            f"Sector {sector} at limit ({sector_count}/{max_sector_positions} positions)",
-                        )
 
-                    cur.execute(
-                        """SELECT COUNT(*) FROM algo_positions ap
-                           LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
-                           WHERE ap.status = %s AND cp.industry = %s""",
-                        ("open", industry),
+                cur.execute(
+                    """SELECT COUNT(*) FROM algo_positions ap
+                       LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                       WHERE ap.status = %s AND cp.industry = %s""",
+                    ("open", industry),
+                )
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError(f"Industry count query failed for {industry}")
+                industry_count = row[0]
+                if industry_count >= max_industry_positions:
+                    return (
+                        False,
+                        f"Industry {industry} at limit ({industry_count}/{max_industry_positions} positions)",
                     )
-                    row = cur.fetchone()
-                    if row is None or row[0] is None:
-                        raise RuntimeError(f"Industry count query failed for {industry}")
-                    industry_count = row[0]
-                    if industry_count >= max_industry_positions:
-                        return (
-                            False,
-                            f"Industry {industry} at limit ({industry_count}/{max_industry_positions} positions)",
-                        )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(f"[PRE-TRADE] Database error checking sector/industry concentration for {symbol}: {e}")
             raise ValueError(f"Cannot validate sector/industry limits for {symbol}: {e}") from e
