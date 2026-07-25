@@ -1051,13 +1051,15 @@ class Orchestrator:
 
         try:
             with DatabaseContext("write") as cur:
+                # Normalize phase name: convert "ENTRY EXECUTION" -> "entry_execution"
+                normalized_name = name.lower().replace(" ", "_")
                 cur.execute(
                     """
                     INSERT INTO algo_audit_log (action_type, action_date, details, actor, status, created_at)
                     VALUES (%s, CURRENT_TIMESTAMP, %s, 'orchestrator', %s, CURRENT_TIMESTAMP)
                     """,
                     (
-                        f"phase_{phase_num}_{name}",
+                        f"phase_{phase_num}_{normalized_name}",
                         json.dumps({"run_id": self.run_id, "summary": summary}),
                         status,
                     ),
