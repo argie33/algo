@@ -531,7 +531,8 @@ class TradeExecutor:
             logger.debug(f"[VALIDATION LOOP] Check '{check_name}' processed: check_failed={check_failed}, error_msg={error_msg}")
             if check_failed:
                 logger.warning(f"[VALIDATION LOOP] Check '{check_name}' FAILED - returning early with error: {error_msg}")
-                return check_failed, error_msg, status_dict
+                # CRITICAL FIX: Return is_valid=False when a check fails (not check_failed which is True)
+                return False, error_msg, status_dict
             logger.debug(f"[VALIDATION LOOP] Check '{check_name}' passed, continuing to next check")
 
         logger.debug(f"[VALIDATION LOOP] All checks passed!")
