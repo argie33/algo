@@ -441,9 +441,18 @@ class OrderManager:
                 if resp.status_code == 200:
                     data = resp.json()
                     status = data.get("status")
-                    filled_price = data.get("filled_avg_price")
 
                     if status == "filled":
+                        # CRITICAL: filled status MUST include filled_avg_price - this is the fill price
+                        if "filled_avg_price" not in data or data["filled_avg_price"] is None:
+                            error_msg = (
+                                f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: Order status=filled but "
+                                f"filled_avg_price missing or NULL in Alpaca response. Cannot record fill price. "
+                                f"Response keys: {list(data.keys())}"
+                            )
+                            logger.error(error_msg)
+                            raise RuntimeError(error_msg)
+                        filled_price = data["filled_avg_price"]
                         elapsed = time.time() - start_time
                         logger.info(
                             f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: FILLED @ ${filled_price:.2f} "
@@ -553,13 +562,27 @@ class OrderManager:
                             "success": False,
                             "message": "Alpaca response missing order id",
                         }
-                    filled_price_raw = data.get("filled_avg_price")
                     # CRITICAL: Fail if status missing instead of defaulting to empty string
                     if "status" not in data:
                         logger.error("[ORDER_MANAGER] Alpaca order response missing 'status' field")
                         raise ValueError("Order status missing from Alpaca response")
                     order_status = data["status"]
-                    if not filled_price_raw:
+
+                    # CRITICAL: filled_avg_price MUST be present in Alpaca response - distinguish between
+                    # "field present but NULL" (expected for pending orders) and "field missing" (API error)
+                    if "filled_avg_price" not in data:
+                        logger.error(
+                            f"[SEND_EXIT] {symbol}: Alpaca order response missing 'filled_avg_price' field. "
+                            f"This field should always be present (even if NULL for pending orders). "
+                            f"Response keys present: {list(data.keys())}. "
+                            f"Cannot proceed without knowing if fill price was returned."
+                        )
+                        raise ValueError(
+                            "Alpaca order response missing 'filled_avg_price' field - API contract violation"
+                        )
+
+                    filled_price_raw = data["filled_avg_price"]
+                    if filled_price_raw is None:
                         # Market orders return null filled_avg_price when status is "new" or "pending_new"
                         # - the fill comes asynchronously. Treat as success with pending fill price;
                         # Phase 9 reconciliation will poll for the actual fill price.
@@ -637,8 +660,16 @@ class OrderManager:
                                 )
                                 if close_resp.status_code in (200, 201):
                                     close_data = close_resp.json()
-                                    filled_price_raw = close_data.get("filled_avg_price")
-                                    if filled_price_raw:
+                                    # CRITICAL: close-position response MUST include 'filled_avg_price' field
+                                    if "filled_avg_price" not in close_data:
+                                        logger.error(
+                                            f"[SEND_EXIT] {symbol}: Alpaca close-position response missing 'filled_avg_price' field. "
+                                            f"Cannot determine if position was filled. "
+                                            f"Response keys: {list(close_data.keys())}"
+                                        )
+                                        raise ValueError("Close-position response missing filled_avg_price field")
+                                    filled_price_raw = close_data["filled_avg_price"]
+                                    if filled_price_raw is not None:
                                         try:
                                             filled_price = float(filled_price_raw)
                                             order_id = close_data.get("id")

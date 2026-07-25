@@ -194,7 +194,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "signal_quality_scores",  # Enrichment; quality tracked via avg_strength in buy_sell_daily
             # Economic data (not used in trading logic)
             "economic_data",
-            "economic_metrics_daily",
             # System/user tables
             "users",
             "user_alerts",

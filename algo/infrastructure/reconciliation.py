@@ -38,15 +38,31 @@ def _compute_adjusted_drawdown(cur: Any, reconcile_date: Any, portfolio_value: f
     Returns (net_capital_flow_cum, adjusted_running_peak, adjusted_drawdown_pct).
     """
     cur.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM algo_capital_flows WHERE flow_date <= %s",
+        "SELECT COUNT(*) as flow_count, SUM(amount) as total_amount FROM algo_capital_flows WHERE flow_date <= %s",
         (reconcile_date,),
     )
     flow_row = cur.fetchone()
-    if flow_row is None or len(flow_row) < 1:
+    if flow_row is None or len(flow_row) < 2:
         raise RuntimeError(
-            "[RECONCILIATION] Capital flow query returned invalid result: expected 1 column, got 0 or None"
+            "[RECONCILIATION] Capital flow query returned invalid result: expected 2 columns, got 0 or None"
         )
-    net_capital_flow_cum = float(flow_row[0])
+
+    flow_count = flow_row[0]
+    sum_amount = flow_row[1]
+
+    # Distinguish between "no records" (legitimate 0) and "records but aggregation failed" (error)
+    if flow_count == 0:
+        net_capital_flow_cum = 0.0
+        logger.debug("[RECONCILIATION] No capital flows recorded on or before reconcile_date (net flow = 0)")
+    elif sum_amount is None:
+        raise RuntimeError(
+            "[RECONCILIATION CRITICAL] Capital flows exist but SUM(amount) returned NULL. "
+            f"Found {flow_count} flow records but aggregation failed. "
+            "This indicates data corruption or a database query error. "
+            "Check algo_capital_flows table for invalid amount values (NaN/NULL/type issues)."
+        )
+    else:
+        net_capital_flow_cum = float(sum_amount)
 
     adjusted_equity = portfolio_value - net_capital_flow_cum
 
@@ -229,9 +245,10 @@ class DailyReconciliation:
 
                 # Calculate unrealized P&L from positions (both real and paper)
                 cur.execute("""
-                    SELECT COALESCE(SUM(unrealized_pnl), 0) as total_pnl,
-                           COALESCE(SUM(position_value), 0) as total_invested,
-                           COALESCE(SUM(quantity * avg_entry_price), 0) as total_cost_basis
+                    SELECT COUNT(*) as position_count,
+                           SUM(unrealized_pnl) as total_pnl,
+                           SUM(position_value) as total_invested,
+                           SUM(quantity * avg_entry_price) as total_cost_basis
                     FROM algo_positions
                     WHERE status IN ('open', 'paper_open')
                 """)
@@ -240,11 +257,36 @@ class DailyReconciliation:
                     raise RuntimeError(
                         "[CRITICAL] Paper mode reconciliation query returned no rows. "
                         "Cannot calculate portfolio state without database access. "
-                        "Check: (1) database connectivity, (2) algo_positions table exists, (3) table has data"
+                        "Check: (1) database connectivity, (2) algo_positions table exists"
                     )
-                total_unrealized_pnl = float(pnl_row["total_pnl"])
-                total_invested = float(pnl_row["total_invested"])
-                total_cost_basis = float(pnl_row["total_cost_basis"])
+
+                position_count = pnl_row["position_count"]
+                if position_count == 0:
+                    total_unrealized_pnl = 0.0
+                    total_invested = 0.0
+                    total_cost_basis = 0.0
+                    logger.debug("[RECONCILIATION] No open positions - unrealized P&L = 0")
+                elif position_count > 0:
+                    # Positions exist - all three aggregates must return non-NULL (data integrity check)
+                    if pnl_row["total_pnl"] is None or pnl_row["total_invested"] is None or pnl_row["total_cost_basis"] is None:
+                        missing_fields = [
+                            f for f in ["total_pnl", "total_invested", "total_cost_basis"]
+                            if pnl_row[f] is None
+                        ]
+                        raise RuntimeError(
+                            f"[CRITICAL] {position_count} open positions exist but SUM aggregation failed on: {missing_fields}. "
+                            "This indicates data corruption (NULL/invalid values in position fields). "
+                            f"Check algo_positions records for data integrity issues: {missing_fields}"
+                        )
+                    total_unrealized_pnl = float(pnl_row["total_pnl"])
+                    total_invested = float(pnl_row["total_invested"])
+                    total_cost_basis = float(pnl_row["total_cost_basis"])
+                else:
+                    # Impossible case (negative position count), but catch it explicitly
+                    raise RuntimeError(
+                        f"[CRITICAL] Position count query returned impossible result: {position_count}. "
+                        "Database query error or corruption."
+                    )
 
                 # Write portfolio snapshot even in paper mode for position monitor and dashboard
                 if not reconcile_date:
@@ -258,14 +300,32 @@ class DailyReconciliation:
                 # rather than treated as a $0 realized result.
                 cur.execute(
                     """
-                    SELECT COALESCE(SUM(profit_loss_dollars), 0) as realized_pnl_today
+                    SELECT COUNT(*) as closed_count, SUM(profit_loss_dollars) as realized_pnl_today
                     FROM algo_trades
                     WHERE status = 'closed' AND exit_date = %s
                     """,
                     (reconcile_date,),
                 )
                 realized_row = cur.fetchone()
-                realized_pnl_today = float(realized_row["realized_pnl_today"]) if realized_row else 0.0
+                if realized_row is None:
+                    raise RuntimeError(
+                        "[RECONCILIATION CRITICAL] Realized P&L query returned no rows. "
+                        "Database query failed or table unavailable."
+                    )
+
+                closed_count = realized_row["closed_count"]
+                if closed_count == 0:
+                    realized_pnl_today = 0.0
+                    logger.debug(f"[RECONCILIATION] No closed trades on {reconcile_date} - realized P&L = 0")
+                elif realized_row["realized_pnl_today"] is None:
+                    raise RuntimeError(
+                        f"[RECONCILIATION CRITICAL] {closed_count} closed trades on {reconcile_date} "
+                        "but SUM(profit_loss_dollars) returned NULL. This indicates data corruption "
+                        "(NULL/invalid values in profit_loss_dollars column). "
+                        "Check algo_trades records for incomplete exit P&L reconciliation."
+                    )
+                else:
+                    realized_pnl_today = float(realized_row["realized_pnl_today"])
 
                 # FIX: Provide default fallback for initial_capital_paper_trading in case config doesn't have it
                 initial_capital = self.config.get("initial_capital_paper_trading")

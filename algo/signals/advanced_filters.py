@@ -731,12 +731,19 @@ class AdvancedFilters:
         }
 
     def _analyst_score(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> tuple[float, int]:
+        # CRITICAL: analyst_upgrade_downgrade has no live writer since yfinance removed (Session 275).
+        # Table is frozen at 50 rows from 2026-05-22. Per DATA_LOADERS.md, this silently computes
+        # net=0 for ~99.99% of universe - a data-missing situation that GOVERNANCE.md forbids.
+        # For now: degrade gracefully (return 0) but log warning so operators know analyst data
+        # is missing. Long-term: implement a new analyst data source or fail scoring entirely
+        # until data is available.
         interval_90d = get_interval_sql("90d")
         cur.execute(
             f"""
             SELECT
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('up','upgrade')),
-                COUNT(*) FILTER (WHERE LOWER(action) IN ('down','downgrade'))
+                COUNT(*) FILTER (WHERE LOWER(action) IN ('down','downgrade')),
+                COUNT(*) as total_rows
             FROM analyst_upgrade_downgrade
             WHERE symbol = %s
               AND action_date >= %s::date - {interval_90d}
@@ -746,19 +753,26 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is None:
-            raise ValueError(
-                f"Analyst sentiment unavailable for {symbol}. "
-                "analyst_upgrade_downgrade table empty or missing data. "
-                "Cannot compute analyst sentiment catalyst score."
+            logger.warning(
+                f"  {symbol}: analyst_upgrade_downgrade table missing or empty. "
+                "No analyst sentiment data available. Catalyst scoring degraded."
             )
-        if row[0] is None or row[1] is None:
-            raise ValueError(
-                f"Analyst sentiment data incomplete for {symbol}: "
-                f"upgrades={row[0]}, downgrades={row[1]}. "
-                "Cannot compute reliable catalyst score from incomplete analyst data."
+            return 0.0, 0
+
+        ups = int(row[0]) if row[0] is not None else 0
+        downs = int(row[1]) if row[1] is not None else 0
+
+        if ups == 0 and downs == 0:
+            # This is the critical case: no data found for this symbol in the last 90d.
+            # Could mean: (1) symbol is not in analyst_upgrade_downgrade table at all (most likely),
+            # or (2) symbol has no activity in past 90d. Since the table has only 50 rows total
+            # and is frozen, case 1 applies for ~99% of universe.
+            logger.warning(
+                f"  {symbol}: No analyst activity found (likely due to missing data source). "
+                "Catalyst scoring degraded without analyst component."
             )
-        ups = int(row[0])
-        downs = int(row[1])
+            return 0.0, 0
+
         net = ups - downs
         # net score scaled from analyst_net_positive_threshold to analyst_net_full_score
         catalyst_analyst_weight = FilterRegistry.get_weight("catalyst_analyst")

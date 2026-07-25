@@ -278,8 +278,20 @@ class MarketStatusDailyLoader(OptimalLoader):
                     f"{len(last_10_dates)}/10 days of breadth history available."
                 )
             else:
-                up_days = sum(1 for d in last_10_dates if (breadth_data[d].get("advance_decline_ratio") or 0) > 1.0)
-                breadth_momentum_10d = round(up_days / 10 * 100, 2)
+                # CRITICAL: Don't silently default missing advance_decline_ratio to 0
+                # That treats a missing field (data error) the same as ratio=0 (down day)
+                # Either all 10 days have valid ratio data, or breadth_momentum is unavailable
+                missing_ratio_dates = [d for d in last_10_dates if "advance_decline_ratio" not in breadth_data[d]]
+                if missing_ratio_dates:
+                    logger.warning(
+                        f"[MARKET_STATUS] breadth_momentum_10d cannot be computed: "
+                        f"advance_decline_ratio missing on {len(missing_ratio_dates)}/10 dates: {missing_ratio_dates}"
+                    )
+                    breadth_momentum_10d = None
+                else:
+                    # All dates have ratio data - safe to compute
+                    up_days = sum(1 for d in last_10_dates if float(breadth_data[d]["advance_decline_ratio"]) > 1.0)
+                    breadth_momentum_10d = round(up_days / 10 * 100, 2)
 
             # Up-volume percent: real market-wide volume breadth (see BreadthFetcher.
             # fetch_up_volume_percent) - optional enrichment, unavailable is non-fatal.
@@ -295,13 +307,35 @@ class MarketStatusDailyLoader(OptimalLoader):
             if not yield_data or yield_data.get("data_unavailable"):
                 yield_spread = None
                 yield_curve_unavailable = True
-                yield_curve_reason = yield_data.get("reason", "unknown") if isinstance(yield_data, dict) else "unknown"
+                # CRITICAL: Distinguish between "reason provided" vs "reason missing"
+                if isinstance(yield_data, dict) and "reason" in yield_data:
+                    yield_curve_reason = yield_data["reason"]
+                else:
+                    # Reason missing - don't silently default to "unknown"
+                    yield_curve_reason = "yield_curve_fetcher_returned_unavailable_without_reason"
+                    logger.warning("[MARKET_STATUS] Yield curve unavailable but reason field missing")
             else:
                 # yield_data is keyed by ISO date string (see YieldCurveFetcher._fetch_yield_curve_data),
                 # e.g. {"2026-07-17": {"yield_spread": ..., ...}} - not a flat dict, and the field is
                 # named "yield_spread" not "yield_10y_2y_spread".
-                latest_yield_date = max(yield_data.keys())
-                yield_spread = yield_data[latest_yield_date].get("yield_spread")
+                if not yield_data or not isinstance(yield_data, dict) or not yield_data:
+                    yield_spread = None
+                    yield_curve_unavailable = True
+                    yield_curve_reason = "yield_data_dict_empty_or_invalid"
+                    logger.warning(f"[MARKET_STATUS] Yield data is empty/invalid: {type(yield_data).__name__}")
+                else:
+                    latest_yield_date = max(yield_data.keys())
+                    yield_date_record = yield_data.get(latest_yield_date)
+                    if not yield_date_record or "yield_spread" not in yield_date_record:
+                        yield_spread = None
+                        yield_curve_unavailable = True
+                        yield_curve_reason = f"yield_spread_missing_on_{latest_yield_date}"
+                        logger.warning(
+                            f"[MARKET_STATUS] Yield spread missing for latest date {latest_yield_date}. "
+                            f"Available keys: {list(yield_date_record.keys()) if yield_date_record else 'None'}"
+                        )
+                    else:
+                        yield_spread = yield_date_record["yield_spread"]
 
             # Fetch put/call ratio (optional market sentiment indicator)
             put_call = None

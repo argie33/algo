@@ -221,7 +221,13 @@ class PositionSizer:
         raise PortfolioValueError(error_msg)
 
     def _fetch_live_alpaca_equity(self) -> Decimal:
-        execution_mode = self.config.get("execution_mode", "paper")
+        execution_mode = self.config.get("execution_mode")
+        if execution_mode is None:
+            raise RuntimeError(
+                "[POSITION_SIZER CRITICAL] execution_mode config missing. "
+                "Cannot determine whether to fetch live Alpaca data or use paper mode snapshot. "
+                "Set explicit execution_mode in algo_config table (values: 'auto' for live, 'paper' for sim)."
+            )
 
         # CRITICAL: "auto" is this system's real live-trading mode (the only mode that
         # actually contacts the Alpaca API - confirmed via executor.py/_submit_and_validate_order,
@@ -304,7 +310,22 @@ class PositionSizer:
         if not key or not secret:
             raise RuntimeError("CRITICAL: Alpaca credentials not found. Cannot fetch portfolio value.")
 
-        max_retries = self.config.get("alpaca_portfolio_fetch_retries", 3)
+        max_retries_val = self.config.get("alpaca_portfolio_fetch_retries")
+        if max_retries_val is None:
+            raise RuntimeError(
+                "[POSITION_SIZER CRITICAL] alpaca_portfolio_fetch_retries config missing. "
+                "Cannot determine retry policy for Alpaca API calls. "
+                "Set explicit alpaca_portfolio_fetch_retries in algo_config table."
+            )
+        try:
+            max_retries = int(max_retries_val)
+            if max_retries <= 0:
+                raise ValueError(f"max_retries must be positive, got {max_retries}")
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(
+                f"[POSITION_SIZER CRITICAL] alpaca_portfolio_fetch_retries is invalid ({max_retries_val}): {e}. "
+                "Must be a positive integer."
+            ) from e
         for attempt in range(max_retries):
             try:
                 response = requests.get(

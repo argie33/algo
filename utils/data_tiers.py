@@ -57,8 +57,6 @@ AUXILIARY_DATA: set[str] = {
     "analyst_sentiment_analysis",
     # Quality/stability: Risk enrichment (not required for base logic)
     "stability_metrics",
-    # Economic data: Macro context (optional for regime understanding)
-    "economic_metrics_daily",
     # VIX/breadth: Market health enrichment (market_health_daily is critical, these are supplementary)
     "aaii_sentiment",
     "fear_greed_index",

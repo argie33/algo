@@ -267,8 +267,15 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             try:
                 import boto3
 
+                halt_flag_table = os.environ.get("HALT_FLAG_TABLE")
+                if not halt_flag_table:
+                    raise RuntimeError(
+                        "[LAMBDA CRITICAL] HALT_FLAG_TABLE environment variable not set. "
+                        "Cannot determine which DynamoDB table to check for orchestrator halt flag. "
+                        "Set HALT_FLAG_TABLE to the correct table name in Lambda environment."
+                    )
                 dynamodb = boto3.resource("dynamodb")
-                table = dynamodb.Table(os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state"))
+                table = dynamodb.Table(halt_flag_table)
                 response = table.get_item(Key={"key": "orchestrator_halt"})
 
                 if "Item" in response:

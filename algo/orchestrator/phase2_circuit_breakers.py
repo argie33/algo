@@ -44,12 +44,39 @@ def run(
         cb = CircuitBreaker(config)
         result = cb.check_all(run_date)
 
-        # Surface the per-check metrics the health dashboard (dashboard/panels/health.py,
-        # Phase 2 detail row) already expects under these exact keys - every PhaseResult(2,
-        # ...) below previously returned {} or a bare status/reason, so these values were
-        # computed here (visible in logs/CloudWatch) but never reached the dashboard, which
-        # silently rendered nothing for Drawdown/Daily Loss/VIX regardless of state.
-        checks = result.get("checks", {})
+        # CRITICAL: Validate circuit breaker result structure before proceeding
+        # Circuit breaker check MUST return checks dict - empty dict fallback hides failures
+        if "checks" not in result:
+            error_msg = (
+                "[PHASE 2 CRITICAL] Circuit breaker check_all() returned result missing 'checks' field. "
+                "Every circuit breaker result MUST include per-check status. "
+                "Cannot proceed without knowing which (if any) checks failed."
+            )
+            logger.critical(error_msg)
+            log_phase_error(2, PhaseError(
+                category=ErrorCategory.DATA_INVALID,
+                message=error_msg,
+                root_cause="CircuitBreaker.check_all() did not return checks field",
+                recoverable=False,
+                log_level="critical",
+            ), log_phase_result_fn)
+            raise RuntimeError(error_msg)
+
+        checks = result["checks"]
+        if not isinstance(checks, dict):
+            error_msg = (
+                f"[PHASE 2 CRITICAL] Circuit breaker 'checks' must be dict, got {type(checks).__name__}. "
+                "Data structure corruption detected."
+            )
+            logger.critical(error_msg)
+            log_phase_error(2, PhaseError(
+                category=ErrorCategory.DATA_INVALID,
+                message=error_msg,
+                root_cause=f"checks type is {type(checks).__name__}, expected dict",
+                recoverable=False,
+                log_level="critical",
+            ), log_phase_result_fn)
+            raise RuntimeError(error_msg)
 
         # CRITICAL FIX Session 345: Validate dict structure before chaining .get() calls
         # If checks["drawdown"] is None (not a dict), .get("value") crashes on None

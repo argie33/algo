@@ -115,7 +115,6 @@ SAFE_TABLES = {
     "sentiment_social",
     # Economic data
     "economic_data",
-    "economic_metrics_daily",
     "earnings_history",
     "earnings_calendar",
     "earnings_estimates",
