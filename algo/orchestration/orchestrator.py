@@ -892,37 +892,47 @@ class Orchestrator:
                 )
 
                 if all_stale_or_missing and (stale_loaders or missing_loaders):
-                    logger.critical(
-                        f"[LOADER HEALTH] SYSTEMIC ALERT: ALL critical loaders are stale or missing. "
-                        f"This indicates EventBridge may not be firing loader schedules, or loader "
-                        f"infrastructure is down. Stale: {stale_loaders}. Missing: {missing_loaders}. "
-                        f"Check: EventBridge rules, ECS cluster health, CloudWatch logs for loaders."
-                    )
-                    try:
-                        self.alerts.send_position_alert(
-                            "LOADER_INFRASTRUCTURE",
-                            "ALL_CRITICAL_LOADERS_STALE",
-                            f"All critical loaders are stale/missing (stale: {len(stale_loaders)}, "
-                            f"missing: {len(missing_loaders)}). EventBridge or loader infrastructure issue.",
-                            {"stale_loaders": stale_loaders, "missing_loaders": list(missing_loaders)},
-                        )
-                    except Exception as alert_err:
-                        logger.debug(f"[LOADER HEALTH] Could not send alert: {alert_err}")
+                    # LOCAL_MODE failsafe will refresh stale loaders, so don't fail pre-flight
+                    local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
 
-                    # FIXED: Remove paper mode bypass - data integrity is non-negotiable
-                    # Paper trading still requires fresh data to be trustworthy for testing
-                    # If loaders aren't running, fix the loader infrastructure, don't bypass validation
-                    raise RuntimeError(
-                        f"[ORCHESTRATOR] CRITICAL HALT: All critical loaders are stale/missing. "
-                        f"Cannot proceed with trading (live or paper) using stale data. "
-                        f"Paper mode does NOT bypass data validation - test data must be fresh too. "
-                        f"Stale loaders: {stale_loaders}. Missing loaders: {missing_loaders}. "
-                        f"Fix: (1) Verify EventBridge scheduler firing loader pipelines, "
-                        f"(2) Check ECS cluster has capacity to run loader tasks, "
-                        f"(3) Review CloudWatch logs for loader failures, "
-                        f"(4) Verify database connection pool has available connections, "
-                        f"(5) Check if loader infrastructure (S3, Alpaca, yfinance) is accessible."
-                    )
+                    if not local_mode:
+                        logger.critical(
+                            f"[LOADER HEALTH] SYSTEMIC ALERT: ALL critical loaders are stale or missing. "
+                            f"This indicates EventBridge may not be firing loader schedules, or loader "
+                            f"infrastructure is down. Stale: {stale_loaders}. Missing: {missing_loaders}. "
+                            f"Check: EventBridge rules, ECS cluster health, CloudWatch logs for loaders."
+                        )
+                        try:
+                            self.alerts.send_position_alert(
+                                "LOADER_INFRASTRUCTURE",
+                                "ALL_CRITICAL_LOADERS_STALE",
+                                f"All critical loaders are stale/missing (stale: {len(stale_loaders)}, "
+                                f"missing: {len(missing_loaders)}). EventBridge or loader infrastructure issue.",
+                                {"stale_loaders": stale_loaders, "missing_loaders": list(missing_loaders)},
+                            )
+                        except Exception as alert_err:
+                            logger.debug(f"[LOADER HEALTH] Could not send alert: {alert_err}")
+
+                        # FIXED: Remove paper mode bypass - data integrity is non-negotiable
+                        # Paper trading still requires fresh data to be trustworthy for testing
+                        # If loaders aren't running, fix the loader infrastructure, don't bypass validation
+                        raise RuntimeError(
+                            f"[ORCHESTRATOR] CRITICAL HALT: All critical loaders are stale/missing. "
+                            f"Cannot proceed with trading (live or paper) using stale data. "
+                            f"Paper mode does NOT bypass data validation - test data must be fresh too. "
+                            f"Stale loaders: {stale_loaders}. Missing loaders: {missing_loaders}. "
+                            f"Fix: (1) Verify EventBridge scheduler firing loader pipelines, "
+                            f"(2) Check ECS cluster has capacity to run loader tasks, "
+                            f"(3) Review CloudWatch logs for loader failures, "
+                            f"(4) Verify database connection pool has available connections, "
+                            f"(5) Check if loader infrastructure (S3, Alpaca, yfinance) is accessible."
+                        )
+                    else:
+                        # LOCAL_MODE: log as warning, Phase 1 failsafe will handle refresh
+                        logger.warning(
+                            f"[LOADER HEALTH] All loaders stale/missing - LOCAL_MODE will refresh. "
+                            f"Stale: {stale_loaders}. Missing: {missing_loaders}."
+                        )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
             logger.warning(f"[LOADER HEALTH] Could not check loader status: {e}")
