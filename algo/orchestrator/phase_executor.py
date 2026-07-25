@@ -169,6 +169,7 @@ class OrchestratorPhaseExecutor:
                     "risk_multiplier": 0.0,
                     "max_new_positions_today": 0,
                     "halt_new_entries": True,
+                    "max_concentration_pct": 0.0,  # CRITICAL: Phase 8 requires this field (Session 416)
                     "halt_reason": "Previous phase halted - cannot determine exposure constraints",
                 },
                 "actions": [],
@@ -177,6 +178,7 @@ class OrchestratorPhaseExecutor:
             6: {"exits_executed": 0, "reason": "phase skipped"},
             7: {
                 "qualified_trades": [],
+                "liquidity_passed": 0,  # CRITICAL: Phase 8 metrics extraction requires this field (Session 416)
                 "reason": "phase skipped - no signals generated (upstream phase halted)",
                 "skipped": True,
             },
