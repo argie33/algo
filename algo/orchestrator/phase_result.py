@@ -10,7 +10,7 @@ class PhaseResult:
 
     phase_num: int | str | None = None
     phase_name: str | None = None
-    status: str | None = None  # 'ok' | 'halted' | 'degraded' | 'skipped'
+    status: str | None = None  # 'ok' | 'halted' | 'degraded' | 'skipped' | 'blocked'
     data: dict[str, Any] = field(default_factory=dict)
     halted: bool = False
     error: str | None = None
@@ -79,8 +79,9 @@ class PhaseResult:
 
     @property
     def ok(self) -> bool:
-        # "ok", "degraded", and "skipped" are successful states
+        # "ok", "degraded", "skipped", and "blocked" are successful states
         # "degraded" means the phase worked but produced suboptimal results
         # "skipped" means phase intentionally didn't run (due to upstream halt)
+        # "blocked" means a safety guard prevented execution (guard working as designed)
         # Only "error", "halted", "fail" are actual failures
-        return self.status in ("ok", "degraded", "skipped")
+        return self.status in ("ok", "degraded", "skipped", "blocked")

@@ -537,7 +537,7 @@ def run(
                     "entry_execution",
                     "blocked",
                     {"entered": 0},
-                    True,  # success=True: guard is working, not failing
+                    False,  # halted=False: guard worked but didn't halt orchestration
                     msg,
                 )
     except Exception as e:
@@ -1038,7 +1038,7 @@ def run(
                 "entry_execution",
                 "blocked",
                 {"entered": 0},
-                True,  # success=True: guard is working, not failing
+                False,  # halted=False: guard worked but didn't halt orchestration
                 msg,
             )
         elif available_capacity_pct < 1.0:
