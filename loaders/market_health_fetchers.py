@@ -76,27 +76,32 @@ class VIXFetcher:
                 )
                 rows = cur.fetchall()
 
-                # If no data in range, fall back to most recent available VIX data
-                # (VIX doesn't change much day-to-day; using recent value is reasonable
-                # for circuit breaker decisions, which are threshold-based not precise)
+                # VIX data MUST be available for the requested date range
+                # Using stale VIX violates fail-fast governance: VIX >= 35 is a hard halt threshold
+                # that requires current data, not estimates from older trading days.
+                # GOVERNANCE: CRITICAL data with no fallbacks - fail immediately if unavailable.
                 if not rows or len(rows) == 0:
-                    logger.warning(
-                        f"[MARKET_HEALTH] No VIX data for {start} to {end}. "
-                        "Falling back to most recent available VIX data."
-                    )
+                    # Determine how stale the most recent VIX data is (for diagnostic info)
                     cur.execute(
-                        "SELECT date, close, high, low FROM price_daily "
-                        "WHERE symbol = '^VIX' ORDER BY date DESC LIMIT 1"
+                        "SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'"
                     )
-                    fallback_row = cur.fetchone()
-                    if not fallback_row:
+                    max_date_row = cur.fetchone()
+                    max_date = max_date_row[0] if max_date_row and max_date_row[0] else None
+
+                    if max_date:
                         raise RuntimeError(
-                            "[CRITICAL] NO VIX data exists in price_daily at all. "
+                            f"[CRITICAL] VIX data unavailable for requested date range {start} to {end}. "
+                            f"Most recent VIX data in database: {max_date}. "
+                            f"VIX is CRITICAL for circuit breaker halt decisions (VIX >= 35 halts trading). "
+                            f"Cannot proceed with stale VIX data - fail-fast principle requires current data. "
+                            f"ACTION: Check VIX price loader status. VIX price_daily must be loaded before orchestrator runs."
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"[CRITICAL] NO VIX data exists in price_daily at all. "
                             "VIX is required for circuit breaker halt decisions. "
                             "VIX loader has never run or price_daily is corrupt."
                         )
-                    rows = [fallback_row]
-                    logger.info(f"[MARKET_HEALTH] Using fallback VIX from {fallback_row[0]} " "(most recent available)")
                 result = {}
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
