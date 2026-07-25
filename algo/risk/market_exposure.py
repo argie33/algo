@@ -611,7 +611,9 @@ class MarketExposure:
                         f"Missing REQUIRED factors ({len(missing_factors)}): {missing_factors}. "
                         f"Position sizing requires complete market assessment (all required factors). "
                         f"Normalization would artificially inflate remaining factors' contribution. "
-                        f"Cannot proceed with degraded market exposure calculation."
+                        f"Cannot proceed with degraded market exposure calculation. "
+                        f"Check data loaders: (1) verify calculator methods return data for {missing_factors}, "
+                        f"(2) check market_health_daily table freshness, (3) verify technical_data_daily completeness"
                     )
                     logger.critical(msg)
                     raise RuntimeError(msg)
