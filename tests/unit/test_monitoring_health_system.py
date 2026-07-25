@@ -33,10 +33,18 @@ class TestPipelineHealthMonitoring:
         from algo.monitoring.pipeline_health import PipelineHealth
 
         monitor = PipelineHealth()
-        status = monitor.get_pipeline_status()
-        assert status is not None
-        assert hasattr(status, "tables")
-        assert hasattr(status, "is_healthy")
+        # Mock the database cursor to avoid accessing real database in unit test
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = []  # Empty results for schema check
+            mock_cursor.fetchone.return_value = None  # No tables to check
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            mock_db.return_value.__exit__.return_value = None
+
+            status = monitor.get_pipeline_status()
+            assert status is not None
+            assert hasattr(status, "tables")
+            assert hasattr(status, "is_healthy")
 
     def test_pipeline_health_check_table_health(self):
         """Test that health monitor can check individual table health."""
@@ -51,13 +59,21 @@ class TestPipelineHealthMonitoring:
         from algo.monitoring.pipeline_health import PipelineHealth
 
         monitor = PipelineHealth()
-        status = monitor.get_pipeline_status()
-        assert hasattr(status, "healthy_count")
-        assert hasattr(status, "total_count")
-        assert hasattr(status, "coverage_pct")
-        assert isinstance(status.healthy_count, int)
-        assert isinstance(status.total_count, int)
-        assert isinstance(status.coverage_pct, float)
+        # Mock the database cursor to avoid accessing real database in unit test
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = []  # Empty results for schema check
+            mock_cursor.fetchone.return_value = None  # No tables to check
+            mock_db.return_value.__enter__.return_value = mock_cursor
+            mock_db.return_value.__exit__.return_value = None
+
+            status = monitor.get_pipeline_status()
+            assert hasattr(status, "healthy_count")
+            assert hasattr(status, "total_count")
+            assert hasattr(status, "coverage_pct")
+            assert isinstance(status.healthy_count, int)
+            assert isinstance(status.total_count, int)
+            assert isinstance(status.coverage_pct, float)
 
     def test_log_health_check_writes_per_table_last_updated_not_now(self):
         """log_health_check's bulk executemany must stamp last_updated from each table's own

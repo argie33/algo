@@ -166,6 +166,7 @@ class OrchestratorPhaseExecutor:
             5: {
                 "constraints": {
                     "tier_name": "CORRECTION",
+                    "regime": "CORRECTION",  # CRITICAL: Required by _health_panel_fields() in Phase 5
                     "risk_multiplier": 0.0,
                     "max_new_positions_today": 0,
                     "halt_new_entries": True,
@@ -173,6 +174,11 @@ class OrchestratorPhaseExecutor:
                     "halt_reason": "Previous phase halted - cannot determine exposure constraints",
                 },
                 "actions": [],
+                # CRITICAL: Include health panel fields for dashboard rendering (same as Phase 5 normal execution)
+                "market_regime": "CORRECTION",
+                "entry_allowed": False,
+                "halt_active": True,
+                "max_new_entries": 0,
                 "reason": "phase skipped - using safe defaults (no new entries)",
             },
             6: {"exits_executed": 0, "reason": "phase skipped"},
