@@ -60,32 +60,44 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         self._global_data_loaded = False  # Track if we've done global fetch this run
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
-        """Fetch SEC's 13F data or use interim market-cap estimates for ALL symbols.
+        """Fetch SEC's 13F data for ALL symbols (fail-fast if unavailable).
 
-        This runs once per load and populates estimates or SEC data for all symbols.
+        This runs once per load and populates SEC data for all symbols.
+        No synthetic fallbacks: if SEC data unavailable, halts with clear error message.
 
-        PRIMARY: SEC quarterly 13F bulk data (if available)
-        FALLBACK: Market-cap based estimates (marked as interim data_source)
+        PRIMARY: SEC quarterly 13F bulk data (authoritative, required)
 
         Returns: List of institutional ownership records for all symbols.
+        Raises: RuntimeError if SEC data unavailable (no synthetic fallback).
         """
-        logger.info("[13F] Fetching institutional ownership data for all symbols...")
+        logger.info("[13F] Fetching institutional ownership data from SEC Form 13F...")
 
         try:
             year, quarter = self._get_latest_13f_quarter()
             filing_date = self._quarter_to_date(year, quarter)
             logger.info(f"[13F] Target quarter: {year}-Q{quarter} (filing_date: {filing_date})")
 
-            # Try SEC bulk data
+            # Try SEC bulk data (fail-fast if unavailable - no synthetic fallback)
             holdings_by_ticker = self._fetch_sec_13f_bulk(year, quarter)
             if holdings_by_ticker:
                 logger.info(f"[13F] Parsed {len(holdings_by_ticker)} tickers from SEC data")
                 return self._calculate_and_cache_ownership(holdings_by_ticker, filing_date)
 
-            # Fallback: Generate market-cap based estimates for all symbols
-            logger.warning("[13F] SEC 13F data unavailable, generating market-cap estimates...")
-            return self._generate_marketcap_estimates(filing_date)
+            # No SEC data found - fail-fast (no market-cap estimates fallback)
+            msg = (
+                f"[13F CRITICAL] SEC Form 13F bulk data not found for {year}-Q{quarter}. "
+                f"Institutional holdings data is mandatory for accurate stock scoring. "
+                f"ACTION: Verify SEC has published latest quarterly 13F bulk datasets "
+                f"(https://www.sec.gov/files/structureddata/data/form-13f-data-sets/). "
+                f"If data unavailable, operator must decide whether to run orchestrator "
+                f"with incomplete positioning data. Fail-fast: Will not proceed with synthetic estimates."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg)
 
+        except RuntimeError:
+            # Re-raise RuntimeError from _fetch_sec_13f_bulk or _aggregate_top_manager_13fs
+            raise
         except Exception as e:
             msg = f"[13F GLOBAL FETCH CRITICAL] Failed: {type(e).__name__}: {str(e)[:200]}. Cannot continue without institutional holdings data."
             logger.critical(msg)
@@ -267,92 +279,52 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     def _generate_marketcap_estimates(self, filing_date: date) -> list[dict[str, Any]]:
         """Generate institutional ownership estimates based on company market cap.
 
-        Used when SEC 13F data unavailable. Estimates are research-backed:
-        - Mega-cap (>$1B shares): ~75% (index fund holdings)
-        - Large-cap ($100M-$1B): ~65%
-        - Mid-cap ($10M-$100M): ~50%
-        - Small-cap (<$10M): ~30%
+        CRITICAL FIX (Session 418): Removed synthetic data fallback per GOVERNANCE fail-fast principle.
+        When SEC 13F data unavailable, fail-fast instead of silently using market-cap estimates.
 
-        All records marked data_source='market_cap_estimate', NOT 'sec_form13f',
-        so they can be superseded by real SEC data when published.
+        Reason: Market-cap estimates are fundamentally different signal from actual institutional
+        holdings (which track actual positions). Substituting one for the other creates false signal,
+        biasing stock scoring toward synthetic proxies. Downstream (stock_scores) cannot distinguish
+        synthetic from real data if marked data_unavailable=False, leading to corrupted scoring.
+
+        Solution: Raise RuntimeError to halt loader, prompting operator to investigate why SEC 13F
+        data unavailable. This prevents silent degradation to synthetic data.
         """
-        logger.info("[13F] Estimating institutional ownership by market cap for all symbols...")
-        records = []
-        now_et = datetime.now(EASTERN_TZ)
-
-        try:
-            with DatabaseContext("read") as cur:
-                # Get all stocks with available data
-                cur.execute("""
-                    SELECT symbol, shares_outstanding
-                    FROM company_info_sec
-                    WHERE data_unavailable = FALSE AND shares_outstanding > 0
-                    ORDER BY shares_outstanding DESC
-                    """)
-                symbols = cur.fetchall()
-
-            logger.info(f"[13F] Estimating ownership for {len(symbols)} active symbols...")
-
-            for symbol, shares_os in symbols:
-                # Estimate based on market cap (shares outstanding)
-                if shares_os > 1_000_000_000:  # Mega-cap
-                    est_pct = 75.0
-                elif shares_os > 100_000_000:  # Large-cap
-                    est_pct = 65.0
-                elif shares_os > 10_000_000:  # Mid-cap
-                    est_pct = 50.0
-                else:  # Small-cap
-                    est_pct = 30.0
-
-                records.append(
-                    {
-                        "symbol": symbol,
-                        "filing_date": filing_date,
-                        "institutional_ownership_pct": est_pct,
-                        "number_of_institutional_holders": None,
-                        "data_unavailable": False,  # Data exists (estimate), not missing
-                        "reason": None,
-                        "sec_filing_url": None,
-                        "most_recent_filing_date": filing_date,
-                        "data_source": "market_cap_estimate",  # Signals this is estimate, not real SEC data
-                        "updated_at": now_et,
-                    }
-                )
-
-            logger.info(f"[13F] Generated estimates for {len(records)} symbols")
-            return records
-
-        except Exception as e:
-            msg = f"[13F MARKET CAP ESTIMATES CRITICAL] Failed to generate estimates: {type(e).__name__}: {str(e)[:200]}. Cannot proceed without fallback institutional ownership data."
-            logger.critical(msg)
-            raise RuntimeError(msg) from e
+        msg = (
+            "[13F CRITICAL] SEC Form 13F data unavailable. Cannot generate synthetic market-cap estimates "
+            "as fallback - this violates data integrity principles (synthetic data marked as real). "
+            "ROOT CAUSE: SEC bulk INFOTABLE datasets may not be published yet (45-day filing lag), "
+            "or per-manager aggregation failed. "
+            "ACTION: (1) Verify SEC has published latest quarterly 13F data "
+            "(https://www.sec.gov/files/structureddata/data/form-13f-data-sets/), "
+            "(2) Check per-manager aggregation logs for CUSIP mapping errors, "
+            "(3) If data truly unavailable, operator must decide whether to run orchestrator "
+            "with incomplete positioning data (Phase 7 will mark symbols unavailable automatically). "
+            "Fail-fast: Will not proceed with synthetic institutional ownership estimates."
+        )
+        logger.critical(msg)
+        raise RuntimeError(msg)
 
     def _aggregate_top_manager_13fs(self) -> dict[str, int]:
-        """INTERIM: Use market-cap based estimates until SEC 13F data available.
+        """Aggregate per-manager 13F holdings via CUSIP→ticker mapper (correct architecture).
 
-        RATIONALE:
-        - SEC Q2 2026 13F bulk data not yet published (45-day filing lag)
-        - Full per-manager aggregation requires CUSIP→ticker crosswalk
-        - Interim estimates based on company market cap are research-backed:
-          * Mega-cap (>$1B shares): ~75% institutional ownership (index funds)
-          * Large-cap ($100M-$1B): ~65% (actively managed large-cap funds)
-          * Mid-cap ($10M-$100M): ~50% (mixed strategies)
-          * Small-cap (<$10M): ~30% (less covered by institutions)
+        CRITICAL FIX (Session 418): Removed interim market-cap fallback per GOVERNANCE fail-fast principle.
+        When SEC bulk INFOTABLE datasets exhausted, this method attempted per-manager aggregation
+        as a fallback. However, this requires a CUSIP→ticker mapper that is not yet implemented.
+        Rather than silently defaulting to synthetic market-cap estimates, fail-fast here.
 
-        ACTION: Once SEC publishes Q2 2026 data in early August, switch to:
-        - Use SEC bulk INFOTABLE.tsv (fast, authoritative)
-        - Or: Per-manager aggregation via CUSIP→ticker mapper
-
-        GOVERNANCE: Mark all records as estimated (data_source='market_cap_estimate'),
-        NOT 'sec_form13f'. This signals that real SEC data should supersede these.
+        This ensures operator visibility: if both bulk data AND per-manager aggregation fail,
+        the system halts instead of proceeding with corrupted synthetic data.
         """
-        logger.info("[13F] Using market-cap based estimates (interim, until SEC 13F data published)...")
-        holdings_by_ticker: dict[str, int] = {}  # Not used in estimate approach
-
-        # This method gets called by fetch_global(), which then calls
-        # _calculate_and_cache_ownership(). That method will convert estimate %
-        # to the database records. We return empty dict here to signal fallback mode.
-        return holdings_by_ticker
+        msg = (
+            "[13F CRITICAL] SEC bulk 13F datasets unavailable. Per-manager 13F aggregation requires "
+            "CUSIP→ticker mapper implementation (not yet available). "
+            "Cannot proceed without authoritative SEC institutional holdings data. "
+            "Fail-fast to prevent silent fallback to synthetic market-cap estimates. "
+            "ACTION: Check SEC 13F publication schedule and implement CUSIP mapper if needed."
+        )
+        logger.critical(msg)
+        raise RuntimeError(msg)
 
     def _calculate_and_cache_ownership(
         self, holdings_by_ticker: dict[str, int], filing_date: date
