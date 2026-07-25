@@ -173,10 +173,10 @@ class ExecutionConfig:
         Raises:
             RuntimeError: If 'default_portfolio_value' config key is missing (fail-fast)
         """
-        value = self.get("default_portfolio_value")
+        value = self.parent.get("default_portfolio_value")
         if value is None:
             raise RuntimeError(
-                "[EXECUTION_CONFIG] CRITICAL: default_portfolio_value config key missing. "
+                "[EXECUTION_CONFIG] CRITICAL: default_portfolio_value config key missing - no fallback. "
                 "Portfolio value must be explicitly configured - no fallback to $100k. "
                 "Set 'default_portfolio_value' in algo_config table to proceed. "
                 "Check database: SELECT * FROM algo_config WHERE key = 'default_portfolio_value';"
