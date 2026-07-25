@@ -1089,14 +1089,14 @@ def run(  # noqa: C901
             if backfill_scores:
                 try:
                     with DatabaseContext("write") as cur_write:
-                        for sqs, entry_sqs, symbol, signal_date in backfill_scores:
+                        for bf_sqs, entry_sqs, symbol, signal_date in backfill_scores:
                             cur_write.execute(
                                 """
                                 UPDATE buy_sell_daily
                                 SET signal_quality_score = %s, entry_quality_score = %s
                                 WHERE symbol = %s AND date = %s AND signal_quality_score IS NULL
                             """,
-                                (sqs, entry_sqs, symbol, signal_date),
+                                (bf_sqs, entry_sqs, symbol, signal_date),
                             )
                     logger.info(f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily")
                 except Exception as write_bf_e:
