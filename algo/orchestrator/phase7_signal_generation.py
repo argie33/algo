@@ -1039,14 +1039,15 @@ def run(  # noqa: C901
     try:
         logger.info("[PHASE 7] Backfilling quality scores for orphaned loader-created signals")
         with DatabaseContext("read") as cur_backfill:
-            # Find signals without scores from last 3 days
+            # Find signals without scores from last 60 days
+            # (Extended from 3 days to catch signals for past dates created by backfill pipelines)
             cur_backfill.execute("""
                 SELECT symbol, date FROM buy_sell_daily
                 WHERE signal_quality_score IS NULL
                   AND signal = 'BUY'
-                  AND date >= (CURRENT_DATE - INTERVAL '3 days')
+                  AND date >= (CURRENT_DATE - INTERVAL '60 days')
                 ORDER BY date DESC, symbol
-                LIMIT 100
+                LIMIT 500
             """)
             backfill_rows = cur_backfill.fetchall()
 
@@ -1059,11 +1060,15 @@ def run(  # noqa: C901
             for symbol, signal_date in backfill_rows:
                 try:
                     with DatabaseContext("read") as cur_tech:
+                        # Fetch technical data AND trend template data for full score computation
                         cur_tech.execute(
                             """
-                            SELECT rsi, macd, macd_signal
-                            FROM technical_data_daily
-                            WHERE symbol = %s AND date = %s
+                            SELECT
+                              t.rsi, t.macd, t.macd_signal,
+                              tr.minervini_trend_score, tr.weinstein_stage
+                            FROM technical_data_daily t
+                            LEFT JOIN trend_template_data tr ON tr.symbol = t.symbol AND tr.date = t.date
+                            WHERE t.symbol = %s AND t.date = %s
                         """,
                             (symbol, signal_date),
                         )
@@ -1073,14 +1078,15 @@ def run(  # noqa: C901
                         logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
                         continue
 
-                    rsi, macd, macd_signal = tech_row
-                    # Compute score using same logic as inline scorer
+                    rsi, macd, macd_signal, minervini, weinstein = tech_row
+                    # Compute score using same logic as inline scorer (with trend data)
                     base_score = scorer.calculate_base_quality_score()
                     volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-                    trend_score = scorer.calculate_trend_template_score(None, None)
+                    trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
                     composite_sqs = min(100, int(base_score + volume_score + trend_score))
 
                     backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
+                    logger.debug(f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Computed score={composite_sqs}")
                 except Exception as bf_e:
                     logger.debug(f"[PHASE 7 BACKFILL] {symbol}: Failed to compute score: {bf_e}")
                     continue
