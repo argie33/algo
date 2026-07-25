@@ -793,9 +793,15 @@ def run(  # noqa: C901
                 halt_stale.append(f"market_health_daily is {days_behind} day(s) stale (upstream reference invalid)")
 
             # Map each table to its upstream reference date for staleness comparison
+            # CRITICAL FIX: Must include all tables that will be checked below
             table_reference_dates = {
                 "market_health_daily": vix_max_date,
                 "market_exposure_daily": health_max_date,
+                "earnings_calendar": run_date,  # Earnings calendar reference is the run date itself
+                "earnings_calendar_sec": run_date,
+                "price_daily": run_date,
+                "technical_data_daily": run_date,
+                "stock_scores": run_date,
             }
 
             try:
