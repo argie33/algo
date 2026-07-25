@@ -361,6 +361,19 @@ class MarketStatusDailyLoader(OptimalLoader):
                 logger.warning(f"[MARKET_STATUS] Put/call ratio fetcher failed: {e}")
                 # put_call remains None - optional indicator
 
+            # CRITICAL FIX (Session 416): Add explicit unavailable markers for breadth_momentum_10d
+            # Per GOVERNANCE.md line 47-48: "Every record must have data_unavailable flag"
+            # When breadth_momentum_10d is None, set corresponding unavailable flag and reason.
+            breadth_momentum_unavailable = breadth_momentum_10d is None
+            breadth_momentum_reason = None
+            if breadth_momentum_unavailable:
+                # Provide reason when data unavailable (see lines 275-290)
+                breadth_momentum_reason = "insufficient_breadth_history_or_missing_ratios"
+                logger.warning(
+                    f"[MARKET_STATUS] breadth_momentum_10d unavailable for {eval_date}: "
+                    f"{breadth_momentum_reason}. Marking data_unavailable=True with explicit reason."
+                )
+
             return {
                 "data_unavailable": False,
                 "vix_level": vix_level,
@@ -377,6 +390,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "fed_rate_data_unavailable": True,
                 "fed_rate_unavailable_reason": "fed_rate_fetcher_not_implemented",
                 "breadth_momentum_10d": breadth_momentum_10d,
+                "breadth_momentum_10d_data_unavailable": breadth_momentum_unavailable,
+                "breadth_momentum_10d_unavailable_reason": breadth_momentum_reason,
                 "up_volume_percent": up_volume_percent,
             }
 

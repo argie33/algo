@@ -224,9 +224,18 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                 earnings_dates.sort(key=lambda x: x["filing_date"], reverse=True)
                 return earnings_dates
 
-            # FALLBACK: No recent SEC filings found - try yfinance for practical coverage
-            logger.debug(f"[{symbol}] No recent SEC filings found, trying yfinance fallback")
-            return self._fetch_from_yfinance(symbol, now_et)
+            # CRITICAL FIX (Session 416): Removed yfinance fallback per GOVERNANCE fail-fast principle.
+            # When SEC filing data unavailable, fail-fast instead of silently substituting secondary source.
+            # Reason: Operators cannot distinguish official SEC filings from yfinance estimates;
+            # this violates data integrity and operator visibility requirements.
+            # See GOVERNANCE.md line 55-58: "No secondary fallbacks. Never use yfinance beta instead of calculated volatility"
+            logger.warning(
+                f"[{symbol}] No recent SEC filings found. "
+                f"ROOT CAUSE: Symbol may have no recent annual filings (REITs, IPOs, delisted stocks). "
+                f"ACTION: Check SEC Edgar directly or verify symbol is active. "
+                f"Cannot proceed with earnings calendar data."
+            )
+            return self._unavailable_record(symbol, now_et, "no_sec_filings_found")
 
         except TimeoutError as e:
             marker = handle_exception(symbol, e, "fetching earnings calendar")

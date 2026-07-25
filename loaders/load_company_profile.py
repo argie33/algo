@@ -194,16 +194,41 @@ class CompanyProfileLoader(OptimalLoader):
             reason,
         ) = row
 
-        # Map SIC code to GICS sector (4-digit lookup with generic fallback)
+        # Map SIC code to GICS sector (4-digit lookup, fail-fast if unmapped)
+        # CRITICAL FIX (Session 416): Don't silently default to "Other" sector for unmapped SIC codes.
+        # Per GOVERNANCE.md line 77-79: "Add explicit data quality gate, then ALLOW the data_unavailable marker"
+        # Unmapped SIC codes indicate incomplete data; must be marked unavailable for operator visibility.
         if not sic_code:
-            sector = "Other"  # Default for missing SIC code
-        else:
-            sic_code_int = int(sic_code)
-            sector = SIC_TO_GICS.get(sic_code_int)
-            if sector is None:
-                # SIC code not in mapping - use fallback to satisfy NOT NULL constraint
-                logger.warning(f"[{symbol}] SIC code {sic_code} not in SIC_TO_GICS mapping, defaulting to 'Other'")
-                sector = "Other"
+            logger.warning(
+                f"[{symbol}] No SIC code in company_info_sec. "
+                f"Cannot determine GICS sector. Marking data_unavailable."
+            )
+            return [
+                {
+                    "ticker": symbol,
+                    "data_unavailable": True,
+                    "reason": "no_sic_code_available",
+                }
+            ]
+
+        sic_code_int = int(sic_code)
+        sector = SIC_TO_GICS.get(sic_code_int)
+
+        if sector is None:
+            # SIC code unmapped - fail-fast instead of defaulting to "Other"
+            # This ensures stock_scores sees incomplete data and marks unavailable appropriately
+            logger.warning(
+                f"[{symbol}] SIC code {sic_code} not in SIC_TO_GICS mapping. "
+                f"ACTION: Expand SIC_TO_GICS mapping or verify this is a tradeable US stock. "
+                f"Marking data unavailable to prevent incomplete sector classification."
+            )
+            return [
+                {
+                    "ticker": symbol,
+                    "data_unavailable": True,
+                    "reason": f"sic_code_unmapped:{sic_code}",
+                }
+            ]
 
         return [
             {

@@ -32,9 +32,13 @@ class PhaseStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
+    OK = "ok"
     DEGRADED = "degraded"
     FAILED = "failed"
+    HALTED = "halted"
     SKIPPED = "skipped"
+    BLOCKED = "blocked"
+    ERROR = "error"
 
 
 @dataclass

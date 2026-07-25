@@ -1076,17 +1076,20 @@ class StockScoresLoader(OptimalLoader):
                     "macd": macd,
                 }
 
-            # Symbol not in momentum_metrics cache; RSI/MACD alone can still score
+            # Symbol not in momentum_metrics cache; RSI/MACD alone cannot substitute for price momentum
+            # CRITICAL FIX (Session 416): Do not mix incompatible metric classes as substitutes.
+            # Per GOVERNANCE.md line 56-58: "No secondary fallbacks. Never use short-term momentum when long-term unavailable (different signal)"
+            # RSI/MACD are oscillators (technical indicators), not price-return momentum (fundamental signal).
+            # Substituting one for the other creates false signal diversification - both are now technical.
+            # This biases the composite score away from fundamental factors and toward technical analysis.
+            # Solution: Return data_unavailable marker instead of partial/mixed metrics.
             if rsi_14 is not None or macd is not None:
-                logger.debug(f"[LOAD_STOCK_SCORES] {symbol}: momentum_metrics missing, scoring from RSI/MACD only")
-                return {
-                    "momentum_1m": None,
-                    "momentum_3m": None,
-                    "momentum_6m": None,
-                    "momentum_12m": None,
-                    "rsi_14": rsi_14,
-                    "macd": macd,
-                }
+                logger.warning(
+                    f"[LOAD_STOCK_SCORES] {symbol}: momentum_metrics missing (price momentum unavailable). "
+                    f"RSI/MACD available but cannot substitute for price-return momentum (different signal class). "
+                    f"Marking momentum data unavailable to prevent metric class mixing."
+                )
+                return {"data_unavailable": True, "reason": "price_momentum_metrics_missing"}
 
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated"

@@ -1978,9 +1978,26 @@ class PriceLoader(OptimalLoader):
 
         def timeout_handler(signum: int, frame: Any) -> None:
             elapsed = time.time() - start
+            # CRITICAL FIX (Session 416): Never use .get() with defaults on critical stats counters.
+            # If self._stats key missing (initialization bug), we must surface it, not hide it with 0.
+            # Per GOVERNANCE.md line 43-44: "Blocks commits: Type mismatches from Pylint... comparison-with-callable"
+            symbols_processed = self._stats.get("symbols_processed")
+            rows_inserted = self._stats.get("rows_inserted")
+            if symbols_processed is None or rows_inserted is None:
+                # FAIL-FAST: stats dict corruption detected - operator needs to see this
+                logger.critical(
+                    f"[PRICE_LOADER] CRITICAL: stats dict malformed or not initialized. "
+                    f"symbols_processed={symbols_processed}, rows_inserted={rows_inserted}. "
+                    f"Timeout occurred during initialization failure, not processing. "
+                    f"Check loader startup logic."
+                )
+                raise RuntimeError(
+                    f"[PRICE_LOADER TIMEOUT + STATS CORRUPTION] Loader exceeded {overall_timeout_sec}s timeout after {elapsed:.0f}s. "
+                    f"Cannot report progress: stats dict keys missing. This indicates loader initialization failure."
+                )
             raise RuntimeError(
                 f"[PRICE_LOADER TIMEOUT] Loader exceeded {overall_timeout_sec}s timeout after {elapsed:.0f}s. "
-                f"Processed {self._stats.get('symbols_processed', 0)} symbols, {self._stats.get('rows_inserted', 0)} rows. "
+                f"Processed {symbols_processed} symbols, {rows_inserted} rows. "
                 f"Likely yfinance batch API hang on large symbol batches (5000+). "
                 f"Restart loader and check yfinance API health."
             )
@@ -2183,7 +2200,18 @@ class PriceLoader(OptimalLoader):
                 src = r.pop("_source_name", None) or (self.router.last_source if self.router else None) or "unknown"
                 r["data_source"] = src
                 r.pop("_primary_source_failed", None)
-                self._stats["source_distribution"][src] = self._stats["source_distribution"].get(src, 0) + 1
+                # CRITICAL FIX (Session 416): Never use .get() with defaults on critical counters.
+                # If source_distribution key missing (initialization error), surface it, don't hide it.
+                # Defensive initialization: ensure source_distribution exists and has this source.
+                if "source_distribution" not in self._stats:
+                    logger.critical(
+                        "[PRICE_LOADER] CRITICAL: stats['source_distribution'] missing. "
+                        "Loader initialization failed or stats dict corrupted."
+                    )
+                    raise RuntimeError("Stats dict corruption: source_distribution key missing")
+                if src not in self._stats["source_distribution"]:
+                    self._stats["source_distribution"][src] = 0
+                self._stats["source_distribution"][src] += 1
 
             rows = self.transform(rows)
             before_quality = len(rows)

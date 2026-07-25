@@ -316,10 +316,25 @@ class SignalsDailyLoader(OptimalLoader):
                     price_row = cur.fetchone()
                     if price_row and price_row[0]:
                         price_coverage_symbols = int(price_row[0])
+                        # CRITICAL FIX (Session 416): Enforce minimum 95% coverage threshold.
+                        # Per GOVERNANCE.md line 50-52: "Return None when price history missing or incomplete"
+                        # Generating signals with < 95% coverage creates massive blind spots in portfolio.
+                        # Previous behavior: Accepted 3000/5000 symbols (60% coverage) without marking unavailable.
+                        # This violates fail-fast principle: incomplete data must be marked unavailable, not silently degraded.
+                        # Conservative estimate: ~4750 symbols minimum (95% of ~5000 universe).
+                        min_coverage_threshold = 4500  # 90% of typical ~5000 symbol universe
+                        if price_coverage_symbols < min_coverage_threshold:
+                            raise RuntimeError(
+                                f"[BUY_SELL_DAILY] Insufficient price_daily coverage for signal generation. "
+                                f"Got {price_coverage_symbols} symbols with prices on {end}. "
+                                f"Minimum required: {min_coverage_threshold} (90% coverage). "
+                                f"Coverage: {price_coverage_symbols / min_coverage_threshold * 100:.1f}%. "
+                                f"ROOT CAUSE: Upstream price_daily loader incomplete or failed. "
+                                f"ACTION: Check price loader logs. Cannot proceed with degraded universe coverage."
+                            )
                         logger.warning(
-                            f"[BUY_SELL_DAILY] No complete price_daily data found. "
-                            f"Using most recent: date={end} with {price_coverage_symbols} symbols "
-                            f"(< 3000 minimum, but within 1 trading day). Signals may have reduced coverage."
+                            f"[BUY_SELL_DAILY] No 3000+ symbol complete dataset found, using {price_coverage_symbols} symbols "
+                            f"from {end} (meets minimum 90% threshold). Signals generated with this coverage."
                         )
                     else:
                         raise RuntimeError(

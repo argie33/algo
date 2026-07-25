@@ -102,13 +102,22 @@ class VectorizedTechnicalLoader:
             # Do NOT fall back to stale data - fail-fast enforcement
             price_freshness = DataAgeValidator.check("price_daily")
             if not price_freshness["is_fresh"]:
-                # CRITICAL: Validate threshold_days field exists in freshness result (fail-fast if missing)
+                # CRITICAL FIX (Session 416): Raise RuntimeError, not ValueError, for data layer failures.
+                # Per GOVERNANCE.md line 24-25: "Type errors from mypy... raise RuntimeError"
+                # ValueError is for user input/content validation; RuntimeError is for system layer failures.
+                # Data validator schema mismatch is a system failure, not invalid input.
                 threshold_days = price_freshness.get("threshold_days")
                 if threshold_days is None:
-                    raise ValueError(
-                        f"[TECHNICAL_DATA CRITICAL] Freshness check result missing required 'threshold_days' field. "
-                        f"Cannot validate age constraint. Result: {price_freshness}"
+                    logger.critical(
+                        f"[TECHNICAL_DATA CRITICAL] Data validator schema mismatch. "
+                        f"Freshness check result missing required 'threshold_days' field. "
+                        f"DataAgeValidator may have been modified incorrectly. Result: {price_freshness}"
                     )
+                    raise RuntimeError(
+                        f"[TECHNICAL_DATA CRITICAL] Data validation layer schema mismatch. "
+                        f"Cannot proceed with technical indicator computation. "
+                        f"Fix: Verify DataAgeValidator.check() returns threshold_days field."
+                    ) from None
                 raise RuntimeError(
                     f"[TECHNICAL_DATA CRITICAL] Cannot compute technical indicators with stale price data. "
                     f"Price data is {price_freshness['age_days']} days old (threshold {threshold_days} days). "
