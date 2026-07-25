@@ -989,7 +989,8 @@ class ExitEngine:
         Strategy:
         1. Try to fetch real-time quote from Alpaca (for intraday stop checking)
         2. If market closed or symbol unavailable (404), fall back to daily closes
-        3. If critical API error (not 404), propagate to caller for halt
+        3. If current date not available, use most recent historical prices
+        4. If critical API error (not 404), propagate to caller for halt
 
         For 404 (delisted symbols in paper trading), use database fallback instead.
         """
@@ -1038,23 +1039,38 @@ class ExitEngine:
         rows = cur.fetchall()
 
         if not rows or len(rows[0]) < 2:
-            error_msg = f"[404] Price data missing for {symbol} - symbol unavailable or delisted - cannot evaluate exits"
+            # FALLBACK: No prices up to current_date. Try most recent prices from ANY date
+            cur.execute(
+                """
+                SELECT date, close FROM price_daily
+                WHERE symbol = %s
+                ORDER BY date DESC LIMIT 2
+                """,
+                (symbol,),
+            )
+            rows = cur.fetchall()
 
-            logger.error(error_msg)
+            if not rows or len(rows[0]) < 2:
+                error_msg = f"[EXIT_PRICE_UNAVAILABLE] No price history available for {symbol} - symbol may be delisted or new"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
-            raise RuntimeError(error_msg)
+            logger.warning(
+                f"[EXIT_PRICE_FALLBACK] No prices for {symbol} on/before {current_date}. "
+                f"Using most recent available: {rows[0][0]}"
+            )
 
         cur_price = float(rows[0][1]) if rows[0][1] is not None else None
 
         if cur_price is None:
-            error_msg = f"[404] Current price is NULL for {symbol} - symbol unavailable or delisted"
+            error_msg = f"[EXIT_PRICE_NULL] Current price is NULL for {symbol}"
 
             logger.error(error_msg)
 
             raise RuntimeError(error_msg)
 
         if len(rows) < 2:
-            error_msg = f"[404] Previous close data unavailable for {symbol} (need 2+ trading days) - symbol unavailable or delisted"
+            error_msg = f"[EXIT_PRICE_SINGLE_DAY] Insufficient price history for {symbol} (need 2+ dates)"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
