@@ -1223,9 +1223,9 @@ def run(
                     f"Cannot execute entry without complete data. This indicates upstream loader failure or data cache corruption."
                 )
 
-            entry_price = cast(float, close)
-            atr = cast(float, atr)
-            sma_50 = cast(float, sma_50)
+            entry_price = float(close)
+            atr = float(atr)
+            sma_50 = float(sma_50)
 
             # VALIDATION: Technical indicators must be positive (sanity check for data corruption)
             if entry_price <= 0:

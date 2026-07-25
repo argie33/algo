@@ -512,9 +512,20 @@ class OptimalLoader:
                             logger.info(f"[{self.table_name}] Lock acquired on retry {retry_attempt}")
                             break
                     else:
-                        # Final failure after retries
-                        logger.error(f"[{self.table_name}] Failed to acquire lock after {max_retries} retries. Skipping this run.")
-                        return self._stats.to_dict()
+                        # Final failure after retries - fail fast instead of silently skipping
+                        # Critical loaders must not silently degrade (violates governance)
+                        from algo.exceptions import LockAcquisitionError
+                        msg = (
+                            f"[{self.table_name}] Failed to acquire lock after {max_retries} retries. "
+                            f"Another process is holding the lock. Check for stale locks or concurrent runs. "
+                            f"Cannot proceed without lock - failing fast to surface infrastructure issue."
+                        )
+                        logger.error(msg)
+                        raise LockAcquisitionError(
+                            lock_key=self.table_name,
+                            reason="Lock acquisition timeout after retries",
+                            context={"table_name": self.table_name, "max_retries": max_retries}
+                        )
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] Lock initialization failed: {_lock_err}")
             from algo.exceptions import LockAcquisitionError
