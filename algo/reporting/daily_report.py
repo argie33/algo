@@ -161,11 +161,15 @@ class DailyFinanceReport:
             row = cur.fetchone()
 
             if row is None:
-                logger.warning(
+                logger.info(
                     f"[DAILY_REPORT] No performance metrics available for {report_date}. "
-                    f"Expected during initial ramp-up phase. Returning empty dict."
+                    f"This is normal during initial ramp-up or before first orchestrator run."
                 )
-                return {}
+                return {
+                    "data_unavailable": True,
+                    "reason": "no_performance_metrics_available",
+                    "details": "Expected during ramp-up phase before algo has established P&L history"
+                }
 
             return {
                 "sharpe_ytd": round(float(row[0]), 4) if row[0] is not None else None,
@@ -174,8 +178,13 @@ class DailyFinanceReport:
                 "calmar": round(float(row[3]), 4) if row[3] is not None else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Database error fetching risk metrics for {report_date}: {e}. Returning empty dict.")
-            return {}
+            msg = f"Database error fetching risk metrics for {report_date}: {type(e).__name__}"
+            logger.warning(msg)
+            return {
+                "data_unavailable": True,
+                "reason": "database_error",
+                "details": f"{type(e).__name__}: {str(e)[:100]}"
+            }
 
     def _fetch_strategy(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Win rate, profit factor, performance metrics from pre-computed daily metrics.
@@ -198,11 +207,15 @@ class DailyFinanceReport:
             row = cur.fetchone()
 
             if row is None:
-                logger.warning(
+                logger.info(
                     f"[DAILY_REPORT] No strategy performance data available for {report_date}. "
-                    f"Expected during initial ramp-up phase. Returning empty dict."
+                    f"This is normal during ramp-up or before first trades executed."
                 )
-                return {}
+                return {
+                    "data_unavailable": True,
+                    "reason": "no_strategy_metrics_available",
+                    "details": "Expected before first orchestrator execution or trades completed"
+                }
 
             return {
                 "win_rate_pct": round(float(row[0]), 2) if row[0] is not None else None,
@@ -211,8 +224,13 @@ class DailyFinanceReport:
                 "best_trade_pct": None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Database error fetching strategy metrics for {report_date}: {e}. Returning empty dict.")
-            return {}
+            msg = f"Database error fetching strategy metrics for {report_date}: {type(e).__name__}"
+            logger.warning(msg)
+            return {
+                "data_unavailable": True,
+                "reason": "database_error",
+                "details": f"{type(e).__name__}: {str(e)[:100]}"
+            }
 
     def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """IC and weight for each component.
@@ -234,12 +252,15 @@ class DailyFinanceReport:
             rows = cur.fetchall()
 
             if not rows:
-                logger.warning(
+                logger.info(
                     f"[DAILY_REPORT] No component attribution data available for {report_date}. "
-                    f"This is expected if running before end-of-day loaders complete. "
-                    f"SignalAttributionEngine is deprecated. Returning empty components dict."
+                    f"Expected if running before end-of-day loaders complete."
                 )
-                return {}
+                return {
+                    "data_unavailable": True,
+                    "reason": "no_component_attribution_data",
+                    "details": "SignalAttributionEngine is deprecated; data available only from end-of-day loaders"
+                }
 
             components = {}
             for comp, ic, pval in rows:

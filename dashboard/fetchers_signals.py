@@ -357,7 +357,12 @@ def fetch_scores(c: None) -> dict[str, Any]:
         if "data" in top_data and isinstance(top_data["data"], dict):
             # Wrapped response format: {statusCode, data: {top, universe_total, ...}}
             response_data = top_data["data"]
-            top = response_data.get("top", [])
+            if "top" not in response_data:
+                error_msg = "Scores API response: wrapped format missing required 'top' field in data wrapper"
+                logger.error(error_msg)
+                record_data_quality_issue("scores", "validation", "missing_top_field_wrapped")
+                return FetcherValidator.build_error_response(error_msg)
+            top = response_data["top"]
         elif "top" in top_data:
             # Legacy direct format (for backward compatibility with mocked responses)
             top = top_data["top"]
@@ -375,8 +380,11 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # Summary metrics over the full filtered universe (not just this page) - optional,
         # since older API versions/mocks won't have them; the panel falls back to len(top).
         # Extract from either legacy top_data or new response_data format
-        response_data_dict = top_data.get("data", {}) if "data" in top_data else top_data
-        universe_total = response_data_dict.get("universe_total")
+        if "data" in top_data and isinstance(top_data["data"], dict):
+            response_data_dict = top_data["data"]
+        else:
+            response_data_dict = top_data
+        universe_total = response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
         if universe_total is not None and not isinstance(universe_total, int):
             error_msg = f"Scores response 'universe_total' must be int, got {type(universe_total).__name__}"
             logger.error(error_msg)

@@ -87,8 +87,9 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             return self._generate_marketcap_estimates(filing_date)
 
         except Exception as e:
-            logger.error(f"[13F GLOBAL FETCH] Failed: {type(e).__name__}: {str(e)[:200]}")
-            return []
+            msg = f"[13F GLOBAL FETCH CRITICAL] Failed: {type(e).__name__}: {str(e)[:200]}. Cannot continue without institutional holdings data."
+            logger.critical(msg)
+            raise RuntimeError(msg) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Lookup institutional holdings for a symbol from the database.
@@ -236,15 +237,19 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     with zf.open(info_file) as f:
                         reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
                         for row in reader:
-                            try:
-                                ticker = row.get("ticker", "").strip().upper()
-                                shares_str = row.get("shrsOrPrnAmt", "0")
-                                if ticker and shares_str:
-                                    shares = int(shares_str) if shares_str.isdigit() else 0
-                                    if shares > 0:
-                                        holdings_by_ticker[ticker] += shares
-                            except (ValueError, KeyError, AttributeError):
-                                continue
+                            if "ticker" not in row or row["ticker"] is None:
+                                raise ValueError(f"[13F] CSV row missing required 'ticker' field: {row.keys()}")
+                            if "shrsOrPrnAmt" not in row or row["shrsOrPrnAmt"] is None:
+                                raise ValueError(f"[13F] CSV row missing required 'shrsOrPrnAmt' field for ticker {row.get('ticker')}")
+
+                            ticker = row["ticker"].strip().upper()
+                            shares_str = row["shrsOrPrnAmt"]
+                            if ticker and shares_str:
+                                if not shares_str.isdigit():
+                                    raise ValueError(f"[13F] Invalid shrsOrPrnAmt '{shares_str}' for ticker {ticker} (expected integer)")
+                                shares = int(shares_str)
+                                if shares > 0:
+                                    holdings_by_ticker[ticker] += shares
 
                 logger.info(f"[13F] Aggregated {len(holdings_by_ticker)} tickers from bulk data")
                 return holdings_by_ticker
@@ -318,8 +323,9 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             return records
 
         except Exception as e:
-            logger.error(f"[13F] Failed to generate estimates: {e}")
-            return []
+            msg = f"[13F MARKET CAP ESTIMATES CRITICAL] Failed to generate estimates: {type(e).__name__}: {str(e)[:200]}. Cannot proceed without fallback institutional ownership data."
+            logger.critical(msg)
+            raise RuntimeError(msg) from e
 
     def _aggregate_top_manager_13fs(self) -> dict[str, int]:
         """INTERIM: Use market-cap based estimates until SEC 13F data available.
