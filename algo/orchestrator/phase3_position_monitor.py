@@ -119,33 +119,18 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 for position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
+                        # Fail-fast: Don't accept stale prices. If today's price missing, skip the position
+                        # (don't silently use yesterday's price, which violates fail-fast principle).
                         current_price = prices.get(symbol)
-                        if current_price is None:
-                            # Fallback: Try to use the most recent available price (from yesterday or earlier)
-                            # This handles cases where today's price loader hasn't completed for all stocks yet
-                            logger.warning(
-                                f"[PHASE 3] {symbol}: Today's price missing, checking for recent price fallback."
-                            )
-                            with DatabaseContext("read") as fallback_cur:
-                                fallback_cur.execute(
-                                    "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
-                                    (symbol,)
-                                )
-                                fallback_row = fallback_cur.fetchone()
-                                if fallback_row and fallback_row[0] is not None:
-                                    current_price = float(fallback_row[0])
-                                    logger.warning(
-                                        f"[PHASE 3] {symbol}: Using fallback price ({current_price}) from recent data. "
-                                        f"Position monitoring will use stale data - data loader may be lagging."
-                                    )
 
                         if current_price is None:
                             logger.warning(
-                                f"[PHASE 3] {symbol}: Skipping position update - no price data available. "
-                                f"This is expected during ramp-up or before morning price loader completes."
+                                f"[PHASE 3] {symbol}: Skipping position update - today's price data not available. "
+                                f"This is expected during ramp-up or before morning price loader completes. "
+                                f"Position will be updated in next run when current prices are loaded."
                             )
-                            # Skip this position; don't fail the entire phase
-                            # It will be updated in a later run when price data arrives
+                            # Skip this position; don't fail the entire phase and don't accept stale data
+                            # It will be updated in a later run when fresh price data arrives
                             continue
 
                         if quantity is None:
