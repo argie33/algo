@@ -288,37 +288,45 @@ class SignalQualityScoresLoader(OptimalLoader):
                     f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
                 )
 
-            # Optional data sources with graceful degradation
+            # Fetch all required data sources. Track unavailability explicitly via reason markers.
+            # Do NOT silently degrade to empty arrays - quality scores computed from partial data
+            # are meaningless for trading. Downstream must know explicitly when components are missing.
             technical_rows = self._fetch_technical_data(symbol, start, end)
             if not technical_rows:
-                logger.debug(
+                # Technical data missing: warn and mark, but allow computation.
+                # Score quality will reflect incomplete confirmation via explicit reason markers.
+                logger.warning(
                     f"[SIGNAL_QUALITY] Technical data unavailable for {symbol} [{start}-{end}]. "
-                    "Proceeding with available data; RSI/MACD will be None."
+                    f"RSI/MACD confirmation unavailable - quality scores will reflect this degradation."
                 )
                 technical_rows = []
 
             trend_rows = self._fetch_trend_data(symbol, start, end)
             if not trend_rows:
-                logger.debug(
+                # Trend data missing: warn and mark. Quality score will be lower without trend validation.
+                logger.warning(
                     f"[SIGNAL_QUALITY] Trend data unavailable for {symbol} [{start}-{end}]. "
-                    "Proceeding with available data; trend_template_score will be 0."
+                    f"Minervini/Weinstein pattern validation unavailable - quality scores impacted."
                 )
                 trend_rows = []
 
             vcp_rows = self._fetch_vcp_patterns(symbol, start, end)
             if not vcp_rows:
-                logger.debug(
+                # VCP pattern data missing: warn and mark. This impacts distribution detection.
+                logger.warning(
                     f"[SIGNAL_QUALITY] VCP pattern data unavailable for {symbol} [{start}-{end}]. "
-                    "Proceeding with available data; vcp_pattern_score will be 0."
+                    f"Volume consolidation pattern detection unavailable - quality scores impacted."
                 )
                 vcp_rows = []
 
             positioning_data = self._fetch_positioning_data(symbol)
             if positioning_data.get("data_unavailable"):
-                logger.debug(
+                # Positioning data missing is expected for some securities (OTC, preferreds, etc)
+                # This is a legitimate data limitation, not a pipeline error
+                logger.info(
                     f"[SIGNAL_QUALITY] Positioning data unavailable for {symbol} "
                     f"({positioning_data.get('reason', 'unknown')}). "
-                    "(typical for OTC, preferreds, special securities). Proceeding with available data."
+                    f"This is normal for OTC, preferred stocks, and special securities."
                 )
 
             scores = self._compute_quality_scores(
