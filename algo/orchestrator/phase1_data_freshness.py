@@ -802,6 +802,13 @@ def run(  # noqa: C901
                 "price_daily": run_date,
                 "technical_data_daily": run_date,
                 "stock_scores": run_date,
+                "trend_template_data": run_date,
+                "sector_ranking": run_date,
+                "growth_metrics": run_date,
+                "quality_metrics": run_date,
+                "value_metrics": run_date,
+                "positioning_metrics": run_date,
+                "stability_metrics": run_date,
             }
 
             try:
