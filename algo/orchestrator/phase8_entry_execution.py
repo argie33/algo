@@ -537,7 +537,7 @@ def run(
                     "entry_execution",
                     "blocked",
                     {"entered": 0},
-                    False,
+                    True,  # success=True: guard is working, not failing
                     msg,
                 )
     except Exception as e:
@@ -1025,8 +1025,15 @@ def run(
                 f"Cannot enter new positions - risk already at limit. Close positions to trade."
             )
             logger.warning(msg)
-            log_phase_result_fn(8, "entry_execution", "degraded", msg)
-            return PhaseResult(8, "entry_execution", "degraded", {"entered": 0}, False, msg)
+            log_phase_result_fn(8, "entry_execution", "blocked", msg)
+            return PhaseResult(
+                8,
+                "entry_execution",
+                "blocked",
+                {"entered": 0},
+                True,  # success=True: guard is working, not failing
+                msg,
+            )
         elif available_capacity_pct < 1.0:
             logger.warning(
                 f"[PHASE 8 RISK GUARD] Current risk {current_risk_pct:.2f}%, "

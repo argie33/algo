@@ -1935,6 +1935,7 @@ class Orchestrator:
                 "halted": "[HALT]",
                 "fail": "[FAIL]",
                 "error": "[ERR] ",
+                "blocked": "[BLOCK]",
             }.get(info["status"], "[?]   ")
             logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} - {info['summary']}")
         logger.info(f"{'#' * 70}\n")
@@ -1942,6 +1943,7 @@ class Orchestrator:
         any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
         any_halt = any(p["status"] == "halted" for p in self.phase_results.values())
         any_degraded = any(p["status"] == "degraded" for p in self.phase_results.values())
+        any_blocked = any(p["status"] == "blocked" for p in self.phase_results.values())
         any_skipped = any(p["status"] == "skipped" for p in self.phase_results.values())
 
         # CRITICAL FIX: If a phase has status="halted", it's a policy halt (e.g., circuit breaker),
@@ -1977,9 +1979,9 @@ class Orchestrator:
             "run_id": self.run_id,
             "run_date": self.run_date.isoformat(),
             "phases": [{"phase": n, **info} for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))],
-            "success": not (any_error or any_halt or any_degraded or any_skipped),
+            "success": not (any_error or any_halt or any_degraded or any_skipped or any_blocked),
             "halted": any_halt,  # Only actual halts (circuit breaker, errors) - not degraded/skipped
-            "skipped": any_halt or any_degraded or any_skipped,  # Required by Lambda handler
+            "skipped": any_halt or any_degraded or any_skipped or any_blocked,  # Required by Lambda handler
             "reason": skip_reason or "none",  # Required by Lambda handler
         }
 
@@ -2004,6 +2006,32 @@ class Orchestrator:
                     (p["summary"] for p in self.phase_results.values() if p["status"] == "degraded"),
                     "Degraded - reason unknown",
                 )
+            elif any_blocked:
+                # CRITICAL: "blocked" means a safety guard stopped Phase 8 (risk limit, pending orders, market hours).
+                # This is EXPECTED and CORRECT behavior - a guard preventing over-leveraging is not a failure.
+                # If Phase 9 still runs and succeeds, the run is healthy.
+                phase_8_blocked = any(
+                    p["status"] == "blocked" and p.get("phase") == 8
+                    for p in self.phase_results.values()
+                )
+                # Phase 9 may be keyed as int 9 or string "9" depending on call context
+                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9", {})
+                phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
+
+                if phase_8_blocked and phase_9_succeeded:
+                    # Phase 8 blocked by guard but Phase 9 (always_run) succeeded - healthy run with guard
+                    overall_status = "ok"
+                    halt_reason = next(
+                        (p["summary"] for p in self.phase_results.values() if p["status"] == "blocked"),
+                        "Blocked by guard - reason unknown",
+                    )
+                else:
+                    # Block was unexpected or Phase 9 failed - mark as degraded
+                    overall_status = "degraded"
+                    halt_reason = next(
+                        (p["summary"] for p in self.phase_results.values() if p["status"] == "blocked"),
+                        "Blocked - reason unknown",
+                    )
             elif any_skipped:
                 # CRITICAL: Distinguish between "skipped due to market hours" vs "skipped due to upstream failure"
                 # Phase 8 skipping due to market hours guard is EXPECTED and CORRECT behavior (9:30 AM - 4:00 PM ET).
