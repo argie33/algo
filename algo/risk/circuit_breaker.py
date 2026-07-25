@@ -718,7 +718,11 @@ class CircuitBreaker:
                 "reason": f"Portfolio value invalid ({portfolio}) - risk calculation impossible. Fail-closed halt.",
             }
 
-        risk_pct = total_open_risk / portfolio * 100.0
+        # CRITICAL FIX: Ensure both operands are float before arithmetic. Database SUM may return
+        # psycopg2 Decimal type; explicitly convert to avoid "Decimal * float" TypeError.
+        total_open_risk_f = float(total_open_risk) if total_open_risk else 0.0
+        portfolio_f = float(portfolio) if portfolio else 1.0
+        risk_pct = total_open_risk_f / portfolio_f * 100.0
         max_risk_val = self._get_required_config("max_total_risk_pct", "in total risk check")
         threshold = _float(
             max_risk_val,
