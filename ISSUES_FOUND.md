@@ -69,13 +69,33 @@ current_risk_pct = (total_risk_dollars_f / portfolio_value_f * 100.0)
 
 ## Summary
 
-**Critical Issues to Fix:**
-1. ✅ Type error in risk calculation (FIXED)
-2. ⚠️ Duplicate position entry still being attempted despite detection (INVESTIGATING)
-3. ⚠️ Signal quality scores lock contention (NEEDS FIX)
+**Issues Fixed:**
+1. ✅ Type error in Phase 8 risk calculation - Commit 8c8bcc0bd
+   - Added explicit float() conversion before Decimal/float division
+   
+2. ✅ Signal quality scores lock contention - Commit b2b3c2432
+   - Reduced lock timeout from 7200s to 600s in LOCAL_MODE
+   - Faster recovery from crashed loaders during development
+   - Production mode keeps 7200s for slow loaders
+
+**Issues Requiring Further Investigation:**
+3. ⚠️ **CRITICAL** - Duplicate position detection not blocking entry (NEEDS INVESTIGATION)
+   - Symptom: DUPLICATE SIGNAL warning logged but trade still attempted
+   - Root cause: Unknown - validation logic appears correct but not functioning
+   - Debug logging added to trace validation flow on next run
+   - Status: Awaiting retest when market opens (Monday 2026-07-29)
+   - Commits: 8c8bcc0bd (added debug logging)
 
 **Next Steps:**
-1. Test the type error fix
-2. Add detailed logging to duplicate detection to trace where validation fails
-3. Review lock management in signal_quality_scores loader
-4. Rerun orchestrator after fixes to verify corrections
+1. Wait for market to open (Monday 2026-07-29)
+2. Rerun orchestrator to generate fresh logs with debug logging
+3. Analyze logs to identify why duplicate detection fails to block entry
+4. Fix duplicate detection bug
+5. Verify all 9 phases complete successfully
+
+**Testing Plan:**
+- Monday morning: Run orchestrator with new debug logging
+- Check logs for FingerprintCheckHandler output
+- Trace validation loop to see all check results
+- Fix identified issues
+- Retest until all phases pass cleanly
