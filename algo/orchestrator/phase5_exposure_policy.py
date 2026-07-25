@@ -69,7 +69,24 @@ def run(
             error_msg = "[PHASE 5] Halt flag detected at phase start - aborting signal generation"
             logger.critical(error_msg)
             log_phase_result_fn(5, "exposure_policy", "halt", error_msg)
-            return PhaseResult(5, "exposure_policy", "halted", {}, True, error_msg)
+            # CRITICAL: Must return safe halt constraints for Phase 8, not empty dict
+            fail_halt_constraints = {
+                "tier_name": "CORRECTION",
+                "description": "Prior phase halted - no entries allowed",
+                "risk_multiplier": 0.0,
+                "max_new_positions_today": 0,
+                "halt_new_entries": True,
+                "max_concentration_pct": 0.0,
+                "halt_reason": error_msg,
+            }
+            return PhaseResult(
+                5,
+                "exposure_policy",
+                "halted",
+                {"constraints": fail_halt_constraints, "actions": [], **_health_panel_fields(fail_halt_constraints)},
+                True,
+                error_msg,
+            )
 
         # Read market exposure from market_exposure_daily (4:05 PM EOD pipeline is sole source of truth)
         # Uses shared read_market_regime() to ensure Phase 3b and Phase 5 read same snapshot

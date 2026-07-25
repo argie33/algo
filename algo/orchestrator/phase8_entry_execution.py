@@ -581,7 +581,11 @@ def run(
             phase5_result = executor.get_result(5)
             if phase5_result and phase5_result.ok:
                 exposure_constraints_from_executor = phase5_result.data.get("constraints")
-                logger.info("[PHASE 8] Retrieved exposure constraints from Phase 5")
+                if exposure_constraints_from_executor:
+                    constraint_keys = list(exposure_constraints_from_executor.keys())
+                    logger.info(f"[PHASE 8] Retrieved exposure constraints from Phase 5: {constraint_keys}")
+                else:
+                    logger.warning("[PHASE 8] Phase 5 returned OK but constraints dict is empty")
             elif phase5_result and phase5_result.halted:
                 logger.warning(
                     f"[PHASE 8] Phase 5 halted: {phase5_result.error or 'unknown'}. "
@@ -748,12 +752,14 @@ def run(
     missing_fields = [f for f in required_fields if f not in exposure_constraints]
 
     if missing_fields:
+        actual_keys = list(exposure_constraints.keys()) if exposure_constraints else []
         msg = (
             f"[PHASE 8 CRITICAL] exposure_constraints missing required fields: {missing_fields}. "
+            f"Actual keys present: {actual_keys}. "
             "Cannot size positions without complete constraints. "
             "Phase 5 (Exposure Policy) must provide complete constraint data."
         )
-
+        logger.critical(f"[PHASE 8 DEBUG] Full constraints: {exposure_constraints}")
         logger.critical(msg)
 
         log_phase_result_fn(8, "entry_execution", "halt", msg)
