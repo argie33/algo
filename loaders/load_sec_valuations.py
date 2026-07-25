@@ -64,7 +64,10 @@ class SecValuationsLoader(OptimalLoader):
                     SELECT
                         revenue,
                         net_income,
-                        earnings_per_share
+                        earnings_per_share,
+                        operating_income,
+                        depreciation_expense,
+                        amortization_expense
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC LIMIT 2
@@ -75,7 +78,7 @@ class SecValuationsLoader(OptimalLoader):
                 if not income_rows:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
-                ttm_revenue, _ttm_net_income, ttm_eps_basic = income_rows[0]
+                ttm_revenue, _ttm_net_income, ttm_eps_basic, operating_income, depreciation_expense, amortization_expense = income_rows[0]
                 # PEG's growth-rate leg needs a genuinely prior-year EPS, not the same TTM
                 # value used twice - GOVERNANCE: this used to set `latest_eps = ttm_eps_basic`
                 # (comment literally said "Use same EPS for both TTM and latest"), which made
@@ -84,7 +87,7 @@ class SecValuationsLoader(OptimalLoader):
                 # anywhere in the system with no marker flagging PEG specifically as broken.
                 # A missing second fiscal year (new filer, gap) leaves it None, which
                 # _compute_valuations already handles by leaving peg_ratio NULL.
-                prior_year_eps = income_rows[1][2] if len(income_rows) > 1 else None
+                prior_year_eps = income_rows[1][2] if len(income_rows) > 1 else None  # Index 2 = earnings_per_share
 
                 # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
                 # Allow revenue-only companies: can compute PS ratio even without EPS
@@ -188,32 +191,21 @@ class SecValuationsLoader(OptimalLoader):
 
                 # Session 398: Calculate EBITDA from operating income + depreciation + amortization
                 ebitda = None
-                if operating_income is not None:
-                    # Fetch depreciation and amortization from annual_income_statement
-                    cur.execute(
-                        """
-                        SELECT depreciation_expense, amortization_expense
-                        FROM annual_income_statement
-                        WHERE symbol = %s AND data_unavailable = FALSE
-                        ORDER BY fiscal_year DESC LIMIT 1
-                        """,
-                        (symbol,),
-                    )
-                    dep_row = cur.fetchone()
-                    if dep_row:
-                        dep_exp = safe_float(dep_row[0], f"{symbol}.depreciation_expense", allow_none=True)
-                        amort_exp = safe_float(dep_row[1], f"{symbol}.amortization_expense", allow_none=True)
+                oi = safe_float(operating_income, f"{symbol}.operating_income", allow_none=True)
+                if oi is not None:
+                    dep_exp = safe_float(depreciation_expense, f"{symbol}.depreciation_expense", allow_none=True)
+                    amort_exp = safe_float(amortization_expense, f"{symbol}.amortization_expense", allow_none=True)
 
-                        # EBITDA = Operating Income + Depreciation + Amortization
-                        ebitda_val = operating_income
-                        if dep_exp:
-                            ebitda_val += dep_exp
-                        if amort_exp:
-                            ebitda_val += amort_exp
+                    # EBITDA = Operating Income + Depreciation + Amortization
+                    ebitda_val = oi
+                    if dep_exp:
+                        ebitda_val += dep_exp
+                    if amort_exp:
+                        ebitda_val += amort_exp
 
-                        # Only set if we added at least depreciation or amortization to operating income
-                        if dep_exp or amort_exp:
-                            ebitda = ebitda_val
+                    # Only set if we added at least depreciation or amortization to operating income
+                    if dep_exp or amort_exp:
+                        ebitda = ebitda_val
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
