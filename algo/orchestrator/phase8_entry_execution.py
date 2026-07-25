@@ -567,8 +567,21 @@ def run(
             # Try to get Phase 7 signals (optional - empty signals = skip entries, not fatal)
             phase7_result = executor.get_result(7)
             if phase7_result and phase7_result.ok:
-                qualified_trades_from_executor = phase7_result.data.get("qualified_trades")
-                logger.info(f"[PHASE 8] Retrieved {len(qualified_trades_from_executor or [])} signals from Phase 7")
+                # CRITICAL: Require explicit "qualified_trades" key in data.
+                # If missing, Phase 7 failed to properly construct result - must not silently treat as []
+                if "qualified_trades" not in phase7_result.data:
+                    raise ValueError(
+                        "[PHASE 8 DATA INTEGRITY] Phase 7 returned status='ok' but missing 'qualified_trades' key. "
+                        "This indicates Phase 7 did not properly populate result data. "
+                        f"Phase 7 data keys: {list(phase7_result.data.keys())}"
+                    )
+                qualified_trades_from_executor = phase7_result.data["qualified_trades"]
+                if qualified_trades_from_executor is None:
+                    raise ValueError(
+                        "[PHASE 8 DATA INTEGRITY] Phase 7 returned 'qualified_trades'=None. "
+                        "Must be a list (empty or with signals), not None."
+                    )
+                logger.info(f"[PHASE 8] Retrieved {len(qualified_trades_from_executor)} signals from Phase 7")
             elif phase7_result and phase7_result.halted:
                 logger.warning(
                     f"[PHASE 8] Phase 7 halted: {phase7_result.error or 'unknown'}. "

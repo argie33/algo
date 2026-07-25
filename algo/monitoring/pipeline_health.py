@@ -265,7 +265,13 @@ class PipelineHealth:
             # DictCursor names the GREATEST() expression result as "greatest"
             if isinstance(result, dict):
                 greatest_val = result.get("greatest")
-                estimated_cnt: int = int(greatest_val) if greatest_val is not None else int(result.get("cnt") or 0)
+                if greatest_val is None:
+                    # CRITICAL: If GREATEST() returns NULL, the table is empty (all values are NULL)
+                    # Do NOT default to result.get("cnt") or 0 - that silently hides query failures
+                    # or missing column issues. Null = empty, not "unknown".
+                    estimated_cnt = 0
+                else:
+                    estimated_cnt = int(greatest_val)
             else:
                 estimated_cnt = int(result[0])
 
@@ -273,11 +279,27 @@ class PipelineHealth:
             if estimated_cnt < exact_count_threshold:
                 cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
                 exact_result = cur.fetchone()
-                exact_cnt = (
-                    int(exact_result.get("count", 0))
-                    if isinstance(exact_result, dict)
-                    else int(exact_result[0]) if exact_result else 0
-                )
+                # CRITICAL: Count query must return exactly one row with COUNT(*) result.
+                # If it doesn't, the query failed - don't silently default to 0.
+                if exact_result is None:
+                    raise RuntimeError(
+                        f"COUNT(*) query for {table_name} returned None - query execution failed"
+                    )
+                if isinstance(exact_result, dict):
+                    exact_cnt = exact_result.get("count")
+                    if exact_cnt is None:
+                        raise RuntimeError(
+                            f"COUNT(*) query for {table_name} returned dict without 'count' key. "
+                            f"Keys: {list(exact_result.keys())}. "
+                            f"This indicates a query result mismatch - expected DictCursor with 'count' key."
+                        )
+                    exact_cnt = int(exact_cnt)
+                else:
+                    if len(exact_result) < 1 or exact_result[0] is None:
+                        raise RuntimeError(
+                            f"COUNT(*) query for {table_name} returned empty or NULL result: {exact_result}"
+                        )
+                    exact_cnt = int(exact_result[0])
                 health.row_count = exact_cnt
             else:
                 health.row_count = estimated_cnt

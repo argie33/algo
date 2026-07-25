@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -44,8 +47,26 @@ class PhaseResult:
                 from algo.orchestrator.phase_registry import PhaseRegistry
 
                 self.phase_name = PhaseRegistry.get_phase_name(self.phase_num)
-            except Exception:
-                # Fallback: use provided phase_name or None if retrieval fails
+            except ImportError as e:
+                # Import failures indicate corrupted/missing phase_registry module
+                logger.error(
+                    f"[PHASE RESULT] Failed to import PhaseRegistry: {e}. "
+                    f"Phase {self.phase_num} name lookup failed. Check orchestrator code integrity."
+                )
+                self.phase_name = phase_name
+            except KeyError as e:
+                # Phase number not found in registry - indicates invalid phase number or registry misconfiguration
+                logger.error(
+                    f"[PHASE RESULT] Phase {self.phase_num} not found in PhaseRegistry: {e}. "
+                    f"Check phase_num is valid and registry is up-to-date."
+                )
+                self.phase_name = phase_name
+            except Exception as e:
+                # Unexpected error - log with full traceback
+                logger.error(
+                    f"[PHASE RESULT] Unexpected error looking up phase name for {self.phase_num}: {e}",
+                    exc_info=True
+                )
                 self.phase_name = phase_name
         else:
             self.phase_name = phase_name
