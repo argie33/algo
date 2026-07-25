@@ -232,9 +232,21 @@ function FactorCard({ factor, stock, sectorAvg, marketAvg }) {
 //   rather than the ambiguous "No data" used for a per-stock null.
 function InputRow({ row }) {
   const hasValue = row.value != null;
-  const reasonKey = row.key + "_unavailable_reason";
-  const reason = row.reason || row.stock?.[reasonKey];
+  const reason = row.reason;
   const reasonDisplay = formatReasonDisplay(reason);
+
+  // DIAGNOSTIC: Log when reason field doesn't display but should
+  if (!hasValue && !reason && typeof reason !== "string" && reason !== false) {
+    if (row.key && row.key !== "consecutive_positive_quarters" && row.key !== "price_vs_52w_high") {
+      // Only log once per unique key to avoid spam
+      const logKey = `no_reason_${row.key}`;
+      if (!window._inputRowLogCache) window._inputRowLogCache = {};
+      if (!window._inputRowLogCache[logKey]) {
+        window._inputRowLogCache[logKey] = true;
+        console.debug(`[InputRow] No value/reason for ${row.key}, reason=${reason}, collected=${row.collected}`);
+      }
+    }
+  }
 
   return (
     <tr>
@@ -270,7 +282,13 @@ function InputRow({ row }) {
 
 // ─── factor inputs card — always shows every field, grouped by tier ───────
 function InputsCard({ title, stock, schema, inputsKey = null }) {
-  const inputsObj = inputsKey ? stock[inputsKey] : stock;
+  const inputsObj = inputsKey ? stock?.[inputsKey] : stock;
+
+  // DIAGNOSTIC: Log if inputsObj is missing (helps debug "No data" issues)
+  if (!inputsObj && inputsKey) {
+    console.warn(`[InputsCard] Missing factor inputs for ${inputsKey} on ${stock?.symbol || "unknown"}. Stock keys: ${stock ? Object.keys(stock).slice(0, 10).join(", ") : "N/A"}`);
+  }
+
   const rows = schema.map((s) => {
     const value = inputsObj?.[s.key];
     // Handle inconsistent reason key naming from API: try exact match first,
@@ -284,6 +302,10 @@ function InputsCard({ title, stock, schema, inputsKey = null }) {
     }
     if (!reason && s.key.endsWith("_12m")) {
       reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
+    }
+    // DIAGNOSTIC: Log missing reason fields that have null values
+    if (!value && !reason && inputsObj) {
+      console.debug(`[InputsCard] No reason for ${s.key} on ${stock?.symbol || "unknown"}`);
     }
     return { ...s, value, reason };
   });
