@@ -199,6 +199,9 @@ def _get_stock_scores(
                     qm.roe_unavailable_reason,
                     qm.roa AS roa_val,
                     qm.roa_unavailable_reason,
+                    qm.roic_pct,
+                    qm.gross_margin AS gross_margin_pct,
+                    qm.ebitda_margin AS ebitda_margin_pct,
                     qm.debt_to_equity,
                     qm.debt_to_equity_unavailable_reason,
                     qm.current_ratio AS current_ratio_val,
@@ -213,6 +216,16 @@ def _get_stock_scores(
                     qm.interest_coverage_unavailable_reason,
                     qm.debt_to_assets AS debt_to_assets_val,
                     qm.debt_to_assets_unavailable_reason,
+                    qm.fcf_to_net_income,
+                    qm.ocf_to_net_income AS operating_cf_to_net_income,
+                    qm.payout_ratio,
+                    qm.free_cash_flow AS free_cashflow,
+                    qm.operating_cash_flow AS operating_cashflow,
+                    qm.total_debt,
+                    qm.total_cash,
+                    qm.cash_per_share,
+                    qm.earnings_growth_yoy AS earnings_growth,
+                    qm.revenue_growth_yoy AS revenue_growth,
                     gm.revenue_growth_1y AS rev_growth_1y_val,
                     gm.revenue_growth_1y_unavailable_reason,
                     gm.eps_growth_1y AS eps_growth_1y_val,
@@ -341,39 +354,39 @@ def _get_stock_scores(
                 "return_on_equity_unavailable_reason": d.get("roe_unavailable_reason"),
                 "return_on_assets_pct": d.get("roa_val"),
                 "return_on_assets_unavailable_reason": d.get("roa_unavailable_reason"),
-                "return_on_invested_capital_pct": d.get("roic"),  # May be None if not in response
-                "gross_margin_pct": d.get("gross_margin"),  # May be None if not in response
+                "return_on_invested_capital_pct": d.get("roic_pct"),
+                "gross_margin_pct": d.get("gross_margin_pct"),
                 "operating_margin_pct": d.get("operating_margin_val"),
                 "operating_margin_unavailable_reason": d.get("operating_margin_unavailable_reason"),
                 "profit_margin_pct": d.get("net_margin_val"),
                 "profit_margin_unavailable_reason": d.get("net_margin_unavailable_reason"),
-                "ebitda_margin_pct": d.get("ebitda_margin"),  # May be None
-                "fcf_to_net_income": d.get("fcf_to_ni"),  # May be None
-                "operating_cf_to_net_income": d.get("ocf_to_ni"),  # May be None
+                "ebitda_margin_pct": d.get("ebitda_margin_pct"),
+                "fcf_to_net_income": d.get("fcf_to_net_income"),
+                "operating_cf_to_net_income": d.get("operating_cf_to_net_income"),
                 "debt_to_equity": d.get("debt_to_equity"),
                 "debt_to_equity_unavailable_reason": d.get("debt_to_equity_unavailable_reason"),
                 "current_ratio": d.get("current_ratio_val"),
                 "current_ratio_unavailable_reason": d.get("current_ratio_unavailable_reason"),
                 "quick_ratio": d.get("quick_ratio_val"),
                 "quick_ratio_unavailable_reason": d.get("quick_ratio_unavailable_reason"),
-                "earnings_surprise_avg": d.get("earnings_surprise"),  # May be None
-                "eps_growth_stability": d.get("eps_growth_stability"),  # May be None
-                "earnings_beat_rate": d.get("earnings_beat_rate"),  # May be None
-                "consecutive_positive_quarters": d.get("consecutive_pos_q"),  # May be None
-                "estimate_revision_direction": d.get("revision_direction"),  # May be None
-                "revision_activity_30d": d.get("revision_activity_30d"),  # May be None
-                "estimate_momentum_60d": d.get("estimate_momentum_60d"),  # May be None
-                "estimate_momentum_90d": d.get("estimate_momentum_90d"),  # May be None
-                "revision_trend_score": d.get("revision_trend_score"),  # May be None
-                "payout_ratio": d.get("payout_ratio"),  # May be None
-                "free_cashflow": d.get("free_cashflow"),  # May be None
-                "operating_cashflow": d.get("operating_cashflow"),  # May be None
-                "total_debt": d.get("total_debt"),  # May be None
-                "total_cash": d.get("total_cash"),  # May be None
-                "cash_per_share": d.get("cash_per_share"),  # May be None
-                "earnings_growth_pct": d.get("earnings_growth"),  # May be None
-                "revenue_growth_pct": d.get("revenue_growth"),  # May be None
-                "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),  # May be None
+                "earnings_surprise_avg": d.get("earnings_surprise_avg"),
+                "eps_growth_stability": d.get("eps_growth_stability"),
+                "earnings_beat_rate": d.get("earnings_beat_rate"),
+                "consecutive_positive_quarters": d.get("consecutive_positive_quarters"),
+                "estimate_revision_direction": d.get("estimate_revision_direction"),
+                "revision_activity_30d": d.get("revision_activity_30d"),
+                "estimate_momentum_60d": d.get("estimate_momentum_60d"),
+                "estimate_momentum_90d": d.get("estimate_momentum_90d"),
+                "revision_trend_score": d.get("revision_trend_score"),
+                "payout_ratio": d.get("payout_ratio"),
+                "free_cashflow": d.get("free_cashflow"),
+                "operating_cashflow": d.get("operating_cashflow"),
+                "total_debt": d.get("total_debt"),
+                "total_cash": d.get("total_cash"),
+                "cash_per_share": d.get("cash_per_share"),
+                "earnings_growth_pct": d.get("earnings_growth"),
+                "revenue_growth_pct": d.get("revenue_growth"),
+                "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),
                 "interest_coverage": d.get("interest_coverage_val"),
                 "interest_coverage_unavailable_reason": d.get("interest_coverage_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
