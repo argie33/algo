@@ -1493,7 +1493,7 @@ def run(
                     # Phase 7 computes signal_quality_score and passes it via qualified_trades
                     # Phase 8 must extract and pass it through to TradeContext
                     # Session 379 fix: Verified sqs value before passing
-                    result = trade_executor.execute_trade(
+                    trade_result = trade_executor.execute_trade(
                         symbol=symbol,
                         entry_price=entry_price,
                         shares=shares,
@@ -1509,16 +1509,16 @@ def run(
                     )
                     logger.debug(f"[PHASE 8] {symbol}: Executed trade with sqs={sqs}, trend_score={trend_score}")
 
-                    if "success" not in result or result["success"] is None:
+                    if "success" not in trade_result or trade_result["success"] is None:
                         raise RuntimeError(
                             f"Trade executor returned invalid result for {symbol}: missing 'success' field. "
-                            f"Response: {result}"
+                            f"Response: {trade_result}"
                         )
 
-                    if result["success"]:
-                        if "trade_id" not in result:
+                    if trade_result["success"]:
+                        if "trade_id" not in trade_result:
                             raise RuntimeError(
-                                f"Trade succeeded for {symbol} but missing 'trade_id' field. Response: {result}"
+                                f"Trade succeeded for {symbol} but missing 'trade_id' field. Response: {trade_result}"
                             )
 
                         executed_count += 1
@@ -1526,7 +1526,7 @@ def run(
                         entered_prices.append(entry_price)
 
                         logger.info(
-                            f"[PHASE 8] {symbol}: ENTERED trade_id={result['trade_id']} alpaca_order_id={result['alpaca_order_id']} status={result['status']}"
+                            f"[PHASE 8] {symbol}: ENTERED trade_id={trade_result['trade_id']} alpaca_order_id={trade_result['alpaca_order_id']} status={trade_result['status']}"
                         )
 
                         if max_entries and executed_count >= max_entries:
@@ -1535,8 +1535,8 @@ def run(
                             break
 
                     else:
-                        message = result["message"]
-                        status = result["status"]
+                        message = trade_result["message"]
+                        status = trade_result["status"]
                         logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
 
                         failed_count += 1

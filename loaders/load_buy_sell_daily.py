@@ -628,10 +628,12 @@ class SignalsDailyLoader(OptimalLoader):
                     }
                 ]
 
-            # Mark all successful signals with data_unavailable=False and reason=None
+            # Mark only successful signals with data_unavailable=False and reason=None
+            # (skip if signal already has data_unavailable=True from error handling above)
             for sig in signals:
-                sig["data_unavailable"] = False
-                sig["reason"] = None
+                if not sig.get("data_unavailable", False):
+                    sig["data_unavailable"] = False
+                    sig["reason"] = None
 
             # CRITICAL FIX (Session 262): Do NOT filter signals by watermark for buy_sell_daily.
             # buy_sell_daily generates signals for historical dates (e.g., 120+ day lookback),
