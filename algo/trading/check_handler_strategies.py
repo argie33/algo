@@ -69,18 +69,24 @@ class FingerprintCheckHandler(CheckResultHandler):
     """Handles fingerprint check results."""
 
     def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
+        import logging
+        logger = logging.getLogger(__name__)
         is_dup, error_msg, existing_trade_id = result
+        logger.debug(f"[FingerprintCheckHandler] Processing result: is_dup={is_dup}, error_msg={error_msg}, trade_id={existing_trade_id}")
         if is_dup:
             # CRITICAL: If duplicate detected, existing_trade_id must be present
             if not existing_trade_id:
+                logger.error(f"[FingerprintCheckHandler] CRITICAL: Duplicate detected but existing_trade_id missing! error_msg={error_msg}")
                 raise ValueError(
                     f"Fingerprint duplicate detected but existing_trade_id missing. "
                     f"Cannot validate without prior trade reference. error_msg={error_msg}"
                 )
             if not error_msg:
+                logger.error(f"[FingerprintCheckHandler] CRITICAL: Duplicate detected but error_msg missing!")
                 raise ValueError(
                     "Fingerprint duplicate detected but error_msg missing. Cannot proceed without validation context."
                 )
+            logger.info(f"[FingerprintCheckHandler] BLOCKING: Returning True to reject trade due to duplicate")
             return (
                 True,
                 error_msg,
@@ -90,6 +96,7 @@ class FingerprintCheckHandler(CheckResultHandler):
                     "duplicate": True,
                 },
             )
+        logger.debug(f"[FingerprintCheckHandler] No duplicate found, allowing trade")
         return False, "", None
 
 
