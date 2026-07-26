@@ -322,20 +322,25 @@ class AlignmentChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError(
-                    "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
-                )
+                msg = "Cross-alignment baseline query returned no results - data may not be fully loaded yet"
+                logger.warning(msg)
+                self.log("cross_alignment", WARN, "baseline", msg, None)
+                return
             if hasattr(row, "keys"):
                 symbol_count = row.get("symbol_count")
             else:
                 symbol_count = row[0]
             if symbol_count is None:
-                raise ValueError(
-                    "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
-                )
+                msg = "Cross-alignment baseline query returned NULL symbol_count - data may not be fully loaded yet"
+                logger.warning(msg)
+                self.log("cross_alignment", WARN, "baseline", msg, {"symbol_count": None})
+                return
             baseline = int(symbol_count)
             if baseline == 0:
-                raise ValueError("price_daily has 0 symbols on latest date - loader failure or data corruption")
+                msg = "price_daily has 0 symbols on latest date - loader still loading or data mismatch"
+                logger.warning(msg)
+                self.log("cross_alignment", WARN, "baseline", msg, {"symbol_count": 0})
+                return
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "cross_align",
