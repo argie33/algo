@@ -275,7 +275,7 @@ class XBRLSegmentParser:
 
         # Build result list from revenues, aggregating by segment_id across periods
         segment_aggregates = {}
-        for (segment_id, fy, fp), revenue in segment_revenues.items():
+        for (segment_id, fy, _fp), revenue in segment_revenues.items():
             if segment_id not in segment_aggregates:
                 segment_aggregates[segment_id] = {
                     'total_revenue': 0,
