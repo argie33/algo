@@ -231,6 +231,13 @@ class AlignmentChecker(BaseCheck):
             orphaned = cur.fetchall()
 
             if orphaned:
+                sample_trades = []
+                for r in orphaned[:5]:
+                    r_dict = dict(r) if hasattr(r, "keys") else {}
+                    trade_id = r_dict.get("trade_id") or (r[0] if len(r) > 0 else None)
+                    symbol = r_dict.get("symbol") or (r[1] if len(r) > 1 else None)
+                    fill_date = r_dict.get("fill_date") or (r[2] if len(r) > 2 else None)
+                    sample_trades.append({"trade_id": trade_id, "symbol": symbol, "fill_date": str(fill_date)})
                 self.log(
                     "trade_alignment",
                     ERROR,
@@ -238,10 +245,7 @@ class AlignmentChecker(BaseCheck):
                     f"{len(orphaned)} filled trades missing price history",
                     {
                         "orphaned_trades": len(orphaned),
-                        "sample": [
-                            {"trade_id": r["trade_id"], "symbol": r["symbol"], "fill_date": str(r["fill_date"])}
-                            for r in orphaned[:5]
-                        ],
+                        "sample": sample_trades,
                     },
                 )
             else:
@@ -319,7 +323,10 @@ class AlignmentChecker(BaseCheck):
                 raise ValueError(
                     "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
                 )
-            symbol_count = dict(row).get("symbol_count") if hasattr(row, "keys") else None
+            if hasattr(row, "keys"):
+                symbol_count = dict(row).get("symbol_count")
+            else:
+                symbol_count = row[0]
             if symbol_count is None:
                 raise ValueError(
                     "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
