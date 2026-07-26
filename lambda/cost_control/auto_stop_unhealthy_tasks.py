@@ -5,9 +5,13 @@ Prevents accumulation of zombie tasks that burn money.
 """
 
 import json
+import logging
 from datetime import datetime, timezone
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 ecs = boto3.client("ecs")
 sns = boto3.client("sns")
@@ -91,7 +95,7 @@ def lambda_handler(event, context):
         return {"statusCode": 200, "body": "All tasks healthy"}
 
     except Exception as e:
-        print(f"ERROR: {e!s}")
+        logger.error(f"ERROR: {e!s}")
         # Alert on error too
         sns.publish(
             TopicArn=alert_topic,

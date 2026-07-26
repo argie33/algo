@@ -15,10 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_signals(c: None) -> dict[str, Any]:
-    """Fetch dashboard signals from API. Gracefully degrade on transient 503 errors.
+    """Fetch dashboard signals from API. Fail-fast on any unavailability.
 
-    Dashboard optimization: Signals API can be slow (10+ seconds). Use 5-second timeout
-    so dashboard doesn't hang on loading screen. Signals are non-critical enrichment.
+    CRITICAL: Signals are required for trading decisions. On ANY error (timeout, 503, 504, etc.),
+    raise exception immediately instead of degrading. This ensures operators are alerted
+    to data quality issues rather than silently proceeding with empty signals.
+
+    Dashboard timeout: 5-second limit prevents hanging on slow API. If exceeded, fail-fast.
     """
     import threading
 
@@ -40,26 +43,18 @@ def fetch_signals(c: None) -> dict[str, Any]:
         thread.join(timeout=5)
 
         if thread.is_alive():
-            # Timeout - return explicit unavailability marker
+            # Timeout - fail fast with explicit error
             logger.critical(
                 "[SIGNALS_FETCHER] CRITICAL: API timeout (5s limit). "
-                "Cannot fetch signals. Dashboard will show data unavailable state."
+                "Signals data required for trading decisions. Raising error instead of silently degrading."
             )
             record_data_quality_issue("sig", "timeout", "dashboard_timeout")
-            return {
-                "n": 0,
-                "total": 0,
-                "buy_sigs": [],
-                "near": [],
-                "top_a": [],
-                "trend": [],
-                "grades": {},
-                "data_unavailable": True,
-                "reason": "Signals API unavailable (timeout)",
-                "reason_type": "service_timeout",
-                "severity": "high",
-                "unavailability_type": "dashboard_timeout",
-            }
+            raise RuntimeError(
+                "[SIGNALS] API timeout after 5 seconds. Signals are critical for trading. "
+                "If dashboard displays without signals, this is a data integrity issue that must be fixed. "
+                "Check: (1) /api/algo/dashboard-signals endpoint health, (2) database performance, (3) network latency. "
+                "Never silently degrade on missing critical trading data."
+            )
 
         thread_error = error_container[0]
         if thread_error is not None:
@@ -70,30 +65,30 @@ def fetch_signals(c: None) -> dict[str, Any]:
         # Check for API error (fail-fast pattern: check error first)
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            # IMPORTANT: Distinguish between temporary service issues and real errors
-            # Signals are critical but should degrade gracefully on transient 503/504
-            # This allows dashboard to render without signals during brief API issues
+            # CRITICAL FIX: Signals are REQUIRED for trading decisions.
+            # Even transient 503/504 errors must fail-fast, not degrade gracefully.
+            # Silently returning empty signals with data_unavailable=True allows:
+            # - Dashboard operators to miss data quality issues
+            # - Trading system to proceed without critical signal data
+            # - Silent data integrity violations
+            #
+            # TRADING RULE: If signals unavailable, halt - never continue with empty signals.
             is_transient_503 = data.get("_is_transient_503")
             is_transient_504 = data.get("_is_transient_504")
             is_transient = is_transient_503 or is_transient_504
+
             if is_transient:
-                logger.warning(
-                    f"Signals API temporarily unavailable: {error_msg} - "
-                    f"Dashboard will render without signals. Service will recover."
+                logger.critical(
+                    f"[SIGNALS] CRITICAL FAILURE (transient): {error_msg}. "
+                    f"Signals are required for trading. Failing fast instead of silently degrading. "
+                    f"This prevents hidden data integrity issues where empty signals go unnoticed."
                 )
                 record_data_quality_issue("sig", "api_call", "api_unavailable_transient")
-                return {
-                    "n": 0,
-                    "total": 0,
-                    "buy_sigs": [],
-                    "near": [],
-                    "top_a": [],
-                    "trend": [],
-                    "grades": {},
-                    "data_unavailable": True,
-                    "reason": "Signals service temporarily unavailable - dashboard will render without signals",
-                    "unavailability_type": "transient_service_error",
-                }
+                raise RuntimeError(
+                    f"[SIGNALS] API returned {503 if is_transient_503 else 504}: {error_msg}. "
+                    f"Signals are critical for trading decisions. Cannot proceed with degraded mode. "
+                    f"This error must be resolved before trading resumes. Check API health and database performance."
+                )
 
             # Other errors (database, validation, auth, etc): fail-fast
             record_data_quality_issue("sig", "api_call", "api_error", cast(str, error_msg))
@@ -258,14 +253,13 @@ def fetch_signal_eval(c: None) -> dict[str, Any]:
 def fetch_scores(c: None) -> dict[str, Any]:
     """Fetch top stock scores from /api/algo/scores. Used by signals panel for composite score display.
 
-    HANDLES 503 GRACEFULLY: Scores enhance signal quality ranking but are not critical for trading.
-    On 503 errors (service unavailable), return empty scores list with explicit marker instead of
-    failing the entire dashboard. This allows trading to continue with signals, just without score rankings.
+    FAIL-FAST ON ANY UNAVAILABILITY: Scores are required for signal ranking and quality filtering.
+    On any error (including transient 503/504), raise exception immediately instead of degrading.
+    This ensures operators are alerted to data quality issues rather than silently proceeding.
 
-    DASHBOARD OPTIMIZATION: return empty with marker after 8s so a slow backend can't hang the dashboard
-    loading screen. The /api/algo/scores query was rearchitected (filter+limit before the per-symbol
-    LATERAL price/technical lookups) so a 50-row page should return in well under a second; 8s is
-    headroom for cold Lambda/RDS-Proxy connections, not the expected steady-state latency.
+    DASHBOARD TIMEOUT: Raise error after 8s to prevent hanging. The /api/algo/scores query
+    (filter+limit before per-symbol LATERAL lookups) should return in <1s steady-state.
+    8s timeout is for cold Lambda/RDS-Proxy connections. If exceeded, fail-fast.
     """
     import threading
 
@@ -289,15 +283,18 @@ def fetch_scores(c: None) -> dict[str, Any]:
         thread.join(timeout=8)  # Wait max 8 seconds
 
         if thread.is_alive():
-            # Timeout occurred - scores took too long
-            logger.warning("Scores API timeout (8s dashboard limit) - displaying without scores")
+            # Timeout - fail fast. Never silently degrade even for "enrichment" data in finance apps.
+            logger.critical(
+                "[SCORES_FETCHER] CRITICAL: API timeout (8s limit). "
+                "Scores are used for signal ranking and quality filtering. Failing fast instead of silently degrading."
+            )
             record_data_quality_issue("scores", "timeout", "dashboard_timeout")
-            return {
-                "top": [],
-                "data_unavailable": True,
-                "reason": "Scores service slow - dashboard will display without score rankings",
-                "unavailability_type": "dashboard_timeout_for_responsiveness",
-            }
+            raise RuntimeError(
+                "[SCORES] API timeout after 8 seconds. Scores are required for signal ranking. "
+                "Silently displaying without scores masks data quality issues. "
+                "Check: (1) /api/algo/scores endpoint health, (2) RDS performance, (3) LATERAL join performance. "
+                "Never degrade on missing data in finance apps."
+            )
 
         thread_error = error[0]
         if thread_error is not None:
@@ -305,42 +302,48 @@ def fetch_scores(c: None) -> dict[str, Any]:
 
         top_data = top_data_container[0]
         if top_data is None:
-            # No data returned from API (shouldn't happen after thread completed successfully)
-            return {
-                "top": [],
-                "data_unavailable": True,
-                "reason": "Scores API returned no data",
-                "unavailability_type": "no_data_response",
-            }
+            # No data returned from API - fail fast, this is a data integrity issue
+            logger.critical(
+                "[SCORES_FETCHER] CRITICAL: API returned no data. "
+                "This indicates an infrastructure issue that must be investigated."
+            )
+            record_data_quality_issue("scores", "no_data", "no_response")
+            raise RuntimeError(
+                "[SCORES] API returned no data. Cannot proceed without response validation. "
+                "This indicates a critical infrastructure or network issue. Check API logs and database connectivity."
+            )
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
         if is_error:
-            # IMPORTANT: Distinguish between temporary service issues and real errors
-            # Scores are non-critical enrichment - 503 (unavailable) and 504 (query timeout)
-            # are both transient; allow signals to display without score rankings
-            # CRITICAL FIX: Check each flag explicitly (not with OR) to distinguish error types
+            # CRITICAL FIX: Even transient 503/504 errors must fail-fast, not degrade gracefully.
+            # In finance apps, "temporarily unavailable" still means DATA IS MISSING.
+            # Silently returning empty scores with data_unavailable=True allows:
+            # - Dashboard operators to miss infrastructure issues
+            # - Trading signals to be displayed without quality rankings
+            # - Silent degradation that compounds data quality problems
+            #
+            # TRADING RULE: If data unavailable (even transiently), alert and halt - never continue degraded.
             is_transient_503 = top_data.get("_is_transient_503")
             is_transient_504 = top_data.get("_is_transient_504")
             is_transient = is_transient_503 or is_transient_504
             if is_transient:
-                logger.warning(
-                    f"Scores API temporarily unavailable: {error_msg} - "
-                    f"Signals will display without composite score rankings. Service will recover."
+                logger.critical(
+                    f"[SCORES] CRITICAL FAILURE (transient): {error_msg}. "
+                    f"Scores are required for signal ranking. Failing fast instead of silently degrading. "
+                    f"This prevents hidden data integrity issues where missing scores go unnoticed."
                 )
                 record_data_quality_issue("scores", "api_call", "api_unavailable_transient")
-                return {
-                    "top": [],
-                    "data_unavailable": True,
-                    "reason": "Scores service temporarily unavailable - signals display without score rankings",
-                    "unavailability_type": "transient_service_error",
-                }
+                raise RuntimeError(
+                    f"[SCORES] API returned {503 if is_transient_503 else 504}: {error_msg}. "
+                    f"Scores are required for signal quality ranking. Cannot proceed without them. "
+                    f"This error indicates a temporary infrastructure issue. Once resolved, restart the system."
+                )
 
             # Other errors (database, validation, auth, etc): fail-fast
-            # These indicate infrastructure problems that must be surfaced
             logger.error(
-                f"Scores API error (fail-fast): {error_msg} - "
-                f"Signal quality ranking unavailable. Check API and database."
+                f"[SCORES] API error: {error_msg}. "
+                f"Check API and database connectivity."
             )
             record_data_quality_issue("scores", "api_call", "api_error", cast(str, error_msg))
             return FetcherValidator.build_error_response(cast(str, error_msg))

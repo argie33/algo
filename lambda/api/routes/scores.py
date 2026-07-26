@@ -536,7 +536,7 @@ def _get_stock_scores(
                 "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
             }
 
-        items = []
+        items: list[dict[str, Any]] = []
         prices_missing_count = 0
         for row in scores:
             d = dict(row)

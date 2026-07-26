@@ -5,10 +5,14 @@ Triggered by CloudWatch alarms or EventBridge schedule (every 6 hours).
 Prevents cost waste from lingering failed tasks (~$45+/month per stuck task).
 """
 import json
+import logging
 import os
 from datetime import datetime, timezone
 
 import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 ecs = boto3.client('ecs', region_name='us-east-1')
 sns = boto3.client('sns', region_name='us-east-1')
@@ -84,7 +88,7 @@ def get_unhealthy_tasks(cluster_name):
         return unhealthy
 
     except Exception as e:
-        print(f"ERROR: Failed to list tasks: {e}")
+        logger.error(f"ERROR: Failed to list tasks: {e}")
         raise
 
 
@@ -102,7 +106,7 @@ def kill_task(cluster_name, task_arn, reason):
             'status': result['task']['lastStatus']
         }
     except Exception as e:
-        print(f"ERROR: Failed to stop task {task_arn}: {e}")
+        logger.error(f"ERROR: Failed to stop task {task_arn}: {e}")
         return {
             'success': False,
             'error': str(e)
@@ -148,7 +152,7 @@ def format_alert_message(killed_tasks, cluster_name, project_name, environment):
 def send_alert(message, topic_arn, subject):
     """Send SNS alert with formatted message."""
     if not topic_arn:
-        print("WARNING: SNS_ALERT_TOPIC not configured, skipping alert")
+        logger.warning("WARNING: SNS_ALERT_TOPIC not configured, skipping alert")
         return
 
     try:
@@ -157,9 +161,9 @@ def send_alert(message, topic_arn, subject):
             Subject=subject,
             Message=message
         )
-        print(f"Alert sent to SNS: {topic_arn}")
+        logger.info(f"Alert sent to SNS: {topic_arn}")
     except Exception as e:
-        print(f"WARNING: Failed to send SNS alert: {e}")
+        logger.warning(f"WARNING: Failed to send SNS alert: {e}")
 
 
 def lambda_handler(event, context):
@@ -169,7 +173,7 @@ def lambda_handler(event, context):
     Kills stuck tasks and sends alert.
     """
     start_time = datetime.now(timezone.utc)
-    print(f"Starting auto-kill check at {start_time.isoformat()}")
+    logger.info(f"Starting auto-kill check at {start_time.isoformat()}")
 
     # Get configuration from environment
     cluster_name = os.getenv('CLUSTER_NAME', 'algo-cluster')
@@ -180,12 +184,12 @@ def lambda_handler(event, context):
     try:
         # Find stuck tasks
         stuck_tasks = get_unhealthy_tasks(cluster_name)
-        print(f"Found {len(stuck_tasks)} stuck task(s) to cleanup")
+        logger.info(f"Found {len(stuck_tasks)} stuck task(s) to cleanup")
 
         # Kill stuck tasks
         killed = []
         for task in stuck_tasks:
-            print(f"Killing {task['name']}: {task['reason']}")
+            logger.info(f"Killing {task['name']}: {task['reason']}")
             result = kill_task(cluster_name, task['arn'], task['reason'])
 
             if result['success']:
@@ -196,15 +200,15 @@ def lambda_handler(event, context):
                     'reason': task['reason'],
                     'killed_at': datetime.now(timezone.utc).isoformat()
                 })
-                print("  ✓ Successfully killed")
+                logger.info("  ✓ Successfully killed")
             else:
-                print(f"  ✗ Failed: {result['error']}")
+                logger.error(f"  ✗ Failed: {result['error']}")
 
         # Format and send alert
         alert_message = format_alert_message(killed, cluster_name, project_name, environment)
         subject = f"ECS Auto-Kill: {len(killed)} task(s) terminated" if killed else "ECS Auto-Kill: No stuck tasks"
 
-        print("\n" + alert_message)
+        logger.info("\n" + alert_message)
         send_alert(alert_message, sns_topic_arn, subject)
 
         # Return result
@@ -219,7 +223,7 @@ def lambda_handler(event, context):
 
     except Exception as e:
         error_msg = f"FATAL: Auto-kill failed: {e!s}"
-        print(error_msg)
+        logger.error(error_msg)
 
         # Send error alert
         alert_msg = f"{error_msg}\n\nCheck Lambda logs: /aws/lambda/{project_name}-auto-kill-stuck-tasks-{environment}"

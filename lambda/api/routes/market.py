@@ -1287,16 +1287,6 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
         },
     }
 
-    # Flag if any price rows were skipped due to invalid data
-    if skipped_price_rows:
-        response_data["correlation_incomplete"] = True
-        response_data["skipped_price_rows_count"] = len(skipped_price_rows)
-        response_data["skipped_price_samples"] = skipped_price_rows[:10]
-        logger.warning(
-            "[MARKET] Correlation analysis incomplete: %d price rows skipped (invalid data)",
-            len(skipped_price_rows),
-        )
-
     # Flag if any correlation pairs have unavailable data
     if unavailable_pairs:
         response_data["correlation_pairs_incomplete"] = True
