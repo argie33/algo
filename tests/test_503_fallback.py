@@ -13,11 +13,6 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from dashboard.api_data_layer import (
-    _response_cache,
-    _response_cache_lock,
-    cache_response,
-)
 from dashboard.fetchers_market import _get_markets_cached
 
 

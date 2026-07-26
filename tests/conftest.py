@@ -29,7 +29,6 @@ if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
 
 
 def _create_mock_cursor():
-    from collections import namedtuple
     from datetime import date
 
     cursor = MagicMock()
@@ -292,8 +291,6 @@ def reload_lambda_api_modules():
 
     Affects: ResponseValidator, dashboard_api_contract, and other lambda/api modules.
     """
-    import importlib
-
     # Modules to reload before each test
     modules_to_clear = [
         "shared_contracts.response_validator",
