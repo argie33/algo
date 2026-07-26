@@ -632,7 +632,7 @@ def _finalize_combo(
 
     symbols_failed = stats["symbols_failed"]
     fail_rate = (symbols_failed / symbol_count * 100) if symbol_count else 0.0
-    max_fail_rate = getattr(loader, "max_fail_rate", 60.0)
+    max_fail_rate = getattr(loader, "max_fail_rate", 15.0)  # CRITICAL: Default 15% fail tolerance (was dangerously 60%). Fail-fast on data source issues.
     if fail_rate > max_fail_rate:
         msg = (
             f"[{loader.table_name}] {symbols_failed}/{symbol_count} symbols failed "

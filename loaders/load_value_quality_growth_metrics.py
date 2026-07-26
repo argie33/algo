@@ -68,7 +68,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     table_name = "value_metrics"  # Primary table for watermarking
     primary_key = ("symbol",)
     watermark_field = "updated_at"
-    max_fail_rate = 50.0  # Many stocks lack SEC filings
+    max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
     exclude_etfs_from_symbols = True
 
     def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:  # type: ignore[override]

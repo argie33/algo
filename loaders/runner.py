@@ -167,7 +167,7 @@ def run_loader(
                     f"Stats tracking corrupted."
                 )
             fail_rate = symbols_failed / max(len(symbols), 1)
-            max_fail_rate = getattr(loader, "max_fail_rate", 60.0) / 100.0
+            max_fail_rate = getattr(loader, "max_fail_rate", 15.0) / 100.0  # CRITICAL: Default 15% fail tolerance (was dangerously 60%). Fail-fast on data source issues.
             if fail_rate > max_fail_rate:
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 return 1
