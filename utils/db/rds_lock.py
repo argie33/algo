@@ -70,34 +70,37 @@ class RDSLockManager:
 
                 with DatabaseContext("write") as cur:
                     # Try to acquire lock atomically
-                    # Use INSERT ... ON CONFLICT to ensure atomicity
-                    # Lock succeeds if no existing lock OR existing lock is expired
+                    # First, delete any expired locks for this key
                     cur.execute(
-                        """
-                        INSERT INTO loader_execution_locks (loader_name, locked_by, locked_at, expires_at)
-                        VALUES (%s, %s, %s, %s)
-                        ON CONFLICT (loader_name) DO UPDATE SET
-                            locked_by = EXCLUDED.locked_by,
-                            locked_at = EXCLUDED.locked_at,
-                            expires_at = EXCLUDED.expires_at
-                        WHERE loader_execution_locks.expires_at < NOW()
-                        """,
-                        (lock_key, self.lock_id, now_utc, expires_at),
-                    )
-
-                    # Verify we got the lock by checking if our lock_id matches
-                    cur.execute(
-                        "SELECT locked_by FROM loader_execution_locks WHERE loader_name = %s",
+                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < NOW()",
                         (lock_key,),
                     )
-                    result = cur.fetchone()
-                    if result and result[0] == self.lock_id:
-                        self.acquired = True
-                        logger.info(f"[RDS_LOCK] Acquired lock {lock_key} on attempt {attempt}")
-                        return True
-                    else:
-                        # Someone else holds the lock
-                        logger.debug(f"[RDS_LOCK] Another instance holds {lock_key} - retrying...")
+
+                    # Now try to insert our lock (will fail if another non-expired lock exists)
+                    try:
+                        cur.execute(
+                            """
+                            INSERT INTO loader_execution_locks (loader_name, locked_by, locked_at, expires_at)
+                            VALUES (%s, %s, %s, %s)
+                            """,
+                            (lock_key, self.lock_id, now_utc, expires_at),
+                        )
+                        # Verify we got the lock by checking if our lock_id matches
+                        cur.execute(
+                            "SELECT locked_by FROM loader_execution_locks WHERE loader_name = %s",
+                            (lock_key,),
+                        )
+                        result = cur.fetchone()
+                        if result and result[0] == self.lock_id:
+                            self.acquired = True
+                            logger.info(f"[RDS_LOCK] Acquired lock {lock_key} on attempt {attempt}")
+                            return True
+                    except Exception as insert_error:
+                        # Insert failed - likely UNIQUE constraint violation (another lock exists)
+                        logger.debug(f"[RDS_LOCK] Lock insert failed (already held): {insert_error}")
+
+                    # Someone else holds the lock
+                    logger.debug(f"[RDS_LOCK] Another instance holds {lock_key} - retrying...")
 
             except Exception as e:
                 logger.debug(f"[RDS_LOCK] Error acquiring lock on attempt {attempt}: {e}")
