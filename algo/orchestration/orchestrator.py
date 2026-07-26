@@ -211,7 +211,12 @@ class Orchestrator:
         if run_id:
             self.run_id = run_id
         else:
-            self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
+            # CRITICAL FIX: Include microseconds to prevent run_id collision on same-second retries
+            # Problem: If run fails at 14:23:45.900 and retries at 14:23:45.950,
+            # same-second retry would generate identical run_id, breaking conflict detection
+            # Solution: Include microseconds for uniqueness (prevents silent state corruption)
+            now_utc = datetime.now(timezone.utc)
+            self.run_id = f"RUN-{self.run_date.isoformat()}-{now_utc.strftime('%H%M%S')}-{now_utc.microsecond}"
 
         self.execution_tracker = get_tracker()
         self.execution_tracker.set_run_context(self.run_id, self.run_date)

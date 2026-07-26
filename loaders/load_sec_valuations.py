@@ -24,7 +24,6 @@ import sys
 from datetime import date
 from typing import Any
 
-from loaders.load_analyst_estimates import fetch_forward_pe_estimates
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.loaders.exception_handler import handle_exception, handle_invalid_data
@@ -412,19 +411,9 @@ class SecValuationsLoader(OptimalLoader):
             else:
                 logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
 
-        # Forward PE Ratio = Current Price ÷ Estimated Forward EPS (from analyst consensus)
-        try:
-            estimates = fetch_forward_pe_estimates(symbol)
-            forward_eps = estimates.get("forward_eps")
-            if forward_eps and forward_eps > 0:
-                fpe = current_price / forward_eps
-                if fpe <= 10000:  # Reasonable PE bounds
-                    result["forward_pe"] = round(fpe, 2)
-                else:
-                    logger.debug(f"[{symbol}] Forward PE ratio out of bounds ({fpe:.0f}), marking as NULL")
-            # If forward_eps is None, forward_pe stays None and reason is already set
-        except Exception as e:
-            logger.debug(f"[{symbol}] Forward PE fetch failed: {e}")
+        # Forward PE Ratio removed: Requires external analyst data (Polygon/etc).
+        # Removed per GOVERNANCE.md: no external fallbacks for financial metrics.
+        # All metrics computed from SEC audited data only.
 
         return result
 
@@ -452,7 +441,6 @@ class SecValuationsLoader(OptimalLoader):
             "dividend_yield": None,
             "ev_ebitda": None,
             "ev_revenue": None,
-            "forward_pe": None,
         }
 
 

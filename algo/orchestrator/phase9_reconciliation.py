@@ -925,8 +925,8 @@ def run(
     Returns:
         PhaseResult with status 'ok' if all reconciliation steps succeed. Raises RuntimeError
         (fail-closed, per GOVERNANCE) on any critical step failure rather than returning a
-        degraded PhaseResult - this stale docstring previously said "fail-open", which does
-        not match the raise-heavy implementation below.
+        degraded PhaseResult. All critical reconciliation steps fail-fast to halt trading
+        if broker state cannot be verified.
     """
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation

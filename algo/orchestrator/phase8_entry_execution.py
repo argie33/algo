@@ -1469,9 +1469,6 @@ def run(
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")
 
-            # DEBUG: Log all available keys in signal dict
-            logger.debug(f"[PHASE 8] {symbol}: Available signal keys: {list(signal.keys())}")
-
             if composite_score is None:
                 raise RuntimeError(
                     f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field - "
