@@ -53,8 +53,8 @@ class DividendDataLoader(SecLoaderBase):
     """
 
     table_name = "dividend_data"
-    primary_key = ("symbol", "fiscal_year", "fiscal_period")
-    watermark_field = "declaration_date"
+    primary_key = ("symbol", "ex_dividend_date", "dividend_per_share")
+    watermark_field = "ex_dividend_date"
     exclude_etfs_from_symbols = True
     max_fail_rate = 70.0  # Many companies don't pay dividends; allow data_unavailable
 
@@ -116,22 +116,9 @@ class DividendDataLoader(SecLoaderBase):
                     ex_dividend_date = period_end + timedelta(days=45)
                     payment_date = ex_dividend_date + timedelta(days=3)
 
-                    # Determine fiscal period
-                    month = period_end.month
-                    if month <= 3:
-                        fiscal_period = "Q1"
-                    elif month <= 6:
-                        fiscal_period = "Q2"
-                    elif month <= 9:
-                        fiscal_period = "Q3"
-                    else:
-                        fiscal_period = "Q4"
-
                     results.append(
                         {
                             "symbol": symbol,
-                            "fiscal_year": period_end.year,
-                            "fiscal_period": fiscal_period,
                             "declaration_date": declaration_date,
                             "ex_dividend_date": ex_dividend_date,
                             "record_date": None,
@@ -216,8 +203,6 @@ class DividendDataLoader(SecLoaderBase):
         """Return a data_unavailable marker for this symbol."""
         return {
             "symbol": symbol,
-            "fiscal_year": measurement_date.year,
-            "fiscal_period": "FY",
             "declaration_date": None,
             "ex_dividend_date": measurement_date,
             "record_date": None,
