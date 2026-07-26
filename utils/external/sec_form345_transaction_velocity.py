@@ -250,19 +250,38 @@ class Form345TransactionVelocityAggregator:
                     owners["ISCLERK"] = "FALSE"
                     owners["ISOFFICER"] = "FALSE"
 
-                transactions = pd.read_csv(
-                    zf.open("NONDERIV_TRANS.tsv"),
-                    sep="\t",
-                    usecols=[
-                        "ACCESSION_NUMBER",
-                        "TRANS_DATE",
-                        "TRANS_CODE",
-                        "SHRS_OWND_FOLWNG_TRANS",
-                        "TRANS_PRICE",
-                    ],
-                    dtype=str,
-                    low_memory=False,
-                )
+                # Load transactions - TRANS_PRICE is optional (format changed)
+                try:
+                    transactions = pd.read_csv(
+                        zf.open("NONDERIV_TRANS.tsv"),
+                        sep="\t",
+                        usecols=[
+                            "ACCESSION_NUMBER",
+                            "TRANS_DATE",
+                            "TRANS_CODE",
+                            "SHRS_OWND_FOLWNG_TRANS",
+                            "TRANS_PRICE",
+                        ],
+                        dtype=str,
+                        low_memory=False,
+                    )
+                except (ValueError, KeyError):
+                    # Fallback - read without TRANS_PRICE (format changed)
+                    logger.debug("[FORM345_VELOCITY] NONDERIV_TRANS.tsv format changed - reading without TRANS_PRICE")
+                    transactions = pd.read_csv(
+                        zf.open("NONDERIV_TRANS.tsv"),
+                        sep="\t",
+                        usecols=[
+                            "ACCESSION_NUMBER",
+                            "TRANS_DATE",
+                            "TRANS_CODE",
+                            "SHRS_OWND_FOLWNG_TRANS",
+                        ],
+                        dtype=str,
+                        low_memory=False,
+                    )
+                    # Add dummy TRANS_PRICE column so downstream code doesn't break
+                    transactions["TRANS_PRICE"] = None
 
                 submission_idx = submission.set_index("ACCESSION_NUMBER")
                 owners_idx = owners.set_index("ACCESSION_NUMBER")
