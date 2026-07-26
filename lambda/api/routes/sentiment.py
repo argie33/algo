@@ -110,6 +110,10 @@ def handle(  # noqa: C901
 
             analyst_row = None
             try:
+                # NOTE (Session 431): analyst_sentiment_analysis has no live writer since yfinance removal (Session 275).
+                # Table is frozen at 2+ months old data. This endpoint gracefully returns stale data rather than
+                # failing, since analyst sentiment is AUXILIARY (nice-to-have) data for dashboard enrichment, not
+                # required for trading. check_data_freshness() marks this in the response metadata as stale (>7 days).
                 analyst_rows = execute_with_timeout(
                     cur,
                     """
