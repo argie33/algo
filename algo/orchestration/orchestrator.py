@@ -113,6 +113,17 @@ class Orchestrator:
     This is by design - risk management gates override data staleness.
     """
 
+    # Status display flags for final report
+    _STATUS_FLAGS = {
+        "ok": "[OK] ",
+        "halted": "[HALT]",
+        "fail": "[FAIL]",
+        "error": "[ERR] ",
+        "blocked": "[BLOCK]",
+        "degraded": "[DEGRAD]",
+        "skipped": "[SKIP]",
+    }
+
     def __init__(
         self,
         config: Any,
@@ -1891,7 +1902,7 @@ class Orchestrator:
         """
         try:
             reason = exit_result.get("reason", "early_exit")
-            status = (exit_result.get("skipped") and "skipped") or "halted"
+            status = "skipped" if exit_result.get("skipped") else "halted"
 
             self.execution_tracker.save_execution_log(status, reason)
             logger.debug(f"[EXECUTION_LOG] Saved early exit log: {reason}")
@@ -1903,15 +1914,7 @@ class Orchestrator:
         logger.info(f"#   FINAL REPORT - {self.run_id}")
         logger.info(f"{'#' * 70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
-            status_flag = {
-                "ok": "[OK] ",
-                "halted": "[HALT]",
-                "fail": "[FAIL]",
-                "error": "[ERR] ",
-                "blocked": "[BLOCK]",
-                "degraded": "[DEGRAD]",
-                "skipped": "[SKIP]",
-            }.get(info["status"], "[?]   ")
+            status_flag = self._STATUS_FLAGS.get(info["status"], "[?]   ")
             logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} - {info['summary']}")
         logger.info(f"{'#' * 70}\n")
 
