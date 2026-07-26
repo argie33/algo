@@ -37,7 +37,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
     primary_key = ("symbol", "fiscal_year", "fiscal_period", "segment_name")
     watermark_field = "parsed_at"
     exclude_etfs_from_symbols = True
-    max_fail_rate = 60.0  # Many companies don't have distinct segments in SEC filings; write what we have
+    max_fail_rate = 10.0  # Most liquid companies have segment data; strict fail-fast on data gaps
 
     def __init__(self) -> None:
         """Initialize loader with SEC Edgar client."""
@@ -45,7 +45,12 @@ class SecSegmentInfoLoader(SecLoaderBase):
         self.sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Extract segment info for one symbol from SEC XBRL companyfacts.
+        """Extract segment info for one symbol from SEC XBRL - try aggressively.
+
+        Strategy:
+        1. First try companyfacts API (fast)
+        2. If no segment data, fetch raw XBRL XML from latest 10-K and parse directly
+        3. Only mark unavailable if both approaches fail
 
         Returns:
             List of segment records for all filings found (1+ per symbol if multiple
@@ -64,22 +69,46 @@ class SecSegmentInfoLoader(SecLoaderBase):
             try:
                 facts_response = self.sec_client.get_company_facts(cik)
             except FileNotFoundError:
-                return [self._unavailable_marker(symbol, "no_companyfacts_data")]
+                facts_response = None
             except RuntimeError as e:
                 logger.warning(f"[{symbol}] SEC API error fetching companyfacts: {e}")
-                return [self._unavailable_marker(symbol, "sec_api_error")]
+                facts_response = None
 
-            if not facts_response or not facts_response.get('facts'):
-                return [self._unavailable_marker(symbol, "no_companyfacts_data")]
+            segment_data = None
+            if facts_response and facts_response.get('facts'):
+                # Try companyfacts API first
+                segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
+                if segment_data.get('data_available'):
+                    logger.info(f"[{symbol}] Segment data found via companyfacts API")
 
-            # Parse segment data from XBRL companyfacts
-            # companyfacts JSON has aggregate segment metrics but not per-segment breakdowns
-            segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
+            # If companyfacts didn't have segment data, try raw XBRL XML (more aggressive)
+            if not segment_data or not segment_data.get('data_available'):
+                logger.info(f"[{symbol}] No segment data in companyfacts, trying raw XBRL XML")
+                try:
+                    # Get latest 10-K filing
+                    submissions = self.sec_client.get_submissions(cik)
+                    latest_10k = self._find_latest_10k(submissions)
 
-            if not segment_data.get('data_available'):
+                    if latest_10k:
+                        accession = latest_10k['accession']
+                        try:
+                            xml_content = self.sec_client.get_filing_xml(cik, accession, '10-K')
+                            logger.debug(f"[{symbol}] Fetched raw XBRL XML for {accession}")
+                            segment_data = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(
+                                xml_content, symbol
+                            )
+                            if segment_data.get('data_available'):
+                                logger.info(f"[{symbol}] Segment data found in raw XBRL XML")
+                        except (FileNotFoundError, RuntimeError) as e:
+                            logger.debug(f"[{symbol}] Failed to fetch/parse raw XBRL: {e}")
+                except Exception as e:
+                    logger.debug(f"[{symbol}] Error trying raw XBRL approach: {e}")
+
+            # Use whatever segment data we found, or mark unavailable
+            if not segment_data or not segment_data.get('data_available'):
                 return [self._unavailable_marker(
                     symbol,
-                    segment_data.get('reason', 'no_segment_data')
+                    segment_data.get('reason', 'no_segment_data') if segment_data else 'no_segment_data'
                 )]
 
             # Extract individual segments
@@ -143,6 +172,30 @@ class SecSegmentInfoLoader(SecLoaderBase):
         except Exception as e:
             logger.error(f"[{symbol}] Segment extraction failed: {type(e).__name__}: {str(e)[:300]}", exc_info=True)
             return [self._unavailable_marker(symbol, f"extraction_error:{type(e).__name__}")]
+
+    def _find_latest_10k(self, submissions: dict) -> dict | None:
+        """Find the most recent 10-K filing in the submissions list.
+
+        SEC filings format is columnar: {'accessionNumber': [...], 'form': [...], ...}
+        where each list value at index i is one filing's data.
+
+        Returns:
+            Dict with 'accession' key, or None if no 10-K found
+        """
+        filings = submissions.get('filings', {}).get('recent', {})
+        if not isinstance(filings, dict):
+            return None
+
+        forms = filings.get('form', [])
+        accessions = filings.get('accessionNumber', [])
+
+        for i, form in enumerate(forms):
+            if form == '10-K' and i < len(accessions):
+                return {
+                    'accession': accessions[i].replace('-', ''),
+                    'accession_formatted': accessions[i],
+                }
+        return None
 
     def _extract_filing_date(self, facts_response: dict) -> date | None:
         """Extract most recent filing date from companyfacts response.
