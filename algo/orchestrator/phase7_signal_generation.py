@@ -496,7 +496,7 @@ def _get_candidates_from_buysell(
                     "buylevel": float(r[13]) if r[13] is not None else None,
                     "stoplevel": float(r[14]) if r[14] is not None else None,
                     "volume_surge_pct": float(r[16]) if r[16] is not None else None,
-                    "market_stage": r[17],
+                    "market_stage": r[17] if r[17] is not None else "unknown",
                     "signal_date": str(r[18]) if r[18] is not None else None,
                     "risk_score": risk_score,
                 }
