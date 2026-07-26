@@ -446,7 +446,6 @@ def run(
         )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        traceback.print_exc()
         log_phase_result_fn(6, "exit_execution", "error", str(e))
         return PhaseResult(
             6,

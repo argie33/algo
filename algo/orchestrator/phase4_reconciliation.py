@@ -88,7 +88,7 @@ def run(
 
             if partial_fill_result["mismatches"] > 0:
                 logger.warning(
-                    f"[PHASE_3A] Detected {partial_fill_result['mismatches']} "
+                    f"[PHASE 4] Detected {partial_fill_result['mismatches']} "
                     f"partial fills - corrected quantities to match Alpaca"
                 )
                 result["partial_fill_corrections"] = partial_fill_result
@@ -161,7 +161,13 @@ def run(
 
                 # CRITICAL FIX: Session 345 - If auth was unavailable, reconciliation didn't actually run.
                 # Don't record 100% match when check was skipped. Use NULL to indicate check was skipped.
-                auth_unavailable = partial_fill_result.get("auth_unavailable", False)
+                if "auth_unavailable" not in partial_fill_result:
+                    raise RuntimeError(
+                        "[PHASE 4] CRITICAL: partial_fill_result missing required 'auth_unavailable' field. "
+                        "Cannot determine if broker authentication was available for reconciliation. "
+                        "Check_partial_fills() must always return this field."
+                    )
+                auth_unavailable = partial_fill_result["auth_unavailable"]
                 if auth_unavailable:
                     match_pct = None  # NULL to indicate check was not performed
                     logger.info("[PHASE 4] Recording NULL match_pct in audit (auth unavailable, check skipped)")
@@ -195,12 +201,18 @@ def run(
             # status (the write itself succeeded; this is "we couldn't confirm it", not "it
             # failed"), but it must not be silently absorbed into an unqualified "success" either.
             if result.get("final_verification_failed"):
+                if "final_verification_detail" not in result:
+                    raise RuntimeError(
+                        "[PHASE 4] CRITICAL: final_verification_failed=True but final_verification_detail is missing. "
+                        "Must provide explicit error reason when verification fails. "
+                        "Check reconciliation.py::run_daily_reconciliation()."
+                    )
+                detail = result["final_verification_detail"]
                 summary += (
-                    f" (WARNING: final verification failed - {result.get('final_verification_detail', 'unknown')})"
+                    f" (WARNING: final verification failed - {detail})"
                 )
                 logger.warning(
-                    f"[PHASE 4] Portfolio snapshot final verification failed: "
-                    f"{result.get('final_verification_detail')}"
+                    f"[PHASE 4] Portfolio snapshot final verification failed: {detail}"
                 )
             log_phase_result_fn(
                 4,
@@ -266,7 +278,6 @@ def run(
             log_level="error",
         )
         log_phase_error(4, error, log_phase_result_fn)
-        traceback.print_exc()
         return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": str(e)[:200]}, False, str(e))
 
     except Exception as e:

@@ -258,10 +258,16 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
 
     if trades_processed is None:
         raise ValueError("Signal trade performance: trades_processed count is missing")
+    if "success" not in stpp_result:
+        raise RuntimeError(
+            "[PHASE 9] CRITICAL: signal trade performance result missing 'success' field. "
+            "Cannot determine if signal attribution computation succeeded. "
+            "Check SignalTradePerformancePopulator.populate_closed_trades() return value."
+        )
     log_phase_result_fn(
         9,
         "signal_attribution",
-        "success" if stpp_result.get("success") else "warn",
+        "success" if stpp_result["success"] else "warn",
         f"{trades_processed} trades processed",
     )
     return trades_processed
@@ -760,10 +766,17 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
             f"[PHASE 9] Weight optimization 'changes' is not a list: {type(changes)}. "
             "Data structure corrupted or optimization returned invalid type."
         )
+    if "success" not in opt_result:
+        raise RuntimeError(
+            "[PHASE 9] CRITICAL: weight optimization result missing 'success' field. "
+            "Cannot determine if optimization completed successfully. "
+            "Check weight_optimizer.optimize() return value."
+        )
+    opt_status = "success" if opt_result["success"] else "warn"
     log_phase_result_fn(
         9,
         "weight_optimization",
-        "success" if opt_result.get("success", False) else "warn",
+        opt_status,
         f"{len(changes) if changes else 0} weight changes",
     )
     return opt_result
@@ -1177,7 +1190,6 @@ def run(
         return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
     except Exception as e:
-        traceback.print_exc()
         error_msg = str(e)
         error_type = type(e).__name__
         full_traceback = traceback.format_exc()

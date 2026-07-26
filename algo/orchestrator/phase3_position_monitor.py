@@ -448,7 +448,6 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             log_level="critical",
         )
         log_phase_error(3, error, log_phase_result_fn)
-        traceback.print_exc()
 
         # CRITICAL: Position monitor crash requires explicit config check, then halt regardless of mode
         # Can't safely trade if we can't monitor open positions
