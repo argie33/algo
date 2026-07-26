@@ -514,49 +514,54 @@ def run(
 
     # CRITICAL GUARD: Check for pending/recent orders that may still be filling
     # If orders from prior run are still pending, executing new entries risks duplicates
-    try:
-        with DatabaseContext("read") as cur:
-            # Check for positions created in the last 10 minutes (indicates recent fills or pending orders)
-            # If we just created positions very recently, the orders may still be in flight
-            cur.execute(
-                """
-                SELECT COUNT(*) as recent_position_count
-                FROM algo_positions
-                WHERE entry_date = %s
-                AND created_at > NOW() - INTERVAL '10 minutes'
-                AND status = 'open'
-                """,
-                (run_date,),
-            )
-            result = cur.fetchone()
-            recent_count = result[0] if result else 0
+    # NOTE: Skip this guard in paper mode since there are no real pending orders in simulation
+    execution_mode = config.get("execution_mode", "paper")
+    if execution_mode != "paper":
+        try:
+            with DatabaseContext("read") as cur:
+                # Check for positions created in the last 10 minutes (indicates recent fills or pending orders)
+                # If we just created positions very recently, the orders may still be in flight
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as recent_position_count
+                    FROM algo_positions
+                    WHERE entry_date = %s
+                    AND created_at > NOW() - INTERVAL '10 minutes'
+                    AND status = 'open'
+                    """,
+                    (run_date,),
+                )
+                result = cur.fetchone()
+                recent_count = result[0] if result else 0
 
-            if recent_count > 0:
-                msg = (
-                    f"[PHASE 8 PENDING ORDERS GUARD] Blocking Phase 8: {recent_count} positions "
-                    f"created in last 10 min (orders may still be pending/filling). Re-run in 5 minutes."
-                )
-                logger.warning(msg)
-                log_phase_result_fn(8, "entry_execution", "blocked", msg)
-                result = PhaseResult(
-                    8,
-                    "entry_execution",
-                    "blocked",
-                    {"entered": 0},
-                    False,  # halted=False: guard worked but didn't halt orchestration
-                    msg,
-                )
-                logger.info(f"[PHASE 8 DEBUG] Returning PhaseResult: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
-                return result
-    except Exception as e:
-        msg = (
-            f"[PHASE 8 CRITICAL] Could not verify pending orders status: {e}. "
-            f"Cannot safely execute new entries without knowing if prior orders are still pending. "
-            f"Risk of order duplication or conflicts. Must halt and investigate."
-        )
-        logger.critical(msg, exc_info=True)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        raise RuntimeError(msg) from e
+                if recent_count > 0:
+                    msg = (
+                        f"[PHASE 8 PENDING ORDERS GUARD] Blocking Phase 8: {recent_count} positions "
+                        f"created in last 10 min (orders may still be pending/filling). Re-run in 5 minutes."
+                    )
+                    logger.warning(msg)
+                    log_phase_result_fn(8, "entry_execution", "blocked", msg)
+                    result = PhaseResult(
+                        8,
+                        "entry_execution",
+                        "blocked",
+                        {"entered": 0},
+                        False,  # halted=False: guard worked but didn't halt orchestration
+                        msg,
+                    )
+                    logger.info(f"[PHASE 8 DEBUG] Returning PhaseResult: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
+                    return result
+        except Exception as e:
+            msg = (
+                f"[PHASE 8 CRITICAL] Could not verify pending orders status: {e}. "
+                f"Cannot safely execute new entries without knowing if prior orders are still pending. "
+                f"Risk of order duplication or conflicts. Must halt and investigate."
+            )
+            logger.critical(msg, exc_info=True)
+            log_phase_result_fn(8, "entry_execution", "halt", msg)
+            raise RuntimeError(msg) from e
+    else:
+        logger.info("[PHASE 8 PENDING ORDERS GUARD] Skipping in paper mode (no real pending orders)")
 
     # SESSION 396 FIX: PROACTIVE RISK ENFORCEMENT
     # Phase 8 now ALWAYS runs (always_run=True) to enforce proactive risk checks

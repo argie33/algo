@@ -982,6 +982,29 @@ def run(  # noqa: C901
         symbols_processed = score_result["symbols_processed"]
         logger.info(f"[PHASE 7] Signal quality scores computed: {symbols_processed} symbols")
 
+        # CRITICAL: Validate that scores were actually computed.
+        # If symbols_processed == 0, the loader couldn't acquire lock or hit an error.
+        # This happens when signal_quality_scores lock is held by stale process.
+        # Must halt Phase 7 to prevent trading on signals without quality validation.
+        if symbols_processed == 0:
+            msg = (
+                "[PHASE 7 CRITICAL] Signal quality score computation produced 0 symbols processed. "
+                "This indicates the loader failed to acquire the processing lock (likely held by stale process) "
+                "or completed with no symbols to process. Signal quality scores are REQUIRED for Phase 8 entry validation. "
+                "Check: (1) Stale signal_quality_scores locks in database, (2) Upstream data availability, "
+                "(3) Loader infrastructure status. Cannot proceed without valid signal scores."
+            )
+            logger.critical(msg)
+            log_phase_result_fn(7, "signal_generation", "halt", msg)
+            return PhaseResult(
+                7,
+                "signal_generation",
+                "halted",
+                {"qualified_trades": [], "liquidity_passed": 0},
+                True,
+                msg,
+            )
+
     except Exception as e:
         # CRITICAL: Signal quality scores are REQUIRED for Phase 8 entry gates.
         # If computation fails, trades cannot proceed safely - must halt and investigate.
