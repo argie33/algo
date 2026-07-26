@@ -102,7 +102,7 @@ class QualityChecker(BaseCheck):
                 ORDER BY symbol
             """)
             today_zero_symbols = {
-                dict(row).get("symbol") or row[0] if hasattr(row, "keys") else row[0]
+                row.get("symbol") if hasattr(row, "keys") else row[0]
                 for row in cur.fetchall()
             }
             today_zero_count = len(today_zero_symbols)
@@ -116,7 +116,7 @@ class QualityChecker(BaseCheck):
                 ORDER BY symbol
             """)
             yesterday_zero_symbols = {
-                dict(row).get("symbol") or row[0] if hasattr(row, "keys") else row[0]
+                row.get("symbol") if hasattr(row, "keys") else row[0]
                 for row in cur.fetchall()
             }
 
@@ -172,7 +172,7 @@ class QualityChecker(BaseCheck):
                 ORDER BY symbol
             """)
             ident_symbols = [
-                dict(row).get("symbol") or row[0] if hasattr(row, "keys") else row[0]
+                row.get("symbol") if hasattr(row, "keys") else row[0]
                 for row in cur.fetchall()
             ]
             ident_count = len(ident_symbols)
