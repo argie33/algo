@@ -71,15 +71,6 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 _LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDIT FIX Session 276)
-_HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals in buy_sell_daily
-# Absolute floor below which a non-zero signal count is still treated as anomalous, not just
-# exactly 0. Was defined but never referenced anywhere - the only anomaly check actually wired
-# up was "count == 0" (see _check_critical_dependencies below), so a severe but non-zero
-# collapse (e.g. the typical 300+/day dropping to single digits - a >95% degradation, clearly
-# indicative of an upstream data quality problem) silently passed through with no halt and no
-# alert, contradicting this module's own stated design intent ("Prevents silent degradation
-# where empty signals show on dashboard").
-_SIGNAL_COUNT_ANOMALY_THRESHOLD = 50
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)

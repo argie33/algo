@@ -78,18 +78,15 @@ def run(
             ), log_phase_result_fn)
             raise RuntimeError(error_msg)
 
-        # CRITICAL FIX Session 345: Validate dict structure before chaining .get() calls
-        # If checks["drawdown"] is None (not a dict), .get("value") crashes on None
-        def safe_get_check_value(checks_dict: dict[str, Any], check_name: str) -> float | None:
-            check_result = checks_dict.get(check_name)
-            if check_result is None or not isinstance(check_result, dict):
-                return None
-            return check_result.get("value")
+        # CRITICAL: Validate each check is a dict with a 'value' field
+        def extract_check_value(check_result: Any) -> float | None:
+            """Extract value from check result dict, or None if missing."""
+            return check_result.get("value") if isinstance(check_result, dict) else None
 
         risk_snapshot = {
-            "drawdown_pct": safe_get_check_value(checks, "drawdown"),
-            "daily_loss_pct": safe_get_check_value(checks, "daily_loss"),
-            "vix_level": safe_get_check_value(checks, "vix_spike"),
+            "drawdown_pct": extract_check_value(checks.get("drawdown")),
+            "daily_loss_pct": extract_check_value(checks.get("daily_loss")),
+            "vix_level": extract_check_value(checks.get("vix_spike")),
             "any_triggered": result["halted"],
         }
 

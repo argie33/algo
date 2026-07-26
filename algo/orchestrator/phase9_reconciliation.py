@@ -289,7 +289,17 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
             ic_pvalue = ic_data.get("ic_pvalue")
             if ic_value is None or ic_pvalue is None:
                 if ic_data.get("data_unavailable"):
-                    reason = ic_data.get("reason", "unknown")
+                    if "reason" not in ic_data or ic_data["reason"] is None:
+                        logger.critical(
+                            f"[PHASE 9 CRITICAL] IC data marked unavailable but missing 'reason' field. "
+                            f"Component: {comp}. Data keys: {list(ic_data.keys())}. "
+                            f"Cannot determine why IC is unavailable. Check upstream IC calculation."
+                        )
+                        raise ValueError(
+                            f"[PHASE 9] IC data for {comp} marked unavailable but missing 'reason' field. "
+                            "Cannot proceed with incomplete data_unavailable marker."
+                        )
+                    reason = ic_data["reason"]
                     logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
                     continue
                 logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
@@ -474,9 +484,18 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
                 perf_status = "warn"
                 perf_summary = perf_message
         else:
-            logger.warning("Performance report generation returned None. Portfolio history may be insufficient.")
-            perf_status = "warn"
-            perf_summary = "insufficient history"
+            # CRITICAL FIX: Performance report returning None is not "insufficient history" - it's a failure.
+            # Fail-fast when performance metrics cannot be computed. Do NOT silently degrade to "warn".
+            msg = (
+                "[PHASE 9 CRITICAL] Performance report generation returned None. "
+                "Cannot determine portfolio performance. Possible causes: "
+                "(1) Portfolio has no trade history (new account), "
+                "(2) Performance calculation failed (data unavailable), "
+                "(3) Bug in performance metrics module. "
+                "Must verify performance metrics computation before proceeding."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg)
     except (RuntimeError, ValueError):
         # CRITICAL: RuntimeError/ValueError indicate data quality issues (insufficient history, etc).
         # These MUST propagate to halt Phase 9 per GOVERNANCE (fail-fast).

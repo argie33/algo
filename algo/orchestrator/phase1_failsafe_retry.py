@@ -406,17 +406,37 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                 results["still_failing"].append(table_name)
                                 final_pct = retry_result.get("final_completion_pct")
                                 pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
-                                status_reason = retry_result.get("status_reason", "unknown")
+
+                                if "status_reason" not in retry_result or retry_result["status_reason"] is None:
+                                    logger.critical(
+                                        f"[PHASE 1 FAILSAFE CRITICAL] Loader retry result missing 'status_reason'. "
+                                        f"Cannot determine why retry failed. Result keys: {list(retry_result.keys())}. "
+                                        f"Loader retry infrastructure broken. Check invoke_loader_retry() implementation."
+                                    )
+                                    raise RuntimeError(
+                                        f"[PHASE 1] Loader retry result incomplete - missing 'status_reason' field. "
+                                        "Cannot safely evaluate retry outcome."
+                                    )
+
+                                status_reason = retry_result["status_reason"]
+                                if status_reason not in ("timeout", "failed"):
+                                    logger.critical(
+                                        f"[PHASE 1 FAILSAFE CRITICAL] Loader retry result has unexpected status_reason: {status_reason!r}. "
+                                        f"Expected 'timeout' or 'failed'. Result keys: {list(retry_result.keys())}. "
+                                        f"Loader retry infrastructure may have changed. Check invoke_loader_retry() implementation."
+                                    )
+                                    raise ValueError(
+                                        f"[PHASE 1] Loader retry result has unexpected status_reason: {status_reason!r}. "
+                                        "Expected 'timeout' or 'failed'."
+                                    )
 
                                 if status_reason == "timeout":
                                     reason_msg = (
                                         f"not yet confirmed recovered after {RETRY_MONITOR_TIMEOUT_SECONDS}s poll "
                                         "(ECS task still running in background - next scheduled run will re-check)"
                                     )
-                                elif status_reason == "failed":
+                                else:  # status_reason == "failed"
                                     reason_msg = f"failed (completed with {pct_str} completion)"
-                                else:
-                                    reason_msg = f"failed ({pct_str} completion)"
 
                                 logger.error(
                                     f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} - {reason_msg}"
