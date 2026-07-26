@@ -18,16 +18,16 @@ import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from utils.db.context import DatabaseContext
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
 )
 logger = logging.getLogger(__name__)
-
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from utils.db.context import DatabaseContext
 
 
 def audit_sec_data_completeness() -> dict[str, list[str]]:

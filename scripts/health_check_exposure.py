@@ -4,6 +4,7 @@
 import logging
 from datetime import date
 
+from algo.risk.market_exposure import MarketExposure
 from utils.db import DatabaseContext
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')

@@ -5,16 +5,16 @@ import logging
 import sys
 from pathlib import Path
 
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from utils.db.context import DatabaseContext
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
 )
 logger = logging.getLogger(__name__)
-
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from utils.db.context import DatabaseContext
 
 
 def check_table_row_counts() -> dict[str, int]:
