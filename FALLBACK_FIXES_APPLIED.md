@@ -1,131 +1,46 @@
-# Critical Fallback Fixes Applied
+# FALLBACK PATTERN FIXES - Session 442
 
 ## Summary
-Eliminated silent fallback patterns in critical data paths where missing required fields could mask errors.
+Systematic audit of finance app codebase to identify and eliminate fallback patterns that should be fail-fast. In finance, silent data degradation is worse than halting - incomplete data should fail loudly, not gracefully degrade.
 
-## Fixes Applied
-
-### 1. ✅ Phase 4 (Reconciliation) - auth_unavailable Field
-
-**Issue:** Silent default to False if field missing
-```python
-# BEFORE: Fallback pattern
-auth_unavailable = partial_fill_result.get("auth_unavailable", False)
-```
-
-**Fix:** Explicit fail-fast validation
-```python
-# AFTER: Fail-fast on missing required field
-if "auth_unavailable" not in partial_fill_result:
-    raise RuntimeError("[PHASE 4] CRITICAL: Missing 'auth_unavailable' field...")
-auth_unavailable = partial_fill_result["auth_unavailable"]
-```
-
-**Why:** If this field is missing, we don't know if broker authentication was successful for reconciliation. Silently defaulting to False could hide reconciliation failures.
-
-**Impact:** Live trading accuracy - ensures partial fill checks actually ran
+## Key Principle
+**FAIL-FAST OVER GRACEFUL DEGRADATION**: In a finance app, if required data is missing or incomplete, execution must halt immediately with clear error message. Never silently accept degraded data, use fallback sources, or mask missing critical fields.
 
 ---
 
-### 2. ✅ Phase 4 (Reconciliation) - final_verification_detail Field
+## FIXES APPLIED (3 Critical Issues)
 
-**Issue:** Silent default to 'unknown' if field missing
-```python
-# BEFORE: Fallback with default
-summary += f" (WARNING: final verification failed - {result.get('final_verification_detail', 'unknown')})"
-```
+### 1. loaders/load_buy_sell_daily.py (Lines 162-178)
+**Issue**: Fallback pattern for price data - if 90%+ coverage not found, fell back to "most recent date regardless of coverage"  
+**Risk**: Generate trading signals with incomplete universe (missing 10%+ of tradeable symbols)  
+**Fix**: Now FAILS immediately with clear error requiring 90%+ coverage minimum
 
-**Fix:** Explicit fail-fast validation
-```python
-# AFTER: Fail-fast when failure occurs without explanation
-if result.get("final_verification_failed"):
-    if "final_verification_detail" not in result:
-        raise RuntimeError("[PHASE 4] CRITICAL: Missing 'final_verification_detail'...")
-    detail = result["final_verification_detail"]
-    summary += f" (WARNING: final verification failed - {detail})"
-```
+### 2. loaders/load_buy_sell_daily.py (Lines 344-357)  
+**Issue**: Accepted 90% coverage when no 3000+ symbol complete dataset found  
+**Risk**: Session 248/250 found degraded data causes 99.5% filtering downstream  
+**Fix**: Enforces strict 95% minimum (4750 of 5000 symbols), NO fallback mode
 
-**Why:** If verification fails but we don't have the reason, we can't diagnose the problem.
-
-**Impact:** Audit trail and debugging - ensures failure reasons are always captured
+### 3. algo/orchestrator/phase9_reconciliation.py (Lines 129-144)
+**Issue**: Fallback sequence trying 'equity' field then 'portfolio_value' if equity missing  
+**Risk**: Masks broker API schema changes, uses wrong source of truth  
+**Fix**: Requires explicit 'equity' field only, fails if missing (no fallback)
 
 ---
 
-### 3. ✅ Phase 9 (Reconciliation) - Weight Optimization Success Field
+## VERIFIED PATTERNS (Already Correct - No Action)
 
-**Issue:** Silent default to False if field missing
-```python
-# BEFORE: Fallback pattern
-"success" if opt_result.get("success", False) else "warn",
-```
-
-**Fix:** Explicit fail-fast validation
-```python
-# AFTER: Fail-fast on missing required field
-if "success" not in opt_result:
-    raise RuntimeError("[PHASE 9] CRITICAL: Missing 'success' field...")
-opt_status = "success" if opt_result["success"] else "warn"
-log_phase_result_fn(9, "weight_optimization", opt_status, ...)
-```
-
-**Why:** If weight optimization doesn't report success status, we can't determine if it worked correctly. Defaulting to False could mask calculation errors.
-
-**Impact:** Portfolio optimization accuracy - ensures weight changes are validated
+✅ Phase 1: Data freshness - all fail-fast, strict config validation  
+✅ Phase 4: Reconciliation - explicit field checking, audit trail enforcement  
+✅ Phase 7: Signal generation - no fallback to computed scores, 95% universe requirement  
+✅ Position sizer: Never fallback to $100k default, strict portfolio value checks  
+✅ Weight optimizer: Explicit IC data validation, raises on incomplete data  
 
 ---
 
-### 4. ✅ Phase 9 (Reconciliation) - Signal Attribution Success Field
+## Testing Status
+✅ Phase 9 signal attribution tests: PASS (3/3)  
+✅ Dashboard panel tests: PASS (19/19)  
+✅ Signal tests: PASS  
 
-**Issue:** Silent default to None if field missing, then checked as boolean
-```python
-# BEFORE: Fallback pattern - returns None if missing
-"success" if stpp_result.get("success") else "warn",
-```
-
-**Fix:** Explicit fail-fast validation
-```python
-# AFTER: Fail-fast on missing required field
-if "success" not in stpp_result:
-    raise RuntimeError("[PHASE 9] CRITICAL: Missing 'success' field...")
-log_phase_result_fn(
-    9,
-    "signal_attribution",
-    "success" if stpp_result["success"] else "warn",
-    ...)
-```
-
-**Why:** If signal trade performance doesn't report success, we need to know explicitly rather than guessing based on a missing field.
-
-**Impact:** Signal validation accuracy - ensures attribution engine status is known
-
----
-
-## Testing
-
-All fixes validated with:
-- ✅ Full test suite runs without regression
-- ✅ Fallback-specific tests pass
-- ✅ No changes to non-critical code paths
-
-## Pattern Applied
-
-All fixes follow this explicit fail-fast pattern:
-
-```python
-# WRONG: Silent fallback
-value = data.get("field", default_value)
-
-# RIGHT: Explicit validation
-if "field" not in data:
-    raise RuntimeError("[CONTEXT] Missing required field 'field'...")
-value = data["field"]
-```
-
-## Finance App Principle
-
-In a finance app, **missing data must never be silently replaced with defaults**. Every critical field must be:
-1. **Validated at source** - upstream phase/function must produce it
-2. **Checked at consumption** - raising error if missing
-3. **Never defaulted** - no implicit 0, False, "", or None
-
-This ensures 100% traceability and prevents silent data corruption that could lead to trading errors.
+## Governance Principle
+In trading systems, incomplete data is worse than no data. Fail loud, fail early, prevent silent portfolio degradation.
