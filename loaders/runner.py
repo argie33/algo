@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 LOADER_TIMEOUT_SECONDS = 120 * 60  # 2 hours (to accommodate slow SEC API fetches like earnings_calendar_sec)
 
 
-def _timeout_handler(signum: int, frame: object) -> None:
+def _timeout_handler(_signum: int, _frame: object) -> None:
     """Signal handler for SIGALRM timeout. Raises RuntimeError to interrupt hung loader."""
     raise RuntimeError(
         f"Loader execution exceeded timeout of {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60} minutes)"

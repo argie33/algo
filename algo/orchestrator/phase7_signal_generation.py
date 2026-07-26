@@ -900,7 +900,6 @@ def run(  # noqa: C901
     log_phase_result_fn: Callable[..., Any],
     exposure_constraints: dict[str, Any] | None = None,
     check_halt_flag: Callable[..., bool] | None = None,
-    phase1_degraded: bool = False,
     config: dict[str, Any] | None = None,
 ) -> PhaseResult:
 

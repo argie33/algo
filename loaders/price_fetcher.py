@@ -33,7 +33,6 @@ class PriceFetcher:
         interval: str = "1d",
         asset_class: str = "stock",
         is_eod_pipeline: bool = False,
-        rate_limit_config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize PriceFetcher with rate limiting config."""
         self.router = router

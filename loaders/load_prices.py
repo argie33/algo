@@ -1976,7 +1976,7 @@ class PriceLoader(OptimalLoader):
         # Mitigation: Set 30min hard timeout, log progress every batch, fail-closed on timeout
         overall_timeout_sec = 1800  # 30 minutes - more than enough for ~5000 symbols at 0.7s per symbol
 
-        def timeout_handler(signum: int, frame: Any) -> None:
+        def timeout_handler(_signum: int, _frame: Any) -> None:
             elapsed = time.time() - start
             # CRITICAL FIX (Session 416): Never use .get() with defaults on critical stats counters.
             # If self._stats key missing (initialization bug), we must surface it, not hide it with 0.
@@ -2634,7 +2634,7 @@ def main() -> int:
 
     import signal
 
-    def timeout_handler(signum: int, frame: Any) -> None:
+    def timeout_handler(_signum: int, _frame: Any) -> None:
         logger.critical(
             "[TIMEOUT] Price loader exceeded %ss timeout. Killing process.",
             execution_timeout_sec,

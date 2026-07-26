@@ -18,7 +18,7 @@ try:
     from scipy.stats import pearsonr
 except ImportError:
 
-    def pearsonr(x: Any, y: Any) -> tuple[float, float]:
+    def pearsonr(x: Any, _y: Any) -> tuple[float, float]:
         return (float("nan"), float("nan"))
 
 
