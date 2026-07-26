@@ -200,7 +200,6 @@ class DividendDataLoader(SecLoaderBase):
         3. Extracts dollar amounts and dates
         4. Returns structured dividend records
         """
-        import re
 
         results = []
         text_upper = filing_text.upper()
