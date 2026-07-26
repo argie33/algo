@@ -20,7 +20,7 @@ cur.execute("""
 """)
 
 print("\nLatest 3 execution attempts:")
-for status, start, end, error in cur.fetchall():
+for status, start, _end, error in cur.fetchall():
     print(f"\n  {status} at {start}")
     if error and error.strip():
         error_short = error[:150] + "..." if len(error) > 150 else error
@@ -54,7 +54,7 @@ cur.execute("""
 locks = cur.fetchall()
 if locks:
     print(f"\nActive locks: {len(locks)}")
-    for name, locked_at, expires_at in locks:
+    for _name, locked_at, expires_at in locks:
         print(f"  Locked since {locked_at}, expires {expires_at}")
 else:
     print("\nNo active locks")
