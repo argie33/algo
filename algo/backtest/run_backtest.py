@@ -405,13 +405,19 @@ def run_backtest(  # noqa: C901
     max_dd_pct = 0.0
     if equity_curve:
         peak = equity_curve[0]["value"]
-        for point in equity_curve:
-            v = point["value"]
-            if v > peak:
-                peak = v
-            dd = (v - peak) / peak * 100
-            if dd < max_dd_pct:
-                max_dd_pct = dd
+        if peak <= 0:
+            logger.warning(f"[BACKTEST] Equity curve starts at {peak} (non-positive). Cannot calculate meaningful drawdown.")
+            max_dd_pct = None
+        else:
+            for point in equity_curve:
+                v = point["value"]
+                if v > peak:
+                    peak = v
+                # Only calculate drawdown when peak is positive (avoid division by zero)
+                if peak > 0:
+                    dd = (v - peak) / peak * 100
+                    if dd < max_dd_pct:
+                        max_dd_pct = dd
 
     # Sharpe ratio from equity curve daily returns
     sharpe = None
