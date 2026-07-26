@@ -30,7 +30,6 @@ class StalenessChecker(BaseCheck):
             "sector_ranking": 7,  # Sector analysis, warning if >7 days old
             "industry_ranking": 7,  # Industry analysis, warning if >7 days old
             "insider_transactions": 30,  # Insider data, warning if >30 days old
-            "analyst_upgrade_downgrade": 30,  # Analyst actions, warning if >30 days old
             "stock_scores": 7,  # Weekly stock scores, warning if >7 days old
             "aaii_sentiment": 7,  # Weekly sentiment, warning if >7 days old
             "growth_metrics": 30,  # Monthly growth data, warning if >30 days old
@@ -87,13 +86,6 @@ class StalenessChecker(BaseCheck):
                 "trade_date",
                 "daily",
                 staleness_thresholds["insider_transactions"],
-                INFO,
-            ),
-            (
-                "analyst_upgrade_downgrade",
-                "action_date",
-                "daily",
-                staleness_thresholds["analyst_upgrade_downgrade"],
                 INFO,
             ),
             (
