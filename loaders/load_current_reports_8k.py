@@ -136,15 +136,16 @@ class CurrentReports8KLoader(SecLoaderBase):
             List of 8-K filing records or data_unavailable marker
         """
         try:
+            now_et = datetime.now(EASTERN_TZ).date()
             # Get CIK for symbol
             cik = self._get_cik(symbol)
             if not cik:
-                return self._unavailable_record(symbol, self.run_date_et, "symbol_not_found")
+                return self._unavailable_record(symbol, now_et, "symbol_not_found")
 
             # Get submissions
             submissions = self.sec_client.get_submissions(cik)
             if not submissions:
-                return self._unavailable_record(symbol, self.run_date_et, "no_submissions")
+                return self._unavailable_record(symbol, now_et, "no_submissions")
 
             # Filter for 8-K filings after watermark
             filings = submissions.get("filings", {}).get("recent", [])
@@ -200,8 +201,9 @@ class CurrentReports8KLoader(SecLoaderBase):
 
         except Exception as e:
             logger.error(f"[{symbol}] 8-K fetch error: {type(e).__name__}: {e}")
+            now_et = datetime.now(EASTERN_TZ).date()
             return self._unavailable_record(
-                symbol, self.run_date_et, f"fetch_error:{type(e).__name__}"
+                symbol, now_et, f"fetch_error:{type(e).__name__}"
             )
 
     def _parse_date(self, date_str: str) -> date:
@@ -227,6 +229,46 @@ class CurrentReports8KLoader(SecLoaderBase):
             logger.debug(f"[{symbol}] CIK lookup error: {e}")
 
         return None
+
+    def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
+        """Return a data_unavailable marker for this symbol."""
+        return [
+            {
+                "symbol": symbol,
+                "filing_date": measurement_date,
+                "accession_number": "",
+                "form_type": "8-K",
+                "item_1_01": False,
+                "item_1_02": False,
+                "item_1_03": False,
+                "item_2_01": False,
+                "item_2_02": False,
+                "item_2_03": False,
+                "item_2_04": False,
+                "item_2_05": False,
+                "item_2_06": False,
+                "item_2_07": False,
+                "item_2_08": False,
+                "item_3_01": False,
+                "item_3_02": False,
+                "item_3_03": False,
+                "item_4_01": False,
+                "item_4_02": False,
+                "item_5_01": False,
+                "item_5_02": False,
+                "item_5_03": False,
+                "item_5_05": False,
+                "item_5_07": False,
+                "item_6_01": False,
+                "item_7_01": False,
+                "item_8_01": False,
+                "item_9_01": False,
+                "event_summary": None,
+                "material_items_text": None,
+                "data_unavailable": True,
+                "data_unavailable_reason": reason,
+            }
+        ]
 
 
 def main() -> int:

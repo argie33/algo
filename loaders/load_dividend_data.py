@@ -184,6 +184,7 @@ class DividendDataLoader(SecLoaderBase):
         """Fetch dividend data for symbol since given date."""
         try:
             results = []
+            now_et = datetime.now(EASTERN_TZ).date()
 
             # Try XBRL extraction
             xbrl_divs = self._extract_dividend_from_xbrl(symbol)
@@ -201,7 +202,7 @@ class DividendDataLoader(SecLoaderBase):
             if not results:
                 return self._unavailable_record(
                     symbol,
-                    self.run_date_et,
+                    now_et,
                     "no_recent_dividends",
                 )
 
@@ -209,9 +210,10 @@ class DividendDataLoader(SecLoaderBase):
 
         except Exception as e:
             logger.error(f"[{symbol}] Dividend fetch error: {type(e).__name__}: {e}")
+            now_et = datetime.now(EASTERN_TZ).date()
             return self._unavailable_record(
                 symbol,
-                self.run_date_et,
+                now_et,
                 f"fetch_error:{type(e).__name__}",
             )
 
@@ -261,6 +263,26 @@ class DividendDataLoader(SecLoaderBase):
             logger.debug(f"[{symbol}] CIK lookup error: {e}")
 
         return None
+
+    def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
+        """Return a data_unavailable marker for this symbol."""
+        return [
+            {
+                "symbol": symbol,
+                "declaration_date": None,
+                "ex_dividend_date": measurement_date,
+                "record_date": None,
+                "payment_date": None,
+                "dividend_per_share": None,
+                "dividend_yield_pct": None,
+                "total_dividend_amount": None,
+                "dividend_type": None,
+                "currency": "USD",
+                "data_unavailable": True,
+                "data_unavailable_reason": reason,
+                "source": "NONE",
+            }
+        ]
 
 
 def main() -> int:

@@ -1646,6 +1646,130 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
+          Next        = "SecSegmentInfo"
+          ResultPath  = "$.logError"
+        }]
+        Next = "SecSegmentInfo"
+      }
+
+      # ── NEW 2026-07-26 (Session 445): XBRL Segment Disclosure Extraction (ASC 280) ──
+      # Parses SEC 10-K/10-Q XBRL companyfacts to extract business segment data
+      # (segment counts, revenue concentration, diversification metrics).
+      # Source table for load_sec_segment_metrics.py, which computes Herfindahl index
+      # and feeds into quality/diversification scoring.
+      # Non-critical: fails open; missing segment data defaults to data_unavailable markers.
+      SecSegmentInfo = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["sec_segment_info"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-sec_segment_info"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogSecSegmentInfoFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ValueQualityGrowthMetrics"
+      }
+
+      LogSecSegmentInfoFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "sec_segment_info"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SecSegmentMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "SecSegmentMetrics"
+      }
+
+      # ── RESTORED 2026-07-26 (Session 445): SEC Segment Metrics Diversification ──
+      # Computes business segment diversification from sec_segment_info (ASC 280 data).
+      # Outputs: segment_count, revenue_concentration_hhi, largest_segment_revenue_pct
+      # Feeds into quality_metrics scoring for diversification component.
+      # Depends on: SecSegmentInfo (must populate sec_segment_info first)
+      # Non-critical: fails open; missing data defaults to data_unavailable.
+      SecSegmentMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["sec_segment_metrics"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-sec_segment_metrics"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogSecSegmentMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ValueQualityGrowthMetrics"
+      }
+
+      LogSecSegmentMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "sec_segment_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
           Next        = "ValueQualityGrowthMetrics"
           ResultPath  = "$.logError"
         }]

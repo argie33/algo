@@ -128,6 +128,9 @@ SAFE_TABLES = {
     "institutional_holdings_13f",  # Phase 2: SEC 13F institutional holdings
     "insider_holdings_sec",  # Phase 2: SEC Form 4/5 insider holdings
     "insider_transaction_velocity",  # Phase 2: Insider buy/sell velocity from SEC Form 4/5
+    "current_reports_8k",  # Phase 2: SEC Form 8-K material events (acquisitions, bankruptcies, etc.)
+    "dividend_data",  # Phase 2: Dividend ex-dates and payment dates (position management)
+    "sec_segment_info",  # Phase 3: SEC XBRL segment disclosure data (ASC 280) - source for diversification metrics
     "company_info_sec",  # Phase 3: SEC company master data (replaces yfinance company info)
     "earnings_calendar_sec",  # Phase 3: SEC earnings dates (replaces yfinance earnings_date)
     # Phase 1-4 Consolidation (Session 204+)
