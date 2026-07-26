@@ -82,8 +82,10 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 raise RuntimeError("Portfolio value unavailable - cannot calculate risk")
 
             portfolio_value = float(pf_row[0])
-            total_risk_dollars_f = float(total_risk_dollars)
-            portfolio_value_f = float(portfolio_value)
+            # Explicit type conversion to prevent Decimal/float arithmetic errors
+            from decimal import Decimal
+            total_risk_dollars_f = float(total_risk_dollars) if isinstance(total_risk_dollars, (Decimal, int)) else total_risk_dollars
+            portfolio_value_f = float(portfolio_value) if isinstance(portfolio_value, (Decimal, int)) else portfolio_value
             current_risk_pct = (total_risk_dollars_f / portfolio_value_f * 100.0) if portfolio_value_f > 0 else 0.0
             available_risk_pct = max_risk_limit_pct - current_risk_pct
 
