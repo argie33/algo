@@ -23,7 +23,7 @@ try:
     assert result.phase_name == "test"
     assert result.status == "ok"
     assert result.data == {"key": "value"}
-    assert result.halted == False
+    assert result.not halted
     print("  OK: PhaseResult data contracts valid")
 except Exception as e:
     issues.append(f"PhaseResult contract: {e}")

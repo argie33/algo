@@ -188,5 +188,5 @@ def is_data_unavailable(data: Any) -> bool:
         True if data has data_unavailable=True flag
     """
     if isinstance(data, dict):
-        return data.get("data_unavailable") is True
+        return data.get("data_unavailable")
     return False

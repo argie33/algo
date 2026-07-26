@@ -771,7 +771,7 @@ def run(
     # Check for halt flag set by exposure policy
     # exposure_constraints validated above - always exists and has required keys
     if exposure_constraints["halt_new_entries"]:
-        # FAIL-FAST: halt_reason MUST be present when halt_new_entries is True
+        # FAIL-FAST: halt_reason MUST be present when halt_new_entries
         if "halt_reason" not in exposure_constraints:
             raise RuntimeError(
                 "[PHASE 8 CRITICAL] Exposure policy set halt_new_entries=True but halt_reason missing. "

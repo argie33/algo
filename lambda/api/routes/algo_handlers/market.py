@@ -1170,13 +1170,13 @@ def _get_market(cur: cursor) -> Any:
                 market_health.get("yield_curve_unavailable_reason") if ycs_val is None else None
             ),
             "fed_rate_environment": market_health.get("fed_rate_environment"),
-            # CRITICAL FIX: Explicitly check if fed_rate_data_unavailable is True (not False default).
+            # CRITICAL FIX: Explicitly check if fed_rate_data_unavailable (not False default).
             # Do NOT silently default to False if field is missing - that masks data quality issues.
             # Consistency: Put_call_ratio and yield_curve use explicit None checks, apply same pattern here.
-            "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable") is True,
+            "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable"),
             "fed_rate_unavailable_reason": (
                 market_health.get("fed_rate_unavailable_reason")
-                if market_health.get("fed_rate_data_unavailable") is True
+                if market_health.get("fed_rate_data_unavailable")
                 else None
             ),
         }

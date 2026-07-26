@@ -62,7 +62,7 @@ def main():
             result = check_scores_freshness()
             last_check = elapsed
 
-            if result is True:
+            if result:
                 print("\n[SUCCESS] Orchestrator completed and scores updated!")
                 print(f"Elapsed time: {int(elapsed / 60)}m {int(elapsed % 60)}s")
                 return 0

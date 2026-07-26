@@ -24,7 +24,7 @@ class TestResponseValidatorLeniency:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("audit", response)
 
         # Should be valid (extra field is allowed)
-        assert is_valid is True
+        assert is_valid
         assert error_msg is None
 
     def test_nested_schema_allows_dynamic_fields(self):
@@ -40,7 +40,7 @@ class TestResponseValidatorLeniency:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", response)
 
         # Should be valid
-        assert is_valid is True
+        assert is_valid
         assert error_msg is None
 
     def test_missing_required_fields_still_fail(self):
@@ -54,7 +54,7 @@ class TestResponseValidatorLeniency:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", response)
 
         # Should be invalid
-        assert is_valid is False
+        assert not is_valid
         assert "total" in error_msg
 
     def test_type_validation_still_works(self):
@@ -67,7 +67,7 @@ class TestResponseValidatorLeniency:
         is_valid, _error_msg = ResponseValidator.validate_endpoint_response("stocks", response)
 
         # Should be invalid
-        assert is_valid is False
+        assert not is_valid
 
 
 class TestEndpointSchemasComplete:
@@ -126,7 +126,7 @@ class TestValidationResponseFormat:
 
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", response)
 
-        assert is_valid is False
+        assert not is_valid
         assert isinstance(error_msg, str)
         assert len(error_msg) > 0
 

@@ -280,7 +280,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
                 if "Item" in response:
                     item = response["Item"]
-                    if item.get("halt_flag") is True:
+                    if item.get("halt_flag"):
                         # PROACTIVE CLEAR: Auto-clear halt flag if from prior trading day
                         # Prevents deadlock where data staleness is fixed but halt remains
                         # This mirrors halt_flag_manager.py logic that orchestrator.py uses

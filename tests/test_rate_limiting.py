@@ -30,11 +30,11 @@ def test_admin_rate_limit_basic():
     # First 3 requests should be allowed
     for i in range(max_requests):
         allowed, msg = check_admin_rate_limit(user_id, endpoint, max_requests, window_seconds)
-        assert allowed is True, f"Request {i + 1} should be allowed"
+        assert allowed, f"Request {i + 1} should be allowed"
 
     # 4th request should be denied
     allowed, msg = check_admin_rate_limit(user_id, endpoint, max_requests, window_seconds)
-    assert allowed is False, "Request 4 should be rate limited"
+    assert not allowed, "Request 4 should be rate limited"
     assert "Rate limit exceeded" in msg
 
     print("[OK] Admin rate limit basic test passed")
@@ -51,11 +51,11 @@ def test_public_rate_limit_basic():
     # First 2 requests should be allowed
     for i in range(max_requests):
         allowed, msg = check_public_rate_limit(endpoint, max_requests, window_seconds)
-        assert allowed is True, f"Request {i + 1} should be allowed"
+        assert allowed, f"Request {i + 1} should be allowed"
 
     # 3rd request should be denied
     allowed, msg = check_public_rate_limit(endpoint, max_requests, window_seconds)
-    assert allowed is False, "Request 3 should be rate limited"
+    assert not allowed, "Request 3 should be rate limited"
     assert "Rate limit exceeded" in msg
 
     print("[OK] Public rate limit basic test passed")
@@ -106,11 +106,11 @@ def test_different_users_independent():
     # User 1: 3 requests
     for _i in range(3):
         allowed, _msg = check_admin_rate_limit("user_1", endpoint, max_requests=3, window_seconds=60)
-        assert allowed is True
+        assert allowed
 
     # User 2: Should not be rate limited (independent bucket)
     allowed, _msg = check_admin_rate_limit("user_2", endpoint, max_requests=3, window_seconds=60)
-    assert allowed is True, "User 2 should have independent rate limit"
+    assert allowed, "User 2 should have independent rate limit"
 
     print("[OK] Per-user rate limits are independent")
 

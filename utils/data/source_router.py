@@ -60,7 +60,7 @@ def _is_data_unavailable_marker(result: Any) -> bool:
 
     Marker dicts have data_unavailable=True and should trigger fallback to next source.
     """
-    return isinstance(result, dict) and result.get("data_unavailable") is True
+    return isinstance(result, dict) and result.get("data_unavailable")
 
 
 def _call_with_timeout(fn: Callable[[], Any], timeout_sec: float = 30, retries: int = 3) -> Any:

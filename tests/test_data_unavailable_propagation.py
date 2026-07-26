@@ -110,7 +110,7 @@ class TestDataPropagation:
         if stock_score.get("data_unavailable"):
             # Cannot generate signal
             can_trade = False
-            assert can_trade is False
+            assert not can_trade
         else:
             # Would proceed
             can_trade = True
@@ -132,7 +132,7 @@ class TestDataPropagation:
         assert market_health["market_stage"] is not None
 
         # But enrichment is explicitly marked unavailable
-        assert market_health.get("yield_curve_data_unavailable") is True
+        assert market_health.get("yield_curve_data_unavailable")
 
         # Scoring should account for this (might give lower weight to regime detection)
         if market_health.get("yield_curve_data_unavailable"):
@@ -140,7 +140,7 @@ class TestDataPropagation:
         else:
             use_yield_for_regime = True
 
-        assert use_yield_for_regime is False
+        assert not use_yield_for_regime
 
 
 class TestErrorPropagation:

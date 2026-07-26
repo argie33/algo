@@ -73,8 +73,8 @@ def fetch_signals(c: None) -> dict[str, Any]:
             # IMPORTANT: Distinguish between temporary service issues and real errors
             # Signals are critical but should degrade gracefully on transient 503/504
             # This allows dashboard to render without signals during brief API issues
-            is_transient_503 = data.get("_is_transient_503") is True
-            is_transient_504 = data.get("_is_transient_504") is True
+            is_transient_503 = data.get("_is_transient_503")
+            is_transient_504 = data.get("_is_transient_504")
             is_transient = is_transient_503 or is_transient_504
             if is_transient:
                 logger.warning(
@@ -320,8 +320,8 @@ def fetch_scores(c: None) -> dict[str, Any]:
             # Scores are non-critical enrichment - 503 (unavailable) and 504 (query timeout)
             # are both transient; allow signals to display without score rankings
             # CRITICAL FIX: Check each flag explicitly (not with OR) to distinguish error types
-            is_transient_503 = top_data.get("_is_transient_503") is True
-            is_transient_504 = top_data.get("_is_transient_504") is True
+            is_transient_503 = top_data.get("_is_transient_503")
+            is_transient_504 = top_data.get("_is_transient_504")
             is_transient = is_transient_503 or is_transient_504
             if is_transient:
                 logger.warning(
