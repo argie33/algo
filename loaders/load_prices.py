@@ -2042,7 +2042,7 @@ class PriceLoader(OptimalLoader):
         )
 
         # Cancel timeout alarm before returning (Unix/Linux only)
-        if old_handler is not None and hasattr(sys, 'platform') and sys.platform != 'win32':
+        if old_handler is not None and sys.platform != 'win32':
             try:
                 import signal
                 if hasattr(signal, 'alarm'):

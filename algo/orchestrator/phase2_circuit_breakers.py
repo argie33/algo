@@ -161,7 +161,7 @@ def run(
                     )
                     logger.critical(msg)
                     log_phase_result_fn(2, "circuit_breakers", "halt", msg)
-                    raise RuntimeError(msg) from e
+                    raise RuntimeError(msg)
                 else:
                     raise RuntimeError(
                         f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "

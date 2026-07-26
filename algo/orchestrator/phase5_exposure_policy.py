@@ -208,8 +208,6 @@ def run(
         phase_data = {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)}
         validate_phase_data(5, phase_data)
         # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
-        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
-
         validate_phase_5_constraints(constraints)
         return PhaseResult(
             5,
@@ -224,8 +222,6 @@ def run(
         # FAIL-CLOSED: Market exposure data missing (Phase 4 not run or database corrupt)
         # CRITICAL: No market regime data means we can't assess market conditions.
         # Halting all entries is mandatory; this is not optional.
-        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
-
         logger.critical(
             f"CRITICAL: Market exposure data missing (Phase 4 likely failed). "
             f"Halting all new entries until market regime is available: {e}"
@@ -260,8 +256,6 @@ def run(
         # FAIL-CLOSED: Transient failure (e.g., database connection issue) or computation error
         # Risk multiplier, entry constraints, and concentration limits are load-bearing.
         # Exposing them to be wrong is more dangerous than halting trading.
-        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
-
         logger.critical(
             f"CRITICAL: Exposure policy computation failed. "
             f"Cannot proceed with trading without valid risk management constraints: {type(e).__name__}: {e}"
