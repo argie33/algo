@@ -1373,10 +1373,14 @@ class AlgoConfig:
 
                 invalid_critical_values = []
                 for row in rows:
-                    row_dict = dict(row) if not isinstance(row, dict) else row
-                    key = row_dict["key"]
-                    value = row_dict["value"]
-                    dtype = row_dict.get("value_type")
+                    if not isinstance(row, dict):
+                        raise TypeError(
+                            f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
+                            f"This indicates cursor configuration mismatch. Check DatabaseContext cursor_factory."
+                        )
+                    key = row["key"]
+                    value = row["value"]
+                    dtype = row.get("value_type")
                     if value is not None:
                         try:
                             # Use value_type if set, otherwise normalize PostgreSQL type or infer from content
