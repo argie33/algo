@@ -216,10 +216,6 @@ VALIDATION_SCHEMA = {
     "patrol_buy_sell_daily_14d_min": ("int", 0, 10000, False, None),
     "patrol_coverage_ratio_min": ("float", 0.0, 1.0, False, None),
     "patrol_max_null_pct_threshold": ("float", 0.0, 100.0, False, None),
-    # Signal and Loader Configuration
-    "signal_max_data_age_days": ("int", 0, 100, False, None),
-    "stale_loader_threshold_minutes": ("int", 0, 1000, False, None),
-    # Swing Score Configuration
     # Loader Rate Limiting Configuration
     # Morning: 1-15 min window (conservative for 450-min budget); EOD: 1-10 min window (aggressive for 85-min budget)
     "loader_rate_limit_circuit_break_threshold_morning": ("int", 60, 900, False, 480),
@@ -256,11 +252,6 @@ VALIDATION_SCHEMA = {
     "portfolio_variance_threshold": ("float", 0.0, 1.0, False, 0.15),
     # Advanced Filters
     "enable_advanced_filters": ("bool", None, None, False, None),
-    # Pyramid Trading Configuration
-    "pyramid_enabled": ("bool", None, None, False, None),
-    "pyramid_split_pct": ("string", None, None, False, None),  # Comma-separated split, e.g. "50,33,17"
-    "pyramid_add_1_gain_pct": ("float", 0.0, 100.0, False, None),
-    "pyramid_add_2_gain_pct": ("float", 0.0, 100.0, False, None),
     # Data Patrol Staleness Thresholds (per-table granularity)
     "patrol_staleness_price_daily": ("int", 0, 365, False, None),
     "patrol_staleness_technical_daily": ("int", 0, 365, False, None),
@@ -272,9 +263,6 @@ VALIDATION_SCHEMA = {
     "patrol_staleness_industry_ranking": ("int", 0, 365, False, None),
     "patrol_staleness_insider_transactions": ("int", 0, 365, False, None),
     "patrol_staleness_analyst_upgrades": ("int", 0, 365, False, None),
-    # Stale Order Management
-    "stale_order_alert_minutes": ("int", 0, 1440, False, None),
-    "stale_order_auto_cancel_minutes": ("int", 0, 1440, False, None),
     # Data Patrol Coverage Error Threshold
     "patrol_coverage_error_threshold_pct": ("float", 0.0, 100.0, False, None),
     # Alpaca Configuration
@@ -291,8 +279,6 @@ VALIDATION_SCHEMA = {
     # Stored and consumed as whole-number percentages (0-100), not fractions --
     # see algo/orchestration/weight_optimizer.py (MIN_WEIGHT=3, MAX_WEIGHT=40) and
     # migrations/versions/018_reseed_algo_config.py's seed values (25, 20, 20, 12, 10, 8, 5).
-    "swing_weight_setup": ("int", 0, 100, False, 25),
-    "swing_weight_trend": ("int", 0, 100, False, 20),
     "swing_weight_momentum": ("int", 0, 100, False, 20),
     "swing_weight_volume": ("int", 0, 100, False, 12),
     "swing_weight_fundamentals": ("int", 0, 100, False, 10),
@@ -324,10 +310,6 @@ VALIDATION_SCHEMA = {
     "sql_interval_90d_days": ("int", 90, 180, False, 90),  # 90 days lookback
     "sql_interval_365d_days": ("int", 365, 400, False, 365),  # 365 days lookback (1 year)
     "sql_interval_52w_days": ("int", 350, 380, False, 364),  # 52 weeks (~364 days)
-    # Retry Configuration (replaces 3 hardcoded retry counts)
-    "retry_count_fred_api": ("int", 1, 10, False, 5),  # FRED API rate-limit retries
-    "retry_count_aaii_sentiment": ("int", 1, 10, False, 2),  # AAII sentiment fetch retries
-    "retry_count_db_migration": ("int", 1, 10, False, 3),  # Database migration cleanup retries
     # Data Quality Patrol Thresholds
     "patrol_new_zero_symbols_error": ("int", 0, 1000, False, 100),  # Error threshold for symbol drop
     "patrol_new_zero_symbols_warn": ("int", 0, 1000, False, 50),  # Warning threshold for symbol drop
@@ -342,13 +324,6 @@ VALIDATION_SCHEMA = {
     "alpaca_api_secret": ("string", None, None, False, None),  # Alpaca API secret (alias for alpaca_api_secret_key)
     # Risk Thresholds
     "max_risk_per_trade_pct": ("float", 0.1, 100.0, False, 2.0),  # Max risk per individual trade
-    # Buy/Sell Daily Coverage
-    "buy_sell_daily_coverage_threshold": ("float", 0.0, 100.0, False, 50.0),  # Min % of stocks to cover
-    "buy_sell_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 90.0),  # Min signal generation rate
-    # Data Loader Coverage Thresholds (Phase 1 data freshness checks)
-    "technical_data_coverage_threshold": ("int", 0, 100, False, 75),  # Min % technical data coverage
-    "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
-    "price_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily price coverage
     # Orchestrator Halt Configuration
     "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable orchestrator halt on data issues
     # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
