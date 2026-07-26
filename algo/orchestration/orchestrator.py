@@ -2028,14 +2028,21 @@ class Orchestrator:
                     p["status"] == "blocked" and p.get("phase") == 8
                     for p in self.phase_results.values()
                 )
-                # FAIL-FAST: Phase 9 must be present (always_run) - no silent fallback to empty dict
-                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9")
-                if phase_9_data is None:
+                # FAIL-FAST: Phase 9 must be present (always_run) - no fallback to alternate key type
+                # CRITICAL FIX: phase_results should ALWAYS use int keys (9, not "9").
+                # Trying both key types masks inconsistency in how phases store results.
+                if 9 not in self.phase_results:
                     raise RuntimeError(
-                        f"[ORCHESTRATOR INTEGRITY] Phase 9 results missing from phase_results. "
-                        f"Phase 9 is always_run and must be present for status determination. "
-                        f"Available phases: {sorted(self.phase_results.keys())}. "
-                        f"This indicates a critical bug in phase execution or result collection."
+                        f"[ORCHESTRATOR CRITICAL] Phase 9 results missing from phase_results. "
+                        f"Phase 9 is always_run=True and MUST be present for status determination. "
+                        f"Available phase keys: {sorted(self.phase_results.keys())}. "
+                        f"Key types should be int only. This indicates a bug in phase_executor or phase execution flow."
+                    )
+                phase_9_data = self.phase_results[9]
+                if not phase_9_data:
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR CRITICAL] Phase 9 result is empty dict. "
+                        f"Phase 9 must return non-empty result with phase/name/status/summary fields."
                     )
                 phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 
@@ -2062,14 +2069,21 @@ class Orchestrator:
                     p["status"] == "skipped" and "MARKET HOURS GUARD" in p.get("summary", "")
                     for p in self.phase_results.values()
                 )
-                # FAIL-FAST: Phase 9 must be present (always_run) - no silent fallback to empty dict
-                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9")
-                if phase_9_data is None:
+                # FAIL-FAST: Phase 9 must be present (always_run) - no fallback to alternate key type
+                # CRITICAL FIX: phase_results should ALWAYS use int keys (9, not "9").
+                # Trying both key types masks inconsistency in how phases store results.
+                if 9 not in self.phase_results:
                     raise RuntimeError(
-                        f"[ORCHESTRATOR INTEGRITY] Phase 9 results missing from phase_results. "
-                        f"Phase 9 is always_run and must be present for status determination. "
-                        f"Available phases: {sorted(self.phase_results.keys())}. "
-                        f"This indicates a critical bug in phase execution or result collection."
+                        f"[ORCHESTRATOR CRITICAL] Phase 9 results missing from phase_results. "
+                        f"Phase 9 is always_run=True and MUST be present for status determination. "
+                        f"Available phase keys: {sorted(self.phase_results.keys())}. "
+                        f"Key types should be int only. This indicates a bug in phase_executor or phase execution flow."
+                    )
+                phase_9_data = self.phase_results[9]
+                if not phase_9_data:
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR CRITICAL] Phase 9 result is empty dict. "
+                        f"Phase 9 must return non-empty result with phase/name/status/summary fields."
                     )
                 phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 

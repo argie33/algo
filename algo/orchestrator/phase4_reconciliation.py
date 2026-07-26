@@ -78,17 +78,22 @@ def run(
                     f"Expected int. API returned malformed data."
                 )
 
-            # Check for error status in result (API may return error status instead of exception)
-            if partial_fill_result.get("error") or partial_fill_result.get("error_status"):
-                error_detail = partial_fill_result.get("error") or partial_fill_result.get("error_status")
-                if error_detail is None:
-                    raise RuntimeError(
-                        f"[PHASE 4] Partial fill check indicated error but no error details found. "
-                        f"Result keys: {list(partial_fill_result.keys())}. Data integrity issue."
-                    )
+            # Check for error status in result (must have standard "error" field)
+            if partial_fill_result.get("error"):
+                error_detail = partial_fill_result.get("error")
                 raise RuntimeError(
-                    f"[PHASE 4] Partial fill check returned error status: {error_detail}. "
+                    f"[PHASE 4] Partial fill check returned error: {error_detail}. "
                     f"Broker API may be unavailable or order state corrupted. Cannot proceed with reconciliation."
+                )
+            # CRITICAL FIX: Do NOT use "error_status" as fallback for "error" field.
+            # This fallback masks API schema changes and allows stale code to keep functioning.
+            # If API changes to use error_status instead, that's a breaking change that must
+            # be caught immediately, not silently patched with a fallback.
+            if partial_fill_result.get("error_status"):
+                raise RuntimeError(
+                    f"[PHASE 4 CRITICAL] Partial fill API returned 'error_status' instead of 'error'. "
+                    f"API schema has changed. Cannot proceed without explicit schema migration. "
+                    f"Broker API contract violation. Investigate immediately."
                 )
 
             if partial_fill_result["mismatches"] > 0:
@@ -115,13 +120,24 @@ def run(
         if "success" not in result or result["success"] is None:
             raise RuntimeError(f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}")
 
-        # CRITICAL: Explicitly extract error message; do not silently default to empty string.
-        # This masks reconciliation failures and prevents debugging failed syncs.
+        # CRITICAL: Must have explicit error message in result. Fail fast if missing.
+        # Do NOT use fallback defaults like "(no error details)" - missing errors hide problems.
         error_msg = result.get("reason")
         if error_msg is None:
-            error_msg = result.get("error")
-        if error_msg is None:
-            error_msg = "(no error details provided)"
+            # GOVERNANCE FIX: Do NOT try "error" field as fallback.
+            # If API is supposed to return "reason", enforce that contract.
+            # Accepting either "reason" or "error" masks schema inconsistencies.
+            if result.get("error"):
+                raise RuntimeError(
+                    f"[PHASE 4 CRITICAL] Reconciliation result has 'error' instead of 'reason'. "
+                    f"API schema violation. Expected 'reason' field per contract. "
+                    f"Cannot proceed with inconsistent error field naming."
+                )
+            # If neither field is present, that's also a schema error
+            raise RuntimeError(
+                f"[PHASE 4 CRITICAL] Reconciliation result missing both 'reason' and 'error' fields. "
+                f"Result keys: {list(result.keys())}. Cannot determine reconciliation status without error details."
+            )
 
         if result["success"]:
             positions_count = result.get("positions")

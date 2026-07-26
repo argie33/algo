@@ -306,8 +306,18 @@ def run(
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
-                symbol = action.get("symbol", "UNKNOWN")
-                logger.error(f"  Error on exposure action {symbol}: {e}")
+                if "symbol" not in action:
+                    logger.critical(
+                        f"[PHASE 6 CRITICAL] Exposure action missing 'symbol' field. "
+                        f"Cannot log which action failed. Action keys: {list(action.keys())}. "
+                        f"Phase 5 produced invalid action record. Cannot proceed with partial error logging. "
+                        f"Error was: {e}"
+                    )
+                    raise RuntimeError(
+                        "Exposure action missing 'symbol' field - phase data contract violated. "
+                        "Cannot safely log or recover from errors."
+                    ) from e
+                logger.error(f"  Error on exposure action {action['symbol']}: {e}")
 
         # 4a. Apply position monitor recommendations (early exits + stop raises)
         for rec in position_recs:
@@ -379,8 +389,18 @@ def run(
                         logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
-                symbol = rec.get("symbol", "UNKNOWN")
-                logger.error(f"  Error on {symbol}: {e}")
+                if "symbol" not in rec:
+                    logger.critical(
+                        f"[PHASE 6 CRITICAL] Position recommendation missing 'symbol' field. "
+                        f"Cannot log which position failed. Recommendation keys: {list(rec.keys())}. "
+                        f"Phase 3 produced invalid recommendation record. Cannot proceed with partial error logging. "
+                        f"Error was: {e}"
+                    )
+                    raise RuntimeError(
+                        "Position recommendation missing 'symbol' field - phase data contract violated. "
+                        "Cannot safely log or recover from errors."
+                    ) from e
+                logger.error(f"  Error on {rec['symbol']}: {e}")
 
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
         if not dry_run:

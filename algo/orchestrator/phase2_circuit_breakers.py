@@ -153,17 +153,18 @@ def run(
                     # Continue without circuit breaker check in paper mode - explicitly skip market check
                     cb_result = None  # Skip market circuit breaker processing below
                 elif is_transient_error:
-                    # Transient network errors (timeout, connection refused) are temporary
-                    # Log warning and continue - if market is truly down, other phases will detect it
-                    logger.warning(
-                        f"[PHASE 2] Transient network error checking circuit breaker (will retry next run): {error_msg}. "
-                        f"Continuing with trading - if market is down, other data quality checks will catch it."
+                    # CRITICAL FIX: Transient network errors cannot be silently ignored for market circuit breaker.
+                    # Circuit breaker is a critical safety gate - cannot proceed without verification.
+                    # Transient errors may hide real market issues (circuit breaker service down, network split, etc.)
+                    msg = (
+                        f"[PHASE 2 CRITICAL] Transient network error checking market circuit breaker: {error_msg}. "
+                        f"Cannot proceed with trading without verified market health status. "
+                        f"Circuit breaker is a critical safety gate - transient errors must be escalated, not silently skipped. "
+                        f"Retry after verifying network connectivity and market data API availability."
                     )
-                    log_phase_result_fn(
-                        2, "circuit_breakers", "ok_with_warning", "transient network error, proceeding with caution"
-                    )
-                    # Continue without circuit breaker check on transient failure - explicitly skip market check
-                    cb_result = None  # Skip market circuit breaker processing below
+                    logger.critical(msg)
+                    log_phase_result_fn(2, "circuit_breakers", "halt", msg)
+                    raise RuntimeError(msg) from e
                 else:
                     raise RuntimeError(
                         f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "

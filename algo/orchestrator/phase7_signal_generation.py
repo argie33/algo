@@ -1466,8 +1466,15 @@ def run(  # noqa: C901
     # Final ranking by signal_quality_score (already validated by quality_filtered sort, but re-validate for safety)
     if liq_passed:
         for sig in liq_passed:
-            if "signal_quality_score" not in sig or sig["signal_quality_score"] is None:
-                raise ValueError(f"Liquidity-passed signal {sig.get('symbol')} missing valid signal_quality_score")
+            required_fields = ["signal_quality_score", "signal_date", "market_stage"]
+            missing_fields = [f for f in required_fields if f not in sig or sig[f] is None]
+            if missing_fields:
+                sym = sig.get("symbol", "UNKNOWN_SYMBOL")
+                raise ValueError(
+                    f"[PHASE 7 CRITICAL] Liquidity-passed signal {sym} missing required fields: {missing_fields}. "
+                    f"Cannot log or execute incomplete signal data. Signal keys: {list(sig.keys())}. "
+                    f"Check upstream signal generation pipeline for data quality issues."
+                )
         liq_passed.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
 
     logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")
@@ -1477,7 +1484,7 @@ def run(  # noqa: C901
             return format(v, spec[1:]) if v is not None else "?"
 
         buylevel_str = (
-            f" buylevel={_fmt(sig.get('buylevel'), ':.2f')} signal_date={sig.get('signal_date', '?')}"
+            f" buylevel={_fmt(sig.get('buylevel'), ':.2f')} signal_date={sig['signal_date']}"
             if sig.get("buylevel")
             else ""
         )
@@ -1487,7 +1494,7 @@ def run(  # noqa: C901
             f"composite={_fmt(sig.get('composite_score'))} "
             f"momentum={_fmt(sig.get('momentum_score'))} "
             f"rs_pct={_fmt(sig.get('rs_percentile'))} "
-            f"stage={sig.get('market_stage', '?')}"
+            f"stage={sig['market_stage']}"
             f"{buylevel_str}"
         )
 
