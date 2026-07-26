@@ -44,7 +44,7 @@ def mascot_pose(data: dict[str, Any], frame: int) -> int:
     if not isinstance(data, dict):
         return _get_safe_frame_index(LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)])
     cb = data.get("cb")
-    if cb and isinstance(cb, dict) and cb.get("any") is True:
+    if cb and isinstance(cb, dict) and cb.get("any"):
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
         idx = seq[(frame // 2) % len(seq)]
     else:

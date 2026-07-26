@@ -38,13 +38,13 @@ class TestWatermarkConsolidation:
         for table in critical_tables:
             rule = get_freshness_rule(table)
             assert rule is not None, f"Missing rule for {table}"
-            assert rule.get("critical") is True, f"{table} should be critical"
+            assert rule.get("critical"), f"{table} should be critical"
             assert rule.get("max_age_days") > 0, f"{table} should have max_age_days"
 
         # buy_sell_daily is no longer critical (pipeline removed, Phase 5 computes on-the-fly)
         buy_sell_rule = get_freshness_rule("buy_sell_daily")
         assert buy_sell_rule is not None, "buy_sell_daily should still have a rule"
-        assert buy_sell_rule.get("critical") is False, "buy_sell_daily is legacy, not critical"
+        assert not buy_sell_rule.get("critical"), "buy_sell_daily is legacy, not critical"
 
     def test_critical_table_detection(self):
         """Verify critical tables are marked correctly."""

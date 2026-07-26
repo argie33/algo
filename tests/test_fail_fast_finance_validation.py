@@ -136,13 +136,13 @@ class TestStrictGetInt:
         assert "none" in str(exc_info.value).lower()
 
     def test_raises_when_zero_without_flag(self):
-        """Should raise when value is zero and allow_zero is False."""
+        """Should raise when value is zero and not allow_zero."""
         with pytest.raises(FinanceValidationError) as exc_info:
             strict_get_int(0, source="position_count", allow_zero=False)
         assert "zero" in str(exc_info.value).lower()
 
     def test_allows_zero_with_flag(self):
-        """Should allow zero when allow_zero is True."""
+        """Should allow zero when allow_zero."""
         result = strict_get_int(0, source="position_count", allow_zero=True)
         assert result == 0
 

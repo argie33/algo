@@ -357,7 +357,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
         # Adapt to dashboard's internal "top" format for consistency with other fetchers
         if "items" in top_data:
             # Current format: {statusCode, items, pagination, data_freshness}
-            top = top_data.get("items", [])
+            top = top_data["items"]
         elif "data" in top_data and isinstance(top_data["data"], dict):
             # Wrapped response format: {statusCode, data: {top, universe_total, ...}}
             response_data = top_data["data"]

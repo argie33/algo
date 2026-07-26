@@ -126,7 +126,7 @@ class SectorRotationDetector:
     def _fetch_and_validate_sector_data(self, eval_date: _date) -> tuple[dict[str, dict[str, Any]], bool]:
         """Returns (sector_data, only_missing_12w).
 
-        only_missing_12w is True iff every required (defensive/cyclical) sector that got
+        only_missing_12w iff every required (defensive/cyclical) sector that got
         skipped had complete 1w/4w/momentum data and was skipped solely for missing
         rank_12w_ago - i.e. a "dataset too young for this lookback yet" gap, not a
         data-corruption/missing-row problem. Callers can use this to degrade gracefully.

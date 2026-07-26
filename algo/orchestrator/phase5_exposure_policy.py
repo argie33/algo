@@ -151,6 +151,8 @@ def run(
                 "success",
                 f"tier={constraints['tier_name']}, no actions",
             )
+            # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
+            validate_phase_5_constraints(constraints)
             return PhaseResult(
                 5,
                 "exposure_policy",

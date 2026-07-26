@@ -9,7 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
 from utils.infrastructure import EASTERN_TZ
-from utils.trading import PositionStatus, TradeStatus
+from utils.trading import TradeStatus
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig

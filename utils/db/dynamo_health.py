@@ -73,7 +73,7 @@ class DynamoDBHealthCheck:
                 logger.warning("[DynamoDB] halt_flag is None, treating as False")
                 halt_active = False
             else:
-                halt_active = halt_flag_value is True
+                halt_active = halt_flag_value
 
             # EXPLICIT: Extract optional fields with explicit None handling
             set_time = item.get("set_at")
@@ -133,7 +133,7 @@ class DynamoDBHealthCheck:
                 degraded = False
             else:
                 # EXPLICIT: Coerce to boolean (is True, not just truthy)
-                degraded = degraded_value is True
+                degraded = degraded_value
 
             # EXPLICIT: Extract optional fields with explicit None handling
             reason = item.get("reason")

@@ -384,6 +384,28 @@ def validate_sector_rotation_response(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def validate_scores_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate stock scores endpoint response.
+
+    Expected structure: {top: [...scores...], universe_total: N, avg_composite: X, grades: {...}}
+    The 'top' field must be a list (can be empty).
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Scores response not a dict: {type(data)}")
+
+    if has_error(data):
+        return data
+
+    # Check that top field exists and is a list
+    if "top" not in data:
+        raise ResponseValidationError("Scores response missing 'top' field")
+
+    if not isinstance(data["top"], list):
+        raise ResponseValidationError(f"Scores 'top' field must be list, got {type(data['top'])}")
+
+    return data
+
+
 def validate_generic_response(data: dict[str, Any]) -> dict[str, Any]:
     """Generic validator for endpoints without specific requirements.
 
@@ -413,6 +435,7 @@ VALIDATORS = {
     "/api/algo/trades": validate_trades_response,
     "/api/algo/dashboard-signals": validate_dashboard_signals_response,
     "/api/algo/config": validate_config_response,
+    "/api/algo/scores": validate_scores_response,
     # Support endpoints
     "/api/algo/circuit-breakers": validate_circuit_breakers_response,
     "/api/algo/sector-rotation": validate_sector_rotation_response,

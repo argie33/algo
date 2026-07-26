@@ -87,10 +87,19 @@ def _load_alpaca_credentials_from_secrets() -> None:
         else:
             raise ValueError(f"Secret missing required fields. Found: {list(data.keys())}")
     except Exception as e:
-        logger.warning(
-            f"[CREDENTIALS] Could not load Alpaca credentials from AWS Secrets Manager: {type(e).__name__}. "
-            f"Will fall back to environment variables or paper trading mode. Error: {e}"
+        logger.error(
+            f"[CREDENTIALS] Could not load Alpaca credentials from AWS Secrets Manager: {type(e).__name__}: {e}"
         )
+        is_lambda = "LAMBDA_TASK_ROOT" in os.environ
+        if is_lambda:
+            raise RuntimeError(
+                f"[CREDENTIALS CRITICAL] Failed to load Alpaca API credentials from AWS Secrets Manager in Lambda. "
+                f"Cannot proceed without credentials. Error: {e}"
+            ) from e
+        else:
+            logger.warning(
+                "[CREDENTIALS] Running locally - verify credentials are set in environment (APCA_API_KEY_ID, APCA_API_SECRET_KEY)"
+            )
 
 
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
@@ -280,7 +289,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
                 if "Item" in response:
                     item = response["Item"]
-                    if item.get("halt_flag") is True:
+                    if item.get("halt_flag"):
                         # PROACTIVE CLEAR: Auto-clear halt flag if from prior trading day
                         # Prevents deadlock where data staleness is fixed but halt remains
                         # This mirrors halt_flag_manager.py logic that orchestrator.py uses

@@ -118,7 +118,7 @@ class VIXAccessor:
         """
         latest = VIXAccessor.get_latest_vix(timeout=timeout)
         # Check if result is unavailability marker
-        if latest is None or latest.get("data_unavailable") is True:
+        if latest is None or latest.get("data_unavailable"):
             return {
                 "data_unavailable": True,
                 "reason": "vix_data_not_available",

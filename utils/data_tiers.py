@@ -27,11 +27,6 @@ CRITICAL_DATA: set[str] = {
     "etf_price_monthly",
     # Technical indicators: Required for Minervini/Weinstein signal generation (Phase 5, Phase 7)
     "technical_data_daily",
-    # Fundamental metrics: Required for composite score generation (Phase 7 signal generation)
-    # These are inputs to stock_scores which determines buy/sell signal quality
-    "quality_metrics",
-    "growth_metrics",
-    "value_metrics",
     # Market regime: Required for position sizing constraints (Phase 3b, Phase 5)
     "market_health_daily",
     "market_exposure_daily",

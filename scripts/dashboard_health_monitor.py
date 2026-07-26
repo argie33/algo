@@ -294,12 +294,10 @@ class DashboardHealthChecker:
     def checks(self) -> dict[str, bool]:
         """Return current check results."""
         return {
-            "api": any(i["component"] == "api" and i["severity"] != "critical" for i in self.issues) is False,
-            "orchestrator": any(i["component"] == "orchestrator" and i["severity"] == "critical" for i in self.issues)
-            is False,
-            "data_freshness": any(i["component"] == "data" and i["severity"] == "critical" for i in self.issues)
-            is False,
-            "api_endpoints": any(i["component"] == "api" and i["severity"] == "critical" for i in self.issues) is False,
+            "api": not any(i["component"] == "api" and i["severity"] != "critical" for i in self.issues),
+            "orchestrator": not any(i["component"] == "orchestrator" and i["severity"] == "critical" for i in self.issues),
+            "data_freshness": not any(i["component"] == "data" and i["severity"] == "critical" for i in self.issues),
+            "api_endpoints": not any(i["component"] == "api" and i["severity"] == "critical" for i in self.issues),
         }
 
     def print_report(self, results: dict[str, Any]) -> None:
