@@ -159,22 +159,15 @@ class SignalsDailyLoader(OptimalLoader):
                                 f"[PRICE_FILTER] Using current date {target_date} with {current_date_count} symbols (80%+ threshold met)"
                             )
                         else:
-                            # Fall back to most recent date with any coverage
-                            cur.execute("SELECT MAX(date) FROM price_daily WHERE date <= %s", (target_date,))
-                            date_row = cur.fetchone()
-                            if date_row and date_row[0]:
-                                price_data_date = date_row[0]
-                                cur.execute(
-                                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (price_data_date,)
-                                )
-                                price_count_row = cur.fetchone()
-                                if not price_count_row:
-                                    raise RuntimeError(
-                                        f"CRITICAL: No result from symbol count query for date {price_data_date}"
-                                    )
-                                price_data_count = price_count_row[0]
-                            else:
-                                raise RuntimeError("CRITICAL: No price_daily data found. Cannot generate signals.")
+                            # CRITICAL FIX: No fallback to degraded data - must meet minimum quality threshold
+                            # Finance app requirement: never silently accept incomplete universe coverage
+                            # If 90%+ threshold cannot be met, fail-fast to halt signal generation
+                            raise RuntimeError(
+                                f"[PRICE_FILTER CRITICAL] No price_daily data found with 90%+ coverage on or before {target_date}. "
+                                f"Signal generation requires complete universe data (>=4500 of ~5000 symbols). "
+                                f"Falling back to stale or incomplete data would violate fail-fast principle. "
+                                f"ACTION: Check price_daily loader status, verify morning pipeline completed successfully."
+                            )
 
                     # Get symbols that have price data on this date
                     cur.execute("""SELECT DISTINCT symbol FROM price_daily WHERE date = %s""", (price_data_date,))
@@ -293,10 +286,10 @@ class SignalsDailyLoader(OptimalLoader):
                             )
                             break
 
-                # Fallback if no complete data found
+                # CRITICAL: No fallback to degraded data
                 if complete_date is None:
-                    # CRITICAL FIX: Strict limit on data staleness
-                    # Use most recent date with ANY price data, BUT must be within 1 trading day
+                    # Must enforce strict minimum coverage threshold
+                    # CRITICAL: Cannot generate signals with incomplete universe coverage
                     # Using prices older than yesterday for today's signals is unacceptable for trading
                     cur.execute(
                         "SELECT MAX(date) FROM price_daily WHERE date <= %s",
@@ -335,26 +328,23 @@ class SignalsDailyLoader(OptimalLoader):
                     price_row = cur.fetchone()
                     if price_row and price_row[0]:
                         price_coverage_symbols = int(price_row[0])
-                        # CRITICAL FIX (Session 416): Enforce minimum 95% coverage threshold.
-                        # Per GOVERNANCE.md line 50-52: "Return None when price history missing or incomplete"
-                        # Generating signals with < 95% coverage creates massive blind spots in portfolio.
-                        # Previous behavior: Accepted 3000/5000 symbols (60% coverage) without marking unavailable.
-                        # This violates fail-fast principle: incomplete data must be marked unavailable, not silently degraded.
-                        # Conservative estimate: ~4750 symbols minimum (95% of ~5000 universe).
-                        min_coverage_threshold = 4500  # 90% of typical ~5000 symbol universe
+                        # CRITICAL FIX (Session 416 + Session 442): STRICT 95% coverage requirement - NO FALLBACK
+                        # Per GOVERNANCE.md: "Return None when price history missing or incomplete"
+                        # Finance app requirement: Do not silently degrade universe coverage.
+                        # Previous Sessions 248, 250: Fallback to degraded data caused 99.5% signal filtering in Phase 7.
+                        # Solution: FAIL-FAST if coverage < 95% (allows only ~250 symbols degradation from full ~5000).
+                        # This is non-negotiable: incomplete signals feed into portfolio decision-making.
+                        min_coverage_threshold = 4750  # 95% of ~5000 symbol universe (strict, no fallback)
                         if price_coverage_symbols < min_coverage_threshold:
                             raise RuntimeError(
-                                f"[BUY_SELL_DAILY] Insufficient price_daily coverage for signal generation. "
+                                f"[BUY_SELL_DAILY FAIL-FAST] Insufficient price_daily coverage for signal generation. "
                                 f"Got {price_coverage_symbols} symbols with prices on {end}. "
-                                f"Minimum required: {min_coverage_threshold} (90% coverage). "
+                                f"Required minimum: {min_coverage_threshold} symbols (95% of universe). "
                                 f"Coverage: {price_coverage_symbols / min_coverage_threshold * 100:.1f}%. "
                                 f"ROOT CAUSE: Upstream price_daily loader incomplete or failed. "
-                                f"ACTION: Check price loader logs. Cannot proceed with degraded universe coverage."
+                                f"GOVERNANCE: Cannot generate signals with degraded universe coverage. "
+                                f"ACTION: Wait for price_daily loader to complete. Check morning pipeline logs."
                             )
-                        logger.warning(
-                            f"[BUY_SELL_DAILY] No 3000+ symbol complete dataset found, using {price_coverage_symbols} symbols "
-                            f"from {end} (meets minimum 90% threshold). Signals generated with this coverage."
-                        )
                     else:
                         raise RuntimeError(
                             f"CRITICAL: price_daily coverage query failed for {end}. "
