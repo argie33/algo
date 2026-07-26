@@ -1193,6 +1193,45 @@ class AlgoConfig:
             "yfinance market close timeout (morning, seconds)",
             "System",
         ),
+        # Data Loader Coverage Thresholds (Phase 1 data freshness checks)
+        "technical_data_coverage_threshold": (
+            "75",
+            "int",
+            "Min % technical data coverage",
+            "Data Quality",
+        ),
+        "technical_daily_coverage_threshold_pct": (
+            "95",
+            "int",
+            "Min % daily technical coverage",
+            "Data Quality",
+        ),
+        "price_daily_coverage_threshold_pct": (
+            "95",
+            "int",
+            "Min % daily price coverage",
+            "Data Quality",
+        ),
+        # Orchestrator Halt Configuration
+        "orchestrator_halt_enabled": (
+            "true",
+            "bool",
+            "Enable orchestrator halt on data issues",
+            "System",
+        ),
+        # Exposure Constraints
+        "halt_new_entries": (
+            "false",
+            "bool",
+            "Legacy: halt new entry orders",
+            "Risk Management",
+        ),
+        "max_new_positions_today": (
+            "15",
+            "int",
+            "Legacy: max new positions per day",
+            "Risk Management",
+        ),
     }
 
     def __init__(self) -> None:
