@@ -40,6 +40,7 @@ from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
+from utils.db.sql_safety import assert_safe_table
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
 
@@ -198,7 +199,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             today_iso = date.today().isoformat()
             with DatabaseContext("read") as cur:
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
-                    cur.execute(f"SELECT COUNT(*) FROM {table} WHERE updated_at::date = %s", (today_iso,))
+                    safe_table = assert_safe_table(table)
+                    cur.execute(f"SELECT COUNT(*) FROM {safe_table} WHERE updated_at::date = %s", (today_iso,))
                     today_count = cur.fetchone()[0]
                     if today_count == 0:
                         raise RuntimeError(
@@ -212,7 +214,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             with DatabaseContext("write") as cur:
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     # Query the actual MAX(date) from each table
-                    cur.execute(f"SELECT MAX(updated_at)::date FROM {table}")
+                    safe_table = assert_safe_table(table)
+                    cur.execute(f"SELECT MAX(updated_at)::date FROM {safe_table}")
                     result = cur.fetchone()
                     actual_latest_date = result[0] if result and result[0] else None
 

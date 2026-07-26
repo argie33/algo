@@ -2,23 +2,22 @@
 """Local data loader scheduler - runs loaders on a schedule for local development.
 
 For local dev environments where AWS EventBridge isn't available.
-Runs key loaders at scheduled times to keep data fresh (mirrors AWS's real 3-pipeline
+Runs key loaders at scheduled times to keep data fresh (mirrors AWS's real multi-pipeline
 EventBridge schedule in terraform/modules/pipeline/main.tf, plus a local-only reference pipeline):
 - 2:00 AM ET: Morning pipeline (prices, technicals, market health - pre-market prep)
 - 9:15 AM ET: Reference pipeline (SEC company info, earnings calendar; local-only, not in AWS)
+- 3:30 PM ET: Metrics pipeline (CRITICAL: runs BEFORE signals to ensure stock_scores uses fresh
+  fundamentals). Slow SEC/EDGAR fundamentals refresh: financials, 13F, insider, positioning,
+  value/quality/growth. Must complete before signals pipeline so stock_scores can compute
+  composite scores from today's fundamentals (2026-07-25 fix: was 7 PM, creating 3+ hour lag).
 - 4:05 PM ET: Signals pipeline (re-fetches that day's CLOSING prices/technicals, then recomputes
   stock_scores/buy_sell_daily/signal_quality_scores/risk_metrics/algo_metrics/sector_industry -
   all DB-only/price-driven, no external API calls, so this must run every day regardless of
-  whether "metrics" ran that day). Matches AWS's eod_pipeline timing/content exactly. Previously
-  these 6 loaders lived inside "metrics" and were silently skipped whenever stock_scores
-  fundamentals completeness was already >=75% (true on almost every run after the first) - the
-  dashboard's trading signals would then never regenerate even though "morning" refreshed prices
-  every run. Also, nothing previously re-fetched closing prices after the 2 AM pre-market run at
-  all in the daemon/Windows-Task-Scheduler paths. Both fixed 2026-07-21; see
-  run_complete_loader_pipeline() in start_dashboard_dev.py, which now always runs this pipeline.
-- 7:00 PM ET: Metrics pipeline (slow SEC/EDGAR fundamentals refresh: financials, 13F, insider,
-  positioning, value/quality/growth - safe to run after signals since these loaders don't feed
-  same-day signal generation, only slowly-changing composite scores).
+  whether "metrics" ran that day). Matches AWS's eod_pipeline timing/content exactly. CRITICAL:
+  Runs AFTER metrics pipeline (3:30 PM) so stock_scores has fresh fundamentals. Also, nothing
+  previously re-fetched closing prices after the 2 AM pre-market run at all in the daemon/
+  Windows-Task-Scheduler paths. Both fixed 2026-07-21; see run_complete_loader_pipeline() in
+  start_dashboard_dev.py, which now always runs this pipeline.
 
 Usage:
   python3 scripts/local_loader_scheduler.py                # Run scheduler daemon
@@ -75,7 +74,7 @@ LOADERS = {
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): slow SEC/EDGAR fundamentals refresh - stock universe, financial statements, valuations, positioning, value/quality/growth. In start_dashboard_dev.py, skips only if growth_metrics/quality_metrics tables are <24h old (staleness gate, not completeness gate).",
+        "description": "Metrics pipeline (3:30 PM ET, before signals): slow SEC/EDGAR fundamentals refresh - stock universe, financial statements, valuations, positioning, value/quality/growth. CRITICAL: Must run BEFORE signals pipeline so stock_scores uses fresh fundamentals. In start_dashboard_dev.py, skips only if growth_metrics/quality_metrics tables are <24h old (staleness gate, not completeness gate).",
         "loaders": [
             # Found+fixed 2026-07-20 (data-loading audit): market_constituents and economic_data
             # are wired into the AWS EOD Step Functions pipeline (terraform/modules/pipeline/main.tf)
@@ -94,11 +93,11 @@ LOADERS = {
             "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
         ],
         "interval_hours": 24,
-        "target_hour": 19,
-        "target_minute": 0,
+        "target_hour": 15,
+        "target_minute": 30,
     },
     "signals": {
-        "description": "Signals pipeline (4:05 PM ET, 5 min after market close - matches AWS eod_pipeline's real schedule): re-fetches that day's closing prices/technicals, then recomputes scores/signals from them. Must run every day regardless of whether 'metrics' ran, since these are price-driven (not fundamentals-driven).",
+        "description": "Signals pipeline (4:05 PM ET, 5 min after market close - matches AWS eod_pipeline's real schedule): re-fetches that day's closing prices/technicals, then recomputes scores/signals from them. CRITICAL: Runs AFTER metrics pipeline completes so stock_scores can use fresh fundamentals. Must run every day regardless of whether 'metrics' ran, since these are price-driven (not fundamentals-driven).",
         "loaders": [
             # Local dev's only other price fetch is 'morning' at 2 AM ET (pre-market, i.e. still
             # showing the PREVIOUS close). Without re-fetching here, everything below would compute
