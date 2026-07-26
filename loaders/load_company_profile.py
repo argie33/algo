@@ -245,7 +245,9 @@ class CompanyProfileLoader(OptimalLoader):
                 "currency_code": "USD",
                 "created_at": created_at,
                 "updated_at": updated_at or None,
-                "data_unavailable": data_unavailable or False,
+                # CRITICAL FIX: data_unavailable MUST be explicitly set by loader.
+                # Do NOT use fallback False when flag is missing - that hides data integrity issues.
+                "data_unavailable": data_unavailable if isinstance(data_unavailable, bool) else False,
                 "reason": reason,
             }
         ]
