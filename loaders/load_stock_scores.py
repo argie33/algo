@@ -252,6 +252,7 @@ class StockScoresLoader(OptimalLoader):
         """
         self._batch_context = {}
         # Load configurable completeness threshold
+        self._min_completeness_threshold = None
         try:
             with DatabaseContext("read") as config_cur:
                 config_cur.execute("SELECT value FROM algo_config WHERE key = 'min_completeness_score'")
@@ -261,13 +262,23 @@ class StockScoresLoader(OptimalLoader):
                     logger.debug(
                         f"[STOCK_SCORES] Using configurable completeness threshold: {self._min_completeness_threshold}%"
                     )
-                else:
-                    self._min_completeness_threshold = 70.0
-                    logger.debug("[STOCK_SCORES] No config found, using default completeness threshold: 70%")
         except Exception as config_err:
+            logger.critical(
+                f"[STOCK_SCORES FAIL-FAST] Could not load min_completeness_score from config table: {config_err}. "
+                f"This is a critical data quality gate. Database may be inaccessible or corrupted. "
+                f"Cannot proceed without explicit completeness validation configuration."
+            )
+            raise RuntimeError(
+                f"[STOCK_SCORES CRITICAL] Failed to load min_completeness_score configuration: {config_err}. "
+                f"This parameter is critical for data integrity validation. Check database connectivity and schema."
+            ) from config_err
+
+        # Use explicit default only if key truly doesn't exist (legitimate first-time setup)
+        if self._min_completeness_threshold is None:
             self._min_completeness_threshold = 70.0
             logger.warning(
-                f"[STOCK_SCORES] Could not load min_completeness_score config, using default 70%: {config_err}"
+                "[STOCK_SCORES] min_completeness_score not configured in database. "
+                "Using conservative default 70% - consider setting explicit value in algo_config table."
             )
 
         with DatabaseContext("read") as cur:

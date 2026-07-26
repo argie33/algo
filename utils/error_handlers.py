@@ -112,7 +112,8 @@ def classify_exception(e: Exception) -> tuple[int, str, str]:
         Tuple of (statusCode, errorType, message)
     """
     if isinstance(e, BaseAPIError):
-        return (e.status_code, e.error_type, e.message)
+        message = e.message if e.message is not None else f"Error {e.error_type} ({e.status_code})"
+        return (e.status_code, e.error_type, message)
 
     error_type_name = type(e).__name__
     error_str = str(e)

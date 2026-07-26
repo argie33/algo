@@ -95,16 +95,20 @@ def run(
 
             # CRITICAL: auth_unavailable means the partial-fill check never actually ran
             # (broker 401'd before it could compare any orders) - the 0 mismatches above is
-            # "not checked", not "checked and clean". Without this, a broker auth outage
-            # silently skips partial-fill correction for the whole day while Phase 4 still
-            # reports full success below, since "mismatches" and "error"/"error_status" are
-            # the only fields the checks above look at.
+            # "not checked", not "checked and clean".
             if partial_fill_result.get("auth_unavailable"):
-                logger.warning(
-                    "[PHASE_3A] Partial fill check skipped - broker auth unavailable. "
-                    "Any partial fills today will not be detected or corrected until broker access is restored."
+                # FAIL-FAST: Cannot validate partial fills without broker auth. This is CRITICAL
+                # for accurate position tracking. Continuing with unvalidated partial fills risks
+                # position state divergence and incorrect risk calculations.
+                error_msg = (
+                    "[PHASE 4 FAIL-FAST] Cannot validate partial fills: broker authentication unavailable. "
+                    "Partial fills may exist but cannot be detected or corrected. "
+                    "This is a critical safety check - reconciliation must not proceed without it. "
+                    "Remedy: restore broker credentials (APCA_API_KEY_ID/APCA_API_SECRET_KEY), or "
+                    "run with --dry-run to skip trading. Aborting Phase 4."
                 )
-                result["partial_fill_check_skipped"] = "broker_auth_unavailable"
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
 
         # Validate result structure upfront
         if "success" not in result or result["success"] is None:

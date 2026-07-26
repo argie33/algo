@@ -4,7 +4,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -147,7 +147,9 @@ def _create_mock_cursor():
     cursor.fetchall.side_effect = mock_fetchall
     cursor.fetchone.side_effect = mock_fetchone
     cursor.fetchmany.return_value = []
-    cursor.description = None
+    # CRITICAL FIX: Use PropertyMock to prevent MagicMock auto-creating new Mocks
+    # When description is accessed, return None, not a new Mock object.
+    type(cursor).description = PropertyMock(return_value=None)
     cursor.rowcount = len(mock_config_rows)
     cursor.connection = MagicMock()
     cursor.connection.rollback = MagicMock()
