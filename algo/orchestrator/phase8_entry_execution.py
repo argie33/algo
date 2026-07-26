@@ -1433,6 +1433,25 @@ def run(
 
                 continue
 
+            # CRITICAL DEFENSIVE CHECK: Verify no open/pending positions exist for this symbol
+            # This is a safety gate in addition to PreTradeChecks to prevent database constraint violations
+            # if the pre-trade check somehow missed a duplicate.
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status IN ('open', 'pending') LIMIT 1",
+                        (symbol,),
+                    )
+                    if cur.fetchone():
+                        msg = f"[PHASE 8 DUPLICATE GATE] {symbol} already has open/pending position. Blocking entry."
+                        logger.warning(msg)
+                        _log_signal_rejection(symbol, "duplicate_position", msg, run_date, entry_price, risk_pct)
+                        skipped_count += 1
+                        continue
+            except Exception as e:
+                logger.error(f"[PHASE 8] Failed to check for duplicate positions: {e}")
+                # Don't halt on check failure, let executor attempt and database constraint will catch it
+
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")
 
