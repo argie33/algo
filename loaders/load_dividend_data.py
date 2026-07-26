@@ -265,11 +265,12 @@ class DividendDataLoader(SecLoaderBase):
 
 def main() -> int:
     """Run the dividend data loader."""
-    return run_loader(
-        loader_class=DividendDataLoader,
-        script_name=__file__,
-    )
+    try:
+        return run_loader(DividendDataLoader)
+    except Exception as e:
+        logger.error(f"[DIVIDEND FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
-    sys.exit(handle_exception(main))
+    sys.exit(main())

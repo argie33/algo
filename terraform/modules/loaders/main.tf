@@ -401,6 +401,7 @@ locals {
     # SEC holdings (Phase 2 complete - institutional + insider from SEC filings)
     "institutional_holdings_13f" = "load_institutional_holdings_13f.py"
     "insider_holdings_sec" = "load_insider_holdings_sec.py"
+    "insider_transaction_velocity" = "load_insider_transaction_velocity.py"
 
     # SEC cash flow & segment metrics
     "sec_cash_flow_metrics" = "load_sec_cash_flow_metrics.py"
@@ -528,6 +529,15 @@ locals {
     "insider_holdings_sec"       = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
 
     # ============================================================
+    # NEW: Insider Transaction Velocity (Session 444+)
+    # ============================================================
+    # Insider confidence scoring from SEC Form 3/4/5 transaction counts
+    # Data source: Same as insider_holdings_sec (Form 3/4/5 bulk datasets)
+    # Detects insider buying sprees, executive departures, lockup periods
+    # Lightweight: SEC API calls + aggregation (actual ~100MB, same as insider_holdings_sec)
+    "insider_transaction_velocity" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+
+    # ============================================================
     # NEW: SEC-Derived Cash Flow & Segment Metrics (Session 274+)
     # ============================================================
     # Working capital, capex, free cash flow from SEC financial statements
@@ -606,6 +616,7 @@ locals {
     "earnings_calendar_sec",
     "institutional_holdings_13f",
     "insider_holdings_sec",
+    "insider_transaction_velocity",
     "sec_cash_flow_metrics",
     "sec_segment_metrics",
 

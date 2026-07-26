@@ -124,15 +124,14 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
         ]
 
 
-async def main() -> None:
-    loader = InsiderTransactionVelocityLoader()
+def main() -> int:
+    """Entry point for load_insider_transaction_velocity.py."""
     try:
-        await run_loader(loader, logger)
+        return run_loader(InsiderTransactionVelocityLoader)
     except Exception as e:
-        logger.error(f"Loader failed: {e}", exc_info=True)
-        sys.exit(1)
+        logger.error(f"[INSIDER_VELOCITY FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    sys.exit(main())

@@ -168,9 +168,9 @@ class CurrentReports8KLoader(SecLoaderBase):
                 accession_number = filing.get("accessionNumber", "").replace("-", "")
 
                 try:
-                    # Extract filing text
-                    filing_text = self.sec_client.get_filing_text(
-                        cik, accession_number, "8-K"
+                    # Extract filing text (plaintext version of 8-K filing)
+                    filing_text = self.sec_client.get_filing_plaintext(
+                        cik, accession_number
                     )
                     items = self._extract_8k_items(filing_text)
 
@@ -231,11 +231,12 @@ class CurrentReports8KLoader(SecLoaderBase):
 
 def main() -> int:
     """Run the 8-K loader."""
-    return run_loader(
-        loader_class=CurrentReports8KLoader,
-        script_name=__file__,
-    )
+    try:
+        return run_loader(CurrentReports8KLoader)
+    except Exception as e:
+        logger.error(f"[8K FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
-    sys.exit(handle_exception(main))
+    sys.exit(main())

@@ -862,7 +862,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogMarketStatusFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "DataPatrol"
+        Next = "InsiderTransactionVelocity"
       }
 
       LogMarketStatusFailure = {
@@ -872,6 +872,58 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           loader_name       = "market_status_daily"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "InsiderTransactionVelocity"
+          ResultPath  = "$.logError"
+        }]
+        Next = "InsiderTransactionVelocity"
+      }
+
+      # ── Step 8e-bis: Insider Transaction Velocity Loader ──
+      # Tracks insider buying/selling patterns for confidence signals
+      # Non-critical: data feed for composite scoring, doesn't block trading
+      # Lightweight: processes SEC bulk data (already cached locally)
+      InsiderTransactionVelocity = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["insider_transaction_velocity"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogInsiderVelocityFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "DataPatrol"
+      }
+
+      LogInsiderVelocityFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "insider_transaction_velocity"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
         }
         ResultPath = "$.failureLog"
         Retry = [{
