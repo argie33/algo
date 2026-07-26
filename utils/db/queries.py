@@ -6,7 +6,6 @@ buy_sell_daily, stock_scores tables. Reduces duplication, improves maintainabili
 enables query optimization at one point.
 """
 
-from typing import Any, Optional
 from utils.db.context import DatabaseContext
 
 
@@ -86,7 +85,7 @@ class BuySellDailyQueries:
             return cur.fetchone()[0]
 
     @staticmethod
-    def get_latest_date() -> Optional[str]:
+    def get_latest_date() -> str | None:
         """Get most recent date in buy_sell_daily."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT MAX(date) FROM buy_sell_daily")
@@ -108,7 +107,7 @@ class StockScoresQueries:
     """Consolidated queries for stock_scores table."""
 
     @staticmethod
-    def get_latest_update_time() -> Optional[str]:
+    def get_latest_update_time() -> str | None:
         """Get most recent update timestamp."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT MAX(updated_at) FROM stock_scores")

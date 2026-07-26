@@ -1491,7 +1491,6 @@ def run(
             except Exception as e:
                 logger.error(f"[PHASE 8] Failed to check for duplicate positions: {e}")
                 # Don't halt on check failure, let executor attempt and database constraint will catch it
-                pass
 
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")

@@ -1056,21 +1056,11 @@ class AlgoConfig:
             "SQL Query Configuration",
         ),
         # Retry Configuration (replaces 3 hardcoded retry counts)
-        "retry_count_fred_api": ("5", "int", "FRED API rate-limit retry attempts", "Retry Configuration"),
-        "retry_count_aaii_sentiment": ("2", "int", "AAII sentiment fetch retry attempts", "Retry Configuration"),
-        "retry_count_db_migration": (
-            "3",
-            "int",
-            "Database migration blocking query cleanup retry attempts",
-            "Retry Configuration",
-        ),
         # Swing score component weights (must mirror VALIDATION_SCHEMA's fail_closed values --
         # these keys had no DEFAULTS entry at all, so AlgoConfig.get() returned None whenever the
         # database row was missing or failed validation, with no fallback to fall back to. This
         # broke WeightOptimizer.get_current_weights() every time it ran, halting Phase 9 on every
         # single orchestrator run with "Weight config key ... returned None").
-        "swing_weight_setup": ("25", "int", "Swing score: Setup quality weight %", "Swing Scoring"),
-        "swing_weight_trend": ("20", "int", "Swing score: Trend quality weight %", "Swing Scoring"),
         "swing_weight_momentum": ("20", "int", "Swing score: Momentum/RS weight %", "Swing Scoring"),
         "swing_weight_volume": ("12", "int", "Swing score: Volume weight %", "Swing Scoring"),
         "swing_weight_fundamentals": ("10", "int", "Swing score: Fundamentals weight %", "Swing Scoring"),
@@ -1084,18 +1074,6 @@ class AlgoConfig:
             "string",
             "Alpaca trading API base URL",
             "System",
-        ),
-        "buy_sell_daily_coverage_threshold": (
-            "60.0",
-            "float",
-            "Buy/sell signal daily data coverage threshold %",
-            "Data Quality",
-        ),
-        "buy_sell_daily_coverage_threshold_pct": (
-            "70.0",
-            "float",
-            "Buy/sell daily signal coverage threshold %",
-            "Data Quality",
         ),
         "grade_override_enabled": (
             "false",
@@ -1165,22 +1143,10 @@ class AlgoConfig:
             "System",
         ),
         # Data Loader Coverage Thresholds (Phase 1 data freshness checks)
-        "technical_data_coverage_threshold": (
-            "75",
-            "int",
-            "Min % technical data coverage",
-            "Data Quality",
-        ),
         "technical_daily_coverage_threshold_pct": (
             "95",
             "int",
             "Min % daily technical coverage",
-            "Data Quality",
-        ),
-        "price_daily_coverage_threshold_pct": (
-            "95",
-            "int",
-            "Min % daily price coverage",
             "Data Quality",
         ),
         # Orchestrator Halt Configuration

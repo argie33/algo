@@ -1578,6 +1578,46 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_scores_computed"}
 
+    def _score_dte(self, dte: float) -> float:
+        """Score debt-to-equity (target D/E < 1.0, lower is better)."""
+        if dte <= 0.5:
+            return 100.0
+        if dte <= 1.0:
+            return 100.0 - ((dte - 0.5) / 0.5) * 30
+        if dte <= 2.0:
+            return 70.0 - ((dte - 1.0) / 1.0) * 40
+        return max(0, 30 - (dte - 2.0) * 15)
+
+    def _score_current_ratio(self, cr: float) -> float:
+        """Score current ratio (target > 1.5)."""
+        if cr >= 2.0:
+            return 100.0
+        if cr >= 1.5:
+            return 80.0 + ((cr - 1.5) / 0.5) * 20
+        if cr >= 1.0:
+            return 50.0 + ((cr - 1.0) / 0.5) * 30
+        if cr >= 0.5:
+            return (cr / 0.5) * 50
+        return 0.0
+
+    def _score_quick_ratio(self, qr: float) -> float:
+        """Score quick ratio (target > 1.0)."""
+        if qr >= 1.5:
+            return 100.0
+        if qr >= 1.0:
+            return 70.0 + ((qr - 1.0) / 0.5) * 30
+        if qr >= 0.5:
+            return 35.0 + ((qr - 0.5) / 0.5) * 35
+        return (qr / 0.5) * 35
+
+    def _score_cash_per_share(self, cps: float) -> float:
+        """Score cash per share (target > $10, cap at $50)."""
+        if cps >= 50:
+            return 100.0
+        if cps >= 10:
+            return 60.0 + ((cps - 10) / 40) * 40
+        return (cps / 10) * 60
+
     def _score_financial_stability(self, metrics: dict[str, Any], symbol: str) -> float | None:
         """Score financial stability using Phase 3 debt/liquidity metrics.
 
@@ -1588,70 +1628,32 @@ class StockScoresLoader(OptimalLoader):
         """
         components: list[tuple[float, float]] = []  # (score, weight) pairs
 
-        # 1. Leverage: Debt-to-equity (target D/E < 1.0, lower is better)
         if metrics.get("debt_to_equity") is not None:
             dte = float(max(0, metrics["debt_to_equity"]))
-            # Target < 1.0 (equal debt and equity); >2.0 is high leverage
-            if dte <= 0.5:
-                dte_score = 100.0
-            elif dte <= 1.0:
-                dte_score = 100.0 - ((dte - 0.5) / 0.5) * 30  # 100→70 in [0.5, 1.0]
-            elif dte <= 2.0:
-                dte_score = 70.0 - ((dte - 1.0) / 1.0) * 40  # 70→30 in [1.0, 2.0]
-            else:
-                dte_score = max(0, 30 - (dte - 2.0) * 15)  # Below 30 for dte > 2.0
-            components.append((dte_score, 0.30))
+            components.append((self._score_dte(dte), 0.30))
 
-        # 2. Solvency: Debt-to-assets (target D/A < 0.5, lower is better)
         if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
             dta = float(min(metrics["debt_to_assets"], 1.0))
-            dta_score = max(0, 100.0 - (dta * 100.0))  # 100 at 0%, 0 at 100%
+            dta_score = max(0, 100.0 - (dta * 100.0))
             components.append((dta_score, 0.25))
 
-        # 3. Liquidity: Current ratio (target > 1.5) + Quick ratio (target > 1.0)
         liquidity_scores = []
         if metrics.get("current_ratio") is not None:
             cr = float(max(0, metrics["current_ratio"]))
-            if cr >= 2.0:
-                cr_score = 100.0
-            elif cr >= 1.5:
-                cr_score = 80.0 + ((cr - 1.5) / 0.5) * 20  # 80→100 in [1.5, 2.0]
-            elif cr >= 1.0:
-                cr_score = 50.0 + ((cr - 1.0) / 0.5) * 30  # 50→80 in [1.0, 1.5]
-            elif cr >= 0.5:
-                cr_score = (cr / 0.5) * 50  # 0→50 in [0, 0.5]
-            else:
-                cr_score = 0.0
-            liquidity_scores.append(cr_score)
+            liquidity_scores.append(self._score_current_ratio(cr))
 
         if metrics.get("quick_ratio") is not None:
             qr = float(max(0, metrics["quick_ratio"]))
-            if qr >= 1.5:
-                qr_score = 100.0
-            elif qr >= 1.0:
-                qr_score = 70.0 + ((qr - 1.0) / 0.5) * 30  # 70→100 in [1.0, 1.5]
-            elif qr >= 0.5:
-                qr_score = 35.0 + ((qr - 0.5) / 0.5) * 35  # 35→70 in [0.5, 1.0]
-            else:
-                qr_score = (qr / 0.5) * 35  # 0→35 in [0, 0.5]
-            liquidity_scores.append(qr_score)
+            liquidity_scores.append(self._score_quick_ratio(qr))
 
         if liquidity_scores:
             avg_liquidity_score = sum(liquidity_scores) / len(liquidity_scores)
             components.append((avg_liquidity_score, 0.30))
 
-        # 4. Cash Position: Cash per share (target > $10, cap at $50)
         if metrics.get("cash_per_share") is not None and metrics["cash_per_share"] > 0:
             cps = float(metrics["cash_per_share"])
-            if cps >= 50:
-                cps_score = 100.0
-            elif cps >= 10:
-                cps_score = 60.0 + ((cps - 10) / 40) * 40  # 60→100 in [$10, $50]
-            else:
-                cps_score = (cps / 10) * 60  # 0→60 in [$0, $10]
-            components.append((cps_score, 0.15))
+            components.append((self._score_cash_per_share(cps), 0.15))
 
-        # Compute weighted average if we have any components
         if not components:
             return None
 

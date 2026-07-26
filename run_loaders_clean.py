@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Clear locks and run loaders with new max_fail_rate settings."""
 
-import psycopg2
 import subprocess
+
+import psycopg2
 
 conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
 cur = conn.cursor()
@@ -37,7 +38,7 @@ for name, script in loaders:
 
     # Check for success marker
     if "[OK]" in result.stderr or "success" in result.stderr.lower():
-        print(f"  ✓ Completed successfully")
+        print("  ✓ Completed successfully")
     elif "FAILED" in result.stderr or result.returncode != 0:
         print(f"  ✗ Failed (return code {result.returncode})")
         # Show error
@@ -45,7 +46,7 @@ for name, script in loaders:
             if 'ERROR' in line or 'FAILED' in line or 'threshold' in line:
                 print(f"    {line[:100]}")
     else:
-        print(f"  ? Unknown status")
+        print("  ? Unknown status")
 
 # Check what was written
 print("\n" + "=" * 60)
