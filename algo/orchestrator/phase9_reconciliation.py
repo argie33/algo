@@ -837,10 +837,10 @@ def _record_closed_positions_exits(
                                 """
                                 UPDATE algo_positions
                                 SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s, unrealized_pnl = NULL,
-                                    updated_at = CURRENT_TIMESTAMP
+                                    exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                 WHERE symbol = %s
                             """,
-                                (exit_price, symbol),
+                                (exit_price, "Closed position recorded during reconciliation - pending fill price confirmation", symbol),
                             )
                             if write_cursor.rowcount == 0:
                                 logger.warning(
