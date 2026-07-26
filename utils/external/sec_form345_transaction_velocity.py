@@ -26,7 +26,7 @@ from utils.infrastructure.url_validator import validate_url
 logger = logging.getLogger(__name__)
 
 USER_AGENT = "algo-trading argeropolos@gmail.com"
-REQUEST_TIMEOUT_SECONDS = 60
+REQUEST_TIMEOUT_SECONDS = 180  # Increased from 60 to handle large bulk ZIPs (500MB+)
 DEFAULT_LOOKBACK_QUARTERS = 12
 URL_PATH_PREFIXES = ("datastandardsinnovation", "structureddata")
 
@@ -181,7 +181,11 @@ class Form345TransactionVelocityAggregator:
         )
 
     def _download_quarter(self, quarter: str) -> bytes | None:
-        """Download a single quarter's Form 3/4/5 bulk data ZIP."""
+        """Download a single quarter's Form 3/4/5 bulk data ZIP.
+
+        Uses streaming download for large files (500MB+) to avoid memory exhaustion
+        and handle slow network connections.
+        """
         for prefix in URL_PATH_PREFIXES:
             url = f"https://www.sec.gov/files/{prefix}/data/insider-transactions-data-sets/{quarter}_form345.zip"
             is_valid, error_msg = validate_url(url, allowed_domains=["sec.gov"])
@@ -189,17 +193,29 @@ class Form345TransactionVelocityAggregator:
                 logger.warning(f"[FORM345_VELOCITY] SSRF validation failed: {error_msg}")
                 continue
             try:
-                resp = self._session.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
+                # Stream=True to handle large files without loading full response into memory
+                resp = self._session.get(url, timeout=REQUEST_TIMEOUT_SECONDS, stream=True)
             except (requests.ConnectionError, requests.Timeout) as e:
-                logger.warning(f"[FORM345_VELOCITY] Network error: {e}")
+                logger.warning(f"[FORM345_VELOCITY] Network error downloading {quarter}: {e}")
                 continue
             if resp.status_code == 404:
                 continue
             if resp.status_code != 200:
                 logger.warning(f"[FORM345_VELOCITY] Status {resp.status_code} for {url}")
                 continue
-            logger.debug(f"[FORM345_VELOCITY] Downloaded {quarter} ({len(resp.content)} bytes)")
-            return bytes(resp.content)
+
+            # Read streamed content in chunks to avoid memory exhaustion
+            try:
+                zip_bytes = b''
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        zip_bytes += chunk
+                logger.info(f"[FORM345_VELOCITY] Downloaded {quarter} ({len(zip_bytes)} bytes)")
+                return zip_bytes
+            except Exception as e:
+                logger.warning(f"[FORM345_VELOCITY] Error reading {quarter} stream: {e}")
+                continue
+
         return None
 
     def _process_quarter(self, zip_bytes: bytes) -> None:

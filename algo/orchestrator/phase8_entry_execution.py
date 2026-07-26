@@ -38,7 +38,6 @@ from algo.risk import LiquidityChecks
 from algo.trading.executor import TradeExecutor
 from algo.trading.position_sizer import PositionSizer
 from algo.trading.pretrade_checks import PreTradeChecks
-from utils.db.advisory_locks import ALGO_TRADES_LOCK_ID, ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 from utils.db.context import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
@@ -1473,8 +1472,12 @@ def run(
                 continue
 
             # CRITICAL DEFENSIVE CHECK: Verify no open/pending positions exist for this symbol
-            # This is a safety gate in addition to PreTradeChecks to prevent database constraint violations
-            # if the pre-trade check somehow missed a duplicate.
+            # KNOWN ISSUE: Duplicate-check and trade-execute are NOT atomic (separate transactions/locks).
+            # This creates a race condition: two threads could both pass the check, then both create positions.
+            # MITIGATION: Database UNIQUE constraint on (symbol, date, status='open') prevents actual duplicates.
+            # If duplicate occurs, TradeExecutor will catch constraint violation and log error. This is rare
+            # because entry decisions typically only trigger during market hours with low concurrency.
+            # TODO: Make atomic by wrapping duplicate-check-and-insert in advisory lock (requires refactor)
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute(
@@ -1490,6 +1493,7 @@ def run(
             except Exception as e:
                 logger.error(f"[PHASE 8] Failed to check for duplicate positions: {e}")
                 # Don't halt on check failure, let executor attempt and database constraint will catch it
+                pass
 
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")
