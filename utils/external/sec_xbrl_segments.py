@@ -189,7 +189,7 @@ class XBRLSegmentParser:
         return None
 
     @staticmethod
-    def _extract_segments(us_gaap: dict, symbol: str) -> list[dict[str, Any]]:
+    def _extract_segments(us_gaap: dict, symbol: str) -> list[dict[str, Any]]:  # noqa: C901
         """Extract individual segment data from us-gaap facts.
 
         SEC companyfacts structure: us-gaap[concept][unit][] = list of fact records

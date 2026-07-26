@@ -74,7 +74,7 @@ class BulkInsertManager:
                 return self._create_staging_table(cur)
             raise
 
-    def bulk_insert(
+    def bulk_insert(  # noqa: C901
         self,
         rows: list[dict[str, Any]],
         symbol: str | None = None,

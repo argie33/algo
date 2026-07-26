@@ -71,7 +71,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
     exclude_etfs_from_symbols = True
 
-    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:  # type: ignore[override]
+    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:  # type: ignore[override]  # noqa: C901
         """Override run() to write to 3 tables instead of 1."""
         from utils.loaders.config import get_default_parallelism
 
@@ -465,7 +465,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return None
         return value
 
-    def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:
+    def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
 
         ev_metrics: tuple of (total_debt, total_cash, ebitda) from sec_valuations

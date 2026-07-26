@@ -24,7 +24,7 @@ def fix_long_line(line: str, max_length: int = 120) -> str:
     # Strategy 1: Break f-strings by extracting variables
     match = re.match(r'^(\s*)f"([^"]+)"(.*)', line)
     if match and len(line) > max_length:
-        indent, content, rest = match.groups()
+        indent, content, _rest = match.groups()
         # Try to extract the variable part before the f-string
         if '{' in content:
             # This is complex, skip for now

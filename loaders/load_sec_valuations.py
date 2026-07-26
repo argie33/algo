@@ -248,7 +248,7 @@ class SecValuationsLoader(OptimalLoader):
                 logger.critical(f"[SEC_VALUATIONS] {symbol}: Unexpected error: {type(e).__name__}: {e}", exc_info=True)
                 raise
 
-    def _compute_valuations(
+    def _compute_valuations(  # noqa: C901
         self,
         symbol: str,
         current_price: float,

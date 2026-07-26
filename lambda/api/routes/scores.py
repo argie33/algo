@@ -84,7 +84,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_stock_scores(
+def _get_stock_scores(  # noqa: C901
     cur: cursor,
     limit: int = 5000,
     offset: int = 0,
