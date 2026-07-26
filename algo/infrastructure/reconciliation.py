@@ -1663,11 +1663,12 @@ class DailyReconciliation:
             )
             pnl_dollars = float(((fill_price - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
             risk = float(entry_price) - float(stop_loss_price)
-            exit_r_multiple = (
-                float(((fill_price - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP))
-                if risk > 0
-                else None
-            )
+            if risk > 0:
+                exit_r_multiple = float(
+                    (Decimal(str(float(fill_price) - float(entry_price))) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                )
+            else:
+                exit_r_multiple = None
 
             cur.execute(
                 """
