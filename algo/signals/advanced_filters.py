@@ -336,13 +336,25 @@ class AdvancedFilters:
             components["growth"] = grw_breakdown
             subscores["catalyst"] += grw_pts
 
-            an_pts, an_net = self._analyst_score(symbol, signal_date, cur)
-            components["analyst_net_actions"] = an_net
-            subscores["catalyst"] += an_pts
+            try:
+                an_pts, an_net = self._analyst_score(symbol, signal_date, cur)
+                components["analyst_net_actions"] = an_net
+                subscores["catalyst"] += an_pts
+            except ValueError as e:
+                if not hard_fail:
+                    hard_fail = f"Analyst data unavailable: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (analyst score) but already failed: {hard_fail}")
 
-            in_pts, in_net = self._insider_score(symbol, signal_date, cur)
-            components["insider_net_value"] = in_net
-            subscores["catalyst"] += in_pts
+            try:
+                in_pts, in_net = self._insider_score(symbol, signal_date, cur)
+                components["insider_net_value"] = in_net
+                subscores["catalyst"] += in_pts
+            except ValueError as e:
+                if not hard_fail:
+                    hard_fail = f"Insider data unavailable: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (insider score) but already failed: {hard_fail}")
 
             # RISK (15) - these are GOOD when low risk
             try:
@@ -811,14 +823,16 @@ class AdvancedFilters:
 
         if ups == 0 and downs == 0:
             # No activity for this symbol in lookback period.
-            # This is expected for most symbols since data source is limited/frozen.
-            # Accept gracefully (return 0) - this is per-symbol gap, not systemic failure.
-            # Rationale: Catalyst score optional when analyst data unavailable; signals still valid.
-            logger.debug(
-                f"  {symbol}: No analyst activity in 90d (expected given limited data source). "
-                f"Catalyst score will use other components (insider transactions, growth momentum, etc.)"
+            # Previously: silently accepted this as "expected for most symbols since data source is limited/frozen"
+            # FIXED: Fail explicitly with data_unavailable marker instead of silent fallback to 0
+            # This ensures score computation knows analyst data is unavailable, not just absent.
+            raise ValueError(
+                f"[ANALYST_SCORE] No analyst activity data for {symbol} in 90-day lookback. "
+                f"Analyst rating data source is limited/frozen. "
+                f"Cannot compute catalyst score without marking this as data_unavailable. "
+                f"Caller must explicitly handle this error (return data_unavailable marker) "
+                f"rather than silently defaulting to zero score."
             )
-            return 0.0, 0
 
         net = ups - downs
         # net score scaled from analyst_net_positive_threshold to analyst_net_full_score
