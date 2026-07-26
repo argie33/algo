@@ -82,6 +82,11 @@ LOADER_TABLES: dict[str, list[str]] = {
     # load_sector_performance.py.
     "load_sector_industry_daily.py": ["sector_ranking", "industry_ranking", "sector_performance"],
     "load_economic_data.py": ["economic_data"],
+    # SEC data loaders (Phase 6: material events, insider velocity, segment disclosures)
+    "load_current_reports_8k.py": ["current_reports_8k"],
+    "load_insider_transaction_velocity.py": ["insider_transaction_velocity"],
+    "load_dividend_data.py": ["dividend_data"],
+    "load_sec_segment_info.py": ["sec_segment_info"],
 }
 
 # market_exposure_daily is computed by algo/risk/market_exposure.py during
