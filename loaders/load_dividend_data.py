@@ -177,11 +177,14 @@ class DividendDataLoader(SecLoaderBase):
             results.extend(declared)
             results.extend(paid)
 
-            # Remove duplicates (same symbol + fiscal year + period)
+            # Remove duplicates on the actual primary key (symbol, ex_dividend_date,
+            # dividend_per_share) - declared/paid concepts can report the same
+            # estimated ex-date + amount, and the DB upsert can't affect the same
+            # row twice within one batch.
             seen = set()
             unique_results = []
             for r in results:
-                key = (r["symbol"], r.get("fiscal_year"), r.get("fiscal_period"))
+                key = (r["symbol"], r["ex_dividend_date"], r["dividend_per_share"])
                 if key not in seen:
                     seen.add(key)
                     unique_results.append(r)

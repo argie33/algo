@@ -6,129 +6,68 @@ import pytest
 from utils.external.sec_xbrl_segments import XBRLSegmentParser
 
 
-class TestXBRLSegmentParser:
-    """Test XBRL segment data parsing."""
+class TestParseCompanyFacts:
+    """parse_companyfacts() can only ever recover segment COUNT, never per-segment
+    revenue - SEC's companyfacts API strips XBRL dimensional (segment) context from
+    every fact it returns (confirmed against real SEC companyfacts responses: each
+    fact is {val, fy, fp, accn, form, filed, frame, ...} with no segment/contextRef
+    field at all). These fixtures mirror that real shape - no fabricated 'segment'
+    key on facts.
+    """
 
-    def test_parse_companyfacts_valid_data(self) -> None:
-        """Test parsing valid companyfacts response with segment data."""
+    def test_segment_count_found_still_reports_unavailable(self) -> None:
         facts_response = {
-            'cik': '0000320193',
-            'entityName': 'Apple Inc',
-            'facts': {
-                'us-gaap': {
-                    'SegmentNumber': {
-                        'units': {
-                            'pure': [
-                                {'value': '3', 'fy': 2023, 'accessionNumber': '0000320193-23-000119'},
-                            ]
-                        }
-                    },
-                    'SegmentIdentificationCode': {
-                        'units': {
-                            'pure': [
-                                {'value': 'Americas', 'segment': 'Americas_1', 'fy': 2023},
-                                {'value': 'Europe', 'segment': 'Europe_1', 'fy': 2023},
-                                {'value': 'Greater China', 'segment': 'GreaterChina_1', 'fy': 2023},
-                            ]
-                        }
-                    },
-                    'SegmentRevenue': {
-                        'units': {
-                            'USD': [
-                                {'value': '47000000000', 'segment': 'Americas_1', 'fy': 2023},
-                                {'value': '25000000000', 'segment': 'Europe_1', 'fy': 2023},
-                                {'value': '18000000000', 'segment': 'GreaterChina_1', 'fy': 2023},
+            "cik": "0000789019",
+            "entityName": "Microsoft Corp",
+            "facts": {
+                "us-gaap": {
+                    "NumberOfReportableSegments": {
+                        "units": {
+                            "Segment": [
+                                {"val": 3, "fy": 2025, "fp": "FY", "accn": "0000950170-25-100235"},
                             ]
                         }
                     },
                 }
-            }
+            },
         }
 
-        result = XBRLSegmentParser.parse_companyfacts(facts_response, "AAPL")
+        result = XBRLSegmentParser.parse_companyfacts(facts_response, "MSFT")
 
-        assert result['data_available'] is True
-        assert result['segment_count'] == 3
-        assert result['largest_segment_revenue_pct'] == pytest.approx(52.25, 0.1)  # 47B / 90B
-        # HHI = (47/90)^2 + (25/90)^2 + (18/90)^2 = 0.2746 + 0.0773 + 0.0400 = 0.3919 * 10000 = 3919
-        assert result['revenue_concentration_hhi'] == pytest.approx(3919, 10)
+        assert result["segment_count"] == 3
+        assert result["data_available"] is False
+        assert result["reason"] == "companyfacts_api_never_exposes_per_segment_revenue"
+        assert result["segments"] == []
+        assert result["largest_segment_revenue_pct"] is None
 
-    def test_parse_companyfacts_single_segment(self) -> None:
-        """Test parsing with single segment (monopoly case)."""
+    def test_no_segment_count_concept_present(self) -> None:
         facts_response = {
-            'cik': '0000123456',
-            'entityName': 'Test Corp',
-            'facts': {
-                'us-gaap': {
-                    'SegmentNumber': {
-                        'units': {
-                            'pure': [
-                                {'value': '1', 'fy': 2023},
-                            ]
-                        }
-                    },
-                    'SegmentIdentificationCode': {
-                        'units': {
-                            'pure': [
-                                {'value': 'All', 'segment': 'All_1', 'fy': 2023},
-                            ]
-                        }
-                    },
-                    'SegmentRevenue': {
-                        'units': {
-                            'USD': [
-                                {'value': '100000000', 'segment': 'All_1', 'fy': 2023},
-                            ]
-                        }
-                    },
+            "cik": "0000123456",
+            "entityName": "Test Corp",
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {"units": {"USD": [{"val": 100, "fy": 2023, "fp": "FY"}]}},
                 }
-            }
+            },
         }
 
         result = XBRLSegmentParser.parse_companyfacts(facts_response, "TEST")
 
-        assert result['data_available'] is True
-        assert result['segment_count'] == 1
-        assert result['largest_segment_revenue_pct'] == 100.0
-        assert result['revenue_concentration_hhi'] == pytest.approx(10000, 10)  # Monopoly
+        assert result["segment_count"] is None
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_count_facts_in_companyfacts"
 
-    def test_parse_companyfacts_no_facts(self) -> None:
-        """Test parsing with missing facts section."""
-        facts_response = {
-            'cik': '0000123456',
-            'entityName': 'Test Corp',
-        }
+    def test_no_facts(self) -> None:
+        facts_response = {"cik": "0000123456", "entityName": "Test Corp"}
 
         result = XBRLSegmentParser.parse_companyfacts(facts_response, "TEST")
 
-        assert result['data_available'] is False
-        assert result['reason'] == 'no_us_gaap_facts'
+        assert result["data_available"] is False
+        assert result["reason"] == "no_us_gaap_facts"
 
-    def test_parse_companyfacts_no_segment_revenue(self) -> None:
-        """Test parsing with no SegmentRevenue facts."""
-        facts_response = {
-            'cik': '0000123456',
-            'entityName': 'Test Corp',
-            'facts': {
-                'us-gaap': {
-                    'SegmentNumber': {
-                        'units': {
-                            'pure': [
-                                {'value': '3', 'fy': 2023},
-                            ]
-                        }
-                    },
-                }
-            }
-        }
 
-        result = XBRLSegmentParser.parse_companyfacts(facts_response, "TEST")
-
-        assert result['data_available'] is False
-        assert result['reason'] == 'no_segment_revenue_data'
-
+class TestHerfindahlIndex:
     def test_compute_herfindahl_index(self) -> None:
-        """Test Herfindahl index calculation."""
         # Duopoly (50-50): HHI = 0.5^2 + 0.5^2 = 0.5 * 10000 = 5000
         hhi = XBRLSegmentParser._compute_herfindahl_index([50.0, 50.0], 100.0)
         assert hhi == pytest.approx(5000, 1)
@@ -141,29 +80,109 @@ class TestXBRLSegmentParser:
         hhi = XBRLSegmentParser._compute_herfindahl_index([25.0, 25.0, 25.0, 25.0], 100.0)
         assert hhi == pytest.approx(2500, 1)
 
-    def test_parse_xbrl_xml(self) -> None:
-        """Test parsing raw XBRL XML instance."""
-        xml_content = """<?xml version="1.0"?>
-<xbrl xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
-      xmlns:xbrli="http://www.xbrl.org/2003/instance">
-    <us-gaap:SegmentRevenue contextRef="OperatingSegment_1" unitRef="USD">
-        4700000000
-    </us-gaap:SegmentRevenue>
-    <us-gaap:SegmentRevenue contextRef="OperatingSegment_2" unitRef="USD">
-        2500000000
-    </us-gaap:SegmentRevenue>
-    <us-gaap:SegmentRevenue contextRef="OperatingSegment_3" unitRef="USD">
-        1800000000
-    </us-gaap:SegmentRevenue>
+
+def _context(ctx_id: str, axis_local: str, member_local: str, start: str, end: str) -> str:
+    return f"""
+    <context id="{ctx_id}">
+        <entity>
+            <identifier scheme="http://www.sec.gov/CIK">0000789019</identifier>
+            <segment>
+                <xbrldi:explicitMember dimension="us-gaap:{axis_local}">aapl:{member_local}</xbrldi:explicitMember>
+            </segment>
+        </entity>
+        <period>
+            <startDate>{start}</startDate>
+            <endDate>{end}</endDate>
+        </period>
+    </context>
+    """
+
+
+class TestExtractSegmentRevenueFromXbrlXml:
+    """extract_segment_revenue_from_xbrl_xml() reads the real XBRL dimensional
+    model (context -> explicitMember -> segment axis/member), matching how SEC
+    filers actually tag segment revenue - verified against a real filing
+    (Microsoft's FY2025 10-K instance): this exact shape (three fiscal years of
+    RevenueFromContractWithCustomerExcludingAssessedTax facts dimensioned on
+    StatementBusinessSegmentsAxis) reproduced the company's real reported
+    segment revenue exactly.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
 </xbrl>
 """
 
-        result = XBRLSegmentParser.parse_xbrl_xml(xml_content, "TEST")
+    def test_picks_latest_fiscal_year_business_segments(self) -> None:
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2023-07-01", "2024-06-30")
+            + _context("c2", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2024-07-01", "2025-06-30")
+            + _context("c3", "StatementBusinessSegmentsAxis", "DevicesSegmentMember", "2023-07-01", "2024-06-30")
+            + _context("c4", "StatementBusinessSegmentsAxis", "DevicesSegmentMember", "2024-07-01", "2025-06-30")
+        )
+        facts = """
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c1">80000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c2">100000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c3">30000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="c4">20000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        """
+        xml_content = self._xml(contexts, facts)
 
-        assert result['data_available'] is True
-        assert result['segment_count'] == 3
-        assert result['largest_segment_revenue_pct'] == pytest.approx(52.25, 0.1)
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_type"] == "operating"
+        assert result["segment_count"] == 2
+        # Only the 2024-07-01..2025-06-30 period should be used (100M + 20M), not
+        # the prior comparative year (80M + 30M) - proves stale-year facts don't
+        # leak into the total.
+        total = 100_000_000 + 20_000_000
+        assert result["largest_segment_revenue_pct"] == pytest.approx(100_000_000 / total * 100, abs=0.01)
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"CloudSegmentMember": 100_000_000.0, "DevicesSegmentMember": 20_000_000.0}
+
+    def test_falls_back_to_geographic_axis_when_no_business_segments(self) -> None:
+        contexts = _context(
+            "g1", "StatementGeographicalAxis", "UnitedStatesMember", "2024-01-01", "2024-12-31"
+        ) + _context("g2", "StatementGeographicalAxis", "InternationalMember", "2024-01-01", "2024-12-31")
+        facts = """
+        <us-gaap:Revenues contextRef="g1">60000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="g2">40000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_type"] == "geographic"
+        assert result["segment_count"] == 2
+
+    def test_no_segment_dimensioned_contexts(self) -> None:
+        xml_content = """<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31">
+    <context id="c1">
+        <entity><identifier scheme="http://www.sec.gov/CIK">0000789019</identifier></entity>
+        <period><startDate>2024-01-01</startDate><endDate>2024-12-31</endDate></period>
+    </context>
+    <us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>
+</xbrl>
+"""
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_dimension_contexts_in_xbrl_xml"
+
+    def test_malformed_xml(self) -> None:
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml("<not><valid", "TEST")
+
+        assert result["data_available"] is False
+        assert "xml_parse_error" in result["reason"]
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

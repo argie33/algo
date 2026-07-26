@@ -1,18 +1,31 @@
 #!/usr/bin/env python3
 """Institutional Holdings Loader - SEC Form 13F (INFOTABLE bulk dataset).
 
-Uses SEC's official quarterly 13F-HR structured datasets:
-https://www.sec.gov/files/structureddata/data/form-13f-data-sets/
+Uses SEC's official 13F-HR structured datasets:
+https://www.sec.gov/data-research/sec-markets-data/form-13f-data-sets
 
-Data source: INFOTABLE.tsv (pre-flattened by SEC, includes ticker + CUSIP + shares)
-Updated: Quarterly (Q1, Q2, Q3, Q4), with 45-day filing lag
+Data source: INFOTABLE.tsv. Real columns (verified against a real downloaded
+dataset - NOT a "ticker" column, contrary to this loader's original assumption):
+ACCESSION_NUMBER, INFOTABLE_SK, NAMEOFISSUER, TITLEOFCLASS, CUSIP, FIGI, VALUE,
+SSHPRNAMT, SSHPRNAMTTYPE, PUTCALL, INVESTMENTDISCRETION, OTHERMANAGER,
+VOTING_AUTH_*. 13F filings identify securities by CUSIP only - SEC does not
+publish a free CUSIP->ticker crosswalk, and none exists elsewhere in this
+codebase (see migrations 1124/1151, utils/sec_form13f_aggregator.py).
+
+Updated: SEC publishes rolling ~3-month windows keyed to the 45-day-after-quarter-end
+filing deadline (e.g. "01jun2025-31aug2025_form13f.zip", not a plain
+"{year}-Q{quarter}" label - the dataset filenames are discovered by scraping SEC's own
+listing page rather than guessed via calendar-quarter date arithmetic, since the
+window boundaries don't align to calendar quarters cleanly).
 Coverage: Institutional managers with $100M+ in assets (excludes small institutions)
 
 Architecture:
-- fetch_global() downloads & parses latest quarterly 13F bulk dataset once
-- Aggregates holdings by ticker across all institutional managers
-- Calculates institutional ownership % using company shares_outstanding
-- fetch_incremental() returns cached global results per symbol
+- fetch_global() downloads & parses the latest published 13F bulk dataset once,
+  aggregating shares held per CUSIP across all institutional managers
+- Without a CUSIP->ticker crosswalk, per-symbol ownership % cannot be computed from
+  this alone - fails fast with an explicit reason rather than fabricating estimates
+- fetch_incremental() returns cached global results per symbol (once a crosswalk
+  exists to populate them)
 
 Run:
     python3 loaders/load_institutional_holdings_13f.py [--symbols AAPL,MSFT]
@@ -21,6 +34,7 @@ Run:
 import csv
 import io
 import logging
+import re
 import sys
 import urllib.request
 import zipfile
@@ -35,7 +49,11 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
-SEC_13F_URL_PREFIXES = ("datastandardsinnovation", "structureddata")  # Try both SEC domain structures
+SEC_13F_DATASETS_PAGE = "https://www.sec.gov/data-research/sec-markets-data/form-13f-data-sets"
+_ZIP_LINK_RE = re.compile(
+    r'href="(/files/[a-z]+/data/form-13f-data-sets/(\d{2}[a-z]{3}\d{4})-(\d{2}[a-z]{3}\d{4})_form13f\.zip)"',
+    re.IGNORECASE,
+)
 
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
@@ -43,9 +61,8 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
     GOVERNANCE: Official SEC sources only. No fallbacks or estimates.
 
-    Uses SEC's pre-flattened quarterly 13F data (INFOTABLE.tsv), which includes:
-    - Ticker (already mapped by SEC, no CUSIP crosswalk needed)
-    - CUSIP
+    Uses SEC's pre-flattened 13F data (INFOTABLE.tsv), which includes:
+    - CUSIP (NOT ticker - 13F filings never carry a ticker column)
     - Shares held by each institutional manager
     - Filing date
     """
@@ -65,38 +82,61 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         This runs once per load and populates SEC data for all symbols.
         No synthetic fallbacks: if SEC data unavailable, halts with clear error message.
 
-        PRIMARY: SEC quarterly 13F bulk data (authoritative, required)
+        PRIMARY: SEC's published 13F bulk dataset (authoritative, required)
 
         Returns: List of institutional ownership records for all symbols.
-        Raises: RuntimeError if SEC data unavailable (no synthetic fallback).
+        Raises: RuntimeError if SEC data unavailable, or if real 13F data was
+            fetched but cannot be attributed to symbols (no CUSIP->ticker
+            crosswalk - see module docstring).
         """
         logger.info("[13F] Fetching institutional ownership data from SEC Form 13F...")
 
         try:
-            year, quarter = self._get_latest_13f_quarter()
-            filing_date = self._quarter_to_date(year, quarter)
-            logger.info(f"[13F] Target quarter: {year}-Q{quarter} (filing_date: {filing_date})")
+            dataset = self._discover_latest_13f_bulk_dataset()
+            if dataset is None:
+                msg = (
+                    f"[13F CRITICAL] Could not discover any published 13F bulk dataset "
+                    f"from {SEC_13F_DATASETS_PAGE}. Institutional holdings data is "
+                    f"mandatory for accurate stock scoring. ACTION: verify the page is "
+                    f"reachable and its .zip links still match the expected "
+                    f"'DDmmmYYYY-DDmmmYYYY_form13f.zip' naming. "
+                    f"Fail-fast: will not proceed with synthetic estimates."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
 
-            # Try SEC bulk data (fail-fast if unavailable - no synthetic fallback)
-            holdings_by_ticker = self._fetch_sec_13f_bulk(year, quarter)
-            if holdings_by_ticker:
-                logger.info(f"[13F] Parsed {len(holdings_by_ticker)} tickers from SEC data")
-                return self._calculate_and_cache_ownership(holdings_by_ticker, filing_date)
+            url, period_end = dataset
+            logger.info(f"[13F] Latest published bulk dataset: {url} (period end: {period_end})")
 
-            # No SEC data found - fail-fast (no market-cap estimates fallback)
+            try:
+                holdings_by_cusip = self._fetch_and_parse_13f_bulk(url)
+            except Exception as e:
+                logger.warning(
+                    f"[13F] Bulk dataset fetch/parse failed ({type(e).__name__}: {str(e)[:200]}); "
+                    f"falling back to per-manager aggregation"
+                )
+                return self._calculate_and_cache_ownership(self._aggregate_top_manager_13fs(), period_end)
+
+            # Real SEC data, correctly reached and parsed - but 13F filings identify
+            # securities by CUSIP only. Without a CUSIP->ticker crosswalk (not
+            # implemented anywhere in this codebase - see module docstring), these
+            # holdings cannot be attributed to a stock symbol. Fail fast here rather
+            # than pass CUSIP keys into _calculate_and_cache_ownership, which queries
+            # company_info_sec by symbol and would silently return zero rows.
             msg = (
-                f"[13F CRITICAL] SEC Form 13F bulk data not found for {year}-Q{quarter}. "
-                f"Institutional holdings data is mandatory for accurate stock scoring. "
-                f"ACTION: Verify SEC has published latest quarterly 13F bulk datasets "
-                f"(https://www.sec.gov/files/structureddata/data/form-13f-data-sets/). "
-                f"If data unavailable, operator must decide whether to run orchestrator "
-                f"with incomplete positioning data. Fail-fast: Will not proceed with synthetic estimates."
+                f"[13F CRITICAL] Downloaded and parsed real SEC 13F bulk data from {url}: "
+                f"{len(holdings_by_cusip)} CUSIPs, period end {period_end}. Cannot compute "
+                f"per-symbol institutional_ownership_pct without a CUSIP->ticker crosswalk "
+                f"(not yet implemented - see migrations 1124/1151). This is a missing "
+                f"feature, not a data-availability problem: SEC's data was reachable and "
+                f"parsed correctly. ACTION: implement a CUSIP->ticker mapping before this "
+                f"loader can populate institutional_holdings_13f."
             )
             logger.critical(msg)
             raise RuntimeError(msg)
 
         except RuntimeError:
-            # Re-raise RuntimeError from _fetch_sec_13f_bulk or _aggregate_top_manager_13fs
+            # Re-raise RuntimeError from above or from _aggregate_top_manager_13fs
             raise
         except Exception as e:
             msg = f"[13F GLOBAL FETCH CRITICAL] Failed: {type(e).__name__}: {str(e)[:200]}. Cannot continue without institutional holdings data."
@@ -159,151 +199,94 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             }
         ]
 
-    def _get_latest_13f_quarter(self) -> tuple[int, int]:
-        """Get latest available 13F data quarter (YYYY, Q).
+    _MONTH_ABBR = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    }  # fmt: skip
 
-        13F data is filed 45 days after quarter end, so we back up to the
-        most recent completed quarter to ensure data availability.
+    @staticmethod
+    def _parse_ddmmmyyyy(text: str) -> date:
+        """Parse SEC's "01jun2025"-style date label (case-insensitive)."""
+        day = int(text[0:2])
+        month = InstitutionalHoldings13FLoader._MONTH_ABBR[text[2:5].lower()]
+        year = int(text[5:9])
+        return date(year, month, day)
+
+    def _discover_latest_13f_bulk_dataset(self) -> tuple[str, date] | None:
+        """Find the most recently published 13F bulk dataset by scraping SEC's own
+        listing page, rather than guessing the filename from calendar-quarter math.
+
+        SEC's real filename convention is a date-range tied to the ~45-day
+        post-quarter-end filing deadline (e.g. "01jun2025-31aug2025_form13f.zip"),
+        not a "{year}-Q{quarter}" label, and the window boundaries don't align to
+        calendar quarters cleanly - confirmed by fetching SEC's real listing page.
+        Scraping the page SEC itself publishes avoids reintroducing that class of bug.
+
+        Returns: (full url, period end date) for the dataset with the latest end
+            date, or None if the page couldn't be fetched/parsed.
         """
-        now = datetime.now()
-        year = now.year
-        quarter = (now.month - 1) // 3 + 1
-
-        # Back up to previous quarter to ensure filing delay has passed
-        if quarter == 1:
-            year -= 1
-            quarter = 4
-        else:
-            quarter -= 1
-
-        return year, quarter
-
-    def _quarter_to_date(self, year: int, quarter: int) -> date:
-        """Convert quarter (YYYY, Q) to end-of-quarter date (YYYY-MM-DD)."""
-        month = quarter * 3  # Q1→3, Q2→6, Q3→9, Q4→12
-        if month == 12:
-            # December 31
-            return date(year, 12, 31)
-        else:
-            # Last day of month: 31, 30, 30, 31 for Mar, Jun, Sep, Dec
-            # Use date arithmetic: first day of next month - 1 day
-            from datetime import timedelta
-
-            return date(year, month + 1, 1) - timedelta(days=1)
-
-    def _fetch_sec_13f_bulk(self, year: int, quarter: int) -> dict[str, int]:
-        """Fetch 13F holdings data from SEC bulk datasets or per-manager aggregation.
-
-        PRIMARY: Tries SEC bulk INFOTABLE.tsv datasets (fast if available)
-        FALLBACK: Aggregates per-manager 13F filings via EDGAR (correct architecture)
-
-        Returns: dict of {ticker: total_shares_held_by_all_institutions}
-        """
-        defaultdict(int)
-
-        # Try SEC bulk datasets first (fast path if available)
-        for prefix in SEC_13F_URL_PREFIXES:
-            url = f"https://www.sec.gov/files/{prefix}/data/form-13f-data-sets/{year}-Q{quarter}_FORM13FDATA.zip"
-            logger.info(f"[13F] Attempting bulk dataset: {url}")
-
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "algo-trading argeropolos@gmail.com"})
-                with urllib.request.urlopen(req, timeout=30) as response:
-                    zip_data = response.read()
-
-                logger.info("[13F] Successfully downloaded bulk dataset")
-                holdings = self._parse_13f_bulk_zip(zip_data, url)
-                if holdings:
-                    logger.info(f"[13F] Successfully parsed bulk dataset: {len(holdings)} tickers")
-                    return holdings
-                else:
-                    logger.warning("[13F] Bulk dataset parsed but contains no holdings, trying next URL...")
-
-            except urllib.error.HTTPError as e:
-                logger.info(f"[13F] Bulk dataset HTTP {e.code} not available, trying next URL...")
-            except (ValueError, RuntimeError) as parse_err:
-                logger.warning(f"[13F] Bulk dataset parse failed ({type(parse_err).__name__}), trying next URL...")
-            except Exception as e:
-                logger.warning(f"[13F] Bulk dataset failed ({type(e).__name__}: {str(e)[:100]}), trying next URL...")
-
-        # Fallback: Aggregate top institutional managers' recent 13F filings
-        logger.info("[13F] All bulk dataset URLs exhausted, using per-manager 13F aggregation (correct architecture, slower)")
-        return self._aggregate_top_manager_13fs()
-
-    def _parse_13f_bulk_zip(self, zip_data: bytes, source_url: str) -> dict[str, int]:
-        """Parse SEC's INFOTABLE.tsv from bulk 13F ZIP."""
-        holdings_by_ticker: dict[str, int] = defaultdict(int)
-
         try:
-            with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
-                info_files = [f for f in zf.namelist() if f.endswith("INFOTABLE.tsv")]
-                if not info_files:
-                    raise ValueError(
-                        f"[13F CRITICAL] No INFOTABLE.tsv found in SEC bulk ZIP from {source_url}. "
-                        f"ZIP structure invalid or SEC data format changed. "
-                        f"Will fall back to per-manager aggregation."
-                    )
-
-                for info_file in info_files:
-                    logger.debug(f"[13F] Parsing {info_file}...")
-                    with zf.open(info_file) as f:
-                        reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
-                        for row in reader:
-                            if "ticker" not in row or row["ticker"] is None:
-                                raise ValueError(f"[13F] CSV row missing required 'ticker' field: {row.keys()}")
-                            if "shrsOrPrnAmt" not in row or row["shrsOrPrnAmt"] is None:
-                                raise ValueError(f"[13F] CSV row missing required 'shrsOrPrnAmt' field for ticker {row.get('ticker')}")
-
-                            ticker = row["ticker"].strip().upper()
-                            shares_str = row["shrsOrPrnAmt"]
-                            if ticker and shares_str:
-                                if not shares_str.isdigit():
-                                    raise ValueError(f"[13F] Invalid shrsOrPrnAmt '{shares_str}' for ticker {ticker} (expected integer)")
-                                shares = int(shares_str)
-                                if shares > 0:
-                                    holdings_by_ticker[ticker] += shares
-
-                logger.info(f"[13F] Aggregated {len(holdings_by_ticker)} tickers from bulk data")
-                return holdings_by_ticker
-
-        except ValueError as ve:
-            logger.warning(f"[13F] Bulk parse validation failed: {ve}")
-            raise
+            req = urllib.request.Request(
+                SEC_13F_DATASETS_PAGE, headers={"User-Agent": "algo-trading argeropolos@gmail.com"}
+            )
+            with urllib.request.urlopen(req, timeout=30) as response:
+                html = response.read().decode("utf-8", errors="replace")
         except Exception as e:
-            logger.error(f"[13F CRITICAL] Bulk ZIP parsing crashed: {type(e).__name__}: {str(e)[:200]}")
-            raise RuntimeError(
-                f"[13F] Failed to parse bulk 13F ZIP from {source_url}: {type(e).__name__}. "
-                f"This indicates corrupted SEC data or network issue. Will fall back to per-manager aggregation."
-            ) from e
+            logger.error(f"[13F] Failed to fetch dataset listing page: {type(e).__name__}: {e}")
+            return None
 
-    def _generate_marketcap_estimates(self, filing_date: date) -> list[dict[str, Any]]:
-        """Generate institutional ownership estimates based on company market cap.
+        best: tuple[str, date] | None = None
+        for path, _start_str, end_str in _ZIP_LINK_RE.findall(html):
+            try:
+                end_date = self._parse_ddmmmyyyy(end_str)
+            except (KeyError, ValueError):
+                continue
+            if best is None or end_date > best[1]:
+                best = (f"https://www.sec.gov{path}", end_date)
 
-        CRITICAL FIX (Session 418): Removed synthetic data fallback per GOVERNANCE fail-fast principle.
-        When SEC 13F data unavailable, fail-fast instead of silently using market-cap estimates.
+        return best
 
-        Reason: Market-cap estimates are fundamentally different signal from actual institutional
-        holdings (which track actual positions). Substituting one for the other creates false signal,
-        biasing stock scoring toward synthetic proxies. Downstream (stock_scores) cannot distinguish
-        synthetic from real data if marked data_unavailable=False, leading to corrupted scoring.
+    def _fetch_and_parse_13f_bulk(self, url: str) -> dict[str, int]:
+        """Download and parse SEC's INFOTABLE.tsv from the discovered bulk dataset URL.
 
-        Solution: Raise RuntimeError to halt loader, prompting operator to investigate why SEC 13F
-        data unavailable. This prevents silent degradation to synthetic data.
+        Returns: dict of {CUSIP: total_shares_held_by_all_institutions}. Keyed by
+            CUSIP, NOT ticker - 13F filings never carry a ticker field (verified
+            against a real downloaded dataset's actual column headers).
         """
-        msg = (
-            "[13F CRITICAL] SEC Form 13F data unavailable. Cannot generate synthetic market-cap estimates "
-            "as fallback - this violates data integrity principles (synthetic data marked as real). "
-            "ROOT CAUSE: SEC bulk INFOTABLE datasets may not be published yet (45-day filing lag), "
-            "or per-manager aggregation failed. "
-            "ACTION: (1) Verify SEC has published latest quarterly 13F data "
-            "(https://www.sec.gov/files/structureddata/data/form-13f-data-sets/), "
-            "(2) Check per-manager aggregation logs for CUSIP mapping errors, "
-            "(3) If data truly unavailable, operator must decide whether to run orchestrator "
-            "with incomplete positioning data (Phase 7 will mark symbols unavailable automatically). "
-            "Fail-fast: Will not proceed with synthetic institutional ownership estimates."
-        )
-        logger.critical(msg)
-        raise RuntimeError(msg)
+        req = urllib.request.Request(url, headers={"User-Agent": "algo-trading argeropolos@gmail.com"})
+        with urllib.request.urlopen(req, timeout=120) as response:
+            zip_data = response.read()
+
+        holdings_by_cusip: dict[str, int] = defaultdict(int)
+        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+            info_files = [f for f in zf.namelist() if f.endswith("INFOTABLE.tsv")]
+            if not info_files:
+                raise ValueError(
+                    f"[13F CRITICAL] No INFOTABLE.tsv found in SEC bulk ZIP from {url}. "
+                    f"ZIP structure invalid or SEC data format changed."
+                )
+
+            for info_file in info_files:
+                logger.debug(f"[13F] Parsing {info_file}...")
+                with zf.open(info_file) as f:
+                    reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
+                    for row in reader:
+                        if "CUSIP" not in row or not row["CUSIP"]:
+                            raise ValueError(f"[13F] CSV row missing required 'CUSIP' field: {row.keys()}")
+                        if "SSHPRNAMT" not in row or row["SSHPRNAMT"] is None:
+                            raise ValueError(f"[13F] CSV row missing required 'SSHPRNAMT' field for CUSIP {row.get('CUSIP')}")
+
+                        cusip = row["CUSIP"].strip().upper()
+                        shares_str = row["SSHPRNAMT"]
+                        if cusip and shares_str:
+                            if not shares_str.isdigit():
+                                raise ValueError(f"[13F] Invalid SSHPRNAMT '{shares_str}' for CUSIP {cusip} (expected integer)")
+                            shares = int(shares_str)
+                            if shares > 0:
+                                holdings_by_cusip[cusip] += shares
+
+            logger.info(f"[13F] Aggregated {len(holdings_by_cusip)} CUSIPs from bulk data")
+            return holdings_by_cusip
 
     def _aggregate_top_manager_13fs(self) -> dict[str, int]:
         """Aggregate per-manager 13F holdings via CUSIP→ticker mapper (correct architecture).

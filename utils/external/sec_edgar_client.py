@@ -250,27 +250,47 @@ class SecEdgarClient:
         except ValueError as e:
             raise FileNotFoundError(f"Cannot discover XML for filing {accession_number}: {e}") from e
 
-        # Construct full URL using primaryDocument path
+        # BUGFIX: previously built /Archives/edgar/{padded_cik}/... (missing the
+        # required "data/" segment, and using the zero-padded CIK) - confirmed live
+        # against SEC EDGAR that this 404s on every real filing; the correct base is
+        # /Archives/edgar/data/{cik_no_leading_zeros}/{accession_nodash}/...
         path_accession = accession_number.replace("-", "")
-        cik_padded = str(cik).zfill(10)
-        url = f"https://www.sec.gov/Archives/edgar/{cik_padded}/{path_accession}/{primary_doc}"
+        cik_number = str(cik).lstrip("0") or "0"
+        base_dir = f"https://www.sec.gov/Archives/edgar/data/{cik_number}/{path_accession}"
 
-        logger.debug(f"Fetching XML from: {url}")
+        # Since ~2019 all SEC filers use Inline XBRL: `primaryDocument` is the
+        # human-readable filing (.htm) with facts embedded via <ix:...> tags, not a
+        # standalone XBRL instance - fetching it as if it were raw XBRL XML would
+        # hand a giant HTML document to an XML parser. SEC separately publishes the
+        # underlying instance document alongside it, named "{primary_doc_stem}_{ext}.xml"
+        # (confirmed against a real filing's index.json: msft-20250630.htm's instance
+        # is msft-20250630_htm.xml). Try that first; fall back to primary_doc itself
+        # for older/non-inline filings where primaryDocument already IS the raw .xml.
+        candidates = []
+        if "." in primary_doc:
+            stem, _, ext = primary_doc.rpartition(".")
+            candidates.append(f"{stem}_{ext}.xml")
+        candidates.append(primary_doc)
 
-        # Fetch XML with retry logic
-        try:
-            self._rate_limiter.wait()
-            resp = self._session.get(url, timeout=self.timeout)
-            if resp.status_code == 404:
-                raise FileNotFoundError(f"SEC XML filing not found: {url}")
-            resp.raise_for_status()
-            return cast(str, resp.text)
-        except requests.HTTPError as e:
-            raise RuntimeError(f"Failed to fetch SEC XML: {url}: {e}") from e
-        except requests.ConnectionError as e:
-            raise RuntimeError(f"Connection error fetching SEC XML: {url}: {e}") from e
-        except requests.Timeout as e:
-            raise RuntimeError(f"Timeout fetching SEC XML: {url}: {e}") from e
+        last_error: Exception = FileNotFoundError(f"No XML candidate found for {accession_number}")
+        for filename in candidates:
+            url = f"{base_dir}/{filename}"
+            logger.debug(f"Fetching XML from: {url}")
+            try:
+                self._rate_limiter.wait()
+                resp = self._session.get(url, timeout=self.timeout)
+                if resp.status_code == 404:
+                    last_error = FileNotFoundError(f"SEC XML filing not found: {url}")
+                    continue
+                resp.raise_for_status()
+                return cast(str, resp.text)
+            except requests.HTTPError as e:
+                last_error = RuntimeError(f"Failed to fetch SEC XML: {url}: {e}")
+            except requests.ConnectionError as e:
+                last_error = RuntimeError(f"Connection error fetching SEC XML: {url}: {e}")
+            except requests.Timeout as e:
+                last_error = RuntimeError(f"Timeout fetching SEC XML: {url}: {e}")
+        raise last_error
 
     def get_filing_plaintext(self, cik: str, accession_number: str) -> str:
         """Fetch raw plain-text document from SEC EDGAR filing.
@@ -289,11 +309,17 @@ class SecEdgarClient:
             FileNotFoundError: If filing not found
             RuntimeError: If request fails after retries
         """
-        # Construct URL to the full-text document
-        # SEC archive format: /Archives/edgar/CIK/accession_clean/accession_clean.txt
+        # Construct URL to the full-text document.
+        # SEC archive format: /Archives/edgar/data/CIK_NO_LEADING_ZEROS/accession_nodash/accession_dashed.txt
+        # BUGFIX: previously omitted the required "data/" path segment and used the
+        # zero-padded CIK - both produce a 404 on every real filing (confirmed live
+        # against SEC EDGAR: /Archives/edgar/data/789019/... returns 200, the old
+        # /Archives/edgar/0000789019/... form returns 404). This meant every 8-K
+        # item-classification fetch silently failed and fell through to the
+        # unavailable/exception path despite the filing genuinely existing.
         path_accession = accession_number.replace("-", "")
-        cik_padded = str(cik).zfill(10)
-        url = f"https://www.sec.gov/Archives/edgar/{cik_padded}/{path_accession}/{path_accession}.txt"
+        cik_number = str(cik).lstrip("0") or "0"
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik_number}/{path_accession}/{accession_number}.txt"
 
         logger.debug(f"Fetching plain-text filing from: {url}")
 

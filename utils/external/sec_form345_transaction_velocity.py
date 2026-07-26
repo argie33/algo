@@ -266,7 +266,11 @@ class Form345TransactionVelocityAggregator:
                     owners["ISCLERK"] = "FALSE"
                     owners["ISOFFICER"] = "FALSE"
 
-                # Load transactions - TRANS_PRICE is optional (format changed)
+                # Load transactions - TRANS_PRICE is optional (format changed).
+                # TRANS_SHARES is the actual quantity moved in this transaction; it is
+                # NOT the same as SHRS_OWND_FOLWNG_TRANS, which is the insider's
+                # cumulative running-total holding after the transaction (used by
+                # sec_form345_bulk.py for current-holdings, not for per-trade volume).
                 try:
                     transactions = pd.read_csv(
                         zf.open("NONDERIV_TRANS.tsv"),
@@ -275,7 +279,7 @@ class Form345TransactionVelocityAggregator:
                             "ACCESSION_NUMBER",
                             "TRANS_DATE",
                             "TRANS_CODE",
-                            "SHRS_OWND_FOLWNG_TRANS",
+                            "TRANS_SHARES",
                             "TRANS_PRICE",
                         ],
                         dtype=str,
@@ -291,7 +295,7 @@ class Form345TransactionVelocityAggregator:
                             "ACCESSION_NUMBER",
                             "TRANS_DATE",
                             "TRANS_CODE",
-                            "SHRS_OWND_FOLWNG_TRANS",
+                            "TRANS_SHARES",
                         ],
                         dtype=str,
                         low_memory=False,
@@ -316,7 +320,7 @@ class Form345TransactionVelocityAggregator:
                         if pd.isna(trans_date):
                             continue
 
-                        shares = int(pd.to_numeric(txn["SHRS_OWND_FOLWNG_TRANS"], errors="coerce"))
+                        shares = int(pd.to_numeric(txn["TRANS_SHARES"], errors="coerce"))
                         if shares <= 0:
                             continue
 

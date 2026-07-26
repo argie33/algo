@@ -108,7 +108,12 @@ class SecSegmentInfoLoader(SecLoaderBase):
                     latest_10k = self._find_latest_10k(submissions)
 
                     if latest_10k:
-                        accession = latest_10k['accession']
+                        # get_filing_xml/_get_primary_document match against SEC's
+                        # dashed accessionNumber list - the stripped 'accession' key
+                        # never matches, silently falling through to the except below
+                        # on every call. Confirmed live: get_filing_xml requires the
+                        # dashed form.
+                        accession = latest_10k['accession_formatted']
                         try:
                             xml_content = self.sec_client.get_filing_xml(cik, accession, '10-K')
                             logger.debug(f"[{symbol}] Fetched raw XBRL XML for {accession}")
@@ -198,7 +203,9 @@ class SecSegmentInfoLoader(SecLoaderBase):
         where each list value at index i is one filing's data.
 
         Returns:
-            Dict with 'accession' key, or None if no 10-K found
+            Dict with 'accession_formatted' (dashed, e.g. "0001193125-24-001234" -
+            the format SecEdgarClient's fetch methods match against), or None if no
+            10-K found.
         """
         filings = submissions.get('filings', {}).get('recent', {})
         if not isinstance(filings, dict):
@@ -209,10 +216,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         for i, form in enumerate(forms):
             if form == '10-K' and i < len(accessions):
-                return {
-                    'accession': accessions[i].replace('-', ''),
-                    'accession_formatted': accessions[i],
-                }
+                return {'accession_formatted': accessions[i]}
         return None
 
     def _extract_filing_date(self, facts_response: dict) -> date | None:

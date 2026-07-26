@@ -59,13 +59,10 @@ class CurrentReports8KLoader(SecLoaderBase):
         super().__init__(backfill_days)
         self.sec_client = SecEdgarClient()
 
-    def _extract_8k_items(self, filing_text: str) -> dict[str, bool]:
-        """Extract which 8-K items are disclosed in filing.
-
-        Scans filing text for Item tags that indicate material events.
-        Returns dict with item flags set to True if item is disclosed.
-        """
-        items = {
+    @staticmethod
+    def _default_items() -> dict[str, bool]:
+        """All item flags False - baseline for a fresh filing or an extraction failure."""
+        return {
             "item_1_01": False,  # Bankruptcy/material loss
             "item_1_02": False,  # Unregistered sales
             "item_1_03": False,  # Bankruptcy proceedings
@@ -92,6 +89,14 @@ class CurrentReports8KLoader(SecLoaderBase):
             "item_8_01": False,  # Other events
             "item_9_01": False,  # Exhibits
         }
+
+    def _extract_8k_items(self, filing_text: str) -> dict[str, bool]:
+        """Extract which 8-K items are disclosed in filing.
+
+        Scans filing text for Item tags that indicate material events.
+        Returns dict with item flags set to True if item is disclosed.
+        """
+        items = self._default_items()
 
         # Simple heuristic: search for Item tags in filing text
         text_upper = filing_text.upper()
@@ -181,11 +186,19 @@ class CurrentReports8KLoader(SecLoaderBase):
 
                     # Extract summary from first 500 chars of filing
                     summary = filing_text[:500] if filing_text else ""
+                    item_extraction_failed_reason = None
 
                 except Exception as e:
+                    # Item flags are genuinely unknown here, not "no items disclosed" -
+                    # defaulting to all-False items while also claiming data_unavailable
+                    # False would tell downstream material-event signals a filing was
+                    # checked and clean when it was never actually read. Record the
+                    # filing's existence/date (still useful) but flag this row unavailable
+                    # so it reads as "unknown", not "no material items".
                     logger.debug(f"[{symbol}] 8-K parsing error: {type(e).__name__}: {e}")
-                    items = {}
+                    items = self._default_items()
                     summary = None
+                    item_extraction_failed_reason = f"item_extraction_failed:{type(e).__name__}"
 
                 record = {
                     "symbol": symbol,
@@ -195,8 +208,8 @@ class CurrentReports8KLoader(SecLoaderBase):
                     **items,
                     "event_summary": summary,
                     "material_items_text": None,
-                    "data_unavailable": False,
-                    "data_unavailable_reason": None,
+                    "data_unavailable": item_extraction_failed_reason is not None,
+                    "data_unavailable_reason": item_extraction_failed_reason,
                 }
 
                 results.append(record)
