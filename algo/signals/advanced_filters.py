@@ -796,8 +796,18 @@ class AdvancedFilters:
             )
             return 0.0, 0
 
-        ups = int(row[0]) if row[0] is not None else 0
-        downs = int(row[1]) if row[1] is not None else 0
+        # CRITICAL FIX: COUNT(*) should never return NULL - it returns 0 for empty sets.
+        # If we get NULL here, it indicates a query error or database corruption.
+        if row[0] is None or row[1] is None:
+            error_msg = (
+                f"[ANALYST_SCORE CRITICAL] Analyst action counts returned NULL instead of counts. "
+                f"This indicates a database query error or schema corruption. "
+                f"Cannot proceed with missing analyst data structure."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        ups = int(row[0])
+        downs = int(row[1])
 
         if ups == 0 and downs == 0:
             # No activity for this symbol in lookback period.
