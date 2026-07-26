@@ -35,7 +35,6 @@ def handle(
     jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle /api/scores/* and /api/algo/scores/* endpoints."""
-    logger.critical(f"[SCORES_HANDLE_CALLED] path={path} method={method}")
     try:
         if path in [
             "/api/scores",
