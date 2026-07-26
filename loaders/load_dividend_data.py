@@ -119,20 +119,74 @@ class DividendDataLoader(SecLoaderBase):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol since given date.
 
-        GOVERNANCE: Fail-fast pattern with explicit data_unavailable marker.
+        GOVERNANCE: Extract from official SEC 8-K Item 2.02 (Results of Operations).
+        Dividend announcements are often disclosed in 8-K Item 2.02 sections.
 
-        Dividend ex-dates and payment dates are critical for position management
-        but require SEC Form 8-K Item 2.02 integration (dividend announcements)
-        or SEC XBRL companyfacts (when filed). This implementation is incomplete.
-
-        Returns: Explicit data_unavailable marker explaining the gap.
+        Returns: Dividend records extracted from 8-K filings, or data_unavailable marker.
         """
-        now_et = datetime.now(EASTERN_TZ).date()
-        return self._unavailable_record(
-            symbol,
-            now_et,
-            "sec_dividend_data_not_integrated",
-        )
+        try:
+            # Get CIK for symbol
+            cik = self.sec_client.symbol_to_cik(symbol)
+
+            # Fetch submissions (SEC API returns columnar format)
+            submissions = self.sec_client.get_submissions(cik)
+            if not submissions:
+                now_et = datetime.now(EASTERN_TZ).date()
+                return self._unavailable_record(symbol, now_et, "no_submissions")
+
+            # Extract 8-K filings
+            recent = submissions.get("filings", {}).get("recent", {})
+            if not isinstance(recent, dict) or "form" not in recent:
+                now_et = datetime.now(EASTERN_TZ).date()
+                return self._unavailable_record(symbol, now_et, "invalid_submissions_format")
+
+            forms = recent.get("form", [])
+            dates = recent.get("filingDate", [])
+            accessions = recent.get("accessionNumber", [])
+
+            results = []
+
+            # Process 8-K filings looking for dividend announcements
+            for i, form in enumerate(forms[:50]):  # Check last 50 filings
+                if form != "8-K":
+                    continue
+
+                filing_date_str = dates[i] if i < len(dates) else None
+                if not filing_date_str:
+                    continue
+
+                filing_date = self._parse_date(filing_date_str)
+                if since and filing_date < since:
+                    continue
+
+                accession_number = accessions[i] if i < len(accessions) else ""
+                accession_number = accession_number.replace("-", "")
+
+                try:
+                    # Extract filing text
+                    filing_text = self.sec_client.get_filing_plaintext(cik, accession_number)
+                    if not filing_text:
+                        continue
+
+                    # Extract Item 2.02 section (Results of Operations)
+                    dividends = self._extract_dividends_from_8k(filing_text, filing_date)
+                    results.extend(dividends)
+
+                except Exception as e:
+                    logger.debug(f"[{symbol}] Error parsing 8-K {accession_number}: {e}")
+                    continue
+
+            if results:
+                return results
+
+            # No dividend announcements found
+            now_et = datetime.now(EASTERN_TZ).date()
+            return self._unavailable_record(symbol, now_et, "no_dividends_in_8k")
+
+        except Exception as e:
+            logger.debug(f"[{symbol}] Dividend fetch error: {e}")
+            now_et = datetime.now(EASTERN_TZ).date()
+            return self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")
 
     def _estimate_ex_date(self, fiscal_year: int, fiscal_period: str) -> date:
         """Estimate ex-date from fiscal period."""

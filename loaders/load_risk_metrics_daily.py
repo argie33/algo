@@ -156,7 +156,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "reason": str(e)[:150],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
+        except Exception as e:
             logger.warning(f"[RISK_METRICS] Unexpected error for {symbol}: {type(e).__name__}: {e}")
             return {
                 "symbol": symbol,
@@ -177,7 +177,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "reason": f"unexpected_error: {type(e).__name__}",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
+        except Exception as e:
             logger.warning(f"[RISK_METRICS] Unexpected error for {symbol}: {type(e).__name__}: {e}")
             return {
                 "symbol": symbol,
@@ -242,7 +242,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "roc_120d": None,
                 "roc_252d": None,
             }
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
+        except Exception as e:
             logger.debug(f"[RISK_METRICS] {symbol}: technical indicators fetch failed: {e}")
             return {
                 "rsi_14": None,
@@ -450,7 +450,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "reason": None if debt_to_assets is not None else reason,
                 "reason_type": None if debt_to_assets is not None else "loader_failed",
             }
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
+        except Exception as e:
             logger.warning(f"[RISK_METRICS] Stability error for {symbol}: {type(e).__name__}: {e}")
             return {
                 "symbol": symbol,

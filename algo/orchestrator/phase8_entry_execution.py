@@ -978,13 +978,19 @@ def run(
                 )
             else:
                 # Live mode: never use fallback, fail-fast
-                error_msg = f"[PHASE 8 HALT] Cannot determine portfolio value (live mode). Database error: {db_err}. API error: {api_err}"
+                error_msg = (
+                    f"[PHASE 8 HALT] Cannot determine portfolio value (live mode). "
+                    f"Database error: {db_err}. API error: {api_err}"
+                )
                 logger.critical(error_msg)
                 log_phase_result_fn(8, "entry_execution", "halt", error_msg)
                 return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
     if portfolio_value is None or portfolio_value <= 0:
-        error_msg = f"[PHASE 8 HALT] Invalid portfolio value: {portfolio_value} (source: {portfolio_value_source}). Cannot execute trades."
+        error_msg = (
+            f"[PHASE 8 HALT] Invalid portfolio value: {portfolio_value} "
+            f"(source: {portfolio_value_source}). Cannot execute trades."
+        )
         logger.critical(error_msg)
         log_phase_result_fn(8, "entry_execution", "halt", error_msg)
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
@@ -1262,8 +1268,10 @@ def run(
             # wrong position sizing (especially ATR which directly affects stop loss placement).
             if close is None or atr is None or sma_50 is None:
                 raise RuntimeError(
-                    f"[PHASE 8] {symbol}: Incomplete technical data (ATR={atr}, SMA_50={sma_50}, close={close}). "
-                    f"Cannot execute entry without complete data. This indicates upstream loader failure or data cache corruption."
+                    f"[PHASE 8] {symbol}: Incomplete technical data "
+                    f"(ATR={atr}, SMA_50={sma_50}, close={close}). "
+                    "Cannot execute entry without complete data. "
+                    "This indicates upstream loader failure or data cache corruption."
                 )
 
             entry_price = float(close)
@@ -1322,14 +1330,16 @@ def run(
                         min_stop_above_support = support_52w * 1.005
                         if stop_loss <= support_52w:
                             logger.info(
-                                f"[PHASE 8] {symbol}: Stop loss ${stop_loss:.2f} below 52-week support ${support_52w:.2f}. "
+                                f"[PHASE 8] {symbol}: Stop loss ${stop_loss:.2f} "
+                                f"below 52-week support ${support_52w:.2f}. "
                                 f"Adjusting to ${min_stop_above_support:.2f} (0.5% above support). "
-                                f"Original formula (min(sma-atr, entry-2*atr)) produced technically unsound placement."
+                                "Original formula (min(sma-atr, entry-2*atr)) unsound."
                             )
                             stop_loss = min_stop_above_support
             except Exception as e:
                 logger.error(
-                    f"[PHASE 8 CRITICAL] {symbol}: Could not validate stop loss against support: {type(e).__name__}: {e}"
+                    f"[PHASE 8 CRITICAL] {symbol}: Could not validate stop loss against "
+                    f"support: {type(e).__name__}: {e}"
                 )
                 _log_signal_rejection(
                     symbol,
@@ -1343,7 +1353,8 @@ def run(
             # (extreme volatility). This is invalid - cannot short at negative price.
             if stop_loss <= 0:
                 logger.info(
-                    f"[PHASE 8] {symbol}: Stop loss negative (${stop_loss:.2f}) due to extreme volatility (ATR ${atr:.2f}). "
+                    f"[PHASE 8] {symbol}: Stop loss negative (${stop_loss:.2f}) "
+                    f"due to extreme volatility (ATR ${atr:.2f}). "
                     "Risk control: Rejecting trade - volatility too high to place safe stop."
                 )
                 _log_signal_rejection(

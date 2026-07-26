@@ -450,10 +450,12 @@ class HaltFlagManager:
                                 first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
                                 first_et = first_dt.astimezone(EASTERN_TZ)
                                 if first_et.date() == now_et.date():
+                                    first_time = first_et.strftime("%H:%M ET")
+                                    now_time = now_et.strftime("%H:%M ET")
                                     logger.critical(
                                         f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
                                         f"Halt #{halt_count} in same day. "
-                                        f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
+                                        f"First at {first_time}, now at {now_time}. "
                                         f"Reason: {reason[:100]}"
                                     )
                                     if halt_count >= 2:
@@ -516,12 +518,13 @@ class HaltFlagManager:
 
         # Both DynamoDB and RDS failed: MUST raise exception
         # Halt flag is safety-critical. If we can't set it, the orchestrator must fail.
-        raise RuntimeError(
+        error_msg = (
             f"[GOVERNANCE VIOLATION] Halt flag could not be set. Both DynamoDB and RDS failed. "
             f"Last error: {last_error}. "
             f"This is a critical safety failure - cannot proceed with trading when halt flag unavailable. "
-            f"Check: (1) RDS database connectivity (localhost:5432), (2) AWS credentials/DynamoDB access, (3) network issues."
+            "Check: (1) RDS connectivity (localhost:5432), (2) AWS credentials/DynamoDB, (3) network."
         )
+        raise RuntimeError(error_msg)
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successfully set."""
@@ -631,16 +634,22 @@ class HaltFlagManager:
                     market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
                     if now_et >= market_open_et:
-                        logger.critical(
-                            f"[PROACTIVE_CLEAR] Halt from {trigger_date} detected at orchestrator startup. "
-                            f"It's now {now_date_et} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET). "
-                            f"Breaking deadlock by auto-clearing halt."
+                        time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
+                        msg = (
+                            f"Halt from {trigger_date} detected at startup. "
+                            f"Now {now_date_et} past market open ({time_str} ET). "
+                            "Breaking deadlock by auto-clearing."
+                        )
+                        logger.critical(f"[PROACTIVE_CLEAR] {msg}")
+                        clear_reason = (
+                            "Proactive clear at startup: halt from prior trading day "
+                            "post-market-open"
                         )
                         table.put_item(
                             Item={
                                 "key": self.HALT_FLAG_DYNAMODB_KEY,
                                 "halt_flag": False,
-                                "reason": "Proactive clear at orchestrator startup: halt from prior trading day post-market-open",
+                                "reason": clear_reason,
                                 "reset_at": now_utc.isoformat(),
                                 "original_trigger_date": trigger_date.isoformat(),
                             }

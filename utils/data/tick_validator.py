@@ -141,8 +141,8 @@ class TickValidator:
         of a cent. Median real-world error is ~0.3%, with tolerance at 1% providing
         safety buffer while still catching obviously corrupted data (>1% errors).
         """
-        TOLERANCE_FRACTION = 0.01  # 1%
-        MIN_TOLERANCE = 0.05  # $0.05 minimum
+        tolerance_fraction = 0.01  # 1%
+        min_tolerance = 0.05  # $0.05 minimum
 
         if open_price < 0:
             self.errors.append(f"open_price is negative: {open_price}")
@@ -158,13 +158,13 @@ class TickValidator:
 
         # High >= max(O,C) with tolerance for data feed timing issues
         max_oc = max(open_price, close)
-        tolerance_high = max(MIN_TOLERANCE, max_oc * TOLERANCE_FRACTION)
+        tolerance_high = max(min_tolerance, max_oc * tolerance_fraction)
         if high < max_oc - tolerance_high:
             self.errors.append(f"high < max(open, close): {high} < max({open_price}, {close})")
 
         # Low <= min(O,C) with tolerance for data feed timing issues
         min_oc = min(open_price, close)
-        tolerance_low = max(MIN_TOLERANCE, min_oc * TOLERANCE_FRACTION)
+        tolerance_low = max(min_tolerance, min_oc * tolerance_fraction)
         if low > min_oc + tolerance_low:
             self.errors.append(f"low > min(open, close): {low} > min({open_price}, {close})")
 
