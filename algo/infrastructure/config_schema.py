@@ -319,6 +319,7 @@ VALIDATION_SCHEMA = {
     "patrol_market_exposure_daily_min": ("float", 0.0, 100.0, False, 10.0),  # Min market exposure for daily check
     "patrol_technical_daily_14d_min": ("int", 0, 100, False, 90),  # Min technical data coverage 14d
     "patrol_trend_14d_min": ("int", 0, 100, False, 90),  # Min trend data coverage 14d
+    "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
     # Alpaca Credentials (alternative naming)
     "alpaca_api_key": ("string", None, None, False, None),  # Alpaca API key (alias for alpaca_api_key_id)
     "alpaca_api_secret": ("string", None, None, False, None),  # Alpaca API secret (alias for alpaca_api_secret_key)
@@ -329,4 +330,26 @@ VALIDATION_SCHEMA = {
     # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
     "halt_new_entries": ("bool", None, None, False, False),  # Legacy: use exposure constraints instead
     "max_new_positions_today": ("int", 0, 100, False, 15),  # Legacy: use exposure constraints instead
+    # Pyramiding Configuration
+    "pyramid_enabled": ("bool", None, None, False, True),  # Enable multi-entry pyramiding
+    "pyramid_add_1_gain_pct": ("float", 0.1, 50.0, False, 2.0),  # Gain threshold for add 1
+    "pyramid_add_2_gain_pct": ("float", 0.1, 50.0, False, 4.0),  # Gain threshold for add 2
+    "pyramid_split_pct": ("float", 10.0, 100.0, False, 50.0),  # Split position pct per add
+    # Signal Age Validation
+    "signal_max_data_age_days": ("int", 1, 30, False, 3),  # Max signal data age for trading
+    # Data Staleness Thresholds (loader monitoring)
+    "stale_loader_threshold_minutes": ("int", 1, 1440, False, 60),  # Alert if loader stale
+    "stale_order_alert_minutes": ("int", 1, 1440, False, 30),  # Alert if order pending
+    "stale_order_auto_cancel_minutes": ("int", 1, 1440, False, 120),  # Auto-cancel stale orders
+    # Swing Score Weights - Setup Phase
+    "swing_weight_setup": ("int", 0, 100, False, 25),  # Setup quality weight
+    "swing_weight_trend": ("int", 0, 100, False, 20),  # Trend quality weight
+    # API Configuration
+    "alpaca_api_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),  # Alpaca API base URL
+    # Retry Configuration
+    "retry_count_fred_api": ("int", 0, 10, False, 3),  # Retries for FRED API
+    "retry_count_aaii_sentiment": ("int", 0, 10, False, 3),  # Retries for AAII sentiment
+    "retry_count_db_migration": ("int", 0, 10, False, 3),  # Retries for DB migration
+    # Technical Daily Coverage Threshold
+    "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
 }
