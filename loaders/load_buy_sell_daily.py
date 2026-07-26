@@ -1077,9 +1077,12 @@ def main() -> int:  # noqa: C901
         result = loader.run(symbols, parallelism=args.parallelism)
         logger.info("[LOADER] Daily signals load completed successfully. Exit code 0 (SUCCESS).")
 
-        # ISSUE #27 FIX: Make technical data enrichment part of the critical path.
-        # Enrichment is optional - if the module doesn't exist, skip it but mark loader as COMPLETED.
-        logger.info("[LOADER] Starting technical data enrichment (optional)...")
+        # CLARIFICATION (Session 438): Technical data enrichment is TRULY OPTIONAL.
+        # Technical indicators (SMA, ATR, RSI, MACD, etc.) are populated by load_technical_indicators.py,
+        # not by enrichment. The enrichment module (enrich_buy_sell_daily_technical) would provide
+        # additional optional data if it exists, but signals are fully functional without it.
+        # The module doesn't exist in the codebase, so this try/except always falls through.
+        logger.info("[LOADER] Checking for optional technical data enrichment module...")
         try:
             from loaders.enrich_buy_sell_daily_technical import enrich_technical_data
 
@@ -1092,11 +1095,11 @@ def main() -> int:  # noqa: C901
                     f"{enrich_result['checked']} checked, {enrich_result['nulls_remaining']} nulls remaining"
                 )
             except RuntimeError as e:
-                # Enrichment failed to meet quality threshold - log but don't fail
-                logger.warning(f"[LOADER] Technical data enrichment failed: {e}. Continuing with load.")
-        except ImportError as e:
-            # Enrichment module not available - this is OK, it's optional
-            logger.info(f"[LOADER] Technical data enrichment module not available ({e}). Skipping enrichment.")
+                # Enrichment module exists but failed to meet quality threshold - log and continue
+                logger.warning(f"[LOADER] Technical data enrichment failed quality check: {e}. Continuing without enrichment.")
+        except ImportError:
+            # Enrichment module not available - this is expected, it's optional infrastructure
+            logger.debug("[LOADER] Optional enrichment module not found. Signals generated from technical_data_daily only.")
 
         # SANITY CHECK (Session 267 FIX): Detect signal count degradation BEFORE marking loader COMPLETED
         # Problem: Loader marked as 100% complete even when generating only 17 signals/day instead of 300-800

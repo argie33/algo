@@ -2199,7 +2199,23 @@ class PriceLoader(OptimalLoader):
             for r in rows:
                 src = r.pop("_source_name", None) or (self.router.last_source if self.router else None) or "unknown"
                 r["data_source"] = src
-                r.pop("_primary_source_failed", None)
+                # CRITICAL FIX: Log when using fallback data (primary source failed).
+                # This is required for finance apps: operators need visibility into data quality degradation.
+                # Previously this marker was silently discarded, violating fail-fast principle.
+                primary_source_failed = r.pop("_primary_source_failed", None)
+                if primary_source_failed:
+                    symbol = r.get("symbol", "unknown")
+                    date_val = r.get("date", "unknown")
+                    logger.warning(
+                        f"[PRICE_LOADER] Using {src} fallback for {symbol} {date_val}: "
+                        f"Primary source (alpaca) failed. Data quality/freshness may be degraded. "
+                        f"Check orchestrator alerting and consider running data recovery."
+                    )
+                    # Track fallback usage for monitoring (separate counter from normal data_source usage)
+                    if "fallback_count" not in self._stats:
+                        self._stats["fallback_count"] = 0
+                    self._stats["fallback_count"] += 1
+
                 # CRITICAL FIX (Session 416): Never use .get() with defaults on critical counters.
                 # If source_distribution key missing (initialization error), surface it, don't hide it.
                 # Defensive initialization: ensure source_distribution exists and has this source.
