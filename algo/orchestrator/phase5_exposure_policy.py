@@ -71,6 +71,7 @@ def run(
             log_phase_result_fn(5, "exposure_policy", "halt", error_msg)
             # CRITICAL: Must return safe halt constraints for Phase 8, not empty dict
             fail_halt_constraints = {
+                "regime": "correction",
                 "tier_name": "CORRECTION",
                 "description": "Prior phase halted - no entries allowed",
                 "risk_multiplier": 0.0,
@@ -222,6 +223,7 @@ def run(
             f"Halting all new entries until market regime is available: {e}"
         )
         fail_halt_constraints = {
+            "regime": "correction",
             "tier_name": "CORRECTION",
             "description": "Market regime data missing - no entries allowed",
             "risk_multiplier": 0.0,
@@ -254,6 +256,7 @@ def run(
             f"Cannot proceed with trading without valid risk management constraints: {type(e).__name__}: {e}"
         )
         fail_halt_constraints = {
+            "regime": "correction",
             "tier_name": "CORRECTION",
             "description": "Exposure policy unavailable due to system error - no entries allowed",
             "risk_multiplier": 0.0,

@@ -548,8 +548,18 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
         total = int(total)
 
-        wins = row[0] if row[0] is not None else 0
-        losses = row[1] if row[1] is not None else 0
+        # CRITICAL FIX: Do NOT default wins/losses to 0 if missing.
+        # Missing data indicates query failure or data integrity issue.
+        # Fail-fast to prevent incorrect win rate calculations.
+        if row[0] is None or row[1] is None:
+            raise RuntimeError(
+                f"[CIRCUIT_BREAKER CRITICAL] Win/loss counts missing from query result. "
+                f"Cannot calculate win rate without actual trade outcomes. "
+                f"Row[0]={row[0]}, Row[1]={row[1]}. "
+                f"Data integrity issue or insufficient closed trades. Check database state."
+            )
+        wins = int(row[0])
+        losses = int(row[1])
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
@@ -572,7 +582,15 @@ class CircuitBreaker:
             (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%"),
         )
         closed_row = cur.fetchone()
-        closed_count = closed_row[0] if closed_row and closed_row[0] is not None else 0
+        # CRITICAL FIX: Do NOT default closed_count to 0 if query fails.
+        # Missing count indicates data integrity issue or failed query.
+        if closed_row is None or closed_row[0] is None:
+            raise RuntimeError(
+                "[CIRCUIT_BREAKER CRITICAL] Could not fetch closed trade count. "
+                "Cannot determine if account is in bootstrap period. "
+                "Database query failed or no trades found. Check database state."
+            )
+        closed_count = int(closed_row[0])
 
         if closed_count < 10:
             return {

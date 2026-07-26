@@ -641,7 +641,14 @@ class AdvancedFilters:
             raise ValueError(error_msg)
         fin_neutral = FilterRegistry.get_threshold("financial_quality_neutral")
         fin_max = FilterRegistry.get_threshold("financial_quality_max")
-        q = float(row[0]) if row[0] is not None else fin_neutral
+        # CRITICAL FIX: Do NOT default quality score to fin_neutral if missing.
+        # fin_neutral is a threshold, not a replacement for missing data.
+        # Missing quality score indicates data unavailable - fail-fast.
+        if row[0] is None:
+            error_msg = f"Financial quality score missing for {symbol}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        q = float(row[0])
         # Linear scale: fin_neutral = 0 pts, fin_max = quality_financial pts
         quality_fin_weight = FilterRegistry.get_weight("quality_financial")
         pts = max(
@@ -706,8 +713,17 @@ class AdvancedFilters:
         eps_3y = float(row[1])
         rev_yoy = float(row[2]) if row[2] is not None else None
 
-        # Use YoY growth as momentum proxy (conservative approach)
-        mom = rev_yoy * 0.5 if rev_yoy is not None and rev_yoy > 0 else 0.0
+        # CRITICAL FIX: Momentum calculation must not default to 0.0 if data missing.
+        # If rev_yoy is available and positive, use it; otherwise flag unavailable.
+        # Do NOT silently use 0.0 as fallback - that masks missing growth data.
+        if rev_yoy is None:
+            mom = None  # Explicitly mark momentum as unavailable
+            logger.warning(f"[GROWTH] {symbol}: Revenue YoY growth missing - momentum proxy unavailable")
+        elif rev_yoy <= 0:
+            mom = None  # Negative/zero growth doesn't provide momentum signal
+            logger.debug(f"[GROWTH] {symbol}: Negative/zero revenue YoY ({rev_yoy}) - no momentum signal")
+        else:
+            mom = rev_yoy * 0.5  # Positive growth provides momentum proxy
 
         # Allocate catalyst_growth weight across 3 metrics (EPS, revenue, momentum)
         catalyst_growth_weight = FilterRegistry.get_weight("catalyst_growth")
@@ -722,7 +738,8 @@ class AdvancedFilters:
             rev_p = max(0.0, min(pts_per_metric, rev_3y / rev_threshold * pts_per_metric))
         else:
             rev_p = 0.0
-        mom_p = pts_per_metric if mom > 0 else 0.0
+        # Only award momentum points if momentum data is available and positive
+        mom_p = pts_per_metric if (mom is not None and mom > 0) else 0.0
         return eps_p + rev_p + mom_p, {
             "eps_3y_cagr": round(eps_3y, 1),
             "rev_3y_cagr": round(rev_3y, 1),

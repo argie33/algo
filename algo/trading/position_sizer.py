@@ -492,8 +492,18 @@ class PositionSizer:
             exposure_pct, data_date, data_unavailable, reason = row[0], row[1], row[2], row[3]
             # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
             if data_unavailable is True:
+                if not reason:
+                    logger.critical(
+                        f"[POSITION SIZER CRITICAL] Market exposure marked unavailable but reason field is empty. "
+                        f"Reason value: {reason!r}. "
+                        f"Cannot determine why market exposure is unavailable. Check market_exposure_daily loader."
+                    )
+                    raise ValueError(
+                        "Market exposure marked unavailable but reason field missing or empty. "
+                        "Cannot proceed with position sizing. Data quality issue in market exposure data."
+                    )
                 raise ValueError(
-                    f"Market exposure marked unavailable (reason: {reason or 'unknown'}). "
+                    f"Market exposure marked unavailable (reason: {reason}). "
                     f"Cannot calculate safe position size without valid market exposure analysis."
                 )
             # FIXED (Session 281): Use trading day logic instead of calendar days

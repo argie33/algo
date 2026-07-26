@@ -325,7 +325,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         )
                         halt_check_errors.append((symbol, "halt_check_returned_None"))
                     elif "error" in halt_check:
-                        error_reason = halt_check.get("reason", "unknown")
+                        if "reason" not in halt_check or halt_check["reason"] is None:
+                            logger.critical(
+                                f"[PHASE 3 CRITICAL] {symbol}: halt check returned error but missing reason field. "
+                                f"Keys: {list(halt_check.keys())}. "
+                                f"Cannot determine why halt check failed. Check market-data API integration."
+                            )
+                            raise ValueError(
+                                f"[PHASE 3] Halt check error for {symbol} missing reason field. "
+                                "Cannot safely evaluate halt status."
+                            )
+                        error_reason = halt_check["reason"]
                         logger.error(f"[PHASE 3 CRITICAL] {symbol}: halt check API failed ({error_reason})")
                         halt_check_errors.append((symbol, error_reason))
                     elif halt_check.get("halted"):

@@ -1166,7 +1166,17 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
             if isinstance(corr_val, dict):
                 row_corrs.append(None)
                 if sym1 != sym2:
-                    unavailable_pairs.append({"pair": [sym1, sym2], "reason": corr_val.get("reason", "unknown")})
+                    if "reason" not in corr_val or corr_val["reason"] is None:
+                        logger.error(
+                            f"[MARKET RISK] Correlation data for {sym1}/{sym2} marked unavailable but missing reason field. "
+                            f"Dict keys: {list(corr_val.keys())}. "
+                            f"Cannot determine why correlation failed. Check pearson_corr() implementation."
+                        )
+                        raise ValueError(
+                            f"[MARKET RISK] Correlation unavailability marker missing 'reason' field for {sym1}/{sym2}. "
+                            "Cannot safely evaluate data quality."
+                        )
+                    unavailable_pairs.append({"pair": [sym1, sym2], "reason": corr_val["reason"]})
             else:
                 row_corrs.append(corr_val)
                 if sym1 != sym2 and corr_val is not None:

@@ -359,8 +359,6 @@ VALIDATION_SCHEMA = {
     # Data Coverage Thresholds
     "technical_data_coverage_threshold": ("float", 0.0, 100.0, False, 80.0),  # Min technical data coverage
     "buy_sell_daily_coverage_threshold": ("float", 0.0, 100.0, False, 60.0),  # Min buy/sell signal coverage
-    # Orchestrator Control
-    "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable halt flag checks
     # Alpaca Credentials (alternative naming)
     "alpaca_api_key": ("string", None, None, False, None),  # Alpaca API key (alias for alpaca_api_key_id)
     "alpaca_api_secret": ("string", None, None, False, None),  # Alpaca API secret (alias for alpaca_api_secret_key)
