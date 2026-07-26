@@ -32,7 +32,7 @@ try:
                         data = json.loads(details)
                         if 'summary' in data:
                             print(f"  Summary: {data['summary'][:100]}")
-                    except:
+                    except (json.JSONDecodeError, ValueError, KeyError):
                         idx = details.find('NOEM')
                         print(f"  {details[max(0, idx-20):min(len(details), idx+80)]}")
                 print()
