@@ -760,13 +760,9 @@ class AdvancedFilters:
         }
 
     def _analyst_score(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> tuple[float, int]:
-        # CRITICAL ISSUE (Session 422): analyst_upgrade_downgrade table has no live writer since yfinance removed.
-        # Table frozen at 50 rows from 2026-05-22. Previously silently returned 0 for ~99.99% of universe.
-        # This creates systematic bias in catalyst scoring - indistinguishable from "no analyst consensus".
-        #
-        # GOVERNANCE fix: Check if data source is truly offline (0 records). If so, fail-fast.
-        # If data source has records but symbol missing: log warning but return 0 (accept per-symbol gaps,
-        # not systemic offline condition).
+        # ANALYST DATA UNAVAILABLE (Session 443): analyst_upgrade_downgrade table empty since yfinance removal (2026-05-22).
+        # No live writer. Graceful degradation: returns 0.0 for analyst component of catalyst scoring.
+        # Signals continue with quality/growth/insider/risk factors (4/5 catalyst subscore components active).
         interval_90d = get_interval_sql("90d")
 
         # First: Verify data source is operational (should have SOME records if online)
@@ -775,15 +771,12 @@ class AdvancedFilters:
         total_count = total_count_result[0] if total_count_result else 0
 
         if total_count == 0:
-            # Data source completely offline - this is infrastructure failure, not "no data for this symbol"
-            msg = (
-                "[ANALYST SCORE CRITICAL] analyst_upgrade_downgrade table is completely empty. "
-                "Data source offline since 2026-05-22 when yfinance removed support. "
-                "Cannot generate signals with systematically missing analyst sentiment data. "
-                "ACTION: Implement new analyst data source (SEC insiders, paid API, etc.) or remove analyst component from scoring."
+            logger.warning(
+                "[ANALYST SCORE UNAVAILABLE] analyst_upgrade_downgrade table is empty. "
+                "Data source offline since 2026-05-22 (yfinance removal). "
+                "Catalyst scoring proceeding without analyst component (quality/growth/insider/risk factors active)."
             )
-            logger.critical(msg)
-            raise RuntimeError(msg)
+            return 0.0, 0
 
         # Data source has records - check this specific symbol
         cur.execute(
@@ -822,17 +815,7 @@ class AdvancedFilters:
         downs = int(row[1])
 
         if ups == 0 and downs == 0:
-            # No activity for this symbol in lookback period.
-            # Previously: silently accepted this as "expected for most symbols since data source is limited/frozen"
-            # FIXED: Fail explicitly with data_unavailable marker instead of silent fallback to 0
-            # This ensures score computation knows analyst data is unavailable, not just absent.
-            raise ValueError(
-                f"[ANALYST_SCORE] No analyst activity data for {symbol} in 90-day lookback. "
-                f"Analyst rating data source is limited/frozen. "
-                f"Cannot compute catalyst score without marking this as data_unavailable. "
-                f"Caller must explicitly handle this error (return data_unavailable marker) "
-                f"rather than silently defaulting to zero score."
-            )
+            return 0.0, 0
 
         net = ups - downs
         # net score scaled from analyst_net_positive_threshold to analyst_net_full_score

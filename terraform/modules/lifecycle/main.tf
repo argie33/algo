@@ -40,7 +40,6 @@ locals {
     "/ecs/algo-earnings_surprise-loader",
     "/ecs/algo-econ_data-loader",
     "/ecs/algo-economic_calendar-loader",
-    "/ecs/algo-economic_metrics_daily-loader",
     "/ecs/algo-eod_bulk_refresh-loader",
     "/ecs/algo-etf_prices_daily-loader",
     "/ecs/algo-etf_prices_monthly-loader",
