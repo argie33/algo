@@ -1181,24 +1181,6 @@ class AlgoConfig:
         ),
         "patrol_trend_14d_min": ("90", "int", "Trend data 14-day minimum coverage %", "Data Quality"),
         "patrol_xval_top_n_symbols": ("100", "int", "Cross-validation top N symbols count", "Data Quality"),
-        "price_daily_coverage_threshold_pct": (
-            "70.0",
-            "float",
-            "Daily price data coverage threshold %",
-            "Data Quality",
-        ),
-        "technical_daily_coverage_threshold_pct": (
-            "70.0",
-            "float",
-            "Daily technical data coverage threshold %",
-            "Data Quality",
-        ),
-        "technical_data_coverage_threshold": (
-            "80.0",
-            "float",
-            "Technical indicator coverage threshold %",
-            "Data Quality",
-        ),
         "yfinance_market_close_timeout_eod_sec": (
             "30",
             "int",
