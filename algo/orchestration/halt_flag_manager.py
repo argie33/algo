@@ -731,10 +731,11 @@ class HaltFlagManager:
                         market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
                         if now_et >= market_open_et:
+                            time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
                             logger.critical(
-                                f"[PROACTIVE_CLEAR] Halt from {trigger_date} detected at orchestrator startup. "
-                                f"It's now {now_date_et} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET). "
-                                f"Breaking deadlock by auto-clearing halt (RDS)."
+                                f"[PROACTIVE_CLEAR] Halt from {trigger_date} detected at startup. "
+                                f"It's now {now_date_et} past market open ({time_str} ET). "
+                                "Breaking deadlock by auto-clearing halt (RDS)."
                             )
                             with DatabaseContext("write") as write_cur:
                                 write_cur.execute(
@@ -850,12 +851,13 @@ class HaltFlagManager:
         # Both DynamoDB and RDS failed: MUST raise exception
         # Halt flag is safety-critical. If we can't clear it, the orchestrator must fail.
         # We cannot proceed with unknown halt status - it might be stale or incorrect.
-        raise RuntimeError(
-            f"[GOVERNANCE VIOLATION] Halt flag could not be cleared. Both DynamoDB and RDS failed. "
-            f"Last error: {last_error}. "
-            f"This is a critical safety failure - cannot proceed with trading when halt flag unavailable. "
-            f"Check: (1) RDS database connectivity (localhost:5432), (2) AWS credentials/DynamoDB access, (3) network issues."
+        error_msg = (
+            f"[GOVERNANCE VIOLATION] Halt flag could not be cleared. "
+            f"Both DynamoDB and RDS failed. Last error: {last_error}. "
+            "This is a critical safety failure - cannot proceed with trading when halt flag unavailable. "
+            "Check: (1) RDS connectivity (localhost:5432), (2) AWS credentials/DynamoDB, (3) network."
         )
+        raise RuntimeError(error_msg)
 
     def _clear_halt_flag_rds(self, reason: str) -> bool:
         """Clear halt flag in RDS. Returns True if successfully cleared."""
@@ -870,9 +872,8 @@ class HaltFlagManager:
                     """,
                     (reason or "Phase 1 verified: data is fresh", now_utc, self.HALT_FLAG_DYNAMODB_KEY),
                 )
-            logger.info(
-                f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'} (via RDS fallback)"
-            )
+            msg = reason or "Phase 1 verified: data is fresh, resuming normal trading"
+            logger.info(f"[HALT_FLAG_CLEARED] {msg} (via RDS fallback)")
             return True
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")

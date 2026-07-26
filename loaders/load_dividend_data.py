@@ -170,6 +170,9 @@ class DividendDataLoader(SecLoaderBase):
 
                     # Extract Item 2.02 section (Results of Operations)
                     dividends = self._extract_dividends_from_8k(filing_text, filing_date)
+                    # Add symbol to each dividend record
+                    for div in dividends:
+                        div["symbol"] = symbol
                     results.extend(dividends)
 
                 except Exception as e:
@@ -187,6 +190,137 @@ class DividendDataLoader(SecLoaderBase):
             logger.debug(f"[{symbol}] Dividend fetch error: {e}")
             now_et = datetime.now(EASTERN_TZ).date()
             return self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")
+
+    def _extract_dividends_from_8k(self, filing_text: str, filing_date: date) -> list[dict[str, Any]]:
+        """Extract dividend announcements from 8-K Item 2.02 (Results of Operations).
+
+        Item 2.02 often contains dividend declarations. This method:
+        1. Finds Item 2.02 sections
+        2. Searches for dividend keywords (declared, announced, paid, ex-date)
+        3. Extracts dollar amounts and dates
+        4. Returns structured dividend records
+        """
+        import re
+
+        results = []
+        text_upper = filing_text.upper()
+
+        # Find Item 2.02 section (Results of Operations and Financial Condition)
+        item_2_02_start = text_upper.find("ITEM 2.02")
+        if item_2_02_start == -1:
+            return results
+
+        # Extract section up to next item or end of text
+        next_item = len(filing_text)
+        for item_num in ["2.03", "2.04", "2.05", "3.01", "4.01", "5.02", "8.01", "9.01"]:
+            pos = text_upper.find(f"ITEM {item_num}", item_2_02_start + 10)
+            if pos != -1 and pos < next_item:
+                next_item = pos
+
+        item_2_02_text = filing_text[item_2_02_start:next_item]
+
+        # Search for dividend keywords
+        dividend_keywords = ["dividend", "declared", "announced", "ex-date", "ex dividend", "payment date"]
+        has_dividend = any(kw in item_2_02_text.lower() for kw in dividend_keywords)
+
+        if not has_dividend:
+            return results
+
+        # Extract dividend per share amounts (e.g., "$0.23 per share")
+        div_amount = self._extract_dividend_amount(item_2_02_text)
+        if not div_amount:
+            return results
+
+        # Try to extract ex-date and payment date from text
+        # Pattern: "ex-date of January 15, 2026" or "ex-dividend date: 1/15/2026"
+        dates_found = self._extract_dates_from_text(item_2_02_text)
+
+        if dates_found:
+            # Use extracted dates
+            for ex_date in dates_found:
+                results.append(
+                    {
+                        "symbol": "",  # Will be filled in by caller
+                        "declaration_date": filing_date,
+                        "ex_dividend_date": ex_date,
+                        "record_date": None,
+                        "payment_date": ex_date + timedelta(days=3),  # Typical: 3 days after ex-date
+                        "dividend_per_share": float(div_amount),
+                        "dividend_yield_pct": None,
+                        "total_dividend_amount": None,
+                        "dividend_type": "regular",
+                        "currency": "USD",
+                        "data_unavailable": False,
+                        "data_unavailable_reason": None,
+                        "source": "SEC_8K_Item_2.02",
+                    }
+                )
+        else:
+            # If no specific dates found, estimate based on filing date
+            # Dividends are typically ex'd within 1-3 months of announcement
+            estimated_ex_date = filing_date + timedelta(days=45)
+            results.append(
+                {
+                    "symbol": "",
+                    "declaration_date": filing_date,
+                    "ex_dividend_date": estimated_ex_date,
+                    "record_date": None,
+                    "payment_date": estimated_ex_date + timedelta(days=3),
+                    "dividend_per_share": float(div_amount),
+                    "dividend_yield_pct": None,
+                    "total_dividend_amount": None,
+                    "dividend_type": "regular",
+                    "currency": "USD",
+                    "data_unavailable": False,
+                    "data_unavailable_reason": None,
+                    "source": "SEC_8K_Item_2.02",
+                }
+            )
+
+        return results
+
+    def _extract_dates_from_text(self, text: str) -> list[date]:
+        """Extract dates from text (ex-dates, payment dates, etc.)."""
+        import re
+
+        dates = []
+        text_upper = text.upper()
+
+        # Pattern 1: "ex-date of Month Day, Year" or "ex-dividend date: Month Day, Year"
+        pattern1 = r"ex[- ](?:dividend )?date[:\s]+([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})"
+        matches = re.finditer(pattern1, text, re.IGNORECASE)
+        for match in matches:
+            try:
+                month_str, day_str, year_str = match.groups()
+                from datetime import datetime as dt
+
+                parsed = dt.strptime(f"{month_str} {day_str} {year_str}", "%B %d %Y").date()
+                dates.append(parsed)
+            except (ValueError, TypeError):
+                pass
+
+        # Pattern 2: "ex-date: MM/DD/YYYY" or "1/15/2026"
+        pattern2 = r"ex[- ](?:dividend )?date[:\s]*(\d{1,2})[/-](\d{1,2})[/-](\d{4})"
+        matches = re.finditer(pattern2, text, re.IGNORECASE)
+        for match in matches:
+            try:
+                month_str, day_str, year_str = match.groups()
+                from datetime import datetime as dt
+
+                parsed = dt.strptime(f"{month_str}/{day_str}/{year_str}", "%m/%d/%Y").date()
+                dates.append(parsed)
+            except (ValueError, TypeError):
+                pass
+
+        # Remove duplicates and return
+        return list(set(dates))
+
+    def _parse_date(self, date_str: str) -> date:
+        """Parse SEC date string (YYYY-MM-DD format)."""
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return date.today()
 
     def _estimate_ex_date(self, fiscal_year: int, fiscal_period: str) -> date:
         """Estimate ex-date from fiscal period."""

@@ -636,7 +636,8 @@ def run(
                             logger.info(f"[PHASE 8] Retrieved exposure constraints from Phase 5: {constraint_keys}")
                         else:
                             logger.warning(
-                                f"[PHASE 8] Phase 5 halted ({phase5_result.status}), using halt constraints: {constraint_keys}"
+                                f"[PHASE 8] Phase 5 halted ({phase5_result.status}), "
+                                f"using halt constraints: {constraint_keys}"
                             )
                 else:
                     logger.warning(
@@ -1598,7 +1599,9 @@ def run(
                         entered_prices.append(entry_price)
 
                         logger.info(
-                            f"[PHASE 8] {symbol}: ENTERED trade_id={trade_result['trade_id']} alpaca_order_id={trade_result['alpaca_order_id']} status={trade_result['status']}"
+                            f"[PHASE 8] {symbol}: ENTERED trade_id={trade_result['trade_id']} "
+                            f"alpaca_order_id={trade_result['alpaca_order_id']} "
+                            f"status={trade_result['status']}"
                         )
 
                         if max_entries and executed_count >= max_entries:
