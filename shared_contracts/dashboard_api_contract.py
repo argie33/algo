@@ -173,12 +173,15 @@ DASHBOARD_ENDPOINTS = {
                 "bmom",
                 "fed",
                 "history",
+                "history_data_unavailable",
                 "items",
                 "nh",
                 "nl",
                 "pcr",
                 "total",
                 "ycs",
+                "sectors",
+                "sectors_data_unavailable",
             ],
             field_types={
                 "spy_close": (float, int),
@@ -362,6 +365,7 @@ DASHBOARD_ENDPOINTS = {
                 "pagination",
                 "sector_allocation",
                 "stale_alerts",
+                "untracked_items",
             ],
             field_types={
                 "items": list,
@@ -447,6 +451,9 @@ DASHBOARD_ENDPOINTS = {
                 "status",
                 "timestamp",
                 "version",
+                "execution_health",
+                "trading_halt_reason",
+                "trading_halted",
             ],
             field_types={
                 "ready_to_trade": bool,
@@ -649,6 +656,7 @@ DASHBOARD_ENDPOINTS = {
                 "portfolio_beta",
                 "top_5_concentration",
                 "svar",
+                "has_positions",
             ],
             field_types={
                 "var_pct_95": (float, int),

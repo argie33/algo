@@ -1894,7 +1894,8 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             null_rs_pct = (null_rs_check[0] / len(top_scores) * 100) if len(top_scores) > 0 else 0
             logger.warning(
                 f"[DASHBOARD AUDIT] {null_rs_check[0]} scores with NULL rs_percentile in database. "
-                f"These default to 50.0 (COALESCE fallback) - momentum data missing. "
+                f"Momentum data missing for these symbols (upstream loader did not complete). "
+                f"Dashboard returns NULL values (no fallback applied). "
                 f"If > 5%, check momentum scorer completion rate ({null_rs_pct:.1f}% of returned {len(top_scores)} scores)."
             )
 
