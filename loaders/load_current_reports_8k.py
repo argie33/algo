@@ -219,21 +219,17 @@ class CurrentReports8KLoader(SecLoaderBase):
             return date.today()
 
     def _get_cik(self, symbol: str) -> str | None:
-        """Get CIK for symbol from company_info_sec table."""
+        """Get CIK for symbol using SEC Edgar client (authoritative source)."""
         try:
-            from utils.db import DatabaseContext
-
-            with DatabaseContext() as db:
-                result = db.query(
-                    "SELECT cik FROM company_info_sec WHERE symbol = %s LIMIT 1",
-                    (symbol,),
-                )
-                if result and result[0]:
-                    return str(result[0][0]).zfill(10)
+            cik = self.sec_client.symbol_to_cik(symbol)
+            return str(cik).zfill(10)
+        except ValueError:
+            # Symbol not found in SEC
+            logger.debug(f"[{symbol}] Symbol not found in SEC")
+            return None
         except Exception as e:
-            logger.debug(f"[{symbol}] CIK lookup error: {e}")
-
-        return None
+            logger.debug(f"[{symbol}] CIK lookup error: {type(e).__name__}: {e}")
+            return None
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
         """Return a data_unavailable marker for this symbol."""
