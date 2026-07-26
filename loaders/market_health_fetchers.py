@@ -684,5 +684,12 @@ class BreadthFetcher:
                 return {"data_unavailable": True, "reason": "no_volume_data"}
 
             up_volume, total_volume = row
-            up_volume_percent = round(float(up_volume or 0) / float(total_volume) * 100, 2)
+            # CRITICAL: Both values are guaranteed by query (COALESCE on up_volume, WHERE check on total_volume)
+            # Explicit type conversion for clarity - no fallback defaults on finance data
+            if up_volume is None:
+                raise RuntimeError(
+                    f"[BREADTH_FETCHER] Query returned NULL up_volume despite COALESCE(). "
+                    f"This indicates a database or query corruption."
+                )
+            up_volume_percent = round(float(up_volume) / float(total_volume) * 100, 2)
             return {"data_unavailable": False, "up_volume_percent": up_volume_percent}
