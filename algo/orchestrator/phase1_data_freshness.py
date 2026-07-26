@@ -311,7 +311,7 @@ def run(  # noqa: C901
                 )
                 logger.critical(error_msg)
                 log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-                return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
+                return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "no active symbols"}, True, error_msg)
             logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
     except Exception as pre_check_err:
         error_msg = (
@@ -321,7 +321,7 @@ def run(  # noqa: C901
         )
         logger.critical(error_msg)
         log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-        return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
+        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "pre-flight validation failed"}, True, error_msg)
 
     try:
         with DatabaseContext("read") as cur:
