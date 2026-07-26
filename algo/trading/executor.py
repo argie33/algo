@@ -347,6 +347,7 @@ class TradeExecutor:
         stop_loss_price: Decimal,
         target_1_price: Decimal | None,
         execution_mode: str,
+        idempotency_key: str,
     ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
         """Submit order via Alpaca or create placeholder for paper/review mode.
 
@@ -388,6 +389,14 @@ class TradeExecutor:
                 entry_price=float(entry_price),
                 stop_loss_price=float(stop_loss_price),
                 take_profit_price=float(target_1_price) if target_1_price else None,
+                # CRITICAL: use idempotency_key (deterministic hash of symbol/signal_date/
+                # entry_price/stop_loss_price), NOT trade_id (a fresh random UUID minted on
+                # every attempt - see executor_entry_handler.py). The whole point of a
+                # client_order_id is that a genuine retry of the *same* underlying trade
+                # intent (e.g. Phase 8 reprocessing today's signal after a crash/restart)
+                # reuses the same value so Alpaca can reject it as a duplicate; a random
+                # trade_id would be different on every attempt and defeat that protection.
+                client_order_id=idempotency_key[:48],
             )
 
             # FAIL-FAST: Validate response schema before using (contract enforcement)

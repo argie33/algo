@@ -1875,7 +1875,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             (limit,),
         )
         rows = cur.fetchall()
-        logger.critical(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
+        logger.debug(f"[SCORES_DASHBOARD] Query returned {len(rows)} rows for /api/algo/scores endpoint")
 
         top_scores = []
         for row in rows:

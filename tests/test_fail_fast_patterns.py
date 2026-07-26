@@ -18,12 +18,17 @@ class TestVIXFetcherFailFast:
     def test_vix_database_error_raises(self):
         """VIX database error should raise, not fallback to yfinance."""
         from loaders.market_health_fetchers import VIXFetcher
-        from utils.db.context import DatabaseContext
 
         fetcher = VIXFetcher()
 
-        # Mock database failure
-        with patch("utils.db.context.DatabaseContext") as mock_db:
+        # _fetch_vix_data does `from utils.db import DatabaseContext` (local import),
+        # which resolves against utils.db's own namespace (populated by utils/db/__init__.py's
+        # `from .context import DatabaseContext`), not utils.db.context's. Patching
+        # utils.db.context.DatabaseContext leaves that separately-bound name untouched, so the
+        # mock never intercepts the call - previously this test only "passed" because the local
+        # dev DB lacked a database named algo_trading, and the resulting real connection error
+        # happened to also match the same regex used here.
+        with patch("utils.db.DatabaseContext") as mock_db:
             mock_cursor = MagicMock()
             mock_cursor.__enter__.side_effect = psycopg2.OperationalError("Database connection lost")
             mock_db.return_value = mock_cursor
@@ -35,19 +40,22 @@ class TestVIXFetcherFailFast:
     def test_vix_no_data_raises(self):
         """VIX with no data should raise, not fallback."""
         from loaders.market_health_fetchers import VIXFetcher
-        from utils.db.context import DatabaseContext
 
         fetcher = VIXFetcher()
 
-        # Mock database returning empty rows
-        with patch("utils.db.context.DatabaseContext") as mock_db:
+        # See test_vix_database_error_raises for why the patch target is utils.db.DatabaseContext,
+        # not utils.db.context.DatabaseContext.
+        with patch("utils.db.DatabaseContext") as mock_db:
             mock_cursor = MagicMock()
             mock_cursor.__enter__.return_value.fetchall.return_value = []
+            # MAX(date) over zero matching rows returns one row with a NULL value, i.e. (None,) -
+            # not an empty result set. This exercises the "VIX loader has never run" branch.
+            mock_cursor.__enter__.return_value.fetchone.return_value = (None,)
             mock_cursor.__exit__.return_value = None
             mock_db.return_value = mock_cursor
 
             # Should raise RuntimeError
-            with pytest.raises(RuntimeError, match=r"\[CRITICAL\].*Failed to fetch VIX"):
+            with pytest.raises(RuntimeError, match=r"\[CRITICAL\].*NO VIX data exists"):
                 fetcher._fetch_vix_data(date(2026, 1, 1), date(2026, 1, 31))
 
 

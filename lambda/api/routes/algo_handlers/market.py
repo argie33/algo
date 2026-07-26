@@ -826,7 +826,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 SELECT COUNT(*) as exits_executed,
                        COUNT(*) FILTER (WHERE exit_price IS NOT NULL) as successful_exits,
                        AVG(profit_loss_dollars) FILTER (WHERE profit_loss_dollars IS NOT NULL) as avg_profit,
-                       ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL) as symbols_exited
+                       COALESCE(ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL), ARRAY[]::text[]) as symbols_exited
                 FROM algo_trades
                 WHERE exit_date >= CURRENT_DATE - INTERVAL '1 day'
                 AND exit_date IS NOT NULL
@@ -866,7 +866,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                        COUNT(*) FILTER (WHERE raw_signal = 'SELL') as sell_count,
                        AVG(CAST(signal_quality_score AS FLOAT)) as avg_strength,
                        MAX(created_at) as latest_signal,
-                       ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL) as symbols_with_signals
+                       COALESCE(ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL), ARRAY[]::text[]) as symbols_with_signals
                 FROM algo_signals
                 WHERE created_at >= CURRENT_DATE - INTERVAL '1 day'
             """)
@@ -917,7 +917,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 SELECT COUNT(*) as entries_executed,
                        COUNT(*) FILTER (WHERE entry_price IS NOT NULL) as successful_entries,
                        AVG(entry_price) FILTER (WHERE entry_price IS NOT NULL) as avg_entry_price,
-                       ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL) as symbols_entered
+                       COALESCE(ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL), ARRAY[]::text[]) as symbols_entered
                 FROM algo_trades
                 WHERE entry_date >= CURRENT_DATE - INTERVAL '1 day'
                 AND entry_date IS NOT NULL

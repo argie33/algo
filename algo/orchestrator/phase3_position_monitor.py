@@ -363,14 +363,30 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     f"{len(halts_found)} symbols halted: {', '.join(halts_found)}",
                 )
         except (OSError, RuntimeError, ValueError) as e:
+            # CRITICAL: This used to log the failure as recoverable=True/"warning" and then
+            # fall through to check_stale_orders()/review_positions() below as if halt
+            # checking had succeeded - silently defeating the "GOVERNANCE: Fail-fast" raises
+            # a few lines up (which fire when we can't even fetch open positions, or can't
+            # verify halt status for one or more of them). A stock that's actually halted
+            # but whose halt check failed to confirm that would flow straight into position
+            # review and downstream entry/exit phases with its halt status simply unknown.
+            # Must actually halt the phase here, not just log and continue.
             error = PhaseError(
                 category=ErrorCategory.DEPENDENCY_FAILED,
                 message="Halt check failed for open positions",
                 root_cause=str(e)[:150],
-                recoverable=True,
-                log_level="warning",
+                recoverable=False,
+                log_level="critical",
             )
             log_phase_error(3, error, log_phase_result_fn)
+            return PhaseResult(
+                3,
+                "position_monitor",
+                "error",
+                {"recommendations": [], "count": 0},
+                True,
+                str(e),
+            )
 
         stale_result = monitor.check_stale_orders(run_date)
         if stale_result and stale_result.get("status") == "STALE_ORDERS_FOUND":

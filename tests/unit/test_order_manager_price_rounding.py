@@ -112,3 +112,98 @@ class TestBracketOrderPriceRounding:
         tp_price = payload["take_profit"]["limit_price"]
         assert tp_price == "10.01"
         assert len(tp_price.split(".")[1]) == 2  # exactly 2 decimal places, no float noise
+
+
+class TestClientOrderIdIdempotency:
+    """Regression tests for the 2026-07-26 fix: send_bracket_order() previously sent no
+    client_order_id to Alpaca at all, so a submission whose HTTP response is lost to a
+    timeout (order may have actually reached Alpaca and been accepted) had no broker-side
+    protection against a later retry placing a genuine duplicate order - our own
+    duplicate-position check only queries algo_trades/algo_positions, which never gets a
+    row written when we never received a response to check against. Fixed by passing a
+    deterministic idempotency_key (not the random per-attempt trade_id) as client_order_id,
+    so Alpaca rejects a resubmission of the same underlying trade intent as a duplicate."""
+
+    def test_client_order_id_included_when_provided(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+
+        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
+             patch("algo.trading.order_manager.validator") as mock_validator:
+            mock_validator.validate_order_response.return_value = {
+                "valid": True,
+                "status": "accepted",
+                "filled_avg_price": None,
+                "order_id": "order-123",
+                "order_class": "bracket",
+                "legs": [],
+                "rejection_reason": None,
+            }
+            manager.send_bracket_order(
+                symbol="TEST",
+                shares=10,
+                entry_price=10.0,
+                stop_loss_price=9.0,
+                client_order_id="deadbeef" * 6,
+            )
+
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["client_order_id"] == "deadbeef" * 6
+
+    def test_client_order_id_omitted_when_not_provided(self):
+        """Backward compatible: existing callers that don't pass client_order_id must not
+        send a null/empty field to Alpaca's API."""
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+
+        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
+             patch("algo.trading.order_manager.validator") as mock_validator:
+            mock_validator.validate_order_response.return_value = {
+                "valid": True,
+                "status": "accepted",
+                "filled_avg_price": None,
+                "order_id": "order-123",
+                "order_class": "bracket",
+                "legs": [],
+                "rejection_reason": None,
+            }
+            manager.send_bracket_order(
+                symbol="TEST",
+                shares=10,
+                entry_price=10.0,
+                stop_loss_price=9.0,
+            )
+
+        payload = mock_post.call_args.kwargs["json"]
+        assert "client_order_id" not in payload
+
+    def test_executor_passes_idempotency_key_not_trade_id(self):
+        """The value threaded into client_order_id must be the deterministic idempotency_key
+        computed from (symbol, signal_date, entry_price, stop_loss_price), not the random
+        per-attempt trade_id - otherwise every retry gets a different client_order_id and
+        Alpaca can never recognize it as a duplicate."""
+        from algo.trading.executor import TradeExecutor
+
+        executor = MagicMock(spec=TradeExecutor)
+        executor.alpaca_base_url = "https://fake.alpaca.test"
+        executor.order_manager = MagicMock()
+        executor.order_manager.send_bracket_order.return_value = {
+            "success": True,
+            "order_id": "order-123",
+            "status": "accepted",
+            "executed_price": 10.0,
+        }
+
+        TradeExecutor._submit_and_validate_order(
+            executor,
+            symbol="TEST",
+            trade_id="TRD-RANDOMUUID1",
+            shares=10,
+            entry_price=10.0,
+            stop_loss_price=9.0,
+            target_1_price=None,
+            execution_mode="auto",
+            idempotency_key="stable-idempotency-hash",
+        )
+
+        call_kwargs = executor.order_manager.send_bracket_order.call_args.kwargs
+        assert call_kwargs["client_order_id"] == "stable-idempotency-hash"
+        assert call_kwargs["client_order_id"] != "TRD-RANDOMUUID1"

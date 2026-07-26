@@ -255,6 +255,7 @@ class EntryHandler:
                     stop_loss_price,
                     tgt_1_price,
                     execution_mode,
+                    idempotency_key,
                 )
             )
             if not order_ok:
@@ -632,6 +633,7 @@ class EntryHandler:
         stop_loss_price: Decimal,
         target_1_price: Decimal | None,
         execution_mode: str,
+        idempotency_key: str,
     ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
         """PHASE 2: Submit order and validate result."""
         order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
@@ -643,6 +645,7 @@ class EntryHandler:
                 stop_loss_price,
                 target_1_price,
                 execution_mode,
+                idempotency_key,
             )
         )
 

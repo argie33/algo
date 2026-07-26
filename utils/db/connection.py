@@ -92,7 +92,16 @@ def _get_connection_pool() -> Any:
 
                     # RDS Proxy doesn't support command-line options, so don't pass them during connection
                     # Statement timeout is set at RDS parameter group level instead
-                    base_pool = psycopg2.pool.SimpleConnectionPool(
+                    # ThreadedConnectionPool (not SimpleConnectionPool): dev_server.py serves
+                    # requests via ThreadingHTTPServer, so concurrent fetcher requests call
+                    # getconn()/putconn() on this same pool from multiple threads at once.
+                    # SimpleConnectionPool has no internal locking - concurrent getconn() calls
+                    # can hand two threads the same connection, and psycopg2 connections aren't
+                    # safe for concurrent use, causing one thread's query to hang waiting on a
+                    # response meant for the other. ThreadedConnectionPool adds a threading.Lock
+                    # around pool access; production Lambda (one invocation per execution
+                    # environment) never needed it, which is why this went uncaught.
+                    base_pool = psycopg2.pool.ThreadedConnectionPool(
                         minconn=2,
                         maxconn=10,
                         host=db_config["host"],

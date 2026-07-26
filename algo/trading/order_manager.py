@@ -41,6 +41,7 @@ class OrderManager:
         entry_price: float,
         stop_loss_price: float | None = None,
         take_profit_price: float | None = None,
+        client_order_id: str | None = None,
     ) -> dict[str, Any]:
         """Send a BRACKET order to Alpaca - entry + stop loss + take profit.
 
@@ -53,6 +54,22 @@ class OrderManager:
 
         Falls back to simple limit order if bracket can't be sent (no stop).
         Never returns None - always returns dict with success/error fields.
+
+        client_order_id: Passed through to Alpaca as broker-side idempotency protection.
+        Caller passes a deterministic idempotency_key (hash of symbol/signal_date/entry_price/
+        stop_loss_price), NOT the random per-attempt trade_id - the value must be the same
+        across separate attempts at the same underlying trade intent for this to work.
+        If a submission's HTTP response is lost to a timeout/connection error (ambiguous:
+        the order may have actually reached Alpaca and been accepted), our own duplicate-
+        position check only queries algo_trades/algo_positions - it can't see an order that
+        never got recorded because we never received a response. Without client_order_id,
+        retrying (e.g. Phase 8 reprocessing the same still-valid signal after a crash/restart)
+        would submit a genuinely separate order at the broker. Alpaca rejects a resubmission
+        that reuses a client_order_id already tied to an existing order for the account, so
+        this makes such a retry safe even though our system has no record of the first
+        attempt's outcome. algo_untracked_positions (see GOVERNANCE.md) is a different
+        mechanism - it exists for manual/external trades placed outside the algo, not as a
+        duplicate-order gate for algo-originated entries.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
@@ -82,6 +99,8 @@ class OrderManager:
                 "limit_price": _q2(entry_price),
                 "extended_hours": False,
             }
+            if client_order_id:
+                order_data["client_order_id"] = client_order_id
 
             if stop_loss_price is not None and stop_loss_price > 0:
                 order_data["order_class"] = "bracket"

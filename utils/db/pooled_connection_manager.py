@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 
 class IdleConnectionPool:
-    """Thin wrapper around psycopg2.pool.SimpleConnectionPool.
+    """Thin wrapper around a psycopg2.pool.AbstractConnectionPool (SimpleConnectionPool
+    or ThreadedConnectionPool - this wrapper only calls getconn()/putconn()/closeall(),
+    so it works unchanged with either).
 
     NOTE: This previously ran a background thread that tracked "idle" connections
     in a local deque and closed any older than max_idle_sec. That tracking was
@@ -40,20 +42,20 @@ class IdleConnectionPool:
     list and never closed anything - dead code kept alive only by a docstring that
     no longer matched what the class did. Removed the thread entirely rather than
     re-introduce idle-side-list tracking, since that's the exact mechanism that
-    caused the earlier hang. Actual idle-connection lifecycle is left to
-    psycopg2.pool.SimpleConnectionPool itself.
+    caused the earlier hang. Actual idle-connection lifecycle is left to the
+    underlying pool itself.
     """
 
     def __init__(
         self,
-        pool: psycopg2.pool.SimpleConnectionPool,
+        pool: psycopg2.pool.AbstractConnectionPool,
         max_idle_sec: int = 300,
         cleanup_interval_sec: int = 60,
     ):
         """Initialize pool wrapper.
 
         Args:
-            pool: Underlying psycopg2.pool.SimpleConnectionPool
+            pool: Underlying psycopg2.pool.AbstractConnectionPool (Simple- or ThreadedConnectionPool)
             max_idle_sec: Retained for status()/callers - see class docstring, no longer enforced here
             cleanup_interval_sec: Retained for status()/callers - see class docstring, no longer enforced here
         """
