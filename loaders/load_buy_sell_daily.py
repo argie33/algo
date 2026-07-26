@@ -210,7 +210,26 @@ class SignalsDailyLoader(OptimalLoader):
 
         # Call parent run() with filtered symbols
         effective_parallelism: int = parallelism if parallelism is not None else 1
-        return super().run(symbols, parallelism=effective_parallelism, backfill_days=backfill_days)
+        result = super().run(symbols, parallelism=effective_parallelism, backfill_days=backfill_days)
+
+        # FAIL-FAST: Validate that signal generation actually produced results
+        # In a finance app, silent success with zero data is a critical failure
+        rows_inserted = result.get("rows_inserted", 0)
+        if rows_inserted == 0:
+            # Check if this is due to upstream data being empty (legitimate) vs. a generation failure
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = (SELECT MAX(date) FROM buy_sell_daily)"
+                )
+                latest_count = cur.fetchone()[0]
+                if latest_count == 0:
+                    raise RuntimeError(
+                        "[LOAD_BUY_SELL_DAILY] Generated ZERO signals for today. "
+                        "Check: (1) technical_data_daily loaded for today, (2) stock_scores has coverage, "
+                        "(3) price_daily has data for target date. This is a data loading failure."
+                    )
+
+        return result
 
     def _prepare_batch_context(self) -> None:
         """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
