@@ -692,10 +692,12 @@ class MarketStatusDailyLoader(OptimalLoader):
         # CRITICAL FIX: Check for None (missing data) vs 0 (zero rows inserted)
         rows = result.get("rows_inserted")
         if rows is None:
-            # Data missing - don't default to 0, this indicates loader error
-            logger.error("[MarketStatusDaily] rows_inserted missing from loader result - possible loader failure")
-            return 0  # Return 0 exit code to indicate issue, but log it explicitly
-        return int(rows) if rows is not None else 0
+            raise RuntimeError(
+                "[MarketStatusDaily] LOADER FAILURE: rows_inserted missing from loader result. "
+                "This indicates the market data fetch failed. Check: (1) API connectivity, "
+                "(2) VIX/breadth/yields fetcher logs, (3) market health pipeline completion"
+            )
+        return int(rows)
 
 
 if __name__ == "__main__":
