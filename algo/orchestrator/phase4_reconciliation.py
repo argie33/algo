@@ -92,9 +92,10 @@ def run(  # noqa: C901
                 )
                 result["partial_fill_corrections"] = partial_fill_result
 
-            # CRITICAL: auth_unavailable means the partial-fill check never actually ran
-            # (broker 401'd before it could compare any orders) - the 0 mismatches above is
-            # "not checked", not "checked and clean".
+            # CRITICAL: auth_unavailable or no_broker means the partial-fill check never actually ran
+            # (broker 401'd or not available). In paper mode (no_broker), this is expected and ok.
+            # The 0 mismatches means "not checked", not "checked and clean".
+            # Only fail if auth_unavailable (actual auth error in trading mode).
             if partial_fill_result.get("auth_unavailable"):
                 # FAIL-FAST: Cannot validate partial fills without broker auth. This is CRITICAL
                 # for accurate position tracking. Continuing with unvalidated partial fills risks
@@ -108,6 +109,11 @@ def run(  # noqa: C901
                 )
                 logger.critical(error_msg)
                 raise RuntimeError(error_msg)
+
+            # In paper mode (no_broker=True), partial fill validation was skipped by design.
+            # This is safe because we're using database state, not broker state.
+            if partial_fill_result.get("no_broker"):
+                logger.info(f"[PHASE 4] Paper mode: broker unavailable, skipping partial fill validation")
 
         # Validate result structure upfront
         if "success" not in result or result["success"] is None:
@@ -158,18 +164,14 @@ def run(  # noqa: C901
                         f"Expected non-negative int. Cannot calculate reconciliation match_pct."
                     )
 
-                # CRITICAL FIX: Session 345 - If auth was unavailable, reconciliation didn't actually run.
+                # CRITICAL FIX: Session 345 - If auth was unavailable or no broker, reconciliation didn't actually run.
                 # Don't record 100% match when check was skipped. Use NULL to indicate check was skipped.
-                if "auth_unavailable" not in partial_fill_result:
-                    raise RuntimeError(
-                        "[PHASE 4] CRITICAL: partial_fill_result missing required 'auth_unavailable' field. "
-                        "Cannot determine if broker authentication was available for reconciliation. "
-                        "Check_partial_fills() must always return this field."
-                    )
-                auth_unavailable = partial_fill_result["auth_unavailable"]
-                if auth_unavailable:
+                # check_partial_fills() returns either 'auth_unavailable' (auth error) or 'no_broker' (paper mode).
+                check_was_skipped = partial_fill_result.get("auth_unavailable") or partial_fill_result.get("no_broker")
+                if check_was_skipped:
                     match_pct = None  # NULL to indicate check was not performed
-                    logger.info("[PHASE 4] Recording NULL match_pct in audit (auth unavailable, check skipped)")
+                    reason = "auth unavailable" if partial_fill_result.get("auth_unavailable") else "no broker (paper mode)"
+                    logger.info(f"[PHASE 4] Recording NULL match_pct in audit (check skipped - {reason})")
                 elif positions_count > 0:
                     match_pct = max(0.0, 100.0 * (1 - (mismatches_count / positions_count)))
                 else:
