@@ -105,11 +105,16 @@ def primary_table(loader_name: str) -> str | None:
 
 
 def all_tables(loader_name: str) -> list[str]:
-    """Return all output tables for a loader script, or [] if unknown."""
+    """Return all output tables for a loader script (raises on unknown loader)."""
     tables = LOADER_TABLES.get(loader_name)
     if tables is None:
         tables = PSEUDO_LOADER_TABLES.get(loader_name)
     if tables is None:
-        logger.warning(f"[LOADER_REGISTRY] Unknown loader: {loader_name}. Not found in LOADER_TABLES or PSEUDO_LOADER_TABLES.")
-        return []
+        raise ValueError(
+            f"[LOADER_REGISTRY] Unknown loader: {loader_name!r}. "
+            f"Not found in LOADER_TABLES or PSEUDO_LOADER_TABLES. "
+            f"This is a configuration error - the loader name may be misspelled, deprecated, "
+            f"or the registry was not updated after a rename/consolidation. "
+            f"Available loaders: {sorted(set(LOADER_TABLES.keys()) | set(PSEUDO_LOADER_TABLES.keys()))}"
+        )
     return tables

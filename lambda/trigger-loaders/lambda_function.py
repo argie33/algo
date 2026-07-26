@@ -113,12 +113,11 @@ class TriggerLoadersHandler(LambdaHandler):
         existing = ecs.list_tasks(cluster=cluster_arn, family=task_def_family, desiredStatus="RUNNING")
         task_arns = existing.get("taskArns")
         if task_arns is None:
-            logger.error(
-                f"[ECS] list_tasks returned response without 'taskArns' key. "
-                f"Response keys: {list(existing.keys())}. Likely AWS API protocol change. "
-                f"Treating as no existing tasks but this is suspicious."
+            raise RuntimeError(
+                f"[ECS] list_tasks returned response without 'taskArns' key (CRITICAL AWS API error). "
+                f"Response keys: {list(existing.keys())}. This indicates AWS SDK/API protocol change "
+                f"or permission issue. Cannot safely determine if tasks are already running."
             )
-            return []
         return list(task_arns)
 
     def handle(self, event: dict[str, Any], context: Any) -> LambdaResponse:
