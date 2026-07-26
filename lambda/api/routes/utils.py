@@ -561,6 +561,8 @@ def check_data_freshness(
         cur = cur.cursor
 
     if warning_days is None:
+        # NOTE: api_utils.config import works at runtime because Lambda packages this with
+        # lambda/api/ in PYTHONPATH. Linter may flag as unresolved but it's correct.
         from api_utils.config import get_config
 
         try:

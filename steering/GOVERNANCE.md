@@ -147,7 +147,7 @@ Separately, phases 4/5/7/8 also carry `skip_if_halted=True`, which independently
 ## Key Configuration Points
 
 - **Positions:** Dual-source architecture (deployed Session 171):
-  - Algo-managed: `algo_positions` table (source: `algo_trades`, refreshed Phase 7)
+  - Algo-managed: `algo_positions` table (source: `algo_trades`, maintained by Phases 3/6/8/9)
   - Manual/external: `algo_untracked_positions` table (orphan detection via Alpaca sync)
   - Dashboard returns both: `items` (algo) + `untracked_items` (manual/external)
   - Sync process: `alpaca_sync_manager.sync_alpaca_positions()` identifies broker positions NOT in algo_positions and syncs to untracked table
