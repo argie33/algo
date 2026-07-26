@@ -405,6 +405,12 @@ locals {
     # SEC cash flow & segment metrics
     "sec_cash_flow_metrics" = "load_sec_cash_flow_metrics.py"
     "sec_segment_metrics" = "load_sec_segment_metrics.py"
+
+    # SEC Current Reports (8-K) and Dividend Data (Session 444: XBRL expansion)
+    # 8-K: Material events that may impact trading signals (acquisitions, bankruptcies, etc.)
+    # Dividends: Ex-dates, payment dates, yields for position management
+    "current_reports_8k" = "load_current_reports_8k.py"
+    "dividend_data" = "load_dividend_data.py"
   }
 
   # ============================================================
@@ -564,6 +570,15 @@ locals {
     "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     "signal_quality_scores" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "algo_metrics_daily"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+
+    # SEC Current Reports & Dividend Data (Session 444: XBRL expansion)
+    # 8-K: Form 8-K current reports (material events, SEC API calls + text parsing)
+    # Typical run ~5-15 min for 5k symbols + text extraction, lightweight (~100MB)
+    "current_reports_8k" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+
+    # Dividends: Ex-dates, payment dates, yields (XBRL + 8-K extraction)
+    # Typical run ~5-10 min for 5k symbols, lightweight (~100MB)
+    "dividend_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
   }
   default_loaders = local.all_loaders
 
@@ -604,7 +619,11 @@ locals {
 
     # Market-exposure factor inputs (Session 301 restoration)
     "naaim",
-    "aaii_sentiment"
+    "aaii_sentiment",
+
+    # SEC Current Reports & Dividend Data (Session 444: XBRL expansion)
+    "current_reports_8k",
+    "dividend_data"
   ])
 }
 

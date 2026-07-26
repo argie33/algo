@@ -88,6 +88,8 @@ LOADERS = {
             "load_sec_cash_flow_metrics.py",  # Working capital/CapEx/FCF computed from Phase 2 SEC statement tables (needs load_financial_statements.py first)
             "load_institutional_holdings_13f.py",  # Phase 2: SEC 13F institutional ownership (replaces ~20% yfinance)
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
+            "load_current_reports_8k.py",  # NEW: SEC Form 8-K material events (catalysts, M&A, leadership changes)
+            "load_dividend_data.py",  # NEW: Dividend ex-dates and amounts (position management)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",
             "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
@@ -115,6 +117,7 @@ LOADERS = {
             "load_signal_quality_scores.py",  # Depends on buy_sell_daily (Session 307 restoration)
             "load_algo_metrics_daily.py",  # Portfolio stats/execution summary from algo_audit_log
             "load_sector_industry_daily.py",
+            "load_insider_transaction_velocity.py",  # NEW: Insider buying/selling velocity patterns (confidence signals)
         ],
         "interval_hours": 24,
         "target_hour": 16,
