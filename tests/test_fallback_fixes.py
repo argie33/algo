@@ -339,7 +339,6 @@ class TestIndustryRankingLoader:
 class TestSentimentLoaders:
     """Test sentiment loader consistency and graceful degradation"""
 
-    @pytest.mark.xfail(reason="Test for removed AAIISentimentLoader; deprecated behavior")
     def test_aaii_sentiment_returns_data_unavailable_on_network_error(self):
         """AAII sentiment should return explicit data_unavailable marker when data unavailable (optional enrichment)."""
         from unittest.mock import patch

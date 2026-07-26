@@ -112,9 +112,17 @@ class TestBreadthFetcherNewHighsLows:
         assert isinstance(call_args[0][1], tuple), "Second arg should be params tuple"
         assert call_args[0][1] == (start, end), "Params should be (start, end)"
 
-@pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
 class TestBreadthFetcherFullIntegration:
-    """Test BreadthFetcher.fetch() with new highs/lows integration (deprecated tests)"""
+    """Test BreadthFetcher.fetch() with new highs/lows integration.
+
+    Most methods below test the old graceful-degradation behavior (marked xfail
+    individually) and are deprecated. test_fetch_returns_advances_declines_and_new_highs_lows
+    is NOT marked: it only exercises the case where data is actually present, which the
+    fail-fast change didn't alter - a class-level xfail here previously masked it as an
+    "expected failure" even though it was silently passing and providing real regression
+    coverage for the happy path (confirmed via --runxfail: it passes with the marker
+    removed, unlike its siblings below).
+    """
 
     def test_fetch_returns_advances_declines_and_new_highs_lows(self):
         """fetch() should return all three metrics: ratio, new_highs, new_lows."""
@@ -153,6 +161,7 @@ class TestBreadthFetcherFullIntegration:
             assert data["new_highs_count"] == 8
             assert data["new_lows_count"] == 3
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_with_missing_new_highs_lows_data(self):
         """If new highs/lows data unavailable for a date, should default to 0."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -181,6 +190,7 @@ class TestBreadthFetcherFullIntegration:
             assert result["2024-01-01"]["new_highs_count"] == 0
             assert result["2024-01-01"]["new_lows_count"] == 0
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_skips_rows_with_zero_declines(self):
         """Rows with declines <= 0 should be skipped (division by zero)."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -208,6 +218,7 @@ class TestBreadthFetcherFullIntegration:
             assert "2024-01-02" not in result
             assert "2024-01-03" not in result
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_handles_missing_advances_or_declines(self):
         """Rows with NULL advances or declines should be skipped."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -231,6 +242,7 @@ class TestBreadthFetcherFullIntegration:
             # Both should be skipped
             assert result == {}
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_rounds_ad_ratio_to_3_decimals(self):
         """advance_decline_ratio should be rounded to 3 decimal places."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -252,6 +264,7 @@ class TestBreadthFetcherFullIntegration:
 
             assert result["2024-01-01"]["advance_decline_ratio"] == 3.03
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_gracefully_returns_empty_on_no_advance_decline_data(self):
         """If first query returns no rows, should return empty dict."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -268,6 +281,7 @@ class TestBreadthFetcherFullIntegration:
 
             assert result == {}
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_gracefully_handles_database_exception(self):
         """If database raises exception, should return empty dict (optional enrichment)."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -281,6 +295,7 @@ class TestBreadthFetcherFullIntegration:
 
             assert result == {}
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_returns_none_for_missing_new_highs_lows(self):
         """When a date has no new_highs/lows data, should use None."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -311,10 +326,17 @@ class TestBreadthFetcherFullIntegration:
             assert result["2024-01-02"]["new_highs_count"] is None
             assert result["2024-01-02"]["new_lows_count"] is None
 
-@pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
 class TestBreadthFetcherEdgeCases:
-    """Edge cases and boundary conditions"""
+    """Edge cases and boundary conditions.
 
+    test_fetch_multiple_dates_in_date_range is NOT marked xfail: it only exercises the
+    case where data is present for every date, which the fail-fast change didn't alter
+    (confirmed via --runxfail: passes with no marker, unlike its siblings below). A
+    class-level xfail here previously masked that as an "expected failure" instead of
+    giving it real regression coverage.
+    """
+
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_with_zero_advances_and_declines(self):
         """0 advances, positive declines should be valid (0/50 = 0.0)."""
         from loaders.market_health_fetchers import BreadthFetcher
@@ -337,6 +359,7 @@ class TestBreadthFetcherEdgeCases:
             assert "2024-01-01" in result
             assert result["2024-01-01"]["advance_decline_ratio"] == 0.0
 
+    @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
     def test_fetch_with_large_ad_ratio(self):
         """Very high A/D ratio should be handled correctly."""
         from loaders.market_health_fetchers import BreadthFetcher

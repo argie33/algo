@@ -275,6 +275,19 @@ def check_all_tables() -> dict:
                     "growth_metrics",
                     "quality_metrics",
                     "value_metrics",
+                    # stock_scores/algo_trades/algo_positions share the identical once-
+                    # per-trading-day cadence as the tables above (stock_scores via the
+                    # signals pipeline; algo_trades/algo_positions only change when an
+                    # entry/exit actually executes, which can't happen when markets are
+                    # closed). Omitting them here meant every weekend/holiday this
+                    # script reported them CRITICAL and told operators to "FIX
+                    # IMMEDIATELY" by manually triggering the morning pipeline - a false
+                    # alarm for data that is legitimately fine, confirmed live 2026-07-26
+                    # (a Sunday): all three flagged STALE/CRITICAL purely from the
+                    # Friday->Sunday gap, with no actual loader problem.
+                    "stock_scores",
+                    "algo_trades",
+                    "algo_positions",
                 )
                 and spans_gap
             ):
