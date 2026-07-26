@@ -141,7 +141,8 @@ class SecEdgarClient:
             }
         }
         """
-        url = f"{EDGAR_BASE}/api/xbrl/companyfacts/CIK{cik}.json"
+        cik_padded = str(cik).zfill(10)
+        url = f"{EDGAR_BASE}/api/xbrl/companyfacts/CIK{cik_padded}.json"
         if self._companyfacts_cache_size > 0:
             with self._companyfacts_cache_lock:
                 if cik in self._companyfacts_cache:
@@ -179,7 +180,8 @@ class SecEdgarClient:
         concept: str,
     ) -> dict[str, Any]:
         """Specific concept (e.g. Revenues) - lighter than full company facts."""
-        url = f"{EDGAR_BASE}/api/xbrl/companyconcept/CIK{cik}/{taxonomy}/{concept}.json"
+        cik_padded = str(cik).zfill(10)
+        url = f"{EDGAR_BASE}/api/xbrl/companyconcept/CIK{cik_padded}/{taxonomy}/{concept}.json"
         return self._get_json(url)
 
     def get_submissions(self, cik: str) -> dict[str, Any]:
