@@ -113,6 +113,7 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
 
 
 # ISSUE #6 FIX: Define required signal fields for Phase 6 execution
+# Updated: Added market_stage (upstream loader responsibility) to catch NULL values early
 _REQUIRED_SIGNAL_FIELDS = {
     "symbol": str,
     "composite_score": float,
@@ -121,6 +122,8 @@ _REQUIRED_SIGNAL_FIELDS = {
     "sma_50": float,
     "signal_strength": float,
     "signal_quality_score": float,
+    "market_stage": str,
+    "signal_date": str,
 }
 
 
