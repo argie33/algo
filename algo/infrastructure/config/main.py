@@ -1384,11 +1384,11 @@ class AlgoConfig:
                                 # FAIL FAST: Critical safety thresholds must not fallback to defaults.
                                 # If database value is corrupted, system should not start trading.
                                 error_msg = (
-                                    f"CRITICAL: Safety threshold '{key}' has invalid value '{value}' in database. "
+                                    f"CRITICAL: Safety threshold '{key}' has invalid value in database. "
                                     f"Error: {e}\n"
-                                    f"This is a critical safety gate. System will NOT trade with invalid configuration.\n"
+                                    f"This is critical safety gate. NO trading without valid configuration.\n"
                                     f"Admin MUST restore a valid value to '{key}' in algo_config table.\n"
-                                    f"Expected type: {schema_info[0]}, acceptable range: {schema_info[1]}"
+                                    f"Expected type: {schema_info[0]}, range: {schema_info[1]}"
                                 )
                                 logger.critical(error_msg)
                                 invalid_critical_values.append(f"  {key}={value}: {e}")
@@ -1556,9 +1556,10 @@ class AlgoConfig:
 
             if t1_val is None or t2_val is None or t3_val is None:
                 raise ValueError(
-                    f"CRITICAL: R-multiple config missing. Required: t1_target_r_multiple, t2_target_r_multiple, t3_target_r_multiple. "
+                    f"CRITICAL: R-multiple config missing. "
+                    f"Required: t1_target_r_multiple, t2_target_r_multiple, t3_target_r_multiple. "
                     f"Found: t1={t1_val}, t2={t2_val}, t3={t3_val}. "
-                    f"Cannot apply silent defaults (1.5, 3.0, 4.0) - must be explicitly configured."
+                    f"Cannot use defaults (1.5, 3.0, 4.0) - must be explicitly configured."
                 )
 
             t1 = float(t1_val)

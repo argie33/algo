@@ -379,7 +379,9 @@ class AlpacaSyncManager:
                             notify(
                                 severity="warning",
                                 title="Phase 9 Position Quantity Drift",
-                                message=f"{symbol}: quantity corrected from {prior_qty} to {qty_float} to match Alpaca.",
+                                message=(
+                                    f"{symbol}: qty corrected from {prior_qty} to {qty_float} to match Alpaca"
+                                ),
                                 symbol=symbol,
                                 details={"symbol": symbol, "db_quantity": prior_qty, "alpaca_quantity": qty_float},
                             )

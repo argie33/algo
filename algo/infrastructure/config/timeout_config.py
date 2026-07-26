@@ -136,7 +136,7 @@ class TimeoutConfig:
             if timeout_int <= 0:
                 raise RuntimeError(
                     f"[TIMEOUT_CONFIG] CRITICAL: db_connection_timeout_seconds must be positive (got {timeout_int}). "
-                    f"Update algo_config: UPDATE algo_config SET value = '15' WHERE key = 'db_connection_timeout_seconds';"
+                    f"Update algo_config SET value='15' WHERE key='db_connection_timeout_seconds'"
                 )
             return timeout_int
         env_val = os.getenv("DB_TIMEOUT_SECONDS")
