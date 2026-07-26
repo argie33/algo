@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Earnings Calendar Loader - SEC EDGAR + yfinance Fallback.
+"""Earnings Calendar Loader - SEC EDGAR only, no yfinance fallback.
 
-Primary: SEC EDGAR 10-K and 10-Q filing dates (authoritative, ~5% coverage)
-Fallback: yfinance earnings dates (practical, ~80% coverage)
+Source: SEC EDGAR 10-K and 10-Q filing dates (authoritative).
 
 Strategy:
-1. Try SEC EDGAR first (official, most reliable for recent filings)
-2. Fall back to yfinance for symbols without recent SEC filings
-3. Validates earnings dates within 24-month window only
+1. Fetch 10-K/10-Q filing dates from SEC EDGAR submissions
+2. Validates earnings dates within 24-month window only
+3. Fails fast (data_unavailable) when no recent SEC filings exist - see the
+   Session 416 fail-fast note in fetch_incremental for why a yfinance fallback
+   was removed rather than kept as a secondary source.
 
-Data source: SEC EDGAR submissions endpoint + yfinance API
+Data source: SEC EDGAR submissions endpoint
 Update frequency: As filings are made (annual + quarterly)
 
 Run:
@@ -59,61 +60,6 @@ class EarningsCalendarSECLoader(SecLoaderBase):
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
         self.sec_client = SecEdgarClient()
-        self._yfinance_cache: dict[str, list[dict[str, Any]]] = {}
-
-    def _fetch_from_yfinance(self, symbol: str, now_et: datetime) -> list[dict[str, Any]]:
-        """Fallback: Fetch earnings dates from yfinance when SEC EDGAR has no recent data.
-
-        yfinance provides estimated earnings dates with ~80% coverage across the universe.
-        Used as fallback only when SEC filing data is unavailable.
-        """
-        try:
-            import yfinance as yf
-
-            try:
-                ticker = yf.Ticker(symbol, session=None)
-                info = ticker.info
-            except Exception as e:
-                logger.debug(f"[{symbol}] yfinance lookup failed: {type(e).__name__}")
-                return self._unavailable_record(symbol, now_et, "yfinance_api_error")
-
-            earnings_date_raw = info.get("earningsDate")
-            if not earnings_date_raw:
-                return self._unavailable_record(symbol, now_et, "yfinance_no_earnings_date")
-
-            try:
-                if isinstance(earnings_date_raw, (list, tuple)) and len(earnings_date_raw) > 0:
-                    earnings_timestamp = earnings_date_raw[0]
-                else:
-                    earnings_timestamp = earnings_date_raw
-
-                if isinstance(earnings_timestamp, int):
-                    earnings_date = date.fromtimestamp(earnings_timestamp)
-                elif isinstance(earnings_timestamp, date):
-                    earnings_date = earnings_timestamp
-                else:
-                    logger.debug(f"[{symbol}] yfinance earningsDate has unexpected type: {type(earnings_timestamp)}")
-                    return self._unavailable_record(symbol, now_et, "yfinance_invalid_date_type")
-
-                if (now_et.date() - earnings_date).days > 730:
-                    return self._unavailable_record(symbol, now_et, "yfinance_earnings_too_old")
-
-                record = {
-                    "symbol": symbol,
-                    "filing_date": earnings_date,
-                    "filing_type": "earnings_estimate",
-                    "data_unavailable": False,
-                    "reason": None,
-                    "data_source": "yfinance_fallback",
-                }
-                return [record]
-            except (ValueError, TypeError, AttributeError) as e:
-                logger.debug(f"[{symbol}] yfinance date parse failed: {e}")
-                return self._unavailable_record(symbol, now_et, "yfinance_date_parse_error")
-
-        except ImportError:
-            logger.warning("[yfinance] Module not available - cannot use fallback earnings source")
-            return self._unavailable_record(symbol, now_et, "yfinance_not_installed")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch earnings dates from SEC EDGAR submissions API.
