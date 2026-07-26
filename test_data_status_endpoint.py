@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from utils.db import DatabaseContext  # noqa: E402
+from utils.db import DatabaseContext
 
 # Import market module to get _get_data_status function
 spec = importlib.util.spec_from_file_location("market_module", "lambda/api/routes/algo_handlers/market.py")

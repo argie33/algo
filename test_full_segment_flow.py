@@ -2,7 +2,7 @@
 """Test the full segment extraction flow end-to-end."""
 
 import logging
-from datetime import date
+
 from utils.external.sec_edgar_client import SecEdgarClient
 from utils.external.sec_xbrl_segments import XBRLSegmentParser
 
@@ -56,24 +56,24 @@ try:
             print(f"   Found 10-K: {latest_10k['form']} on {latest_10k['date']}")
 
             # Step 4: Fetch the 10-K XML
-            print(f"   Fetching filing XML...")
+            print("   Fetching filing XML...")
             try:
                 xml_content = client.get_filing_xml(cik, latest_10k['accession'], '10-K')
                 print(f"   ✓ Fetched {len(xml_content)} bytes of XBRL XML")
 
                 # Step 5: Parse segment revenue from XML
-                print(f"   Parsing segment revenue from XBRL...")
+                print("   Parsing segment revenue from XBRL...")
                 xml_result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, symbol)
                 print(f"   Result: data_available={xml_result['data_available']}")
                 print(f"           segment_count={xml_result['segment_count']}")
                 print(f"           segments_found={len(xml_result['segments'])}")
 
                 if xml_result['data_available'] and xml_result['segments']:
-                    print(f"\n   ✓✓✓ SUCCESS! Found segment data!")
+                    print("\n   ✓✓✓ SUCCESS! Found segment data!")
                     for seg in xml_result['segments'][:3]:
                         print(f"        {seg.get('name', 'Unknown')}: ${seg.get('revenue', 0):,.0f}")
                 else:
-                    print(f"\n   ✗ No segment data found in XML either")
+                    print("\n   ✗ No segment data found in XML either")
                     print(f"     Reason: {xml_result['reason']}")
 
             except Exception as e:

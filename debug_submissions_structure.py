@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Debug the structure of SEC submissions API response."""
 
-import json
 from utils.external.sec_edgar_client import SecEdgarClient
 
 client = SecEdgarClient()
@@ -24,7 +23,7 @@ if 'filings' in submissions:
 
         # Show first few forms
         if 'form' in recent and 'accession' in recent:
-            print(f"\nFirst 10 filings:")
+            print("\nFirst 10 filings:")
             for i in range(min(10, len(recent['form']))):
                 form = recent['form'][i]
                 accession = recent['accession'][i]
