@@ -53,7 +53,7 @@ class DividendDataLoader(SecLoaderBase):
     primary_key = ("symbol", "ex_dividend_date")
     watermark_field = "ex_dividend_date"
     exclude_etfs_from_symbols = True
-    max_fail_rate = 100.0  # Dividend extraction not yet integrated; allow all data_unavailable markers
+    max_fail_rate = 100.0  # Dividend extraction not yet integrated; allow explicit data_unavailable markers
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
