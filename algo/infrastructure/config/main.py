@@ -1169,6 +1169,96 @@ class AlgoConfig:
             "Legacy: max new positions per day",
             "Risk Management",
         ),
+        # Pyramiding Configuration
+        "pyramid_enabled": (
+            "true",
+            "bool",
+            "Enable multi-entry pyramiding",
+            "Position Management",
+        ),
+        "pyramid_add_1_gain_pct": (
+            "2.0",
+            "float",
+            "Gain threshold for first add (pyramiding)",
+            "Position Management",
+        ),
+        "pyramid_add_2_gain_pct": (
+            "4.0",
+            "float",
+            "Gain threshold for second add (pyramiding)",
+            "Position Management",
+        ),
+        "pyramid_split_pct": (
+            "50.0",
+            "float",
+            "Split position % per add (pyramiding)",
+            "Position Management",
+        ),
+        # Signal Data Quality
+        "signal_max_data_age_days": (
+            "3",
+            "int",
+            "Maximum age of signal data for trading",
+            "Data Quality",
+        ),
+        # Loader & Order Staleness Detection
+        "stale_loader_threshold_minutes": (
+            "60",
+            "int",
+            "Alert if loader stale for this many minutes",
+            "Data Quality",
+        ),
+        "stale_order_alert_minutes": (
+            "30",
+            "int",
+            "Alert if order pending for this many minutes",
+            "Risk Management",
+        ),
+        "stale_order_auto_cancel_minutes": (
+            "120",
+            "int",
+            "Auto-cancel if order pending for this many minutes",
+            "Risk Management",
+        ),
+        # Swing Score Weights (Setup and Trend)
+        "swing_weight_setup": (
+            "25",
+            "int",
+            "Swing score: Setup quality weight %",
+            "Swing Scoring",
+        ),
+        "swing_weight_trend": (
+            "20",
+            "int",
+            "Swing score: Trend quality weight %",
+            "Swing Scoring",
+        ),
+        # API Configuration
+        "alpaca_api_base_url": (
+            "https://paper-api.alpaca.markets",
+            "string",
+            "Alpaca API base URL",
+            "External APIs",
+        ),
+        # API Retry Configuration
+        "retry_count_fred_api": (
+            "3",
+            "int",
+            "Retry count for FRED API calls",
+            "External APIs",
+        ),
+        "retry_count_aaii_sentiment": (
+            "3",
+            "int",
+            "Retry count for AAII sentiment API calls",
+            "External APIs",
+        ),
+        "retry_count_db_migration": (
+            "3",
+            "int",
+            "Retry count for database migrations",
+            "Database",
+        ),
     }
 
     def __init__(self) -> None:

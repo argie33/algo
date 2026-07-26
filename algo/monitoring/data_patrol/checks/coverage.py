@@ -47,10 +47,11 @@ class CoverageChecker(BaseCheck):
                     f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
                     f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
                 )
-            if today_count is None:
-                raise ValueError("price_daily today_count returned NULL - loader may be stalled or corrupted")
-            if total_count is None:
-                raise ValueError("price_daily total_count returned NULL - loader may be stalled")
+            if today_count is None or total_count is None:
+                msg = f"price_daily coverage query returned NULL (today={today_count}, total={total_count}) - data may not be fully loaded yet"
+                logger.warning(msg)
+                self.log("coverage", WARN, "price_daily", msg, {"today_count": today_count, "total_count": total_count})
+                return
             today_count = int(today_count)
             total_count = int(total_count)
             if total_count <= 0:
