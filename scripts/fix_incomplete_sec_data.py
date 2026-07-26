@@ -13,13 +13,14 @@ Usage:
     python scripts/fix_incomplete_sec_data.py --full-reload   # Audit + full re-run loaders
 """
 
-import logging
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+import logging
 
 from utils.db.context import DatabaseContext
 

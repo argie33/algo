@@ -70,8 +70,6 @@ print()
 print("STEP 3: EXPOSURE SCORE COMPUTATION (12 FACTORS)")
 print("-" * 80)
 
-from algo.risk.market_exposure import MarketExposure
-
 me = MarketExposure()
 
 try:

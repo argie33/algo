@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Diagnose scores data loading pipeline end-to-end."""
 
-import logging
 import sys
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+import logging
 
 from utils.db.context import DatabaseContext
 

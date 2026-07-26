@@ -7,13 +7,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from utils.db import DatabaseContext
+
 # Import market module to get _get_data_status function
 spec = importlib.util.spec_from_file_location("market_module", "lambda/api/routes/algo_handlers/market.py")
 market_module = importlib.util.module_from_spec(spec)
 sys.modules['market_module'] = market_module
 spec.loader.exec_module(market_module)
-
-from utils.db import DatabaseContext
 
 _get_data_status = market_module._get_data_status
 
