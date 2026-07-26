@@ -33,10 +33,19 @@ class XBRLSegmentParser:
 
     Extracts:
     - Segment counts and names
-    - Revenue by segment
-    - Operating income by segment
-    - Herfindahl concentration index
-    - Geographic segment breakdown
+    - Revenue by segment (when available)
+    - Operating income by segment (when available)
+    - Herfindahl concentration index (when revenue data present)
+    - Geographic segment breakdown (when available)
+
+    LIMITATION: SEC companyfacts API loses XBRL context dimension information
+    ──────────────────────────────────────────────────────────────────────
+    The companyfacts JSON export does not include segment field mappings that
+    link revenue values to specific segment identifiers. This data is present
+    in raw XBRL XML but not exposed in the companyfacts API.
+
+    Consequence: Often returns data_unavailable for per-segment revenue.
+    Reference: session_453_xbrl_decision.md for architectural tradeoff analysis.
     """
 
     @staticmethod

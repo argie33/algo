@@ -31,6 +31,24 @@ class SecSegmentInfoLoader(SecLoaderBase):
     Uses companyfacts API to fetch XBRL facts per symbol, then parses segment data
     (ASC 280) and writes to sec_segment_info table as the source for
     load_sec_segment_metrics.py (which computes diversification scoring).
+
+    ARCHITECTURAL NOTE: SEC companyfacts API limitation
+    ─────────────────────────────────────────────────
+    companyfacts is a simplified JSON export that loses XBRL context dimension
+    information needed to map revenues to specific segments. This means:
+
+    ✓ Can extract: segment count (NumberOfReportableSegments)
+    ✗ Cannot extract: per-segment revenue for concentration metrics
+
+    Why: XBRL XML uses contextRef attributes to associate facts with dimensional
+    values. The companyfacts JSON flattens this away.
+
+    Implication: Returns data_unavailable when segment revenue missing.
+
+    If segment diversification becomes critical for trading strategy:
+    - Fetch raw 10-K/10-Q XML files directly
+    - Parse with full XBRL context dimension support
+    - See session_453_xbrl_decision.md for detailed analysis
     """
 
     table_name = "sec_segment_info"
