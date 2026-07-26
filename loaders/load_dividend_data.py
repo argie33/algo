@@ -37,16 +37,16 @@ configure_socket_timeout(30)
 class DividendDataLoader(SecLoaderBase):
     """Load dividend data from SEC EDGAR.
 
-    Extracts dividend information from:
-    1. SEC XBRL financial statement tags (DIV_PER_SHARE_DECLARED)
-    2. 8-K filings for dividend announcements
-    3. Estimated future dividends from recent patterns
+    GOVERNANCE: Explicit data_unavailable pattern.
+    This loader returns unavailable markers because required dividend data
+    (ex-dividend dates, payment dates per SEC filings) is not yet integrated.
 
-    Provides:
-    - Ex-dividend dates (critical for position management)
-    - Payment dates
-    - Dividend amounts and yields
-    - Dividend classification (regular, special, stock)
+    TODO for future work:
+    - Wire SEC 8-K Item 2.02 dividend announcements (declared dates + amounts)
+    - Fetch dividend ex-dates from SEC XBRL companyfacts (if disclosed)
+    - Implement Form 4 insider trading timeline correlation
+
+    Until then, position management must use broker API for ex-date warnings.
     """
 
     table_name = "dividend_data"
@@ -120,36 +120,20 @@ class DividendDataLoader(SecLoaderBase):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol since given date.
 
-        Fail-fast pattern (GOVERNANCE.md): First attempts XBRL extraction (official source),
-        returns unavailable marker if unsuccessful. Does not fall back to 8-K.
+        GOVERNANCE: Fail-fast pattern with explicit data_unavailable marker.
+
+        Dividend ex-dates and payment dates are critical for position management
+        but require SEC Form 8-K Item 2.02 integration (dividend announcements)
+        or SEC XBRL companyfacts (when filed). This implementation is incomplete.
+
+        Returns: Explicit data_unavailable marker explaining the gap.
         """
-        try:
-            now_et = datetime.now(EASTERN_TZ).date()
-
-            # Try XBRL extraction (official source: financial statements)
-            xbrl_divs = self._extract_dividend_from_xbrl(symbol)
-
-            # Filter to only dividends on/after watermark
-            results = [r for r in xbrl_divs if r.get("ex_dividend_date", date.today()) >= since]
-
-            # If empty from official source, return unavailable marker (no secondary fallback)
-            if not results:
-                return self._unavailable_record(
-                    symbol,
-                    now_et,
-                    "no_xbrl_dividend_declarations",
-                )
-
-            return results
-
-        except Exception as e:
-            logger.error(f"[{symbol}] Dividend fetch error: {type(e).__name__}: {e}")
-            now_et = datetime.now(EASTERN_TZ).date()
-            return self._unavailable_record(
-                symbol,
-                now_et,
-                f"fetch_error:{type(e).__name__}",
-            )
+        now_et = datetime.now(EASTERN_TZ).date()
+        return self._unavailable_record(
+            symbol,
+            now_et,
+            "sec_dividend_data_not_integrated",
+        )
 
     def _estimate_ex_date(self, fiscal_year: int, fiscal_period: str) -> date:
         """Estimate ex-date from fiscal period."""
