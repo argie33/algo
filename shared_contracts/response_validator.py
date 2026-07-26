@@ -5,26 +5,24 @@ published dashboard API contract (DASHBOARD_ENDPOINTS). It ensures outbound resp
 match the contract schema and catches breaking changes early.
 
 IMPORTANT: This is NOT used for validating inbound API responses in the dashboard.
-For dashboard validation, use tools/dashboard/response_validators.py instead.
+For dashboard validation, use utils/validation/response_validators.py instead.
 
 Separation of concerns:
 - Lambda validator (this file): Validates OUTBOUND responses against contract
-- Dashboard validator (tools/dashboard/response_validators.py): Validates INBOUND responses with fail-fast patterns
+- Dashboard validator (utils/validation/response_validators.py): Validates INBOUND responses with fail-fast patterns
 """
 
 import logging
 from typing import Any, cast
+
+from utils.validation.base_validator import BaseResponseValidator, ResponseValidationError
 
 from .dashboard_api_contract import DASHBOARD_ENDPOINTS, ResponseSchema
 
 logger = logging.getLogger(__name__)
 
 
-class ResponseValidationError(Exception):
-    """Raised when response doesn't match schema."""
-
-
-class ResponseValidator:
+class ResponseValidator(BaseResponseValidator):
     @staticmethod
     def validate_endpoint_response(endpoint_name: str, response: dict[str, Any]) -> tuple[bool, str | None]:
         """Validate that a response matches its endpoint's schema.

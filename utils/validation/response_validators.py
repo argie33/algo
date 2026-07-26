@@ -21,25 +21,10 @@ import logging
 from collections.abc import Callable
 from typing import Any, TypedDict
 
+from .base_validator import BaseResponseValidator, DataUnavailableError, ResponseValidationError
 from .framework import StrictValidationError, safe_float, safe_int
 
 logger = logging.getLogger(__name__)
-
-
-class ResponseValidationError(Exception):
-    """Raised when API response is missing critical fields or fails validation."""
-
-
-class DataUnavailableError(Exception):
-    """Raised when critical data is marked as unavailable."""
-
-    def __init__(self, field: str, reason: str | None = None):
-        self.field = field
-        self.reason = reason
-        message = f"Critical data unavailable: {field}"
-        if reason:
-            message += f" ({reason})"
-        super().__init__(message)
 
 
 class ValidationResult(TypedDict):
@@ -51,22 +36,9 @@ class ValidationResult(TypedDict):
     http_status: int
 
 
-def has_error(data: dict[str, Any]) -> bool:
-    """Check if response contains error marker.
-
-    Returns True if data has _error field, indicating upstream error.
-    """
-    return isinstance(data, dict) and "_error" in data
-
-
-def _check_required_fields(data: dict[str, Any], required_fields: list[str], source: str) -> None:
-    """Validate required fields are present and non-None.
-
-    Raises ResponseValidationError if any required field is missing/None.
-    """
-    missing = [f for f in required_fields if f not in data or data[f] is None]
-    if missing:
-        raise ResponseValidationError(f"Missing critical fields in {source}: {missing}")
+# Aliases for backward compatibility
+has_error = BaseResponseValidator.has_error
+_check_required_fields = BaseResponseValidator.check_required_fields
 
 
 def _make_validator(
@@ -345,7 +317,7 @@ def validate_response(endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
     return validate_generic_response(data)
 
 
-class ResponseValidator:
+class ResponseValidator(BaseResponseValidator):
     """Unified response validator with static methods for advanced validation patterns.
 
     Supports:
@@ -353,7 +325,7 @@ class ResponseValidator:
     - Critical data validation (error detection)
     - Required field validation
     - Contract validation (against schema definitions)
-    - Response sanitization
+    - Response sanitization (inherited from BaseResponseValidator)
     """
 
     # Runtime schemas for quick validation
@@ -553,40 +525,6 @@ class ResponseValidator:
             )
 
         return True, None
-
-    @staticmethod
-    def sanitize_response(response: dict[str, Any], remove_none: bool = True) -> dict[str, Any]:
-        """Remove None values and empty structures from response.
-
-        Args:
-            response: Response dict to sanitize
-            remove_none: If True, removes all None values recursively
-
-        Returns:
-            Sanitized response dict
-        """
-        if not isinstance(response, dict):
-            return response
-
-        if not remove_none:
-            return response
-
-        sanitized: dict[str, Any] = {}
-        for key, value in response.items():
-            if value is None:
-                continue
-            if isinstance(value, dict):
-                sanitized[key] = ResponseValidator.sanitize_response(value, remove_none)
-            elif isinstance(value, list):
-                sanitized[key] = [
-                    (ResponseValidator.sanitize_response(item, remove_none) if isinstance(item, dict) else item)
-                    for item in value
-                    if item is not None
-                ]
-            else:
-                sanitized[key] = value
-
-        return sanitized
 
     @staticmethod
     def validate_endpoint_response(endpoint_name: str, response_data: dict[str, Any]) -> tuple[bool, str | None]:

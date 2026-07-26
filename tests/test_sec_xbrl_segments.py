@@ -16,19 +16,31 @@ class TestXBRLSegmentParser:
             'entityName': 'Apple Inc',
             'facts': {
                 'us-gaap': {
-                    'SegmentNumber': [
-                        {'value': '3', 'accessionNumber': '0000320193-23-000119'},
-                    ],
-                    'SegmentIdentificationCode': [
-                        {'value': 'Americas', 'segment': 'Americas_1'},
-                        {'value': 'Europe', 'segment': 'Europe_1'},
-                        {'value': 'Greater China', 'segment': 'GreaterChina_1'},
-                    ],
-                    'SegmentRevenue': [
-                        {'value': '47000000000', 'segment': 'Americas_1'},
-                        {'value': '25000000000', 'segment': 'Europe_1'},
-                        {'value': '18000000000', 'segment': 'GreaterChina_1'},
-                    ],
+                    'SegmentNumber': {
+                        'units': {
+                            'pure': [
+                                {'value': '3', 'fy': 2023, 'accessionNumber': '0000320193-23-000119'},
+                            ]
+                        }
+                    },
+                    'SegmentIdentificationCode': {
+                        'units': {
+                            'pure': [
+                                {'value': 'Americas', 'segment': 'Americas_1', 'fy': 2023},
+                                {'value': 'Europe', 'segment': 'Europe_1', 'fy': 2023},
+                                {'value': 'Greater China', 'segment': 'GreaterChina_1', 'fy': 2023},
+                            ]
+                        }
+                    },
+                    'SegmentRevenue': {
+                        'units': {
+                            'USD': [
+                                {'value': '47000000000', 'segment': 'Americas_1', 'fy': 2023},
+                                {'value': '25000000000', 'segment': 'Europe_1', 'fy': 2023},
+                                {'value': '18000000000', 'segment': 'GreaterChina_1', 'fy': 2023},
+                            ]
+                        }
+                    },
                 }
             }
         }
@@ -48,15 +60,27 @@ class TestXBRLSegmentParser:
             'entityName': 'Test Corp',
             'facts': {
                 'us-gaap': {
-                    'SegmentNumber': [
-                        {'value': '1'},
-                    ],
-                    'SegmentIdentificationCode': [
-                        {'value': 'All', 'segment': 'All_1'},
-                    ],
-                    'SegmentRevenue': [
-                        {'value': '100000000', 'segment': 'All_1'},
-                    ],
+                    'SegmentNumber': {
+                        'units': {
+                            'pure': [
+                                {'value': '1', 'fy': 2023},
+                            ]
+                        }
+                    },
+                    'SegmentIdentificationCode': {
+                        'units': {
+                            'pure': [
+                                {'value': 'All', 'segment': 'All_1', 'fy': 2023},
+                            ]
+                        }
+                    },
+                    'SegmentRevenue': {
+                        'units': {
+                            'USD': [
+                                {'value': '100000000', 'segment': 'All_1', 'fy': 2023},
+                            ]
+                        }
+                    },
                 }
             }
         }
@@ -87,9 +111,13 @@ class TestXBRLSegmentParser:
             'entityName': 'Test Corp',
             'facts': {
                 'us-gaap': {
-                    'SegmentNumber': [
-                        {'value': '3'},
-                    ],
+                    'SegmentNumber': {
+                        'units': {
+                            'pure': [
+                                {'value': '3', 'fy': 2023},
+                            ]
+                        }
+                    },
                 }
             }
         }
