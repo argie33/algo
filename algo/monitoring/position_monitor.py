@@ -1296,7 +1296,7 @@ class PositionMonitor:
         """Handle quantity changes between DB and Alpaca."""
         if alpaca_qty == 0:
             cur.execute(
-                "UPDATE algo_positions SET status = 'closed' WHERE position_id = %s",
+                "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP WHERE position_id = %s",
                 (pos_id,),
             )
             adjustments.append(
