@@ -1373,7 +1373,10 @@ class AlgoConfig:
 
                 invalid_critical_values = []
                 for row in rows:
-                    if not isinstance(row, dict):
+                    # CRITICAL: Check for dict-like interface, not exact dict type.
+                    # psycopg2.extras.DictRow is dict-like but not isinstance(dict).
+                    # Fail if row lacks dictionary interface (would crash on row["key"] below).
+                    if not hasattr(row, "__getitem__") or not hasattr(row, "get"):
                         raise TypeError(
                             f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
                             f"This indicates cursor configuration mismatch. Check DatabaseContext cursor_factory."
