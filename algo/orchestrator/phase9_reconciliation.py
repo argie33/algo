@@ -689,7 +689,7 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
 
 
 def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
-    """Run weight optimization. Gracefully skip if regime data unavailable (data quality issue)."""
+    """Run weight optimization. Fail-fast if regime data unavailable - weight optimization is critical for risk management."""
     from algo.orchestration import RegimeManager as _RegimeManager
     from algo.orchestration import WeightOptimizer
 
@@ -698,15 +698,17 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         try:
             _current_regime = _RegimeManager().get_current_regime(run_date)
         except RuntimeError as regime_e:
-            # Regime data unavailable - log warning and skip weight optimization
-            # This is a data quality issue (market_exposure_daily stale/missing), not a code bug
-            logger.warning(
-                f"[PHASE 9] Skipping weight optimization: regime unavailable ({regime_e}). "
-                f"Market exposure analysis (Phase 5) must complete to enable weight optimization. "
-                f"Portfolio weights remain unchanged."
+            # Regime data unavailable - this is CRITICAL for risk management
+            # Weight optimization depends on market regime; proceeding without it is unsafe
+            error_msg = (
+                f"[PHASE 9 CRITICAL] Weight optimization failed: regime unavailable ({regime_e}). "
+                f"Market exposure data (Phase 5) must be available for safe weight optimization. "
+                f"Cannot proceed without market regime context - portfolio remains unoptimized and unvalidated. "
+                f"Check: (1) Phase 5 completed successfully, (2) market_exposure_daily has current data"
             )
-            log_phase_result_fn(9, "weight_optimization", "warn", f"regime unavailable: {str(regime_e)[:60]}")
-            return opt_result
+            logger.critical(error_msg)
+            log_phase_result_fn(9, "weight_optimization", "error", error_msg[:80])
+            raise RuntimeError(error_msg) from regime_e
 
         optimizer = WeightOptimizer(config)
         opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)
@@ -805,8 +807,14 @@ def _record_closed_positions_exits(
                             )
 
                         if entry_price is None or entry_price <= 0:
-                            logger.error(f"CRITICAL: Trade {symbol} has invalid entry_price ({entry_price}), skipping")
-                            continue
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Trade {symbol} has invalid entry_price ({entry_price}). "
+                                f"Cannot record trade P&L without valid entry price. "
+                                f"This indicates a position tracking or database corruption issue. "
+                                f"Halting Phase 9 to prevent audit trail corruption."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
 
                         # CRITICAL: `exit_price` here is algo_positions.current_price at the moment this
                         # position was detected closed (e.g. no longer present at the broker per

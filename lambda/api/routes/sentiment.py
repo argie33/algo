@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import psycopg2
@@ -110,10 +111,34 @@ def handle(  # noqa: C901
 
             analyst_row = None
             try:
-                # NOTE (Session 431): analyst_sentiment_analysis has no live writer since yfinance removal (Session 275).
-                # Table is frozen at 2+ months old data. This endpoint gracefully returns stale data rather than
-                # failing, since analyst sentiment is AUXILIARY (nice-to-have) data for dashboard enrichment, not
-                # required for trading. check_data_freshness() marks this in the response metadata as stale (>7 days).
+                # CRITICAL: analyst_sentiment_analysis has no live writer since yfinance removal (Session 275).
+                # Table is frozen at 2+ months old data. FAIL-FAST: Do not return stale analyst data to users.
+                # If analyst sentiment is not current, the API must report it unavailable, not silently serve
+                # 2+ month old data that could mislead trading decisions.
+                analyst_rows = execute_with_timeout(
+                    cur,
+                    """
+                        SELECT MAX(date) as latest_date FROM analyst_sentiment_analysis
+                    """,
+                    timeout_sec=2,
+                )
+                latest_date = analyst_rows[0]["latest_date"] if analyst_rows and analyst_rows[0] else None
+
+                if latest_date is None:
+                    raise ValueError("analyst_sentiment_analysis is empty - no data available")
+
+                current_date = datetime.now().date()
+                latest_date_obj = latest_date if isinstance(latest_date, date) else latest_date.date()
+                days_stale = (current_date - latest_date_obj).days
+
+                if days_stale > 7:
+                    logger.error(
+                        f"[SENTIMENT API CRITICAL] Analyst sentiment data is {days_stale} days stale "
+                        f"(latest: {latest_date}). Cannot serve stale analyst data - must fail-fast. "
+                        f"Check: yfinance analyst data loader availability or restore analyst data writer."
+                    )
+                    raise ValueError(f"Analyst sentiment data is {days_stale} days stale - unavailable")
+
                 analyst_rows = execute_with_timeout(
                     cur,
                     """

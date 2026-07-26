@@ -140,11 +140,10 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # trend_template_data for positions. algo_positions (the base table) does not carry
     # these columns at all -- they must be joined in here explicitly rather than relying
     # on algo_positions_with_risk, whose schema has drifted across many competing migrations.
-    # CRITICAL: Enrichment queries are non-critical and may timeout - use separate timeout
+    # CRITICAL: Enrichment queries must complete - if unavailable, fail-fast (no degradation)
     sector_map: dict[str, str] = {}
     company_name_map: dict[str, str] = {}
     technical_map: dict[str, dict[str, Any]] = {}
-    enrichment_incomplete = False
     try:
         # Get list of open position symbols from the positions we fetched
         if positions:
@@ -204,12 +203,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                         f"[POSITIONS] Loaded technical scores for {len(technical_map)} symbols from trend_template_data"
                     )
                 except (psycopg2.errors.QueryCanceled, psycopg2.errors.OperationalError) as enrichment_error:
-                    # Enrichment queries timed out or failed - EXPLICIT FLAG required
-                    logger.warning(
-                        f"[POSITIONS] Enrichment queries timed out or failed (acceptable): {type(enrichment_error).__name__}"
+                    # Enrichment queries timed out or failed - FAIL-FAST
+                    # Cannot return positions dashboard with incomplete enrichment data
+                    error_msg = (
+                        f"[POSITIONS API CRITICAL] Enrichment queries failed: {type(enrichment_error).__name__}. "
+                        f"Cannot load sector/company profile/technical data required for complete position display. "
+                        f"Check: (1) company_profile table, (2) trend_template_data availability, (3) database load"
                     )
-                    # Mark that enrichment data is incomplete so caller knows to handle gracefully
-                    enrichment_incomplete = True
+                    logger.critical(error_msg)
+                    return error_response(503, "enrichment_data_unavailable", error_msg)
     except Exception as e:
         logger.warning(
             f"[POSITIONS] Could not load company_profile/trend_template_data enrichment: {type(e).__name__}: {e}"
@@ -632,7 +634,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         },
         "stale_alerts": stale_alerts,
         "data_freshness": freshness,
-        "enrichment_incomplete": enrichment_incomplete,
     }
     logger.debug(f"[POSITIONS] Before sanitization: {len(response_data.get('items', []))} items")
     sanitized = APIResponseValidator.sanitize_response(response_data)

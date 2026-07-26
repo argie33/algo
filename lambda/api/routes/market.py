@@ -1070,7 +1070,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
         )
 
     prices_by_symbol: dict[str, list[Any]] = {}
-    skipped_price_rows: list[dict[str, Any]] = []
+    price_data_errors: list[dict[str, Any]] = []
     for row in rows:
         sym = row["symbol"]
         if sym not in prices_by_symbol:
@@ -1082,10 +1082,26 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
                     f"Cannot process price data without date. Row keys: {list(row.keys())}. "
                     f"Check upstream price data source and loader."
                 )
-            logger.warning(f"Market API: Invalid close price for {sym} on {row['date']}: {row['close']}; skipping")
-            skipped_price_rows.append({"symbol": sym, "date": row.get("date"), "close": row["close"]})
+            # FAIL-FAST: Invalid prices break correlation calculations; cannot silently skip
+            # If symbol has invalid price data in lookback period, the correlation is unreliable
+            price_data_errors.append({"symbol": sym, "date": row.get("date"), "close": row["close"]})
             continue
         prices_by_symbol[sym].append((row["date"], float(row["close"])))
+
+    # CRITICAL: If ANY symbol has invalid price data, fail the entire calculation
+    # Silently skipping breaks time series alignment and produces meaningless correlations
+    if price_data_errors:
+        error_detail = "; ".join(
+            f"{e['symbol']} {e['date']}: {e['close']}" for e in price_data_errors[:5]
+        )
+        if len(price_data_errors) > 5:
+            error_detail += f"; ... and {len(price_data_errors) - 5} more"
+        raise ValueError(
+            f"[MARKET_API DATA QUALITY] Cannot compute correlation: {len(price_data_errors)} "
+            f"invalid price rows detected. Invalid prices break time series alignment. "
+            f"Examples: {error_detail}. "
+            f"Check: (1) price_daily loader completion, (2) for data gaps or incomplete loads"
+        )
 
     for sym in prices_by_symbol:
         prices_by_symbol[sym] = [(d, p) for d, p in sorted(prices_by_symbol[sym])]
