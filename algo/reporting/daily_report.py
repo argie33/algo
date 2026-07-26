@@ -377,8 +377,8 @@ class DailyFinanceReport:
         if not risk:
             raise ValueError("Report missing required field: risk")
         strategy = report["strategy"]
-        if not strategy:
-            raise ValueError("Report missing required field: strategy")
+        # strategy can be empty dict or have data_unavailable flag when metrics unavailable
+        # Both are valid - proceed with None defaults for missing fields
 
         pv = portfolio["current_value"]
         dpnl = portfolio["daily_pnl_pct"]
@@ -389,8 +389,8 @@ class DailyFinanceReport:
         sharpe = risk.get("sharpe_ytd")
 
         exp_r = strategy.get("expectancy_r")
-        win_rate = strategy["win_rate_pct"]
-        profit_factor = strategy["profit_factor"]
+        win_rate = strategy.get("win_rate_pct")
+        profit_factor = strategy.get("profit_factor")
 
         pv_str = f"${pv:,.0f}" if pv is not None else "N/A"
         dpnl_str = f"{dpnl:+.2f}%" if dpnl is not None else "N/A"
