@@ -63,7 +63,7 @@ class TestHaltFlagManager:
             if hasattr(manager, "set_halt"):
                 manager.set_halt("Market halt")
             should_trade = manager.should_trade() if callable(manager.should_trade) else not manager.is_halted()
-            assert should_trade is False
+            assert not should_trade
 
     def test_halt_flag_logs_alert(self):
         """Test that setting halt flag logs an alert."""
@@ -151,7 +151,7 @@ class TestOrchestrationPhaseContract:
 
         assert result.phase_number == 1
         assert result.status == "completed"
-        assert result.halted is False
+        assert not result.halted
 
     def test_phase_result_error_state(self):
         """Test that phase result correctly represents error state."""
@@ -166,7 +166,7 @@ class TestOrchestrationPhaseContract:
             error="Circuit breaker triggered",
         )
 
-        assert result.halted is True
+        assert result.halted
         assert result.error == "Circuit breaker triggered"
 
     def test_phase_result_data_serializable(self):
@@ -205,7 +205,7 @@ class TestOrchestrationErrorPropagation:
 
         # Next phase should check this and not execute
         should_execute_phase_2 = not error_result.halted
-        assert should_execute_phase_2 is False
+        assert not should_execute_phase_2
 
     def test_error_message_preserved(self):
         """Test that error messages are preserved through phase chain."""
@@ -252,7 +252,7 @@ class TestOrchestrationStateTransitions:
 
         # Phase 3 should only execute if phase 2 succeeded
         should_execute_phase3 = not phase2_result.halted
-        assert should_execute_phase3 is True
+        assert should_execute_phase3
 
     def test_halt_prevents_all_subsequent_phases(self):
         """Test that halt in any phase prevents all subsequent phases."""
@@ -270,7 +270,7 @@ class TestOrchestrationStateTransitions:
         # All subsequent phases (4-9) should not execute
         for _phase_num in range(4, 10):
             should_execute = not halt_phase.halted
-            assert should_execute is False
+            assert not should_execute
 
 
 class TestOrchestrationConcurrency:
@@ -371,7 +371,7 @@ class TestOrchestrationExitConditions:
         )
 
         assert halt_result.status == "halted"
-        assert halt_result.halted is True
+        assert halt_result.halted
 
     def test_data_quality_halt_halts_orchestration(self):
         """Test that data quality issues halt orchestration."""
@@ -386,7 +386,7 @@ class TestOrchestrationExitConditions:
             error="No fresh data available",
         )
 
-        assert halt_result.halted is True
+        assert halt_result.halted
 
     def test_position_limit_halt_prevents_entries(self):
         """Test that position limits halt new entries."""
@@ -401,7 +401,7 @@ class TestOrchestrationExitConditions:
             error="Max positions (15) reached",
         )
 
-        assert halt_result.halted is True
+        assert halt_result.halted
 
 
 class TestOrchestrationLogging:
@@ -462,7 +462,7 @@ class TestOrchestrationRecovery:
         )
 
         # Should not retry on data validation errors
-        assert permanent_error.halted is True
+        assert permanent_error.halted
 
 
 class TestSkippedPhasesReachAuditTrail:
