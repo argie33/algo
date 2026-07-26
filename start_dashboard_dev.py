@@ -130,12 +130,17 @@ def check_stock_scores_completeness() -> float:
 
 
 def check_metrics_tables_staleness() -> tuple[bool, str]:
-    """Check if key metrics tables are stale (>24 hours old).
+    """Check if key metrics tables are stale (>12 hours old).
 
     Uses created_at to reflect batch load time (like monitor_data_staleness.py does).
+    Changed from 24h to 12h to ensure quality_metrics/value_metrics/growth_metrics are
+    refreshed at least twice daily for Phase 7 signal generation. Phase 7 needs fresh
+    fundamentals data to properly score signals used in Phase 8 entry execution.
+    Session Current: 24h threshold caused Phase 7 lock contention when metrics pipeline
+    didn't run, blocking signal quality score computation (root cause: Session 430 issue).
 
     Returns: (is_stale: bool, reason: str)
-    - True if growth_metrics or quality_metrics batches are >24h old (created_at)
+    - True if growth_metrics or quality_metrics batches are >12h old (created_at)
     - False if fresh or no data to check
     """
     try:
@@ -163,14 +168,14 @@ def check_metrics_tables_staleness() -> tuple[bool, str]:
                 if latest_quality.tzinfo is None:
                     latest_quality = latest_quality.replace(tzinfo=timezone.utc)
 
-                staleness_threshold = now - timedelta(hours=24)
+                staleness_threshold = now - timedelta(hours=12)
 
                 if latest_growth < staleness_threshold or latest_quality < staleness_threshold:
                     hours_old = min(
                         (now - latest_growth).total_seconds() / 3600,
                         (now - latest_quality).total_seconds() / 3600
                     )
-                    return True, f"growth_metrics/quality_metrics batches {hours_old:.1f}h stale (>24h)"
+                    return True, f"growth_metrics/quality_metrics batches {hours_old:.1f}h stale (>12h)"
                 else:
                     hours_old = min(
                         (now - latest_growth).total_seconds() / 3600,
