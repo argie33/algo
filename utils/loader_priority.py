@@ -44,6 +44,7 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     # These should finish by Phase 1 but won't block if slow
     "trend_template_data": LoaderPriority.PHASE_1_OPTIONAL,
     "sector_ranking": LoaderPriority.PHASE_1_OPTIONAL,
+    "insider_transaction_velocity": LoaderPriority.PHASE_1_OPTIONAL,  # Session 444: Insider confidence scoring (enrichment for positioning_metrics)
     # ===== BACKGROUND (low priority, can run anytime) =====
     # These don't block trading; dashboard shows graceful degradation if missing
     "aaii_sentiment": LoaderPriority.BACKGROUND,

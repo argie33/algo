@@ -47,6 +47,8 @@ LOADER_SLA_TARGETS = {
     "company_profile": (30 * 60, 120 * 60, 240 * 60),
     "sp500_constituents": (5 * 60, 10 * 60, 20 * 60),
     "russell2000_constituents": (5 * 60, 10 * 60, 20 * 60),
+    # SEC data (auxiliary, graceful degradation)
+    "insider_transaction_velocity": (15 * 60, 30 * 60, 60 * 60),  # Session 444: Insider confidence scoring
 }
 
 # Pipeline SLA targets (minute-based)

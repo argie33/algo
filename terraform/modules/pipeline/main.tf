@@ -2011,6 +2011,57 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
+          Next        = "InsiderTransactionVelocity"
+          ResultPath  = "$.logError"
+        }]
+        Next = "InsiderTransactionVelocity"
+      }
+
+      # ── PHASE 3d: Insider Transaction Velocity (Session 444+) ──
+      # Extracts insider confidence score from SEC Form 3/4/5 transaction counts
+      # Detects insider buying sprees, executive departures, lockup periods
+      # Uses same SEC bulk datasets as insider_holdings_sec (Form 3/4/5)
+      InsiderTransactionVelocity = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["insider_transaction_velocity"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogInsiderTransactionVelocityFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "PositioningMetrics"
+      }
+
+      LogInsiderTransactionVelocityFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "insider_transaction_velocity"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
           Next        = "PositioningMetrics"
           ResultPath  = "$.logError"
         }]
