@@ -172,11 +172,9 @@ class AlignmentChecker(BaseCheck):
                     row.get("missing_tech"),
                 )
             else:
-                row_dict = dict(row) if hasattr(row, "keys") else {}
-                total, missing_price, missing_tech = (
-                    row_dict.get("total_signals"),
-                    row_dict.get("missing_price"),
-                    row_dict.get("missing_tech"),
+                raise TypeError(
+                    f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
+                    f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
                 )
             if total is None or total == 0:
                 logger.warning("No BUY/SELL signals found in last 14 days - skipping signal alignment check")
@@ -392,11 +390,15 @@ class AlignmentChecker(BaseCheck):
 
             counts_by_table = {}
             for row in cur.fetchall():
-                row_dict = dict(row) if hasattr(row, "keys") else {}
-                tbl_name = row_dict.get("tbl_name")
-                cnt = row_dict.get("cnt")
+                if not isinstance(row, dict):
+                    raise TypeError(
+                        f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
+                        f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
+                    )
+                tbl_name = row.get("tbl_name")
+                cnt = row.get("cnt")
                 if tbl_name is None or cnt is None:
-                    raise ValueError(f"Invalid row data from union query: {row_dict}")
+                    raise ValueError(f"Invalid row data from union query: {row}")
                 counts_by_table[tbl_name] = int(cnt)
 
             # Verify all expected tables are in the results

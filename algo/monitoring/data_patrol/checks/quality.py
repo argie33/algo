@@ -47,8 +47,10 @@ class QualityChecker(BaseCheck):
             if isinstance(row, dict):
                 today_nulls, today_total = row.get("today_nulls"), row.get("today_total")
             else:
-                row_dict = dict(row) if hasattr(row, "keys") else {}
-                today_nulls, today_total = row_dict.get("today_nulls"), row_dict.get("today_total")
+                raise TypeError(
+                    f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
+                    f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
+                )
             if today_total is None or today_total == 0:
                 logger.warning(
                     "price_daily today_total is 0 or NULL - skipping null anomaly check (no records for today)"

@@ -43,8 +43,10 @@ class CoverageChecker(BaseCheck):
             if isinstance(row, dict):
                 today_count, total_count = row.get("today_count"), row.get("total_count")
             else:
-                row_dict = dict(row) if hasattr(row, "keys") else {}
-                today_count, total_count = row_dict.get("today_count"), row_dict.get("total_count")
+                raise TypeError(
+                    f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
+                    f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
+                )
             if today_count is None:
                 raise ValueError("price_daily today_count returned NULL - loader may be stalled or corrupted")
             if total_count is None:
