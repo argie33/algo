@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 import os
 import re
+import sys
 import threading
 from collections import OrderedDict
 from datetime import datetime, timedelta
@@ -99,8 +100,13 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 # Configure logging - disable all loggers except those we care about
 _log_dir = os.path.expanduser("~/.algo/logs")
 os.makedirs(_log_dir, exist_ok=True)
-# Separate log files for local vs AWS mode for easier debugging
-_is_local_mode = os.environ.get("LOCAL_MODE") == "true"
+# Separate log files for local vs AWS mode for easier debugging.
+# Guard against "pytest" in sys.modules: a shell with LOCAL_MODE=true exported (e.g. left
+# over from a manual local-dev session) would otherwise make every pytest run under that
+# shell interleave test noise (deliberately-injected halts, Mock-cursor errors, test-only
+# DB failures) into the same dashboard-local.log used to diagnose the real dev server -
+# indistinguishable from genuine orchestrator failures without cross-referencing PIDs.
+_is_local_mode = os.environ.get("LOCAL_MODE") == "true" and "pytest" not in sys.modules
 _log_file = os.path.join(_log_dir, "dashboard-local.log" if _is_local_mode else "dashboard.log")
 
 class _AnsiStrippingFormatter(logging.Formatter):
