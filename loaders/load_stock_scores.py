@@ -744,7 +744,7 @@ class StockScoresLoader(OptimalLoader):
         (gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
         free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
         earnings_growth_yoy, revenue_growth_yoy). These are required for Phase 8 quality scoring
-        enhancement (_enhance_quality_score and _compute_dynamic_quality_score).
+        enhancement via _enhance_quality_score().
 
         MINIMUM DATA REQUIREMENT: Row must have exactly 24 columns. Missing columns causes immediate
         fail-fast ValueError to prevent silent data corruption.
