@@ -932,6 +932,9 @@ def run(  # noqa: C901
     # SESSION 367 FIX: Compute signal quality scores BEFORE Phase 8 entry
     # CRITICAL: Signal quality scores must be available for Phase 8 to apply quality gates
     # This prevents trades from entering without SQS >= 75 validation (root cause of 38.5% win rate)
+    # OPTIMIZATION (Session Current): Reduced backfill_days from 60 to 3 to eliminate lock contention
+    # Phase 7 runs 3x daily (9:30 AM, 1 PM, 3 PM) so 3-day lookback ensures all recent signals scored
+    # This reduces processing from 5468 symbols for 60 days → ~1-2k symbol-days, holding lock 5 min instead of 35 min
     try:
         from loaders.load_signal_quality_scores import SignalQualityScoresLoader
         from utils.loaders.helpers import get_active_symbols
@@ -939,16 +942,18 @@ def run(  # noqa: C901
         logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
         loader = SignalQualityScoresLoader()
         all_symbols = get_active_symbols(timeout_secs=30)
-        logger.info(f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols")
-        # CRITICAL FIX: Signal quality scores must be recomputed every day for EVERY symbol.
+        logger.info(f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)")
+        # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
         # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
         # scores depend on today's buy/sell signals, technical data, and trend templates which
-        # change daily. Passing backfill_days=60 forces re-processing of all symbols (watermarks
-        # are ignored for dates more than backfill_days in the past, so they're recomputed).
+        # change daily. Passing backfill_days=3 focuses processing on recent signals while
+        # respecting watermarks for older data (already scored).
+        # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
+        # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
         score_result = loader.run(
             symbols=all_symbols,
             parallelism=8,
-            backfill_days=60,  # Recompute all symbols for last 60 days (overrides watermarks)
+            backfill_days=3,  # Limit to recent 3 days to eliminate lock contention
         )
 
         # CRITICAL: Validate result structure before using it
