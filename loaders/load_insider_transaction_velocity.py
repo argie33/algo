@@ -37,6 +37,7 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
     primary_key = ("symbol", "measurement_date")
     watermark_field = "measurement_date"
     exclude_etfs_from_symbols = True
+    max_fail_rate = 50.0  # SEC bulk data schema compatibility issues; write partial data
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)

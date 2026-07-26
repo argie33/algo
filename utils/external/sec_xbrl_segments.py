@@ -2,7 +2,8 @@
 """SEC XBRL Segment Disclosure Parser (ASC 280 - Business Segment Reporting).
 
 Extracts business segment data from SEC 10-K/10-Q filings in XBRL format.
-Uses SEC EDGAR companyfacts API to fetch and parse segment-related XBRL facts.
+Uses SEC EDGAR companyfacts API to fetch and parse segment-related XBRL facts,
+with fallback to raw XML parsing for more aggressive data extraction.
 
 ASC 280 requires disclosure of:
 - Operating segments (reportable if >10% of consolidated revenue)
@@ -12,6 +13,7 @@ ASC 280 requires disclosure of:
 """
 
 import logging
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -321,6 +323,126 @@ class XBRLSegmentParser:
 
         # Scale to 0-10000
         return hhi * 10000
+
+    @staticmethod
+    def extract_segment_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[str, Any]:
+        """Aggressive extraction of segment revenue from raw XBRL XML.
+
+        Parses XBRL namespace-aware facts to find segment revenue using pattern matching
+        when structured parsing fails. Falls back to text pattern matching for robustness.
+
+        Returns:
+            Same structure as parse_companyfacts() with parsed segment data.
+        """
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError as e:
+            logger.warning(f"[{symbol}] Failed to parse XBRL XML: {e}")
+            return {
+                'segment_count': None,
+                'largest_segment_revenue_pct': None,
+                'revenue_concentration_hhi': None,
+                'segments': [],
+                'segment_type': None,
+                'data_available': False,
+                'reason': f'xml_parse_error: {str(e)[:100]}',
+            }
+
+        segments = {}
+        total_revenue = 0.0
+
+        # Try multiple namespace patterns for us-gaap segment revenue concepts
+        namespaces = {
+            'gaap': 'http://xbrl.us/us-gaap/2023-01-31',
+            'gaap2024': 'http://xbrl.us/us-gaap/2024-01-31',
+            'gaap2022': 'http://xbrl.us/us-gaap/2022-01-31',
+        }
+
+        # Search for segment revenue elements with various naming patterns
+        segment_revenue_patterns = [
+            '{http://xbrl.us/us-gaap/2023-01-31}SegmentReportingInformationRevenue',
+            '{http://xbrl.us/us-gaap/2024-01-31}SegmentReportingInformationRevenue',
+            '{http://xbrl.us/us-gaap/2022-01-31}SegmentReportingInformationRevenue',
+            '{http://xbrl.us/us-gaap/2023-01-31}SegmentRevenue',
+            '{http://xbrl.us/us-gaap/2024-01-31}SegmentRevenue',
+            '{http://xbrl.us/us-gaap/2022-01-31}SegmentRevenue',
+        ]
+
+        found_segments = False
+        for tag_pattern in segment_revenue_patterns:
+            for elem in root.findall('.//' + tag_pattern):
+                found_segments = True
+                context_id = elem.get('contextRef', '')
+                value = elem.text
+
+                if value and context_id:
+                    try:
+                        revenue = float(value)
+                        # Extract segment name from context (e.g., "Segment_Apple_StandardPeriodDuration")
+                        segment_key = context_id.split('_')[0] if '_' in context_id else context_id
+                        if segment_key not in segments:
+                            segments[segment_key] = 0
+                        segments[segment_key] += revenue
+                        total_revenue += revenue
+                    except (ValueError, TypeError):
+                        pass
+
+            if found_segments:
+                break
+
+        # If no structured revenue found, try text patterns as last resort
+        if not segments:
+            # Extract text content and look for revenue-related facts
+            text_content = ET.tostring(root, encoding='unicode')
+            # Look for patterns like <SegmentRevenue contextRef="...">value</SegmentRevenue>
+            pattern = r'<(?:.*:)?SegmentRevenue[^>]*contextRef="([^"]*)"[^>]*>([0-9.]+)</(?:.*:)?SegmentRevenue>'
+            matches = re.findall(pattern, text_content)
+            for context, value in matches:
+                try:
+                    revenue = float(value)
+                    segment_key = context.split('_')[0] if '_' in context else context
+                    if segment_key not in segments:
+                        segments[segment_key] = 0
+                    segments[segment_key] += revenue
+                    total_revenue += revenue
+                except (ValueError, TypeError):
+                    pass
+
+        if not segments or total_revenue == 0:
+            return {
+                'segment_count': None,
+                'largest_segment_revenue_pct': None,
+                'revenue_concentration_hhi': None,
+                'segments': [],
+                'segment_type': None,
+                'data_available': False,
+                'reason': 'no_segment_revenue_in_xbrl_xml',
+            }
+
+        # Convert to segment list and calculate metrics
+        segment_list = [
+            {
+                'segment_id': seg_id,
+                'name': seg_id.replace('_', ' ').title(),
+                'revenue': revenue,
+            }
+            for seg_id, revenue in segments.items()
+        ]
+        segment_list.sort(key=lambda s: s['revenue'], reverse=True)
+
+        revenues = [s['revenue'] for s in segment_list]
+        hhi = XBRLSegmentParser._compute_herfindahl_index(revenues, total_revenue)
+        largest_pct = (revenues[0] / total_revenue * 100) if total_revenue > 0 else 0
+
+        return {
+            'segment_count': len(segment_list),
+            'largest_segment_revenue_pct': round(largest_pct, 2),
+            'revenue_concentration_hhi': round(hhi, 3),
+            'segments': segment_list,
+            'segment_type': 'operating',
+            'data_available': True,
+            'reason': None,
+        }
 
     @staticmethod
     def parse_xbrl_xml(xml_content: str, symbol: str) -> dict[str, Any]:

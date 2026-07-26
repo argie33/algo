@@ -33,7 +33,7 @@ import logging
 import statistics
 import sys
 from datetime import date, timedelta
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 

@@ -37,6 +37,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
     primary_key = ("symbol", "fiscal_year", "fiscal_period", "segment_name")
     watermark_field = "parsed_at"
     exclude_etfs_from_symbols = True
+    max_fail_rate = 60.0  # Many companies don't have distinct segments in SEC filings; write what we have
 
     def __init__(self) -> None:
         """Initialize loader with SEC Edgar client."""

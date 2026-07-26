@@ -1496,9 +1496,9 @@ def run(
 
             if sqs is None:
                 rejection_reason = (
-                    f"Signal quality score missing from Phase 7 output. "
-                    f"Phase 7 must compute signal_quality_score for all trades. "
-                    f"Reject signal to prevent entry without quality validation."
+                    "Signal quality score missing from Phase 7 output. "
+                    "Phase 7 must compute signal_quality_score for all trades. "
+                    "Reject signal to prevent entry without quality validation."
                 )
                 logger.error(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
                 _log_signal_rejection(symbol, "quality_gate_missing", rejection_reason, run_date, entry_price, risk_pct)
@@ -1528,7 +1528,7 @@ def run(
                     f"[PHASE 8 CRITICAL] min_signal_quality_score is invalid ({min_sqs_val}): {e}"
                 ) from e
             if sqs is None:
-                rejection_reason = f"Signal quality score unavailable (NULL) - cannot trade without quality validation"
+                rejection_reason = "Signal quality score unavailable (NULL) - cannot trade without quality validation"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
                 _log_signal_rejection(symbol, "quality_gate_null", rejection_reason, run_date, entry_price, risk_pct)
                 skipped_count += 1

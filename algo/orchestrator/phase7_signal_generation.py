@@ -1469,10 +1469,10 @@ def run(  # noqa: C901
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    f"""SELECT symbol FROM stock_symbols WHERE symbol = ANY(%s) AND active = false""",
+                    """SELECT symbol FROM stock_symbols WHERE symbol = ANY(%s) AND active = false""",
                     ([sig.get("symbol") for sig in liq_passed],),
                 )
-                inactive_set = set(row[0] for row in cur.fetchall())
+                inactive_set = {row[0] for row in cur.fetchall()}
 
             inactive_removed = [sig for sig in liq_passed if sig.get("symbol") in inactive_set]
             if inactive_removed:

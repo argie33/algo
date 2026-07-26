@@ -414,7 +414,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                         f"Loader retry infrastructure broken. Check invoke_loader_retry() implementation."
                                     )
                                     raise RuntimeError(
-                                        f"[PHASE 1] Loader retry result incomplete - missing 'status_reason' field. "
+                                        "[PHASE 1] Loader retry result incomplete - missing 'status_reason' field. "
                                         "Cannot safely evaluate retry outcome."
                                     )
 

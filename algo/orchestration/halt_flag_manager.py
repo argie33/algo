@@ -252,7 +252,6 @@ class HaltFlagManager:
         except Exception as e:
             # Only fall back to RDS for AWS infrastructure failures (network, credentials, rate limit).
             # Programming errors (KeyError, AttributeError, etc.) should propagate to fail-closed.
-            import sys
             from botocore.exceptions import BotoCoreError, ClientError
 
             # Check if this is an AWS infrastructure error that warrants RDS fallback

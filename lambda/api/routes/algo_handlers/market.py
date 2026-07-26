@@ -415,6 +415,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "algo_metrics_daily": "report_date",
                         "equity_curve_daily": "date",
                         "growth_metrics": "report_date",
+                        "algo_orchestrator_runs": "updated_at",
                     }
                     ts_col = ts_columns.get(tbl_name, "created_at")
 
