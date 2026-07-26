@@ -308,15 +308,16 @@ class TradeExecutor:
 
         try:
             notif_service = TradeNotificationService(config={"enabled": True})
-            # CRITICAL: Don't silently fall back to entry_price if execution price unknown
             if executed_price is None:
-                logger.error(f"[EXECUTOR] Executed price missing for {symbol} - using entry price")
-                entry_price_disp = entry_price
-            else:
-                entry_price_disp = executed_price
+                raise ValueError(
+                    f"[EXECUTOR] CRITICAL: Executed price missing for {symbol}. "
+                    f"Cannot record trade without actual execution price (would silently use entry price {entry_price}). "
+                    f"This is a data integrity failure - the order may have filled at a different price. "
+                    f"Fail-fast: manual intervention required."
+                )
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
-                message=(f"{actual_shares:.2f} sh {symbol} @ ${entry_price_disp:.2f} (stop ${stop_loss_price:.2f})"),
+                message=(f"{actual_shares:.2f} sh {symbol} @ ${executed_price:.2f} (stop ${stop_loss_price:.2f})"),
                 kind="trade_entry",
                 severity="info",
                 symbol=symbol,

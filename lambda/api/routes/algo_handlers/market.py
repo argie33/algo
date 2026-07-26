@@ -575,7 +575,14 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             latest_run_row = cur.fetchone()
             if latest_run_row:
                 latest_run_dict = safe_dict_convert(latest_run_row)
-                run_status = str(latest_run_dict.get("overall_status") or "").lower()
+                run_status = latest_run_dict.get("overall_status")
+                if run_status is None:
+                    logger.error(
+                        "[DATA_STATUS] CRITICAL: Orchestrator run record missing overall_status field. "
+                        "Database schema mismatch or corrupt record. Cannot determine trading halt state."
+                    )
+                    raise ValueError("Orchestrator run status query returned row without overall_status field")
+                run_status = str(run_status).lower()
                 if run_status in ("halted", "error"):
                     trading_halted = True
                     trading_halt_reason = latest_run_dict.get("halt_reason")
@@ -712,13 +719,21 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             pos_row = cur.fetchone()
             if pos_row:
                 pos_dict = safe_dict_convert(pos_row)
-                execution_health["phase_3_position_monitor"] = {
-                    "open_positions": int(pos_dict["open_count"]) if pos_dict.get("open_count") else 0,
-                    "oldest_days": int(pos_dict["oldest_days"]) if pos_dict.get("oldest_days") is not None else None,
-                    "max_loss_pct": (
-                        float(pos_dict["max_loss_pct"]) if pos_dict.get("max_loss_pct") is not None else None
-                    ),
-                }
+                open_count_val = pos_dict.get("open_count")
+                if open_count_val is None:
+                    logger.error(
+                        "[HEALTH] Phase 3 position monitor check incomplete: missing open_count field from COUNT(*) query. "
+                        "Database query returned unexpected schema."
+                    )
+                    execution_health["phase_3_position_monitor"] = None
+                else:
+                    execution_health["phase_3_position_monitor"] = {
+                        "open_positions": int(open_count_val),
+                        "oldest_days": int(pos_dict["oldest_days"]) if pos_dict.get("oldest_days") is not None else None,
+                        "max_loss_pct": (
+                            float(pos_dict["max_loss_pct"]) if pos_dict.get("max_loss_pct") is not None else None
+                        ),
+                    }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
             logger.debug(f"[HEALTH] Phase 3 position monitor query failed: {e}")
             execution_health["phase_3_position_monitor"] = None
@@ -806,15 +821,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             exit_row = cur.fetchone()
             if exit_row:
                 exit_dict = safe_dict_convert(exit_row)
-                total_exits = int(exit_dict["exits_executed"]) if exit_dict.get("exits_executed") else 0
-                successful = int(exit_dict["successful_exits"]) if exit_dict.get("successful_exits") else 0
-                execution_health["phase_6_exit_execution"] = {
-                    "exits_executed": total_exits,
-                    "successful_exits": successful,
-                    "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
-                    "avg_profit": float(exit_dict["avg_profit"]) if exit_dict.get("avg_profit") is not None else None,
-                    "symbols_exited": exit_dict.get("symbols_exited") if exit_dict.get("symbols_exited") is not None else [],
-                }
+                exits_executed_val = exit_dict.get("exits_executed")
+                successful_exits_val = exit_dict.get("successful_exits")
+                symbols_exited_val = exit_dict.get("symbols_exited")
+                if exits_executed_val is None or successful_exits_val is None or symbols_exited_val is None:
+                    logger.error(
+                        "[HEALTH] Phase 6 exit execution check incomplete: missing required fields. "
+                        f"exits_executed={exits_executed_val}, successful_exits={successful_exits_val}, "
+                        f"symbols_exited={symbols_exited_val}"
+                    )
+                    execution_health["phase_6_exit_execution"] = None
+                else:
+                    total_exits = int(exits_executed_val)
+                    successful = int(successful_exits_val)
+                    execution_health["phase_6_exit_execution"] = {
+                        "exits_executed": total_exits,
+                        "successful_exits": successful,
+                        "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
+                        "avg_profit": float(exit_dict["avg_profit"]) if exit_dict.get("avg_profit") is not None else None,
+                        "symbols_exited": symbols_exited_val,
+                    }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_6_exit_execution"] = None
 
@@ -847,18 +873,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     total_signals = int(total_signals)
                     buy_signals = int(buy_signals)
                     sell_signals = int(sell_signals)
-                    execution_health["phase_7_signal_generation"] = {
-                        "signals_generated": total_signals,
-                        "buy_signals": buy_signals,
-                        "sell_signals": sell_signals,
-                        "avg_strength": (
-                            float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None
-                        ),
-                        "latest_signal": (
-                            sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None
-                        ),
-                        "symbols_with_signals": sig_dict.get("symbols_with_signals") if sig_dict.get("symbols_with_signals") is not None else [],
-                    }
+                    symbols_with_signals_val = sig_dict.get("symbols_with_signals")
+                    if symbols_with_signals_val is None:
+                        logger.error(
+                            "[HEALTH] Phase 7 signal generation check incomplete: missing symbols_with_signals field. "
+                            "Cannot report which symbols generated signals."
+                        )
+                        execution_health["phase_7_signal_generation"] = None
+                    else:
+                        execution_health["phase_7_signal_generation"] = {
+                            "signals_generated": total_signals,
+                            "buy_signals": buy_signals,
+                            "sell_signals": sell_signals,
+                            "avg_strength": (
+                                float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None
+                            ),
+                            "latest_signal": (
+                                sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None
+                            ),
+                            "symbols_with_signals": symbols_with_signals_val,
+                        }
             else:
                 execution_health["phase_7_signal_generation"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
@@ -878,17 +912,28 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             entry_row = cur.fetchone()
             if entry_row:
                 entry_dict = safe_dict_convert(entry_row)
-                total_entries = int(entry_dict["entries_executed"]) if entry_dict.get("entries_executed") else 0
-                successful = int(entry_dict["successful_entries"]) if entry_dict.get("successful_entries") else 0
-                execution_health["phase_8_entry_execution"] = {
-                    "entries_executed": total_entries,
-                    "successful_entries": successful,
-                    "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
-                    "avg_entry_price": (
-                        float(entry_dict["avg_entry_price"]) if entry_dict.get("avg_entry_price") is not None else None
-                    ),
-                    "symbols_entered": entry_dict.get("symbols_entered") if entry_dict.get("symbols_entered") is not None else [],
-                }
+                entries_executed_val = entry_dict.get("entries_executed")
+                successful_entries_val = entry_dict.get("successful_entries")
+                symbols_entered_val = entry_dict.get("symbols_entered")
+                if entries_executed_val is None or successful_entries_val is None or symbols_entered_val is None:
+                    logger.error(
+                        "[HEALTH] Phase 8 entry execution check incomplete: missing required fields. "
+                        f"entries_executed={entries_executed_val}, successful_entries={successful_entries_val}, "
+                        f"symbols_entered={symbols_entered_val}"
+                    )
+                    execution_health["phase_8_entry_execution"] = None
+                else:
+                    total_entries = int(entries_executed_val)
+                    successful = int(successful_entries_val)
+                    execution_health["phase_8_entry_execution"] = {
+                        "entries_executed": total_entries,
+                        "successful_entries": successful,
+                        "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
+                        "avg_entry_price": (
+                            float(entry_dict["avg_entry_price"]) if entry_dict.get("avg_entry_price") is not None else None
+                        ),
+                        "symbols_entered": symbols_entered_val,
+                    }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_8_entry_execution"] = None
 
@@ -903,13 +948,21 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             snap_row = cur.fetchone()
             if snap_row:
                 snap_dict = safe_dict_convert(snap_row)
-                execution_health["phase_9_portfolio_snapshot"] = {
-                    "snapshot_count": int(snap_dict["snapshot_count"]) if snap_dict.get("snapshot_count") else 0,
-                    "latest_snapshot": (
-                        snap_dict.get("latest_date").isoformat() if snap_dict.get("latest_date") else None
-                    ),
-                    "portfolio_value": float(snap_dict["latest_value"]) if snap_dict.get("latest_value") else None,
-                }
+                snapshot_count_val = snap_dict.get("snapshot_count")
+                if snapshot_count_val is None:
+                    logger.error(
+                        "[HEALTH] Phase 9 portfolio snapshot check incomplete: missing snapshot_count field from COUNT(*) query. "
+                        "Database query returned unexpected schema."
+                    )
+                    execution_health["phase_9_portfolio_snapshot"] = None
+                else:
+                    execution_health["phase_9_portfolio_snapshot"] = {
+                        "snapshot_count": int(snapshot_count_val),
+                        "latest_snapshot": (
+                            snap_dict.get("latest_date").isoformat() if snap_dict.get("latest_date") else None
+                        ),
+                        "portfolio_value": float(snap_dict["latest_value"]) if snap_dict.get("latest_value") else None,
+                    }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_9_portfolio_snapshot"] = None
 

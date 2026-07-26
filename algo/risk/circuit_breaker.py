@@ -1053,7 +1053,17 @@ class CircuitBreaker:
             }
 
         latest = row[0]
-        data_unavailable_flag = bool(row[1]) if row[1] is not None else False
+        data_unavailable_flag_raw = row[1]
+        if data_unavailable_flag_raw is None:
+            logger.critical(
+                "[CIRCUIT_BREAKER] SPY data_unavailable flag missing from database query. "
+                "Fail-closed: cannot determine if SPY data is safe for trading."
+            )
+            return {
+                "halted": True,
+                "reason": "SPY data_unavailable flag is NULL - cannot determine data integrity. Fail-closed halt.",
+            }
+        data_unavailable_flag = bool(data_unavailable_flag_raw)
         reason_msg = row[2] if row[2] is not None else None
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using price data
