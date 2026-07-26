@@ -152,8 +152,9 @@ class HaltFlagManager:
                         market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
                         if now_et >= market_open_et:
+                            time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
                             logger.info(
-                                f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
+                                f"[HALT_FLAG] Halt from {trigger_date} past market open ({time_str} ET) "
                                 f"on {now_date_et} - auto-clearing with atomic condition"
                             )
                             # CRITICAL FIX: Use ConditionExpression to atomically check AND clear
@@ -168,7 +169,7 @@ class HaltFlagManager:
                                         "reset_at": now_utc.isoformat(),
                                         "previous_triggered_at": triggered_at_str,  # Track what we cleared
                                     },
-                                    # Atomic condition: Only clear if halt_flag is still True and triggered_at hasn't changed
+                                    # Atomic check: verify halt_flag=True and triggered_at unchanged
                                     ConditionExpression="halt_flag = :true AND triggered_at = :orig_time",
                                     ExpressionAttributeValues={
                                         ":true": True,
@@ -177,10 +178,11 @@ class HaltFlagManager:
                                 )
                                 return False
                             except Exception as cond_err:
-                                # Condition failed: another orchestrator modified halt between our check and write
+                                # Condition failed: another instance modified halt concurrently
                                 logger.warning(
-                                    f"[HALT_FLAG] Atomic clear condition failed (another instance modified halt): {cond_err}. "
-                                    f"Returning True (halt still active)."
+                                    f"[HALT_FLAG] Atomic clear condition failed "
+                                    f"(another instance modified halt): {cond_err}. "
+                                    "Returning True (halt still active)."
                                 )
                                 return True
                         else:
@@ -327,8 +329,9 @@ class HaltFlagManager:
                             market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
                             if now_et >= market_open_et:
+                                time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
                                 logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
+                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({time_str} ET) "
                                     f"on {now_date_et} - auto-clearing via RDS"
                                 )
                                 # Clear halt flag in RDS

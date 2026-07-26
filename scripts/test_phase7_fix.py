@@ -2,10 +2,11 @@
 """Test Phase 7 signal quality score fix."""
 
 import sys
+
 sys.path.insert(0, "/root" if "/" in sys.path[0] else "C:\\Users\\arger\\code\\algo")
 
+
 from utils.db.context import DatabaseContext
-from datetime import datetime
 
 print("\n" + "=" * 70)
 print("TEST: Phase 7 Signal Quality Score Fix")
@@ -92,7 +93,7 @@ with DatabaseContext("read") as cur:
     print(f"   Wins: {wins}")
     print(f"   Losses: {losses}")
     print(f"   Win rate: {wr}%")
-    print(f"   Threshold: 40%")
+    print("   Threshold: 40%")
     print(f"   Status: {'CLEAR TO TRADE' if wr and wr >= 40 else 'HALTED'}")
 
 print("\n" + "=" * 70 + "\n")

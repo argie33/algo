@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Monitor for 1 PM orchestrator run and report when it completes."""
 
-import psycopg2
 import time
-from datetime import datetime, time as dt_time
+from datetime import datetime
+from datetime import time as dt_time
 from zoneinfo import ZoneInfo
+
+import psycopg2
 
 ET = ZoneInfo("America/New_York")
 
@@ -65,7 +67,7 @@ def main():
                     duration = (completed_at - started_at).total_seconds()
                     print(f"  Duration:  {int(duration)} seconds")
                 else:
-                    print(f"  Completed: (still running)")
+                    print("  Completed: (still running)")
                 print(f"  Status:    {status}")
                 if halt:
                     print(f"  Halt:      {halt}")
@@ -73,7 +75,7 @@ def main():
                 if is_1pm_run:
                     print(f"\n  SUCCESS: 1 PM run {'completed' if completed_at else 'started'}!")
                     if completed_at and status == "success":
-                        print(f"  ✓ System is ready - 1 PM automation working correctly")
+                        print("  ✓ System is ready - 1 PM automation working correctly")
                         return 0
 
         time.sleep(30)  # Check every 30 seconds

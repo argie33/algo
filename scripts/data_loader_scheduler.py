@@ -15,7 +15,6 @@ import logging
 import subprocess
 import sys
 from datetime import datetime, time, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # Setup logging
@@ -105,7 +104,7 @@ def scheduler_loop() -> None:
                 next_check = timedelta(hours=1)
             else:
                 pipeline_name, pipeline_time = pipeline_info
-                now_et = now.time()
+                now.time()
                 time_until = datetime.combine(now.date(), pipeline_time, tzinfo=ET) - now
                 time_until_secs = max(0, int(time_until.total_seconds()))
 

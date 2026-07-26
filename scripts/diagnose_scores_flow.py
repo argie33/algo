@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Diagnose scores data flow from database through dashboard."""
 
-import json
 import logging
-from typing import Any
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

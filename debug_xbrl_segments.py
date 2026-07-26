@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Debug script: inspect SEC companyfacts API response to understand segment concepts."""
 
-import json
 import sys
+
 from utils.external.sec_edgar_client import SecEdgarClient
+
 
 def debug_companyfacts(symbol: str) -> None:
     """Fetch and inspect companyfacts for a symbol."""
@@ -20,7 +21,7 @@ def debug_companyfacts(symbol: str) -> None:
 
     try:
         facts = client.get_company_facts(cik)
-        print(f"[OK] Got companyfacts response")
+        print("[OK] Got companyfacts response")
     except Exception as e:
         print(f"[FAIL] Failed to get companyfacts: {e}")
         return

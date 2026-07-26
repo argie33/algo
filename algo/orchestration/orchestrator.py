@@ -2010,8 +2010,8 @@ class Orchestrator:
                 phase_9_data = self.phase_results[9]
                 if not phase_9_data:
                     raise RuntimeError(
-                        f"[ORCHESTRATOR CRITICAL] Phase 9 result is empty dict. "
-                        f"Phase 9 must return non-empty result with phase/name/status/summary fields."
+                        "[ORCHESTRATOR CRITICAL] Phase 9 result is empty dict. "
+                        "Phase 9 must return non-empty result with phase/name/status/summary fields."
                     )
                 phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 
@@ -2051,8 +2051,8 @@ class Orchestrator:
                 phase_9_data = self.phase_results[9]
                 if not phase_9_data:
                     raise RuntimeError(
-                        f"[ORCHESTRATOR CRITICAL] Phase 9 result is empty dict. "
-                        f"Phase 9 must return non-empty result with phase/name/status/summary fields."
+                        "[ORCHESTRATOR CRITICAL] Phase 9 result is empty dict. "
+                        "Phase 9 must return non-empty result with phase/name/status/summary fields."
                     )
                 phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 

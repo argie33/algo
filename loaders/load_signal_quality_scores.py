@@ -162,9 +162,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
-        from datetime import datetime, timezone
 
-        from algo.infrastructure import MarketCalendar
 
         # ISSUE #27 FIX: Fail if buy_sell_daily is blocked
         if self._batch_context and self._batch_context.get("_blocked"):

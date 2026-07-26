@@ -696,8 +696,8 @@ def main() -> int:
     """Wrapped main with exception handling for data_unavailable markers."""
     try:
         statement_type = os.environ["LOADER_STATEMENT_TYPE"].lower()
-    except KeyError:
-        raise ValueError("CRITICAL: LOADER_STATEMENT_TYPE environment variable not set. Must be 'income', 'balance', 'cashflow', or 'all'.")
+    except KeyError as e:
+        raise ValueError("CRITICAL: LOADER_STATEMENT_TYPE environment variable not set. Must be 'income', 'balance', 'cashflow', or 'all'.") from e
 
     # Handle 'all' mode (load all statement types and periods sequentially)
     if statement_type == "all":

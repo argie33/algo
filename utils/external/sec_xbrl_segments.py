@@ -14,7 +14,6 @@ ASC 280 requires disclosure of:
 
 import logging
 import re
-from datetime import date
 from decimal import Decimal
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -163,7 +162,7 @@ class XBRLSegmentParser:
                 if isinstance(concept_data, dict) and 'units' in concept_data:
                     # companyfacts structure: units[unit_name][facts_list]
                     units = concept_data.get('units', {})
-                    for unit, facts_list in units.items():
+                    for _unit, facts_list in units.items():
                         if isinstance(facts_list, list):
                             best_fact = None
                             best_fy = -1
@@ -222,7 +221,7 @@ class XBRLSegmentParser:
             concept_data = us_gaap.get(segment_revenue_concept, {})
             if isinstance(concept_data, dict) and 'units' in concept_data:
                 units_data = concept_data['units']
-                for unit, facts_list in units_data.items():
+                for _unit, facts_list in units_data.items():
                     if isinstance(facts_list, list):
                         for fact in facts_list:
                             if isinstance(fact, dict):
@@ -260,7 +259,7 @@ class XBRLSegmentParser:
                 concept_data = us_gaap[name_concept]
                 if isinstance(concept_data, dict) and 'units' in concept_data:
                     units_data = concept_data['units']
-                    for unit, facts_list in units_data.items():
+                    for _unit, facts_list in units_data.items():
                         if isinstance(facts_list, list):
                             for fact in facts_list:
                                 if isinstance(fact, dict):
@@ -352,11 +351,6 @@ class XBRLSegmentParser:
         total_revenue = 0.0
 
         # Try multiple namespace patterns for us-gaap segment revenue concepts
-        namespaces = {
-            'gaap': 'http://xbrl.us/us-gaap/2023-01-31',
-            'gaap2024': 'http://xbrl.us/us-gaap/2024-01-31',
-            'gaap2022': 'http://xbrl.us/us-gaap/2022-01-31',
-        }
 
         # Search for segment revenue elements with various naming patterns
         segment_revenue_patterns = [
@@ -480,7 +474,7 @@ class XBRLSegmentParser:
         # Simplified extraction: look for SegmentRevenue contexts
         for elem in root.findall('.//{http://xbrl.us/us-gaap/2023-01-31}SegmentRevenue'):
             context_id = elem.get('contextRef', '')
-            unit_id = elem.get('unitRef', '')
+            elem.get('unitRef', '')
             value = elem.text
 
             if value and context_id:

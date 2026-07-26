@@ -415,7 +415,7 @@ class PositionMonitor:
 
     def _evaluate_position(
         self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]
-    ) -> dict[str, Any]:  # noqa: C901
+    ) -> dict[str, Any]:
         (
             trade_id,
             symbol,

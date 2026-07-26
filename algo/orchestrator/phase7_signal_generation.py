@@ -615,6 +615,7 @@ def _get_candidates_from_buysell(
             if scores_to_write:
                 try:
                     with DatabaseContext("write") as cur_write:
+                        failed_writes = []
                         for sqs, entry_sqs, symbol, signal_date in scores_to_write:
                             cur_write.execute(
                                 """
@@ -624,9 +625,20 @@ def _get_candidates_from_buysell(
                                 """,
                                 (sqs, entry_sqs, symbol, signal_date),
                             )
+                            if cur_write.rowcount == 0:
+                                failed_writes.append(f"{symbol} on {signal_date}")
+
+                        if failed_writes:
+                            raise RuntimeError(
+                                f"[PHASE 7 CRITICAL] Signal quality score persistence failed for {len(failed_writes)} symbols: {', '.join(failed_writes)}. "
+                                f"Expected rows were not found in buy_sell_daily table. This indicates a data integrity issue that must be investigated."
+                            )
                     logger.info(f"[PHASE 7] Wrote {len(scores_to_write)} signal_quality_scores to buy_sell_daily")
                 except Exception as write_e:
-                    logger.warning(f"[PHASE 7] Failed to write signal quality scores to buy_sell_daily: {write_e}")
+                    raise RuntimeError(
+                        f"[PHASE 7] Failed to write signal quality scores to buy_sell_daily: {write_e}. "
+                        f"Cannot proceed with phase completion without persisting signal data."
+                    ) from write_e
 
 
         complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")

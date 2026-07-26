@@ -17,7 +17,7 @@ cur.execute("""
 
 print('Recent loader execution history:')
 print('=' * 80)
-for name, status, start, end, error in cur.fetchall():
+for name, status, start, _end, error in cur.fetchall():
     print(f'{name}: {status} (started {start})')
     if error and error.strip():
         print(f'  Error: {error[:300]}...' if len(error) > 300 else f'  Error: {error}')

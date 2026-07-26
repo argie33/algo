@@ -23,7 +23,7 @@ try:
         # Check available tables
         cur.execute("SELECT table_name FROM data_loader_status LIMIT 10")
         tables = cur.fetchall()
-        print(f"\nFirst 10 tables in data_loader_status:")
+        print("\nFirst 10 tables in data_loader_status:")
         for t in tables:
             print(f"  - {t[0]}")
 

@@ -536,7 +536,7 @@ class TradeExecutor:
                 return False, error_msg, status_dict
             logger.debug(f"[VALIDATION LOOP] Check '{check_name}' passed, continuing to next check")
 
-        logger.debug(f"[VALIDATION LOOP] All checks passed!")
+        logger.debug("[VALIDATION LOOP] All checks passed!")
         return True, "", None
 
     def _process_validation_result(

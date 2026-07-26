@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run orchestrator and verify Phase 7 signal quality fix works."""
 
-import sys
 import subprocess
+import sys
+
 sys.path.insert(0, "/root" if "/" in sys.path[0] else "C:\\Users\\arger\\code\\algo")
 
 print("\n" + "=" * 70)

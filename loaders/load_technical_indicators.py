@@ -114,9 +114,9 @@ class VectorizedTechnicalLoader:
                         f"DataAgeValidator may have been modified incorrectly. Result: {price_freshness}"
                     )
                     raise RuntimeError(
-                        f"[TECHNICAL_DATA CRITICAL] Data validation layer schema mismatch. "
-                        f"Cannot proceed with technical indicator computation. "
-                        f"Fix: Verify DataAgeValidator.check() returns threshold_days field."
+                        "[TECHNICAL_DATA CRITICAL] Data validation layer schema mismatch. "
+                        "Cannot proceed with technical indicator computation. "
+                        "Fix: Verify DataAgeValidator.check() returns threshold_days field."
                     ) from None
                 raise RuntimeError(
                     f"[TECHNICAL_DATA CRITICAL] Cannot compute technical indicators with stale price data. "

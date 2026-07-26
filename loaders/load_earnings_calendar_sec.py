@@ -18,7 +18,7 @@ Run:
 
 import logging
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase

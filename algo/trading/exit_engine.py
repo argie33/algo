@@ -619,7 +619,7 @@ class ExitEngine:
                                        exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status = 'open'
                                        ORDER BY trade_date DESC LIMIT 1""",
-                                    (current_date, None, f"delisted_or_unavailable|price_data_missing", symbol),
+                                    (current_date, None, "delisted_or_unavailable|price_data_missing", symbol),
                                 )
                                 cur.execute(
                                     """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,

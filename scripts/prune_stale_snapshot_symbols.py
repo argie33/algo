@@ -28,8 +28,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.db.context import DatabaseContext  # noqa: E402
-from utils.logging.logger import get_logger  # noqa: E402
+from utils.db.context import DatabaseContext
+from utils.logging.logger import get_logger
 
 logger = get_logger(__name__)
 

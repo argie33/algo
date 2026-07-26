@@ -199,7 +199,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
         Returns: dict of {ticker: total_shares_held_by_all_institutions}
         """
-        holdings_by_ticker: dict[str, int] = defaultdict(int)
+        defaultdict(int)
 
         # Try SEC bulk datasets first (fast path if available)
         for prefix in SEC_13F_URL_PREFIXES:
@@ -211,13 +211,13 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 with urllib.request.urlopen(req, timeout=30) as response:
                     zip_data = response.read()
 
-                logger.info(f"[13F] Successfully downloaded bulk dataset")
+                logger.info("[13F] Successfully downloaded bulk dataset")
                 holdings = self._parse_13f_bulk_zip(zip_data, url)
                 if holdings:
                     logger.info(f"[13F] Successfully parsed bulk dataset: {len(holdings)} tickers")
                     return holdings
                 else:
-                    logger.warning(f"[13F] Bulk dataset parsed but contains no holdings, trying next URL...")
+                    logger.warning("[13F] Bulk dataset parsed but contains no holdings, trying next URL...")
 
             except urllib.error.HTTPError as e:
                 logger.info(f"[13F] Bulk dataset HTTP {e.code} not available, trying next URL...")

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Diagnose scores data loading pipeline end-to-end."""
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
 logging.basicConfig(
@@ -227,7 +227,7 @@ def main():
             logger.info(f"  {key:40} {value}")
 
     logger.info("\n3. METRIC TABLES COMPLETENESS:")
-    metric_completeness = check_metric_tables_completeness()
+    check_metric_tables_completeness()
 
     logger.info("\n4. UPSTREAM DEPENDENCIES:")
     check_upstream_dependencies()

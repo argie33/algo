@@ -3,6 +3,7 @@
 
 import logging
 from datetime import date
+
 from utils.db import DatabaseContext
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -132,7 +133,7 @@ try:
             continue
 
         # Display factor (using ASCII-safe characters)
-        bar_fill = int((pts / max_pts * 12)) if max_pts > 0 else 0
+        bar_fill = int(pts / max_pts * 12) if max_pts > 0 else 0
         bar = "[" + "=" * bar_fill + "-" * (12 - bar_fill) + "]"
 
         # Get detail value for display
@@ -158,7 +159,7 @@ try:
 
     print()
     if result['halt_reasons']:
-        print(f"HALT REASONS (hard vetoes):")
+        print("HALT REASONS (hard vetoes):")
         for reason in result['halt_reasons']:
             print(f"  - {reason}")
     else:
@@ -190,15 +191,15 @@ with DatabaseContext('read') as cur:
     row = cur.fetchone()
     if row:
         exp_pct, raw_score, regime, data_unavail = row
-        print(f"OK: Persisted to market_exposure_daily")
+        print("OK: Persisted to market_exposure_daily")
         print(f"   exposure_pct: {exp_pct}%")
         print(f"   raw_score: {raw_score}")
         print(f"   regime: {regime}")
         print(f"   data_unavailable: {data_unavail}")
         if data_unavail:
-            print(f"   WARNING: data_unavailable flag is TRUE")
+            print("   WARNING: data_unavailable flag is TRUE")
     else:
-        print(f"FAIL: Not persisted to database")
+        print("FAIL: Not persisted to database")
 
 print()
 

@@ -15,7 +15,7 @@ import io
 import logging
 import threading
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
@@ -314,7 +314,7 @@ class Form345TransactionVelocityAggregator:
                         submission_idx.at[acc, "FILING_DATE"], format="%d-%b-%Y", errors="coerce"
                     ).date()
                     symbol = submission_idx.at[acc, "ISSUERTRADINGSYMBOL"]
-                    issuer_cik = submission_idx.at[acc, "ISSUERCIK"]
+                    submission_idx.at[acc, "ISSUERCIK"]
 
                     # Get owner info
                     if acc not in owners_idx.index:

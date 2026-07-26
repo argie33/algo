@@ -89,8 +89,12 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
 
             portfolio_value = float(pf_row[0])
             # Explicit type conversion to prevent Decimal/float arithmetic errors
-            total_risk_dollars_f = float(total_risk_dollars) if isinstance(total_risk_dollars, (Decimal, int)) else total_risk_dollars
-            portfolio_value_f = float(portfolio_value) if isinstance(portfolio_value, (Decimal, int)) else portfolio_value
+            is_decimal_or_int = isinstance(total_risk_dollars, (Decimal, int))
+            total_risk_dollars_f = (
+                float(total_risk_dollars) if is_decimal_or_int else total_risk_dollars
+            )
+            is_pf_decimal_or_int = isinstance(portfolio_value, (Decimal, int))
+            portfolio_value_f = float(portfolio_value) if is_pf_decimal_or_int else portfolio_value
             current_risk_pct = (total_risk_dollars_f / portfolio_value_f * 100.0) if portfolio_value_f > 0 else 0.0
             available_risk_pct = max_risk_limit_pct - current_risk_pct
 
@@ -1493,7 +1497,6 @@ def run(
             # Do NOT fall back to composite_score (different methodology)
             # Do NOT fall back to database lookup (indicates Phase 7 computation failed)
             sqs = signal.get("signal_quality_score")
-
             if sqs is None:
                 rejection_reason = (
                     "Signal quality score missing from Phase 7 output. "
@@ -1508,10 +1511,6 @@ def run(
             trend_score = signal.get("trend_template_score")
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
-            # CRITICAL FIX (Session 372): Reject NULL signal quality scores
-            # - NULL means signal quality was never computed (upstream data incomplete)
-            # - Accepting NULL bypasses the entire quality gate, causing losses
-            # - Require explicit quality score for all entries (fail-closed principle)
             min_sqs_val = config.get("min_signal_quality_score")
             if min_sqs_val is None:
                 raise ValueError(
@@ -1527,12 +1526,6 @@ def run(
                 raise ValueError(
                     f"[PHASE 8 CRITICAL] min_signal_quality_score is invalid ({min_sqs_val}): {e}"
                 ) from e
-            if sqs is None:
-                rejection_reason = "Signal quality score unavailable (NULL) - cannot trade without quality validation"
-                logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
-                _log_signal_rejection(symbol, "quality_gate_null", rejection_reason, run_date, entry_price, risk_pct)
-                skipped_count += 1
-                continue
             if sqs < min_sqs:
                 rejection_reason = f"Signal quality score {int(sqs)} below minimum {min_sqs}"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")

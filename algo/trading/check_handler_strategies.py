@@ -82,11 +82,11 @@ class FingerprintCheckHandler(CheckResultHandler):
                     f"Cannot validate without prior trade reference. error_msg={error_msg}"
                 )
             if not error_msg:
-                logger.error(f"[FingerprintCheckHandler] CRITICAL: Duplicate detected but error_msg missing!")
+                logger.error("[FingerprintCheckHandler] CRITICAL: Duplicate detected but error_msg missing!")
                 raise ValueError(
                     "Fingerprint duplicate detected but error_msg missing. Cannot proceed without validation context."
                 )
-            logger.info(f"[FingerprintCheckHandler] BLOCKING: Returning True to reject trade due to duplicate")
+            logger.info("[FingerprintCheckHandler] BLOCKING: Returning True to reject trade due to duplicate")
             return (
                 True,
                 error_msg,
@@ -96,7 +96,7 @@ class FingerprintCheckHandler(CheckResultHandler):
                     "duplicate": True,
                 },
             )
-        logger.debug(f"[FingerprintCheckHandler] No duplicate found, allowing trade")
+        logger.debug("[FingerprintCheckHandler] No duplicate found, allowing trade")
         return False, "", None
 
 

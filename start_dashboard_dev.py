@@ -71,20 +71,29 @@ def cleanup_orphaned_dev_servers() -> None:
     """Kill any stuck/orphaned dev_server processes to prevent port conflicts."""
     try:
         if sys.platform == "win32":
-            # Windows: use taskkill to kill only dev_server processes
-            subprocess.run(
-                ["tasklist", "/FI", "WINDOWTITLE eq dev_server*", "/FO", "CSV"],
+            # Windows: find PID holding port 3001 and kill it
+            # Use netstat to find what PID has port 3001 open
+            result = subprocess.run(
+                ["netstat", "-ano"],
                 capture_output=True,
                 text=True,
                 timeout=5,
             )
-            # Alternative: Use wmic to find python processes running dev_server.py
-            subprocess.run(
-                'wmic process where "CommandLine like \'%dev_server%\'" delete /nointeractive 2>nul',
-                shell=True,
-                capture_output=True,
-                timeout=5,
-            )
+            for line in result.stdout.split("\n"):
+                if "3001" in line and "LISTENING" in line:
+                    # Line format: "TCP    127.0.0.1:3001         0.0.0.0:0              LISTENING       12345"
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        try:
+                            pid = int(parts[-1])
+                            logger.info(f"[STARTUP] Found process {pid} holding port 3001, killing it...")
+                            subprocess.run(
+                                ["taskkill", "/PID", str(pid), "/F"],
+                                capture_output=True,
+                                timeout=5,
+                            )
+                        except (ValueError, subprocess.TimeoutExpired):
+                            pass
         else:
             # Unix: use pkill to force-kill dev_server processes only
             subprocess.run(
@@ -144,8 +153,9 @@ def check_metrics_tables_staleness() -> tuple[bool, str]:
     - False if fresh or no data to check
     """
     try:
-        from utils.db import DatabaseContext
         from datetime import datetime, timedelta, timezone
+
+        from utils.db import DatabaseContext
 
         with DatabaseContext("read") as cur:
             # Check growth_metrics and quality_metrics batch staleness (created_at = batch load time)
@@ -496,7 +506,11 @@ def main() -> int:
     try:
         # Load fresh data first (non-critical, continues even if loaders fail)
         # Runs complete pipeline: morning (prices/technicals) + metrics (financial/scores)
-        run_complete_loader_pipeline()
+        # Skip loaders on Windows to avoid timeout issues - data is checked by health script
+        if sys.platform != "win32":
+            run_complete_loader_pipeline()
+        else:
+            print("[STARTUP] Skipping loader pipeline on Windows (use check_system_health.py to verify data freshness)", flush=True)
 
         # Start dev_server (if needed)
         dev_server_process = start_dev_server()

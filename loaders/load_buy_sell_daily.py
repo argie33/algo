@@ -431,7 +431,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks)."
             ) from e
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         # CRITICAL FIX (Session 262): buy_sell_daily generates signals for HISTORICAL dates,
         # not just incremental new dates. Therefore date-based watermarking doesn't work:
         # - Day 1: Generate signals for dates 2026-06-12 through 2026-07-17 → watermark=2026-07-17

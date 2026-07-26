@@ -2,6 +2,7 @@
 """Recreate views after quantity column migration."""
 
 import logging
+
 from utils.db.context import DatabaseContext
 
 logging.basicConfig(level=logging.INFO)

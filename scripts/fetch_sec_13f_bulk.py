@@ -18,7 +18,7 @@ import sys
 import urllib.request
 import zipfile
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -84,7 +84,7 @@ def fetch_sec_13f_holdings(year: int, quarter: int) -> dict[str, int]:
 
                     for row in reader:
                         try:
-                            cusip = row.get("cusip", "").strip()
+                            row.get("cusip", "").strip()
                             ticker = row.get("ticker", "").strip().upper()
                             shares = int(row.get("shrsOrPrnAmt", 0) or 0)
 

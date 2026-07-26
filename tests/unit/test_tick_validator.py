@@ -57,13 +57,13 @@ class TestValidatePriceTickBasics:
         assert errors == []
 
     def test_negative_price_rejected(self):
-        is_valid, errors = validate_price_tick(
+        is_valid, _errors = validate_price_tick(
             symbol="AAPL", open_price=-1.0, high=152.0, low=149.0, close=151.0, volume=1_000_000
         )
         assert not is_valid
 
     def test_high_below_low_rejected(self):
-        is_valid, errors = validate_price_tick(
+        is_valid, _errors = validate_price_tick(
             symbol="AAPL", open_price=150.0, high=100.0, low=149.0, close=151.0, volume=1_000_000
         )
         assert not is_valid

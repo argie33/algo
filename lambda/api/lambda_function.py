@@ -42,7 +42,7 @@ _CLOUDFRONT_DOMAIN_CACHE_TIME = None
 _CLOUDFRONT_DOMAIN_CACHE_TTL_SECONDS = 86400  # Refresh CloudFront domain daily
 _CLOUDFRONT_DOMAIN_LOCK = threading.Lock()  # Protects CloudFront domain cache
 _JWKS_CACHE_TTL_SECONDS = 3600  # Refresh JWKS keys hourly
-_NAIVE_DB_TZ_CACHE: "ZoneInfo | timezone | None" = None  # DB session tz for naive `timestamp without time zone` cols
+_NAIVE_DB_TZ_CACHE: ZoneInfo | timezone | None = None  # DB session tz for naive `timestamp without time zone` cols
 _NAIVE_DB_TZ_LOCK = threading.Lock()
 
 try:

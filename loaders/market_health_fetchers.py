@@ -98,7 +98,7 @@ class VIXFetcher:
                         )
                     else:
                         raise RuntimeError(
-                            f"[CRITICAL] NO VIX data exists in price_daily at all. "
+                            "[CRITICAL] NO VIX data exists in price_daily at all. "
                             "VIX is required for circuit breaker halt decisions. "
                             "VIX loader has never run or price_daily is corrupt."
                         )
@@ -688,8 +688,8 @@ class BreadthFetcher:
             # Explicit type conversion for clarity - no fallback defaults on finance data
             if up_volume is None:
                 raise RuntimeError(
-                    f"[BREADTH_FETCHER] Query returned NULL up_volume despite COALESCE(). "
-                    f"This indicates a database or query corruption."
+                    "[BREADTH_FETCHER] Query returned NULL up_volume despite COALESCE(). "
+                    "This indicates a database or query corruption."
                 )
             up_volume_percent = round(float(up_volume) / float(total_volume) * 100, 2)
             return {"data_unavailable": False, "up_volume_percent": up_volume_percent}

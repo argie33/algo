@@ -1097,17 +1097,9 @@ class AlgoConfig:
         "swing_weight_fundamentals": ("10", "int", "Swing score: Fundamentals weight %", "Swing Scoring"),
         "swing_weight_sector": ("8", "int", "Swing score: Sector/industry weight %", "Swing Scoring"),
         "swing_weight_multi_timeframe": ("5", "int", "Swing score: Multi-timeframe weight %", "Swing Scoring"),
-        # API & Data Configuration (previously missing from DEFAULTS)
-        "alpaca_api_base_url": (
-            "https://paper-api.alpaca.markets",
-            "string",
-            "Alpaca paper trading API base URL",
-            "System",
-        ),
+        # API & Data Configuration
         "alpaca_api_key": ("", "string", "Alpaca API key (from environment)", "System"),
-        "alpaca_api_key_id": ("", "string", "Alpaca API key ID (from environment)", "System"),
         "alpaca_api_secret": ("", "string", "Alpaca API secret (from environment)", "System"),
-        "alpaca_api_secret_key": ("", "string", "Alpaca API secret key (from environment)", "System"),
         "alpaca_base_url": (
             "https://paper-api.alpaca.markets",
             "string",

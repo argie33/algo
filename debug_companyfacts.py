@@ -2,6 +2,7 @@
 """Debug companyfacts API structure to understand segment parsing."""
 
 import json
+
 from utils.external.sec_edgar_client import SecEdgarClient
 
 # Test with AAPL
@@ -32,7 +33,7 @@ needed = [
     'SegmentName',
 ]
 
-print(f'\n=== Parser-Required Concepts ===')
+print('\n=== Parser-Required Concepts ===')
 for concept in needed:
     exists = concept in us_gaap
     print(f'  {concept}: {"✓ EXISTS" if exists else "✗ MISSING"}')
@@ -40,7 +41,7 @@ for concept in needed:
 # If SegmentRevenue exists, show its structure
 if 'SegmentRevenue' in us_gaap:
     concept_data = us_gaap['SegmentRevenue']
-    print(f'\n=== SegmentRevenue Structure ===')
+    print('\n=== SegmentRevenue Structure ===')
     print(f'  Keys: {list(concept_data.keys())}')
     if 'units' in concept_data:
         units = concept_data['units']

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Test exit engine fallback pricing for unavailable symbols."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from algo.trading.exit_engine import ExitEngine
 

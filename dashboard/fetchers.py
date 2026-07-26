@@ -46,11 +46,11 @@ from .fetchers_market import (
     fetch_sector_rotation,
 )
 from .fetchers_portfolio import (
+    fetch_completed_trades,
     fetch_perf,
     fetch_perf_analytics,
     fetch_portfolio,
     fetch_positions,
-    fetch_completed_trades,
 )
 from .fetchers_signals import (
     fetch_scores,
@@ -68,6 +68,7 @@ __all__ = [
     "fetch_algo_metrics",
     "fetch_audit_log",
     "fetch_circuit",
+    "fetch_completed_trades",
     "fetch_economic_calendar",
     "fetch_economic_pulse",
     "fetch_exec_history",
@@ -80,7 +81,6 @@ __all__ = [
     "fetch_perf_analytics",
     "fetch_portfolio",
     "fetch_positions",
-    "fetch_completed_trades",
     "fetch_risk_metrics",
     "fetch_run",
     "fetch_scores",

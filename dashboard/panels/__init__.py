@@ -88,6 +88,8 @@ __all__ = [
     # Circuit breaker panels
     "panel_circuit",
     "panel_circuit_expanded",
+    # Trade panels
+    "panel_completed_trades",
     "panel_economic_expanded",
     # Economic panels
     "panel_economic_pulse",
@@ -106,8 +108,6 @@ __all__ = [
     "panel_portfolio_perf_expanded",
     # Position panels
     "panel_positions",
-    # Trade panels
-    "panel_completed_trades",
     # Score panels
     "panel_scores_compact",
     "panel_scores_expanded",

@@ -805,9 +805,9 @@ class AdvancedFilters:
         # If we get NULL here, it indicates a query error or database corruption.
         if row[0] is None or row[1] is None:
             error_msg = (
-                f"[ANALYST_SCORE CRITICAL] Analyst action counts returned NULL instead of counts. "
-                f"This indicates a database query error or schema corruption. "
-                f"Cannot proceed with missing analyst data structure."
+                "[ANALYST_SCORE CRITICAL] Analyst action counts returned NULL instead of counts. "
+                "This indicates a database query error or schema corruption. "
+                "Cannot proceed with missing analyst data structure."
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)

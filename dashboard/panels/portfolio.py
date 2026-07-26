@@ -96,7 +96,7 @@ def _calculate_adjusted_win_rate(
         error_msg = perf.get("_error") if (perf and has_error(perf)) else "perf is None"
         raise ValueError(f"Performance data unavailable: {error_msg}")
 
-    wr_val = perf.get("wr")
+    perf.get("wr")
     w_val = perf.get("w")
     l_val = perf.get("l")
 

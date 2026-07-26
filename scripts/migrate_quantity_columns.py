@@ -10,8 +10,7 @@ This script:
 """
 
 import logging
-import psycopg2
-from config.credential_manager import get_db_credentials
+
 from utils.db.context import DatabaseContext
 
 logging.basicConfig(level=logging.INFO)

@@ -119,7 +119,7 @@ class TestBaseLoaderRespectsValidationReturnValue:
 
         validated_rows = []
         rows_rejected = 0
-        for i, r in enumerate(rows):
+        for _i, r in enumerate(rows):
             try:
                 if not loader._validate_row(r):
                     rows_rejected += 1

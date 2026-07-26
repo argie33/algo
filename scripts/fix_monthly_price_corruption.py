@@ -17,7 +17,8 @@ VERIFIED: Tested on local DB, corrupt rows identified via:
 """
 
 import logging
-from datetime import datetime, date, timedelta, timezone
+from datetime import date
+
 from utils.db.context import DatabaseContext
 
 logging.basicConfig(level=logging.INFO)
@@ -79,7 +80,7 @@ def fix_table(table_name: str, execute: bool = False):
     with DatabaseContext("write") as cur:
         # Check current state
         status = count_rows_by_corruption_status(cur, table_name)
-        logger.info(f"Current state:")
+        logger.info("Current state:")
         for status_type, counts in status.items():
             logger.info(
                 f"  {status_type:20}: {counts['rows']:7} rows, "
@@ -106,9 +107,9 @@ def fix_table(table_name: str, execute: bool = False):
             GROUP BY date
             ORDER BY date DESC
         """)
-        logger.info(f"\nRows to be deleted:")
-        logger.info(f"  date | row_count | symbol_count")
-        logger.info(f"  " + "-" * 40)
+        logger.info("\nRows to be deleted:")
+        logger.info("  date | row_count | symbol_count")
+        logger.info("  " + "-" * 40)
         total_delete_rows = 0
         for row_date, row_count, symbol_count in cur.fetchall():
             logger.info(f"  {row_date} | {row_count:9} | {symbol_count:12}")
@@ -116,7 +117,7 @@ def fix_table(table_name: str, execute: bool = False):
 
         if not execute:
             logger.info(f"\nDRY RUN: Would delete {total_delete_rows} rows")
-            logger.info(f"Re-run with --execute to apply fix")
+            logger.info("Re-run with --execute to apply fix")
             return False
 
         # Execute deletion
@@ -133,7 +134,7 @@ def fix_table(table_name: str, execute: bool = False):
 
         # Verify
         status_after = count_rows_by_corruption_status(cur, table_name)
-        logger.info(f"\nAfter fix:")
+        logger.info("\nAfter fix:")
         for status_type, counts in status_after.items():
             logger.info(
                 f"  {status_type:20}: {counts['rows']:7} rows, "
@@ -144,7 +145,7 @@ def fix_table(table_name: str, execute: bool = False):
         cur.execute(f"SELECT MAX(date) FROM {table_name}")
         max_date = cur.fetchone()[0]
         logger.info(f"\nMAX(date) after fix: {max_date}")
-        logger.info(f"(Should be month-start: day=1)")
+        logger.info("(Should be month-start: day=1)")
 
         return True
 

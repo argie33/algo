@@ -208,10 +208,10 @@ class SecSegmentInfoLoader(SecLoaderBase):
             us_gaap = facts_response.get('facts', {}).get('us-gaap', {})
 
             latest_date = None
-            for concept_name, concept_data in us_gaap.items():
+            for _concept_name, concept_data in us_gaap.items():
                 if isinstance(concept_data, dict) and 'units' in concept_data:
                     units = concept_data['units']
-                    for unit, facts_list in units.items():
+                    for _unit, facts_list in units.items():
                         if isinstance(facts_list, list):
                             for fact in facts_list:
                                 if isinstance(fact, dict):

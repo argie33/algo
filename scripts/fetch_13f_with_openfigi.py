@@ -8,9 +8,7 @@ via OpenFIGI's free mapping service.
 import json
 import logging
 import sys
-import time
 import urllib.request
-from collections import defaultdict
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -49,9 +47,9 @@ def fetch_13f_filing_ciks() -> list[str]:
         filings = data.get("filings", {}).get("recent", {})
         ciks = set()
 
-        for form_type, accession in zip(
+        for form_type, _accession in zip(
             filings.get("form", []),
-            filings.get("accessionNumber", [])
+            filings.get("accessionNumber", []), strict=False
         ):
             if form_type == "13F-HR":
                 ciks.add("0000789019")  # For now, just return known manager
@@ -105,7 +103,7 @@ def populate_institutional_ownership_fallback() -> int:
     logger.info("Populating institutional ownership with fallback estimates...")
 
     from datetime import datetime
-    now_et = EASTERN_TZ.now() if hasattr(EASTERN_TZ, 'now') else datetime.now()
+    EASTERN_TZ.now() if hasattr(EASTERN_TZ, 'now') else datetime.now()
 
     updated = 0
 

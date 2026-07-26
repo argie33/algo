@@ -4,9 +4,10 @@ Quick verification script - run this after 9:30 AM market open.
 Checks if the latest orchestrator run succeeded without the 4 known errors.
 """
 
-import psycopg2
-from datetime import datetime, timedelta
 import sys
+
+import psycopg2
+
 
 def main():
     conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')

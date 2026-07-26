@@ -22,7 +22,7 @@ Run:
 
 import logging
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase
@@ -30,7 +30,6 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.exception_handler import handle_exception
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)

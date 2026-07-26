@@ -11,9 +11,9 @@ import logging
 import sys
 from pathlib import Path
 
+from algo.infrastructure.constants import EXECUTION_TIMEOUT_SEC
 from algo.monitoring.data_patrol import DataPatrol
 from algo.monitoring.data_patrol.config import PatrolConfig
-from algo.infrastructure.constants import EXECUTION_TIMEOUT_SEC
 from utils.infrastructure.timeout import ExecutionTimeout, ExecutionTimeoutError
 
 root = Path(__file__).parent.parent

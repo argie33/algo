@@ -13,10 +13,10 @@ Usage:
     python scripts/fix_incomplete_sec_data.py --full-reload   # Audit + full re-run loaders
 """
 
-import sys
 import logging
-from pathlib import Path
+import sys
 from datetime import date, datetime, timezone
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,7 +119,7 @@ def audit_sec_data_completeness() -> dict[str, list[str]]:
             # Summary statistics
             logger.info("\n=== SUMMARY ===")
             affected_stocks = set()
-            for issue, symbols in incomplete_stocks.items():
+            for _issue, symbols in incomplete_stocks.items():
                 affected_stocks.update(symbols)
             logger.info(f"Total unique affected stocks: {len(affected_stocks)}")
 

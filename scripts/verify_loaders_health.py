@@ -14,7 +14,6 @@ from typing import Any
 
 import psycopg2
 
-
 # Kept in sync with the active loader list in scripts/local_loader_scheduler.py.
 # Previous version of this dict referenced load_yfinance_snapshot.py and
 # load_yfinance_derived_metrics.py, both fully deprecated + deleted in Session 275

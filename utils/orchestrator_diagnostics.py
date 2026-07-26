@@ -14,8 +14,8 @@ from typing import Any
 
 import psycopg2
 
-from utils.db.context import DatabaseContext
 from algo.infrastructure.config.main import AlgoConfig
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 

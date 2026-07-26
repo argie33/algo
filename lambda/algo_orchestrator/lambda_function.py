@@ -545,7 +545,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # that's a real problem that should be surfaced, not silently ignored.
         try:
             import boto3
-            from botocore.exceptions import ClientError, BotoCoreError
+            from botocore.exceptions import BotoCoreError, ClientError
 
             scheduler = boto3.client("scheduler", region_name="us-east-1")
             schedules = scheduler.list_schedules(MaxResults=50)

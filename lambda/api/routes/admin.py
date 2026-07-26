@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from psycopg2.extensions import cursor
-
 from routes import sync_stock_scores
 from routes.algo_handlers.inventory import _get_table_inventory
 

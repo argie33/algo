@@ -88,6 +88,7 @@ LOADERS = {
             "load_institutional_holdings_13f.py",  # Phase 2: SEC 13F institutional ownership (replaces ~20% yfinance)
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
             "load_current_reports_8k.py",  # NEW: SEC Form 8-K material events (catalysts, M&A, leadership changes)
+            "load_sec_segment_info.py",  # XBRL: Business segment disclosures (ASC 280) - NOTE: SEC companyfacts API incomplete for major companies (no segment revenue), returns data_unavailable markers
             "load_dividend_data.py",  # NEW: Dividend ex-dates and amounts (position management)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",

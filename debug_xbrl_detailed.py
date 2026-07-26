@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Debug script: check if segments are encoded in contextRef or other fields."""
 
-import json
 from utils.external.sec_edgar_client import SecEdgarClient
+
 
 def debug_segments_in_context(symbol: str) -> None:
     """Check if segment info is in contextRef or other fact attributes."""
@@ -24,7 +24,7 @@ def debug_segments_in_context(symbol: str) -> None:
         print("=== SegmentReportingInformationOperatingIncomeLoss facts ===")
         concept_data = us_gaap['SegmentReportingInformationOperatingIncomeLoss']
         units = concept_data.get('units', {})
-        for unit, facts_list in units.items():
+        for _unit, facts_list in units.items():
             for i, fact in enumerate(facts_list[:2]):  # First 2 facts
                 print(f"\nFact {i}:")
                 for k, v in fact.items():
@@ -36,7 +36,7 @@ def debug_segments_in_context(symbol: str) -> None:
     for concept_name, concept_data in list(us_gaap.items())[:50]:  # First 50 concepts
         if isinstance(concept_data, dict) and 'units' in concept_data:
             units = concept_data.get('units', {})
-            for unit, facts_list in units.items():
+            for _unit, facts_list in units.items():
                 if isinstance(facts_list, list):
                     for fact in facts_list:
                         if isinstance(fact, dict):
@@ -60,7 +60,7 @@ def debug_segments_in_context(symbol: str) -> None:
     for concept_name, concept_data in us_gaap.items():
         if isinstance(concept_data, dict) and 'units' in concept_data:
             units = concept_data.get('units', {})
-            for unit, facts_list in units.items():
+            for _unit, facts_list in units.items():
                 if isinstance(facts_list, list):
                     for fact in facts_list:
                         if isinstance(fact, dict):
@@ -76,7 +76,7 @@ def debug_segments_in_context(symbol: str) -> None:
     for concept_name, concept_data in us_gaap.items():
         if isinstance(concept_data, dict) and 'units' in concept_data:
             units = concept_data.get('units', {})
-            for unit, facts_list in units.items():
+            for _unit, facts_list in units.items():
                 if isinstance(facts_list, list):
                     for fact in facts_list:
                         if isinstance(fact, dict) and fact.get('form') == '10-K':

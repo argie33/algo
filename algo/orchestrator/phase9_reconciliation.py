@@ -877,12 +877,13 @@ def _record_closed_positions_exits(
                                 (exit_price, "Closed position recorded during reconciliation - pending fill price confirmation", symbol),
                             )
                             if write_cursor.rowcount == 0:
-                                logger.warning(
-                                    f"Position update returned 0 rows for {symbol}. "
-                                    f"Position may already be closed or missing."
+                                raise RuntimeError(
+                                    f"CRITICAL: Position update failed for {symbol}. "
+                                    f"Expected to update 1 open position but 0 rows affected. "
+                                    f"Position may have been closed outside the orchestrator or deleted. "
+                                    f"This indicates a data integrity issue that must be resolved before continuing reconciliation."
                                 )
-                            else:
-                                exits_recorded += 1
+                            exits_recorded += 1
                             write_cursor.execute(f"RELEASE SAVEPOINT {sp}")
                             logger.info(
                                 f"Recorded exit: {symbol} {quantity}sh @ ~${exit_price:.2f} (estimated) on {run_date} "

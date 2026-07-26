@@ -83,7 +83,7 @@ def check_table_health(table_name: str, description: str) -> dict:
                     row = cur.fetchone()
                     if row and row[0]:
                         last_update = row[0]
-                except:
+                except Exception:
                     pass
 
             hours_ago = None
@@ -128,7 +128,7 @@ def print_section(title: str, tables: dict) -> None:
         if info["row_count"] is None:
             status_str = f"  ERROR: {info['status']}"
         elif info["row_count"] == 0:
-            status_str = f"  EMPTY (0 rows)"
+            status_str = "  EMPTY (0 rows)"
         elif info["hours_ago"] is not None:
             hours = info["hours_ago"]
             age_str = f"{hours:.1f}h" if hours < 24 else f"{hours/24:.1f}d"

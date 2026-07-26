@@ -7,6 +7,7 @@ and simplicity. Syncs all 6 score types in one pass.
 
 import logging
 import sys
+
 from utils.db.context import DatabaseContext
 
 logging.basicConfig(level=logging.INFO)

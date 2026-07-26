@@ -279,9 +279,6 @@ VALIDATION_SCHEMA = {
     "patrol_coverage_error_threshold_pct": ("float", 0.0, 100.0, False, None),
     # Alpaca Configuration
     "alpaca_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),
-    "alpaca_api_key_id": ("string", None, None, False, None),
-    "alpaca_api_secret_key": ("string", None, None, False, None),
-    "alpaca_api_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),
     # yfinance Timeout Configuration
     # EOD deadline is intentionally 1800s (30 min total budget, see
     # migrations/versions/111_add_yfinance_market_close_timeout_config.sql)
