@@ -16,6 +16,7 @@ from routes.utils import (
     execute_with_timeout,
     extract_param,
     handle_db_error,
+    json_response,
     safe_limit,
     safe_offset,
 )
@@ -601,7 +602,11 @@ def _get_stock_scores(
 
         if items:
             # Compute average composite score from returned items
-            composite_scores: list[float] = [float(item.get("composite_score")) for item in items if item.get("composite_score") is not None]
+            composite_scores: list[float] = []
+            for item in items:
+                score = item.get("composite_score")
+                if score is not None:
+                    composite_scores.append(float(score))
             if composite_scores:
                 avg_composite = sum(composite_scores) / len(composite_scores)
 
