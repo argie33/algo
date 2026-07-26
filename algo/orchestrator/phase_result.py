@@ -64,8 +64,7 @@ class PhaseResult:
             except Exception as e:
                 # Unexpected error - log with full traceback
                 logger.error(
-                    f"[PHASE RESULT] Unexpected error looking up phase name for {self.phase_num}: {e}",
-                    exc_info=True
+                    f"[PHASE RESULT] Unexpected error looking up phase name for {self.phase_num}: {e}", exc_info=True
                 )
                 self.phase_name = phase_name
         else:

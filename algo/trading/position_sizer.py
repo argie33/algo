@@ -996,7 +996,7 @@ class PositionSizer:
                                 "position_size_pct": 0,
                                 "risk_dollars": 0,
                                 "status": "risk_limit",
-                                "reason": f"Total open risk {(current_risk_dollars/float(portfolio_value)*100.0):.2f}% already at/exceeds 4% limit - no capacity for new position",
+                                "reason": f"Total open risk {(current_risk_dollars / float(portfolio_value) * 100.0):.2f}% already at/exceeds 4% limit - no capacity for new position",
                             }
                         else:
                             # Scale down position to fit within available capacity
@@ -1012,7 +1012,7 @@ class PositionSizer:
                                     "position_size_pct": 0,
                                     "risk_dollars": 0,
                                     "status": "risk_limit_scaled_zero",
-                                    "reason": f"Total open risk {(current_risk_dollars/float(portfolio_value)*100.0):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
+                                    "reason": f"Total open risk {(current_risk_dollars / float(portfolio_value) * 100.0):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
                                 }
 
                             # Use scaled size
@@ -1023,7 +1023,7 @@ class PositionSizer:
 
                             logger.info(
                                 f"[POSITION_SIZER] {symbol}: Risk-limited sizing applied. "
-                                f"Current risk {(current_risk_dollars/float(portfolio_value)*100.0):.2f}%, "
+                                f"Current risk {(current_risk_dollars / float(portfolio_value) * 100.0):.2f}%, "
                                 f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
                             )
             except Exception as e:

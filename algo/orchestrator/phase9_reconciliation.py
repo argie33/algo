@@ -423,12 +423,16 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
             current_val_str = (
                 str(current_val)
                 if isinstance(current_val, str)
-                else f"{float(current_val):,.0f}" if current_val is not None else "N/A"
+                else f"{float(current_val):,.0f}"
+                if current_val is not None
+                else "N/A"
             )
             pnl_pct_str = (
                 str(pnl_pct)
                 if isinstance(pnl_pct, str)
-                else f"{float(pnl_pct):+.2f}%" if pnl_pct is not None else "N/A"
+                else f"{float(pnl_pct):+.2f}%"
+                if pnl_pct is not None
+                else "N/A"
             )
             report_summary = f"Portfolio ${current_val_str}, P&L {pnl_pct_str}"
         except (ValueError, TypeError) as fmt_err:
@@ -874,7 +878,11 @@ def _record_closed_positions_exits(
                                     exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                 WHERE symbol = %s
                             """,
-                                (exit_price, "Closed position recorded during reconciliation - pending fill price confirmation", symbol),
+                                (
+                                    exit_price,
+                                    "Closed position recorded during reconciliation - pending fill price confirmation",
+                                    symbol,
+                                ),
                             )
                             if write_cursor.rowcount == 0:
                                 raise RuntimeError(

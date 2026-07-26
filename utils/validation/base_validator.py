@@ -54,7 +54,7 @@ class BaseResponseValidator:
 
         missing = [f for f in required_fields if f not in data or data[f] is None]
         if missing:
-            raise ResponseValidationError(f"Missing required fields in {source}: {missing}")
+            raise ResponseValidationError(f"Missing critical fields in {source}: {missing}")
 
     @staticmethod
     def validate_type(value: Any, expected_type: type, field_name: str) -> None:

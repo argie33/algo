@@ -413,9 +413,7 @@ class PositionMonitor:
 
             return recs
 
-    def _evaluate_position(
-        self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]
-    ) -> dict[str, Any]:
+    def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         (
             trade_id,
             symbol,

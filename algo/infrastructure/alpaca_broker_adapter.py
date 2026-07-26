@@ -277,8 +277,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             # CRITICAL: Must explicitly check alpaca_paper_trading config (NO FALLBACK TO LIVE TRADING)
             if not isinstance(self.config, dict):
                 raise ValueError(
-                    "[CONFIG_ERROR] alpaca_paper_trading configuration missing. "
-                    "Must explicitly set paper_trading flag."
+                    "[CONFIG_ERROR] alpaca_paper_trading configuration missing. Must explicitly set paper_trading flag."
                 )
 
             if "alpaca_paper_trading" not in self.config:

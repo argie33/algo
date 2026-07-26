@@ -816,7 +816,9 @@ def run(  # noqa: C901
                 for table_name in date_checked_tables.keys():
                     date_col = date_column_overrides.get(table_name, "date")
                     if date_col is None:
-                        raise RuntimeError(f"[PHASE 1] Table {table_name} missing date_column_override - cannot determine date column")
+                        raise RuntimeError(
+                            f"[PHASE 1] Table {table_name} missing date_column_override - cannot determine date column"
+                        )
                     union_parts.append(f"SELECT '{table_name}' as tbl, MAX({date_col}) as max_dt FROM {table_name}")
 
                 union_query = " UNION ALL ".join(union_parts)

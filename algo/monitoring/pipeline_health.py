@@ -282,9 +282,7 @@ class PipelineHealth:
                 # CRITICAL: Count query must return exactly one row with COUNT(*) result.
                 # If it doesn't, the query failed - don't silently default to 0.
                 if exact_result is None:
-                    raise RuntimeError(
-                        f"COUNT(*) query for {table_name} returned None - query execution failed"
-                    )
+                    raise RuntimeError(f"COUNT(*) query for {table_name} returned None - query execution failed")
                 if isinstance(exact_result, dict):
                     exact_cnt = exact_result.get("count")
                     if exact_cnt is None:

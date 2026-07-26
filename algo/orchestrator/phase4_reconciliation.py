@@ -207,12 +207,8 @@ def run(
                         "Check reconciliation.py::run_daily_reconciliation()."
                     )
                 detail = result["final_verification_detail"]
-                summary += (
-                    f" (WARNING: final verification failed - {detail})"
-                )
-                logger.warning(
-                    f"[PHASE 4] Portfolio snapshot final verification failed: {detail}"
-                )
+                summary += f" (WARNING: final verification failed - {detail})"
+                logger.warning(f"[PHASE 4] Portfolio snapshot final verification failed: {detail}")
             log_phase_result_fn(
                 4,
                 "reconciliation",

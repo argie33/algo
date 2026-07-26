@@ -964,21 +964,8 @@ class AlgoConfig:
             "Min % of active universe that must have data",
             "Data Patrol Configuration",
         ),
-        # Signal and Loader Thresholds
-        "signal_max_data_age_days": ("3", "int", "Max data age in days for signal generation", "Signal Generation"),
-        "stale_loader_threshold_minutes": (
-            "30",
-            "int",
-            "Loader heartbeat age (minutes) before marking stale",
-            "Signal Generation",
-        ),
         # Advanced Filters Feature Flag
         "enable_advanced_filters": ("false", "bool", "Enable advanced signal filters", "Advanced Filters"),
-        # Pyramid Trading Configuration
-        "pyramid_enabled": ("false", "bool", "Enable pyramid position sizing", "Position Sizing"),
-        "pyramid_split_pct": ("50,33,17", "string", "Entry size split % (comma-separated)", "Position Sizing"),
-        "pyramid_add_1_gain_pct": ("3", "float", "Gain % to trigger add 1", "Position Sizing"),
-        "pyramid_add_2_gain_pct": ("6", "float", "Gain % to trigger add 2", "Position Sizing"),
         # Data Patrol Staleness Thresholds (per-table granularity)
         "patrol_staleness_price_daily": ("2", "int", "Max staleness days for price_daily", "Data Patrol Configuration"),
         "patrol_staleness_technical_daily": (
@@ -1029,14 +1016,6 @@ class AlgoConfig:
             "int",
             "Max staleness days for analyst_upgrades",
             "Data Patrol Configuration",
-        ),
-        # Stale Order Management
-        "stale_order_alert_minutes": ("30", "int", "Alert if order stale for N minutes", "Order Management"),
-        "stale_order_auto_cancel_minutes": (
-            "60",
-            "int",
-            "Auto-cancel order if stale for N minutes",
-            "Order Management",
         ),
         # Data Patrol Coverage Error Threshold
         "patrol_coverage_error_threshold_pct": (

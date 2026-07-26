@@ -168,7 +168,7 @@ class DailyFinanceReport:
                 return {
                     "data_unavailable": True,
                     "reason": "no_performance_metrics_available",
-                    "details": "Expected during ramp-up phase before algo has established P&L history"
+                    "details": "Expected during ramp-up phase before algo has established P&L history",
                 }
 
             return {
@@ -183,7 +183,7 @@ class DailyFinanceReport:
             return {
                 "data_unavailable": True,
                 "reason": "database_error",
-                "details": f"{type(e).__name__}: {str(e)[:100]}"
+                "details": f"{type(e).__name__}: {str(e)[:100]}",
             }
 
     def _fetch_strategy(self, cur: Any, report_date: _date) -> dict[str, Any]:
@@ -214,7 +214,7 @@ class DailyFinanceReport:
                 return {
                     "data_unavailable": True,
                     "reason": "no_strategy_metrics_available",
-                    "details": "Expected before first orchestrator execution or trades completed"
+                    "details": "Expected before first orchestrator execution or trades completed",
                 }
 
             return {
@@ -229,7 +229,7 @@ class DailyFinanceReport:
             return {
                 "data_unavailable": True,
                 "reason": "database_error",
-                "details": f"{type(e).__name__}: {str(e)[:100]}"
+                "details": f"{type(e).__name__}: {str(e)[:100]}",
             }
 
     def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
@@ -259,7 +259,7 @@ class DailyFinanceReport:
                 return {
                     "data_unavailable": True,
                     "reason": "no_component_attribution_data",
-                    "details": "SignalAttributionEngine is deprecated; data available only from end-of-day loaders"
+                    "details": "SignalAttributionEngine is deprecated; data available only from end-of-day loaders",
                 }
 
             components = {}

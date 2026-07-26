@@ -90,9 +90,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
             portfolio_value = float(pf_row[0])
             # Explicit type conversion to prevent Decimal/float arithmetic errors
             is_decimal_or_int = isinstance(total_risk_dollars, (Decimal, int))
-            total_risk_dollars_f = (
-                float(total_risk_dollars) if is_decimal_or_int else total_risk_dollars
-            )
+            total_risk_dollars_f = float(total_risk_dollars) if is_decimal_or_int else total_risk_dollars
             is_pf_decimal_or_int = isinstance(portfolio_value, (Decimal, int))
             portfolio_value_f = float(portfolio_value) if is_pf_decimal_or_int else portfolio_value
             current_risk_pct = (total_risk_dollars_f / portfolio_value_f * 100.0) if portfolio_value_f > 0 else 0.0
@@ -1540,9 +1538,7 @@ def run(
                 if min_sqs < 0 or min_sqs > 100:
                     raise ValueError(f"min_signal_quality_score must be 0-100, got {min_sqs}")
             except (ValueError, TypeError) as e:
-                raise ValueError(
-                    f"[PHASE 8 CRITICAL] min_signal_quality_score is invalid ({min_sqs_val}): {e}"
-                ) from e
+                raise ValueError(f"[PHASE 8 CRITICAL] min_signal_quality_score is invalid ({min_sqs_val}): {e}") from e
             if sqs < min_sqs:
                 rejection_reason = f"Signal quality score {int(sqs)} below minimum {min_sqs}"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")

@@ -640,7 +640,6 @@ def _get_candidates_from_buysell(
                         f"Cannot proceed with phase completion without persisting signal data."
                     ) from write_e
 
-
         complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -955,7 +954,9 @@ def run(  # noqa: C901
         logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
         loader = SignalQualityScoresLoader()
         all_symbols = get_active_symbols(timeout_secs=30)
-        logger.info(f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)")
+        logger.info(
+            f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)"
+        )
         # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
         # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
         # scores depend on today's buy/sell signals, technical data, and trend templates which
@@ -1092,24 +1093,16 @@ def run(  # noqa: C901
                     try:
                         base_score = scorer.calculate_base_quality_score()
                         if base_score is None or base_score < 0:
-                            raise ValueError(
-                                f"Base score calculation failed: got {base_score} (expected 0-100 range)"
-                            )
+                            raise ValueError(f"Base score calculation failed: got {base_score} (expected 0-100 range)")
                         volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
                         if volume_score is None:
-                            raise ValueError(
-                                f"Volume score calculation failed: got None for {symbol} {signal_date}"
-                            )
+                            raise ValueError(f"Volume score calculation failed: got None for {symbol} {signal_date}")
                         trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
                         if trend_score is None:
-                            raise ValueError(
-                                f"Trend score calculation failed: got None for {symbol} {signal_date}"
-                            )
+                            raise ValueError(f"Trend score calculation failed: got None for {symbol} {signal_date}")
                         composite_sqs = min(100, int(base_score + volume_score + trend_score))
                         if composite_sqs < 0 or composite_sqs > 100:
-                            raise ValueError(
-                                f"Composite SQS out of range: {composite_sqs} (expected 0-100)"
-                            )
+                            raise ValueError(f"Composite SQS out of range: {composite_sqs} (expected 0-100)")
                         backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
                         logger.debug(f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Computed score={composite_sqs}")
                     except ValueError as calc_e:

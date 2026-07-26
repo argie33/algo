@@ -1051,7 +1051,9 @@ class ExitEngine:
             rows = cur.fetchall()
 
             if not rows or len(rows[0]) < 2:
-                error_msg = f"[EXIT_PRICE_UNAVAILABLE] No price history available for {symbol} - symbol may be delisted or new"
+                error_msg = (
+                    f"[EXIT_PRICE_UNAVAILABLE] No price history available for {symbol} - symbol may be delisted or new"
+                )
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
 

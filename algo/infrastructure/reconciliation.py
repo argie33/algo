@@ -279,10 +279,13 @@ class DailyReconciliation:
                     logger.debug("[RECONCILIATION] No open positions - unrealized P&L = 0")
                 elif position_count > 0:
                     # Positions exist - all three aggregates must return non-NULL (data integrity check)
-                    if pnl_row["total_pnl"] is None or pnl_row["total_invested"] is None or pnl_row["total_cost_basis"] is None:
+                    if (
+                        pnl_row["total_pnl"] is None
+                        or pnl_row["total_invested"] is None
+                        or pnl_row["total_cost_basis"] is None
+                    ):
                         missing_fields = [
-                            f for f in ["total_pnl", "total_invested", "total_cost_basis"]
-                            if pnl_row[f] is None
+                            f for f in ["total_pnl", "total_invested", "total_cost_basis"] if pnl_row[f] is None
                         ]
                         raise RuntimeError(
                             f"[CRITICAL] {position_count} open positions exist but SUM aggregation failed on: {missing_fields}. "
@@ -1676,7 +1679,9 @@ class DailyReconciliation:
             risk = float(entry_price) - float(stop_loss_price)
             if risk > 0:
                 exit_r_multiple = float(
-                    (Decimal(str(float(fill_price) - float(entry_price))) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    (Decimal(str(float(fill_price) - float(entry_price))) / Decimal(str(risk))).quantize(
+                        Decimal("0.01"), ROUND_HALF_UP
+                    )
                 )
             else:
                 exit_r_multiple = None

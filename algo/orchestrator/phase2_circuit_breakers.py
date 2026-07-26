@@ -53,13 +53,17 @@ def run(
                 "Cannot proceed without knowing which (if any) checks failed."
             )
             logger.critical(error_msg)
-            log_phase_error(2, PhaseError(
-                category=ErrorCategory.DATA_INVALID,
-                message=error_msg,
-                root_cause="CircuitBreaker.check_all() did not return checks field",
-                recoverable=False,
-                log_level="critical",
-            ), log_phase_result_fn)
+            log_phase_error(
+                2,
+                PhaseError(
+                    category=ErrorCategory.DATA_INVALID,
+                    message=error_msg,
+                    root_cause="CircuitBreaker.check_all() did not return checks field",
+                    recoverable=False,
+                    log_level="critical",
+                ),
+                log_phase_result_fn,
+            )
             raise RuntimeError(error_msg)
 
         checks = result["checks"]
@@ -69,13 +73,17 @@ def run(
                 "Data structure corruption detected."
             )
             logger.critical(error_msg)
-            log_phase_error(2, PhaseError(
-                category=ErrorCategory.DATA_INVALID,
-                message=error_msg,
-                root_cause=f"checks type is {type(checks).__name__}, expected dict",
-                recoverable=False,
-                log_level="critical",
-            ), log_phase_result_fn)
+            log_phase_error(
+                2,
+                PhaseError(
+                    category=ErrorCategory.DATA_INVALID,
+                    message=error_msg,
+                    root_cause=f"checks type is {type(checks).__name__}, expected dict",
+                    recoverable=False,
+                    log_level="critical",
+                ),
+                log_phase_result_fn,
+            )
             raise RuntimeError(error_msg)
 
         # CRITICAL: Validate each check is a dict with a 'value' field

@@ -407,8 +407,7 @@ def run_backtest(  # noqa: C901
         peak = equity_curve[0]["value"]
         if peak <= 0:
             logger.warning(
-                f"[BACKTEST] Equity curve starts at {peak} (non-positive). "
-                "Cannot calculate meaningful drawdown."
+                f"[BACKTEST] Equity curve starts at {peak} (non-positive). Cannot calculate meaningful drawdown."
             )
             max_dd_pct = None
         else:

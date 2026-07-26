@@ -656,7 +656,9 @@ class Orchestrator:
                 if deleted_count > 0:
                     logger.info(f"[LOCK_CLEANUP] Force-deleted {deleted_count} stuck loader lock(s) (held > 10min)")
         except Exception as e:
-            logger.critical(f"[LOCK_CLEANUP FAILED] Could not clean expired locks: {e}. Loader pipeline may be blocked!")
+            logger.critical(
+                f"[LOCK_CLEANUP FAILED] Could not clean expired locks: {e}. Loader pipeline may be blocked!"
+            )
             # Don't halt trading, but make this CRITICAL so ops team sees it
 
     def _wait_for_critical_loaders_proactive(self, max_wait_seconds: int = 300) -> bool:
@@ -1994,8 +1996,7 @@ class Orchestrator:
                 # This is EXPECTED and CORRECT behavior - a guard preventing over-leveraging is not a failure.
                 # If Phase 9 still runs and succeeds, the run is healthy.
                 phase_8_blocked = any(
-                    p["status"] == "blocked" and p.get("phase") == 8
-                    for p in self.phase_results.values()
+                    p["status"] == "blocked" and p.get("phase") == 8 for p in self.phase_results.values()
                 )
                 # FAIL-FAST: Phase 9 must be present (always_run) - no fallback to alternate key type
                 # CRITICAL FIX: phase_results should ALWAYS use int keys (9, not "9").

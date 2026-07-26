@@ -477,7 +477,7 @@ class HaltFlagManager:
                                 logger.warning(f"Could not parse halt escalation: {escalation_err}")
                 except Exception as update_err:
                     logger.debug(
-                        f"Failed to set DynamoDB halt flag (attempt {attempt+1}): {update_err}. Trying RDS fallback."
+                        f"Failed to set DynamoDB halt flag (attempt {attempt + 1}): {update_err}. Trying RDS fallback."
                     )
                     raise
 
@@ -490,13 +490,13 @@ class HaltFlagManager:
                 last_error = e
                 # Fall back to RDS
                 logger.debug(
-                    f"[HALT_FLAG] DynamoDB set attempt {attempt+1}/{max_retries} failed: {e}. Using RDS fallback."
+                    f"[HALT_FLAG] DynamoDB set attempt {attempt + 1}/{max_retries} failed: {e}. Using RDS fallback."
                 )
                 try:
                     rds_result = self._set_halt_flag_rds(reason, now_utc, now_et)
                     if not rds_result:
                         last_error = RuntimeError("RDS returned False (write failed)")
-                        logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
+                        logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt + 1})")
                         if attempt < max_retries - 1:
                             import time
 
@@ -506,7 +506,7 @@ class HaltFlagManager:
                             break
                     return rds_result  # Return True on success
                 except Exception as rds_err:
-                    logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt+1}): {rds_err}")
+                    logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt + 1}): {rds_err}")
                     last_error = rds_err
                     if attempt < max_retries - 1:
                         import time
@@ -641,10 +641,7 @@ class HaltFlagManager:
                             "Breaking deadlock by auto-clearing."
                         )
                         logger.critical(f"[PROACTIVE_CLEAR] {msg}")
-                        clear_reason = (
-                            "Proactive clear at startup: halt from prior trading day "
-                            "post-market-open"
-                        )
+                        clear_reason = "Proactive clear at startup: halt from prior trading day post-market-open"
                         table.put_item(
                             Item={
                                 "key": self.HALT_FLAG_DYNAMODB_KEY,
@@ -820,7 +817,7 @@ class HaltFlagManager:
             except Exception as e:
                 last_error = e
                 logger.debug(
-                    f"[HALT_FLAG] DynamoDB clear attempt {attempt+1}/{max_retries} failed: {e}. Will try RDS fallback."
+                    f"[HALT_FLAG] DynamoDB clear attempt {attempt + 1}/{max_retries} failed: {e}. Will try RDS fallback."
                 )
 
                 # Try RDS fallback
@@ -828,7 +825,7 @@ class HaltFlagManager:
                     rds_result = self._clear_halt_flag_rds(reason)
                     if not rds_result:
                         last_error = RuntimeError("RDS returned False (write failed)")
-                        logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
+                        logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt + 1})")
                         if attempt < max_retries - 1:
                             import time
 
@@ -838,7 +835,7 @@ class HaltFlagManager:
                             break
                     return rds_result  # Return True on success
                 except Exception as rds_err:
-                    logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt+1}): {rds_err}")
+                    logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt + 1}): {rds_err}")
                     last_error = rds_err
                     if attempt < max_retries - 1:
                         import time

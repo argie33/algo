@@ -12,6 +12,11 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
+
 from rich.console import Console
 
 from dashboard.error_boundary import has_error
@@ -125,6 +130,7 @@ class _WindowsSafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     Overriding doRollover() instead catches the failure at its actual source.
     """
 
+    @override
     def doRollover(self) -> None:
         try:
             super().doRollover()

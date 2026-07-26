@@ -796,8 +796,7 @@ class AdvancedFilters:
         if row is None:
             # Shouldn't happen (query would return 0,0 not NULL) but safeguard
             logger.warning(
-                f"  {symbol}: analyst_upgrade_downgrade query returned NULL. "
-                "Treating as 0 analyst activity."
+                f"  {symbol}: analyst_upgrade_downgrade query returned NULL. Treating as 0 analyst activity."
             )
             return 0.0, 0
 
