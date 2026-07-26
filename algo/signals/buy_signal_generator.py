@@ -205,6 +205,7 @@ class BuySignalGenerator:
                     "exit_trigger_1_price": entry_exit["exit_trigger_1"],
                     "exit_trigger_2_price": entry_exit["exit_trigger_2"],
                     "technical_data_age_days": tech_data_age,
+                    "entry_price": float(close) if close is not None else None,
                 }
                 signals.append(signal)
 
