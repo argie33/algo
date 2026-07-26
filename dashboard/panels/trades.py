@@ -429,6 +429,7 @@ def panel_trades_expanded(trades: Any) -> Any:
         "time": "time",
         "closed position recorded during reconciliation - pending fill price confirmation": "recon",
         "closed position recorded during reconciliation": "recon",
+        "delisted_alpaca_404_force_close": "dlst",
     }
 
     tbl = Table(
@@ -506,10 +507,13 @@ def panel_trades_expanded(trades: Any) -> Any:
         else:
             exit_rsn_raw = str(exit_rsn_val).lower().strip()
             if exit_rsn_raw not in exit_short:
-                logger.warning(
-                    f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: unknown exit_reason '{exit_rsn_raw}'. "
-                    f"Expected one of {list(exit_short.keys())}. Check API schema or add mapping."
-                )
+                if "stop triggered at" in exit_rsn_raw:
+                    exit_rsn_raw = "stop"
+                else:
+                    logger.warning(
+                        f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: unknown exit_reason '{exit_rsn_raw}'. "
+                        f"Expected one of {list(exit_short.keys())}. Check API schema or add mapping."
+                    )
         exit_rsn = exit_short.get(exit_rsn_raw, "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 

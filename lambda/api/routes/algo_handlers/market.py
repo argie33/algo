@@ -284,12 +284,20 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "manual_positions",
         }
 
-        cur.execute("""
-                SELECT table_name, row_count, last_updated
-                FROM data_loader_status
-                ORDER BY table_name
-            """)
-        loader_rows_raw = cur.fetchall()
+        try:
+            cur.execute("""
+                    SELECT table_name, row_count, last_updated
+                    FROM data_loader_status
+                    ORDER BY table_name
+                """)
+            loader_rows_raw = cur.fetchall()
+        except psycopg2.errors.UndefinedTable:
+            logger.warning("[DATA_STATUS] data_loader_status table does not exist - will only report algo-generated tables")
+            loader_rows_raw = []
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[DATA_STATUS] Could not query data_loader_status: {e} - will only report algo-generated tables")
+            loader_rows_raw = []
+
         loader_rows = []
         for r in loader_rows_raw:
             r_dict = safe_dict_convert(r)
@@ -376,8 +384,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                             "last_updated": r_dict.get("last_updated"),
                         }
                     )
+            except psycopg2.errors.UndefinedTable:
+                logger.warning(f"[DATA_STATUS] Table {tbl_name} does not exist - skipping")
+                continue
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise RuntimeError(f"Unexpected error: {e}") from e
+                logger.warning(f"[DATA_STATUS] Could not query {tbl_name}: {e}")
+                continue
 
         # CRITICAL FIX: For loader tables with NULL row_count/last_updated, fetch actual values from database
         # data_loader_status.row_count/last_updated are populated by loaders on run, but orchestrator-generated
