@@ -635,24 +635,22 @@ def run(
                         f"[PHASE 8] Phase 5 returned {phase5_result.status} but constraints dict is empty. "
                         f"This is a data contract violation - Phase 5 must always return constraints."
                     )
-            else:
+
+            # Apply safe defaults if constraints are missing or incomplete
+            if exposure_constraints_from_executor is None:
                 logger.warning(
-                    "[PHASE 8] Phase 5 unavailable (skipped or errored) - using safe halt constraints. "
-                    "This occurs when an earlier phase halts (e.g., stale data in Phase 1). "
-                    "Position entry will be blocked until Phase 5 completes successfully."
+                    "[PHASE 8] Exposure constraints unavailable or incomplete - using safe halt constraints. "
+                    "Position entry will be blocked until valid constraints are available."
                 )
-                # CRITICAL FIX: When Phase 5 is unavailable (skipped due to Phase 1 halt, or Phase 5 itself errored),
-                # provide safe default halt constraints to prevent Phase 8 from crashing.
-                # This allows the orchestrator to complete safely even when earlier phases fail.
                 exposure_constraints_from_executor = {
                     "regime": "correction",
                     "tier_name": "CORRECTION",
-                    "description": "Phase 5 unavailable - safe halt defaults applied",
+                    "description": "Safe halt defaults (constraints unavailable)",
                     "risk_multiplier": 0.0,
                     "max_new_positions_today": 0,
                     "halt_new_entries": True,
                     "max_concentration_pct": 0.0,
-                    "halt_reason": "Phase 5 (Exposure Policy) unavailable - prior phase may have halted",
+                    "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
                 }
         except Exception as e:
             logger.warning(f"[PHASE 8] Could not fetch Phase 7/5 data: {e}. Proceeding with available data.")
