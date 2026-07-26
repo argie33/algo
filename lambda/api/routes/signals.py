@@ -222,7 +222,7 @@ def _get_signals_stocks(
                 b.substage
             FROM buy_sell_daily b
             LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
-            LEFT JOIN company_profile cp ON cp.ticker = b.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = b.symbol
             WHERE b.date >= CURRENT_DATE - {interval_90d}
             {buy_sell_filter}
             {symbol_clause}
@@ -294,7 +294,7 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
                 COALESCE(cp.short_name, cp.long_name, pd.symbol) AS company_name
             FROM etf_price_daily pd
             INNER JOIN trend_template_data tt ON tt.symbol = pd.symbol AND tt.date = pd.date
-            LEFT JOIN company_profile cp ON cp.ticker = pd.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = pd.symbol
             WHERE pd.symbol = ANY(%s)
             AND pd.date >= CURRENT_DATE - {interval_90d_etf}
             ORDER BY pd.date DESC, pd.symbol

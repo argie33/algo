@@ -58,7 +58,7 @@ def handle(  # noqa: C901
                 SELECT ss.symbol, ss.security_name as company_name,
                        cp.sector, cp.industry, cp.website, cp.employees, cp.exchange
                 FROM stock_symbols ss
-                LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+                LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
                 WHERE ss.symbol = %s
             """,
                 (symbol.upper(),),
@@ -137,7 +137,7 @@ def handle(  # noqa: C901
                     SELECT cp.sector,
                            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY vm.pe_ratio) AS sector_median_pe
                     FROM value_metrics vm
-                    JOIN company_profile cp ON cp.ticker = vm.symbol
+                    JOIN company_profile cp ON cp.symbol = vm.symbol
                     WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200
                     GROUP BY cp.sector
                 ),
@@ -259,7 +259,7 @@ def handle(  # noqa: C901
                     END AS quality_rank
                 FROM value_stocks vs
                 JOIN stock_symbols ss ON ss.symbol = vs.symbol
-                LEFT JOIN company_profile cp ON cp.ticker = vs.symbol
+                LEFT JOIN company_profile cp ON cp.symbol = vs.symbol
                 LEFT JOIN latest_prices lp ON lp.symbol = vs.symbol
                 LEFT JOIN stats_52w s52 ON s52.symbol = vs.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = vs.symbol
@@ -358,7 +358,7 @@ def handle(  # noqa: C901
                    cp.industry,
                    ss.is_sp500
             FROM stock_symbols ss
-            LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+            LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
             WHERE """
             + where_sql
             + """
@@ -374,7 +374,7 @@ def handle(  # noqa: C901
         cur.execute(
             """
             SELECT COUNT(*) FROM stock_symbols ss
-            LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+            LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
             WHERE """ + where_sql,
             query_params,
         )

@@ -1201,7 +1201,7 @@ class CircuitBreaker:
                 -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
                 SELECT ap.symbol, cp.sector
                 FROM algo_positions ap
-                LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                LEFT JOIN company_profile cp ON cp.symbol = ap.symbol
                 WHERE ap.status = 'open'
                 """)
             rows = cur.fetchall()

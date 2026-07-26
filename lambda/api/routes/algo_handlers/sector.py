@@ -80,7 +80,7 @@ def _get_sector_breadth(cur: cursor) -> Any:
                         lt.symbol, lp.close, lt.sma_50, lt.sma_200, cp.sector
                     FROM latest_tech lt
                     JOIN latest_price lp ON lt.symbol = lp.symbol
-                    JOIN company_profile cp ON lt.symbol = cp.ticker
+                    JOIN company_profile cp ON lt.symbol = cp.symbol
                     WHERE cp.sector IS NOT NULL
                     ORDER BY lt.symbol
                 ),
@@ -174,7 +174,7 @@ def _get_sector_position_warnings(cur: cursor) -> Any:
         cur.execute("""
                 SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
                 FROM algo_positions ap
-                LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
                 WHERE ap.status = 'open' AND ap.quantity > 0
                 GROUP BY cp.sector
                 ORDER BY position_count DESC
@@ -294,7 +294,7 @@ def _get_sector_stage2(cur: cursor) -> Any:
                     SELECT DISTINCT ON (t.symbol)
                         t.symbol, t.weinstein_stage, cp.sector
                     FROM trend_template_data t
-                    JOIN company_profile cp ON t.symbol = cp.ticker
+                    JOIN company_profile cp ON t.symbol = cp.symbol
                     WHERE t.date = (SELECT date FROM latest_date)
                       AND cp.sector IS NOT NULL
                     ORDER BY t.symbol

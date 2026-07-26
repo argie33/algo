@@ -76,7 +76,7 @@ def handle(  # noqa: C901
                     pm.institutional_ownership_pct AS held_percent_institutions
                 FROM value_metrics vm
                 LEFT JOIN quality_metrics qm ON vm.symbol = qm.symbol
-                LEFT JOIN company_profile cp ON vm.symbol = cp.ticker
+                LEFT JOIN company_profile cp ON vm.symbol = cp.symbol
                 LEFT JOIN positioning_metrics pm ON vm.symbol = pm.symbol
                 WHERE vm.symbol = %s AND vm.symbol IS NOT NULL
                 ORDER BY vm.symbol DESC

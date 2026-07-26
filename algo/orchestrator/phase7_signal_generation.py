@@ -385,7 +385,7 @@ def _get_candidates_from_buysell(
                         ) t
                         WHERE tr IS NOT NULL AND rn <= 14
                     ) atr_calc ON TRUE
-                    LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
+                    LEFT JOIN company_profile cp ON cp.symbol = bsd.symbol
                     WHERE ss.composite_score >= %s
                       AND ss.data_completeness >= 70
                       AND (ss.data_unavailable = false OR ss.data_unavailable IS NULL)

@@ -1317,7 +1317,7 @@ def _get_cap_distribution(cur: cursor) -> Any:
                 ELSE 'micro_cap'
             END AS market_cap_category
         FROM stock_symbols ss
-        JOIN company_profile cp ON ss.symbol = cp.ticker AND cp.sector IS NOT NULL
+        JOIN company_profile cp ON ss.symbol = cp.symbol AND cp.sector IS NOT NULL
         JOIN key_metrics km ON ss.symbol = km.symbol AND km.market_cap > 0
         WHERE ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
         ORDER BY km.market_cap DESC

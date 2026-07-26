@@ -1655,7 +1655,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                            END AS market_stage,
                            t.weinstein_stage AS stage_number
                     FROM algo_signals s
-                    LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                    LEFT JOIN company_profile cp ON cp.symbol = s.symbol
                     LEFT JOIN LATERAL (
                         SELECT close, buylevel, stoplevel, buy_zone_start, buy_zone_end, pivot_price,
                                initial_stop, trailing_stop, profit_target_8pct, profit_target_20pct,
@@ -1723,7 +1723,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             cur.execute("""
                 SELECT s.symbol, s.signal_quality_score AS score, cp.sector
                 FROM algo_signals s
-                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                LEFT JOIN company_profile cp ON cp.symbol = s.symbol
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score BETWEEN 55 AND 69
                 ORDER BY s.signal_quality_score DESC NULLS LAST

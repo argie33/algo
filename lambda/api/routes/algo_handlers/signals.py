@@ -55,7 +55,7 @@ def _validate_portfolio_snapshot(cur: cursor) -> tuple[dict[str, Any], Any] | An
 def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
     cur.execute(
         """
-        SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1
+        SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1
     """,
         (symbol,),
     )
@@ -83,7 +83,7 @@ def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
                    SUM(ap.position_value) AS sector_value,
                    COUNT(ap.symbol) as sector_position_count
             FROM algo_positions ap
-            LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+            LEFT JOIN company_profile cp ON cp.symbol = ap.symbol
             WHERE ap.status = 'open'
             GROUP BY cp.sector
         """)
@@ -634,7 +634,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
                     t.weinstein_stage AS stage, t.minervini_trend_score AS trend_template_score,
                     jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, ''), 'trend_direction', t.trend_direction) AS details
                 FROM stock_scores s
-                LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+                LEFT JOIN company_profile cp ON s.symbol = cp.symbol
                 LEFT JOIN trend_template_data t ON t.symbol = s.symbol
                     AND t.date = (SELECT MAX(tt.date) FROM trend_template_data tt WHERE tt.symbol = s.symbol)
                 WHERE {where_clause}

@@ -63,54 +63,53 @@ class DividendDataLoader(SecLoaderBase):
         """Extract dividend information from XBRL financial statements.
 
         Looks for dividend declarations in 10-Q and 10-K filings.
+        Only returns the most recent dividend payment per year to avoid duplicates.
         """
         try:
             from utils.db import DatabaseContext
 
             results = []
 
-            # Query recent dividend declarations from SEC filings
+            # Query recent dividend declarations from SEC filings (up to 3 years)
             with DatabaseContext() as db:
-                # Look for historical dividend records
                 rows = db.query(
                     """
                     SELECT DISTINCT
-                        fiscal_year, fiscal_period, div_per_share_declared
+                        fiscal_year, div_per_share_declared
                     FROM annual_income_statement
                     WHERE symbol = %s
                         AND div_per_share_declared IS NOT NULL
                         AND div_per_share_declared > 0
-                    ORDER BY fiscal_year DESC, fiscal_period DESC
-                    LIMIT 8
+                        AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE) - 3
+                    ORDER BY fiscal_year DESC
+                    LIMIT 4
                     """,
                     (symbol,),
                 )
 
                 if rows:
                     for row in rows:
-                        fiscal_year, fiscal_period, div_per_share = row
-                        # Estimate ex-date based on fiscal period
-                        # (This is approximate - real dates would come from 8-K)
-                        ex_date = self._estimate_ex_date(fiscal_year, fiscal_period)
+                        fiscal_year, div_per_share = row
+                        # Estimate ex-date as end of fiscal year
+                        ex_date = self._estimate_ex_date(fiscal_year, "FY")
 
-                        if ex_date >= date.today() - timedelta(days=90):
-                            results.append(
-                                {
-                                    "symbol": symbol,
-                                    "declaration_date": None,
-                                    "ex_dividend_date": ex_date,
-                                    "record_date": None,
-                                    "payment_date": ex_date + timedelta(days=30),
-                                    "dividend_per_share": div_per_share,
-                                    "dividend_yield_pct": None,
-                                    "total_dividend_amount": None,
-                                    "dividend_type": "regular",
-                                    "currency": "USD",
-                                    "data_unavailable": False,
-                                    "data_unavailable_reason": None,
-                                    "source": "SEC_XBRL",
-                                }
-                            )
+                        results.append(
+                            {
+                                "symbol": symbol,
+                                "declaration_date": None,
+                                "ex_dividend_date": ex_date,
+                                "record_date": None,
+                                "payment_date": ex_date + timedelta(days=30),
+                                "dividend_per_share": div_per_share,
+                                "dividend_yield_pct": None,
+                                "total_dividend_amount": None,
+                                "dividend_type": "regular",
+                                "currency": "USD",
+                                "data_unavailable": False,
+                                "data_unavailable_reason": None,
+                                "source": "SEC_XBRL",
+                            }
+                        )
 
             return results
 
@@ -118,7 +117,7 @@ class DividendDataLoader(SecLoaderBase):
             logger.debug(f"[{symbol}] XBRL dividend extraction error: {e}")
             return []
 
-    def fetch_incremental(self, symbol: str, since: date) -> list[dict[str, Any]]:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol since given date.
 
         Fail-fast pattern (GOVERNANCE.md): First attempts XBRL extraction (official source),

@@ -247,7 +247,7 @@ class PositionMonitor:
                     -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
                     SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
                     FROM algo_positions ap
-                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                    LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
                     WHERE ap.status = 'open' AND ap.quantity > 0
                     GROUP BY cp.sector
                     HAVING COUNT(DISTINCT ap.symbol) > 3
@@ -884,7 +884,7 @@ class PositionMonitor:
             return "neutral"
 
         cur.execute(
-            "SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1",
+            "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
             (symbol,),
         )
         srow = cur.fetchone()

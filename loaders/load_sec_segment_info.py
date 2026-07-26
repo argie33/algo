@@ -19,10 +19,8 @@ from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
-from utils.db.context import DatabaseContext
 from utils.external.sec_edgar_client import SecEdgarClient
 from utils.external.sec_xbrl_segments import XBRLSegmentParser
-from utils.loaders.exception_handler import handle_exception
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +38,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
     watermark_field = "parsed_at"
     exclude_etfs_from_symbols = True
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize loader with SEC Edgar client."""
         super().__init__()
         self.sec_client = SecEdgarClient()
@@ -142,7 +140,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         except Exception as e:
             logger.error(f"[{symbol}] Segment extraction failed: {type(e).__name__}: {str(e)[:300]}", exc_info=True)
-            return [handle_exception(symbol, e, "sec_segment_info")]
+            return [self._unavailable_marker(symbol, f"extraction_error:{type(e).__name__}")]
 
     def _extract_filing_date(self, facts_response: dict) -> date | None:
         """Extract most recent filing date from companyfacts response.
@@ -178,7 +176,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
         except Exception:
             return None
 
-    def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
+    def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any | None]:
         """Build a data_unavailable row for a symbol with no segment disclosure."""
         return {
             "symbol": symbol,

@@ -600,7 +600,7 @@ class ValueAtRisk:
                     SELECT ap.symbol, ap.quantity, ap.current_price,
                            cp.sector, cp.industry
                     FROM algo_positions ap
-                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                    LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
                     WHERE ap.status = 'open'
                     ORDER BY ap.position_value DESC
                     """)

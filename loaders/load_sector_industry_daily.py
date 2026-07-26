@@ -227,7 +227,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                             AVG(ss.composite_score) AS avg_score,
                             RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM stock_scores ss
-                        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+                        LEFT JOIN company_profile cp ON ss.symbol = cp.symbol
                         WHERE ss.composite_score IS NOT NULL
                         GROUP BY COALESCE(cp.sector, 'Unknown')
                     )
@@ -304,7 +304,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                             AVG(ss.composite_score) AS avg_score,
                             RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM company_profile cp
-                        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
                         WHERE cp.industry IS NOT NULL
                           AND cp.industry != ''
                           AND ss.composite_score IS NOT NULL

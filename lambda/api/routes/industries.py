@@ -158,21 +158,21 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 FROM company_profile cp
                 JOIN LATERAL (
                     SELECT close FROM price_daily
-                    WHERE symbol = cp.ticker ORDER BY date DESC LIMIT 1
+                    WHERE symbol = cp.symbol ORDER BY date DESC LIMIT 1
                 ) pnow ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT close FROM price_daily
-                    WHERE symbol = cp.ticker AND date <= CURRENT_DATE - {interval_1d}
+                    WHERE symbol = cp.symbol AND date <= CURRENT_DATE - {interval_1d}
                     ORDER BY date DESC LIMIT 1
                 ) p1 ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT close FROM price_daily
-                    WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '5 days'
+                    WHERE symbol = cp.symbol AND date <= CURRENT_DATE - INTERVAL '5 days'
                     ORDER BY date DESC LIMIT 1
                 ) p5 ON TRUE
                 LEFT JOIN LATERAL (
                     SELECT close FROM price_daily
-                    WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '20 days'
+                    WHERE symbol = cp.symbol AND date <= CURRENT_DATE - INTERVAL '20 days'
                     ORDER BY date DESC LIMIT 1
                 ) p20 ON TRUE
                 WHERE cp.industry IS NOT NULL AND cp.industry != ''
@@ -298,7 +298,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
             """
             SELECT
                 cp.industry AS industry_name,
-                COUNT(DISTINCT cp.ticker) AS stock_count,
+                COUNT(DISTINCT cp.symbol) AS stock_count,
                 AVG(ss.composite_score)  AS composite_score,
                 AVG(ss.momentum_score)   AS momentum_score,
                 AVG(ss.value_score)      AS value_score,
@@ -306,10 +306,10 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
                 AVG(ss.growth_score)     AS growth_score,
                 AVG(ss.stability_score)  AS stability_score
             FROM company_profile cp
-            LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+            LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
                 AND (ss.data_unavailable = FALSE OR ss.data_unavailable IS NULL)
             WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
-            AND cp.ticker NOT IN (SELECT symbol FROM etf_symbols)
+            AND cp.symbol NOT IN (SELECT symbol FROM etf_symbols)
             GROUP BY cp.industry
         """,
             (industry_name,),
@@ -375,7 +375,7 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
                     AVG(CAST(pd.close AS FLOAT))         AS avg_price,
                     COUNT(DISTINCT pd.symbol)            AS stock_count
                 FROM price_daily pd
-                JOIN company_profile cp ON pd.symbol = cp.ticker
+                JOIN company_profile cp ON pd.symbol = cp.symbol
                 WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
                   AND pd.date >= CURRENT_DATE - (%s * {interval_1d})
                   AND pd.close > 0

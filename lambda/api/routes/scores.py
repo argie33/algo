@@ -299,7 +299,7 @@ def _get_stock_scores(
                     mm.momentum_12m AS momentum_12m_val,
                     (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable
                 FROM filtered_scores fs
-                LEFT JOIN company_profile cp ON cp.ticker = fs.symbol
+                LEFT JOIN company_profile cp ON cp.symbol = fs.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = fs.symbol
                 LEFT JOIN quality_metrics qm ON qm.symbol = fs.symbol
                 LEFT JOIN growth_metrics gm ON gm.symbol = fs.symbol

@@ -59,7 +59,7 @@ def handle(  # noqa: C901
                     f"""
                         SELECT cp.sector, pd.date, AVG(pd.close) AS "avgPrice"
                         FROM price_daily pd
-                        JOIN company_profile cp ON pd.symbol = cp.ticker
+                        JOIN company_profile cp ON pd.symbol = cp.symbol
                         WHERE cp.sector IN ({placeholders})
                           AND pd.date >= CURRENT_DATE - (%s || ' days')::interval
                         GROUP BY cp.sector, pd.date
@@ -106,7 +106,7 @@ def handle(  # noqa: C901
                                 pd.date,
                                 AVG(pd.close) AS "avgPrice"
                             FROM price_daily pd
-                            JOIN company_profile cp ON pd.symbol = cp.ticker
+                            JOIN company_profile cp ON pd.symbol = cp.symbol
                             WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s || ' days')::interval
                             GROUP BY pd.date
                         ),
@@ -164,7 +164,7 @@ def handle(  # noqa: C901
                         WITH sector_daily_avg AS (
                             SELECT pd.date, AVG(pd.close) AS avg_close
                             FROM price_daily pd
-                            JOIN company_profile cp ON pd.symbol = cp.ticker
+                            JOIN company_profile cp ON pd.symbol = cp.symbol
                             WHERE cp.sector = %s
                               AND pd.date >= CURRENT_DATE - ((%s::int + 1) || ' days')::interval
                             GROUP BY pd.date
@@ -240,21 +240,21 @@ def handle(  # noqa: C901
                         FROM company_profile cp
                         JOIN LATERAL (
                             SELECT close FROM price_daily
-                            WHERE symbol = cp.ticker ORDER BY date DESC LIMIT 1
+                            WHERE symbol = cp.symbol ORDER BY date DESC LIMIT 1
                         ) pnow ON TRUE
                         LEFT JOIN LATERAL (
                             SELECT close FROM price_daily
-                            WHERE symbol = cp.ticker AND date <= CURRENT_DATE - {interval_1d}
+                            WHERE symbol = cp.symbol AND date <= CURRENT_DATE - {interval_1d}
                             ORDER BY date DESC LIMIT 1
                         ) p1 ON TRUE
                         LEFT JOIN LATERAL (
                             SELECT close FROM price_daily
-                            WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '5 days'
+                            WHERE symbol = cp.symbol AND date <= CURRENT_DATE - INTERVAL '5 days'
                             ORDER BY date DESC LIMIT 1
                         ) p5 ON TRUE
                         LEFT JOIN LATERAL (
                             SELECT close FROM price_daily
-                            WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '20 days'
+                            WHERE symbol = cp.symbol AND date <= CURRENT_DATE - INTERVAL '20 days'
                             ORDER BY date DESC LIMIT 1
                         ) p20 ON TRUE
                         WHERE cp.sector IS NOT NULL
@@ -263,7 +263,7 @@ def handle(  # noqa: C901
                     sector_scores AS (
                         SELECT
                             cp.sector as sector_name,
-                            COUNT(DISTINCT cp.ticker) as stock_count,
+                            COUNT(DISTINCT cp.symbol) as stock_count,
                             AVG(ss.composite_score) as composite_score,
                             AVG(ss.momentum_score) as momentum_score,
                             AVG(ss.value_score) as value_score,
@@ -275,7 +275,7 @@ def handle(  # noqa: C901
                             sp.perf_20d,
                             (sp.sector IS NULL) as _is_fallback
                         FROM company_profile cp
-                        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+                        LEFT JOIN stock_scores ss ON cp.symbol = ss.symbol
                         LEFT JOIN sector_perf sp ON sp.sector = cp.sector
                         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != '' AND cp.sector != 'Unknown'
                         GROUP BY cp.sector, sp.perf_1d, sp.perf_5d, sp.perf_20d, sp.sector
@@ -291,7 +291,7 @@ def handle(  # noqa: C901
                             AVG(vm.pe_ratio) FILTER (WHERE vm.pe_ratio > 0 AND vm.pe_ratio < 200) AS avg_trailing_pe,
                             AVG(vm.pb_ratio) FILTER (WHERE vm.pb_ratio > 0 AND vm.pb_ratio < 50)  AS avg_pb_ratio
                         FROM value_metrics vm
-                        JOIN company_profile cp ON vm.symbol = cp.ticker
+                        JOIN company_profile cp ON vm.symbol = cp.symbol
                         WHERE cp.sector IS NOT NULL
                         GROUP BY cp.sector
                     ),

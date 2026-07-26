@@ -125,7 +125,7 @@ class CurrentReports8KLoader(SecLoaderBase):
 
         return items
 
-    def fetch_incremental(self, symbol: str, since: date) -> list[dict[str, Any]]:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch Form 8-K filings for symbol since given date.
 
         Args:

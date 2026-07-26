@@ -224,7 +224,7 @@ class PreTradeChecks:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
+                    "SELECT sector, industry FROM company_profile WHERE symbol = %s LIMIT 1",
                     (symbol,),
                 )
                 row = cur.fetchone()
@@ -245,7 +245,7 @@ class PreTradeChecks:
 
                 cur.execute(
                     """SELECT COUNT(*) FROM algo_positions ap
-                       LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                       LEFT JOIN company_profile cp ON cp.symbol = ap.symbol
                        WHERE ap.status = %s AND cp.sector = %s""",
                     ("open", sector),
                 )
@@ -261,7 +261,7 @@ class PreTradeChecks:
 
                 cur.execute(
                     """SELECT COUNT(*) FROM algo_positions ap
-                       LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
+                       LEFT JOIN company_profile cp ON cp.symbol = ap.symbol
                        WHERE ap.status = %s AND cp.industry = %s""",
                     ("open", industry),
                 )
