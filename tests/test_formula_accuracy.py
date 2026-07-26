@@ -4,9 +4,6 @@ Finance-grade testing for all critical calculations.
 """
 
 import math
-from decimal import Decimal
-
-import pytest
 
 
 class TestVolatilityCalculation:
