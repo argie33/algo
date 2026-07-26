@@ -319,6 +319,7 @@ VALIDATION_SCHEMA = {
     "patrol_market_exposure_daily_min": ("float", 0.0, 100.0, False, 10.0),  # Min market exposure for daily check
     "patrol_technical_daily_14d_min": ("int", 0, 100, False, 90),  # Min technical data coverage 14d
     "patrol_trend_14d_min": ("int", 0, 100, False, 90),  # Min trend data coverage 14d
+    "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
     # Alpaca Credentials (alternative naming)
     "alpaca_api_key": ("string", None, None, False, None),  # Alpaca API key (alias for alpaca_api_key_id)
     "alpaca_api_secret": ("string", None, None, False, None),  # Alpaca API secret (alias for alpaca_api_secret_key)
