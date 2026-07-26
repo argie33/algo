@@ -131,6 +131,7 @@ SAFE_TABLES = {
     "current_reports_8k",  # Phase 2: SEC Form 8-K material events (acquisitions, bankruptcies, etc.)
     "dividend_data",  # Phase 2: Dividend ex-dates and payment dates (position management)
     "sec_segment_info",  # Phase 3: SEC XBRL segment disclosure data (ASC 280) - source for diversification metrics
+    "sec_segment_metrics",  # Phase 3: Segment diversification metrics (Herfindahl index) from sec_segment_info
     "company_info_sec",  # Phase 3: SEC company master data (replaces yfinance company info)
     "earnings_calendar_sec",  # Phase 3: SEC earnings dates (replaces yfinance earnings_date)
     # Phase 1-4 Consolidation (Session 204+)

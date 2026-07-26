@@ -403,8 +403,9 @@ locals {
     "insider_holdings_sec" = "load_insider_holdings_sec.py"
     "insider_transaction_velocity" = "load_insider_transaction_velocity.py"
 
-    # SEC cash flow & segment metrics
+    # SEC cash flow & segment metrics (Session 445: XBRL segment disclosure extraction)
     "sec_cash_flow_metrics" = "load_sec_cash_flow_metrics.py"
+    "sec_segment_info" = "load_sec_segment_info.py"  # XBRL ASC 280 segment disclosure parser (source for segment_metrics)
     "sec_segment_metrics" = "load_sec_segment_metrics.py"
 
     # SEC Current Reports (8-K) and Dividend Data (Session 444: XBRL expansion)
@@ -618,6 +619,7 @@ locals {
     "insider_holdings_sec",
     "insider_transaction_velocity",
     "sec_cash_flow_metrics",
+    "sec_segment_info",
     "sec_segment_metrics",
 
     # Signals & execution

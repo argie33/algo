@@ -45,6 +45,8 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     "trend_template_data": LoaderPriority.PHASE_1_OPTIONAL,
     "sector_ranking": LoaderPriority.PHASE_1_OPTIONAL,
     "insider_transaction_velocity": LoaderPriority.PHASE_1_OPTIONAL,  # Session 444: Insider confidence scoring (enrichment for positioning_metrics)
+    "sec_segment_info": LoaderPriority.PHASE_1_OPTIONAL,  # XBRL segment disclosure source for diversification metrics (enrichment for quality_metrics)
+    "sec_segment_metrics": LoaderPriority.PHASE_1_OPTIONAL,  # Segment diversification (Herfindahl index) from sec_segment_info (enrichment for quality_metrics)
     # ===== BACKGROUND (low priority, can run anytime) =====
     # These don't block trading; dashboard shows graceful degradation if missing
     "aaii_sentiment": LoaderPriority.BACKGROUND,

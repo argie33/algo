@@ -49,6 +49,8 @@ LOADER_SLA_TARGETS = {
     "russell2000_constituents": (5 * 60, 10 * 60, 20 * 60),
     # SEC data (auxiliary, graceful degradation)
     "insider_transaction_velocity": (15 * 60, 30 * 60, 60 * 60),  # Session 444: Insider confidence scoring
+    "sec_segment_info": (30 * 60, 60 * 60, 90 * 60),  # XBRL segment extraction (per-symbol companyfacts API)
+    "sec_segment_metrics": (15 * 60, 30 * 60, 60 * 60),  # Diversification metrics from segment data
 }
 
 # Pipeline SLA targets (minute-based)

@@ -63,11 +63,9 @@ CREATE INDEX IF NOT EXISTS idx_current_reports_8k_filing_date ON current_reports
 CREATE INDEX IF NOT EXISTS idx_current_reports_8k_updated ON current_reports_8k(updated_at DESC);
 
 -- Register in loader status tracking
-INSERT INTO loader_status_registry (table_name, loader_name, is_critical, data_tier)
-VALUES ('current_reports_8k', 'load_current_reports_8k', FALSE, 'AUXILIARY_COMPLETE')
-ON CONFLICT (table_name) DO UPDATE SET
-    loader_name = 'load_current_reports_8k',
-    is_critical = FALSE,
-    data_tier = 'AUXILIARY_COMPLETE';
+INSERT INTO data_loader_status (table_name, completion_pct, last_updated)
+VALUES ('current_reports_8k', 0.0, NOW())
+ON CONFLICT (table_name) DO UPDATE
+SET last_updated = NOW();
 
 COMMIT;

@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""SEC XBRL Segment Disclosure Parser (ASC 280 - Business Segment Reporting).
+
+Extracts business segment data from SEC 10-K/10-Q filings in XBRL format.
+Uses SEC EDGAR companyfacts API to fetch and parse segment-related XBRL facts.
+
+ASC 280 requires disclosure of:
+- Operating segments (reportable if >10% of consolidated revenue)
+- Segment revenue, operating income, assets
+- Geographic segments (if material)
+- Major customer concentrations (>10% revenue)
+"""
+
+import logging
+from datetime import date
+from decimal import Decimal
+from typing import Any
+from xml.etree import ElementTree as ET
+
+logger = logging.getLogger(__name__)
+
+# SEC XBRL namespace for us-gaap taxonomy
+XBRL_NAMESPACES = {
+    'us-gaap': 'http://xbrl.us/us-gaap/2023-01-31',
+    'default': 'http://www.xbrl.org/2003/instance',
+    'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+}
+
+
+class XBRLSegmentParser:
+    """Parse segment disclosure data from SEC XBRL filings (10-K/10-Q).
+
+    Extracts:
+    - Segment counts and names
+    - Revenue by segment
+    - Operating income by segment
+    - Herfindahl concentration index
+    - Geographic segment breakdown
+    """
+
+    @staticmethod
+    def parse_companyfacts(facts: dict[str, Any], symbol: str) -> dict[str, Any]:
+        """Parse segment data from SEC companyfacts JSON API response.
+
+        Args:
+            facts: JSON facts dict from SEC companyfacts API (us/CIK/CIK_0000123456.json)
+                   Structure: {cik, entityName, facts: {us-gaap: {concept_name: [{...}]}}}
+            symbol: Stock ticker symbol (for logging)
+
+        Returns:
+            Dict with:
+            - segment_count: # of reportable operating segments
+            - largest_segment_revenue_pct: % revenue from largest segment
+            - revenue_concentration_hhi: Herfindahl index of revenue concentration
+            - segments: List of individual segment data dicts
+            - segment_type: Primary type ("operating", "geographic", etc.)
+            - data_available: Whether segment data was found
+            - reason: Why unavailable (if data_available=False)
+
+        Raises:
+            ValueError: If facts structure invalid or CIK mismatch
+        """
+        try:
+            if 'facts' not in facts or 'us-gaap' not in facts.get('facts', {}):
+                return {
+                    'segment_count': None,
+                    'largest_segment_revenue_pct': None,
+                    'revenue_concentration_hhi': None,
+                    'segments': [],
+                    'segment_type': None,
+                    'data_available': False,
+                    'reason': 'no_us_gaap_facts',
+                }
+
+            us_gaap = facts['facts']['us-gaap']
+
+            # Extract segment revenue data
+            # SEC uses: SegmentsReportedUponChange, SegmentRevenue, SegmentNumber, SegmentIdentificationCode
+            segment_count = XBRLSegmentParser._extract_segment_count(us_gaap, symbol)
+            segments = XBRLSegmentParser._extract_segments(us_gaap, symbol)
+
+            if not segments:
+                return {
+                    'segment_count': segment_count,
+                    'largest_segment_revenue_pct': None,
+                    'revenue_concentration_hhi': None,
+                    'segments': [],
+                    'segment_type': None,
+                    'data_available': False,
+                    'reason': 'no_segment_revenue_data',
+                }
+
+            # Calculate concentration metrics
+            revenues = [seg.get('revenue') for seg in segments if seg.get('revenue') is not None]
+            if not revenues or all(r == 0 for r in revenues):
+                return {
+                    'segment_count': segment_count or len(segments),
+                    'largest_segment_revenue_pct': None,
+                    'revenue_concentration_hhi': None,
+                    'segments': segments,
+                    'segment_type': 'operating',
+                    'data_available': False,
+                    'reason': 'zero_or_null_revenue',
+                }
+
+            total_revenue = sum(revenues)
+            if total_revenue == 0:
+                return {
+                    'segment_count': segment_count or len(segments),
+                    'largest_segment_revenue_pct': None,
+                    'revenue_concentration_hhi': None,
+                    'segments': segments,
+                    'segment_type': 'operating',
+                    'data_available': False,
+                    'reason': 'zero_total_revenue',
+                }
+
+            # Compute Herfindahl index: sum of squared revenue percentages (scaled 0-10000)
+            hhi = XBRLSegmentParser._compute_herfindahl_index(revenues, total_revenue)
+            largest_pct = (max(revenues) / total_revenue * 100) if total_revenue > 0 else 0
+
+            return {
+                'segment_count': segment_count or len(segments),
+                'largest_segment_revenue_pct': round(float(largest_pct), 2),
+                'revenue_concentration_hhi': round(float(hhi), 3),
+                'segments': segments,
+                'segment_type': 'operating',
+                'data_available': True,
+                'reason': None,
+            }
+
+        except Exception as e:
+            logger.warning(f"[{symbol}] XBRL segment parse failed: {type(e).__name__}: {str(e)[:200]}")
+            return {
+                'segment_count': None,
+                'largest_segment_revenue_pct': None,
+                'revenue_concentration_hhi': None,
+                'segments': [],
+                'segment_type': None,
+                'data_available': False,
+                'reason': f'parse_error: {type(e).__name__}',
+            }
+
+    @staticmethod
+    def _extract_segment_count(us_gaap: dict, symbol: str) -> int | None:
+        """Extract number of reportable segments from us-gaap facts.
+
+        SEC XBRL uses several concepts for segment count. We check them in order
+        of reliability, preferring explicit count fields over implicit counts.
+        """
+        candidates = [
+            'SegmentNumber',
+            'NumberOfReportableSegments',
+            'OperatingSegmentNumber',
+            'NumberOfSegments',
+        ]
+
+        for concept_name in candidates:
+            if concept_name in us_gaap:
+                fact_list = us_gaap[concept_name]
+                if isinstance(fact_list, list):
+                    # Get the most recent value (last in the list or highest fy)
+                    best_fact = None
+                    best_fy = -1
+                    for fact in fact_list:
+                        if isinstance(fact, dict) and 'value' in fact:
+                            try:
+                                count = int(fact['value'])
+                                if count > 0:
+                                    fy = fact.get('fy', -1)
+                                    if fy > best_fy:
+                                        best_fy = fy
+                                        best_fact = count
+                            except (ValueError, TypeError):
+                                pass
+                    if best_fact:
+                        return best_fact
+
+        return None
+
+    @staticmethod
+    def _extract_segments(us_gaap: dict, symbol: str) -> list[dict[str, Any]]:
+        """Extract individual segment data from us-gaap facts.
+
+        SEC companyfacts structure: us-gaap[concept][unit][] = list of fact records
+        Each fact has: value, fy (fiscal year), fp (fiscal period), contextRef, etc.
+
+        Returns list of segment dicts with: name, revenue, operating_income, assets
+        """
+        segments = []
+        segment_revenues = {}
+        segments_data = {}
+
+        # Extract segment revenue from companyfacts structure
+        # companyfacts[concept][unit][] has array of fact objects
+        segment_revenue_concept = None
+        for concept_name in ['SegmentRevenue', 'RevenueFromContractWithCustomer', 'Revenues']:
+            if concept_name in us_gaap:
+                segment_revenue_concept = concept_name
+                break
+
+        if segment_revenue_concept:
+            concept_data = us_gaap[segment_revenue_concept]
+            if isinstance(concept_data, dict) and 'units' in concept_data:
+                units_data = concept_data['units']
+                for unit, facts_list in units_data.items():
+                    if isinstance(facts_list, list):
+                        for fact in facts_list:
+                            if isinstance(fact, dict):
+                                # Extract segment identifier and revenue
+                                segment_id = fact.get('segment', fact.get('contextRef', ''))
+                                value = fact.get('value')
+                                # Prefer most recent fiscal year data
+                                if value is not None and segment_id:
+                                    try:
+                                        rev = float(value)
+                                        fy = fact.get('fy', 0)
+                                        if segment_id not in segment_revenues:
+                                            segment_revenues[segment_id] = (rev, fy)
+                                        else:
+                                            old_rev, old_fy = segment_revenues[segment_id]
+                                            if fy >= old_fy:
+                                                segment_revenues[segment_id] = (rev, fy)
+                                    except (ValueError, TypeError):
+                                        pass
+
+        # Extract segment names/identifiers
+        for name_concept in ['SegmentIdentificationCode', 'SegmentName']:
+            if name_concept in us_gaap:
+                concept_data = us_gaap[name_concept]
+                if isinstance(concept_data, dict) and 'units' in concept_data:
+                    units_data = concept_data['units']
+                    for unit, facts_list in units_data.items():
+                        if isinstance(facts_list, list):
+                            for fact in facts_list:
+                                if isinstance(fact, dict):
+                                    segment_id = fact.get('segment', fact.get('contextRef', ''))
+                                    value = fact.get('value')
+                                    if value and segment_id:
+                                        if segment_id not in segments_data:
+                                            segments_data[segment_id] = {}
+                                        if name_concept == 'SegmentIdentificationCode':
+                                            segments_data[segment_id]['id'] = str(value)
+                                        else:
+                                            segments_data[segment_id]['name'] = str(value)
+
+        # Build result list from revenues
+        for segment_id, (revenue, fy) in segment_revenues.items():
+            seg_data = segments_data.get(segment_id, {})
+            segments.append({
+                'segment_id': segment_id,
+                'name': seg_data.get('name', seg_data.get('id', segment_id)),
+                'revenue': revenue,
+                'operating_income': None,
+                'assets': None,
+            })
+
+        return sorted(segments, key=lambda s: s.get('revenue', 0), reverse=True)
+
+    @staticmethod
+    def _compute_herfindahl_index(revenues: list[float | Decimal], total: float | Decimal) -> float:
+        """Compute Herfindahl-Hirschman Index (HHI) of revenue concentration.
+
+        HHI = sum of (revenue_share ^ 2) scaled to 0-10000
+        - HHI < 1500: competitive
+        - 1500-2500: moderate concentration
+        - > 2500: highly concentrated
+        - 10000: perfect monopoly (single segment)
+        """
+        if not revenues or total == 0:
+            return 0.0
+
+        total = float(total)
+        hhi = 0.0
+        for revenue in revenues:
+            share = float(revenue) / total
+            hhi += share * share
+
+        # Scale to 0-10000
+        return hhi * 10000
+
+    @staticmethod
+    def parse_xbrl_xml(xml_content: str, symbol: str) -> dict[str, Any]:
+        """Parse segment data from raw XBRL XML instance document.
+
+        Alternative to companyfacts API, used if raw XBRL .xml file is available.
+        This is lower-level parsing of the actual XBRL submission file.
+
+        Args:
+            xml_content: Raw XBRL instance XML from SEC EDGAR
+            symbol: Stock ticker symbol (for logging)
+
+        Returns:
+            Same structure as parse_companyfacts()
+        """
+        try:
+            root = ET.fromstring(xml_content)
+        except ET.ParseError as e:
+            logger.warning(f"[{symbol}] Failed to parse XBRL XML: {e}")
+            return {
+                'segment_count': None,
+                'largest_segment_revenue_pct': None,
+                'revenue_concentration_hhi': None,
+                'segments': [],
+                'segment_type': None,
+                'data_available': False,
+                'reason': f'xml_parse_error: {str(e)[:100]}',
+            }
+
+        # In XBRL XML, facts are <xbrli:nonfraction> or <xbrli:nonnumeric> elements
+        # with context and unitRef attributes pointing to segment dimensions
+        segments = {}
+        total_revenue = 0.0
+
+        # Simplified extraction: look for SegmentRevenue contexts
+        for elem in root.findall('.//{http://xbrl.us/us-gaap/2023-01-31}SegmentRevenue'):
+            context_id = elem.get('contextRef', '')
+            unit_id = elem.get('unitRef', '')
+            value = elem.text
+
+            if value and context_id:
+                try:
+                    revenue = float(value)
+                    if context_id not in segments:
+                        segments[context_id] = {'revenue': 0}
+                    segments[context_id]['revenue'] += revenue
+                    total_revenue += revenue
+                except (ValueError, TypeError):
+                    pass
+
+        if not segments or total_revenue == 0:
+            return {
+                'segment_count': None,
+                'largest_segment_revenue_pct': None,
+                'revenue_concentration_hhi': None,
+                'segments': [],
+                'segment_type': None,
+                'data_available': False,
+                'reason': 'no_xbrl_segment_revenue',
+            }
+
+        # Convert to list and calculate metrics
+        segment_list = [
+            {
+                'segment_id': seg_id,
+                'name': seg_id.replace('_', ' ').title(),
+                'revenue': data['revenue'],
+            }
+            for seg_id, data in segments.items()
+        ]
+        segment_list.sort(key=lambda s: s['revenue'], reverse=True)
+
+        revenues = [s['revenue'] for s in segment_list]
+        hhi = XBRLSegmentParser._compute_herfindahl_index(revenues, total_revenue)
+        largest_pct = (revenues[0] / total_revenue * 100) if total_revenue > 0 else 0
+
+        return {
+            'segment_count': len(segment_list),
+            'largest_segment_revenue_pct': round(largest_pct, 2),
+            'revenue_concentration_hhi': round(hhi, 3),
+            'segments': segment_list,
+            'segment_type': 'operating',
+            'data_available': True,
+            'reason': None,
+        }

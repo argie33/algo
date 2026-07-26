@@ -53,11 +53,9 @@ CREATE INDEX IF NOT EXISTS idx_insider_velocity_confidence ON insider_transactio
 CREATE INDEX IF NOT EXISTS idx_insider_velocity_updated ON insider_transaction_velocity(updated_at DESC);
 
 -- Register in loader status tracking
-INSERT INTO loader_status_registry (table_name, loader_name, is_critical, data_tier)
-VALUES ('insider_transaction_velocity', 'load_insider_transaction_velocity', FALSE, 'AUXILIARY_COMPLETE')
-ON CONFLICT (table_name) DO UPDATE SET
-    loader_name = 'load_insider_transaction_velocity',
-    is_critical = FALSE,
-    data_tier = 'AUXILIARY_COMPLETE';
+INSERT INTO data_loader_status (table_name, completion_pct, last_updated)
+VALUES ('insider_transaction_velocity', 0.0, NOW())
+ON CONFLICT (table_name) DO UPDATE
+SET last_updated = NOW();
 
 COMMIT;

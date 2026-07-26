@@ -41,11 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_dividend_payment_date ON dividend_data(payment_da
 CREATE INDEX IF NOT EXISTS idx_dividend_updated ON dividend_data(updated_at DESC);
 
 -- Register in loader status tracking
-INSERT INTO loader_status_registry (table_name, loader_name, is_critical, data_tier)
-VALUES ('dividend_data', 'load_dividend_data', FALSE, 'AUXILIARY_COMPLETE')
-ON CONFLICT (table_name) DO UPDATE SET
-    loader_name = 'load_dividend_data',
-    is_critical = FALSE,
-    data_tier = 'AUXILIARY_COMPLETE';
+INSERT INTO data_loader_status (table_name, completion_pct, last_updated)
+VALUES ('dividend_data', 0.0, NOW())
+ON CONFLICT (table_name) DO UPDATE
+SET last_updated = NOW();
 
 COMMIT;
