@@ -184,7 +184,8 @@ class SecEdgarClient:
 
     def get_submissions(self, cik: str) -> dict[str, Any]:
         """List of all filings for a company (10K, 10Q, 8K, etc.)."""
-        url = f"{EDGAR_BASE}/submissions/CIK{cik}.json"
+        cik_padded = str(cik).zfill(10)
+        url = f"{EDGAR_BASE}/submissions/CIK{cik_padded}.json"
         return self._get_json(url)
 
     def _get_primary_document(self, submissions: dict[str, Any], accession_number: str) -> str:
