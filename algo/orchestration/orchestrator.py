@@ -2028,8 +2028,15 @@ class Orchestrator:
                     p["status"] == "blocked" and p.get("phase") == 8
                     for p in self.phase_results.values()
                 )
-                # Phase 9 may be keyed as int 9 or string "9" depending on call context
-                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9", {})
+                # FAIL-FAST: Phase 9 must be present (always_run) - no silent fallback to empty dict
+                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9")
+                if phase_9_data is None:
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR INTEGRITY] Phase 9 results missing from phase_results. "
+                        f"Phase 9 is always_run and must be present for status determination. "
+                        f"Available phases: {sorted(self.phase_results.keys())}. "
+                        f"This indicates a critical bug in phase execution or result collection."
+                    )
                 phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 
                 if phase_8_blocked and phase_9_succeeded:
@@ -2055,8 +2062,15 @@ class Orchestrator:
                     p["status"] == "skipped" and "MARKET HOURS GUARD" in p.get("summary", "")
                     for p in self.phase_results.values()
                 )
-                # Phase 9 may be keyed as int 9 or string "9" depending on call context
-                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9", {})
+                # FAIL-FAST: Phase 9 must be present (always_run) - no silent fallback to empty dict
+                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9")
+                if phase_9_data is None:
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR INTEGRITY] Phase 9 results missing from phase_results. "
+                        f"Phase 9 is always_run and must be present for status determination. "
+                        f"Available phases: {sorted(self.phase_results.keys())}. "
+                        f"This indicates a critical bug in phase execution or result collection."
+                    )
                 phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 
                 if phase_8_market_hours_skip and phase_9_succeeded:

@@ -1834,7 +1834,12 @@ class StockScoresLoader(OptimalLoader):
         # level (a MACD of 2 means something different for a $10 stock vs a $500 stock), so
         # magnitude isn't comparable across symbols - use it purely as a bull/bear trend
         # confirmation signal. Use macd_line (added Phase 1).
-        macd = metrics.get("macd_line") or metrics.get("macd")  # Fallback for backward compat
+        macd = metrics.get("macd_line")
+        if macd is None:
+            # Fallback for backward compatibility - log when old field is used
+            macd = metrics.get("macd")
+            if macd is not None:
+                logger.warning(f"[STOCK_SCORES] Using legacy 'macd' field for {symbol} - prefer 'macd_line'")
         if macd is not None:
             macd_score = 70.0 if macd > 0 else 30.0 if macd < 0 else 50.0
             weighted_sum += macd_score * 0.10

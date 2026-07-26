@@ -81,6 +81,11 @@ def run(
             # Check for error status in result (API may return error status instead of exception)
             if partial_fill_result.get("error") or partial_fill_result.get("error_status"):
                 error_detail = partial_fill_result.get("error") or partial_fill_result.get("error_status")
+                if error_detail is None:
+                    raise RuntimeError(
+                        f"[PHASE 4] Partial fill check indicated error but no error details found. "
+                        f"Result keys: {list(partial_fill_result.keys())}. Data integrity issue."
+                    )
                 raise RuntimeError(
                     f"[PHASE 4] Partial fill check returned error status: {error_detail}. "
                     f"Broker API may be unavailable or order state corrupted. Cannot proceed with reconciliation."
