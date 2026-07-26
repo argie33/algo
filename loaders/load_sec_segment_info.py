@@ -71,7 +71,8 @@ class SecSegmentInfoLoader(SecLoaderBase):
             if not facts_response or not facts_response.get('facts'):
                 return [self._unavailable_marker(symbol, "no_companyfacts_data")]
 
-            # Parse segment data from XBRL
+            # Parse segment data from XBRL companyfacts
+            # companyfacts JSON has aggregate segment metrics but not per-segment breakdowns
             segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
 
             if not segment_data.get('data_available'):

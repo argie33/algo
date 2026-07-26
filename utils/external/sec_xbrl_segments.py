@@ -157,24 +157,33 @@ class XBRLSegmentParser:
 
         for concept_name in candidates:
             if concept_name in us_gaap:
-                fact_list = us_gaap[concept_name]
-                if isinstance(fact_list, list):
-                    # Get the most recent value (last in the list or highest fy)
-                    best_fact = None
-                    best_fy = -1
-                    for fact in fact_list:
-                        if isinstance(fact, dict) and 'value' in fact:
-                            try:
-                                count = int(fact['value'])
-                                if count > 0:
-                                    fy = fact.get('fy', -1)
-                                    if fy > best_fy:
-                                        best_fy = fy
-                                        best_fact = count
-                            except (ValueError, TypeError):
-                                pass
-                    if best_fact:
-                        return best_fact
+                concept_data = us_gaap[concept_name]
+                if isinstance(concept_data, dict) and 'units' in concept_data:
+                    # companyfacts structure: units[unit_name][facts_list]
+                    units = concept_data.get('units', {})
+                    for unit, facts_list in units.items():
+                        if isinstance(facts_list, list):
+                            best_fact = None
+                            best_fy = -1
+                            for fact in facts_list:
+                                if isinstance(fact, dict):
+                                    val = fact.get('val') or fact.get('value')
+                                    if val is not None:
+                                        try:
+                                            count = int(val)
+                                            if count > 0:
+                                                fy = fact.get('fy', -1)
+                                                # Prefer FY periods over quarterly
+                                                fp = fact.get('fp', '')
+                                                if fp == 'FY' and fy > best_fy:
+                                                    best_fy = fy
+                                                    best_fact = count
+                                                elif best_fact is None:
+                                                    best_fact = count
+                                        except (ValueError, TypeError):
+                                            pass
+                            if best_fact:
+                                return best_fact
 
         return None
 
@@ -225,7 +234,7 @@ class XBRLSegmentParser:
                                     if context_ref and '_' in context_ref:
                                         segment_id = context_ref.split('_')[0]
 
-                                value = fact.get('value')
+                                value = fact.get('val') or fact.get('value')  # companyfacts uses 'val'
                                 # Prefer most recent fiscal year data
                                 if value is not None and segment_id:
                                     try:
