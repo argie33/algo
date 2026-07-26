@@ -118,92 +118,27 @@ class DividendDataLoader(SecLoaderBase):
             logger.debug(f"[{symbol}] XBRL dividend extraction error: {e}")
             return []
 
-    def _extract_dividend_from_8k(self, symbol: str) -> list[dict[str, Any]]:
-        """Extract dividend announcements from 8-K filings (Item 2.02).
+    def fetch_incremental(self, symbol: str, since: date) -> list[dict[str, Any]]:
+        """Fetch dividend data for symbol since given date.
 
-        Form 8-K Item 2.02 includes financial results which often contain
-        dividend announcements.
+        Fail-fast pattern (GOVERNANCE.md): First attempts XBRL extraction (official source),
+        returns unavailable marker if unsuccessful. Does not fall back to 8-K.
         """
         try:
-            # Get CIK for symbol
-            cik = self._get_cik(symbol)
-            if not cik:
-                return []
-
-            from utils.db import DatabaseContext
-
-            # Check if we have recent 8-K filings with dividend announcements
-            with DatabaseContext() as db:
-                rows = db.query(
-                    """
-                    SELECT filing_date, event_summary
-                    FROM current_reports_8k
-                    WHERE symbol = %s
-                        AND (
-                            item_2_02 = TRUE
-                            OR event_summary ILIKE '%dividend%'
-                        )
-                    ORDER BY filing_date DESC
-                    LIMIT 4
-                    """,
-                    (symbol,),
-                )
-
-            results = []
-            for filing_date, summary in rows or []:
-                # Parse dividend amount from summary if possible
-                div_per_share = self._extract_dividend_amount(summary)
-                if div_per_share:
-                    # Estimate ex-date (typically ~2 weeks after announcement)
-                    ex_date = filing_date + timedelta(days=14)
-                    results.append(
-                        {
-                            "symbol": symbol,
-                            "declaration_date": filing_date,
-                            "ex_dividend_date": ex_date,
-                            "record_date": ex_date + timedelta(days=1),
-                            "payment_date": ex_date + timedelta(days=30),
-                            "dividend_per_share": div_per_share,
-                            "dividend_yield_pct": None,
-                            "total_dividend_amount": None,
-                            "dividend_type": "regular",
-                            "currency": "USD",
-                            "data_unavailable": False,
-                            "data_unavailable_reason": None,
-                            "source": "SEC_8K",
-                        }
-                    )
-
-            return results
-
-        except Exception as e:
-            logger.debug(f"[{symbol}] 8-K dividend extraction error: {e}")
-            return []
-
-    def fetch_incremental(self, symbol: str, since: date) -> list[dict[str, Any]]:
-        """Fetch dividend data for symbol since given date."""
-        try:
-            results = []
             now_et = datetime.now(EASTERN_TZ).date()
 
-            # Try XBRL extraction
+            # Try XBRL extraction (official source: financial statements)
             xbrl_divs = self._extract_dividend_from_xbrl(symbol)
-            results.extend(xbrl_divs)
-
-            # Try 8-K extraction if XBRL found nothing
-            if not results:
-                k8_divs = self._extract_dividend_from_8k(symbol)
-                results.extend(k8_divs)
 
             # Filter to only dividends on/after watermark
-            results = [r for r in results if r.get("ex_dividend_date", date.today()) >= since]
+            results = [r for r in xbrl_divs if r.get("ex_dividend_date", date.today()) >= since]
 
-            # If still empty, return unavailable marker
+            # If empty from official source, return unavailable marker (no secondary fallback)
             if not results:
                 return self._unavailable_record(
                     symbol,
                     now_et,
-                    "no_recent_dividends",
+                    "no_xbrl_dividend_declarations",
                 )
 
             return results
