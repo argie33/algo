@@ -628,7 +628,7 @@ def _get_stock_scores(
 
         if items:
             # Compute average composite score from returned items
-            composite_scores = [item.get("composite_score") for item in items if item.get("composite_score") is not None]
+            composite_scores: list[float] = [float(item.get("composite_score")) for item in items if item.get("composite_score") is not None]
             if composite_scores:
                 avg_composite = sum(composite_scores) / len(composite_scores)
 
