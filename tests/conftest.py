@@ -11,16 +11,21 @@ import pytest
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
-os.environ["DB_HOST"] = "localhost"
-os.environ["DB_PORT"] = "5432"
-os.environ["DB_NAME"] = "algo_trading"
-os.environ["DB_USER"] = "postgres"
-os.environ["DB_PASSWORD"] = "test_password"
-os.environ["ALPACA_API_KEY"] = "PK_TEST"
-os.environ["ALPACA_SECRET_KEY"] = "sk_test"
-os.environ["AWS_REGION"] = "us-east-1"
-os.environ["ORCHESTRATOR_EXECUTION_MODE"] = "paper"
-os.environ["ORCHESTRATOR_DRY_RUN"] = "true"
+# CRITICAL: Only set test environment if pytest is actually running.
+# conftest.py should not affect production/dev mode when imported outside pytest.
+# Check: if we're being imported as a module (not run directly) and pytest isn't in sys.modules yet,
+# don't set test environment variables that could interfere with production code.
+if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
+    os.environ["DB_HOST"] = "localhost"
+    os.environ["DB_PORT"] = "5432"
+    os.environ["DB_NAME"] = "algo_trading"
+    os.environ["DB_USER"] = "postgres"
+    os.environ["DB_PASSWORD"] = "test_password"
+    os.environ["ALPACA_API_KEY"] = "PK_TEST"
+    os.environ["ALPACA_SECRET_KEY"] = "sk_test"
+    os.environ["AWS_REGION"] = "us-east-1"
+    os.environ["ORCHESTRATOR_EXECUTION_MODE"] = "paper"
+    os.environ["ORCHESTRATOR_DRY_RUN"] = "true"
 
 
 def _create_mock_cursor():

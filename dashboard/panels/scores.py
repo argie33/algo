@@ -105,17 +105,17 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
         expand=True,
         row_styles=["", "dim"],
     )
-    t.add_column("Symbol", style="bold white", no_wrap=True, min_width=6)
-    t.add_column("Composite", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Momentum", justify="right", no_wrap=True, min_width=8)
-    t.add_column("Quality", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Value", justify="right", no_wrap=True, min_width=5)
-    t.add_column("Growth", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Stability", justify="right", no_wrap=True, min_width=8)
-    t.add_column("Positioning", justify="right", no_wrap=True, min_width=8)
-    t.add_column("RS%", justify="right", no_wrap=True, min_width=5)
-    t.add_column("Change%", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Sector", no_wrap=True, max_width=12)
+    t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
+    t.add_column("Comp", justify="right", no_wrap=True, width=5)
+    t.add_column("Mom", justify="right", no_wrap=True, width=4)
+    t.add_column("Qual", justify="right", no_wrap=True, width=5)
+    t.add_column("Val", justify="right", no_wrap=True, width=4)
+    t.add_column("Grow", justify="right", no_wrap=True, width=5)
+    t.add_column("Stab", justify="right", no_wrap=True, width=5)
+    t.add_column("Pos", justify="right", no_wrap=True, width=4)
+    t.add_column("RS%", justify="right", no_wrap=True, width=4)
+    t.add_column("Chg%", justify="right", no_wrap=True, width=5)
+    t.add_column("Sector", no_wrap=True, width=10)
 
     for sc in top_scores[:limit]:
         sym = safe_get_field(sc, "symbol", "--")

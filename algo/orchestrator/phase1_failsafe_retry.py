@@ -686,14 +686,19 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
                         logger.debug(
                             f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
                         )
-                    elif completion_pct >= 90.0:
+                    elif completion_pct >= 95.0:
+                        # CRITICAL: 95% is the minimum acceptable threshold for financial data.
+                        # Missing 5% of stocks means missing data for trading universe subset.
+                        # Below 95%, too many stocks lack prices/technicals for safe trading decisions.
                         logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%")
                         return True, completion_pct, "success"
 
                     elif status == "COMPLETED":
-                        # Completed but still below 90% (unlikely but handle it)
-                        logger.warning(
-                            f"[PHASE 1 FAILSAFE] Loader completed but incomplete: {loader_name} {completion_pct:.1f}%"
+                        # Completed but still below 95% (unacceptable for finance)
+                        logger.critical(
+                            f"[PHASE 1 FAILSAFE] Loader completed but dangerously incomplete: {loader_name} {completion_pct:.1f}%. "
+                            f"Missing {100.0 - completion_pct:.1f}% of expected data. "
+                            f"This threshold prevents trading on incomplete market data (fail-fast)."
                         )
                         return False, completion_pct, "failed"
 
