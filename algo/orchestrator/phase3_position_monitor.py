@@ -102,7 +102,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         reason_msg = row[3] if row[3] is not None else None
 
                         # FAIL-FAST: Cannot use prices marked unavailable for position monitoring
-                        if data_unavailable_flag is True:
+                        if data_unavailable_flag:
                             logger.critical(
                                 f"[PHASE 3] {symbol}: Price data marked unavailable: {reason_msg or 'no reason provided'}. "
                                 f"Cannot monitor position without valid price data. Fail-closed."

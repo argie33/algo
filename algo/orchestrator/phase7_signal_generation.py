@@ -705,7 +705,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 exposure_row[3],
             )
             # GOVERNANCE ENFORCEMENT: Fail if data marked unavailable
-            if data_unavailable is True:
+            if data_unavailable:
                 msg = (
                     f"[PHASE 7 CRITICAL] market_exposure_daily marked unavailable (reason: {reason or 'unknown'}). "
                     "Cannot generate signals without valid market exposure assessment."
@@ -1198,7 +1198,7 @@ def run(  # noqa: C901
             "Trading is restricted to exits and rebalancing only."
         )
 
-    if exposure_constraints and exposure_constraints.get("halt_new_entries") is True:
+    if exposure_constraints and exposure_constraints.get("halt_new_entries"):
         reason = exposure_constraints.get("halt_reason")
         if not reason:
             logger.critical(
