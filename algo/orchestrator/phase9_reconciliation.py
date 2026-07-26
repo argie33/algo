@@ -126,21 +126,22 @@ def _validate_pnl_step(
             return pnl_validation_status, pnl_validation_summary
         account_data = recon.broker.fetch_account()
         if account_data and result.get("success"):
-            # FALLBACK SEQUENCE (explicit, fail-fast if all missing):
-            # 1. Try 'equity' field (primary broker account equity)
-            # 2. Try 'portfolio_value' field (fallback if equity missing)
-            # 3. Raise if both missing
+            # CRITICAL FIX: No fallback sequence - require explicit 'equity' field from broker
+            # Finance app requirement: must use primary broker-of-record field, not alternates
+            # Fallback patterns hide which field is actually in use and can mask broker API changes
             broker_equity = account_data.get("equity")
             if broker_equity is None:
-                broker_equity = account_data.get("portfolio_value")
-            if broker_equity is None:
+                available_keys = list(account_data.keys())
                 logger.error(
-                    "[PHASE 9 P&L VALIDATION] CRITICAL: Broker data missing both 'equity' and "
-                    "'portfolio_value' fields. Available keys: " + str(list(account_data.keys()))
+                    "[PHASE 9 P&L VALIDATION FAIL-FAST] Broker account data missing required 'equity' field. "
+                    f"Cannot validate P&L reconciliation without Alpaca's primary account equity value. "
+                    f"Available keys: {available_keys}. "
+                    f"Check: (1) Alpaca API schema (broker adapter may be outdated), "
+                    f"(2) Broker connector implementation returns correct field name."
                 )
                 raise ValueError(
-                    "Broker data missing required equity/portfolio_value fields. "
-                    "Cannot validate P&L reconciliation without broker account balance."
+                    "Broker 'equity' field required for P&L validation. "
+                    "Cannot proceed with fallback fields - must use primary broker source of truth."
                 )
 
             if "portfolio_value" not in result:
