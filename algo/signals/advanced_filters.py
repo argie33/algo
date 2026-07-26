@@ -744,7 +744,7 @@ class AdvancedFilters:
             "eps_3y_cagr": round(eps_3y, 1),
             "rev_3y_cagr": round(rev_3y, 1),
             "rev_yoy": round(rev_yoy, 1) if rev_yoy is not None else None,
-            "momentum": round(mom, 1),
+            "momentum": round(mom, 1) if mom is not None else None,
         }
 
     def _analyst_score(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> tuple[float, int]:

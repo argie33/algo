@@ -345,4 +345,7 @@ VALIDATION_SCHEMA = {
     "alpaca_api_secret": ("string", None, None, False, None),  # Alpaca API secret (alias for alpaca_api_secret_key)
     # Risk Thresholds
     "max_risk_per_trade_pct": ("float", 0.1, 100.0, False, 2.0),  # Max risk per individual trade
+    # Buy/Sell Daily Coverage
+    "buy_sell_daily_coverage_threshold": ("float", 0.0, 100.0, False, 50.0),  # Min % of stocks to cover
+    "buy_sell_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 90.0),  # Min signal generation rate
 }

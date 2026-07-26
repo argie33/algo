@@ -194,6 +194,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.error(f"[TRACEBACK]\n{traceback.format_exc()}")
                     symbols_failed += 1
 
+            # VERIFY: Confirm all 3 tables actually have TODAY's data before claiming success (FAIL-FAST)
+            today_iso = date.today().isoformat()
+            with DatabaseContext("read") as cur:
+                for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
+                    cur.execute(f"SELECT COUNT(*) FROM {table} WHERE updated_at::date = %s", (today_iso,))
+                    today_count = cur.fetchone()[0]
+                    if today_count == 0:
+                        raise RuntimeError(
+                            f"[VALUE_QUALITY_GROWTH VERIFICATION FAILED] {table}: "
+                            f"0 rows with today's date ({today_iso}) found after load. "
+                            f"Data was NOT persisted. This is a CRITICAL DATA INTEGRITY issue."
+                        )
+                    logger.info(f"[VALUE_QUALITY_GROWTH VERIFIED] {table}: {today_count} rows with today's date")
+
             # Mark all 3 tables as ok with their actual latest_date (not calendar date)
             with DatabaseContext("write") as cur:
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:

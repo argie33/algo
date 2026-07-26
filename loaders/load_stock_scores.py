@@ -777,7 +777,7 @@ class StockScoresLoader(OptimalLoader):
                 "current_ratio": safe_float(row[5], f"{symbol}.current_ratio"),
                 "quick_ratio": safe_float(row[6], f"{symbol}.quick_ratio"),
                 "debt_to_assets": safe_float(row[7], f"{symbol}.debt_to_assets", allow_none=True),
-                "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
+                "quality_score": quality_score,  # Pre-computed by load_value_quality_growth_metrics.py
                 # Phase 3 expansion metrics (Session 358+)
                 "gross_margin": safe_float(row[10], f"{symbol}.gross_margin", allow_none=True),
                 "ebitda_margin": safe_float(row[11], f"{symbol}.ebitda_margin", allow_none=True),

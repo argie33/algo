@@ -2041,15 +2041,15 @@ class PriceLoader(OptimalLoader):
             self._rate_limit_errors,
         )
 
-        # Cancel timeout alarm before returning
-        try:
-            import signal
-
-            signal.alarm(0)  # Cancel the alarm  # type: ignore[attr-defined]
-            if old_handler is not None:
-                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
-        except (ValueError, AttributeError, OSError):
-            pass  # Timeout protection not available on this platform
+        # Cancel timeout alarm before returning (Unix/Linux only)
+        if old_handler is not None and hasattr(sys, 'platform') and sys.platform != 'win32':
+            try:
+                import signal
+                if hasattr(signal, 'alarm'):
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+            except (ValueError, AttributeError, OSError):
+                pass
 
         return self._stats.to_dict()
 

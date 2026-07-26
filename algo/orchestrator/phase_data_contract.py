@@ -233,6 +233,15 @@ def validate_phase_5_constraints(constraints: dict[str, Any]) -> None:
     Phases 7 and 8 depend on these fields for position sizing.
     This is a strict contract: empty or incomplete constraints block downstream phases.
 
+    Required fields for Phase 8 (entry execution):
+    - halt_new_entries: Whether to block new entries
+    - max_new_positions_today: Maximum new positions per trading day
+    - max_concentration_pct: Maximum per-position size as % of portfolio
+
+    Required fields for Phase 7 (signal generation):
+    - tier_name: Name of current exposure tier
+    - risk_multiplier: Regime-adjusted position sizing multiplier
+
     Args:
         constraints: Dictionary to validate
 
@@ -251,7 +260,15 @@ def validate_phase_5_constraints(constraints: dict[str, Any]) -> None:
             context={"constraints": constraints},
         )
 
-    required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
+    # CRITICAL: These fields are REQUIRED by Phase 8 for safe trade execution.
+    # Missing any field blocks position sizing and entry validation.
+    required_fields = [
+        "tier_name",
+        "risk_multiplier",
+        "max_new_positions_today",
+        "halt_new_entries",
+        "max_concentration_pct",
+    ]
     missing = [f for f in required_fields if f not in constraints]
     if missing:
         raise DataContractError(

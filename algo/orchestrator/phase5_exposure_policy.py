@@ -63,6 +63,7 @@ def run(
         # Phase 1 may have detected stale data and set halt flag
         # But if Phase 5 runs before halt flag is checked, we generate signals with stale data
         from algo.orchestration.halt_flag_manager import HaltFlagManager
+        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
 
         halt_mgr = HaltFlagManager(alerts, log_phase_result_fn)
         if halt_mgr.check_halt_flag():
@@ -80,6 +81,7 @@ def run(
                 "max_concentration_pct": 0.0,
                 "halt_reason": error_msg,
             }
+            validate_phase_5_constraints(fail_halt_constraints)
             return PhaseResult(
                 5,
                 "exposure_policy",
@@ -205,6 +207,10 @@ def run(
 
         phase_data = {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)}
         validate_phase_data(5, phase_data)
+        # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
+        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
+
+        validate_phase_5_constraints(constraints)
         return PhaseResult(
             5,
             "exposure_policy",
@@ -218,6 +224,8 @@ def run(
         # FAIL-CLOSED: Market exposure data missing (Phase 4 not run or database corrupt)
         # CRITICAL: No market regime data means we can't assess market conditions.
         # Halting all entries is mandatory; this is not optional.
+        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
+
         logger.critical(
             f"CRITICAL: Market exposure data missing (Phase 4 likely failed). "
             f"Halting all new entries until market regime is available: {e}"
@@ -232,6 +240,7 @@ def run(
             "max_concentration_pct": 0.0,
             "halt_reason": f"Market exposure data missing: {str(e)[:80]}",
         }
+        validate_phase_5_constraints(fail_halt_constraints)
         log_phase_result_fn(
             5,
             "exposure_policy",
@@ -251,6 +260,8 @@ def run(
         # FAIL-CLOSED: Transient failure (e.g., database connection issue) or computation error
         # Risk multiplier, entry constraints, and concentration limits are load-bearing.
         # Exposing them to be wrong is more dangerous than halting trading.
+        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
+
         logger.critical(
             f"CRITICAL: Exposure policy computation failed. "
             f"Cannot proceed with trading without valid risk management constraints: {type(e).__name__}: {e}"
@@ -265,6 +276,7 @@ def run(
             "max_concentration_pct": 0.0,
             "halt_reason": f"Exposure policy error: {str(e)[:100]}. No entries allowed until resolved.",
         }
+        validate_phase_5_constraints(fail_halt_constraints)
         log_phase_result_fn(
             5,
             "exposure_policy",

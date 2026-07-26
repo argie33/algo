@@ -17,10 +17,13 @@ def test_phase_5_constraints_validation():
     with pytest.raises(DataContractError):
         validate_phase_5_constraints({"tier_name": "NORMAL"})
 
+    # Must include all required fields for Phase 8
     valid_constraints = {
         "tier_name": "NORMAL",
         "risk_multiplier": 1.0,
         "max_new_positions_today": 5,
+        "halt_new_entries": False,
+        "max_concentration_pct": 20.0,
     }
     validate_phase_5_constraints(valid_constraints)
 
@@ -46,6 +49,8 @@ def test_phase7_dependency_validation():
         "tier_name": "NORMAL",
         "risk_multiplier": 1.0,
         "max_new_positions_today": 5,
+        "halt_new_entries": False,
+        "max_concentration_pct": 20.0,
     }
     validate_phase_5_constraints(mock_orch._exposure_constraints)
 
@@ -59,6 +64,7 @@ def test_phase7_data_extraction():
         "risk_multiplier": 1.0,
         "max_new_positions_today": 5,
         "halt_new_entries": False,
+        "max_concentration_pct": 20.0,
     }
     phase5_result = PhaseResult(status="ok", data={"constraints": constraints, "actions": []})
     executor.phase_results[5] = phase5_result
