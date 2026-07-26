@@ -706,7 +706,7 @@ class MarketExposure:
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
             b50_value = b50.get("value")
-            if t30.get("score") is not None and not t30.get("above_30wma"):
+            if t30.get("score") is not None and t30.get("above_30wma") is False:
                 if b50_value is not None and b50_value < 30:
                     halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                     cap = min(cap, 25.0)
@@ -749,7 +749,7 @@ class MarketExposure:
             # SPY never drops enough to need confirmation, so this veto is dormant.
             try:
                 has_confirmation = self._has_market_confirmation(eval_date, cur)
-                if not has_confirmation and t30.get("score") is not None and not t30.get("above_30wma"):
+                if not has_confirmation and t30.get("score") is not None and t30.get("above_30wma") is False:
                     halt_reasons.append("No market confirmation signal while SPY below 30-week MA")
                     cap = min(cap, 40.0)
             except RuntimeError as e:

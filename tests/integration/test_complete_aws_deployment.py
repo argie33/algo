@@ -33,10 +33,10 @@ class TestCompleteAWSDeployment:
         phase_8 = registry.get_phase(8)
 
         # On trading days, these should be executable (not inherently skipped)
-        assert phase_4 is not None and phase_4.not always_run, "Phase 4 must be skippable by halt"
-        assert phase_5 is not None and phase_5.not always_run, "Phase 5 must be skippable by halt"
+        assert phase_4 is not None and phase_4.always_run is False, "Phase 4 must be skippable by halt"
+        assert phase_5 is not None and phase_5.always_run is False, "Phase 5 must be skippable by halt"
         # Phase 8 must ALWAYS run for proactive risk enforcement (Session 396 fix)
-        assert phase_8 is not None and phase_8.always_run, "Phase 8 must always run for proactive risk checks"
+        assert phase_8 is not None and phase_8.always_run is True, "Phase 8 must always run for proactive risk checks"
 
     def test_dashboard_api_includes_growth_score(self):
         """Verify dashboard API endpoint accepts and returns growth_score field."""

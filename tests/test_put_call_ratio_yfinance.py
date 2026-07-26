@@ -24,7 +24,7 @@ def test_put_call_ratio_always_unavailable() -> None:
 
     assert isinstance(result, dict)
     # Either data_unavailable=True with reason, or data_unavailable=False with put_call_ratio
-    if result.get("data_unavailable"):
+    if result.get("data_unavailable") is True:
         assert "reason" in result
     else:
         assert result.get("put_call_ratio") is not None

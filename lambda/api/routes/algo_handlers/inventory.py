@@ -108,7 +108,7 @@ def _get_table_inventory(cur: cursor) -> Any:
             "active_loaders": sum(1 for t in tracked_tables if t["status"] and t["status"].lower() == "ok"),
             "deprecated": sum(1 for t in tracked_tables if t["status"] == "deprecated"),
             "archived": sum(1 for t in tracked_tables if t["status"] == "archived"),
-            "stale_active": sum(1 for t in tracked_tables if t.get("is_stale")),
+            "stale_active": sum(1 for t in tracked_tables if t.get("is_stale") is True),
         }
 
         # 6. Find gaps (tracked but don't exist)

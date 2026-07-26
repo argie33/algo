@@ -292,7 +292,7 @@ def safe_float(
         return default
 
     # Check for unavailability marker dict (e.g., from data extractors returning optional data as unavailable)
-    if isinstance(value, dict) and value.get("data_unavailable"):
+    if isinstance(value, dict) and value.get("data_unavailable") is True:
         reason = value.get("reason", "unknown")
         if allow_none:
             logger.debug(f"Data unavailable {error_ctx}: {reason} - returning None (optional field)")

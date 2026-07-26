@@ -23,7 +23,7 @@ class TestSignalGeneratorFallbacks:
         result = gen._determine_market_stage(close=110, sma_50=100, sma_200=105)
 
         assert isinstance(result, dict), "Should return dict for ambiguous case"
-        assert result.get("data_unavailable"), "Should have data_unavailable=True"
+        assert result.get("data_unavailable") is True, "Should have data_unavailable=True"
         assert "reason" in result, "Should have reason field"
         assert "ambiguous" in result["reason"].lower(), "Reason should mention ambiguous"
 
@@ -35,7 +35,7 @@ class TestSignalGeneratorFallbacks:
         result = gen._determine_market_stage(close=None, sma_50=100.0, sma_200=90.0)  # type: ignore
 
         assert isinstance(result, dict), "Should return dict when data missing"
-        assert result.get("data_unavailable"), "Should have data_unavailable=True"
+        assert result.get("data_unavailable") is True, "Should have data_unavailable=True"
         assert "missing_fields" in result["reason"], "Reason should mention missing fields"
 
     def test_market_stage_valid_returns_stage_string(self) -> None:

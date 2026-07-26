@@ -116,7 +116,7 @@ class TestYieldCurveFetcher:
         fetcher.breaker.execute = Mock(return_value=None)
 
         result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-        assert result.get("data_unavailable")
+        assert result.get("data_unavailable") is True
         assert "reason" in result
         assert "Circuit breaker" in result["reason"]
 
@@ -128,7 +128,7 @@ class TestYieldCurveFetcher:
         fetcher.breaker.execute = Mock(return_value="invalid string")
 
         result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-        assert result.get("data_unavailable")
+        assert result.get("data_unavailable") is True
         assert "reason" in result
         assert "Invalid response type" in result["reason"]
 
@@ -140,7 +140,7 @@ class TestYieldCurveFetcher:
         fetcher.breaker.execute = Mock(side_effect=Exception("API timeout"))
 
         result = fetcher.fetch(date(2024, 1, 1), date(2024, 12, 31))
-        assert result.get("data_unavailable")
+        assert result.get("data_unavailable") is True
         assert "reason" in result
         assert "API timeout" in result["reason"]
 

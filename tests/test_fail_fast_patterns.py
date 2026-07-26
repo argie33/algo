@@ -272,7 +272,7 @@ class TestHaltFlagManagerFailFast:
                 with patch("algo.orchestration.halt_flag_manager.logger") as mock_logger:
                     result = manager.check_halt_flag()
                     # When missing reason, should fail-closed by returning True (halt=active)
-                    assert result
+                    assert result is True
                     # Verify CRITICAL error was logged (not silent fallback)
                     assert any("CRITICAL" in str(call) for call in mock_logger.critical.call_args_list)
             finally:

@@ -1569,7 +1569,7 @@ class Orchestrator:
             # Only reason to skip lock is dry_run (which doesn't write to database/broker)
             if not self.dry_run:
                 raise RuntimeError(
-                    "[CRITICAL] Lock check was skipped but not dry_run. "
+                    "[CRITICAL] Lock check was skipped but dry_run is False. "
                     "This should never happen - distributed lock is ALWAYS required for non-dry-run executions. "
                     "Check for SKIP_ORCHESTRATOR_LOCK bypass in orchestrator initialization."
                 )

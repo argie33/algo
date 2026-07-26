@@ -156,7 +156,7 @@ class RegimeManager:
 
             # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
             regime_str, data_date, data_unavailable, reason = row[0], row[1], row[2], row[3]
-            if data_unavailable:
+            if data_unavailable is True:
                 raise RuntimeError(
                     f"Market regime data marked unavailable for {data_date}: {reason or 'no reason provided'}. "
                     f"Cannot determine trading regime without valid market exposure analysis."
@@ -284,7 +284,7 @@ class RegimeManager:
 
             for date_val, regime, data_unavailable in reversed(rows):
                 # GOVERNANCE: Skip rows marked unavailable
-                if data_unavailable:
+                if data_unavailable is True:
                     continue
                 transition = prev_regime is not None and prev_regime != regime
                 if transition:
@@ -335,7 +335,7 @@ class RegimeManager:
             if row is not None and row[0] is not None:
                 score, data_unavailable, reason = row[0], row[1], row[2]
                 # GOVERNANCE: Fail if data marked unavailable
-                if data_unavailable:
+                if data_unavailable is True:
                     raise RuntimeError(
                         f"Market exposure confidence score marked unavailable: {reason or 'no reason provided'}. "
                         f"Cannot assess regime strength without valid exposure analysis."

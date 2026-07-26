@@ -57,7 +57,7 @@ class TestErrorResponseFormat:
         assert response["errorType"] == "service_unavailable"
         assert response["message"] == "Database connection failed"
         assert response["_error"] == "Database connection failed"
-        assert response.get("_is_transient_503"), "503 errors must be marked as transient for retry logic"
+        assert response.get("_is_transient_503") is True, "503 errors must be marked as transient for retry logic"
 
     def test_error_response_504(self):
         """error_response() with 504 should include _error field and mark as transient.
@@ -73,7 +73,7 @@ class TestErrorResponseFormat:
         assert response["errorType"] == "gateway_timeout"
         assert response["message"] == "Request timeout"
         assert response["_error"] == "Request timeout"
-        assert response.get("_is_transient_504"), "504 errors must be marked as transient for retry logic"
+        assert response.get("_is_transient_504") is True, "504 errors must be marked as transient for retry logic"
 
     def test_json_response_success_format(self):
         """json_response(200, data) should return {statusCode, data}."""

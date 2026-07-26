@@ -299,7 +299,7 @@ def extract_param(
         Parameter value (first element from list) or default
 
     Raises:
-        BadRequest: If required parameter is missing or empty and required
+        BadRequest: If required parameter is missing or empty and required is True
     """
     # EXPLICIT: Check each condition separately for clarity
     if params is None:

@@ -83,7 +83,7 @@ def has_error(data: Any) -> bool:
     if not isinstance(data, dict):
         return False
     # Check for both _error (legacy API layer) and _data_unavailable (new standard)
-    return "_error" in data or data.get("_data_unavailable")
+    return "_error" in data or data.get("_data_unavailable") is True
 
 
 def is_data_unavailable_marker(data: Any) -> bool:
@@ -100,7 +100,7 @@ def is_data_unavailable_marker(data: Any) -> bool:
     """
     if not isinstance(data, dict):
         return False
-    return data.get("_data_unavailable") and "reason" in data
+    return data.get("_data_unavailable") is True and "reason" in data
 
 
 def is_data_stale(data: Any) -> bool:
@@ -116,7 +116,7 @@ def is_data_stale(data: Any) -> bool:
     Returns:
         True if data is dict with _stale_cache=True, False otherwise
     """
-    return isinstance(data, dict) and data.get("_stale_cache")
+    return isinstance(data, dict) and data.get("_stale_cache") is True
 
 
 def get_data_staleness_warning(data: Any, max_age_hours: float = 24.0) -> str:

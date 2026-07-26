@@ -35,7 +35,7 @@ def test_api_call_marks_503_as_transient():
         result = api_call("/api/algo/markets")
 
         assert result.get("_error") is not None
-        assert result.get("_is_transient_503")
+        assert result.get("_is_transient_503") is True
         print("[OK] api_call() marks 503 responses as transient")
 
 
@@ -110,7 +110,7 @@ def test_critical_fetcher_still_retries_on_503():
     result = mock_fetch_run(None)
     if result.get("_is_transient_503"):
         result2 = mock_fetch_run(None)
-        assert result2.get("success")
+        assert result2.get("success") is True
     print("[OK] Critical fetchers can retry beyond 503")
 
 

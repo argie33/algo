@@ -467,7 +467,7 @@ class TestCheckEarlyClose:
         check_date = date(2024, 11, 29)  # Day after Thanksgiving
         result = handler.check_early_close(check_date)
 
-        assert result
+        assert result is True
 
     @patch("algo.infrastructure.market_events.DatabaseContext")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -487,7 +487,7 @@ class TestCheckEarlyClose:
         check_date = date(2024, 11, 27)  # Regular trading day
         result = handler.check_early_close(check_date)
 
-        assert not result
+        assert result is False
 
     @patch("algo.infrastructure.market_events.DatabaseContext")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -535,7 +535,7 @@ class TestCheckAfterHoursWindow:
         check_time = datetime(2024, 11, 27, 15, 45, 0, tzinfo=EASTERN_TZ)
         result = handler.check_after_hours_window(check_time)
 
-        assert result
+        assert result is True
 
     @patch("algo.infrastructure.market_events.DatabaseContext")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -558,7 +558,7 @@ class TestCheckAfterHoursWindow:
         check_time = datetime(2024, 11, 27, 15, 44, 0, tzinfo=EASTERN_TZ)
         result = handler.check_after_hours_window(check_time)
 
-        assert not result
+        assert result is False
 
     @patch("algo.infrastructure.market_events.DatabaseContext")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -581,7 +581,7 @@ class TestCheckAfterHoursWindow:
         check_time = datetime(2024, 11, 29, 13, 0, 0, tzinfo=EASTERN_TZ)
         result = handler.check_after_hours_window(check_time)
 
-        assert result
+        assert result is True
 
     @patch("algo.infrastructure.market_events.DatabaseContext")
     @patch("algo.infrastructure.market_events.get_credential_manager")
@@ -604,7 +604,7 @@ class TestCheckAfterHoursWindow:
         check_time = datetime(2024, 11, 29, 12, 59, 0, tzinfo=EASTERN_TZ)
         result = handler.check_after_hours_window(check_time)
 
-        assert not result
+        assert result is False
 
 
 class TestHandleSingleStockHalt:

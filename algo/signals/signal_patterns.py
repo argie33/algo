@@ -330,9 +330,9 @@ class SignalPatternsMixin:
 
             vcp = self.vcp_detection(symbol, eval_date)
             if vcp and vcp.get("is_vcp"):
-                # Explicit quality assignment: A if tight_pattern, B otherwise
+                # Explicit quality assignment: A if tight_pattern is True, B otherwise
                 tight_pattern = vcp.get("tight_pattern")
-                quality = "A" if tight_pattern else "B"
+                quality = "A" if tight_pattern is True else "B"
                 return {
                     "type": "vcp",
                     "quality": quality,

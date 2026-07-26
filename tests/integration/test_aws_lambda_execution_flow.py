@@ -63,7 +63,7 @@ class TestAWSLambdaOrchestrationFlow:
         # Phase 2 depends on Phase 1
         phase_2_should_execute = False  # If Phase 1 failed
 
-        assert not phase_2_should_execute
+        assert phase_2_should_execute is False
 
     def test_growth_scores_available_in_phase_5_signal_generation(self):
         """Verify Phase 5 can access growth_scores computed from upstream metrics."""
@@ -123,7 +123,7 @@ class TestAWSLambdaOrchestrationFlow:
         phase_9 = registry.get_phase(9)
 
         # Phase 9 should have always_run=True so it executes even if Phase 8 was skipped
-        assert phase_9.always_run, "Phase 9 must always run for reconciliation"
+        assert phase_9.always_run is True, "Phase 9 must always run for reconciliation"
 
     def test_dashboard_can_display_paper_trading_positions(self):
         """Verify dashboard API can display positions from paper trading execution."""

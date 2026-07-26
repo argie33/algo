@@ -527,15 +527,15 @@ class AdvancedFilters:
         pts = 0.0
         in_base = base.get("in_base")
         breakout_imminent = base.get("breakout_imminent")
-        if in_base and breakout_imminent:
+        if in_base is True and breakout_imminent is True:
             pts += 3.0
-        elif in_base:
+        elif in_base is True:
             pts += 1.5
-        if vcp.get("is_vcp"):
+        if vcp.get("is_vcp") is True:
             pts += 2.0
-        if pivot.get("breakout"):
+        if pivot.get("breakout") is True:
             pts += 1.0
-        if power.get("power_trend"):
+        if power.get("power_trend") is True:
             pts += 1.0
         pts = min(5.0, pts)
 

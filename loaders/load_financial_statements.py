@@ -806,7 +806,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
 
         result = []
         for row in transformed:
-            if row.get("data_unavailable"):
+            if row.get("data_unavailable") is True:
                 result.append(row)
             else:
                 row["data_unavailable"] = False

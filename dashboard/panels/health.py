@@ -692,9 +692,9 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
 
     rtt_part = ""
-    if ready_to_trade:
+    if ready_to_trade is True:
         rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
-    elif not ready_to_trade:
+    elif ready_to_trade is False:
         rtt_part = f"  [bold {R}]✗ NOT READY[/]"
 
     status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
@@ -818,7 +818,7 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
         logger.warning(f"[HEALTH] max_pos_n is 0 or invalid: {max_n} - position limit configuration corrupted?")
         slots_s = ""
     # `is not None and X` looks like a None-guard but still hides a legitimate 0 (X is
-    # not None and X == X and bool(X), not which when X == 0) - the exact anti-pattern
+    # not None and X == X and bool(X), which is False when X == 0) - the exact anti-pattern
     # this file's max_pos_n handling above (line 814) explicitly guards against. Use
     # `is not None` alone so a real 0 value still renders.
     max_sec_n = cfg_params.get("max_sec_n")
@@ -1027,7 +1027,7 @@ def panel_orch(
             halted_val = run.get("halted")
             if halted_val is None:
                 logger.debug("[HEALTH] Halt status field missing from run data - treating as not halted")
-            if halt_r or (halted_val):
+            if halt_r or (halted_val is True):
                 phase_results_temp = run.get("phase_results")
                 if phase_results_temp is None:
                     phase_results_temp = []
@@ -1732,9 +1732,9 @@ def _format_health_data_fresh_section(
     hlth_list: list[Any], crit: list[Any], ready_to_trade: bool | None, ages: list[float | None]
 ) -> str:
     """Format data health when all tables are fresh."""
-    if not ready_to_trade:
+    if ready_to_trade is False:
         rtt_badge = f"[bold {R}]✗ NOT READY[/]"
-    elif ready_to_trade:
+    elif ready_to_trade is True:
         rtt_badge = f"[{G}]✓ READY TO TRADE[/]"
     else:
         rtt_badge = f"[{G}]✓ Data OK[/]"
@@ -2184,11 +2184,11 @@ def panel_status(
             errored = run.get("errored")
             if success is None:
                 logger.warning("[HEALTH] Run status 'success' field missing")
-            if success:
+            if success is True:
                 r_stat = f"  [{G}]OK COMPLETED[/]"
-            elif halted:
+            elif halted is True:
                 r_stat = f"  [{Y}]~ HALTED[/]"
-            elif errored:
+            elif errored is True:
                 r_stat = f"  [{R}]X ERROR[/]"
             elif success is not False and halted is not False and errored is not False:
                 r_stat = ""
@@ -2215,7 +2215,7 @@ def panel_status(
         summary = run.get("summary")
         if summary is None:
             summary = ""
-        if run.get("halted") or halt_r:
+        if run.get("halted") is True or halt_r:
             pr_val = run.get("phase_results") if isinstance(run, dict) else None
             if pr_val is None:
                 pr_val = []
@@ -2870,7 +2870,7 @@ def _build_results_panel(
         summary = run.get("summary")
         if summary is None:
             summary = ""
-        if run.get("halted") or halt_r:
+        if run.get("halted") is True or halt_r:
             phase_results_val = run.get("phase_results")
             phase_results_list = phase_results_val if phase_results_val is not None else []
             for label, detail in _best_halt_reason(halt_r, phase_results_list):

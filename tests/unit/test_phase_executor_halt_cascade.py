@@ -33,10 +33,10 @@ def test_non_always_run_phase_skipped_after_earlier_halt():
 
     summary = executor.run()
 
-    assert summary["results"][1].halted
+    assert summary["results"][1].halted is True
     result_2 = summary["results"][2]
     assert result_2.status == "skipped"
-    assert result_2.halted
+    assert result_2.halted is True
     assert result_2.data.get("reason") == "phase skipped - no data available"
 
 
@@ -82,7 +82,7 @@ def test_entry_phase_still_gated_after_halt_not_bypassed():
 
     assert entry_executed == [], "entry phase must not execute once an earlier phase halted"
     assert summary["results"][8].status == "skipped"
-    assert summary["results"][8].halted
+    assert summary["results"][8].halted is True
 
 
 def test_success_count_only_reflects_ok_phases():

@@ -43,7 +43,7 @@ def get_override_duration_minutes() -> int:
     val = config.get("grade_override_max_duration_minutes")
     if val is None:
         raise ValueError(
-            "CRITICAL: grade_override_enabled but grade_override_max_duration_minutes config missing. "
+            "CRITICAL: grade_override_enabled is True but grade_override_max_duration_minutes config missing. "
             "Cannot use grade override without explicit time limit. Set max duration in minutes."
         )
     return int(val)
