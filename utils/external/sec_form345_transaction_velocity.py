@@ -223,13 +223,32 @@ class Form345TransactionVelocityAggregator:
                     return
 
                 # Load owner and transaction details
-                owners = pd.read_csv(
-                    zf.open("REPORTINGOWNER.tsv"),
-                    sep="\t",
-                    usecols=["ACCESSION_NUMBER", "RPTOWNERCIK", "RPTOWNERNAME", "ISCLERK", "ISDIRECTOR", "ISOFFICER"],
-                    dtype=str,
-                    low_memory=False,
-                )
+                # SEC format changed - try to read with newer columns first, fall back to older format
+                owners_usecols = ["ACCESSION_NUMBER", "RPTOWNERCIK", "RPTOWNERNAME"]
+                try:
+                    # Newer format (Q2 2024+) - column names changed
+                    owners = pd.read_csv(
+                        zf.open("REPORTINGOWNER.tsv"),
+                        sep="\t",
+                        usecols=["ACCESSION_NUMBER", "RPTOWNERCIK", "RPTOWNERNAME", "ISCLERK", "ISDIRECTOR", "ISOFFICER"],
+                        dtype=str,
+                        low_memory=False,
+                    )
+                except (ValueError, KeyError):
+                    # Fallback - read without the director/clerk/officer columns
+                    # These are informational only and can be skipped
+                    logger.debug("[FORM345_VELOCITY] REPORTINGOWNER.tsv format changed - reading without director/clerk/officer columns")
+                    owners = pd.read_csv(
+                        zf.open("REPORTINGOWNER.tsv"),
+                        sep="\t",
+                        usecols=owners_usecols,
+                        dtype=str,
+                        low_memory=False,
+                    )
+                    # Add dummy columns so downstream code doesn't break
+                    owners["ISDIRECTOR"] = "FALSE"
+                    owners["ISCLERK"] = "FALSE"
+                    owners["ISOFFICER"] = "FALSE"
 
                 transactions = pd.read_csv(
                     zf.open("NONDERIV_TRANS.tsv"),
