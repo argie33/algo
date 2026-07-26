@@ -43,7 +43,6 @@ def clear_module_cache():
 
 
 from shared_contracts.response_validator import (
-    ResponseValidationError,
     ResponseValidator,
 )
 

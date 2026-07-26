@@ -30,9 +30,7 @@ from dashboard.panels.market import (
 )
 from tests.test_helpers import (
     TestDataFactory,
-    assert_panel_error,
     assert_panel_renders_without_crash,
-    assert_panel_success,
     render_panel_to_text,
 )
 
