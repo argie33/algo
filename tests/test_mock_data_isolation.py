@@ -11,9 +11,10 @@ from decimal import Decimal
 import pytest
 
 from algo.risk.position_sizer_specialist import PositionSizerSpecialist
-from algo.trading.executor import
+from algo.trading.executor import TradeExecutor
 from tests.test_utilities import DryRunBrokerAdapter, enable_test_mode
 from utils.test_data_detector import TestDataDetector
+
 
 class TestMockDataDetection:
     """Test that mock data markers are properly detected."""
@@ -45,6 +46,7 @@ class TestMockDataDetection:
         """Verify assertion passes for real data."""
         real_obj = {"value": 100, "symbol": "SPY"}
         TestDataDetector.assert_not_test_data(real_obj, location="test_path")
+
 
 class TestDryRunBrokerAdapter:
     """Test that DryRunBrokerAdapter is properly gated."""
@@ -87,6 +89,7 @@ class TestDryRunBrokerAdapter:
         assert account["_is_mock_data"] is True
         assert account["_is_testing_only"] is True
 
+
 class TestPositionSizerSafeguards:
     """Test that position sizer rejects mock data."""
 
@@ -118,6 +121,7 @@ class TestPositionSizerSafeguards:
         )
         assert shares > 0
 
+
 class TestTradeExecutorSafeguards:
     """Test that trade executor rejects mock data."""
 
@@ -128,6 +132,7 @@ class TestTradeExecutorSafeguards:
     def test_executor_validates_exit_price(self):
         """Verify TradeExecutor validates exit prices."""
         pytest.skip("Requires full AlgoConfig setup - test in integration suite")
+
 
 class TestEnableTestMode:
     """Test that test mode can be enabled and disabled properly."""
@@ -146,6 +151,7 @@ class TestEnableTestMode:
         with pytest.raises(RuntimeError, match="only valid in development environments"):
             enable_test_mode(mode="dry-run", environment_override="production")
 
+
 class TestTestDataRegistry:
     """Test that test data registry is properly configured."""
 
@@ -163,6 +169,7 @@ class TestTestDataRegistry:
         dry_run = TestDataRegistry.get_entry_point("dry_run_broker")
         assert dry_run is not None
         assert "HARDENED" in dry_run.get("safety_status", "")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

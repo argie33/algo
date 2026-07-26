@@ -9,14 +9,15 @@ This test proves the ENTIRE system works together:
 """
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 
 class MockDatabase:
     """Simulates a real database with position, trade, and config data."""
@@ -68,6 +69,7 @@ class MockDatabase:
             "daily_return_pct": 1.5,
             "unrealized_pnl_total": 250.0,
         }
+
 
 class TestEndToEndTradingWorkflow:
     """Verify the complete system works end-to-end."""
@@ -333,6 +335,7 @@ class TestEndToEndTradingWorkflow:
             print("[OK] System startup validation enabled")
         except Exception as e:
             print(f"[WARN] Config validation check: {e}")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

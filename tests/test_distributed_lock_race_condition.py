@@ -13,7 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from utils.db.dynamo_lock import
+from utils.db.dynamo_lock import DynamoDBLockManager
+
 
 def test_get_lock_manager_always_returns_dynamodb():
     """Verify get_lock_manager() ALWAYS returns DynamoDBLockManager (not FileLockManager), when LOCAL_MODE=false.
@@ -44,6 +45,7 @@ def test_get_lock_manager_always_returns_dynamodb():
         if original_local_mode is not None:
             os.environ["LOCAL_MODE"] = original_local_mode
 
+
 def test_get_lock_manager_falls_back_to_rds_if_dynamodb_unavailable():
     """Verify get_lock_manager() falls back to RDSLockManager if DynamoDB init fails (Session 290).
 
@@ -66,6 +68,7 @@ def test_get_lock_manager_falls_back_to_rds_if_dynamodb_unavailable():
 
         assert result is mock_rds_manager
 
+
 def test_get_lock_manager_fails_fast_if_both_dynamodb_and_rds_unavailable():
     """Verify get_lock_manager() raises RuntimeError only when BOTH backends fail (Session 290)."""
     from utils.db.local_file_lock import get_lock_manager
@@ -77,6 +80,7 @@ def test_get_lock_manager_fails_fast_if_both_dynamodb_and_rds_unavailable():
 
         with pytest.raises(RuntimeError, match="Both DynamoDB and RDS lock managers unavailable"):
             get_lock_manager()
+
 
 def test_local_mode_env_var_ignored_for_orchestrator():
     """Verify LOCAL_MODE env var does NOT make get_lock_manager() fall back to FileLockManager.
@@ -102,6 +106,7 @@ def test_local_mode_env_var_ignored_for_orchestrator():
     finally:
         del os.environ["LOCAL_MODE"]
 
+
 def test_orchestrator_fails_fast_if_lock_manager_unavailable():
     """Verify Orchestrator.__init__ will fail if lock manager initialization fails.
 
@@ -118,6 +123,7 @@ def test_orchestrator_fails_fast_if_lock_manager_unavailable():
 
         with pytest.raises(RuntimeError):
             Orchestrator(config=mock_config)
+
 
 def test_loader_fail_fast_on_ddb_error():
     """Verify loaders fail-fast when DynamoDB unavailable (Session 282).
@@ -138,6 +144,7 @@ def test_loader_fail_fast_on_ddb_error():
     assert "RuntimeError as ddb_err" in source  # Catches RuntimeError from get_lock_manager()
     assert "LockAcquisitionError" in source  # Raises LockAcquisitionError (fail-fast)
     assert "Cannot proceed without distributed locking" in source  # Clear error message
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -19,19 +19,19 @@ Failure scenarios tested:
 - Partial writes and rollback scenarios
 """
 
-import
+import json
 import logging
-import
-import
+import os
+import signal
 import sys
-import
-import
+import threading
+import time
 import unittest
-from import
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import
-from unittest import
-from unittest. import MagicMock, patch
+from typing import Any
+from unittest import mock
+from unittest.mock import MagicMock, Mock, patch
 
 import psycopg2
 import pytest
@@ -51,6 +51,7 @@ from algo.exceptions import (
 from algo.orchestration.halt_flag_manager import HaltFlagManager
 
 logger = logging.getLogger(__name__)
+
 
 class TestDatabaseAvailabilityRecovery(unittest.TestCase):
     """Test database failure scenarios and recovery."""
@@ -168,6 +169,7 @@ class TestDatabaseAvailabilityRecovery(unittest.TestCase):
 
             self.assertTrue(error.retry_eligible)
 
+
 class TestAPIFailureRecovery(unittest.TestCase):
     """Test API failure scenarios and recovery."""
 
@@ -236,6 +238,7 @@ class TestAPIFailureRecovery(unittest.TestCase):
 
         self.assertEqual(error.error_category, ErrorCategory.TRANSIENT)
         self.assertTrue(error.retry_eligible)
+
 
 class TestNetworkFailureRecovery(unittest.TestCase):
     """Test network-level failures and recovery."""
@@ -309,6 +312,7 @@ class TestNetworkFailureRecovery(unittest.TestCase):
         self.assertEqual(error.error_category, ErrorCategory.TRANSIENT)
         self.assertTrue(error.retry_eligible)
 
+
 class TestDiskAndResourceFailures(unittest.TestCase):
     """Test disk space and resource constraint failures."""
 
@@ -358,6 +362,7 @@ class TestDiskAndResourceFailures(unittest.TestCase):
 
         self.assertEqual(error.error_category, ErrorCategory.DATA_QUALITY)
         self.assertFalse(error.retry_eligible)
+
 
 class TestProcessTerminationRecovery(unittest.TestCase):
     """Test recovery from process termination scenarios."""
@@ -409,6 +414,7 @@ class TestProcessTerminationRecovery(unittest.TestCase):
         )
 
         self.assertEqual(error.error_category, ErrorCategory.TRANSIENT)
+
 
 class TestLockManagementRecovery(unittest.TestCase):
     """Test lock acquisition and recovery."""
@@ -477,30 +483,75 @@ class TestLockManagementRecovery(unittest.TestCase):
         # This is a happy path scenario, but tests lock cleanup
         self.assertTrue(True)  # Placeholder for integration test
 
+
 class TestHaltFlagRecovery(unittest.TestCase):
     """Test halt flag management and recovery."""
 
-    def test_halt_flag_dynamodb_unavailable(self):
-        """Verify system fails safely when DynamoDB unavailable.
+    def test_halt_flag_dynamodb_unavailable_falls_back_to_rds(self):
+        """Verify system falls back to RDS (not an automatic halt) when DynamoDB unavailable.
 
         Failure scenario:
         - Phase 1 starts and needs to check halt flag
         - DynamoDB is down (AWS region outage)
+        - RDS is reachable and has no active halt flag
+
+        Expected (RDS FALLBACK FIX, Session 289 - see halt_flag_manager.check_halt_flag
+        docstring): DynamoDB unavailability alone is NOT treated as a halt condition -
+        check_halt_flag() falls back to RDS and returns whatever RDS reports. Only if BOTH
+        DynamoDB and RDS are unavailable does the system fail closed (see
+        test_halt_flag_both_backends_unavailable_fails_closed below). This test previously
+        asserted the pre-Session-289 fail-closed-on-DynamoDB-failure behavior and only
+        "passed" because the local test DB didn't exist yet, so the RDS fallback query itself
+        raised - a coincidental False positive, not a real verification.
+
+        Patch target is algo.orchestration.halt_flag_manager.DatabaseContext, not
+        utils.db.DatabaseContext: halt_flag_manager imports DatabaseContext at module level
+        (`from utils.db import DatabaseContext`), binding its own reference at import time, so
+        patching utils.db's copy has no effect here (contrast with market_health_fetchers.py's
+        VIXFetcher, which imports it fresh inside the function body on every call - see
+        test_fail_fast_patterns.py for that variant of the same mistake).
+        """
+        halt_mgr = HaltFlagManager(self.mock_alerts, self.mock_log_phase)
+
+        with (
+            patch("boto3.resource") as mock_boto,
+            patch("algo.orchestration.halt_flag_manager.DatabaseContext") as mock_db,
+        ):
+            mock_boto.side_effect = RuntimeError("Unable to locate credentials")
+            mock_cursor = MagicMock()
+            mock_cursor.__enter__.return_value.fetchone.return_value = None  # no halt row in RDS
+            mock_cursor.__exit__.return_value = None
+            mock_db.return_value = mock_cursor
+
+            result = halt_mgr.check_halt_flag()
+
+            # DynamoDB down but RDS confirms no halt -> must NOT halt trading
+            self.assertFalse(result)
+
+    def test_halt_flag_both_backends_unavailable_fails_closed(self):
+        """Verify system fails closed when BOTH DynamoDB and RDS are unreachable.
+
+        Failure scenario:
+        - Phase 1 starts and needs to check halt flag
+        - DynamoDB is down AND RDS is unreachable
 
         Expected:
-        - check_halt_flag() catches exception
-        - System treats DynamoDB unavailability as halt condition
-        - Fails closed (GOVERNANCE: never allow trading if halt check fails)
+        - check_halt_flag() returns True (halt) - GOVERNANCE: never allow trading if the
+          halt state genuinely cannot be determined by any backend
         - Alert sent to operators
         """
         halt_mgr = HaltFlagManager(self.mock_alerts, self.mock_log_phase)
 
-        with patch("boto3.resource") as mock_boto:
+        with (
+            patch("boto3.resource") as mock_boto,
+            patch("algo.orchestration.halt_flag_manager.DatabaseContext") as mock_db,
+        ):
             mock_boto.side_effect = RuntimeError("Unable to locate credentials")
+            mock_db.side_effect = psycopg2.OperationalError("could not connect to server")
 
             result = halt_mgr.check_halt_flag()
 
-            # Should return True (halt) when DynamoDB unavailable
+            # Should return True (halt) when both backends are unavailable
             self.assertTrue(result)
             # Should have attempted to send alert
             self.mock_alerts.send_position_alert.assert_called()
@@ -525,6 +576,7 @@ class TestHaltFlagRecovery(unittest.TestCase):
         """
         # Placeholder for DynamoDB integration test
         self.assertTrue(True)
+
 
 class TestPartialWriteRecovery(unittest.TestCase):
     """Test recovery from partial writes and corruption."""
@@ -577,6 +629,7 @@ class TestPartialWriteRecovery(unittest.TestCase):
         self.assertEqual(error.error_category, ErrorCategory.DATA_QUALITY)
         self.assertFalse(error.retry_eligible)
 
+
 class TestCircuitBreakerRecovery(unittest.TestCase):
     """Test circuit breaker failure and recovery."""
 
@@ -604,6 +657,7 @@ class TestCircuitBreakerRecovery(unittest.TestCase):
 
         self.assertEqual(error.error_category, ErrorCategory.TRANSIENT)
         self.assertTrue(error.retry_eligible)
+
 
 class TestMemoryPressureRecovery(unittest.TestCase):
     """Test recovery from memory pressure and GC pauses."""
@@ -648,6 +702,7 @@ class TestMemoryPressureRecovery(unittest.TestCase):
 
         self.assertEqual(error.error_category, ErrorCategory.TRANSIENT)
 
+
 class TestDataConsistencyAfterFailure(unittest.TestCase):
     """Test that data remains consistent after failures."""
 
@@ -683,6 +738,7 @@ class TestDataConsistencyAfterFailure(unittest.TestCase):
         """
         self.assertTrue(True)  # Placeholder for integration test
 
+
 class TestAlarmRecovery(unittest.TestCase):
     """Test that alarms can be properly cleared after recovery."""
 
@@ -717,6 +773,7 @@ class TestAlarmRecovery(unittest.TestCase):
         - Alert includes "last_seen" timestamp
         """
         self.assertTrue(True)  # Placeholder for alert system integration test
+
 
 # Integration tests - run against real database
 class TestRecoveryIntegration(unittest.TestCase):
@@ -756,6 +813,7 @@ class TestRecoveryIntegration(unittest.TestCase):
         5. Verify orchestrator continues without data loss
         """
         pytest.skip("Integration test - requires replicated database")
+
 
 class RecoveryTestReport:
     """Generate report of recovery gaps and findings."""
@@ -812,6 +870,7 @@ class RecoveryTestReport:
         report += "=" * 80 + "\n"
 
         return report
+
 
 if __name__ == "__main__":
     # Run tests

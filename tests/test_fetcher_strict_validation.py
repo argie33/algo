@@ -11,7 +11,8 @@ import pytest
 from dashboard.fetchers_external import fetch_economic_pulse
 from dashboard.fetchers_portfolio import fetch_perf_analytics
 from dashboard.fetchers_signals import fetch_signal_eval
-from utils.validation.framework import
+from utils.validation.framework import StrictValidationError
+
 
 class TestFetchEconomicPulseStrictValidation:
     """Test fetch_economic_pulse handles None values in critical fields."""
@@ -121,6 +122,7 @@ class TestFetchEconomicPulseStrictValidation:
             # Should return error response, not raise StrictValidationError
             assert "_error" in result, f"Expected error response, got: {result}"
 
+
 class TestFetchPerfAnalyticsStrictValidation:
     """Test fetch_perf_analytics handles None values in critical fields."""
 
@@ -161,6 +163,7 @@ class TestFetchPerfAnalyticsStrictValidation:
 
             assert "_error" not in result
             assert result.get("sharpe252") == 1.8
+
 
 class TestFetchSignalEvalStrictValidation:
     """Test fetch_signal_eval handles None values properly with strict mode."""
@@ -205,6 +208,7 @@ class TestFetchSignalEvalStrictValidation:
 
             # Should return error response
             assert "_error" in result
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

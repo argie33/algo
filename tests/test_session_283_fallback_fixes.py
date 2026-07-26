@@ -1,9 +1,10 @@
 """Tests for Session 283 fallback fixes - ensuring no silent data degradation."""
 
-from typing import
-from unittest.mock import
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
+
 
 class TestDashboardDataUnavailableMarker:
     """Verify that dashboard respects _data_unavailable markers."""
@@ -37,6 +38,7 @@ class TestDashboardDataUnavailableMarker:
         layout = render_dashboard(data)
         assert layout is not None
 
+
 class TestDashboardLoadTimeout:
     """Verify dashboard handles load timeouts with explicit unavailable marker."""
 
@@ -60,6 +62,7 @@ class TestDashboardLoadTimeout:
         assert expected["_data_unavailable"] is True
         assert "_dashboard_critical" in expected
 
+
 class TestDashboardExceptionHandling:
     """Verify dashboard exceptions result in explicit error markers, not empty dicts."""
 
@@ -75,6 +78,7 @@ class TestDashboardExceptionHandling:
         assert expected["_data_unavailable"] is True
         assert "reason" in expected
         assert len(expected) > 1  # NOT an empty dict
+
 
 class TestFetchersFailFast:
     """Verify that critical fetcher timeouts cause fail-fast, not graceful degradation."""
@@ -94,6 +98,7 @@ class TestFetchersFailFast:
         # Verify no silent fallback patterns
         assert "Allowing execution to continue" not in source
 
+
 class TestWatchModePreservesState:
     """Verify watch mode preserves previous state on timeout, marks as stale."""
 
@@ -102,6 +107,7 @@ class TestWatchModePreservesState:
         # Verify the pattern: if state.result exists, mark with _stale_refresh
         expected_marker = "_stale_refresh"
         assert expected_marker is not None
+
 
 class TestRecoveryLayerFailFast:
     """Verify recovery layer failures are surfaced, not silently retried."""
@@ -116,6 +122,7 @@ class TestRecoveryLayerFailFast:
         # Verify that the try/except doesn't have a fallback to direct render
         # After fix, there should be NO "render_state(current_result)" fallback
         assert "Direct render as fallback" not in source or "Fallback: render directly" not in source
+
 
 class TestDataAvailabilityPropagation:
     """Verify data unavailability flags are propagated through system."""
@@ -133,6 +140,7 @@ class TestDataAvailabilityPropagation:
         assert "_dashboard_critical" in expected_structure
         assert "reason" in expected_structure
 
+
 # Integration test patterns
 class TestEndToEndDataAvailability:
     """End-to-end tests for data availability guarantees."""
@@ -148,6 +156,7 @@ class TestEndToEndDataAvailability:
 
         # This is verified by our code changes
         assert True  # Placeholder for actual integration test
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
