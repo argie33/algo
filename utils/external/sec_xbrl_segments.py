@@ -193,14 +193,22 @@ class XBRLSegmentParser:
 
         # Extract segment revenue from companyfacts structure
         # companyfacts[concept][unit][] has array of fact objects
+        # SEC uses various naming patterns for segment revenue
         segment_revenue_concept = None
-        for concept_name in ['SegmentRevenue', 'RevenueFromContractWithCustomer', 'Revenues']:
+        revenue_concepts = [
+            'SegmentReportingInformationRevenue',  # SEC standard for segment revenue
+            'SegmentReportingInformationRevenueFromExternalCustomers',
+            'SegmentRevenue',
+            'RevenueFromContractWithCustomer',
+            'Revenues',
+        ]
+        for concept_name in revenue_concepts:
             if concept_name in us_gaap:
                 segment_revenue_concept = concept_name
                 break
 
         if segment_revenue_concept:
-            concept_data = us_gaap[segment_revenue_concept]
+            concept_data = us_gaap.get(segment_revenue_concept, {})
             if isinstance(concept_data, dict) and 'units' in concept_data:
                 units_data = concept_data['units']
                 for unit, facts_list in units_data.items():
@@ -208,19 +216,30 @@ class XBRLSegmentParser:
                         for fact in facts_list:
                             if isinstance(fact, dict):
                                 # Extract segment identifier and revenue
-                                segment_id = fact.get('segment', fact.get('contextRef', ''))
+                                # SEC XBRL uses 'segment' field or embeds it in contextRef
+                                segment_id = fact.get('segment')
+                                if not segment_id:
+                                    # Try to extract from contextRef which has format like:
+                                    # "SegmentA_StandardPeriodDuration"
+                                    context_ref = fact.get('contextRef', '')
+                                    if context_ref and '_' in context_ref:
+                                        segment_id = context_ref.split('_')[0]
+
                                 value = fact.get('value')
                                 # Prefer most recent fiscal year data
                                 if value is not None and segment_id:
                                     try:
                                         rev = float(value)
                                         fy = fact.get('fy', 0)
-                                        if segment_id not in segment_revenues:
-                                            segment_revenues[segment_id] = (rev, fy)
+                                        fp = fact.get('fp', '')  # fiscal period
+
+                                        # Store by (segment_id, fy, fp) to avoid losing multi-period data
+                                        key = (segment_id, fy, fp)
+                                        if key not in segment_revenues:
+                                            segment_revenues[key] = rev
                                         else:
-                                            old_rev, old_fy = segment_revenues[segment_id]
-                                            if fy >= old_fy:
-                                                segment_revenues[segment_id] = (rev, fy)
+                                            # If duplicate period, keep latest
+                                            segment_revenues[key] = rev
                                     except (ValueError, TypeError):
                                         pass
 
@@ -244,13 +263,28 @@ class XBRLSegmentParser:
                                         else:
                                             segments_data[segment_id]['name'] = str(value)
 
-        # Build result list from revenues
-        for segment_id, (revenue, fy) in segment_revenues.items():
+        # Build result list from revenues, aggregating by segment_id across periods
+        segment_aggregates = {}
+        for (segment_id, fy, fp), revenue in segment_revenues.items():
+            if segment_id not in segment_aggregates:
+                segment_aggregates[segment_id] = {
+                    'total_revenue': 0,
+                    'latest_fy': fy,
+                    'count': 0
+                }
+            segment_aggregates[segment_id]['total_revenue'] += revenue
+            segment_aggregates[segment_id]['count'] += 1
+            if fy > segment_aggregates[segment_id]['latest_fy']:
+                segment_aggregates[segment_id]['latest_fy'] = fy
+
+        for segment_id, agg in segment_aggregates.items():
             seg_data = segments_data.get(segment_id, {})
+            # Use average revenue across periods for stability
+            avg_revenue = agg['total_revenue'] / agg['count'] if agg['count'] > 0 else 0
             segments.append({
                 'segment_id': segment_id,
                 'name': seg_data.get('name', seg_data.get('id', segment_id)),
-                'revenue': revenue,
+                'revenue': avg_revenue,
                 'operating_income': None,
                 'assets': None,
             })
