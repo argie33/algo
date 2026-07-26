@@ -610,14 +610,26 @@ def run(
                 # halt_constraints with safe defaults (max_concentration_pct=0, halt_new_entries=True).
                 # Phase 8 MUST use these halt constraints, not ignore them.
                 exposure_constraints_from_executor = phase5_result.data.get("constraints")
+
+                # CRITICAL FIX: Validate Phase 5 constraints have ALL required fields
+                # If any required field is missing, use safe defaults instead
+                required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
                 if exposure_constraints_from_executor:
-                    constraint_keys = list(exposure_constraints_from_executor.keys())
-                    if phase5_result.ok:
-                        logger.info(f"[PHASE 8] Retrieved exposure constraints from Phase 5: {constraint_keys}")
-                    else:
+                    missing_in_phase5 = [k for k in required_fields if k not in exposure_constraints_from_executor]
+                    if missing_in_phase5:
                         logger.warning(
-                            f"[PHASE 8] Phase 5 halted ({phase5_result.status}), using halt constraints: {constraint_keys}"
+                            f"[PHASE 8] Phase 5 constraints incomplete (missing: {missing_in_phase5}). "
+                            f"Using safe halt defaults instead."
                         )
+                        exposure_constraints_from_executor = None  # Trigger safe defaults below
+                    else:
+                        constraint_keys = list(exposure_constraints_from_executor.keys())
+                        if phase5_result.ok:
+                            logger.info(f"[PHASE 8] Retrieved exposure constraints from Phase 5: {constraint_keys}")
+                        else:
+                            logger.warning(
+                                f"[PHASE 8] Phase 5 halted ({phase5_result.status}), using halt constraints: {constraint_keys}"
+                            )
                 else:
                     logger.warning(
                         f"[PHASE 8] Phase 5 returned {phase5_result.status} but constraints dict is empty. "
