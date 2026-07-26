@@ -540,15 +540,6 @@ def _get_stock_scores(
         prices_missing_count = 0
         for row in scores:
             d = dict(row)
-            # DEBUG: Log reason field presence for first item
-            if len(items) == 0:
-                reason_fields = [k for k in d.keys() if "unavailable_reason" in k]
-                logger.critical(f"[SCORES_API_DEBUG_DICT] {len(d)} keys in dict, {len(reason_fields)} reason fields")
-                logger.critical(f"[SCORES_API_DEBUG_REASONS] {reason_fields[:10]}")
-                logger.critical(
-                    f"[SCORES_API_DEBUG_FWD_PE] forward_pe_unavailable_reason={d.get('forward_pe_unavailable_reason')}"
-                )
-
             # CRITICAL FIX: Explicit data_unavailable flags for each metric
             # If a score metric is marked unavailable, include it as None (not synthetic value)
             # Dashboard will see explicit unavailability markers
@@ -565,14 +556,6 @@ def _get_stock_scores(
 
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)
-
-            # Debug: Log if factor inputs were added
-            if "quality_inputs" in d:
-                logger.debug(f"Factor inputs added for {d.get('symbol')}")
-            else:
-                logger.warning(
-                    f"Factor inputs NOT added for {d.get('symbol')} - quality_inputs missing after _build_factor_inputs call"
-                )
 
             # CRITICAL FIX: If current price is missing, mark data unavailable
             # For trading, current price is REQUIRED to calculate entry/exit risk
@@ -611,16 +594,6 @@ def _get_stock_scores(
         is_last_page = items_count < limit
         estimated_total = offset + items_count if is_last_page else offset + limit + 1
 
-        logger.info(f"[SCORES_API_NEW_FORMAT] Returning {items_count} items in paginated format (Session 302 fix)")
-
-        # DEBUG: Verify quality_inputs are present in returned items
-        if items:
-            sample = items[0]
-            has_quality = "quality_inputs" in sample
-            quality_keys = len(sample.get("quality_inputs", {})) if has_quality else 0
-            has_roe = sample.get("quality_inputs", {}).get("return_on_equity_pct") is not None if has_quality else False
-            logger.critical(f"[SCORES_RESPONSE_CHECK] symbol={sample.get('symbol')} quality_inputs={has_quality} keys={quality_keys} roe_present={has_roe}")
-
         # Compute summary metrics over ALL scores (not just this page)
         # Dashboard summary line needs these metrics for the full universe
         avg_composite: float | None = None
@@ -647,7 +620,6 @@ def _get_stock_scores(
                         grades_summary["d"] = grades_summary.get("d", 0) + 1
 
         result = {
-            "statusCode": 200,
             "items": items,
             "pagination": {
                 "total": estimated_total,
@@ -659,9 +631,7 @@ def _get_stock_scores(
             "avg_composite": avg_composite,
             "grades": grades_summary if grades_summary else None,
         }
-        if freshness:
-            result["data_freshness"] = freshness
-        return result
+        return json_response(200, result, data_freshness=freshness)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

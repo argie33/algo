@@ -1047,15 +1047,6 @@ def main() -> int:
 
     Exit codes: 0=success, 1=error, 2=no_data
     """
-    # Debug: Log environment for diagnostics
-    import os as _os
-
-    logger.info(f"[DEBUG] AWS_REGION={_os.getenv('AWS_REGION')}")
-    logger.info(f"[DEBUG] DB_HOST={_os.getenv('DB_HOST')}")
-    logger.info(f"[DEBUG] DB_PORT={_os.getenv('DB_PORT')}")
-    logger.info(f"[DEBUG] DB_NAME={_os.getenv('DB_NAME')}")
-    logger.info(f"[DEBUG] AWS_EXECUTION_ENV={_os.getenv('AWS_EXECUTION_ENV')}")
-
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
     parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
     parser.add_argument("--since", type=str, help="Only load data after YYYY-MM-DD")
@@ -1082,7 +1073,6 @@ def main() -> int:
     try:
         # Get symbols
         try:
-            logger.info("[DEBUG] Attempting to fetch active symbols...")
             symbols = get_active_symbols(timeout_secs=300)
             if args.limit:
                 symbols = symbols[: args.limit]

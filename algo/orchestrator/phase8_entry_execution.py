@@ -508,7 +508,6 @@ def run(
             False,  # halted=False: guard is just blocking entries, not halting orchestration
             msg,
         )
-        logger.info(f"[PHASE 8 DEBUG] Market hours guard returning: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
         return result
 
     # CRITICAL GUARD: Check for pending/recent orders that may still be filling
@@ -548,7 +547,6 @@ def run(
                         False,  # halted=False: guard worked but didn't halt orchestration
                         msg,
                     )
-                    logger.info(f"[PHASE 8 DEBUG] Returning PhaseResult: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
                     return result
         except Exception as e:
             msg = (

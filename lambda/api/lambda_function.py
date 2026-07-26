@@ -1511,7 +1511,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     http_ctx = _req_ctx.get("http")
     http_ctx = http_ctx if http_ctx is not None else {}
     method = http_ctx.get("method", event.get("httpMethod", "GET"))
-    logger.info(f"[HANDLER_DEBUG] START {method} {path}")
 
     # CORS preflight: must succeed even during import failures (browsers need this)
     if method == "OPTIONS":

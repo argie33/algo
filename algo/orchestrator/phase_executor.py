@@ -318,8 +318,6 @@ class OrchestratorPhaseExecutor:
                 logger.critical(f"[PHASE {phase_num}] HALTED - {result.error or 'unknown reason'}")
 
             log_level = "error" if not result.ok else "info"
-            if phase_num == 8:
-                logger.info(f"[PHASE {phase_num} DEBUG] result.status={result.status!r}, result.ok={result.ok}, log_level={log_level}")
             logger.log(
                 logging.ERROR if log_level == "error" else logging.INFO,
                 f"\n-> Phase {phase_num} {result.status}: {result.data.get('summary', 'check logs for details')}",
