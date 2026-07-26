@@ -7,7 +7,7 @@ jitter, and rate limiter behavior under concurrent access.
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import, patch
 
 import pytest
 
@@ -18,7 +18,6 @@ from algo.infrastructure.retry import (
     RateLimiter,
     retry,
 )
-
 
 class TestRetryDecorator:
     """Test @retry decorator behavior."""
@@ -190,7 +189,6 @@ class TestRetryDecorator:
         result = my_func(1, 2)
         assert result == 3
 
-
 class TestRateLimiter:
     """Test RateLimiter (token bucket rate limiting)."""
 
@@ -284,7 +282,6 @@ class TestRateLimiter:
         # Verify min_interval is calculated correctly: 60/30 = 2 seconds per call
         assert limiter._min_interval == pytest.approx(2.0, abs=0.01)
 
-
 class TestPrebuiltLimiters:
     """Test pre-built rate limiters for known providers."""
 
@@ -307,7 +304,6 @@ class TestPrebuiltLimiters:
         assert DEFAULT_LIMITER._min_interval > 0
         # Default: 30 CPM: 60/30 = 2 seconds per call
         assert DEFAULT_LIMITER._min_interval == pytest.approx(60.0 / 30.0, abs=0.01)
-
 
 class TestRetryIntegration:
     """Integration tests combining retry and rate limiting."""
@@ -342,7 +338,6 @@ class TestRetryIntegration:
 
         with pytest.raises(ConnectionError):
             fn()
-
 
 class TestErrorLogging:
     """Test that retry decorator logs appropriately."""

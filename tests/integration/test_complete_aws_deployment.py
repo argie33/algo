@@ -2,7 +2,7 @@
 """Complete AWS Deployment Test - Verify all 9 phases + dashboard + paper trading + growth scores."""
 
 import sys
-from datetime import datetime
+from import
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -10,7 +10,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 
 class TestCompleteAWSDeployment:
     """Verify entire system works in AWS (all 9 phases, dashboard, paper trading, growth scores)."""
@@ -140,7 +139,6 @@ class TestCompleteAWSDeployment:
         assert phase_7_deps == [5], f"Phase 7 should depend on 5, got {phase_7_deps}"
         assert 7 in phase_8_deps and 5 in phase_8_deps, f"Phase 8 should depend on 7,5, got {phase_8_deps}"
 
-
 class TestDashboardAPIVerification:
     """Verify dashboard can actually fetch and display growth scores."""
 
@@ -175,7 +173,6 @@ class TestDashboardAPIVerification:
         # Verified through the internal allowed_sorts list in _get_stock_scores
         assert callable(handle), "scores endpoint should be callable"
 
-
 class TestPaperTradingFlow:
     """Verify paper trading execution path works end-to-end."""
 
@@ -197,7 +194,6 @@ class TestPaperTradingFlow:
         # Paper trading should not require real Alpaca account access
         execution_mode = "paper"
         assert execution_mode != "live", "Paper trading mode should not be live"
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

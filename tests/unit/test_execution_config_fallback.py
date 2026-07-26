@@ -4,18 +4,16 @@ Ensures the $100k hardcoded fallback is only used in safe modes (dry-run/paper/r
 and never in production (auto) mode.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from algo.infrastructure.config.execution_config import ExecutionConfig
 
-
 @pytest.fixture
 def mock_parent_config():
     parent = MagicMock()
     return parent
-
 
 def test_default_portfolio_value_production_mode_fails(mock_parent_config):
     """CRITICAL: No fallback in any mode - config must always be explicit."""
@@ -34,7 +32,6 @@ def test_default_portfolio_value_production_mode_fails(mock_parent_config):
     assert "default_portfolio_value config key missing" in str(exc_info.value)
     assert "no fallback" in str(exc_info.value)
 
-
 def test_default_portfolio_value_dry_run_mode_fails(mock_parent_config):
     """In dry-run mode, no fallback - config must be explicit (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
@@ -49,7 +46,6 @@ def test_default_portfolio_value_dry_run_mode_fails(mock_parent_config):
         config.get_default_portfolio_value()
 
     assert "default_portfolio_value config key missing" in str(exc_info.value)
-
 
 def test_default_portfolio_value_paper_mode_fails(mock_parent_config):
     """In paper mode, no fallback - config must be explicit (fail-fast governance)."""
@@ -66,7 +62,6 @@ def test_default_portfolio_value_paper_mode_fails(mock_parent_config):
 
     assert "default_portfolio_value config key missing" in str(exc_info.value)
 
-
 def test_default_portfolio_value_review_mode_fails(mock_parent_config):
     """In review mode, no fallback - config must be explicit (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
@@ -82,7 +77,6 @@ def test_default_portfolio_value_review_mode_fails(mock_parent_config):
 
     assert "default_portfolio_value config key missing" in str(exc_info.value)
 
-
 def test_default_portfolio_value_explicit_value_overrides_fallback(mock_parent_config):
     """When config has explicit value, it's always used (regardless of mode)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
@@ -93,7 +87,6 @@ def test_default_portfolio_value_explicit_value_overrides_fallback(mock_parent_c
     config = ExecutionConfig(mock_parent_config)
     value = config.get_default_portfolio_value()
     assert value == 250000.0  # Uses explicit value, not $100k
-
 
 def test_default_portfolio_value_type_conversion(mock_parent_config):
     """Explicit values are converted to float."""
@@ -106,7 +99,6 @@ def test_default_portfolio_value_type_conversion(mock_parent_config):
     value = config.get_default_portfolio_value()
     assert value == 500000.0
     assert isinstance(value, float)
-
 
 def test_execution_config_full_dict(mock_parent_config):
     """Full execution config includes portfolio value."""
@@ -125,7 +117,6 @@ def test_execution_config_full_dict(mock_parent_config):
     assert cfg_dict["max_trades_per_day"] == 5
     assert cfg_dict["default_portfolio_value"] == 100000.0
 
-
 def test_invalid_execution_mode_raises(mock_parent_config):
     """Invalid execution modes raise RuntimeError (fail-fast governance)."""
     mock_parent_config.get.side_effect = lambda key, default=None: {
@@ -139,7 +130,6 @@ def test_invalid_execution_mode_raises(mock_parent_config):
 
     assert "Invalid execution_mode 'invalid_mode'" in str(exc_info.value)
     assert "Valid modes are" in str(exc_info.value)
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

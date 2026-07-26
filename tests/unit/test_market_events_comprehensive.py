@@ -6,14 +6,13 @@ These tests ensure fail-safe behavior and correct circuit breaker boundary detec
 """
 
 import json
-from datetime import date, datetime, timedelta, timezone
-from unittest.mock import MagicMock, Mock, patch
+from datetime import date, datetime, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from algo.infrastructure.market_events import MarketEventHandler
-
 
 class TestMarketEventHandlerInit:
     """Test MarketEventHandler initialization."""
@@ -51,7 +50,6 @@ class TestMarketEventHandlerInit:
         handler = MarketEventHandler(config)
 
         assert handler.config == {"threshold": 0.05, "execution_mode": "paper"}
-
 
 class TestCheckSingleStockHalt:
     """Test check_single_stock_halt() method."""
@@ -256,7 +254,6 @@ class TestCheckSingleStockHalt:
         assert result.get("error") == "halt_check_failed"
         assert result.get("reason") == "api_timeout"
 
-
 class TestCheckMarketCircuitBreaker:
     """Test check_market_circuit_breaker() method - critical circuit breaker detection."""
 
@@ -445,7 +442,6 @@ class TestCheckMarketCircuitBreaker:
             assert result.get("error") == "circuit_breaker_check_failed"
             assert result.get("reason") == "data_validation_error"
 
-
 class TestCheckEarlyClose:
     """Test check_early_close() method."""
 
@@ -508,7 +504,6 @@ class TestCheckEarlyClose:
 
         with pytest.raises(RuntimeError, match="Cannot verify early close status"):
             handler.check_early_close(check_date)
-
 
 class TestCheckAfterHoursWindow:
     """Test check_after_hours_window() method."""
@@ -606,7 +601,6 @@ class TestCheckAfterHoursWindow:
 
         assert not result
 
-
 class TestHandleSingleStockHalt:
     """Test handle_single_stock_halt() method."""
 
@@ -635,7 +629,6 @@ class TestHandleSingleStockHalt:
 
         # Verify SQL was executed for cancellation and logging
         assert mock_cursor.execute.call_count >= 2
-
 
 class TestCheckDelisting:
     """Test check_delisting() method."""
@@ -711,7 +704,6 @@ class TestCheckDelisting:
         result = handler.check_delisting("AAPL")
 
         assert result is None
-
 
 class TestRunPreMarketChecks:
     """Test run_pre_market_checks() concurrent execution."""

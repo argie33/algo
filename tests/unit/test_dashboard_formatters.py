@@ -5,10 +5,9 @@ Tests the new function-based formatter API for dashboard display formatting.
 """
 
 import time
-from datetime import date, datetime
+from import
 
-import pytest
-
+import
 
 class TestMoneyFormatting:
     """Test money/currency formatting."""
@@ -67,7 +66,6 @@ class TestMoneyFormatting:
         result = fmt_money(-500)
         assert result is not None
 
-
 class TestAgeFormatting:
     """Test timestamp age formatting."""
 
@@ -96,7 +94,6 @@ class TestAgeFormatting:
         result = fmt_age(None)
         assert result is not None
 
-
 class TestSignFormatting:
     """Test sign formatting for positive/negative."""
 
@@ -120,7 +117,6 @@ class TestSignFormatting:
 
         result = sign(0)
         assert isinstance(result, str)
-
 
 class TestBarFormatting:
     """Test bar chart formatters."""
@@ -186,7 +182,6 @@ class TestBarFormatting:
         result = mini_bar(None, 10)
         assert "✗" in result
 
-
 class TestSparklineFormatting:
     """Test sparkline formatting."""
 
@@ -232,7 +227,6 @@ class TestSparklineFormatting:
         result = sparkline(values)
         assert result is not None
 
-
 class TestMarketStatusFormatting:
     """Test market status formatters."""
 
@@ -251,7 +245,6 @@ class TestMarketStatusFormatting:
         assert result is not None
         assert isinstance(result, str)
         assert len(result) > 0
-
 
 class TestFormatterIntegration:
     """Integration tests for multiple formatters."""
@@ -280,7 +273,6 @@ class TestFormatterIntegration:
 
         assert bar is not None
         assert spark is not None
-
 
 class TestFormatterEdgeCases:
     """Test formatter edge cases and robustness."""
@@ -323,7 +315,6 @@ class TestFormatterEdgeCases:
         result = mini_bar(0, 0)
         assert result is not None
 
-
 class TestFormatterPerformance:
     """Test formatter performance."""
 
@@ -351,7 +342,6 @@ class TestFormatterPerformance:
 
         # Should be reasonably fast
         assert elapsed < 1.0
-
 
 class TestFormatterConsistency:
     """Test formatter consistency and idempotency."""

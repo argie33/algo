@@ -22,7 +22,7 @@ from typing import Any
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
-from utils.external.sec_form345_transaction_velocity import Form345TransactionVelocityAggregator
+from utils.external.sec_form345_transaction_velocity_cached import CachedForm345Aggregator
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
@@ -41,11 +41,20 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
-        self._aggregator = Form345TransactionVelocityAggregator()
+        self._aggregator = CachedForm345Aggregator(lookback_quarters=12, timeout_seconds=300)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         measurement_date = since or datetime.now(EASTERN_TZ).date()
-        metrics = self._aggregator.get_velocity_metrics(symbol, measurement_date)
+
+        try:
+            # Don't wait for download on first call - let it happen in background
+            # On subsequent runs, data will be cached and available
+            wait_for_it = False  # Set to True to block until Form345 data is ready
+            metrics = self._aggregator.get_velocity_metrics(symbol, measurement_date, wait_for_download=wait_for_it)
+        except (TimeoutError, Exception) as e:
+            # SEC bulk data downloads can be slow; fail gracefully
+            logger.debug(f"[{symbol}] Insider velocity fetch error: {type(e).__name__}: {e}")
+            return self._unavailable_record(symbol, measurement_date, "sec_form345_bulk_data_unavailable")
 
         if metrics.data_unavailable:
             return self._unavailable_record(symbol, measurement_date, metrics.reason or "no_data")

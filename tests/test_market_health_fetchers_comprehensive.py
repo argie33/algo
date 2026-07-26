@@ -10,10 +10,9 @@ Verifies:
 """
 
 from datetime import date
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 class TestBreadthFetcherNewHighsLows:
     """Test BreadthFetcher._compute_new_highs_lows() method - NEW FUNCTIONALITY"""
@@ -112,7 +111,6 @@ class TestBreadthFetcherNewHighsLows:
         assert isinstance(call_args[0][0], str), "First arg should be SQL string"
         assert isinstance(call_args[0][1], tuple), "Second arg should be params tuple"
         assert call_args[0][1] == (start, end), "Params should be (start, end)"
-
 
 @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
 class TestBreadthFetcherFullIntegration:
@@ -313,7 +311,6 @@ class TestBreadthFetcherFullIntegration:
             assert result["2024-01-02"]["new_highs_count"] is None
             assert result["2024-01-02"]["new_lows_count"] is None
 
-
 @pytest.mark.xfail(reason="Tests for old graceful degradation behavior; system now uses fail-fast semantics")
 class TestBreadthFetcherEdgeCases:
     """Edge cases and boundary conditions"""
@@ -390,7 +387,6 @@ class TestBreadthFetcherEdgeCases:
             assert result["2024-01-01"]["advance_decline_ratio"] == 2.0
             assert result["2024-01-02"]["advance_decline_ratio"] == round(110 / 45, 3)
             assert result["2024-01-03"]["advance_decline_ratio"] == round(95 / 55, 3)
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

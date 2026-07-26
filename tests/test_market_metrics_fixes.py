@@ -6,12 +6,11 @@ Test suite for market metrics fixes:
 """
 
 from datetime import date
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
 from loaders.market_health_fetchers import BreadthFetcher
-
 
 class TestBreadthFetcherValidation:
     """Test that BreadthFetcher fails fast when data is missing."""
@@ -105,7 +104,6 @@ class TestBreadthFetcherValidation:
 
         assert result[test_date.isoformat()] == (0, 50)
 
-
 class TestDashboardMetricsDisplay:
     """Test that dashboard properly displays placeholder metrics."""
 
@@ -149,7 +147,6 @@ class TestDashboardMetricsDisplay:
         assert nh_display == "--"
         assert nl_display == "--"
 
-
 class TestBreadthFetcherFetch:
     """Test the complete BreadthFetcher.fetch() flow."""
 
@@ -190,7 +187,6 @@ class TestBreadthFetcherFetch:
 
         assert "price_daily has no rows" in str(exc_info.value)
 
-
 class TestErrorMessages:
     """Test that error messages are actionable."""
 
@@ -219,7 +215,6 @@ class TestErrorMessages:
         assert "252 days" in error_msg
         assert "continuous" in error_msg
         assert "Verify:" in error_msg
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

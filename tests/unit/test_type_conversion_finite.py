@@ -8,13 +8,12 @@ return value had no finiteness check), which would poison every downstream compa
 files specifically for fail-fast numeric conversion, so this must never regress.
 """
 
-import math
+import
 from decimal import Decimal
 
 import pytest
 
 from utils.type_conversion import safe_float, safe_int
-
 
 class TestSafeFloatRejectsNonFinite:
     def test_rejects_nan_float(self):
@@ -67,7 +66,6 @@ class TestSafeFloatRejectsNonFinite:
     def test_negative_value_is_finite_and_accepted(self):
         assert safe_float(-5.5, "test.field") == -5.5
 
-
 class TestSafeFloatResultNeverNaN:
     """Any value that survives safe_float() must be usable in a normal comparison
     (i.e. must not be NaN, since NaN breaks every threshold/gating check that assumes
@@ -77,7 +75,6 @@ class TestSafeFloatResultNeverNaN:
     def test_result_compares_equal_to_itself(self, value):
         result = safe_float(value, "test.field")
         assert result == result  # NaN != NaN; this fails only for NaN
-
 
 class TestSafeIntUnaffected:
     """safe_int operates on int/Decimal/str only - Python int has no NaN/Infinity

@@ -7,9 +7,6 @@ Tests focus on:
 4. Error display without crashes
 """
 
-import pytest
-
-
 def _mock_panel_data() -> dict[str, object]:
     """Minimal but realistic data for all 16 panels."""
     return {
@@ -90,7 +87,6 @@ def _mock_panel_data() -> dict[str, object]:
         "sig_eval": None,
     }
 
-
 class TestPanelCircuitBreaker:
     """Circuit breaker (CB) panel tests."""
 
@@ -118,7 +114,6 @@ class TestPanelCircuitBreaker:
         result = panel_circuit({})
         assert result is not None
         print("✓ Circuit breaker panel handles empty data")
-
 
 class TestPanelEconomic:
     """Economic indicators (ECO) panel tests."""
@@ -148,7 +143,6 @@ class TestPanelEconomic:
         result = panel_economic_pulse(None)
         assert result is not None
         print("✓ Economic panel handles None")
-
 
 class TestPanelExposure:
     """Exposure factors (EXP) panel tests."""
@@ -184,7 +178,6 @@ class TestPanelExposure:
         result = panel_exposure_compact(partial_data)
         assert result is not None
         print("✓ Exposure panel handles missing factors")
-
 
 class TestPanelMarket:
     """Market data (MKT) panel tests."""
@@ -226,7 +219,6 @@ class TestPanelMarket:
             # If it raises, it should be about missing critical sentiment data
             assert "missing" in str(e).lower()
             print(f"✓ Market panel raises clear error: {e}")
-
 
 class TestPanelPortfolio:
     """Portfolio panel tests."""
@@ -299,7 +291,6 @@ class TestPanelPortfolio:
         text = render_panel_to_text(panel_portfolio(port, {"max_pos_n": 12}))
         assert "STALE" in text, f"expected STALE warning for 25h-old data, got: {text!r}"
 
-
 class TestPanelPositions:
     """Positions panel tests."""
 
@@ -366,7 +357,6 @@ class TestPanelPositions:
         text = render_panel_to_text(panel_positions(self._position_data(is_stale=False)))
         assert "STALE" not in text, f"unexpected STALE warning for fresh position data: {text!r}"
 
-
 class TestPanelSignals:
     """Signals panel tests."""
 
@@ -388,7 +378,6 @@ class TestPanelSignals:
         assert result is not None
         print("✓ Signals panel handles no signals")
 
-
 class TestPanelTrades:
     """Trades panel tests."""
 
@@ -409,7 +398,6 @@ class TestPanelTrades:
         result = panel_completed_trades(empty)
         assert result is not None
         print("✓ Trades panel handles no trades")
-
 
 class TestPanelSectors:
     """Sectors panel tests."""
@@ -439,7 +427,6 @@ class TestPanelSectors:
         result = panel_sector_compact(data["srank"], data["pos"], data["port"], sec_rot)
         assert result is not None
         print("✓ Sectors panel handles one-sided rotation scores without crashing")
-
 
 class TestPanelScores:
     """Scores panel tests."""
@@ -487,7 +474,6 @@ class TestPanelScores:
         result_expanded = panel_scores_expanded(malformed_scores)
         assert result_expanded is not None
         print("✓ Scores panel handles top-level list without crashing")
-
 
 class TestPanelIntegration:
     """Integration: All panels together."""

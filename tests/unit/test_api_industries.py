@@ -1,7 +1,6 @@
 """Unit tests for API industries endpoint."""
 
-import pytest
-
+import
 
 def test_industries_list_response_structure():
     """Verify industries/list endpoint returns proper response structure."""
@@ -22,7 +21,6 @@ def test_industries_list_response_structure():
     # All expected fields should be allowed
     assert expected_fields.issubset(allowed_fields), f"Missing fields in schema: {expected_fields - allowed_fields}"
 
-
 def test_industries_endpoint_validation():
     """Verify response validator accepts proper response structure."""
     from shared_contracts.response_validator import ResponseValidator
@@ -38,7 +36,6 @@ def test_industries_endpoint_validation():
 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/list", valid_response)
     assert is_valid, f"Valid response failed validation: {error_msg}"
-
 
 def test_industries_detail_endpoint_validation():
     """Verify detail endpoint response structure is valid."""
@@ -64,7 +61,6 @@ def test_industries_detail_endpoint_validation():
 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/detail", valid_response)
     assert is_valid, f"Valid detail response failed validation: {error_msg}"
-
 
 def test_industries_trend_endpoint_validation():
     """Verify trend endpoint response structure is valid."""

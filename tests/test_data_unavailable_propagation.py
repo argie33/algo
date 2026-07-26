@@ -9,11 +9,7 @@ Verifies that when data is unavailable:
 4. Financial decisions degrade explicitly (not silently)
 """
 
-from datetime import date
-from unittest.mock import MagicMock, patch
-
 import pytest
-
 
 class TestDataUnavailableMarkers:
     """Test that data unavailability is explicitly marked."""
@@ -84,7 +80,6 @@ class TestDataUnavailableMarkers:
                     "insufficient_price_history. Using (0,0) placeholders would corrupt position sizing."
                 )
 
-
 class TestDataPropagation:
     """Test that data_unavailable markers propagate through pipeline."""
 
@@ -142,7 +137,6 @@ class TestDataPropagation:
 
         assert not use_yield_for_regime
 
-
 class TestErrorPropagation:
     """Test that errors propagate explicitly, not silently."""
 
@@ -183,7 +177,6 @@ class TestErrorPropagation:
         if not validation_result:
             with pytest.raises(ValueError):
                 raise ValueError(f"[VALIDATION FAILED] {error_message}")
-
 
 class TestSilentFallbackPrevention:
     """Test that silent fallback patterns are prevented."""
@@ -242,7 +235,6 @@ class TestSilentFallbackPrevention:
             else:
                 _vix_close = float(row["close"])
 
-
 class TestCircuitBreakerProtection:
     """Test that circuit breaker mechanisms work correctly."""
 
@@ -267,7 +259,6 @@ class TestCircuitBreakerProtection:
             assert size_multiplier == Decimal(0)
         else:
             size_multiplier = Decimal(1)
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

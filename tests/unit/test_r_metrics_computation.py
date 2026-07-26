@@ -1,9 +1,8 @@
 """Unit tests for R-metrics computation (avg_win_r, avg_loss_r, expectancy)."""
 
 import unittest
-from datetime import date
-from unittest.mock import MagicMock, patch
-
+from datetime import
+from unittest.mock import
 
 class TestRMetricsComputation(unittest.TestCase):
     """Test R-metrics calculation from trades."""
@@ -72,7 +71,6 @@ class TestRMetricsComputation(unittest.TestCase):
         # Expected: (0.6 x 3.0) - (0.4 x 1.0) = 1.8 - 0.4 = 1.4
         self.assertAlmostEqual(expectancy, 1.4, places=2)
         self.assertGreater(expectancy, 0, "Profitable system should have positive expectancy")
-
 
 if __name__ == "__main__":
     unittest.main()

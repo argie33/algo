@@ -4,17 +4,10 @@ This test suite intentionally passes wrong types to dashboard functions
 to verify they don't crash. This catches bugs that clean-data unit tests miss.
 """
 
-from datetime import datetime
-
-import pytest
-
 from dashboard.panels.health import (
     _build_results_panel,
     panel_algo_health,
-    panel_orch,
-    panel_status,
 )
-
 
 class TestPanelWithMalformedRiskData:
     """Dashboard should handle corrupted risk metrics gracefully."""
@@ -73,7 +66,6 @@ class TestPanelWithMalformedRiskData:
         panel = panel_algo_health(run=run, act=None, hlth=None, notifs=[], risk=malformed_risk)
         assert panel is not None
 
-
 class TestBuildResultsPanelWithMalformedData:
     """_build_results_panel should handle corrupted data."""
 
@@ -92,7 +84,6 @@ class TestBuildResultsPanelWithMalformedData:
             run=run, act=None, algo_metrics=[], exec_hist=[], risk=corrupted_risk, notifs=[]
         )
         assert panel is not None
-
 
 class TestPanelWithMalformedHealthData:
     """Dashboard should handle corrupted health data."""
@@ -130,7 +121,6 @@ class TestPanelWithMalformedHealthData:
         panel = _build_freshness_panel(malformed_items, ready_to_trade=True)
         assert panel is not None
 
-
 class TestSignalQualityScoreWithMalformedData:
     """Signal filtering should handle wrong score types."""
 
@@ -154,7 +144,6 @@ class TestSignalQualityScoreWithMalformedData:
         # Should return None, not crash
         assert score is None
 
-
 class TestMarketDataWithMalformedPercentages:
     """Market movers should handle corrupted percentage data."""
 
@@ -177,7 +166,6 @@ class TestMarketDataWithMalformedPercentages:
 
         # Should return None, not crash
         assert ret is None
-
 
 class TestComparisonSafetyPatterns:
     """Verify that all numeric comparisons are type-safe."""

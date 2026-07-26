@@ -9,8 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dashboard.api_data_layer import _circuit_breaker_state, api_call
-
+from dashboard.api_data_layer import, api_call
 
 @pytest.fixture(autouse=True)
 def reset_circuit_breaker(monkeypatch):
@@ -21,7 +20,6 @@ def reset_circuit_breaker(monkeypatch):
     monkeypatch.setattr(api_layer, "_circuit_breaker_state", "closed")
     monkeypatch.setattr(api_layer, "_circuit_breaker_failures", 0)
     monkeypatch.setattr(api_layer, "_circuit_breaker_reset_time", None)
-
 
 def test_api_call_validates_portfolio_response():
     """Verify that api_call validates portfolio responses."""
@@ -47,7 +45,6 @@ def test_api_call_validates_portfolio_response():
             assert result["position_count"] == 5
             assert result["statusCode"] == 200
 
-
 def test_api_call_catches_missing_portfolio_field():
     """Verify that api_call catches missing required fields in portfolio response."""
     with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
@@ -69,7 +66,6 @@ def test_api_call_catches_missing_portfolio_field():
             # Should return error dict
             assert "_error" in result
             assert "position_count" in result["_error"].lower() or "missing" in result["_error"].lower()
-
 
 def test_api_call_validates_trades_response():
     """Verify that api_call validates trades endpoint responses."""
@@ -93,7 +89,6 @@ def test_api_call_validates_trades_response():
             assert result["items"]
             assert len(result["items"]) == 2
 
-
 def test_api_call_catches_invalid_trades_items():
     """Verify that api_call catches invalid items in trades response."""
     with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
@@ -112,7 +107,6 @@ def test_api_call_catches_invalid_trades_items():
             assert "_error" in result
             assert "list" in result["_error"].lower()
 
-
 def test_api_call_generic_validation_for_unknown_endpoint():
     """Verify that unknown endpoints still get basic validation."""
     with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
@@ -130,7 +124,6 @@ def test_api_call_generic_validation_for_unknown_endpoint():
             # Should pass through (generic validator accepts any dict)
             assert result["some_field"] == "some_value"
 
-
 def test_api_call_generic_validation_rejects_non_dict():
     """Verify that generic validator rejects non-dict responses."""
     with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
@@ -147,7 +140,6 @@ def test_api_call_generic_validation_rejects_non_dict():
             result = api_call("/api/unknown/endpoint")
             # Should return error dict
             assert "_error" in result
-
 
 class TestAPIValidationWithMalformedData:
     """Test API validation layer with WRONG TYPES and MALFORMED DATA."""
@@ -257,7 +249,6 @@ class TestAPIValidationWithMalformedData:
                 result = api_call("/api/algo/unknown")
                 # Should handle deep nesting
                 assert result is not None
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

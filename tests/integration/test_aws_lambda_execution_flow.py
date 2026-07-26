@@ -4,13 +4,12 @@
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 
 class TestAWSLambdaOrchestrationFlow:
     """Verify the Lambda orchestrator can execute all 9 phases end-to-end."""
@@ -176,7 +175,6 @@ class TestAWSLambdaOrchestrationFlow:
         assert len(metric_dependencies["stock_scores"]) == 5
         assert "growth_metrics" in metric_dependencies["stock_scores"]
 
-
 class TestAWSCostOptimizationVerification:
     """Verify AWS cost optimizations from CLAUDE.md are in place."""
 
@@ -197,7 +195,6 @@ class TestAWSCostOptimizationVerification:
         # This is infrastructure-level; verify system doesn't incur unexpected costs
 
         # No expensive cross-AZ data transfer expected
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

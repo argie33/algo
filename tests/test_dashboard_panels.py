@@ -11,7 +11,6 @@ os.environ["DASHBOARD_API_URL"] = os.environ.get("DASHBOARD_API_URL", "http://lo
 os.environ["COGNITO_USER_POOL_ID"] = os.environ.get("COGNITO_USER_POOL_ID", "test")
 os.environ["COGNITO_CLIENT_ID"] = os.environ.get("COGNITO_CLIENT_ID", "test")
 
-from dashboard.api_data_layer import set_api_url, set_cognito_auth
 from dashboard.error_boundary import has_error
 from dashboard.fetchers import load_all
 

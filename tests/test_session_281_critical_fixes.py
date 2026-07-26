@@ -12,12 +12,11 @@ Tests verify:
 
 import os
 import tempfile
-from datetime import datetime, timedelta
+from import
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import
 
 import pytest
-
 
 class TestFileLockManagerAtomicity:
     """Verify FileLockManager uses atomic file creation (Session 281 Fix #2)."""
@@ -69,7 +68,6 @@ class TestFileLockManagerAtomicity:
             acquired_count = sum(1 for v in results.values() if v)
             assert acquired_count == 1, \
                 f"Atomic lock should be acquired by exactly 1 process. Got: {results}"
-
 
 class TestDevModeSecurityBypass:
     """Verify dev mode auto-enable only happens when dev_server directly executed (Session 281 Fix #3)."""
@@ -123,7 +121,6 @@ class TestDevModeSecurityBypass:
         assert "CRITICAL SECURITY" in result.stderr, (
             f"Expected 'CRITICAL SECURITY' RuntimeError, got stderr={result.stderr!r}"
         )
-
 
 class TestPositionCreationValidation:
     """Verify position creation validates stop price (Session 281 Fix #4)."""
@@ -190,7 +187,6 @@ class TestPositionCreationValidation:
             f"executor_entry_handler.py alone is not sufficient defense-in-depth"
         )
 
-
 class TestBuySellSignalForeignKeyValidation:
     """Verify buy_sell signal generation fails-closed on price filter errors (Session 281 Fix #12)."""
 
@@ -209,7 +205,6 @@ class TestBuySellSignalForeignKeyValidation:
             "buy_sell_daily must NOT proceed 'anyway' on filter failures"
         assert "Cannot generate" in source or "critical for data integrity" in source, \
             "buy_sell_daily must explain why price validation is critical"
-
 
 class TestPartialFillHandling:
     """Audit test: verify partial fill handling (Session 281 Issue #5)."""
@@ -235,7 +230,6 @@ class TestPartialFillHandling:
             "3. Verify exit logic closes 60 shares, not 100"
         )
 
-
 class TestOrchhestratorLockingFailsClosed:
     """Verify orchestrator fails-closed when DynamoDB locks unavailable (Session 281 Fix #1 + Session 282)."""
 
@@ -254,7 +248,6 @@ class TestOrchhestratorLockingFailsClosed:
             "Orchestrator must NOT allow concurrent execution without locks"
         assert "Distributed lock system unavailable" in source, \
             "Orchestrator must report lock unavailability clearly"
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

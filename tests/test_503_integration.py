@@ -15,9 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dashboard.api_data_layer import (
     _response_cache,
     _response_cache_lock,
-    cache_response,
 )
-
 
 def test_dashboard_survives_mkt_503_with_stale_fallback():
     """
@@ -93,7 +91,6 @@ def test_dashboard_survives_mkt_503_with_stale_fallback():
                 f"Error={result.get('_error')}"
             )
 
-
 def test_exp_factors_skips_retry_on_503():
     """
     Verify exp_factors doesn't cascade retries when mkt endpoint returns 503.
@@ -134,7 +131,6 @@ def test_exp_factors_skips_retry_on_503():
     assert result["exp_factors"].get("_is_transient_503") is True
     print(f"[OK] exp_factors called only {call_count} time (no cascading retry on 503)")
 
-
 def test_mkt_critical_fetcher_still_retries():
     """
     Verify mkt (critical fetcher) still gets retry support for transient errors.
@@ -174,7 +170,6 @@ def test_mkt_critical_fetcher_still_retries():
     assert result is not None
     assert result.get("tier") == "healthy_uptrend"
     print(f"[OK] mkt (critical) recovered after {call_count} attempts with retry support")
-
 
 if __name__ == "__main__":
     print("=" * 70)
