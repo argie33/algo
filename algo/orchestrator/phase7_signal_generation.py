@@ -1489,7 +1489,8 @@ def run(  # noqa: C901
     # Final ranking by signal_quality_score (already validated by quality_filtered sort, but re-validate for safety)
     if liq_passed:
         for sig in liq_passed:
-            required_fields = ["signal_quality_score", "signal_date", "market_stage"]
+            # signal_quality_score and signal_date are critical; market_stage is optional (used only for logging)
+            required_fields = ["signal_quality_score", "signal_date"]
             missing_fields = [f for f in required_fields if f not in sig or sig[f] is None]
             if missing_fields:
                 sym = sig.get("symbol", "UNKNOWN_SYMBOL")
@@ -1498,6 +1499,9 @@ def run(  # noqa: C901
                     f"Cannot log or execute incomplete signal data. Signal keys: {list(sig.keys())}. "
                     f"Check upstream signal generation pipeline for data quality issues."
                 )
+            # market_stage is optional - provide default if missing (used only for logging)
+            if not sig.get("market_stage"):
+                sig["market_stage"] = "unknown"
         liq_passed.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
 
     logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")

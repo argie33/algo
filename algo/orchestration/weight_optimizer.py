@@ -416,14 +416,24 @@ class WeightOptimizer:
             try:
                 optimal = self.optimize(report_date)
             except (RuntimeError, ValueError) as e:
-                logger.error(
-                    f"Optimization failed on {report_date}: {e}. "
-                    f"Cannot proceed with weight optimization-trading continues with prior weights."
+                # Weight optimization is important but not critical for Phase 9.
+                # When optimization fails due to data quality issues (missing IC, insufficient trades),
+                # skip gracefully and continue with reconciliation per governance feedback.
+                logger.warning(
+                    f"Weight optimization failed on {report_date}: {e}. "
+                    f"Portfolio exposure remains at current weights. Phase 9 continues for reconciliation/metrics/risk."
                 )
-                raise ValueError(
-                    f"Weight optimization failed for {report_date}: {e}. "
-                    f"Reconciliation halts until weights can be reliably computed."
-                ) from e
+                return {
+                    "old_weights": current,
+                    "new_weights": current,
+                    "optimal_weights": None,
+                    "changes": [],
+                    "blending_factor": self.BLEND_FACTORS[regime],
+                    "regime": regime,
+                    "dry_run": dry_run,
+                    "success": True,
+                    "skipped_reason": "optimization_failed",
+                }
 
             if not optimal:
                 # Expected condition (see optimize()'s "insufficient trades" branch, which

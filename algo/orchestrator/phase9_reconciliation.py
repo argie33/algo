@@ -689,7 +689,7 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
 
 
 def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
-    """Run weight optimization. Fail-fast if regime data unavailable - weight optimization is critical for risk management."""
+    """Run weight optimization. Gracefully skip if regime data unavailable (data quality issue, not code bug)."""
     from algo.orchestration import RegimeManager as _RegimeManager
     from algo.orchestration import WeightOptimizer
 
@@ -698,17 +698,17 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         try:
             _current_regime = _RegimeManager().get_current_regime(run_date)
         except RuntimeError as regime_e:
-            # Regime data unavailable - this is CRITICAL for risk management
-            # Weight optimization depends on market regime; proceeding without it is unsafe
-            error_msg = (
-                f"[PHASE 9 CRITICAL] Weight optimization failed: regime unavailable ({regime_e}). "
-                f"Market exposure data (Phase 5) must be available for safe weight optimization. "
-                f"Cannot proceed without market regime context - portfolio remains unoptimized and unvalidated. "
-                f"Check: (1) Phase 5 completed successfully, (2) market_exposure_daily has current data"
+            # Regime data unavailable - log warning and skip weight optimization
+            # This is a data quality issue (market_exposure_daily stale/missing), not a code bug
+            # Weight optimization is important but not critical for Phase 9; Phase 9 must continue
+            # for reconciliation/metrics/risk calculations per governance feedback
+            logger.warning(
+                f"[PHASE 9] Skipping weight optimization: regime unavailable ({regime_e}). "
+                f"Market exposure analysis (Phase 5) must complete to enable weight optimization. "
+                f"Portfolio weights remain unchanged. Phase 9 continues for reconciliation/metrics/risk."
             )
-            logger.critical(error_msg)
-            log_phase_result_fn(9, "weight_optimization", "error", error_msg[:80])
-            raise RuntimeError(error_msg) from regime_e
+            log_phase_result_fn(9, "weight_optimization", "warn", f"regime unavailable: {str(regime_e)[:60]}")
+            return opt_result
 
         optimizer = WeightOptimizer(config)
         opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)

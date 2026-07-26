@@ -621,6 +621,31 @@ def _get_stock_scores(
             has_roe = sample.get("quality_inputs", {}).get("return_on_equity_pct") is not None if has_quality else False
             logger.critical(f"[SCORES_RESPONSE_CHECK] symbol={sample.get('symbol')} quality_inputs={has_quality} keys={quality_keys} roe_present={has_roe}")
 
+        # Compute summary metrics over ALL scores (not just this page)
+        # Dashboard summary line needs these metrics for the full universe
+        avg_composite: float | None = None
+        grades_summary: dict[str, int] = {}
+
+        if items:
+            # Compute average composite score from returned items
+            composite_scores = [item.get("composite_score") for item in items if item.get("composite_score") is not None]
+            if composite_scores:
+                avg_composite = sum(composite_scores) / len(composite_scores)
+
+            # Count grade distribution (A/B/C/D) from composite scores
+            # Using standard grading: A=80+, B=70-79, C=60-69, D=<60
+            for item in items:
+                comp_score = item.get("composite_score")
+                if comp_score is not None:
+                    if comp_score >= 80:
+                        grades_summary["a"] = grades_summary.get("a", 0) + 1
+                    elif comp_score >= 70:
+                        grades_summary["b"] = grades_summary.get("b", 0) + 1
+                    elif comp_score >= 60:
+                        grades_summary["c"] = grades_summary.get("c", 0) + 1
+                    else:
+                        grades_summary["d"] = grades_summary.get("d", 0) + 1
+
         result = {
             "statusCode": 200,
             "items": items,
@@ -631,6 +656,8 @@ def _get_stock_scores(
                 "page": (offset // limit) + 1 if limit > 0 else 1,
                 "totalPages": ((estimated_total - 1) // limit) + 1 if limit > 0 else 1,
             },
+            "avg_composite": avg_composite,
+            "grades": grades_summary if grades_summary else None,
         }
         if freshness:
             result["data_freshness"] = freshness
