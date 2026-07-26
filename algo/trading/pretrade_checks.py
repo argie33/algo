@@ -118,13 +118,24 @@ class PreTradeChecks:
 
         try:
             with DatabaseContext("read") as cur:
-                # Check 1: Position currently open
+                # Check 1: Position currently open in algo_positions
                 cur.execute(
                     "SELECT symbol FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                     (symbol, "open"),
                 )
                 if cur.fetchone():
                     return (False, f"Position already open for {symbol}")
+
+                # Check 1b: Also check algo_trades for open positions (constraint is at algo_trades level)
+                # CRITICAL: Database constraint algo_trades_symbol_open_positions_idx prevents duplicate
+                # OPEN trades per symbol at the algo_trades table level. Must check here to prevent
+                # validation passing when algo_positions and algo_trades are out of sync.
+                cur.execute(
+                    "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status IN ('open', 'pending') LIMIT 1",
+                    (symbol,),
+                )
+                if cur.fetchone():
+                    return (False, f"Already have open/pending trade for {symbol} in algo_trades")
 
                 # Check 2: Position recently closed (same trading day) - prevent flip-flop entries
                 # ISSUE: Without this check, Phase 6 can exit a position and Phase 8 can immediately
