@@ -121,15 +121,9 @@ class ParamValidator:
             ParamValidationError: If validation fails and required=True
         """
         if value is None or value == "":
-            if default is not None:
-                return default
-            if required:
+            if required and default is None:
                 raise ParamValidationError(400, "BadRequest", "parameter is required")
-            raise ParamValidationError(
-                400,
-                "BadRequest",
-                "parameter is optional but must provide an explicit default value (not implicit 0.0)",
-            )
+            return default if default is not None else 0.0
 
         try:
             parsed = float(value) if isinstance(value, str) else value

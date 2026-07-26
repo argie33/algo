@@ -308,12 +308,12 @@ class Orchestrator:
                         with DatabaseContext("read") as cur:
                             cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
                             result = cur.fetchone()
-                            if result and result[0]:
+                            if result is not None and result[0]:
                                 api_key = result[0]
 
                             cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_secret"])
                             result = cur.fetchone()
-                            if result and result[0]:
+                            if result is not None and result[0]:
                                 api_secret = result[0]
 
                         if api_key and api_secret:

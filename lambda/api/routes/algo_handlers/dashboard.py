@@ -708,10 +708,12 @@ def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
                     pv = float(pv_raw)
                     tc_float = float(tc_raw)
                     pc = int(pc_raw)
-                    unrealized_pnl = float(unrealized_pnl_raw) if unrealized_pnl_raw is not None else 0.0
+                    unrealized_pnl = float(unrealized_pnl_raw) if unrealized_pnl_raw is not None else None
                     unrealized_pnl_pct = None
                     if pv > 0 and unrealized_pnl is not None:
                         unrealized_pnl_pct = unrealized_pnl / pv * 100
+                    elif unrealized_pnl is None:
+                        logger.warning("[PORTFOLIO] unrealized_pnl_total is NULL in snapshot - data unavailable")
 
                     portfolio = {
                         "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
