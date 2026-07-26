@@ -229,13 +229,15 @@ class ReconciliationAnalytics:
                 profit_factor = gross_profit / gross_loss
 
                 # Optional metrics (MAE/MFE, R-multiple) may be NULL if not calculated
-                # For display purposes, default to 0.0 only for visualization/supplementary metrics
-                avg_r_multiple = float(row[4]) if row[4] is not None else 0.0
-                best_trade_pct = float(row[5]) if row[5] is not None else 0.0
-                worst_trade_pct = float(row[6]) if row[6] is not None else 0.0
-                best_mae = float(row[7]) if row[7] is not None else 0.0
-                best_mfe = float(row[8]) if row[8] is not None else 0.0
+                # Preserve None to indicate data unavailable, don't default to 0.0
+                # (0.0 implies "the metric is zero", not "the metric is unknown")
+                avg_r_multiple = float(row[4]) if row[4] is not None else None
+                best_trade_pct = float(row[5]) if row[5] is not None else None
+                worst_trade_pct = float(row[6]) if row[6] is not None else None
+                best_mae = float(row[7]) if row[7] is not None else None
+                best_mfe = float(row[8]) if row[8] is not None else None
 
+                avg_r_multiple_for_reason = avg_r_multiple if avg_r_multiple is not None else "N/A"
                 result.update(
                     {
                         "win_count": wins,
@@ -248,7 +250,7 @@ class ReconciliationAnalytics:
                         "best_mae": best_mae,
                         "best_mfe": best_mfe,
                         "reason": f"Closed trades: {wins}W {losses}L (win rate {win_rate * 100:.1f}%), "
-                        f"Profit factor {profit_factor:.2f}x, Avg R-multiple {avg_r_multiple:.2f}",
+                        f"Profit factor {profit_factor:.2f}x, Avg R-multiple {avg_r_multiple_for_reason}",
                     }
                 )
             else:

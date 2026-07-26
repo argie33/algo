@@ -69,8 +69,14 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 WHERE p.status = 'open'
             """)
             result = cur.fetchone()
-            total_risk_dollars = float(result[0]) if result and result[0] else 0.0
-            open_count = result[1] if result and result[1] else 0
+            if result is None:
+                raise RuntimeError(
+                    "[ENTRY EXECUTION] Risk calculation query returned no rows. "
+                    "This indicates database failure. Check: (1) database connectivity, (2) algo_positions table exists"
+                )
+            # SUM returns NULL when no matching rows; COUNT returns 0 or actual count
+            total_risk_dollars = float(result[0]) if result[0] is not None else 0.0
+            open_count = result[1] if result[1] is not None else 0
 
             # Get portfolio value
             cur.execute("""

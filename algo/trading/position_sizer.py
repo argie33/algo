@@ -960,7 +960,18 @@ class PositionSizer:
                         WHERE p.status = 'open'
                     """)
                     result = cur.fetchone()
-                    current_risk_dollars = float(result[0]) if result and result[0] else 0.0
+                    if result is None:
+                        raise RuntimeError(
+                            "[POSITION SIZER] Risk calculation query returned no rows. "
+                            "Cannot compute aggregate risk without valid query result. "
+                            "Check: (1) database connectivity, (2) algo_positions/algo_trades tables"
+                        )
+                    risk_sum = result[0]
+                    if risk_sum is None:
+                        # SUM returns NULL when no matching rows, but query succeeded
+                        current_risk_dollars = 0.0
+                    else:
+                        current_risk_dollars = float(risk_sum)
 
                     # Calculate aggregate risk after this position would be added
                     new_position_risk = float(risk_dollars)

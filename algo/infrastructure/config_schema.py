@@ -348,4 +348,13 @@ VALIDATION_SCHEMA = {
     # Buy/Sell Daily Coverage
     "buy_sell_daily_coverage_threshold": ("float", 0.0, 100.0, False, 50.0),  # Min % of stocks to cover
     "buy_sell_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 90.0),  # Min signal generation rate
+    # Data Loader Coverage Thresholds (Phase 1 data freshness checks)
+    "technical_data_coverage_threshold": ("int", 0, 100, False, 75),  # Min % technical data coverage
+    "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
+    "price_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily price coverage
+    # Orchestrator Halt Configuration
+    "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable orchestrator halt on data issues
+    # Exposure Constraints (derived from ExposurePolicy, not directly used from AlgoConfig)
+    "halt_new_entries": ("bool", None, None, False, False),  # Legacy: use exposure constraints instead
+    "max_new_positions_today": ("int", 0, 100, False, 15),  # Legacy: use exposure constraints instead
 }

@@ -241,7 +241,18 @@ class DailyReconciliation:
                 # Count open positions (both real and paper_open for paper mode tracking)
                 cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status IN ('open', 'paper_open')")
                 position_row = cur.fetchone()
-                open_position_count = position_row["open_count"] if position_row and position_row["open_count"] else 0
+                if position_row is None:
+                    raise RuntimeError(
+                        "[CRITICAL] Position count query returned no rows. "
+                        "COUNT(*) should always return a result. This indicates database failure. "
+                        "Check: (1) database connectivity, (2) algo_positions table exists"
+                    )
+                open_position_count = position_row["open_count"]
+                if open_position_count is None:
+                    raise RuntimeError(
+                        "[CRITICAL] Position count is NULL. COUNT(*) should always return a numeric value. "
+                        "Check database integrity."
+                    )
 
                 # Calculate unrealized P&L from positions (both real and paper)
                 cur.execute("""

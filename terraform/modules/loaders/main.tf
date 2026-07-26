@@ -562,6 +562,7 @@ locals {
 
     # Signals & algo metrics
     "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
+    "signal_quality_scores" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "algo_metrics_daily"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
   default_loaders = local.all_loaders
