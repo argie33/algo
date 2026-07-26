@@ -23,6 +23,10 @@ a loader is added, renamed, or consolidated, and the health/audit scripts
 pick it up automatically instead of drifting independently again.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Loader script filename -> list of output tables it writes to. First table in
 # the list is the loader's primary table.
 LOADER_TABLES: dict[str, list[str]] = {
