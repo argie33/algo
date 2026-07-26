@@ -30,7 +30,7 @@ def wrap_response(response: Any) -> dict[str, Any]:
 
     # Errors are returned as-is (already include errorType and _error)
     if response.get("errorType"):
-        return response
+        return cast(dict[str, Any], response)
 
     status_code = response.get("statusCode")
     if status_code is None:
@@ -42,7 +42,7 @@ def wrap_response(response: Any) -> dict[str, Any]:
 
     try:
         if int(status_code) >= 400:
-            return response
+            return cast(dict[str, Any], response)
     except (ValueError, TypeError) as e:
         raise RuntimeError(
             f"[API_RESPONSE] Invalid statusCode value '{status_code}' (must be integer). Response: {response}"
@@ -75,7 +75,7 @@ def wrap_response(response: Any) -> dict[str, Any]:
         is_paginated = "items" in response and "pagination" in response
         if is_paginated:
             # Already correctly structured - return as-is
-            return response
+            return cast(dict[str, Any], response)
 
         # Extract core fields: items, total, etc. but exclude metadata/timestamps
         payload = {

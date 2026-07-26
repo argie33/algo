@@ -512,7 +512,6 @@ def _get_candidates_from_buysell(
         # ARCHITECTURE FIX (Session 376): Batch loader fails for live signals. Compute inline instead.
         if candidates:
             from loaders.signal_quality_scorer import get_signal_scorer
-            import pandas as pd
 
             with DatabaseContext("read") as cur_sqs:
                 for candidate in candidates:

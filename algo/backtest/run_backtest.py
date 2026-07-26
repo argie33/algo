@@ -33,7 +33,7 @@ import logging
 import statistics
 import sys
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -402,7 +402,7 @@ def run_backtest(  # noqa: C901
         profit_factor = gross_profit / gross_loss
 
     # Max drawdown from equity curve
-    max_dd_pct = 0.0
+    max_dd_pct: float | None = 0.0
     if equity_curve:
         peak = equity_curve[0]["value"]
         if peak <= 0:
@@ -457,7 +457,7 @@ def run_backtest(  # noqa: C901
         "final_capital": round(final_capital, 2),
         "total_return_pct": round(total_return_pct, 4),
         "annualized_return_pct": round(annualized_return_pct, 4),
-        "max_drawdown_pct": round(max_dd_pct, 4),
+        "max_drawdown_pct": round(max_dd_pct, 4) if max_dd_pct is not None else None,
         "sharpe_ratio": sharpe,
         "win_rate_pct": round(win_rate_pct, 4) if win_rate_pct is not None else None,
         "profit_factor": (
