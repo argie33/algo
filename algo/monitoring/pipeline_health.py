@@ -328,7 +328,14 @@ class PipelineHealth:
             result = cur.fetchone()
             # DictCursor returns dict; support both dict and tuple indexing
             if isinstance(result, dict):
-                latest_date = result.get(safe_date_col) or result.get("date")
+                latest_date = result.get(safe_date_col)
+                if latest_date is None:
+                    latest_date = result.get("date")
+                    if latest_date is not None:
+                        logger.debug(
+                            f"[PIPELINE_HEALTH] {safe_table}: Using fallback 'date' column "
+                            f"(expected '{safe_date_col}'). Result keys: {list(result.keys())}"
+                        )
             else:
                 latest_date = result[0] if result else None
 

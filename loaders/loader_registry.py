@@ -92,10 +92,20 @@ PSEUDO_LOADER_TABLES: dict[str, list[str]] = {
 
 def primary_table(loader_name: str) -> str | None:
     """Return the first (primary) output table for a loader script, or None if unknown."""
-    tables = LOADER_TABLES.get(loader_name) or PSEUDO_LOADER_TABLES.get(loader_name)
+    tables = LOADER_TABLES.get(loader_name)
+    if tables is None:
+        tables = PSEUDO_LOADER_TABLES.get(loader_name)
+    if tables is None:
+        logger.warning(f"[LOADER_REGISTRY] Unknown loader: {loader_name}. Not found in LOADER_TABLES or PSEUDO_LOADER_TABLES.")
     return tables[0] if tables else None
 
 
 def all_tables(loader_name: str) -> list[str]:
     """Return all output tables for a loader script, or [] if unknown."""
-    return LOADER_TABLES.get(loader_name) or PSEUDO_LOADER_TABLES.get(loader_name) or []
+    tables = LOADER_TABLES.get(loader_name)
+    if tables is None:
+        tables = PSEUDO_LOADER_TABLES.get(loader_name)
+    if tables is None:
+        logger.warning(f"[LOADER_REGISTRY] Unknown loader: {loader_name}. Not found in LOADER_TABLES or PSEUDO_LOADER_TABLES.")
+        return []
+    return tables

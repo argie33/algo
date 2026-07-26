@@ -215,8 +215,8 @@ def _aggregate_concepts(
             f"Downstream loaders must mark data_unavailable with this reason."
         )
 
-    us_gaap_facts = facts.get("us-gaap") or {}
-    ifrs_facts = facts.get("ifrs-full") or {}
+    us_gaap_facts = facts.get("us-gaap")
+    ifrs_facts = facts.get("ifrs-full")
     if not us_gaap_facts and not ifrs_facts:
         raise ValueError(
             f"[SEC_EDGAR] SEC API has no US-GAAP or IFRS facts for {symbol} (CIK {cik}). "
@@ -234,9 +234,9 @@ def _aggregate_concepts(
         concept_specs.extend(ifrs_aliases)
 
     for concept, target_key in concept_specs:
-        concept_data = us_gaap_facts.get(concept)
+        concept_data = us_gaap_facts.get(concept) if us_gaap_facts is not None else None
         if concept_data is None:
-            concept_data = ifrs_facts.get(concept)
+            concept_data = ifrs_facts.get(concept) if ifrs_facts is not None else None
         if concept_data is None:
             continue
 

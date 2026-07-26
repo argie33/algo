@@ -547,8 +547,14 @@ def run(
                 logger.info(f"[PHASE 8 DEBUG] Returning PhaseResult: status={result.status!r}, halted={result.halted}, result.ok={result.ok}")
                 return result
     except Exception as e:
-        logger.error(f"[PHASE 8] Error checking for pending orders: {e}")
-        # Don't halt on this check - log and continue
+        msg = (
+            f"[PHASE 8 CRITICAL] Could not verify pending orders status: {e}. "
+            f"Cannot safely execute new entries without knowing if prior orders are still pending. "
+            f"Risk of order duplication or conflicts. Must halt and investigate."
+        )
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        raise RuntimeError(msg) from e
 
     # SESSION 396 FIX: PROACTIVE RISK ENFORCEMENT
     # Phase 8 now ALWAYS runs (always_run=True) to enforce proactive risk checks
@@ -612,7 +618,7 @@ def run(
                         f"This is a data contract violation - Phase 5 must always return constraints."
                     )
             else:
-                logger.info("[PHASE 8] Phase 5 unavailable - will use defaults for proactive checks")
+                logger.info("[PHASE 8] Phase 5 unavailable - exposure constraints will not be available (will fail-fast at validation)")
         except Exception as e:
             logger.warning(f"[PHASE 8] Could not fetch Phase 7/5 data: {e}. Proceeding with available data.")
 
@@ -1056,9 +1062,14 @@ def run(
                 f"Will size positions conservatively to stay within limit."
             )
     except Exception as e:
-        logger.warning(f"[PHASE 8] Risk pre-check failed (will rely on circuit breaker): {e}")
-        # Don't halt - circuit breaker will catch if we exceed limits
-        pass
+        msg = (
+            f"[PHASE 8 CRITICAL] Risk pre-check failed: {e}. "
+            f"Cannot proceed without verifying current risk position. "
+            f"Position sizing safety gate failed. Must halt to prevent accidental overexposure."
+        )
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        raise RuntimeError(msg) from e
 
     # ISSUE #8 FIX: Build a dict with precomputed technical data from Phase 5 signals
     # to avoid redundant SMA_50/ATR calculations in Phase 6.

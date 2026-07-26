@@ -813,7 +813,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "successful_exits": successful,
                     "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
                     "avg_profit": float(exit_dict["avg_profit"]) if exit_dict.get("avg_profit") is not None else None,
-                    "symbols_exited": exit_dict.get("symbols_exited") or [],
+                    "symbols_exited": exit_dict.get("symbols_exited") if exit_dict.get("symbols_exited") is not None else [],
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_6_exit_execution"] = None
@@ -857,7 +857,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "latest_signal": (
                             sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None
                         ),
-                        "symbols_with_signals": sig_dict.get("symbols_with_signals") or [],
+                        "symbols_with_signals": sig_dict.get("symbols_with_signals") if sig_dict.get("symbols_with_signals") is not None else [],
                     }
             else:
                 execution_health["phase_7_signal_generation"] = None
@@ -887,7 +887,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "avg_entry_price": (
                         float(entry_dict["avg_entry_price"]) if entry_dict.get("avg_entry_price") is not None else None
                     ),
-                    "symbols_entered": entry_dict.get("symbols_entered") or [],
+                    "symbols_entered": entry_dict.get("symbols_entered") if entry_dict.get("symbols_entered") is not None else [],
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_8_entry_execution"] = None

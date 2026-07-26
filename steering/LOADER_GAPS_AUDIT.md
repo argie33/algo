@@ -1,11 +1,12 @@
-# Loader Gaps Audit (Session 414+)
+# Loader Gaps Audit
 
-**Last Updated:** 2026-07-25  
-**Status:** 4 identified gaps, 2 fixed, 2 require external data sources
+Architectural documentation of known data gaps, their impact on trading logic, and required fixes.
+
+**Summary:** 4 identified gaps, 2 auto-resolved (graceful degradation), 2 require external data sources.
 
 ---
 
-## Fixed Gaps (Session 414)
+## Auto-Resolved Gaps
 
 ### FIXED: economic_metrics_daily Unused Table
 **Status:** ✅ RESOLVED

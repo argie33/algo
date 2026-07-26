@@ -214,7 +214,12 @@ class AlpacaMarketData:
                 raise AlpacaDataError(f"Alpaca bars API error {resp.status_code}: {resp.text[:300]}")
 
             payload = resp.json()
-            bars_by_symbol = payload.get("bars") or {}
+            bars_by_symbol = payload.get("bars")
+            if bars_by_symbol is None:
+                raise AlpacaDataError(
+                    f"Alpaca bars API returned 200 but missing 'bars' key. "
+                    f"Response keys: {list(payload.keys())}. Likely API protocol change."
+                )
             for symbol, bars in bars_by_symbol.items():
                 if not bars:
                     continue

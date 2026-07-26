@@ -553,8 +553,12 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             val_s = f"VIX {v:.1f}" if v is not None else "--"
         elif key == "new_highs_lows":
             # API returns "nh" and "nl" keys (not "new_highs" and "new_lows")
-            nh_val = f.get("nh") or f.get("new_highs")
-            nl_val = f.get("nl") or f.get("new_lows")
+            nh_val = f.get("nh")
+            if nh_val is None:
+                nh_val = f.get("new_highs")
+            nl_val = f.get("nl")
+            if nl_val is None:
+                nl_val = f.get("new_lows")
             if (
                 nh_val is None
                 or nl_val is None

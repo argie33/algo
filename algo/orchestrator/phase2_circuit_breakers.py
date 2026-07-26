@@ -124,7 +124,13 @@ def run(
                 # Exception: In paper mode with credential errors, log warning and continue (dev convenience)
                 error_reason = cb_result.get("reason")
                 if error_reason is None:
-                    error_reason = cb_result.get("description") or "market circuit breaker error"
+                    error_reason = cb_result.get("description")
+                if error_reason is None:
+                    raise RuntimeError(
+                        f"[PHASE 2 CRITICAL] Market circuit breaker error response missing both 'reason' and 'description' fields. "
+                        f"Response keys: {list(cb_result.keys())}. Data integrity issue. "
+                        f"Cannot determine error severity."
+                    )
                 error_msg = error_reason
                 is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
                 is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()

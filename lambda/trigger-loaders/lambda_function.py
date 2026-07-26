@@ -111,7 +111,15 @@ class TriggerLoadersHandler(LambdaHandler):
         task, which starved Phase 1's price-coverage check and halted the orchestrator.
         """
         existing = ecs.list_tasks(cluster=cluster_arn, family=task_def_family, desiredStatus="RUNNING")
-        return list(existing.get("taskArns") or [])
+        task_arns = existing.get("taskArns")
+        if task_arns is None:
+            logger.error(
+                f"[ECS] list_tasks returned response without 'taskArns' key. "
+                f"Response keys: {list(existing.keys())}. Likely AWS API protocol change. "
+                f"Treating as no existing tasks but this is suspicious."
+            )
+            return []
+        return list(task_arns)
 
     def handle(self, event: dict[str, Any], context: Any) -> LambdaResponse:
         """Handle loader trigger request.
