@@ -93,6 +93,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                 facts_response = None
 
             segment_data = None
+            latest_10k = None
             if facts_response and facts_response.get('facts'):
                 # Try companyfacts API first
                 segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
@@ -141,10 +142,21 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
             records = []
 
-            # Get fiscal year/period from the facts response metadata
-            # SEC EDGAR companyfacts includes filing metadata
-            filing_date = self._extract_filing_date(facts_response)
-            fiscal_year = filing_date.year if filing_date else date.today().year
+            # Prefer the actual 10-K's own SEC-reported dates (reportDate = fiscal period
+            # end, the authoritative source for which fiscal year this data covers;
+            # filingDate = submission date) over scanning unrelated companyfacts facts,
+            # which can reflect a different, later filing (e.g. an interim 10-Q) than the
+            # 10-K whose XBRL XML we actually parsed for segment revenue above.
+            filing_date = None
+            if latest_10k:
+                filing_date = latest_10k.get('report_date') or latest_10k.get('filing_date')
+            if filing_date is None:
+                filing_date = self._extract_filing_date(facts_response) if facts_response else None
+            if filing_date is None:
+                # Segment revenue was found but we can't attribute it to a fiscal year/date
+                # from any official source - fail-fast rather than fabricate today()'s date.
+                return [self._unavailable_marker(symbol, "filing_date_unavailable")]
+            fiscal_year = filing_date.year
             fiscal_period = "FY"  # Simplified: assume annual for now
 
             # Write aggregate segment metrics
@@ -152,7 +164,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                 "symbol": symbol,
                 "fiscal_year": fiscal_year,
                 "fiscal_period": fiscal_period,
-                "filing_date": filing_date or date.today(),
+                "filing_date": filing_date,
                 "segment_count": segment_data['segment_count'],
                 "segment_type": "operating",
                 "segment_name": "AGGREGATE",
@@ -174,7 +186,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                     "symbol": symbol,
                     "fiscal_year": fiscal_year,
                     "fiscal_period": fiscal_period,
-                    "filing_date": filing_date or date.today(),
+                    "filing_date": filing_date,
                     "segment_count": segment_data['segment_count'],
                     "segment_type": "operating",
                     "segment_name": seg.get('name', f"Segment_{i}"),
@@ -204,8 +216,12 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         Returns:
             Dict with 'accession_formatted' (dashed, e.g. "0001193125-24-001234" -
-            the format SecEdgarClient's fetch methods match against), or None if no
-            10-K found.
+            the format SecEdgarClient's fetch methods match against), 'report_date'
+            (the filing's fiscal period end, parsed from SEC's 'reportDate' column -
+            the authoritative source for which fiscal year this 10-K covers) and
+            'filing_date' (SEC's 'filingDate' column, when the 10-K was submitted) -
+            either may be None if SEC omitted or malformed that column. Returns None
+            if no 10-K found.
         """
         filings = submissions.get('filings', {}).get('recent', {})
         if not isinstance(filings, dict):
@@ -213,11 +229,27 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         forms = filings.get('form', [])
         accessions = filings.get('accessionNumber', [])
+        report_dates = filings.get('reportDate', [])
+        filing_dates = filings.get('filingDate', [])
 
         for i, form in enumerate(forms):
             if form == '10-K' and i < len(accessions):
-                return {'accession_formatted': accessions[i]}
+                return {
+                    'accession_formatted': accessions[i],
+                    'report_date': self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
+                    'filing_date': self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
+                }
         return None
+
+    @staticmethod
+    def _parse_sec_date(date_str: str | None) -> date | None:
+        """Parse a SEC submissions API date column value ('YYYY-MM-DD'), or None if missing/malformed."""
+        if not date_str:
+            return None
+        try:
+            return datetime.strptime(date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
 
     def _extract_filing_date(self, facts_response: dict) -> date | None:
         """Extract most recent filing date from companyfacts response.
