@@ -142,31 +142,36 @@ class CurrentReports8KLoader(SecLoaderBase):
             if not cik:
                 return self._unavailable_record(symbol, now_et, "symbol_not_found")
 
-            # Get submissions
+            # Get submissions (SEC API returns columnar format: dict of arrays)
             submissions = self.sec_client.get_submissions(cik)
             if not submissions:
                 return self._unavailable_record(symbol, now_et, "no_submissions")
 
-            # Filter for 8-K filings after watermark
-            filings = submissions.get("filings", {}).get("recent", [])
-            eight_k_filings = [
-                f for f in filings
-                if f.get("form") == "8-K"
-                and self._parse_date(f.get("filingDate")) >= since
-            ]
+            # Extract columnar data from SEC API
+            recent = submissions.get("filings", {}).get("recent", {})
+            if not isinstance(recent, dict) or "form" not in recent:
+                return self._unavailable_record(symbol, now_et, "invalid_submissions_format")
 
-            if not eight_k_filings:
-                return []
+            forms = recent.get("form", [])
+            dates = recent.get("filingDate", [])
+            accessions = recent.get("accessionNumber", [])
 
-            # Process each 8-K filing
+            # Process each filing, building 8-K records from parallel arrays
             results = []
-            for filing in eight_k_filings[:100]:  # Limit to 100 most recent
-                filing_date_str = filing.get("filingDate")
+            for i, form in enumerate(forms[:100]):  # Limit to 100 most recent
+                if form != "8-K":
+                    continue
+
+                filing_date_str = dates[i] if i < len(dates) else None
                 if not filing_date_str:
                     continue
 
                 filing_date = self._parse_date(filing_date_str)
-                accession_number = filing.get("accessionNumber", "").replace("-", "")
+                if filing_date < (since or date(1990, 1, 1)):
+                    continue  # Skip filings before watermark
+
+                accession_number = accessions[i] if i < len(accessions) else ""
+                accession_number = accession_number.replace("-", "")
 
                 try:
                     # Extract filing text (plaintext version of 8-K filing)
