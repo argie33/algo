@@ -902,7 +902,35 @@ def _record_closed_positions_exits(
                             psycopg2.OperationalError,
                         ) as e:
                             write_cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-                            logger.error(f"Failed to record exit for {symbol}: {e}")
+                            # CRITICAL: This SELECT is scoped to `closed_at::date = run_date` (see
+                            # query above). If this write fails today, the symbol will never be
+                            # re-selected by this function on a future run - algo_positions stays
+                            # 'closed' while algo_trades.exit_date stays NULL forever, a permanent
+                            # audit-trail gap silently invisible to any later reconciliation pass.
+                            # That's exactly the outcome this function's other two fail-fast checks
+                            # (missing exit_price, invalid entry_price) exist to prevent - so this
+                            # must halt too, not just log and move on to the next symbol.
+                            error_msg = (
+                                f"[PHASE 9 CRITICAL] Failed to record exit for {symbol}: {e}. "
+                                f"This position will NEVER be re-selected for exit recording on a "
+                                f"future run (query is scoped to today's closed_at date), leaving a "
+                                f"permanent audit-trail gap between algo_positions (closed) and "
+                                f"algo_trades (still open) unless fixed manually. Halting to prevent "
+                                f"silent data corruption per GOVERNANCE (audit trail integrity)."
+                            )
+                            logger.critical(error_msg)
+                            try:
+                                from algo.reporting import notify
+
+                                notify(
+                                    severity="critical",
+                                    title="Phase 9: Exit recording failed - permanent audit gap risk",
+                                    message=error_msg,
+                                    details={"symbol": symbol, "run_date": str(run_date)},
+                                )
+                            except (ValueError, TypeError, RuntimeError) as notify_err:
+                                logger.error(f"Failed to send exit-recording-failure notification: {notify_err}")
+                            raise RuntimeError(error_msg) from e
 
                     if exits_recorded > 0:
                         logger.info(f"Recorded {exits_recorded} exits in trade history")
