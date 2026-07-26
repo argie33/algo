@@ -34,25 +34,29 @@ configure_socket_timeout(30)
 
 
 class DividendDataLoader(SecLoaderBase):
-    """Load dividend data from SEC EDGAR.
+    """Load dividend data from SEC EDGAR XBRL.
 
-    GOVERNANCE: Explicit data_unavailable pattern.
-    This loader returns unavailable markers because required dividend data
-    (ex-dividend dates, payment dates per SEC filings) is not yet integrated.
+    Extracts official dividend data from SEC companyfacts API using XBRL
+    concepts: CommonStockDividendsPerShareDeclared and CommonStockDividendsPerShareCashPaid.
 
-    TODO for future work:
-    - Wire SEC 8-K Item 2.02 dividend announcements (declared dates + amounts)
-    - Fetch dividend ex-dates from SEC XBRL companyfacts (if disclosed)
-    - Implement Form 4 insider trading timeline correlation
+    These are authoritative sources maintained by companies in their 10-K/10-Q filings
+    per ASC 505 (Equity) disclosure requirements.
 
-    Until then, position management must use broker API for ex-date warnings.
+    Returns:
+    - dividend_per_share: Declared dividend per share (from XBRL)
+    - declaration_date: Filing date when dividend was declared
+    - ex_dividend_date: Estimated from period end date (fiscal quarter/year end)
+    - payment_date: Estimated as 30-60 days after ex-dividend date (typical corporate practice)
+
+    For precise ex-dates, investors should use broker API (ex-dates are published
+    separately by corporate actions systems, not in SEC filings).
     """
 
     table_name = "dividend_data"
-    primary_key = ("symbol", "ex_dividend_date")
-    watermark_field = "ex_dividend_date"
+    primary_key = ("symbol", "fiscal_year", "fiscal_period")
+    watermark_field = "declaration_date"
     exclude_etfs_from_symbols = True
-    max_fail_rate = 100.0  # Dividend extraction not yet integrated; allow data_unavailable markers
+    max_fail_rate = 70.0  # Many companies don't pay dividends; allow data_unavailable
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
