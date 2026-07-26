@@ -38,6 +38,7 @@ from algo.risk import LiquidityChecks
 from algo.trading.executor import TradeExecutor
 from algo.trading.position_sizer import PositionSizer
 from algo.trading.pretrade_checks import PreTradeChecks
+from utils.db.advisory_locks import ALGO_TRADES_LOCK_ID, ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 from utils.db.context import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME

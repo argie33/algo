@@ -283,7 +283,6 @@ class DividendDataLoader(SecLoaderBase):
         import re
 
         dates = []
-        text_upper = text.upper()
 
         # Pattern 1: "ex-date of Month Day, Year" or "ex-dividend date: Month Day, Year"
         pattern1 = r"ex[- ](?:dividend )?date[:\s]+([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})"
