@@ -149,7 +149,6 @@ class PipelineHealth:
         "stock_scores": {"date_column": "updated_at", "sla_days": 5},
         "economic_data": {"date_column": "date", "sla_days": 7},
         "market_health_daily": {"date_column": "date", "sla_days": 1},
-        "analyst_sentiment_analysis": {"date_column": "updated_at", "sla_days": 7},
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
     }
 
@@ -194,6 +193,7 @@ class PipelineHealth:
             "buy_sell_monthly_etf",
             "seasonality_monthly_stats",  # No writer found anywhere in the codebase.
             "analyst_upgrade_downgrade",  # No writer found anywhere in the codebase.
+            "analyst_sentiment_analysis",  # No writer found; deleted with yfinance_snapshot (Session 275)
             "portfolio_holdings",  # No writer found anywhere in the codebase.
             "algo_trades_archive",  # No writer found anywhere in the codebase.
         }

@@ -49,10 +49,6 @@ AUXILIARY_DATA: set[str] = {
     "trend_template_data",
     # Positioning: Institutional money flow enrichment (optional)
     "positioning_metrics",
-    # Sentiment: Analyst sentiment (nice-to-have quality metric, but data source frozen since Session 275)
-    # NOTE: No live writer for this table since yfinance removal. Data is 2+ months old.
-    # Endpoints gracefully degrade to stale data rather than failing (not required for trading).
-    "analyst_sentiment_analysis",
     # Quality/stability: Risk enrichment (not required for base logic)
     "stability_metrics",
     # VIX/breadth: Market health enrichment (market_health_daily is critical, these are supplementary)

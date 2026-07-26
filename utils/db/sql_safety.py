@@ -97,10 +97,6 @@ SAFE_TABLES = {
     "trend_template_data",
     "signal_quality_scores",
     "signal_themes",
-    # Analyst data
-    "analyst_upgrade_downgrade",
-    "analyst_upgrades_downgrades",
-    "analyst_sentiment_analysis",
     # Market sentiment
     "aaii_sentiment",
     "market_sentiment",

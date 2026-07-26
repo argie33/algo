@@ -24,8 +24,6 @@ locals {
   supporting_loaders = [
     "aaii_sentiment",
     "algo_metrics_daily",
-    "analyst_sentiment_analysis",
-    "analyst_upgrade_downgrade",
     "balance_sheet",
     "buy_sell_daily",
     "cash_flow",

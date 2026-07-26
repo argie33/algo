@@ -44,7 +44,6 @@ LOADER_SLA_TARGETS = {
     "sector_ranking": (15 * 60, 20 * 60, 30 * 60),
     # Supporting loaders
     "earnings_calendar": (10 * 60, 30 * 60, 60 * 60),
-    "analyst_sentiment_analysis": (20 * 60, 60 * 60, 120 * 60),
     "company_profile": (30 * 60, 120 * 60, 240 * 60),
     "sp500_constituents": (5 * 60, 10 * 60, 20 * 60),
     "russell2000_constituents": (5 * 60, 10 * 60, 20 * 60),
