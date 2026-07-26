@@ -597,7 +597,7 @@ class MarketExposure:
                 unavailable_factors = []
                 for factor_key, factor_data in factors.items():
                     # If explicitly marked as unavailable (graceful skip, not missing data), track separately
-                    if factor_data.get("data_unavailable") is True:
+                    if factor_data.get("data_unavailable"):
                         unavailable_factors.append(factor_key)
                         continue
                     if factor_data.get("pts") == 0.0 and factor_data.get("score") is None:
@@ -1421,7 +1421,7 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
 
             # GOVERNANCE: Check data_unavailable flag FIRST before using any data
             # If upstream loader marked data as unavailable, fail-fast regardless of other fields
-            if data_unavailable is True:
+            if data_unavailable:
                 raise MarketDataUnavailableError(
                     f"[MARKET REGIME] market_exposure_daily for {eval_date} marked data_unavailable=True. "
                     f"Reason: {reason}. "

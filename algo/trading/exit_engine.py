@@ -1116,7 +1116,7 @@ class ExitEngine:
                 f"[MARKET_DIST_DAYS_MISSING] Market distribution data unavailable for {current_date}. "
                 f"Cannot evaluate exit conditions - distribution day counts are required for risk control decisions."
             )
-        if row[1] is True:
+        if row[1]:
             raise RuntimeError(
                 f"[MARKET_DIST_DAYS_MISSING] Market exposure data marked unavailable for {current_date}: "
                 f"{row[2] or 'no reason provided'}. Cannot evaluate exit conditions without valid distribution "

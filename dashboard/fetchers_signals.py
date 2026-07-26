@@ -352,9 +352,13 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        # Handle both old format (top field) and wrapped standardized format (data.top)
-        # Session 379+ fix: API wraps responses in {statusCode, data: {...}}
-        if "data" in top_data and isinstance(top_data["data"], dict):
+        # Handle multiple response formats: items (new), top (legacy), or wrapped data.top
+        # The /api/scores endpoint returns {statusCode, items, pagination, data_freshness}
+        # Adapt to dashboard's internal "top" format for consistency with other fetchers
+        if "items" in top_data:
+            # Current format: {statusCode, items, pagination, data_freshness}
+            top = top_data.get("items", [])
+        elif "data" in top_data and isinstance(top_data["data"], dict):
             # Wrapped response format: {statusCode, data: {top, universe_total, ...}}
             response_data = top_data["data"]
             if "top" not in response_data:
@@ -367,9 +371,9 @@ def fetch_scores(c: None) -> dict[str, Any]:
             # Legacy direct format (for backward compatibility with mocked responses)
             top = top_data["top"]
         else:
-            error_msg = "Scores API response: missing required 'top' field in either root or data wrapper"
+            error_msg = "Scores API response: missing required 'items' or 'top' field"
             logger.error(error_msg)
-            record_data_quality_issue("scores", "validation", "missing_top_field")
+            record_data_quality_issue("scores", "validation", "missing_items_or_top_field")
             return FetcherValidator.build_error_response(error_msg)
         if not isinstance(top, list):
             error_msg = "Scores API response: 'top' field is not a list"
@@ -379,12 +383,18 @@ def fetch_scores(c: None) -> dict[str, Any]:
 
         # Summary metrics over the full filtered universe (not just this page) - optional,
         # since older API versions/mocks won't have them; the panel falls back to len(top).
-        # Extract from either legacy top_data or new response_data format
-        if "data" in top_data and isinstance(top_data["data"], dict):
+        # Extract from the current response format ({statusCode, items, pagination, ...})
+        # or from wrapped response_data if it's a legacy/wrapped format
+        if "pagination" in top_data and isinstance(top_data["pagination"], dict):
+            # Current format has pagination.total for the full universe count
+            response_data_dict = top_data
+            universe_total = top_data["pagination"].get("total") if "total" in top_data["pagination"] else None
+        elif "data" in top_data and isinstance(top_data["data"], dict):
             response_data_dict = top_data["data"]
+            universe_total = response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
         else:
             response_data_dict = top_data
-        universe_total = response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
+            universe_total = response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
         if universe_total is not None and not isinstance(universe_total, int):
             error_msg = f"Scores response 'universe_total' must be int, got {type(universe_total).__name__}"
             logger.error(error_msg)

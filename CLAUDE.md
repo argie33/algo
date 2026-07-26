@@ -101,9 +101,9 @@ This checks:
 ## Running Orchestrator
 
 **CRITICAL CONCEPTS:**
-- **Data loaders** → Fetch prices/technicals/metrics from external sources (2 AM, 4:05 PM, 7 PM ET)
+- **Data loaders** → Fetch prices/technicals/metrics from external sources (2 AM morning, 3:30 PM metrics, 4:05 PM signals ET)
 - **Orchestrator** → Executes trades USING already-loaded data (9:30 AM, 1 PM, 3 PM ET)
-- **Both must be fresh:** Orchestrator won't trade on stale prices (Phase 1 guard)
+- **Both must be fresh:** Orchestrator won't trade on stale prices (Phase 1 guard). Metrics must run BEFORE signals (3:30 PM < 4:05 PM) so stock_scores has fresh fundamentals.
 
 **FOR LOCAL DEVELOPMENT:**
 The unified launcher `start_dashboard_dev.py` runs everything in the right order:
@@ -166,10 +166,10 @@ python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
 
 **DATA LOADER schedules** (fetch external data):
 - Morning: MON-FRI 2:00 AM ET (pre-market prices + technical indicators) - prepares data for 9:30 AM execution
-- Signals/EOD: MON-FRI 4:05 PM ET (closing prices/technicals + stock scores/buy_sell_daily trading signals)
-- Metrics: MON-FRI 7:00 PM ET (slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, quality/growth/value)
+- Metrics: MON-FRI 3:30 PM ET (slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, quality/growth/value) - runs BEFORE signals
+- Signals/EOD: MON-FRI 4:05 PM ET (closing prices/technicals + stock scores/buy_sell_daily trading signals) - uses fresh fundamentals from metrics
 - Weekends/holidays: No loaders run (expected behavior)
-- Local dev: `scripts/local_loader_scheduler.py` mirrors this 3-pipeline split (`morning`/`signals`/`metrics`)
+- Local dev: `scripts/local_loader_scheduler.py` mirrors this 3-pipeline split (`morning`/`metrics`/`signals`)
 
 **ORCHESTRATOR (TRADING) schedules** (execute trades during market hours only):
 - 9:30 AM ET: Morning execution at market open (PRIMARY)

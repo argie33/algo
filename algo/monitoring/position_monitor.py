@@ -115,7 +115,7 @@ class PositionMonitor:
                                 f"Halt check failed for {symbol}: {halt_check.get('reason', halt_check['error'])}. "
                                 f"Cannot proceed without knowing which orders are halted."
                             )
-                        if halt_check and halt_check.get("halted") is True:
+                        if halt_check and halt_check.get("halted"):
                             logger.info(f"    {trade_id} {symbol} pending (but halted, expected)")
                             halted_orders.append(row)
                             continue
@@ -983,7 +983,7 @@ class PositionMonitor:
         max_close = float(row[0])
         data_unavailable_flag = bool(row[1]) if row[1] is not None else False
         reason_msg = row[2] if row[2] is not None else None
-        if data_unavailable_flag is True:
+        if data_unavailable_flag:
             raise PositionValidationError(
                 f"Price data marked unavailable for {symbol}: {reason_msg or 'no reason provided'}. "
                 f"Cannot calculate position metrics with invalid prices."
@@ -1053,7 +1053,7 @@ class PositionMonitor:
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using distribution days
         data_unavailable_flag = bool(row[1]) if row[1] is not None else False
         reason_msg = row[2] if row[2] is not None else None
-        if data_unavailable_flag is True:
+        if data_unavailable_flag:
             raise ValueError(
                 f"Market exposure data marked unavailable for {current_date}: {reason_msg or 'no reason provided'}. "
                 f"Cannot assess market distribution days with invalid data."

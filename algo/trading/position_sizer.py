@@ -491,7 +491,7 @@ class PositionSizer:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
             exposure_pct, data_date, data_unavailable, reason = row[0], row[1], row[2], row[3]
             # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
-            if data_unavailable is True:
+            if data_unavailable:
                 if not reason:
                     logger.critical(
                         f"[POSITION SIZER CRITICAL] Market exposure marked unavailable but reason field is empty. "

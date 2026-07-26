@@ -866,7 +866,7 @@ class Orchestrator:
                 # FIXED: Detect hung loaders (partial completion 1-94%), not just 0% or missing
                 all_loaders_checked = dict(loader_status)
                 all_stale_or_missing = len(all_loaders_checked) > 0 and all(
-                    status["is_stale"] or status["completion_pct"] is None or (status.get("is_complete") is False)
+                    status["is_stale"] or status["completion_pct"] is None or not status.get("is_complete")
                     for status in all_loaders_checked.values()
                 )
 

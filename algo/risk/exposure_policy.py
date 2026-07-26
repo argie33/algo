@@ -171,7 +171,7 @@ class ExposurePolicy:
                     )
                 # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
                 date_val, exposure_pct, regime, halt_reasons, data_unavailable, reason = row
-                if data_unavailable is True:
+                if data_unavailable:
                     raise RuntimeError(
                         f"CRITICAL: Market exposure data marked unavailable for {date_val}: {reason or 'no reason provided'}. "
                         "Cannot apply position policies without valid market exposure assessment."
@@ -452,7 +452,7 @@ if __name__ == "__main__":
         force_partial_r = tier.get("force_partial_at_r")
         if force_partial_r is not None:
             logger.info(f"  force partial @ +{force_partial_r}R")
-        if tier.get("halt_new_entries") is True:
+        if tier.get("halt_new_entries"):
             logger.info("  HALT NEW ENTRIES")
-        if tier.get("force_exit_negative_r") is True:
+        if tier.get("force_exit_negative_r"):
             logger.info("  FORCE EXIT LOSERS")

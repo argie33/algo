@@ -798,7 +798,7 @@ class CircuitBreaker:
             reason_msg = row[3]
 
             # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using VIX data
-            if data_unavailable_flag is True:
+            if data_unavailable_flag:
                 return {
                     "halted": True,
                     "reason": f"VIX data marked unavailable: {reason_msg or 'no reason provided'}. Cannot assess market volatility without valid VIX data. Fail-closed halt.",
@@ -946,7 +946,7 @@ class CircuitBreaker:
         )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using any data from this row
-        if data_unavailable_flag is True:
+        if data_unavailable_flag:
             return (
                 None,
                 "unknown",
@@ -1057,7 +1057,7 @@ class CircuitBreaker:
         reason_msg = row[2] if row[2] is not None else None
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using price data
-        if data_unavailable_flag is True:
+        if data_unavailable_flag:
             return {
                 "halted": True,
                 "reason": f"SPY price data marked unavailable: {reason_msg or 'no reason provided'}. Cannot assess data freshness without valid prices. Fail-closed halt.",
@@ -1137,7 +1137,7 @@ class CircuitBreaker:
             for idx, row in enumerate(rows):
                 data_unavailable_flag = row[1] if len(row) > 1 else False
                 reason_msg = row[2] if len(row) > 2 else None
-                if data_unavailable_flag is True:
+                if data_unavailable_flag:
                     return {
                         "halted": True,
                         "reason": f"SPY price data marked unavailable (row {idx}): {reason_msg or 'no reason provided'}. Cannot assess market movement with invalid prices. Fail-closed halt.",

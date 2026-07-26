@@ -29,8 +29,8 @@ python scripts/monitor_data_staleness.py
 | Schedule | Time ET | Days | Status |
 |----------|---------|------|--------|
 | Morning | 2:00 AM | MON-FRI | ENABLED |
+| Metrics (SEC/EDGAR fundamentals) | 3:30 PM | MON-FRI | ENABLED |
 | Signals/EOD (closing prices/technicals + scores/buy_sell_daily) | 4:05 PM | MON-FRI | ENABLED |
-| Metrics (SEC/EDGAR fundamentals) | 7:00 PM | MON-FRI | ENABLED |
 
 **Today is Sunday → Loaders won't run until Monday 2 AM.**
 

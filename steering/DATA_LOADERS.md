@@ -1,6 +1,6 @@
 # Data Loader Orchestration
 
-Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morning 2:00 AM, reference 9:15 AM, EOD 4:05 PM, computed-metrics 7:00 PM ET; MON-FRI).
+Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morning 2:00 AM, reference 9:15 AM, metrics 3:30 PM, signals 4:05 PM ET; MON-FRI). Metrics runs BEFORE signals to ensure stock_scores has fresh fundamentals.
 
 ---
 
@@ -433,8 +433,9 @@ technical data (FAIL-CLOSED) → market health → buy/sell signals → algo met
 sector/industry/performance → FRED → market exposure → sentiment → data patrol →
 orchestrator dry-run validation.
 
-**Computed metrics (7:00 PM):** SEC financials (symbol-major) → growth → quality → value → 
+**Metrics (3:30 PM):** SEC financials (symbol-major) → growth → quality → value → 
 stability → stock scores (Session 275: yfinance snapshot removed; uses SEC + institutional holdings).
+CRITICAL: Runs BEFORE signals pipeline (4:05 PM) to ensure stock_scores computes with fresh fundamentals.
 
 **Failure handling:**
 - Price or technical-data failure halts the dependent chain (`PriceLoadFailureHalt`,

@@ -128,7 +128,7 @@ def _check_failsafe_retry_result(
             f"Price data incomplete after retry ({coverage_str}). Run recovery script: python scripts/recover_incomplete_loader.py",
         )
 
-    if failsafe_result.get("halt_required") is True:
+    if failsafe_result.get("halt_required"):
         logger.critical(
             "[PHASE 1] CRITICAL: Other critical loaders incomplete even after failsafe retry. "
             "Cannot proceed with data processing."
