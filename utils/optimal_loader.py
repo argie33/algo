@@ -1191,17 +1191,35 @@ class OptimalLoader:
             try:
                 with DatabaseContext("write", enable_correlation_tracking=False) as cur:
                     cur.execute("SET statement_timeout = 0")
-                    cur.execute("DELETE FROM data_loader_status WHERE table_name = %s", (self.table_name,))
                     # Convert execution_start_time from Unix timestamp to datetime
                     execution_started = None
                     if self._execution_start_time:
                         execution_started = datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc)
 
+                    # UPSERT, not DELETE+INSERT: table_name is the PK here, and
+                    # data_loader_status_history.table_name FK-references it. Once the
+                    # history INSERT below runs once for a table, the old DELETE started
+                    # failing every run after with ForeignKeyViolation (can't delete a
+                    # parent row referenced by a child row) - confirmed live 2026-07-27,
+                    # only affected the one table that had actually reached the history
+                    # insert so far, but would have frozen data_loader_status (and thus
+                    # every dashboard/staleness check reading it) for every OptimalLoader
+                    # table permanently after its second-ever run.
                     cur.execute(
                         "INSERT INTO data_loader_status "
                         "(table_name, row_count, latest_date, last_updated, status, "
                         "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW())",
+                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW()) "
+                        "ON CONFLICT (table_name) DO UPDATE SET "
+                        "row_count = EXCLUDED.row_count, "
+                        "latest_date = EXCLUDED.latest_date, "
+                        "last_updated = EXCLUDED.last_updated, "
+                        "status = EXCLUDED.status, "
+                        "completion_pct = EXCLUDED.completion_pct, "
+                        "symbol_count = EXCLUDED.symbol_count, "
+                        "symbols_loaded = EXCLUDED.symbols_loaded, "
+                        "execution_started = EXCLUDED.execution_started, "
+                        "execution_completed = EXCLUDED.execution_completed",
                         (
                             self.table_name,
                             total_rows,
@@ -1213,6 +1231,55 @@ class OptimalLoader:
                             execution_started,
                         ),
                     )
+
+                    # Archive to history for failure-pattern analysis (dashboard's
+                    # DATA FRESHNESS panel - see dashboard/freshness_enhancements.py's
+                    # enrich_health_item_with_failure_pattern). utils/loaders/status_manager.py's
+                    # StatusManager class already does this on its own mark_completed/mark_failed/
+                    # mark_timeout methods, but this loader base class writes data_loader_status
+                    # directly via the raw SQL above instead of going through StatusManager, so
+                    # every loader built on OptimalLoader (the large majority) never reached that
+                    # archiving call - confirmed live: 0 rows in data_loader_status_history despite
+                    # dozens of loader runs/day. Runs inside a SAVEPOINT, not just a bare
+                    # try/except: an uncaught statement error aborts the whole transaction, and
+                    # this runs after the real DELETE+INSERT above in the same transaction -
+                    # without a SAVEPOINT to roll back to, a failure here would silently discard
+                    # that write too when __exit__ commits (Postgres treats COMMIT on an aborted
+                    # transaction as a ROLLBACK).
+                    try:
+                        cur.execute("SAVEPOINT archive_history")
+                        cur.execute(
+                            "INSERT INTO data_loader_status_history "
+                            "(table_name, status, execution_started, execution_completed, "
+                            "row_count, completion_pct, symbols_loaded, symbol_count) "
+                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)",
+                            (
+                                self.table_name,
+                                loader_status,
+                                execution_started,
+                                total_rows,
+                                completion_pct,
+                                symbols_loaded,
+                                expected_symbols,
+                            ),
+                        )
+                        # Keep only the last 100 runs per table (matches StatusManager's own
+                        # retention policy in utils/loaders/status_manager.py)
+                        cur.execute(
+                            "DELETE FROM data_loader_status_history "
+                            "WHERE table_name = %s AND id NOT IN ("
+                            "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                            "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                            ")",
+                            (self.table_name, self.table_name),
+                        )
+                        cur.execute("RELEASE SAVEPOINT archive_history")
+                    except Exception as archive_err:
+                        logger.debug(f"[OPTIMAL_LOADER] Failed to archive history for {self.table_name}: {archive_err}")
+                        try:
+                            cur.execute("ROLLBACK TO SAVEPOINT archive_history")
+                        except Exception as savepoint_err:
+                            logger.debug(f"[OPTIMAL_LOADER] Failed to rollback to savepoint: {savepoint_err}")
             finally:
                 set_pooled_connection(_saved)
         except Exception as e:
