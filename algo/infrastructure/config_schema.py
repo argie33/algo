@@ -350,6 +350,4 @@ VALIDATION_SCHEMA = {
     "retry_count_fred_api": ("int", 0, 10, False, 3),  # Retries for FRED API
     "retry_count_aaii_sentiment": ("int", 0, 10, False, 3),  # Retries for AAII sentiment
     "retry_count_db_migration": ("int", 0, 10, False, 3),  # Retries for DB migration
-    # Technical Daily Coverage Threshold
-    "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
 }
