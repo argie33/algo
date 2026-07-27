@@ -506,11 +506,8 @@ def main() -> int:
     try:
         # Load fresh data first (non-critical, continues even if loaders fail)
         # Runs complete pipeline: morning (prices/technicals) + metrics (financial/scores)
-        # Skip loaders on Windows to avoid timeout issues - data is checked by health script
-        if sys.platform != "win32":
-            run_complete_loader_pipeline()
-        else:
-            print("[STARTUP] Skipping loader pipeline on Windows (use check_system_health.py to verify data freshness)", flush=True)
+        # Runs on all platforms (including Windows) - loaders are verified working end-to-end
+        run_complete_loader_pipeline()
 
         # Start dev_server (if needed)
         dev_server_process = start_dev_server()
