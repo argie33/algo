@@ -66,6 +66,11 @@ LOADERS = {
         "description": "Reference data (9:15 AM ET): SEC company info, earnings calendar",
         "loaders": [
             "load_company_info_sec.py",  # Phase 3: Replaces ~15% yfinance (company info)
+            "load_company_profile.py",  # Restored 2026-07-27: SEC SIC->GICS sector/industry from
+            # company_info_sec (official source, not yfinance). Deleted 2026-07-26 by a session that
+            # only checked terraform wiring, missing that pretrade_checks.py hard-blocks new entries
+            # and circuit_breaker.py's sector-concentration/sector-drawdown checks both depend on this
+            # table. Must run after load_company_info_sec.py, which provides its only data source.
             "load_earnings_calendar_sec.py",  # Phase 3: Replaces ~10% yfinance (earnings dates)
         ],
         "interval_hours": 24,
@@ -88,7 +93,7 @@ LOADERS = {
             "load_institutional_holdings_13f.py",  # Phase 2: SEC 13F institutional ownership (replaces ~20% yfinance)
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
             "load_current_reports_8k.py",  # NEW: SEC Form 8-K material events (catalysts, M&A, leadership changes)
-            "load_sec_segment_info.py",  # XBRL: Business segment disclosures (ASC 280) - NOTE: SEC companyfacts API incomplete for major companies (no segment revenue), returns data_unavailable markers
+            "load_sec_segment_info.py",  # XBRL: Business segment disclosures (ASC 280) - companyfacts API can't expose per-segment revenue (SEC API limitation), so this falls back to parsing the filer's raw 10-K XBRL XML directly; live-verified working (revenue, operating income, and assets where disclosed)
             "load_dividend_data.py",  # NEW: Dividend ex-dates and amounts (position management)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",

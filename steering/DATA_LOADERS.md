@@ -137,15 +137,24 @@ clamped to parallelism 1-2 to protect rate limits.
   outright on INSERT. Added migration 1131 + `sql_safety.py` whitelist entry + registered
   in `scripts/local_loader_scheduler.py`'s metrics pipeline (was also missing there).
   Verified live end-to-end (AAPL/MSFT/GOOGL rows written).
-- **Business segment metrics (`sec_segment_metrics`):** genuinely unimplemented, same class
-  as the 13F gap above - do not re-enable without a real fix. `load_sec_segment_metrics.py`
-  reads from `sec_segment_info`, a table that does not exist and has zero writers anywhere
-  in the codebase (no 10-K/10-Q segment-disclosure extraction was ever built), and writes to
-  `sec_segment_metrics`, which also does not exist. Registered "critical" in terraform since
-  Session 274 but not wired into any actual Step Functions pipeline step (dead task-def
-  entry, confirmed via `grep` - not invoked automatically). A real implementation needs an
-  XBRL segment-reporting (ASC 280) extractor feeding `sec_segment_info` before this loader
-  can do anything.
+- **Business segment metrics (`sec_segment_info`/`sec_segment_metrics`):** IMPLEMENTED and
+  live-verified (2026-07-26/27) - this entry was stale for a long time and should not be
+  trusted as current without re-checking. `sec_segment_info` (migration 1157) and
+  `sec_segment_metrics` (migration 1150) both exist and are both written by real loaders:
+  `load_sec_segment_info.py` tries the SEC companyfacts API first (fast, but structurally
+  can only ever report segment *count*, never per-segment revenue - a real API limitation,
+  not a bug), and on `data_available=False` falls back to fetching the filer's actual 10-K
+  instance XML and parsing real per-segment revenue, operating income, and (where the filer
+  discloses it) assets directly from the XBRL dimensional model
+  (`utils/external/sec_xbrl_segments.py`). `load_sec_segment_metrics.py` reads
+  `sec_segment_info` and computes Herfindahl concentration / diversification. Both are wired
+  into the real Step Functions pipeline (`terraform/modules/pipeline/main.tf`, `SecSegmentInfo`
+  -> `SecSegmentMetrics` steps, not a dead task-def entry) and into
+  `scripts/local_loader_scheduler.py`. Live-verified end-to-end for AAPL/MSFT/AMZN: real
+  segment revenue, operating income, and (AMZN only - MSFT/AAPL don't disclose it)
+  segment assets all landed correctly in the local DB. See memory
+  `sec_xbrl_companyfacts_limitation.md` for the full verification history and remaining
+  (non-blocking) known gaps.
 - **Capex/net-change-in-cash silently NULL since Session 274 (fixed 2026-07-20):**
   `load_financial_statements.py`'s `_CASHFLOW_FIELD_MAPPING` mapped SEC's
   `PaymentsToAcquirePropertyPlantAndEquipment` concept to a DB column named
@@ -341,7 +350,13 @@ they never ran automatically in production, ever:
   for value/quality/growth metrics, false for these two (never actually added anywhere).
 - `short_interest_finra` / `sec_cash_flow_metrics` - added to the task-def catalog (Session
   274/298) without a corresponding Step Functions wiring step ever being added.
-- `sec_segment_metrics` - genuine dead end, see below; intentionally left unscheduled.
+- `sec_segment_metrics` - **stale as of 2026-07-26/27**: this was a genuine dead end when
+  written, but `sec_segment_info`/`sec_segment_metrics` are now both implemented, wired into
+  `computed_metrics_pipeline` in `terraform/modules/pipeline/main.tf` (`SecSegmentInfo` ->
+  `SecSegmentMetrics` steps), and live-verified end-to-end - see the corrected entry above
+  ("Business segment metrics") and memory `sec_xbrl_companyfacts_limitation.md`. Left this
+  bullet in place rather than deleted, per this doc's own convention of appending corrections
+  instead of rewriting history.
 
 **Fix:** added `CompanyInfoSec` -> `EarningsCalendarSec` -> `ShortInterestFinra` ->
 (existing `InstitutionalHoldings13F` chain) and `SecCashFlowMetrics` (after `SecValuations`,
