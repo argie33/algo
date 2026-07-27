@@ -87,6 +87,12 @@ LOADER_TABLES: dict[str, list[str]] = {
     "load_insider_transaction_velocity.py": ["insider_transaction_velocity"],
     "load_dividend_data.py": ["dividend_data"],
     "load_sec_segment_info.py": ["sec_segment_info"],
+    "load_sec_segment_metrics.py": ["sec_segment_metrics"],
+    # Restored 2026-07-27 (see scripts/local_loader_scheduler.py) - was previously
+    # missing from this registry, which made it silently invisible to every
+    # health/audit script built on LOADER_TABLES despite being flagged
+    # "critical_loaders" in terraform/modules/loaders/main.tf.
+    "load_company_profile.py": ["company_profile"],
 }
 
 # market_exposure_daily is computed by algo/risk/market_exposure.py during
