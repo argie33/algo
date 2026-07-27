@@ -136,19 +136,29 @@ class DailyFinanceReport:
             raise RuntimeError(f"Portfolio data conversion failed for {report_date}: {e}") from e
 
     def _fetch_risk(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics.
+        """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio, VaR, beta.
 
-        Reads algo_performance_daily (written every orchestrator run by Phase 9's
-        LivePerformance.generate_daily_report), not algo_performance_metrics - the
-        latter has had no writer since 2026-06-30 and was silently serving weeks-stale
-        numbers here (e.g. a 2.9% max drawdown next to a real, circuit-breaker-confirmed
-        28.75% drawdown - see algo/reporting/performance.py LivePerformance for the
-        live computation and lambda/api/routes/algo_handlers/metrics.py for the same
-        fix applied to the dashboard API).
+        Sharpe/Sortino/drawdown/Calmar come from algo_performance_daily (written every
+        orchestrator run by Phase 9's LivePerformance.generate_daily_report), not
+        algo_performance_metrics - the latter has had no writer since 2026-06-30 and was
+        silently serving weeks-stale numbers here (e.g. a 2.9% max drawdown next to a real,
+        circuit-breaker-confirmed 28.75% drawdown - see algo/reporting/performance.py
+        LivePerformance for the live computation and lambda/api/routes/algo_handlers/metrics.py
+        for the same fix applied to the dashboard API).
+
+        VaR/beta come from algo_risk_daily, written independently by the same Phase 9 run's
+        ValueAtRisk.generate_daily_risk_report() (algo/risk/var.py). This method never queried
+        that table at all - var_95_pct/beta were always None here no matter how fresh the real
+        data in algo_risk_daily was, so _check_thresholds() permanently logged "VaR 95% not yet
+        available - check algo_performance_metrics pipeline" (a dead table with no writer since
+        2026-06-30) and the VaR > 2% risk alert could never fire.
 
         Returns empty dict if metrics not yet available (expected during ramp-up or before
         first orchestrator run completes).
         """
+        result: dict[str, Any] = {}
+        db_error: Exception | None = None
+
         try:
             cur.execute(
                 """SELECT rolling_sharpe_252d AS sharpe_ratio, rolling_sortino_252d AS sortino_ratio,
@@ -159,32 +169,58 @@ class DailyFinanceReport:
                 (report_date,),
             )
             row = cur.fetchone()
-
             if row is None:
                 logger.info(
                     f"[DAILY_REPORT] No performance metrics available for {report_date}. "
                     f"This is normal during initial ramp-up or before first orchestrator run."
                 )
+            else:
+                result.update(
+                    {
+                        "sharpe_ytd": round(float(row[0]), 4) if row[0] is not None else None,
+                        "sortino": round(float(row[1]), 4) if row[1] is not None else None,
+                        "max_drawdown_pct": round(float(row[2]), 2) if row[2] is not None else None,
+                        "calmar": round(float(row[3]), 4) if row[3] is not None else None,
+                    }
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            db_error = e
+            logger.warning(f"Database error fetching performance metrics for {report_date}: {type(e).__name__}")
+
+        try:
+            cur.execute(
+                """SELECT var_pct_95, portfolio_beta
+                   FROM algo_risk_daily
+                   WHERE report_date <= %s
+                   ORDER BY report_date DESC LIMIT 1""",
+                (report_date,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                logger.info(
+                    f"[DAILY_REPORT] No VaR/beta risk data available for {report_date}. "
+                    f"This is normal during initial ramp-up or before first orchestrator run."
+                )
+            else:
+                result["var_95_pct"] = round(float(row[0]), 2) if row[0] is not None else None
+                result["beta"] = round(float(row[1]), 3) if row[1] is not None else None
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            db_error = e
+            logger.warning(f"Database error fetching VaR/beta risk data for {report_date}: {type(e).__name__}")
+
+        if not result:
+            if db_error is not None:
                 return {
                     "data_unavailable": True,
-                    "reason": "no_performance_metrics_available",
-                    "details": "Expected during ramp-up phase before algo has established P&L history",
+                    "reason": "database_error",
+                    "details": f"{type(db_error).__name__}: {str(db_error)[:100]}",
                 }
-
-            return {
-                "sharpe_ytd": round(float(row[0]), 4) if row[0] is not None else None,
-                "sortino": round(float(row[1]), 4) if row[1] is not None else None,
-                "max_drawdown_pct": round(float(row[2]), 2) if row[2] is not None else None,
-                "calmar": round(float(row[3]), 4) if row[3] is not None else None,
-            }
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            msg = f"Database error fetching risk metrics for {report_date}: {type(e).__name__}"
-            logger.warning(msg)
             return {
                 "data_unavailable": True,
-                "reason": "database_error",
-                "details": f"{type(e).__name__}: {str(e)[:100]}",
+                "reason": "no_performance_metrics_available",
+                "details": "Expected during ramp-up phase before algo has established P&L history",
             }
+        return result
 
     def _fetch_strategy(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Win rate, profit factor, performance metrics from pre-computed daily metrics.

@@ -2428,25 +2428,55 @@ router.get("/performance", async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
-    // PHASE 1 FIX: Fetch pre-computed metrics from algo_performance_metrics (O(1) instead of O(N))
-    // Instead of fetching all trades and snapshots and recalculating on every request,
-    // use the pre-computed daily metrics from the loader.
+    // Sharpe/Sortino/Calmar/max-drawdown come from algo_performance_daily, written every
+    // orchestrator run by Phase 9 (algo.reporting.LivePerformance.generate_daily_report).
+    // algo_performance_metrics (the previous source here) has had no writer since
+    // 2026-06-30 - this endpoint was silently serving that fixed 2026-06-30 snapshot as
+    // if it were today's performance on every request (same class of bug already fixed on
+    // the Python dashboard API, see
+    // lambda/api/routes/algo_handlers/metrics.py::_get_algo_performance). Trade counts,
+    // win rate, profit factor and avg win/loss aren't populated in algo_performance_daily
+    // either (nothing in the current pipeline writes them there), so they're computed live
+    // from algo_trades instead of served stale.
     const perfResult = await pool.query(`
+      WITH daily AS (
+        SELECT
+          rolling_sharpe_252d as sharpe_annualized,
+          rolling_sortino_252d as sortino_annualized,
+          calmar_ratio, max_drawdown_pct
+        FROM algo_performance_daily
+        ORDER BY report_date DESC LIMIT 1
+      ),
+      trades AS (
+        SELECT
+          COUNT(*) as total_trades,
+          COUNT(*) FILTER (WHERE profit_loss_pct > 0) as winning_trades,
+          COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losing_trades,
+          AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct > 0) as avg_win_pct,
+          AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct < 0) as avg_loss_pct,
+          SUM(profit_loss_dollars) as total_pnl_dollars,
+          SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as gross_win_dollars,
+          SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars < 0) as gross_loss_dollars
+        FROM algo_trades
+        WHERE status = 'closed' AND exit_date IS NOT NULL
+      )
       SELECT
-        total_trades, winning_trades, losing_trades,
-        win_rate_pct,
-        COALESCE(avg_win_pct, best_trade_pct) as avg_win_pct,
-        COALESCE(avg_loss_pct, worst_trade_pct) as avg_loss_pct,
+        trades.total_trades, trades.winning_trades, trades.losing_trades,
+        CASE WHEN (trades.winning_trades + trades.losing_trades) > 0
+             THEN ROUND((trades.winning_trades::numeric / (trades.winning_trades + trades.losing_trades)) * 100, 2)
+             ELSE NULL END as win_rate_pct,
+        trades.avg_win_pct, trades.avg_loss_pct,
         NULL as avg_win_r, NULL as avg_loss_r,
-        NULL as expectancy_r, profit_factor,
-        total_pnl_dollars, NULL as gross_win_dollars, NULL as gross_loss_dollars, total_pnl_pct as total_return_pct,
-        sharpe_ratio as sharpe_annualized,
-        sortino_ratio as sortino_annualized,
-        calmar_ratio, max_drawdown_pct,
-        NULL as current_win_streak, best_win_streak, worst_loss_streak,
-        avg_holding_days as avg_hold_days, NULL as portfolio_snapshots_count
-      FROM algo_performance_metrics
-      ORDER BY metric_date DESC LIMIT 1
+        NULL as expectancy_r,
+        CASE WHEN trades.gross_loss_dollars IS NOT NULL AND trades.gross_loss_dollars != 0
+             THEN ROUND(trades.gross_win_dollars / ABS(trades.gross_loss_dollars), 4)
+             ELSE NULL END as profit_factor,
+        trades.total_pnl_dollars, trades.gross_win_dollars, trades.gross_loss_dollars,
+        NULL as total_return_pct,
+        daily.sharpe_annualized, daily.sortino_annualized, daily.calmar_ratio, daily.max_drawdown_pct,
+        NULL as current_win_streak, NULL as best_win_streak, NULL as worst_loss_streak,
+        NULL as avg_hold_days, NULL as portfolio_snapshots_count
+      FROM trades LEFT JOIN daily ON true
     `);
 
     // E10 FIX: Include open positions in win rate calculation
@@ -4310,20 +4340,42 @@ router.get("/performance-analytics", authenticateToken, async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
+    // Same dead-table bug as /performance above: algo_performance_metrics has had no
+    // writer since 2026-06-30, so this always served that fixed snapshot. Also fixes an
+    // independent bug in the old query - it selected "calmar_ratio" unaliased while the
+    // schema below looked up "calmar", so validateAndCoerceRow's `!(field in row)` check
+    // silently defaulted perf.calmar to null on every request regardless of table
+    // freshness. win_rate_pct/sharpe/sortino/calmar/max_drawdown come from
+    // algo_performance_daily (written every orchestrator run); avg_win_pct/avg_loss_pct/
+    // profit_factor aren't populated there so they're computed live from algo_trades.
     const perfResult = await pool.query(`
+      WITH daily AS (
+        SELECT
+          win_rate_50t as win_rate_pct,
+          rolling_sharpe_252d as sharpe252,
+          rolling_sortino_252d as sortino,
+          calmar_ratio as calmar, max_drawdown_pct
+        FROM algo_performance_daily
+        ORDER BY report_date DESC LIMIT 1
+      ),
+      trades AS (
+        SELECT
+          AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct > 0) as avg_win_pct,
+          AVG(profit_loss_pct) FILTER (WHERE profit_loss_pct < 0) as avg_loss_pct,
+          SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars > 0) as gross_win_dollars,
+          SUM(profit_loss_dollars) FILTER (WHERE profit_loss_dollars < 0) as gross_loss_dollars
+        FROM algo_trades
+        WHERE status = 'closed' AND exit_date IS NOT NULL
+      )
       SELECT
-        win_rate_pct,
-        COALESCE(avg_win_pct, best_trade_pct) as avg_win_pct,
-        COALESCE(avg_loss_pct, worst_trade_pct) as avg_loss_pct,
-        profit_factor,
-        total_return_pct,
-        sharpe_ratio as sharpe252,
-        sortino_ratio as sortino,
-        calmar_ratio, max_drawdown_pct,
-        best_win_streak, worst_loss_streak,
-        avg_holding_days
-      FROM algo_performance_metrics
-      ORDER BY metric_date DESC LIMIT 1
+        daily.win_rate_pct, trades.avg_win_pct, trades.avg_loss_pct,
+        CASE WHEN trades.gross_loss_dollars IS NOT NULL AND trades.gross_loss_dollars != 0
+             THEN ROUND(trades.gross_win_dollars / ABS(trades.gross_loss_dollars), 4)
+             ELSE NULL END as profit_factor,
+        NULL as total_return_pct,
+        daily.sharpe252, daily.sortino, daily.calmar, daily.max_drawdown_pct,
+        NULL as best_win_streak, NULL as worst_loss_streak, NULL as avg_holding_days
+      FROM trades LEFT JOIN daily ON true
     `);
 
     validateQueryResult(perfResult, { requireRows: false });
