@@ -14,6 +14,7 @@ from dashboard.panels.health import (
     _format_notifications_summary,
     _format_phase_badge,
     _format_recent_trade_events,
+    _format_run_history_summary,
 )
 from dashboard.utilities import G, R, Y
 
@@ -127,6 +128,69 @@ class TestFormatExecHistorySummary:
         result = _format_exec_history_summary(hist)
         # Should have details about halt if available
         assert len(result) >= 1
+
+    def test_degraded_run_badge_is_not_red(self):
+        """A "degraded" overall_status (e.g. every DRY-RUN's Phase 6, see
+        execution_tracker.py) used to fall through to a red 'X' badge here because only
+        the exact literal "halted" was recognized - identical to a genuine crash. Must use
+        the same HALTED_STATES bucket as _format_phase_badge(), i.e. the same '~' icon,
+        not the error 'X'/'✗'. (Note: the separate "0/1 success" win-rate segment is
+        legitimately red here since the run's success count is 0 - that's unrelated to the
+        per-run badge icon this test targets.)"""
+        hist = [{"overall_status": "degraded"}]
+        result = _format_exec_history_summary(hist)
+        text = str(result[0])
+        assert "✗" not in text
+        assert "~" in text
+
+    def test_skipped_run_badge_is_not_red(self):
+        """A "skipped" run (e.g. a non-trading-day early exit) must not render as a red
+        error badge either."""
+        hist = [{"overall_status": "skipped"}]
+        result = _format_exec_history_summary(hist)
+        text = str(result[0])
+        assert "✗" not in text
+        assert "1 skipped" in text
+
+    def test_blocked_run_badge_is_not_red(self):
+        hist = [{"overall_status": "blocked"}]
+        result = _format_exec_history_summary(hist)
+        text = str(result[0])
+        assert "✗" not in text
+        assert "~" in text
+
+
+class TestFormatRunHistorySummary:
+    """Test _format_run_history_summary - a second, near-duplicate exec-history
+    formatter (used by panel_algo_health) that had the exact same "only the literal
+    'halted' string avoids the red-X default" bug as _format_exec_history_summary."""
+
+    def test_empty_history_returns_empty_list(self):
+        assert _format_run_history_summary([]) == []
+
+    def test_none_history_returns_empty_list(self):
+        assert _format_run_history_summary(None) == []
+
+    def test_degraded_run_badge_is_not_red(self):
+        hist = [{"overall_status": "degraded"}]
+        result = _format_run_history_summary(hist)
+        text = str(result[0])
+        assert "✗" not in text
+        assert "~" in text
+
+    def test_skipped_run_badge_is_not_red(self):
+        hist = [{"overall_status": "skipped"}]
+        result = _format_run_history_summary(hist)
+        text = str(result[0])
+        assert "✗" not in text
+        assert "1 skipped" in text
+
+    def test_error_run_badge_is_red(self):
+        hist = [{"overall_status": "error"}]
+        result = _format_run_history_summary(hist)
+        text = str(result[0])
+        assert "✗" in text
+        assert "1 error" in text
 
 
 class TestFormatDataHealthSummary:

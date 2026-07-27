@@ -1206,8 +1206,15 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     # Type guard: valid_hist_raw is now guaranteed to be a list
     valid_hist: list[Any] = valid_hist_raw
     n_ok = sum(1 for r in valid_hist if _get_status_safe(r) in PHASE_SUCCESS_STATES)
-    n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) == "halted")
-    n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ("error", "failed"))
+    # Use the same HALTED_STATES/SKIPPED_STATES buckets as _format_phase_badge() - a
+    # run-level "degraded" (e.g. every DRY-RUN's Phase 6, see execution_tracker.py) or
+    # "blocked"/"skipped" run used to fall into neither n_hlt nor n_err (only the exact
+    # literal "halted" counted), yet still rendered as a red X badge below - a run
+    # correctly handled by a guard looked identical to a genuine crash, with no matching
+    # tally to explain the red mark.
+    n_hlt = sum(1 for r in valid_hist if _get_status_safe(r) in HALTED_STATES)
+    n_skip = sum(1 for r in valid_hist if _get_status_safe(r) in SKIPPED_STATES)
+    n_err = sum(1 for r in valid_hist if _get_status_safe(r) in ERROR_STATES)
     total_h = len(valid_hist)
     if total_h == 0:
         logger.warning(
@@ -1222,18 +1229,15 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
     badges = []
     for r in valid_hist[:7]:
         s = _get_status_safe(r)
-        if s in PHASE_SUCCESS_STATES:
-            badges.append(f"[{G}]OK[/]")
-        elif s == "halted":
-            badges.append(f"[{Y}]~[/]")
-        else:
-            badges.append(f"[{R}]X[/]")
+        color, icon = _format_phase_badge(s)
+        badges.append(f"[{color}]{icon}[/]")
 
     rows.append(
         Text.from_markup(
             f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
             f"  [{wc_h}]{n_ok}/{total_h} success[/]"
             + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
+            + (f"  [{DIM}]{n_skip} skipped[/]" if n_skip else "")
             + (f"  [{R}]{n_err} error[/]" if n_err else "")
         )
     )
@@ -1957,14 +1961,19 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     # Type guard: valid_hist is guaranteed non-empty and not None after the check above
     hist_items: list[Any] = valid_hist
     n_ok = sum(1 for r in hist_items if _get_status_safe(r) in PHASE_SUCCESS_STATES)
-    n_hlt = sum(1 for r in hist_items if _get_status_safe(r) == "halted")
-    n_err = sum(1 for r in hist_items if _get_status_safe(r) in ("error", "failed"))
+    # See _format_run_history_summary above - "degraded"/"blocked"/"skipped" run-level
+    # statuses must use the same HALTED_STATES/SKIPPED_STATES buckets as _format_phase_badge(),
+    # not fall through to a red error badge just because they aren't the literal "halted".
+    n_hlt = sum(1 for r in hist_items if _get_status_safe(r) in HALTED_STATES)
+    n_skip = sum(1 for r in hist_items if _get_status_safe(r) in SKIPPED_STATES)
+    n_err = sum(1 for r in hist_items if _get_status_safe(r) in ERROR_STATES)
     total_h = len(hist_items)
 
     badges = []
     for r in hist_items[:7]:
         s = _get_status_safe(r)
-        badges.append(f"[{G}]OK[/]" if s in PHASE_SUCCESS_STATES else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]"))
+        color, icon = _format_phase_badge(s)
+        badges.append(f"[{color}]{icon}[/]")
 
     wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
     rows.append(
@@ -1972,6 +1981,7 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
             f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
             f"  [{wc}]{n_ok}/{total_h} success[/]"
             + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
+            + (f"  [{DIM}]{n_skip} skipped[/]" if n_skip else "")
             + (f"  [{R}]{n_err} error[/]" if n_err else "")
         )
     )
@@ -2951,8 +2961,17 @@ def _build_results_panel(
             else:
                 logger.debug(f"[HEALTH] Unexpected started_at type: {type(dt).__name__}")
                 dt_s = "-"
-            ic = G if s in PHASE_SUCCESS_STATES else (Y if s == "halted" else R)
-            ii = "v" if s in PHASE_SUCCESS_STATES else ("~" if s == "halted" else "x")
+            # Same HALTED_STATES/SKIPPED_STATES buckets as _format_phase_badge() - a run-level
+            # "degraded"/"blocked"/"skipped" status (e.g. every DRY-RUN, see
+            # execution_tracker.py) must not fall through to the red error styling below.
+            if s in PHASE_SUCCESS_STATES:
+                ic, ii = G, "v"
+            elif s in HALTED_STATES:
+                ic, ii = Y, "~"
+            elif s in SKIPPED_STATES:
+                ic, ii = DIM, "o"
+            else:
+                ic, ii = R, "x"
             hr = r.get("halt_reason")
             if hr is None:
                 hr = ""
