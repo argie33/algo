@@ -114,6 +114,44 @@ class TestBracketOrderPriceRounding:
         assert len(tp_price.split(".")[1]) == 2  # exactly 2 decimal places, no float noise
 
 
+class TestSendBracketOrderToleratesNoneStopLoss:
+    """Regression test for the 2026-07-27 fix: send_bracket_order()'s own docstring promises
+    it "Falls back to simple limit order if bracket can't be sent (no stop)", and the function
+    body has real handling for stop_loss_price=None (the `if stop_loss_price is not None and
+    stop_loss_price > 0:` branch a few lines down) - but the very first log statement
+    unconditionally formatted stop_loss_price with `:.2f}`, which raises TypeError on None
+    before that graceful handling is ever reached. Only production caller (executor.py) always
+    passes a float today, so this was latent rather than live, but it defeats the function's
+    own documented no-stop fallback contract."""
+
+    def test_none_stop_loss_does_not_crash_before_reaching_fallback_logic(self):
+        manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
+
+        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
+             patch("algo.trading.order_manager.validator") as mock_validator:
+            mock_validator.validate_order_response.return_value = {
+                "valid": True,
+                "status": "accepted",
+                "filled_avg_price": None,
+                "order_id": "order-123",
+                "order_class": "bracket",
+                "legs": [],
+                "rejection_reason": None,
+            }
+            result = manager.send_bracket_order(
+                symbol="TEST",
+                shares=10,
+                entry_price=10.0,
+                stop_loss_price=None,
+            )
+
+        assert result["success"] is True
+        payload = mock_post.call_args.kwargs["json"]
+        # No stop -> plain limit order, no bracket/order_class/stop_loss fields
+        assert "order_class" not in payload
+        assert "stop_loss" not in payload
+
+
 class TestClientOrderIdIdempotency:
     """Regression tests for the 2026-07-26 fix: send_bracket_order() previously sent no
     client_order_id to Alpaca at all, so a submission whose HTTP response is lost to a

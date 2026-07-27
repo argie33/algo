@@ -75,8 +75,14 @@ class OrderManager:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {"success": False, "message": "Alpaca credentials not configured"}
 
+        # stop_loss_price is Optional per the signature (docstring: "Falls back to simple limit
+        # order if bracket can't be sent (no stop)") but this log line unconditionally formatted
+        # it with :.2f - a None stop_loss_price would crash here with TypeError before ever
+        # reaching the graceful no-stop handling below, defeating the documented fallback. Only
+        # caller today (executor.py) always passes a float, so this was latent, not yet live.
+        stop_desc = f"${stop_loss_price:.2f}" if stop_loss_price is not None else "None"
         logger.info(
-            f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f} to {self.alpaca_base_url}"
+            f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop {stop_desc} to {self.alpaca_base_url}"
         )
 
         # CRITICAL: use Decimal.quantize(ROUND_HALF_UP), not Python's built-in round(), for every
