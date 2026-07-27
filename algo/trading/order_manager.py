@@ -345,7 +345,14 @@ class OrderManager:
                             f"[ORDER_MANAGER] Alpaca response missing 'filled_qty' for order {alpaca_order_id}"
                         )
                         raise ValueError(f"Order {alpaca_order_id}: Alpaca response missing filled_qty (required)")
-                    return int(filled_qty)
+                    # Alpaca returns filled_qty as a STRING to preserve precision (e.g. "4.87"
+                    # for a fractional-share fill - this system actively trades fractional
+                    # shares, confirmed via real open positions). int("4.87") raises
+                    # ValueError uncaught by this function's retry loop (which only catches
+                    # requests exceptions), crashing entry/exit fill verification for any
+                    # fractionally-filled order. The function's own declared return type is
+                    # `float | None`, not int.
+                    return float(filled_qty)
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt
