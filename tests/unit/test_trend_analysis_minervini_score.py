@@ -61,3 +61,32 @@ class TestMinerviniScoreMissingDataHandling:
         result = _compute_scores_vectorized(merged)
         assert pd.isna(result["minervini_trend_score"].iloc[0])
         assert pd.isna(result["weinstein_stage"].iloc[0])
+
+
+class TestTrendDirectionMissingDataHandling:
+    """trend_direction previously defaulted to "sideways" whenever roc_60d was NaN
+    (pandas' `roc60 > 5`/`roc60 < -5` both evaluate False on NaN, so neither branch
+    fired and the initial "sideways" default silently stuck) - inconsistent with this
+    same function's NaN-safe handling of minervini_trend_score/weinstein_stage/
+    price_above_sma50, and directly reachable by SPY's market_status_daily.market_trend,
+    a live market-regime signal."""
+
+    def test_missing_roc60_produces_no_trend_direction(self):
+        merged = _build_frame(roc_60d=pd.Series([np.nan]))
+        result = _compute_scores_vectorized(merged)
+        assert pd.isna(result["trend_direction"].iloc[0])
+
+    def test_up_trend_still_detected(self):
+        merged = _build_frame(roc_60d=pd.Series([10.0]))
+        result = _compute_scores_vectorized(merged)
+        assert result["trend_direction"].iloc[0] == "up"
+
+    def test_down_trend_still_detected(self):
+        merged = _build_frame(roc_60d=pd.Series([-10.0]))
+        result = _compute_scores_vectorized(merged)
+        assert result["trend_direction"].iloc[0] == "down"
+
+    def test_flat_roc60_is_sideways_not_nan(self):
+        merged = _build_frame(roc_60d=pd.Series([1.0]))
+        result = _compute_scores_vectorized(merged)
+        assert result["trend_direction"].iloc[0] == "sideways"

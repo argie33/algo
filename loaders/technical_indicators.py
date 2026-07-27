@@ -254,36 +254,3 @@ def compute_adx(
     return plus_di, minus_di, adx
 
 
-def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute all technical indicators and add to dataframe.
-
-    Input: DataFrame with columns [date, open, high, low, close, volume], single symbol,
-        sorted ascending by date
-    Output: Same DataFrame with additional columns for all indicators
-    """
-    df = detect_and_adjust_splits(df)
-    df = df.copy()
-
-    # RSI
-    df["rsi_14"] = compute_rsi(df["close"], 14)
-
-    # MACD
-    df["macd"], df["macd_signal"] = compute_macd(df["close"])
-
-    # Moving Averages
-    mas = compute_moving_averages(df["close"])
-    for name, values in mas.items():
-        df[name] = values
-
-    # ATR
-    df["atr_14"] = compute_atr(df["high"], df["low"], df["close"], 14)
-
-    # Bollinger Bands
-    bbs = compute_bollinger_bands(df["close"], 20, 2.0)
-    for name, values in bbs.items():
-        df[name] = values
-
-    # Volume MA
-    df["volume_ma_50"] = compute_volume_ma(df["volume"], 50)
-
-    return df

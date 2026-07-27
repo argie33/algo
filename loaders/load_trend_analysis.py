@@ -178,7 +178,16 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
     merged.loc[valid_data & ~above200 & ~sma50_above_sma200, "weinstein_stage"] = 4  # downtrend
 
     # Trend direction
-    merged["trend_direction"] = "sideways"
+    # GOVERNANCE: NaN roc_60d must stay unclassified (None), not silently "sideways" -
+    # same NaN-safety this function already applies to minervini_trend_score/weinstein_stage/
+    # price_above_sma50 above/below. roc60 > 5 and roc60 < -5 both evaluate False on NaN
+    # (pandas comparisons against NaN are False, not NaN), so without this guard a symbol
+    # missing roc_60d fell through to the "sideways" default - and SPY's trend_direction
+    # feeds market_status_daily.market_trend (see load_market_status_daily.py), a live
+    # market-regime signal for entry filtering, so a silent "sideways" here is not just
+    # cosmetic.
+    merged["trend_direction"] = pd.NA
+    merged.loc[roc60.notna() & (roc60 <= 5) & (roc60 >= -5), "trend_direction"] = "sideways"
     merged.loc[roc60 > 5, "trend_direction"] = "up"
     merged.loc[roc60 < -5, "trend_direction"] = "down"
 
