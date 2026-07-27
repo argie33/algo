@@ -94,6 +94,7 @@ LOADERS = {
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
             "load_current_reports_8k.py",  # NEW: SEC Form 8-K material events (catalysts, M&A, leadership changes)
             "load_sec_segment_info.py",  # XBRL: Business segment disclosures (ASC 280) - companyfacts API can't expose per-segment revenue (SEC API limitation), so this falls back to parsing the filer's raw 10-K XBRL XML directly; live-verified working (revenue, operating income, and assets where disclosed)
+            "load_sec_segment_metrics.py",  # Found+fixed 2026-07-27 (loading-situation audit): wired into prod's Step Functions pipeline (SecSegmentInfo -> SecSegmentMetrics) but missing here - same "prod loader silently never exercised locally" bug class as market_constituents/economic_data above. Reads sec_segment_info -> computes Herfindahl diversification; must run after load_sec_segment_info.py.
             "load_dividend_data.py",  # NEW: Dividend ex-dates and amounts (position management)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",

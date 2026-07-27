@@ -115,17 +115,26 @@ clamped to parallelism 1-2 to protect rate limits.
   Form 13F is filed by the institutional manager under their OWN CIK with CUSIP-level
   holdings, not cross-indexed under the issuer's CIK - there's no per-issuer 13F lookup.
   `loaders/load_institutional_holdings_13f.py` downloads SEC's real bulk quarterly
-  INFOTABLE.tsv dataset directly. CUSIP itself is licensed (no free crosswalk), but SEC's
-  own FIGI column - populated by ~47% of distinct CUSIPs in a real quarter, live-verified,
-  weighted toward larger/more liquid names - is a free, open identifier. The loader
-  crosswalks our own tracked ticker universe to FIGI via OpenFIGI's free public mapping
-  API (`utils/external/openfigi_crosswalk.py`) and joins on FIGI equality, never a CUSIP
-  purchase or name-guessing. Coverage is real but partial: only symbols where (a) a filer
-  reported FIGI for that CUSIP, (b) OpenFIGI resolves the ticker, and (c) the resolved
-  entity name plausibly matches our own SEC entity_name get a real ownership % - see
-  that module's docstring for a live-verified wrong-entity gotcha (OpenFIGI resolves
-  "XOM" to a different corporate entity than the real 10-K filer) that (c) guards against.
-  Everything else stays honestly `data_unavailable`, per GOVERNANCE fail-fast.
+  INFOTABLE.tsv dataset directly. CUSIP itself is licensed (no free crosswalk), but
+  OpenFIGI (`api.openfigi.com`, free, public, no signup) resolves a CUSIP directly to
+  its real ticker. The loader queries OpenFIGI CUSIP->ticker directly
+  (`utils/external/openfigi_crosswalk.py::fetch_cusip_tickers`) and caches every result
+  (including negative/unresolved ones) in `sec_13f_cusip_crosswalk` (migration 1161), so
+  only each quarter's small delta of never-seen CUSIPs costs a live OpenFIGI call.
+  Live-verified against real mega-cap 13F data: AAPL 86.9%, AMZN 86.6%, MSFT 112.8%, JPM
+  106.1%, TSLA 68.7%, NVDA 87.9% institutional ownership (>100% is a known, already-handled
+  custodial/prime-broker double-counting artifact of 13F data, not a bug). Coverage is real
+  but partial: only symbols where (a) OpenFIGI can resolve that CUSIP to a ticker, (b) that
+  ticker is in our own tracked universe, and (c) the resolved entity name plausibly matches
+  our own SEC entity_name (`names_plausibly_match()`) get a real ownership % - see that
+  module's docstring for a live-verified wrong-entity gotcha (OpenFIGI resolves "XOM" to a
+  different corporate entity than the real 10-K filer) that (c) guards against. Everything
+  else stays honestly `data_unavailable`, per GOVERNANCE fail-fast.
+  **Note:** an earlier version of this approach tried joining on SEC's own optional FIGI
+  column instead of querying OpenFIGI directly (to avoid the CUSIP-direction rate-limit
+  cost) - live-verified to be catastrophically incomplete (~7.4% of AAPL's real
+  institutional shares carry any FIGI tag), self-caught and replaced before shipping. This
+  doc previously still described that rejected approach as current; corrected 2026-07-27.
 - **Insider holdings (Form 4/5):** implemented (Session 304) via SEC's official bulk
   "Insider Transactions Data Sets" (sec.gov/data-research/sec-markets-data/
   insider-transactions-data-sets - quarterly ZIPs of SUBMISSION/REPORTINGOWNER/
