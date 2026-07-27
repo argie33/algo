@@ -151,6 +151,21 @@ def _get_data_quality(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
+def _rollback_after_error(cur: cursor) -> None:
+    """Reset an aborted transaction after a caught-and-continue DB error.
+
+    Postgres marks a transaction as failed after any statement error - every later
+    query on the same connection raises InFailedSqlTransaction until a ROLLBACK runs.
+    _get_data_status queries a dozen+ tables sequentially and treats a single missing/
+    broken table as non-fatal (log and continue), so without this every downstream
+    query in the same request would cascade-fail from one bad table.
+    """
+    try:
+        cur.connection.rollback()
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
+        logger.debug(f"[DATA_STATUS] Failed to rollback after query error: {rollback_err}")
+
+
 @db_route_handler("fetch data status")
 @validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
@@ -314,9 +329,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 """)
             loader_rows_raw = cur.fetchall()
         except psycopg2.errors.UndefinedTable:
+            _rollback_after_error(cur)
             logger.warning("[DATA_STATUS] data_loader_status table does not exist - will only report algo-generated tables")
             loader_rows_raw = []
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            _rollback_after_error(cur)
             logger.warning(f"[DATA_STATUS] Could not query data_loader_status: {e} - will only report algo-generated tables")
             loader_rows_raw = []
 
@@ -417,9 +434,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         }
                     )
             except psycopg2.errors.UndefinedTable:
+                _rollback_after_error(cur)
                 logger.warning(f"[DATA_STATUS] Table {tbl_name} does not exist - skipping")
                 continue
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                _rollback_after_error(cur)
                 logger.warning(f"[DATA_STATUS] Could not query {tbl_name}: {e}")
                 continue
 
@@ -466,6 +485,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                             row["last_updated"] = last_ts
                         logger.debug(f"[DATA_STATUS] Refreshed {tbl_name}: count={actual_count}, ts={last_ts}")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    _rollback_after_error(cur)
                     logger.warning(f"[DATA_STATUS] Could not refresh {tbl_name}: {e}")
                 except Exception as e:
                     logger.warning(f"[DATA_STATUS] Unexpected error refreshing {tbl_name}: {e}")
@@ -473,47 +493,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             enriched_rows.append(row)
 
         rows = enriched_rows + algo_rows
-
-        # ── ENRICH HEALTH ITEMS WITH NEW METRICS ──────────────────────────────
-        # Add data quality, coverage, and failure pattern data to each health item
-        # so dashboard can display comprehensive operational health, not just freshness
-        try:
-            from dashboard.freshness_enhancements import (
-                enrich_health_item_with_data_quality,
-                enrich_health_item_with_coverage,
-                enrich_health_item_with_failure_pattern,
-                enrich_health_item_with_api_diagnostics,
-            )
-
-            enriched_sources = []
-            for source in sources:
-                # Each enrichment adds new fields to the source dict
-                # These fields are only used by the dashboard (not critical for API contract)
-                try:
-                    source = enrich_health_item_with_data_quality(source, cur)
-                except Exception as e:
-                    logger.debug(f"[DATA_STATUS] Data quality enrichment failed for {source.get('name')}: {e}")
-
-                try:
-                    source = enrich_health_item_with_coverage(source, cur)
-                except Exception as e:
-                    logger.debug(f"[DATA_STATUS] Coverage enrichment failed for {source.get('name')}: {e}")
-
-                try:
-                    source = enrich_health_item_with_failure_pattern(source, cur)
-                except Exception as e:
-                    logger.debug(f"[DATA_STATUS] Failure pattern enrichment failed for {source.get('name')}: {e}")
-
-                try:
-                    source = enrich_health_item_with_api_diagnostics(source)
-                except Exception as e:
-                    logger.debug(f"[DATA_STATUS] API diagnostics enrichment failed for {source.get('name')}: {e}")
-
-                enriched_sources.append(source)
-
-            sources = enriched_sources
-        except ImportError as e:
-            logger.warning(f"[DATA_STATUS] Freshness enhancements module not available: {e}. Dashboard will show basic freshness only.")
 
         # Critical tables: trading cannot proceed if these are stale/empty
         # These are the core input/output tables for all 9 phases
@@ -665,6 +644,50 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 }
             )
 
+        # ── ENRICH HEALTH ITEMS WITH NEW METRICS ──────────────────────────────
+        # Add data quality, coverage, and failure pattern data to each health item
+        # so dashboard can display comprehensive operational health, not just freshness
+        try:
+            from dashboard.freshness_enhancements import (
+                enrich_health_item_with_data_quality,
+                enrich_health_item_with_coverage,
+                enrich_health_item_with_failure_pattern,
+                enrich_health_item_with_api_diagnostics,
+            )
+
+            enriched_sources = []
+            for source in sources:
+                # Each enrichment adds new fields to the source dict
+                # These fields are only used by the dashboard (not critical for API contract)
+                try:
+                    source = enrich_health_item_with_data_quality(source, cur)
+                except Exception as e:
+                    _rollback_after_error(cur)
+                    logger.debug(f"[DATA_STATUS] Data quality enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_coverage(source, cur)
+                except Exception as e:
+                    _rollback_after_error(cur)
+                    logger.debug(f"[DATA_STATUS] Coverage enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_failure_pattern(source, cur)
+                except Exception as e:
+                    _rollback_after_error(cur)
+                    logger.debug(f"[DATA_STATUS] Failure pattern enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_api_diagnostics(source)
+                except Exception as e:
+                    logger.debug(f"[DATA_STATUS] API diagnostics enrichment failed for {source.get('name')}: {e}")
+
+                enriched_sources.append(source)
+
+            sources = enriched_sources
+        except ImportError as e:
+            logger.warning(f"[DATA_STATUS] Freshness enhancements module not available: {e}. Dashboard will show basic freshness only.")
+
         # summary only gets a key for statuses that actually occurred at least once above
         # (summary[status] = current_count + 1). If every table is stale/empty/critical,
         # "ok" is legitimately absent, not corrupt -- 0 is the correct count, not an error.
@@ -705,6 +728,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     trading_halted = True
                     trading_halt_reason = latest_run_dict.get("halt_reason")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            _rollback_after_error(cur)
             logger.warning(f"[DATA_STATUS] Could not determine orchestrator halt state: {e}")
 
         ready_to_trade = data_fresh_enough and not trading_halted
@@ -770,6 +794,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         try:
             _collect_phase2_circuit_breakers(cur, execution_health)
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
+            _rollback_after_error(cur)
             logger.error(f"[HEALTH] Phase 2 circuit breaker query failed - reporting as unknown, not clear: {e}")
             execution_health["phase_2_circuit_breakers"] = None
 
@@ -801,6 +826,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         ),
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
+            _rollback_after_error(cur)
             logger.debug(f"[HEALTH] Phase 3 position monitor query failed: {e}")
             execution_health["phase_3_position_monitor"] = None
 
@@ -829,6 +855,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             else:
                 execution_health["phase_4_broker_reconciliation"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
+            _rollback_after_error(cur)
             logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
             execution_health["phase_4_broker_reconciliation"] = None
 
@@ -871,6 +898,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             else:
                 execution_health["phase_5_exposure_policy"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError):
+            _rollback_after_error(cur)
             execution_health["phase_5_exposure_policy"] = None
 
         # Phase 6: Exit Execution Health (last 24h)
@@ -908,6 +936,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "symbols_exited": symbols_exited_val,
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
+            _rollback_after_error(cur)
             execution_health["phase_6_exit_execution"] = None
 
         # Phase 7: Signal Generation (outputs algo_signals generated by Phase 7)
@@ -962,6 +991,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             else:
                 execution_health["phase_7_signal_generation"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
+            _rollback_after_error(cur)
             execution_health["phase_7_signal_generation"] = None
 
         # Phase 8: Entry Execution Health (last 24h)
@@ -1001,6 +1031,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "symbols_entered": symbols_entered_val,
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
+            _rollback_after_error(cur)
             execution_health["phase_8_entry_execution"] = None
 
         # Phase 9: Portfolio Snapshot Health
@@ -1030,6 +1061,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "portfolio_value": float(snap_dict["latest_value"]) if snap_dict.get("latest_value") else None,
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
+            _rollback_after_error(cur)
             execution_health["phase_9_portfolio_snapshot"] = None
 
         response = list_response(sources, total=len(sources), limit=None, offset=None)
