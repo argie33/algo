@@ -907,7 +907,12 @@ def run(
         log_phase_result_fn(8, "entry_execution", "halt", error_msg)
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
-    sizer_config = config.to_dict() if hasattr(config, "to_dict") else {}
+    # Fall back to a COPY of `config` (not `{}`) when it lacks .to_dict() - an empty dict here
+    # would silently discard every actually-configured risk key (base_risk_pct, max_positions,
+    # VIX thresholds) rather than the still-fail-closed PositionSizer.__init__ requiring them.
+    # Must be a copy, not `config` itself: the max_concentration_pct assignment just below
+    # would otherwise mutate the caller's original config dict in place.
+    sizer_config = config.to_dict() if hasattr(config, "to_dict") else dict(config)
 
     if tier_max_conc is not None:
         sizer_config["max_concentration_pct"] = tier_max_conc
