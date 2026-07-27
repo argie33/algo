@@ -106,11 +106,15 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                 if exits < 0:
                     raise ValueError(f"exits must be non-negative, got {exits}")
 
-                # Validate logical consistency
-                if entries + exits > total_actions:
-                    raise ValueError(
-                        f"entries ({entries}) + exits ({exits}) cannot exceed total_actions ({total_actions})"
-                    )
+                # NOTE: entries+exits is NOT bounded by total_actions. total_actions is a
+                # COUNT(*) of ALL algo_audit_log rows for the day (circuit breaker checks,
+                # position monitor ticks, reconciliation events, etc.) while entries/exits
+                # come from algo_trades.entry_date/exit_date - two unrelated tables with no
+                # subset relationship. Entries in particular are never written to
+                # algo_audit_log at all (only exits are, via executor_exit_handler.py), so
+                # "entries+exits > total_actions" can be true on a real, valid low-audit-
+                # volume day and is not evidence of bad data. Previously raised ValueError
+                # here, which would have marked a legitimate day's metrics data_unavailable.
 
                 # Validate and coerce score
                 avg_signal_score = None

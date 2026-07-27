@@ -317,7 +317,14 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         i_stats.industry_name,
                         NOW()::date,
                         i_stats.current_rank,
-                        i_stats.current_rank - COALESCE(r1.rank, i_stats.current_rank),
+                        -- Sign convention: positive = improving (rank went DOWN), matching the
+                        -- sector_ranking fix above and sector_rotation.py's own
+                        -- old_rank - current_rank convention. Previously computed
+                        -- current_rank - old_rank here (the inverted sign the sector_ranking
+                        -- comment above documents as wrong) - this value is returned directly
+                        -- as "momentum_score" by lambda/api/routes/industries.py to the
+                        -- Industries dashboard page, where the sign-inverted value read backwards.
+                        COALESCE(r1.rank, i_stats.current_rank) - i_stats.current_rank,
                         'price_daily_aggregated' as data_source,
                         COALESCE(r1.rank, i_stats.current_rank),
                         COALESCE(r4.rank, i_stats.current_rank),
