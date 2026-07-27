@@ -38,11 +38,19 @@ class PositionSyncChecker:
         """Perform consistency checks against database."""
         issues: list[dict[str, Any]] = []
 
+        # CRITICAL: every "open trade" filter below must match utils.trading.TradeStatus
+        # .all_open() (('open','filled','partially_filled','active','pending','paper_pending'))
+        # - this file previously omitted 'pending'/'paper_pending', which would make this
+        # consistency checker itself miss exactly the trades most likely to have integrity
+        # issues (never-confirmed entries). Kept as literal strings rather than importing
+        # TradeStatus to build the IN clause dynamically, since these are fixed strings
+        # embedded directly in each query, not parameterized placeholders.
+
         # 1. Check for trades with missing required entry fields
         cur.execute("""
             SELECT trade_id, symbol, status
             FROM algo_trades
-            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'pending', 'paper_pending')
               AND (entry_price IS NULL OR entry_quantity IS NULL OR entry_time IS NULL)
         """)
         invalid_entry = cur.fetchall()
@@ -60,7 +68,7 @@ class PositionSyncChecker:
         cur.execute("""
             SELECT trade_id, symbol, entry_price, stop_loss_price
             FROM algo_trades
-            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'pending', 'paper_pending')
               AND (entry_price <= 0 OR stop_loss_price <= 0)
         """)
         negative_prices = cur.fetchall()
@@ -78,7 +86,7 @@ class PositionSyncChecker:
         cur.execute("""
             SELECT symbol, COUNT(*) as count
             FROM algo_trades
-            WHERE status IN ('open', 'filled', 'partially_filled', 'active')
+            WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'pending', 'paper_pending')
             GROUP BY symbol
             HAVING COUNT(*) > 1
         """)
@@ -114,7 +122,7 @@ class PositionSyncChecker:
         # 5. Summary counts from algo_trades (single source of truth)
         cur.execute("""
             SELECT
-                COUNT(*) FILTER (WHERE status IN ('open', 'filled', 'partially_filled', 'active')) as trades_open,
+                COUNT(*) FILTER (WHERE status IN ('open', 'filled', 'partially_filled', 'active', 'pending', 'paper_pending')) as trades_open,
                 COUNT(*) FILTER (WHERE status = 'closed') as trades_closed,
                 COUNT(*) FILTER (WHERE status = 'cancelled') as trades_cancelled
             FROM algo_trades
