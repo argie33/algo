@@ -712,10 +712,7 @@ def run(
             msg,
         )
 
-    # CRITICAL: Exposure constraints are REQUIRED - fail-fast if missing or incomplete
-    # Do NOT claim to use "defaults" and then halt silently - either provide defaults OR halt immediately
-    # This prevents confusion when debugging: misleading warnings followed by silent halts
-    # mask the actual problem (missing Phase 5 data) behind false claims of graceful degradation
+    # CRITICAL: Exposure constraints are REQUIRED - fail-fast if entirely missing
     if not exposure_constraints:
         msg = (
             "[PHASE 8 CRITICAL] Exposure constraints not available (Phase 5 may have halted). "

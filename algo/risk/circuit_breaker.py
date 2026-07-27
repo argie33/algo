@@ -277,14 +277,15 @@ class CircuitBreaker:
             return {"halted": True, "reason": "Invalid portfolio values - fail-closed"}
         dd = (peak - cur_val) / peak * 100.0
         halt_dd_val = self._get_required_config("halt_drawdown_pct", "in drawdown check")
+        # _float(val, default=None, ...) raises ValueError on invalid/NaN/Inf input rather than
+        # returning None (see its docstring/impl) - an `if threshold is None` guard here would be
+        # dead code. An invalid config value propagates as an exception instead, caught by
+        # phase2_circuit_breakers.py's outer handler, which still halts (fail-closed either way).
         threshold = _float(
             halt_dd_val,
             None,
             context="halt_drawdown_pct",
         )
-        if threshold is None:
-            logger.error("CRITICAL: halt_drawdown_pct is invalid (NaN/Inf). Circuit breaker cannot function.")
-            return {"halted": True, "reason": "CRITICAL: halt_drawdown_pct invalid"}
         # halt_drawdown_pct is stored as negative (e.g. -20.0 = halt at 20% down).
         # dd is computed as a positive percentage drop from peak.
         halt_threshold = abs(threshold)
@@ -439,6 +440,11 @@ class CircuitBreaker:
             return {"halted": True, "reason": "Adjusted equity data invalid - fail-closed"}
         daily = (cur_val - prev_val) / prev_val * 100.0
         max_daily_val = self._get_required_config("max_daily_loss_pct", "in daily loss check")
+        # _float(val, default=None, ...) raises rather than returning None on invalid/NaN/Inf
+        # input, so `threshold is None` below is unreachable (see matching note in
+        # _check_drawdown above) - kept only because `threshold == 0.0` is a real, reachable
+        # guard against a misconfigured zero threshold (max_daily_loss_pct=0 is a valid float
+        # that would otherwise halt on any loss, however small).
         threshold = -_float(
             max_daily_val,
             None,
