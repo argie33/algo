@@ -63,7 +63,9 @@ const PreTradeSimulator = () => {
           <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{typeof value === 'number' ? value.toFixed(2) : value}{unit}</div>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Max: {limit}{unit}</div>
         </div>
-        {passed ? (
+        {passed == null ? (
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }} title="Constraint check unavailable - no data returned">N/A</span>
+        ) : passed ? (
           <CheckCircle size={20} color='var(--success)' />
         ) : (
           <AlertCircle size={20} color='var(--danger)' />
@@ -199,7 +201,7 @@ const PreTradeSimulator = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Entry Price</span>
-                <span style={{ fontWeight: 'bold' }}>${Number(result.entry_price ?? 0).toFixed(2)}</span>
+                <span style={{ fontWeight: 'bold' }}>{result.entry_price != null ? `$${Number(result.entry_price).toFixed(2)}` : '—'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Shares</span>
@@ -207,11 +209,11 @@ const PreTradeSimulator = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Position Size</span>
-                <span style={{ fontWeight: 'bold' }}>${Number(result.position_dollars ?? 0).toFixed(2)}</span>
+                <span style={{ fontWeight: 'bold' }}>{result.position_dollars != null ? `$${Number(result.position_dollars).toFixed(2)}` : '—'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>% of Portfolio</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--amber)' }}>{Number(result.pct_of_portfolio ?? 0).toFixed(2)}%</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--amber)' }}>{result.pct_of_portfolio != null ? `${Number(result.pct_of_portfolio).toFixed(2)}%` : '—'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid var(--border-color)' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Sector</span>
@@ -228,37 +230,46 @@ const PreTradeSimulator = () => {
           <div style={{ background: 'var(--bg-secondary)', padding: '20px', borderRadius: '8px' }}>
             <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>Sector Concentration</span>
-              {result.sector_exposure?.warning ? (
+              {!result.sector_exposure ? (
+                <AlertCircle size={20} color='var(--text-secondary)' title="No sector exposure data returned" />
+              ) : result.sector_exposure.warning ? (
                 <AlertCircle size={20} color='var(--danger)' />
               ) : (
                 <CheckCircle size={20} color='var(--success)' />
               )}
             </h3>
+            {/* CRITICAL: !result.sector_exposure?.warning defaulted to true (green "within
+                limits") when sector_exposure was entirely missing from the API response - a
+                pre-trade safety check silently reporting PASS for a check that never actually
+                ran, instead of surfacing "unknown". Now explicitly three-state: no data / warn
+                / ok. */}
             <div style={{
               padding: '12px',
               marginBottom: '12px',
               borderRadius: '4px',
-              background: result.sector_exposure?.warning ? '#7f1d1d' : '#064e3b',
-              color: result.sector_exposure?.warning ? '#fca5a5' : '#a7f3d0',
+              background: !result.sector_exposure ? 'var(--bg-primary)' : result.sector_exposure.warning ? '#7f1d1d' : '#064e3b',
+              color: !result.sector_exposure ? 'var(--text-secondary)' : result.sector_exposure.warning ? '#fca5a5' : '#a7f3d0',
               fontWeight: 'bold',
               textAlign: 'center'
             }}>
-              {result.sector_exposure?.warning_msg || 'Within sector concentration limits'}
+              {!result.sector_exposure
+                ? 'Sector concentration data unavailable - not checked'
+                : result.sector_exposure.warning_msg || 'Within sector concentration limits'}
             </div>
 
             <div style={{ border: '1px solid var(--border-color)', borderRadius: '4px' }}>
               <ConstraintRow
                 label={`${result.sector ?? 'Sector'} - Current`}
-                value={Number(result.sector_exposure?.current_pct ?? 0)}
+                value={result.sector_exposure?.current_pct ?? '—'}
                 limit={30}
-                passed={!result.sector_exposure?.warning}
+                passed={result.sector_exposure ? !result.sector_exposure.warning : null}
                 unit="%"
               />
               <ConstraintRow
                 label={`${result.sector ?? 'Sector'} - After Trade`}
-                value={Number(result.sector_exposure?.projected_pct ?? 0)}
+                value={result.sector_exposure?.projected_pct ?? '—'}
                 limit={30}
-                passed={!result.sector_exposure?.warning}
+                passed={result.sector_exposure ? !result.sector_exposure.warning : null}
                 unit="%"
               />
             </div>
