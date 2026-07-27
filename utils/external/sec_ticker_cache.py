@@ -20,6 +20,30 @@ logger = logging.getLogger(__name__)
 TICKER_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_TIMEOUT = 10.0
 
+# CRITICAL, MANUALLY VERIFIED OVERRIDES for tickers where SEC's own
+# company_tickers.json maps to the wrong CIK - not a duplicate-ticker collision in
+# our mapping logic (this ticker has exactly one entry in SEC's file), SEC's source
+# data itself points at a non-operating-company entity.
+#
+# XOM: SEC's company_tickers.json maps "XOM" to CIK 2115436 ("ExxonMobil Holdings
+# Corp"), which files zero 10-Ks and has zero us-gaap XBRL facts (confirmed live via
+# companyfacts - "facts" key present but no "us-gaap" sub-key) - it appears to be a
+# stock-plan-administration subsidiary (its recent filings are almost entirely
+# "S-8 POS"). The real, publicly-traded Exxon Mobil Corp (NYSE: XOM, the one with
+# 10-Ks/segment data/insider Forms 3-4-5) is CIK 34088 ("EXXON MOBIL CORP") - which
+# does not appear in company_tickers.json under any ticker at all (confirmed via a
+# full scan). Found 2026-07-27 via load_sec_segment_info.py returning
+# data_unavailable("no_us_gaap_facts") for XOM despite it obviously being a real,
+# segment-reporting filer - traced to this CIK mismatch, which had already silently
+# corrupted company_info_sec.entity_name/shares_outstanding for XOM (entity_name
+# stored as "ExxonMobil Holdings Corp", shares_outstanding NULL, yet
+# data_unavailable=FALSE). Spot-checked 12 other large caps (CVX/JPM/WMT/KO/PG/GE/
+# DIS/JNJ/PFE/MRK/T/VZ) - all resolved correctly; this looks like a one-off SEC data
+# quirk specific to XOM's corporate history, not a systemic collision-handling bug.
+CIK_OVERRIDES: dict[str, str] = {
+    "XOM": "0000034088",  # EXXON MOBIL CORP (real 10-K filer) - see comment above
+}
+
 # Ensure socket timeout is configured globally
 socket.setdefaulttimeout(30)
 
@@ -156,6 +180,10 @@ class TickerCache:
 
         Refreshes cache if expired. Raises RuntimeError if symbol not found.
         """
+        override = CIK_OVERRIDES.get(symbol.upper())
+        if override:
+            return override
+
         if self._ticker_cache is None or time.time() - self._ticker_cache_time > self._cache_ttl:
             self._refresh_ticker_cache()
 
