@@ -265,6 +265,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "price_extremes_52week",  # ORPHANED - load_price_extremes.py removed
             # Earnings table name mismatch (config calls it earnings_history_daily, actual table is earnings_history; loader writes to earnings_calendar_sec)
             "earnings_history",  # Legacy empty table - no loader writes to it (loader→earnings_calendar_sec)
+            # Superseded tables (per algo/monitoring/pipeline_health.py's KNOWN_DEPRECATED_TABLES -
+            # confirmed live 2026-07-27: 0 rows, no INSERT/UPDATE writer anywhere in the codebase)
+            "sec_dividends",  # Superseded by dividend_data
+            "sec_material_events",  # Superseded by current_reports_8k
             # Financeals (supplementary)
             "annual_balance_sheet",
             "annual_cash_flow",
@@ -286,7 +290,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         try:
             cur.execute("""
-                    SELECT table_name, row_count, last_updated
+                    SELECT table_name, row_count, last_updated, stale_threshold_days
                     FROM data_loader_status
                     ORDER BY table_name
                 """)
@@ -371,6 +375,16 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             ),
         ]:
             if tbl_name in loader_names:
+                continue
+            # pipeline_removed_tables intentionally excludes noisy/non-critical tables (e.g.
+            # equity_curve_daily, algo_untracked_positions - both explicitly named above as
+            # "not always populated" / expected-empty), but that exclusion only applied to
+            # loader_rows. A table in BOTH pipeline_removed_tables and this hardcoded query list
+            # is absent from loader_names (filtered out upstream), so `tbl_name in loader_names`
+            # is False and this loop queried it fresh and re-added it anyway - confirmed live
+            # 2026-07-27: both tables still showed up as "empty" on the dashboard's freshness
+            # panel, defeating the exclusion and inflating the visible stale/empty count.
+            if tbl_name in pipeline_removed_tables:
                 continue
             try:
                 cur.execute(query)
@@ -506,9 +520,21 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # Extract max_age with consistent default of 1 day for unknown tables
             max_age_raw = rule.get("max_age_days") if rule is not None else None
             if max_age_raw is None:
-                max_age: int = 1
-                if table_name in _fr:
-                    logger.warning(f"Freshness rule for {table_name} missing max_age_days field")
+                # FRESHNESS_RULES doesn't cover every loader-tracked table (e.g. earnings_calendar_sec,
+                # algo_performance_metrics), so this used to hard-fall to a 1-trading-day default -
+                # far stricter than these tables' own documented cadence. data_loader_status already
+                # carries a per-table stale_threshold_days (set by the loader itself, e.g. 7 days for
+                # earnings_calendar_sec) - confirmed live 2026-07-27: that column already correctly
+                # marked both tables HEALTHY while this endpoint's separate 1-day default flagged them
+                # "stale", producing false alarms on the dashboard's freshness summary. Prefer it over
+                # the hardcoded default when present.
+                loader_threshold = row.get("stale_threshold_days")
+                if loader_threshold is not None:
+                    max_age = int(str(loader_threshold))
+                else:
+                    max_age = 1
+                    if table_name in _fr:
+                        logger.warning(f"Freshness rule for {table_name} missing max_age_days field")
             else:
                 max_age = int(str(max_age_raw)) if isinstance(max_age_raw, (int, str, float)) else 1
 
