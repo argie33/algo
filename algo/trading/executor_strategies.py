@@ -121,10 +121,14 @@ class AutoExecutionMode(ExecutionModeStrategy):
         return configured_url or "https://api.alpaca.markets"
 
     def resolve_paper_mode(self) -> bool:
-        # CRITICAL FIX: Auto mode should return True for paper mode when using paper API
-        # The base URL is paper-api.alpaca.markets in dev/test, so paper_mode must match
-        # Otherwise is_paper flag is inconsistent with actual URL being used
-        return "paper" in (self.resolve_base_url(None) or "").lower()
+        # Must resolve against the REAL configured_url (same env var executor.py reads),
+        # not None - resolve_base_url(None) silently drops the "does APCA_API_BASE_URL
+        # itself say paper" factor from the live_intent check, so if that env var is
+        # explicitly set to the paper endpoint while ALGO_LIVE_TRADING/ALPACA_PAPER_TRADING
+        # otherwise imply live intent, this returned False (claimed LIVE) even though
+        # resolve_base_url() with the real URL forces orders to the paper endpoint.
+        configured_url = os.getenv("APCA_API_BASE_URL")
+        return "paper" in (self.resolve_base_url(configured_url) or "").lower()
 
     def validate_and_log_initialization(
         self, alpaca_key: str | None, alpaca_secret: str | None, resolved_url: str
