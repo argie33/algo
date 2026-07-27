@@ -355,6 +355,22 @@ def panel_performance_spark(
     if err_panel:
         return err_panel
 
+    # Same pattern as panel_portfolio's data_age_seconds/stale-warning logic above -
+    # algo_performance_daily.updated_at, computed server-side (see metrics.py's
+    # _get_algo_performance / _compute_data_age_seconds).
+    perf_age_seconds_val = perf.get("data_age_seconds")
+    perf_stale_warning = ""
+    perf_age_s = ""
+    if perf_age_seconds_val is not None:
+        try:
+            perf_age_seconds = float(perf_age_seconds_val)
+            perf_age_s = f"  [dim]{fmt_age_seconds(perf_age_seconds)}[/]"
+            if perf_age_seconds > 24 * 3600:
+                perf_stale_warning = " [yellow]⚠ STALE[/]"
+                logger.warning(f"[PORTFOLIO] Performance metrics stale ({perf_age_seconds / 3600:.0f}h old)")
+        except (ValueError, TypeError):
+            logger.debug("[PORTFOLIO] Could not parse performance data_age_seconds")
+
     streak_val = perf.get("streak")
     if streak_val is None:
         logger.warning("[PORTFOLIO] Performance streak metric missing - using default")
@@ -571,7 +587,7 @@ def panel_performance_spark(
             rows.append(Text.from_markup("  ".join(parts)))
     return Panel(
         Group(*rows),
-        title="[bold green]PERFORMANCE[/]  [dim][f] expand[/]",
+        title=f"[bold green]PERFORMANCE[/]{perf_age_s}{perf_stale_warning}  [dim][f] expand[/]",
         border_style="green",
         padding=(0, 1),
     )
@@ -610,6 +626,17 @@ def panel_portfolio_perf_expanded(
         Text.from_markup("[dim]press [/][bold green]f[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
+
+    # Title-level freshness indicator, same convention as the other "- EXPANDED" panels
+    # (CIRCUIT BREAKERS, SCORES, EXPOSURE, etc.) - portfolio snapshot is the primary
+    # value-bearing data here, so its age drives the title.
+    title_age_s = ""
+    port_age_seconds_val = port.get("data_age_seconds") if port and not has_error(port) else None
+    if port_age_seconds_val is not None:
+        try:
+            title_age_s = f"  [dim]{fmt_age_seconds(float(port_age_seconds_val))}[/]"
+        except (ValueError, TypeError):
+            logger.debug("[PORTFOLIO] Could not parse portfolio data_age_seconds for expanded title")
 
     # ── Portfolio snapshot ────────────────────────────────────────────────────
     if port and not has_error(port):
@@ -676,7 +703,14 @@ def panel_portfolio_perf_expanded(
 
     # ── Performance metrics ────────────────────────────────────────────────────
     if perf and not has_error(perf) and not perf.get("_no_data"):
-        rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
+        perf_age_seconds_val = perf.get("data_age_seconds")
+        perf_section_age_s = ""
+        if perf_age_seconds_val is not None:
+            try:
+                perf_section_age_s = f"  [dim]{fmt_age_seconds(float(perf_age_seconds_val))}[/]"
+            except (ValueError, TypeError):
+                logger.debug("[PORTFOLIO] Could not parse performance data_age_seconds for expanded section")
+        rows.append(Text.from_markup(f"[dim bold]PERFORMANCE METRICS[/]{perf_section_age_s}"))
         n_val = perf.get("n")
         n = safe_int(n_val, field_name="total_trades_n")
         w_val = perf.get("w")
@@ -832,7 +866,14 @@ def panel_portfolio_perf_expanded(
 
     # ── Performance Analytics (rolling) ──────────────────────────────────────
     if perf_anl and not has_error(perf_anl):
-        rows.append(Text.from_markup("[dim bold]ROLLING ANALYTICS[/]"))
+        perf_anl_age_seconds_val = perf_anl.get("data_age_seconds")
+        perf_anl_age_s = ""
+        if perf_anl_age_seconds_val is not None:
+            try:
+                perf_anl_age_s = f"  [dim]{fmt_age_seconds(float(perf_anl_age_seconds_val))}[/]"
+            except (ValueError, TypeError):
+                logger.debug("[PORTFOLIO] Could not parse perf_anl data_age_seconds for expanded section")
+        rows.append(Text.from_markup(f"[dim bold]ROLLING ANALYTICS[/]{perf_anl_age_s}"))
         anl = Table.grid(padding=(0, 3), expand=False)
         anl.add_column("label", style="dim")
         anl.add_column("val")
@@ -1069,7 +1110,7 @@ def panel_portfolio_perf_expanded(
 
     return Panel(
         Group(*rows),
-        title="[bold green]PORTFOLIO & PERFORMANCE - EXPANDED[/]  [dim][f] return[/]",
+        title=f"[bold green]PORTFOLIO & PERFORMANCE - EXPANDED[/]{title_age_s}  [dim][f] return[/]",
         border_style="green",
         padding=(0, 1),
     )

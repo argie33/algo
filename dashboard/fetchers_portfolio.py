@@ -396,7 +396,6 @@ def fetch_perf(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         # Comprehensive validation using FetcherValidator
-        # No freshness check: data is pre-computed daily (no "timestamp" field in response)
         # win_rate_pct/total_pnl_dollars deliberately excluded: win_rate_pct is honestly null
         # until at least one closed trade exists, and total_pnl_dollars is unconditionally None
         # in the API response right now (its source table has had no writer since 2026-06-30 -
@@ -545,6 +544,8 @@ def fetch_perf(c: None) -> dict[str, Any]:
             "avg_r": _f(perf.get("expectancy_r")),
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
+            "report_date": perf.get("report_date"),
+            "data_age_seconds": perf.get("data_age_seconds"),
         }
     except Exception as e:
         error_msg = format_fetcher_error("perf", e)
@@ -611,6 +612,8 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
             "avg_l_r": safe_float(d.get("avg_loss_r_50t"), default=None, field_name="avg_l_r"),
             "expectancy": safe_float(d.get("expectancy"), default=None, field_name="expectancy"),
             "maxdd": safe_float(d.get("max_drawdown_pct"), default=None, field_name="maxdd"),
+            "report_date": d.get("report_date"),
+            "data_age_seconds": d.get("data_age_seconds"),
         }
     except Exception as e:
         error_msg = format_fetcher_error("perf_anl", e)

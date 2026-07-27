@@ -39,6 +39,36 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 
+def _compute_data_age_seconds(cur: cursor, last_write_at: Any, context: str) -> int:
+    """Compute seconds since a DB timestamp using DB-side NOW() (avoids app/DB clock skew).
+
+    Mirrors the age computation _get_algo_portfolio has used since the portfolio panel's
+    "always 0/always stale" bug (data_age_seconds vs. DATE-only snapshot_date - see that
+    function's docstring for the full incident). FAIL-FAST: raises if the timestamp is
+    missing or the DB clock read fails, rather than silently reporting age 0.
+    """
+    if last_write_at is None:
+        raise RuntimeError(f"{context}: missing timestamp - cannot compute data age")
+    cur.execute("SELECT NOW()::timestamp")
+    now_row = cur.fetchone()
+    if not now_row:
+        raise RuntimeError(f"{context}: database NOW() returned empty")
+    now_row = safe_dict_convert(now_row)
+    now_db = now_row.get("now")
+    if now_db is None:
+        raise RuntimeError(f"{context}: database NOW()::timestamp returned NULL")
+    if not isinstance(last_write_at, datetime) or not isinstance(now_db, datetime):
+        raise RuntimeError(
+            f"{context}: type mismatch computing age - now_db={type(now_db).__name__}, "
+            f"last_write_at={type(last_write_at).__name__}"
+        )
+    if last_write_at.tzinfo is not None:
+        last_write_at = last_write_at.replace(tzinfo=None)
+    if now_db.tzinfo is not None:
+        now_db = now_db.replace(tzinfo=None)
+    return int((now_db - last_write_at).total_seconds())
+
+
 def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
     """Validate portfolio response has all required fields. Fail-fast if missing.
 
@@ -162,7 +192,8 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         cur.execute("""
                 SELECT
                     report_date AS metric_date, rolling_sharpe_252d AS sharpe_ratio,
-                    rolling_sortino_252d AS sortino_ratio, max_drawdown_pct, calmar_ratio
+                    rolling_sortino_252d AS sortino_ratio, max_drawdown_pct, calmar_ratio,
+                    updated_at
                 FROM algo_performance_daily
                 ORDER BY report_date DESC
                 LIMIT 1
@@ -482,6 +513,9 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             else None
         )
 
+        report_date = metrics.get("metric_date")
+        data_age_seconds = _compute_data_age_seconds(cur, metrics.get("updated_at"), "algo_performance_daily")
+
         response_data = {
             "total_trades": total_trades,
             "winning_trades": winning,
@@ -521,8 +555,10 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             "current_streak": current_streak,
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
+            "report_date": report_date.isoformat() if report_date is not None else None,
+            "data_age_seconds": data_age_seconds,
             "stale_alerts": [],
-            "data_freshness": {"is_stale": False},
+            "data_freshness": {"is_stale": data_age_seconds > 24 * 3600},
         }
         sanitized = APIResponseValidator.sanitize_response(response_data)
 
@@ -833,7 +869,8 @@ def _get_performance_analytics(cur: cursor) -> Any:
             SELECT report_date AS metric_date, rolling_sharpe_252d AS sharpe_ratio,
                    rolling_sortino_252d AS sortino_ratio, calmar_ratio,
                    win_rate_50t AS win_rate_pct, max_drawdown_pct,
-                   avg_win_r_50t AS avg_win_r, avg_loss_r_50t AS avg_loss_r, expectancy
+                   avg_win_r_50t AS avg_win_r, avg_loss_r_50t AS avg_loss_r, expectancy,
+                   updated_at
             FROM algo_performance_daily
             ORDER BY report_date DESC
             LIMIT 1
@@ -867,7 +904,10 @@ def _get_performance_analytics(cur: cursor) -> Any:
             logger.error("Performance analytics unavailable: sharpe_ratio missing from database")
             raise RuntimeError("Performance data incomplete: sharpe_ratio is missing")
 
-        response_dict_final: dict[str, float | None] = {
+        report_date = data.get("metric_date")
+        data_age_seconds = _compute_data_age_seconds(cur, data.get("updated_at"), "algo_performance_daily")
+
+        response_dict_final: dict[str, Any] = {
             "rolling_sharpe_252d": float(sharpe),
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,
@@ -876,6 +916,8 @@ def _get_performance_analytics(cur: cursor) -> Any:
             "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else None,
             "expectancy": float(expectancy_val) if expectancy_val is not None else None,
             "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
+            "report_date": report_date.isoformat() if report_date is not None else None,
+            "data_age_seconds": data_age_seconds,
         }
 
         # Validate perf_anl response matches contract schema
