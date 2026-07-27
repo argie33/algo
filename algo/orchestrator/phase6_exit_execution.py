@@ -327,6 +327,19 @@ def run(
                         "Cannot execute without both identifiers. "
                         "Verify position_monitor phase produced valid recommendation data."
                     )
+                # CRITICAL FIX: position_monitor.py appends a {action: "FAILED_VALIDATION", error: ...}
+                # rec (no action_reason/current_price/new_stop_recommended) whenever
+                # PositionValidationError is raised for a position - e.g. bad quantity, bad entry
+                # price, corrupted stop/target data. Confirmed live 2026-07-27: neither the
+                # EARLY_EXIT nor RAISE_STOP branch below matches "FAILED_VALIDATION", so the rec
+                # fell through the loop with no error counted and no log - a position whose data was
+                # too corrupt to even evaluate for exit/stop got silently zero exit coverage this
+                # run, with `errors` and phase_status staying clean. This is exactly the failure mode
+                # this file's exposure/stop-raise no-op checks elsewhere already guard against.
+                if rec["action"] == "FAILED_VALIDATION":
+                    errors += 1
+                    logger.error(f"  [PHASE 6] {rec['symbol']}: validation failed, no exit/stop coverage this run - {rec.get('error')}")
+                    continue
                 if dry_run:
                     if verbose:
                         logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
