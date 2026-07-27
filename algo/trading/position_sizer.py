@@ -762,25 +762,45 @@ class PositionSizer:
 
         Raises RuntimeError/ValueError for all error conditions. Let caller handle exceptions.
         Only returns success dict or explicit sizing denial (no_room, drawdown_halt, concentration, etc).
+
+        CRITICAL FIX: every validation below used to be a bare `assert`, which (1) raises
+        AssertionError, not ValueError/RuntimeError as this docstring promises and as
+        calculate_position_size's own except clause expects to catch and re-wrap - an
+        AssertionError here propagated straight past Phase 8's per-symbol exception
+        handlers (which catch ValueError/RuntimeError/TypeError/AttributeError, not
+        AssertionError), aborting entry execution for every remaining symbol in the batch
+        instead of cleanly skipping just this one bad-data symbol; and (2) is silently
+        stripped entirely under `python -O`/`PYTHONOPTIMIZE=1`, which would let a
+        zero/negative portfolio value or an inverted stop/entry (the single most basic
+        long-only risk-management invariant) through with no validation at all. Converted
+        to explicit checks so they're real, unconditional, correctly-typed validation.
         """
-        assert symbol and isinstance(symbol, str), f"Symbol must be non-empty string, got {symbol}"
+        if not symbol or not isinstance(symbol, str):
+            raise ValueError(f"Symbol must be non-empty string, got {symbol!r}")
         entry_dec = Decimal(str(entry_price))
-        assert entry_dec > 0, f"Entry price must be > 0, got {entry_price}"
+        if not entry_dec > 0:
+            raise ValueError(f"Entry price must be > 0, got {entry_price}")
         stop_dec = Decimal(str(stop_loss_price))
-        assert stop_dec > 0, f"Stop loss must be > 0, got {stop_loss_price}"
-        assert stop_dec < entry_dec, f"Stop {stop_dec} must be < entry {entry_dec}"
+        if not stop_dec > 0:
+            raise ValueError(f"Stop loss must be > 0, got {stop_loss_price}")
+        if not stop_dec < entry_dec:
+            raise ValueError(f"Stop {stop_dec} must be < entry {entry_dec}")
 
         if portfolio_value is None:
             portfolio_value = self.get_portfolio_value()
         pv_dec = Decimal(str(portfolio_value))
-        assert pv_dec > 0, f"Portfolio value must be > 0, got {portfolio_value}"
+        if not pv_dec > 0:
+            raise ValueError(f"Portfolio value must be > 0, got {portfolio_value}")
 
         risk_adjustment = self.get_risk_adjustment()
-        assert risk_adjustment is not None, "Risk adjustment cannot be None"
-        assert Decimal(str(risk_adjustment)) >= 0, f"Risk adjustment must be >= 0, got {risk_adjustment}"
+        if risk_adjustment is None:
+            raise ValueError("Risk adjustment cannot be None")
+        if not Decimal(str(risk_adjustment)) >= 0:
+            raise ValueError(f"Risk adjustment must be >= 0, got {risk_adjustment}")
 
         active_positions = self.get_position_count()
-        assert isinstance(active_positions, int), f"Active positions must be int, got {type(active_positions)}"
+        if not isinstance(active_positions, int):
+            raise ValueError(f"Active positions must be int, got {type(active_positions)}")
         active_position_value = self.get_active_positions_value()
 
         max_positions_val = self.config.get("max_positions")
