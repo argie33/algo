@@ -11,6 +11,7 @@ const mockAlpacaMethods = {
   getLatestTrade: jest.fn(),
   getBars: jest.fn(),
   createOrder: jest.fn(),
+  sendRequest: jest.fn(),
 };
 
 // Mock the Alpaca SDK - must be at top level before any requires
@@ -269,7 +270,13 @@ describe("AlpacaService", () => {
     });
 
     it("should handle empty portfolio history", async () => {
-      mockClient.getPortfolioHistory.mockResolvedValue({});
+      // getPortfolioHistory() fail-fasts when timestamp/equity are entirely absent
+      // (`!portfolio.timestamp`) - an empty *array* is truthy and falls through to the
+      // (also empty) result, which is the real "no history yet" shape Alpaca returns.
+      mockClient.getPortfolioHistory.mockResolvedValue({
+        timestamp: [],
+        equity: [],
+      });
 
       const result = await alpacaService.getPortfolioHistory();
 
@@ -311,7 +318,10 @@ describe("AlpacaService", () => {
     ];
 
     it("should fetch and format activities successfully", async () => {
-      mockClient.getActivities.mockResolvedValue(mockActivitiesData);
+      // getActivities() calls this.client.sendRequest("/v2/account/activities", ...)
+      // directly (a raw REST call), not this.client.getActivities() - see
+      // utils/alpacaService.js.
+      mockClient.sendRequest.mockResolvedValue(mockActivitiesData);
 
       const result = await alpacaService.getActivities("FILL", 50);
 
@@ -344,15 +354,17 @@ describe("AlpacaService", () => {
         },
       ];
 
-      mockClient.getActivities.mockResolvedValue(activityWithNulls);
+      mockClient.sendRequest.mockResolvedValue(activityWithNulls);
 
       const result = await alpacaService.getActivities();
 
+      // netAmount stays null (not synthesized to 0) when Alpaca doesn't provide a real
+      // value - see the "never synthetic $0" comment in utils/alpacaService.js.
       expect(result[0]).toEqual({
         id: "activity-456",
         activityType: "DIV",
         date: "2022-01-01",
-        netAmount: 0,
+        netAmount: null,
         symbol: "AAPL",
         qty: null,
         price: null,
@@ -715,20 +727,23 @@ describe("AlpacaService", () => {
       });
     });
 
-    it("should return empty array when no bars data available", async () => {
+    it("should throw when no bars data available", async () => {
+      // getBars() deliberately throws on an empty bars array rather than returning []
+      // (may indicate a market-closed period or invalid symbol, not a benign "nothing
+      // to show" case) - see utils/alpacaService.js.
       mockClient.getBars.mockResolvedValue({ bars: [] });
 
-      const result = await alpacaService.getBars("INVALID");
-
-      expect(result).toEqual([]);
+      await expect(alpacaService.getBars("INVALID")).rejects.toThrow(
+        "No bars data available"
+      );
     });
 
-    it("should return empty array on API error", async () => {
+    it("should throw on API error", async () => {
       mockClient.getBars.mockRejectedValue(new Error("API error"));
 
-      const result = await alpacaService.getBars("AAPL");
-
-      expect(result).toEqual([]);
+      await expect(alpacaService.getBars("AAPL")).rejects.toThrow(
+        "API error"
+      );
     });
 
     it("should use default options when none provided", async () => {
