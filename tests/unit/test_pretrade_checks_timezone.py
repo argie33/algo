@@ -9,8 +9,9 @@ window against the wrong calendar day near midnight. Fixed to match the same pat
 already established elsewhere in this codebase (algo/trading/tca.py's record_fill()).
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 from algo.trading.pretrade_checks import PreTradeChecks
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -86,3 +87,81 @@ class TestRunAllUsesEasternDateByDefault:
 
         called_eval_date = mock_earnings.run.call_args[0][1]
         assert called_eval_date == explicit_date
+
+
+class TestReentryCooldownUsesRealSessionTimezone:
+    """Regression test for the 2026-07-27 fix: the flip-flop re-entry cooldown check mislabeled
+    a naive `closed_at` (written via SQL CURRENT_TIMESTAMP into a `timestamp without time zone`
+    column, so it's in the DB session's local wall-clock timezone, not UTC - confirmed live this
+    session's `SHOW timezone` is America/Chicago) as UTC via `.replace(tzinfo=timezone.utc)`.
+    That silently inflated minutes_since_close by the session-timezone-to-UTC offset (5+ hours
+    for Chicago), so a position closed moments ago always cleared any realistic cooldown -
+    defeating the exact same-run re-entry protection this check exists for (Phase 6 exits,
+    Phase 8 immediately re-enters). Same bug class already fixed in
+    algo/risk/market_exposure.py's cache-age check.
+    """
+
+    def _config(self):
+        return {
+            "max_position_size_pct": 10,
+            "reentry_cooldown_minutes": 30,
+            "min_order_size_dollars": 100,
+            "max_positions_per_sector": 5,
+            "max_positions_per_industry": 3,
+        }
+
+    def _run(self, closed_at_naive, session_tz_name="America/Chicago", extra_fetches=()):
+        checks = PreTradeChecks(config=self._config())
+
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [
+            None,  # Check 1: no open algo_positions row
+            None,  # Check 1b: no open algo_trades row
+            (1, closed_at_naive),  # Check 2: a recently-closed position
+            [session_tz_name],  # SHOW timezone
+            *extra_fetches,
+        ]
+        mock_db_context = MagicMock()
+        mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
+        mock_db_context.__exit__ = MagicMock(return_value=False)
+
+        with patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context):
+            return checks.run_all(
+                symbol="AAPL",
+                position_value=1000.0,
+                portfolio_value=100000.0,
+                side="SELL",  # skip the earnings-blackout branch (BUY-only), isolate this check
+                eval_date=None,
+            )
+
+    def test_position_closed_one_minute_ago_in_chicago_time_is_still_blocked(self):
+        """The core bug: a position closed 1 real minute ago (naive Chicago wall-clock, this
+        session's actual DB timezone) must still be recognized as recent and blocked by the
+        30-minute cooldown - pre-fix, mislabeling it as UTC inflated the computed elapsed time
+        to 5+ hours, silently clearing the cooldown and allowing an immediate re-entry."""
+        closed_at_naive = datetime.now(ZoneInfo("America/Chicago")).replace(tzinfo=None) - timedelta(minutes=1)
+
+        passed, reason = self._run(closed_at_naive)
+
+        assert passed is False, (
+            f"a position closed 1 minute ago must still be inside the 30-minute cooldown, got passed={passed} "
+            f"reason={reason!r}"
+        )
+        assert reason is not None and "cooldown" in reason.lower()
+
+    def test_position_closed_well_outside_cooldown_is_allowed(self):
+        """Sanity check: the fix must not make the cooldown block forever - a position closed
+        well past the cooldown window must be allowed to re-enter."""
+        closed_at_naive = datetime.now(ZoneInfo("America/Chicago")).replace(tzinfo=None) - timedelta(hours=2)
+
+        passed, reason = self._run(
+            closed_at_naive,
+            extra_fetches=[
+                ("AAPL",),  # symbol found in universe
+                ("Technology", "Software"),  # company_profile sector/industry
+                (0,),  # sector concentration count
+                (0,),  # industry concentration count
+            ],
+        )
+
+        assert passed is True, f"a position closed 2 hours ago must clear a 30-minute cooldown, got {reason!r}"

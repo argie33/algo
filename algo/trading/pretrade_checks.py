@@ -6,6 +6,7 @@ from datetime import date as _date
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 import psycopg2
 
@@ -166,9 +167,24 @@ class PreTradeChecks:
                             "This indicates database data corruption. Blocking entry to prevent uncontrolled re-entries."
                         )
 
-                    minutes_since_close = (
-                        datetime.now(timezone.utc) - closed_at.replace(tzinfo=timezone.utc)
-                    ).total_seconds() / 60
+                    # closed_at is written via SQL `CURRENT_TIMESTAMP`/NOW() into a `timestamp
+                    # without time zone` column, so a naive value here is in the DB session's
+                    # local wall-clock timezone (utils/bulk_insert_manager.py's documented
+                    # convention), not necessarily UTC - confirmed live this session's actual
+                    # `SHOW timezone` is America/Chicago, 5+ hours off UTC. Mislabeling it as
+                    # UTC via .replace(tzinfo=timezone.utc) silently inflated minutes_since_close
+                    # by that offset, which made the flip-flop cooldown below a no-op (a position
+                    # closed seconds ago would compute as hours stale, always clearing any
+                    # realistic cooldown) - defeating the exact same-run re-entry protection this
+                    # check exists for. Same fix as algo/risk/market_exposure.py's cache-age
+                    # check and lambda/api/routes/utils.py's normalize_to_utc_datetime: resolve
+                    # the real session timezone dynamically instead of assuming UTC.
+                    if closed_at.tzinfo is None:
+                        cur.execute("SHOW timezone")
+                        naive_tz = ZoneInfo(cur.fetchone()[0])
+                        closed_at = closed_at.replace(tzinfo=naive_tz)
+
+                    minutes_since_close = (datetime.now(timezone.utc) - closed_at).total_seconds() / 60
 
                     # CRITICAL: reentry_cooldown_minutes must be explicitly configured
                     # This prevents flip-flop trading (re-entering position immediately after close)
