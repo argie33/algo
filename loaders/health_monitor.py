@@ -31,14 +31,10 @@ class LoaderHealthMonitor:
     def check_loader_execution_rate(self, hours: int = 24) -> dict[str, Any]:
         cur = self.conn.cursor()
         cur.execute(f"""
-            SELECT
-                loader_name,
-                COUNT(*) as executions,
-                ROUND(100.0 * COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) / COUNT(*), 1) as success_rate
+            SELECT loader_name, MAX(execution_date) as last_run, MAX(status) FILTER (WHERE status != 'SUCCESS') as last_failure
             FROM data_loader_runs
-            WHERE execution_date > CURRENT_DATE - INTERVAL '{hours} hours'
             GROUP BY loader_name
-            HAVING COUNT(*) = 0
+            HAVING MAX(execution_date) < CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
         """)
 
         missing_loaders = cur.fetchall()
