@@ -253,10 +253,10 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(items: list) -> None:
     """Auto-apply pytest marks based on directory so `make test-unit/edge/integration` work.
 
-    Files under tests/unit/       → @pytest.mark.unit
-    Files under tests/edge_cases/ → @pytest.mark.edge
-    Files under tests/integration/→ @pytest.mark.integration
-    Top-level tests/test_*.py     → @pytest.mark.unit (default tier)
+    Files under tests/unit/       -> @pytest.mark.unit
+    Files under tests/edge_cases/ -> @pytest.mark.edge
+    Files under tests/integration/-> @pytest.mark.integration
+    Top-level tests/test_*.py     -> @pytest.mark.unit (default tier)
     """
     for item in items:
         path = str(item.fspath)

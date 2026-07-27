@@ -15,7 +15,7 @@ class TestVolatilityCalculation:
         assert abs(factor - 15.8745) < 0.0001
 
     def test_daily_volatility_to_annualized(self) -> None:
-        """Example: 1% daily vol → 15.87% annualized."""
+        """Example: 1% daily vol -> 15.87% annualized."""
         daily_std = 0.01
         annualized = daily_std * math.sqrt(252)
         assert abs(annualized - 0.1587) < 0.0001
@@ -43,7 +43,7 @@ class TestCAGRCalculation:
         assert abs(cagr - 10.0) < 0.01  # Should be ~10% annualized
 
     def test_cagr_five_year_example(self) -> None:
-        """EPS grew from $1 to $2 over 5 years → ~14.87% CAGR."""
+        """EPS grew from $1 to $2 over 5 years -> ~14.87% CAGR."""
         cagr = ((2.0 / 1.0) ** (1.0 / 5) - 1) * 100
         assert abs(cagr - 14.87) < 0.01
 
@@ -84,7 +84,7 @@ class TestBetaCalculation:
         assert abs(beta - 1.0) < 0.01
 
     def test_beta_inverse_correlation(self) -> None:
-        """Stock inversely correlated with market → negative beta."""
+        """Stock inversely correlated with market -> negative beta."""
         stock_returns = [0.01, -0.02, 0.01, -0.02, 0.01]
         market_returns = [-0.01, 0.02, -0.01, 0.02, -0.01]
 
@@ -113,14 +113,14 @@ class TestDrawdownCalculation:
         assert abs(dd - 20.0) < 0.01
 
     def test_drawdown_no_loss(self) -> None:
-        """Peak = Current → 0% drawdown."""
+        """Peak = Current -> 0% drawdown."""
         peak = 100000.0
         current = 100000.0
         dd = (peak - current) / peak * 100
         assert dd == 0.0
 
     def test_drawdown_total_loss(self) -> None:
-        """Current = 0 → 100% drawdown."""
+        """Current = 0 -> 100% drawdown."""
         peak = 100000.0
         current = 0.0
         dd = (peak - current) / peak * 100

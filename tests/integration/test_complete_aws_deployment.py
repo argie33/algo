@@ -129,7 +129,7 @@ class TestCompleteAWSDeployment:
         registry = PhaseRegistry()
 
         # Key dependency chain for phases 4-8:
-        # Phase 3 → Phase 4 → Phase 5 → Phase 7 → Phase 8
+        # Phase 3 -> Phase 4 -> Phase 5 -> Phase 7 -> Phase 8
         phase_4_deps = registry.get_phase_dependencies(4)
         phase_5_deps = registry.get_phase_dependencies(5)
         phase_7_deps = registry.get_phase_dependencies(7)

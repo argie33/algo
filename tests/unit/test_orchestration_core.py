@@ -227,7 +227,7 @@ class TestOrchestrationStateTransitions:
 
     def test_valid_phase_sequence(self):
         """Test that phases execute in correct sequence."""
-        # Phase sequence: 1 → 2 → 3 → ... → 9
+        # Phase sequence: 1 -> 2 -> 3 -> ... -> 9
         phases = list(range(1, 10))
 
         for i, phase_num in enumerate(phases):

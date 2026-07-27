@@ -40,11 +40,11 @@ class TestCalculateExitRMultiple(unittest.TestCase):
 
     def test_invalid_stop_loss_above_entry(self):
         """Test invalid: stop loss >= entry price."""
-        # Stop at entry: risk = 0, division by zero → None
+        # Stop at entry: risk = 0, division by zero -> None
         result = calculate_exit_r_multiple(100, 120, 100)
         self.assertIsNone(result)
 
-        # Stop above entry: risk <= 0 → None
+        # Stop above entry: risk <= 0 -> None
         result = calculate_exit_r_multiple(100, 120, 105)
         self.assertIsNone(result)
 

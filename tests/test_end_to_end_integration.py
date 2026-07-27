@@ -4,7 +4,7 @@ End-to-End Integration Test: Full Pipeline with All Deployed Fixes
 
 Tests that all deployed fixes (Issues #1-10, #13) work together at scale with:
 - Full 5000-symbol dataset (or representative 500-symbol subset for faster testing)
-- Complete morning prep (loaders → Phase 1 → orchestrator checks)
+- Complete morning prep (loaders -> Phase 1 -> orchestrator checks)
 - Concurrent loader execution with failsafe logic
 - Halt flag propagation and orchestrator coordination
 - All timing windows and grace periods
@@ -170,7 +170,7 @@ class EndToEndIntegrationTest:
 
         Requirements:
         - Circuit breaker triggers at batch >= 20 with 3+ errors
-        - Early abort prevents cascade (20→1 batch bloat)
+        - Early abort prevents cascade (20->1 batch bloat)
         - Timeout dynamic: 180s EOD fail-fast, 600s morning recovery
         """
         print("\n  Checking rate limiting implementation...")

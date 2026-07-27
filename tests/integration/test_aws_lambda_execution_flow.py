@@ -68,7 +68,7 @@ class TestAWSLambdaOrchestrationFlow:
     def test_growth_scores_available_in_phase_5_signal_generation(self):
         """Verify Phase 5 can access growth_scores computed from upstream metrics."""
         # Phase 5: Signal Generation uses stock_scores which includes growth_score
-        # This verifies the data flow: metrics → stock_scores → signals
+        # This verifies the data flow: metrics -> stock_scores -> signals
 
         # Mock stock_scores table with growth_score
         stock_scores = [
@@ -152,7 +152,7 @@ class TestAWSLambdaOrchestrationFlow:
 
     def test_metric_loaders_run_before_stock_scores_in_pipeline(self):
         """Verify metric loaders (growth, quality, value, etc.) run before stock_scores in pipeline."""
-        # This tests the pipeline orchestration: metrics → stock_scores → signals
+        # This tests the pipeline orchestration: metrics -> stock_scores -> signals
 
         # Metric loaders must complete before stock_scores
         # stock_scores depends on: growth_metrics, quality_metrics, value_metrics, etc.
@@ -182,7 +182,7 @@ class TestAWSCostOptimizationVerification:
 
     def test_rds_proxy_reduces_connection_overhead(self):
         """Verify RDS Proxy is configured for connection pooling."""
-        # RDS Proxy enabled → saves ~$150/month in connection overhead
+        # RDS Proxy enabled -> saves ~$150/month in connection overhead
         # This is configured in Terraform but we verify system expects it
 
         # System should use connection pooling via RDS Proxy
@@ -193,7 +193,7 @@ class TestAWSCostOptimizationVerification:
 
     def test_vpc_endpoints_enabled_for_aws_services(self):
         """Verify VPC Endpoints are configured to reduce data transfer costs."""
-        # VPC Endpoints enabled → saves ~$43/month in data transfer
+        # VPC Endpoints enabled -> saves ~$43/month in data transfer
         # This is infrastructure-level; verify system doesn't incur unexpected costs
 
         # No expensive cross-AZ data transfer expected

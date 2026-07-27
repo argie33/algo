@@ -47,7 +47,7 @@ class TestDataUnavailableMarkers:
 
     def test_exit_engine_zero_is_count_not_error(self):
         """Exit engine returning 0 means 0 exits executed (valid count), not 'error'."""
-        # Case 1: No open positions → 0 exits executed
+        # Case 1: No open positions -> 0 exits executed
         exits_executed = 0
         assert exits_executed == 0
         # This is CORRECT: no positions = no exits needed

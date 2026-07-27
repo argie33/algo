@@ -308,7 +308,7 @@ class TestIntegration:
     """Integration tests for error handling across layers."""
 
     def test_exception_to_error_response_flow(self):
-        """Test end-to-end exception → error response flow."""
+        """Test end-to-end exception -> error response flow."""
         # Create an exception
         err = DatabaseConnectionError("Connection pool exhausted")
 

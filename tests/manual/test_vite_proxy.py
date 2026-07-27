@@ -41,7 +41,7 @@ def main() -> None:
     except Exception as e:
         print(f"    [ERROR] {e}")
 
-    # Test 2: Call through Vite proxy (frontend → proxy → backend)
+    # Test 2: Call through Vite proxy (frontend -> proxy -> backend)
     print("\n[2] Vite Proxy (simulating browser request):")
     print("    GET http://localhost:5175/api/algo/status")
     try:
@@ -90,14 +90,14 @@ def main() -> None:
     print("=" * 70)
     print("""
 If Backend API works but Vite Proxy fails:
-  → Vite proxy target is misconfigured or not running
-  → Check: vite.config.js proxy.target should be 'http://localhost:3001'
-  → Check: npm run dev is actually starting
+  -> Vite proxy target is misconfigured or not running
+  -> Check: vite.config.js proxy.target should be 'http://localhost:3001'
+  -> Check: npm run dev is actually starting
 
 If Vite Proxy works but browser still shows 'data not available':
-  → Check browser console for JS errors
-  → Check Network tab to see actual API responses
-  → Verify response format matches frontend expectations
+  -> Check browser console for JS errors
+  -> Check Network tab to see actual API responses
+  -> Verify response format matches frontend expectations
 """)
 
 

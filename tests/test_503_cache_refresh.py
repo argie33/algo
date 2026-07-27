@@ -28,7 +28,7 @@ def test_stale_cache_not_cached_in_memory():
     """Verify that stale cache fallback is NOT stored in _markets_cache.
 
     Scenario:
-    1. First call: API returns 503 → falls back to stale cache and returns it
+    1. First call: API returns 503 -> falls back to stale cache and returns it
     2. Clear the API response cache to simulate API recovery (next refresh window)
     3. Second call: API is back online and returns good data
     4. Verify we got the fresh data, not the stale data from before

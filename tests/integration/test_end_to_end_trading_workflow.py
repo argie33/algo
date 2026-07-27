@@ -4,7 +4,7 @@
 This test proves the ENTIRE system works together:
 1. Dashboard fetches data from all API endpoints
 2. Orchestrator executes all 9 phases
-3. Data flows from loaders → database → API → dashboard
+3. Data flows from loaders -> database -> API -> dashboard
 4. Live trading signals are generated and executed
 """
 
@@ -176,7 +176,7 @@ class TestEndToEndTradingWorkflow:
             assert True, "Alpaca integration exists in system"
 
     def test_data_flow_from_loaders_to_dashboard(self, mock_db):
-        """Verify data flows: loaders → database → API → dashboard."""
+        """Verify data flows: loaders -> database -> API -> dashboard."""
         cursor = self.create_mock_cursor(mock_db)
 
         # Step 1: Loaders would populate database (simulated by mock_db)
@@ -201,7 +201,7 @@ class TestEndToEndTradingWorkflow:
             assert dashboard_position["position_value"] == 10000
             assert dashboard_position["current_price"] == 155.0
 
-        print("[OK] Data flows correctly: loaders → DB → API → dashboard")
+        print("[OK] Data flows correctly: loaders -> DB -> API -> dashboard")
 
     def test_trading_safety_gates_active(self, mock_db):
         """Verify circuit breakers and safety gates are active."""
