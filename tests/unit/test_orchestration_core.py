@@ -579,3 +579,46 @@ class TestTrackerStatusSyncedToCanonicalVocabulary:
         )
         # The orchestrator's own in-memory dict must also reflect the canonical status.
         assert fake_self.phase_results[7]["status"] == "degraded"
+
+
+class TestDegradedRunNotLabeledAsError:
+    """Regression: OrchestratorExecutionTracker.save_execution_log() must not label a
+    "degraded" run as an error.
+
+    Every DRY-RUN reports Phase 6 as status="degraded" by design (phase6_exit_execution.py
+    skips real trade execution and never touches TradeExecutor). Before this fix,
+    save_execution_log()'s summary-building if/elif chain had no case for "degraded" and
+    fell into the generic else clause meant for real failures, so every dry-run's audit-log
+    entry read "Error during execution: DRY-RUN: execution skipped (no real trades)" - a
+    false alarm for expected behavior, surfaced verbatim to the dashboard/API by
+    lambda/api/routes/algo_handlers/orchestration.py.
+    """
+
+    def test_degraded_status_summary_does_not_say_error(self):
+        from unittest.mock import patch
+
+        from utils.logging.execution_tracker import OrchestratorExecutionTracker
+
+        tracker = OrchestratorExecutionTracker()
+        tracker.run_id = "test-run-degraded"
+        tracker.run_date = date.today()
+        tracker.phase_results = {
+            6: {
+                "phase": "6",
+                "name": "exit_execution",
+                "status": "degraded",
+                "summary": "DRY-RUN: execution skipped (no real trades)",
+            },
+        }
+
+        with (
+            patch.object(OrchestratorExecutionTracker, "_ensure_table_exists"),
+            patch("utils.logging.execution_tracker.DatabaseContext") as mock_db_ctx,
+        ):
+            mock_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            tracker.save_execution_log("degraded", "DRY-RUN: execution skipped (no real trades)")
+
+        saved_summary = mock_cur.execute.call_args[0][1][6]
+        assert "Error during execution" not in saved_summary
+        assert saved_summary == "Degraded: DRY-RUN: execution skipped (no real trades)"

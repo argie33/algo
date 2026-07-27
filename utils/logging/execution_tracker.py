@@ -122,6 +122,15 @@ class OrchestratorExecutionTracker:
                 )
                 phase_label = "/".join(halted_phase_nums) if halted_phase_nums else "unknown"
                 summary = f"Halted at phase {phase_label}: {halt_reason or 'unknown'}"
+            elif overall_status == "degraded":
+                # NOT an error - e.g. every DRY-RUN reports Phase 6 as "degraded" (dry-run
+                # skips real trade execution by design, see phase6_exit_execution.py). Before
+                # this branch existed, "degraded" fell into the else clause below and every
+                # dry-run's audit-log entry (surfaced verbatim by the dashboard/API, see
+                # lambda/api/routes/algo_handlers/orchestration.py) read "Error during
+                # execution: DRY-RUN: execution skipped (no real trades)" - a false alarm for
+                # completely expected behavior.
+                summary = f"Degraded: {halt_reason or 'unknown reason'}"
             else:
                 summary = f"Error during execution: {halt_reason or 'unknown error'}"
 
