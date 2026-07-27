@@ -28,27 +28,18 @@ logger = logging.getLogger(__name__)
 class SecSegmentInfoLoader(SecLoaderBase):
     """Extract segment disclosure data from SEC 10-K/10-Q XBRL filings.
 
-    Uses companyfacts API to fetch XBRL facts per symbol, then parses segment data
-    (ASC 280) and writes to sec_segment_info table as the source for
-    load_sec_segment_metrics.py (which computes diversification scoring).
+    Two-tier strategy (see fetch_incremental / sec_xbrl_segments.py module docstring
+    for the full mechanics):
 
-    ARCHITECTURAL NOTE: SEC companyfacts API limitation
-    ─────────────────────────────────────────────────
-    companyfacts is a simplified JSON export that loses XBRL context dimension
-    information needed to map revenues to specific segments. This means:
+    1. companyfacts API (fast, single request) - can only ever recover segment COUNT
+       (NumberOfReportableSegments); companyfacts strips XBRL context dimensions, so
+       per-segment revenue is never available from it, by SEC API design not a bug here.
+    2. Raw 10-K XBRL instance XML (fallback when companyfacts has no segment data) -
+       parses the real dimensional model (context -> explicitMember -> segment axis) to
+       recover actual per-segment revenue. This is implemented and working (verified
+       against a real Microsoft 10-K instance document), not a future enhancement.
 
-    Can extract: segment count (NumberOfReportableSegments)
-    Cannot extract: per-segment revenue for concentration metrics
-
-    Why: XBRL XML uses contextRef attributes to associate facts with dimensional
-    values. The companyfacts JSON flattens this away.
-
-    Implication: Returns data_unavailable when segment revenue missing.
-
-    If segment diversification becomes critical for trading strategy:
-    - Fetch raw 10-K/10-Q XML files directly
-    - Parse with full XBRL context dimension support
-    - See session_453_xbrl_decision.md for detailed analysis
+    Only marks data_unavailable if both tiers fail to find segment revenue.
     """
 
     table_name = "sec_segment_info"
