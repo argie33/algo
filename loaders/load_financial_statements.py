@@ -492,6 +492,15 @@ def load_all_statements() -> int:
         # Narrows the type for mypy without weakening lock_manager's declared type, which
         # must stay Optional for _release_combo_locks()'s cleanup in the except block below.
         assert lock_manager is not None
+
+        # CRITICAL FIX 2026-07-27: Lock TTL was set to LOADER_SLA_TIMEOUT_SECONDS (3 hours),
+        # but scheduler timeout is 5 minutes. When loader times out, locks stayed held for 3 hours.
+        # Reduced default to 30 minutes (1800s), still safe for legitimate long-running loads but
+        # prevents multi-hour lockouts when a loader hangs/crashes.
+        lock_ttl_seconds = int(os.getenv("LOADER_LOCK_TTL_SECONDS", "1800"))
+        if lock_manager.lock_duration_seconds != lock_ttl_seconds:
+            lock_manager.lock_duration_seconds = lock_ttl_seconds
+
         for loader in loaders:
             if lock_manager.acquire(lock_key=loader.table_name, timeout_seconds=5):
                 active.append(loader)
