@@ -196,6 +196,12 @@ class PipelineHealth:
             "analyst_sentiment_analysis",  # No writer found; deleted with yfinance_snapshot (Session 275)
             "portfolio_holdings",  # No writer found anywhere in the codebase.
             "algo_trades_archive",  # No writer found anywhere in the codebase.
+            # Confirmed live 2026-07-27: both 0 rows, no INSERT/UPDATE writer anywhere in
+            # loaders/ - real 8-K/dividend data is written to current_reports_8k and
+            # dividend_data respectively (see utils/db/sql_safety.py SAFE_TABLES). These two
+            # names are leftover data_loader_status rows from an earlier design iteration.
+            "sec_dividends",  # Superseded by dividend_data
+            "sec_material_events",  # Superseded by current_reports_8k
         }
     )
 
@@ -303,8 +309,17 @@ class PipelineHealth:
                 health.row_count = estimated_cnt
 
             if health.row_count == 0:
-                health.status = HealthStatus.MISSING
-                health.error_message = "Table is empty"
+                # A deprecated table (deliberately retired loader, see KNOWN_DEPRECATED_TABLES)
+                # that never got a single row written is still expected to sit frozen, not an
+                # incident - without this check it would report MISSING and count against
+                # coverage_pct/healthy_count forever, the exact false-alarm noise
+                # KNOWN_DEPRECATED_TABLES exists to prevent (see is_healthy above).
+                if table_name in self.KNOWN_DEPRECATED_TABLES:
+                    health.status = HealthStatus.DEPRECATED
+                    health.error_message = "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+                else:
+                    health.status = HealthStatus.MISSING
+                    health.error_message = "Table is empty"
                 return health
 
             if date_column is None:

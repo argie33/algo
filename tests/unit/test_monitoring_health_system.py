@@ -54,6 +54,40 @@ class TestPipelineHealthMonitoring:
         assert hasattr(monitor, "check_table_health")
         # Note: actual table checks require database access, tested in integration tests
 
+    def test_deprecated_table_with_zero_rows_reports_deprecated_not_missing(self):
+        """A KNOWN_DEPRECATED_TABLES table that never got a single row (e.g. sec_dividends,
+        sec_material_events - superseded by dividend_data/current_reports_8k, see
+        utils/db/sql_safety.py) must report DEPRECATED, not MISSING. MISSING counts against
+        is_healthy/coverage_pct forever for a table that's expected to sit frozen empty -
+        the exact false-alarm noise KNOWN_DEPRECATED_TABLES exists to prevent."""
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth
+
+        monitor = PipelineHealth()
+        assert "sec_dividends" in monitor.KNOWN_DEPRECATED_TABLES
+        assert "sec_material_events" in monitor.KNOWN_DEPRECATED_TABLES
+
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = (0,)  # reltuples/COUNT(*) = 0 rows
+
+        for table_name in ("sec_dividends", "sec_material_events", "analyst_sentiment_analysis"):
+            health = monitor.check_table_health(mock_cursor, table_name, None, 7)
+            assert health.status == HealthStatus.DEPRECATED, (
+                f"{table_name}: expected DEPRECATED, got {health.status}"
+            )
+            assert health.is_healthy
+
+    def test_deprecated_tables_are_in_sql_safety_whitelist(self):
+        """Every KNOWN_DEPRECATED_TABLES entry must be in sql_safety.SAFE_TABLES, or
+        check_table_health's assert_safe_table() raises ValueError before the
+        KNOWN_DEPRECATED_TABLES branch ever runs, misreporting these as ERROR
+        ("not in whitelist") every orchestrator run instead of DEPRECATED."""
+        from algo.monitoring.pipeline_health import PipelineHealth
+        from utils.db.sql_safety import SAFE_TABLES
+
+        monitor = PipelineHealth()
+        missing = monitor.KNOWN_DEPRECATED_TABLES - SAFE_TABLES
+        assert not missing, f"KNOWN_DEPRECATED_TABLES not in SAFE_TABLES: {missing}"
+
     def test_pipeline_health_status_properties(self):
         """Test pipeline status has expected properties and methods."""
         from algo.monitoring.pipeline_health import PipelineHealth

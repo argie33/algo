@@ -1192,6 +1192,24 @@ class OptimalLoader:
         except Exception as e:
             logger.warning(f"Failed to update data_loader_status: {e}")
 
+    # AWS error codes meaning "no usable DynamoDB access from this environment" - either
+    # permission was denied (AccessDenied) or the credentials themselves aren't valid
+    # (UnrecognizedClientException/InvalidClientTokenId/ExpiredTokenException, the family
+    # local dev throws when no real AWS account is configured). Both cases degrade the
+    # same way - loader continues, Phase 1 may use stale cache - so both log a single
+    # WARNING and return instead of falling through to two scary ERROR-level "cache
+    # poisoning failed" log lines on literally every loader run in local dev.
+    _CACHE_NO_ACCESS_ERROR_CODES = frozenset(
+        {
+            "AccessDenied",
+            "AccessDeniedException",
+            "UnrecognizedClientException",
+            "InvalidClientTokenId",
+            "ExpiredTokenException",
+            "InvalidSignatureException",
+        }
+    )
+
     def _invalidate_cache(self) -> None:
         try:
             import boto3
@@ -1218,9 +1236,9 @@ class OptimalLoader:
                     ) from delete_err
 
                 error_code = error_dict.get("Code")
-                if error_code in ("AccessDenied", "AccessDeniedException"):
+                if error_code in self._CACHE_NO_ACCESS_ERROR_CODES:
                     logger.warning(
-                        f"[{self.table_name}] Cache invalidation: No DynamoDB write access (permission denied). "
+                        f"[{self.table_name}] Cache invalidation: No DynamoDB access ({error_code}). "
                         "Loader will continue, but Phase 1 may use stale data from previous run."
                     )
                     return
@@ -1254,9 +1272,9 @@ class OptimalLoader:
                     ) from poison_err
 
                 error_code = error_dict.get("Code")
-                if error_code in ("AccessDenied", "AccessDeniedException"):
+                if error_code in self._CACHE_NO_ACCESS_ERROR_CODES:
                     logger.warning(
-                        f"[{self.table_name}] Cache poisoning: No DynamoDB write access (permission denied). "
+                        f"[{self.table_name}] Cache poisoning: No DynamoDB access ({error_code}). "
                         "Loader will continue, but Phase 1 may use stale data from previous run."
                     )
                     return

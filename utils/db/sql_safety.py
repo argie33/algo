@@ -137,6 +137,14 @@ SAFE_TABLES = {
     # Phase 1-4 Consolidation (Session 204+)
     "sec_valuations",  # Phase 1: SEC-derived PE/PB/PS/PEG/FCF (replaces yfinance quoteSummary)
     "sec_cash_flow_metrics",  # Working capital/CapEx/FCF from SEC statement tables (migration 1131, 2026-07-20)
+    # Orphaned tables (0 rows, no loader anywhere in the codebase) - still present in the DB
+    # schema and referenced by stale data_loader_status rows, so pipeline_health needs to be
+    # able to query them (see KNOWN_DEPRECATED_TABLES in algo/monitoring/pipeline_health.py)
+    # instead of erroring "not in whitelist" on every orchestrator run.
+    "sec_dividends",  # Superseded by dividend_data (Phase 2) - never had a writer
+    "sec_material_events",  # Superseded by current_reports_8k (Phase 2) - never had a writer
+    "analyst_sentiment_analysis",  # No writer found; deleted with yfinance_snapshot (Session 275)
+    "analyst_upgrade_downgrade",  # No writer found anywhere in the codebase.
     # Market snapshots
     "yfinance_snapshot",
     "yfinance_derived_metrics",

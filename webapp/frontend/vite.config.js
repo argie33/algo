@@ -19,20 +19,24 @@ export default defineConfig(({ mode }) => {
   // Vite proxy target for development
   // VITE_PROXY_TARGET: Set to the API endpoint to route local /api/* calls.
   //   - AWS mode:   VITE_PROXY_TARGET="https://<api-gateway-url>" (set by deployment system)
-  //   - Local mode: VITE_PROXY_TARGET="" or unset → defaults to localhost:3001
+  //   - Local mode: VITE_PROXY_TARGET="" or unset → defaults to 127.0.0.1:3001
   // env comes from loadEnv (.env files); process.env catches shell-exported vars like VITE_PROXY_TARGET
-  // NOTE: Empty string in env var means "use localhost:3001", not "don't set proxy"
+  // NOTE: Empty string in env var means "use 127.0.0.1:3001", not "don't set proxy"
+  // Use 127.0.0.1, not "localhost" - Node resolves "localhost" IPv6-first (::1), which
+  // stalls for ~2s/request against dev_server's IPv4-only listener before falling back
+  // (same root cause as feedback_dashboard_ipv6_localhost_stall, fixed in the Python
+  // API client/dashboard for the same reason - see dashboard/api_data_layer.py).
   const proxyTargetEnv = env.VITE_PROXY_TARGET || process.env.VITE_PROXY_TARGET || "";
   const proxyTarget = isDevelopment
-    ? (proxyTargetEnv.trim() || "http://localhost:3001")  // Empty string or whitespace → localhost
+    ? (proxyTargetEnv.trim() || "http://127.0.0.1:3001")  // Empty string or whitespace → local dev_server
     : "";
 
   // CRITICAL FIX: If VITE_PROXY_TARGET is accidentally set to AWS in local dev,
-  // override it to localhost. This prevents 404 errors when proxying to AWS instead of local dev_server.
+  // override it to the local dev_server. This prevents 404 errors when proxying to AWS instead of local dev_server.
   let finalProxyTarget = proxyTarget;
   if (isDevelopment && proxyTarget.includes("amazonaws.com")) {
-    finalProxyTarget = "http://localhost:3001";
-    console.warn(`[VITE_CONFIG] ⚠️  AWS proxy detected in local dev; redirecting to localhost:3001`);
+    finalProxyTarget = "http://127.0.0.1:3001";
+    console.warn(`[VITE_CONFIG] ⚠️  AWS proxy detected in local dev; redirecting to 127.0.0.1:3001`);
   }
 
   if (isDevelopment) {
