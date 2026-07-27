@@ -1266,31 +1266,24 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/data-status",  # Data loader status and freshness (public metadata)
         "/api/algo/health",  # System health check (public metadata for dashboard health panel)
         "/api/algo/config",  # Algorithm configuration (public strategy parameters)
-        # Dashboard endpoints: accept either Cognito auth (production) OR dev tokens (local dev)
-        # LOCAL DEV FIX: dev_server.py runs this Lambda locally, so local dashboard with dev tokens
-        # must work. Auth enforcement happens at dev_auth.validate_dev_token() level.
-        # SECURITY: These endpoints check JWT validity OR accept dev tokens. Production (AWS Lambda)
-        # always has COGNITO_USER_POOL_ID set, so dev mode is never active in production.
-        "/api/algo/portfolio",  # Portfolio snapshot (dev mode uses dev-admin token)
-        "/api/algo/positions",  # Open positions (dev mode uses dev-admin token)
-        "/api/algo/trades",  # Trade history (dev mode uses dev-admin token)
-        "/api/algo/performance",  # Performance metrics (dev mode uses dev-admin token)
-        "/api/algo/dashboard-signals",  # Signal data (dev mode uses dev-admin token)
-        "/api/algo/risk-metrics",  # Risk analytics (dev mode uses dev-admin token)
-        "/api/algo/circuit-breakers",  # Circuit breaker status (dev mode uses dev-admin token - REQUIRED for dashboard)
-        "/api/algo/daily-return-histogram",  # Daily return distribution (dev mode)
-        "/api/algo/equity-curve",  # Portfolio equity curve (dev mode)
-        "/api/algo/holding-period-distribution",  # Holding period histogram (dev mode)
-        "/api/algo/stage-distribution",  # Market stage distribution (dev mode)
-        "/api/algo/trade-distribution",  # Trade outcome distribution (dev mode)
-        "/api/algo/execution/stats",  # Execution statistics (dev mode)
-        "/api/algo/execution/recent",  # Recent execution records (dev mode)
-        "/api/algo/notifications",  # System notifications (dev mode)
-        "/api/algo/patrol",  # Data patrol status (dev mode)
-        "/api/algo/patrol-log",  # Patrol history (dev mode)
-        "/api/algo/audit-log",  # Activity audit log (dashboard)
-        "/api/algo/performance-analytics",  # Performance analytics (dashboard)
-        "/api/algo/rejection-funnel",  # Signal evaluation (dashboard)
+        # SECURITY FIX (2026-07-26): The endpoints formerly listed here (portfolio, positions,
+        # trades, performance, dashboard-signals, risk-metrics, circuit-breakers, and the
+        # execution/notification/patrol/audit-log/performance-analytics/rejection-funnel/
+        # *-distribution/*-histogram/equity-curve group) exposed live trading positions, entry
+        # prices, portfolio value, and trade history to the entire internet with zero
+        # authentication - `is_public=True` returns before any token (Cognito or dev) is ever
+        # checked, so the "accept either Cognito auth OR dev tokens" comment that used to sit
+        # here was aspirational, not enforced: nothing downstream re-checked auth for these
+        # paths. This directly contradicted this function's own header comment ("Strategy and
+        # trading endpoints require authentication") and the API Gateway layer's terraform
+        # comment ("all routes use NONE auth, Lambda enforces auth via require_auth()") - Lambda
+        # is the *only* auth boundary for these routes, so a gap here is a full unauthenticated
+        # information-disclosure hole, not defense-in-depth degradation.
+        #
+        # These endpoints are NOT public. Falling through to the `cognito_enabled` check below:
+        # local dev (dev_server.py, COGNITO_USER_POOL_ID unset) still gets frictionless access
+        # via the existing dev-claims fallback; production (Cognito configured) now correctly
+        # requires a valid Bearer token, same as every other protected /api/algo/* endpoint.
         "/api/algo/sentiment",  # Market sentiment (dashboard)
         "/api/algo/economic-calendar",  # Economic calendar (dashboard)
         "/api/algo/metrics",  # Algo metrics (dashboard)
@@ -1312,9 +1305,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/data-coverage",  # Data freshness status (public metadata)
         "/api/contact",  # Public contact form (no auth required)
         "/api/logs",  # Frontend error log ingest (intentionally unauthenticated - called by error boundaries)
-        # Backwards compatibility aliases
-        "/api/portfolio",  # Alias for /api/algo/portfolio
-        "/api/positions",  # Alias for /api/algo/positions
+        # NOTE: /api/portfolio and /api/positions (aliases for /api/algo/portfolio and
+        # /api/algo/positions) were removed from here for the same reason as the block above -
+        # they're aliases for now-protected endpoints and must not bypass that protection.
     }
 
     # Protected endpoints requiring authentication (strategy/trading data)
