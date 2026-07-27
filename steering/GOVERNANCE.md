@@ -116,12 +116,12 @@ Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_regi
 5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess.
 6. **Exit Execution** — Executes stop-loss/target exits. `always_run=True`.
 7. **Signal Generation & Ranking** — Generates BUY/SELL signals from technical + fundamental scores.
-8. **Entry Execution** — Executes BUY trades from ranked signals.
+8. **Entry Execution** — Executes BUY trades from ranked signals; also runs the proactive total-risk check (blocks new entries at ≥4% risk before the reactive circuit breaker would fire). `always_run=True` (added in commit `3a132945c` specifically so this proactive check isn't skipped by an earlier halt - see the Key Principle below).
 9. **Reconciliation & Snapshot** — Final portfolio reconciliation, creates snapshot for dashboard. `always_run=True`.
 
-**Key Principle — read this before treating a "skipped" phase as evidence of a bug.** Only phases 3, 6, 9 (`always_run=True`) are guaranteed to execute every single run. Every other phase (1, 2, 4, 5, 7, 8) runs **only until the first one halts** — the instant any non-`always_run` phase fails or halts (`algo/orchestrator/phase_executor.py::OrchestratorPhaseExecutor.run()`), every remaining non-`always_run` phase for that cycle is marked `status="skipped"` and never executes, regardless of whether it individually "always runs" per its own docstring. This is why a halted run's health-panel detail commonly shows one phase `HALTED`, several phases `SKIPPED`, and phases 3/6/9 still `COMPLETED` (verified live 2026-07-21: forcing a Phase 1 data-freshness halt produced phase 2/4/5/7/8 = skipped, phase 3/6/9 = ok) — this is the designed cascade protecting against catastrophic losses (position monitoring, exit execution, and portfolio reconciliation must continue during emergencies), not a bypass or an inconsistency.
+**Key Principle — read this before treating a "skipped" phase as evidence of a bug.** Only phases 3, 6, 8, 9 (`always_run=True`) are guaranteed to execute every single run. Every other phase (1, 2, 4, 5, 7) runs **only until the first one halts** — the instant any non-`always_run` phase fails or halts (`algo/orchestrator/phase_executor.py::OrchestratorPhaseExecutor.run()`), every remaining non-`always_run` phase for that cycle is marked `status="skipped"` and never executes, regardless of whether it individually "always runs" per its own docstring. This is why a halted run's health-panel detail commonly shows one phase `HALTED`, several phases `SKIPPED`, and phases 3/6/8/9 still `COMPLETED` - this is the designed cascade protecting against catastrophic losses (position monitoring, exit execution, proactive entry risk enforcement, and portfolio reconciliation must continue during emergencies), not a bypass or an inconsistency. (Phase 8 joined this group later than 3/6/9 - see commit `3a132945c` - so an example run predating that commit would legitimately show Phase 8 skipped; check `phase_registry.py`'s current `always_run` values, not an old log, if in doubt.)
 
-Separately, phases 4/5/7/8 also carry `skip_if_halted=True`, which independently skips them if a **persistent** halt flag is already active from a prior event (e.g. an unexpired drawdown-recovery cooldown) even when phases 1-2 both succeed in the current run.
+Separately, phases 4/5/7 also carry `skip_if_halted=True`, which independently skips them if a **persistent** halt flag is already active from a prior event (e.g. an unexpired drawdown-recovery cooldown) even when phases 1-2 both succeed in the current run. Phase 8 no longer carries `skip_if_halted=True` (also changed in `3a132945c`) precisely so its proactive risk check keeps running under that same condition.
 
 ---
 
@@ -170,7 +170,7 @@ Separately, phases 4/5/7/8 also carry `skip_if_halted=True`, which independently
 
 ## Credentials & Deployment
 
-**Local:** PostgreSQL setup + `python scripts/apply_local_migrations.py` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
+**Local:** PostgreSQL setup + `DB_HOST=localhost DB_USER=stocks DB_PASSWORD=stocks DB_NAME=stocks python migrations/run.py apply --all` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
 
 **Production:** `git push main` → deploy-all-infrastructure.yml (auto)
 
