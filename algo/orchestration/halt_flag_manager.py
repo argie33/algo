@@ -309,11 +309,21 @@ class HaltFlagManager:
                         )
                         now_utc = datetime.now(timezone.utc)
 
-                        trigger_et = (
-                            trigger_dt.astimezone(EASTERN_TZ)
-                            if trigger_dt.tzinfo
-                            else trigger_dt.replace(tzinfo=EASTERN_TZ)
-                        )
+                        # _set_halt_flag_rds writes halt_triggered_at as now_utc.isoformat() - a
+                        # genuinely UTC value - into a `timestamp without time zone` column.
+                        # Confirmed live: Postgres's cast from a tz-aware ISO string into that
+                        # column type drops the offset but keeps the wall-clock digits as-is
+                        # (does NOT convert via the session timezone), so the naive value read
+                        # back here is UTC digits, not Eastern. Mislabeling it as Eastern via
+                        # .replace(tzinfo=EASTERN_TZ) shifted the interpreted instant by the
+                        # ET-UTC offset (4-5h) - enough to misclassify trigger_date near
+                        # midnight ET. It also left `trigger_dt` itself naive, so the
+                        # now_utc - trigger_dt subtraction below crashed with TypeError on every
+                        # same-day active halt (confirmed live), caught by the broad except
+                        # below and silently dropping the halt's real reason/duration from the
+                        # CRITICAL log in favor of a generic "could not parse timestamp" warning.
+                        trigger_dt = trigger_dt if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=timezone.utc)
+                        trigger_et = trigger_dt.astimezone(EASTERN_TZ)
                         now_et = now_utc.astimezone(EASTERN_TZ)
 
                         trigger_date = trigger_et.date()
