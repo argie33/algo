@@ -676,6 +676,52 @@ class TestExtractSegmentRevenueFromXbrlXml:
         revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
         assert revenues == {"PowerEnergyMember": 27_143_000_000.0}
 
+    def test_insurer_premiums_earned_net_revenue_concept(self) -> None:
+        """Real filer shape (verified live against AIG's FY2025 10-K instance):
+        insurers tag segment-level revenue as net earned premiums
+        (us-gaap:PremiumsEarnedNet), not Revenues - pre-fix, AIG always reported
+        data_unavailable despite real, correctly-dimensioned segment facts. Values
+        match AIG's real reported FY2025 segment revenue: North America $8.626B,
+        International $8.580B, Global Personal Travel Insurance $6.472B (summing to
+        within 0.3% of AIG's real $23.751B consolidated revenue, an unallocated-
+        corporate residual, same shape as NEE's)."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "NorthAmericaOperatingSegmentMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "InternationalOperatingSegmentMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "GlobalPersonalTravelInsuranceSegmentMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:PremiumsEarnedNet contextRef="c1">8626000000</us-gaap:PremiumsEarnedNet>
+        <us-gaap:PremiumsEarnedNet contextRef="c2">8580000000</us-gaap:PremiumsEarnedNet>
+        <us-gaap:PremiumsEarnedNet contextRef="c3">6472000000</us-gaap:PremiumsEarnedNet>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "NorthAmericaOperatingSegmentMember": 8_626_000_000.0,
+            "InternationalOperatingSegmentMember": 8_580_000_000.0,
+            "GlobalPersonalTravelInsuranceSegmentMember": 6_472_000_000.0,
+        }
+
 
 def _plain_context(ctx_id: str, start: str, end: str) -> str:
     """A non-dimensioned context - the consolidated (not segment-level) figure."""

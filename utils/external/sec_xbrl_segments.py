@@ -130,6 +130,16 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     # a custom extension name is inherently filer-specific, not a candidate
     # any other filer would plausibly also use.
     "RevenuesNetOfInterestExpenseFullTaxEquivalentBasis",
+    # PremiumsEarnedNet: insurers (verified live against AIG's FY2025 10-K) tag
+    # segment-level revenue as net earned premiums, not Revenues - AIG's own
+    # SupplementaryInsuranceInformationPremiumRevenue concept carries the
+    # identical value at the same contexts, confirming this is the real
+    # segment-level revenue figure, not a coincidence. North America $8.626B,
+    # International $8.580B, Global Personal Travel Insurance $6.472B sum to
+    # within 0.3% of AIG's real $23.751B consolidated revenue (a small
+    # unallocated-corporate residual, same shape as NEE's). Tried last -
+    # sector-specific, like the two revenue concepts above it.
+    "PremiumsEarnedNet",
 )
 
 # Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment
