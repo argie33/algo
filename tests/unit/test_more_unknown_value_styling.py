@@ -1,21 +1,25 @@
-"""Regression: two more instances of the same bug class already fixed in
+"""Regression: three more instances of the same bug class already fixed in
 positions.py/portfolio.py/sectors.py/trades.py (see test_trades_panel_unknown_pnl_styling.py) -
-a color ternary defaulted to bright_red whenever its underlying value was None, painting
-"no data" the same as a genuinely bad reading:
+a color ternary defaulted to a definite-looking color (bright_red or bright_green) whenever
+its underlying value was None/incomparable, painting "no data" the same as a genuine reading:
 
 - dashboard/panels/market.py (panel_market_expanded): SPY daily change, when spy_chg is
   None - previously rendered "--" in red.
 - dashboard/panels/trades.py (panel_trades_expanded): win-rate summary line, when there are
   no decisive (win or loss) trades to compute a rate from - previously rendered "N/A" in red.
+- dashboard/panels/economic.py (_build_calendar_rows): an economic indicator's actual value
+  with no forecast to compare against - previously rendered green unconditionally (there's
+  nothing to "beat" without a forecast baseline).
 """
 
 from rich.console import Group
 from rich.table import Table
 from rich.text import Text
 
+from dashboard.panels.economic import _build_calendar_rows
 from dashboard.panels.market import panel_market_expanded
 from dashboard.panels.trades import panel_trades_expanded
-from dashboard.utilities import DIM, R
+from dashboard.utilities import DIM, G, R
 
 
 def _style_after_anchor(panel: object, line_anchor: str, value_needle: str) -> str | None:
@@ -79,4 +83,30 @@ def test_trades_expanded_no_decisive_trades_win_rate_not_red():
     style = _style_after_anchor(panel, "Win Rate:", "N/A")
     assert style is not None
     assert style != R
+    assert style == DIM
+
+
+def test_economic_calendar_actual_without_forecast_not_green():
+    econ_cal = {
+        "items": [
+            {
+                "event_name": "GDP Growth Rate",
+                "event_date": "2026-07-27",
+                "importance": "HIGH",
+                "actual": 3.2,
+                "forecast": None,
+                "previous": 2.8,
+            }
+        ]
+    }
+    rows = _build_calendar_rows(econ_cal)
+    text_rows = [r for r in rows if isinstance(r, Text)]
+    row = next(r for r in text_rows if "A=" in r.plain)
+    idx = row.plain.find("A=")
+    style = None
+    for span in row.spans:
+        if span.start <= idx < span.end:
+            style = str(span.style)
+    assert style is not None
+    assert style != G
     assert style == DIM

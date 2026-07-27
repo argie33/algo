@@ -64,6 +64,7 @@ from dashboard.data_validation import safe_float
 from ..error_boundary import has_error
 from ..formatters import fmt_age
 from ..utilities import (
+    DIM,
     ET,
     G,
     R,
@@ -199,7 +200,10 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
                 f_f = safe_float(f_v, default=None)
                 if f_f is None and f_v is not None:
                     logger.warning(f"Economic calendar event '{name}' has actual but invalid forecast: {f_v}")
-                ac = G if f_f is None or a_f <= f_f else R
+                # DIM (not G) when there's no forecast to compare against - "beat expectations"
+                # is meaningless without a baseline, so this previously rendered every actual
+                # value green whenever forecast was missing/invalid, regardless of its size.
+                ac = DIM if f_f is None else (G if a_f <= f_f else R)
                 vals = f" [{ac}]A={a_f:.1f}[/]"
         elif f_v is not None:
             f_f = safe_float(f_v, default=None)
