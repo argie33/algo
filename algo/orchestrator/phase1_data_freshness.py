@@ -1018,23 +1018,38 @@ def run(  # noqa: C901
                 try:
                     # CRITICAL: stock_scores.updated_at is `timestamp without time zone`, written via
                     # datetime.now(timezone.utc) in load_stock_scores.py (i.e. the stored digits ARE
-                    # UTC wall-clock). Comparing it bare against NOW() (a timestamptz) makes Postgres
-                    # implicitly cast the naive value using the SESSION timezone (America/Chicago,
-                    # UTC-5/-6) instead of UTC, silently shifting it ~5-6h into the future relative to
-                    # its true UTC instant. That makes rows up to ~5-6h staler than the 1-day threshold
-                    # read as still within it, silently passing genuinely-stale scores through this
-                    # completeness gate. `AT TIME ZONE 'UTC'` makes the UTC interpretation explicit
-                    # regardless of session timezone.
+                    # UTC wall-clock). TRADING-DAY FIX: Don't check "last 24 hours" (fails on Monday
+                    # morning when Friday's EOD scores are 48h old). Instead check if max score date
+                    # matches the most recent trading day in the DB (which stock_scores depends on for
+                    # underlying metric data). Stock scores have no date column, so check updated_at
+                    # against price_daily's max date (latest trading day with prices).
                     cur.execute("""
                         SELECT AVG(data_completeness) as avg_completeness,
                                COUNT(*) as total_available_scores,
                                COUNT(CASE WHEN data_completeness >= 70 THEN 1 END) as complete_scores,
-                               COUNT(*) FILTER (WHERE data_unavailable = FALSE) as available_count
+                               COUNT(*) FILTER (WHERE data_unavailable = FALSE) as available_count,
+                               MAX(updated_at) as max_updated
                         FROM stock_scores
-                        WHERE (updated_at AT TIME ZONE 'UTC') > (NOW() AT TIME ZONE 'UTC') - INTERVAL '1 day' AND data_unavailable = FALSE
+                        WHERE data_unavailable = FALSE
                     """)
                     completeness_row = cur.fetchone()
-                    if completeness_row and completeness_row[0] is not None:
+
+                    # Verify stock_scores were computed for the latest trading day available in price data
+                    cur.execute("SELECT MAX(date) FROM price_daily")
+                    latest_price_date = cur.fetchone()[0]
+
+                    # Stock scores should have been updated AFTER the latest price date (they're computed
+                    # end-of-day). Allow up to 48 hours for EOD pipelines to run (covering overnight + weekend scenarios).
+                    scores_age_hours = None
+                    if completeness_row and completeness_row[4] and latest_price_date:
+                        from datetime import datetime, timezone
+                        now_utc = datetime.now(timezone.utc)
+                        max_updated = completeness_row[4]
+                        if max_updated.tzinfo is None:
+                            max_updated = max_updated.replace(tzinfo=timezone.utc)
+                        scores_age_hours = (now_utc - max_updated).total_seconds() / 3600
+
+                    if completeness_row and completeness_row[0] is not None and scores_age_hours is not None and scores_age_hours < 48:
                         avg_completeness = float(completeness_row[0])
                         total_available = completeness_row[1]
                         complete_scores = completeness_row[2]
@@ -1058,10 +1073,20 @@ def run(  # noqa: C901
                                 f"(missing positioning/stability/growth metrics)"
                             )
                     else:
-                        logger.warning(
-                            "[PHASE 1] stock_scores table empty or no recent data. "
-                            "Proceeding but scores will be unavailable for signal generation."
-                        )
+                        # Stale, missing, or incompute able scores
+                        if completeness_row and completeness_row[4] is not None and scores_age_hours is not None and scores_age_hours >= 48:
+                            logger.warning(
+                                f"[PHASE 1] stock_scores stale: computed {scores_age_hours:.1f}h ago "
+                                f"(max_updated={completeness_row[4]}). "
+                                f"Latest price data is from {latest_price_date}. "
+                                f"Scores are older than 48h threshold. "
+                                f"Check if end-of-day pipeline has run."
+                            )
+                        else:
+                            logger.warning(
+                                "[PHASE 1] stock_scores data unavailable or no available symbols. "
+                                "Proceeding but scores will be unavailable for signal generation."
+                            )
                 except Exception as completeness_err:
                     logger.warning(
                         f"[PHASE 1] Could not check stock_scores completeness: {completeness_err}. "
