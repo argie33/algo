@@ -550,22 +550,50 @@ class PipelineHealth:
                 if status.tables:
                     # Session 299 FIX: Fetch existing error_message for each table
                     # Only overwrite if health check found a NEW problem
+                    # Also fetch consecutive_failures: this age-based freshness sweep runs
+                    # unconditionally on every orchestrator run (pre-Phase-1) and previously
+                    # overwrote `status` unconditionally too - silently erasing a loader's real
+                    # FAILED/TIMEOUT status (set by LoaderStatusManager.mark_failed(), tracked
+                    # via consecutive_failures) the moment this check ran again, as long as the
+                    # target table's existing data still looked fresh enough by age. A loader
+                    # that genuinely fails (auth error, rate limit, crash) would show FAILED for
+                    # under a minute before the next orchestrator run's health sweep silently
+                    # relabeled it HEALTHY - confirmed live 2026-07-27: data_loader_status rows
+                    # with consecutive_failures > 0 sat next to status='HEALTHY'/'STALE', not the
+                    # FAILED/TIMEOUT LoaderStatusManager actually recorded.
                     cur.execute(
                         """
-                        SELECT table_name, error_message FROM data_loader_status
+                        SELECT table_name, error_message, status, consecutive_failures
+                        FROM data_loader_status
                         WHERE table_name = ANY(%s)
                     """,
                         (list(status.tables.keys()),),
                     )
-                    existing_errors = {row[0]: row[1] for row in cur.fetchall()}
+                    existing_db_rows = cur.fetchall()
+                    existing_errors = {row[0]: row[1] for row in existing_db_rows}
+                    existing_failures = {row[0]: (row[1], row[2]) for row in existing_db_rows if (row[3] or 0) > 0}
 
-                    insert_values = [
-                        (
-                            table_health.table_name,
-                            table_health.status.value,
-                            table_health.row_count,
-                            table_health.latest_date,
-                            table_health.age_days,
+                    insert_values = []
+                    for table_health in status.tables.values():
+                        # Preserve a real, unresolved loader failure (LoaderStatusManager's
+                        # FAILED/TIMEOUT, tracked via consecutive_failures) instead of letting
+                        # this age-based freshness sweep silently overwrite it - unless this
+                        # sweep found something worth surfacing on its own (MISSING/ERROR are
+                        # at least as severe as an unresolved FAILED/TIMEOUT and reflect this
+                        # check's own live query, not a stale count). Applies to both status
+                        # and error_message together so the two never end up telling different
+                        # stories (e.g. status=FAILED next to a HEALTHY-cleared error_message).
+                        preserved = existing_failures.get(table_health.table_name)
+                        preserve_failure = preserved is not None and table_health.status not in (
+                            HealthStatus.MISSING,
+                            HealthStatus.ERROR,
+                        )
+
+                        if preserve_failure:
+                            status_value = preserved[1]
+                            error_value = preserved[0]
+                        else:
+                            status_value = table_health.status.value
                             # If the table is now HEALTHY, clear the error - an old error sitting
                             # next to a fresh last_updated timestamp reads as "still broken" on
                             # the health panel even after the table has recovered.
@@ -584,42 +612,47 @@ class PipelineHealth:
                             # that whitelist gap was fixed (commit 349ccef9b), because check_table_health
                             # now correctly computes "Table intentionally frozen ... KNOWN_DEPRECATED_TABLES"
                             # for them but this write path never let that fresh message through.
+                            if table_health.status == HealthStatus.HEALTHY:
+                                error_value = None
+                            elif table_health.error_message is not None:
+                                error_value = table_health.error_message
+                            else:
+                                error_value = existing_errors.get(table_health.table_name)
+
+                        insert_values.append(
                             (
-                                None
-                                if table_health.status == HealthStatus.HEALTHY
-                                else (
-                                    table_health.error_message
-                                    if table_health.error_message is not None
-                                    else existing_errors.get(table_health.table_name)
-                                )
-                            ),
-                            # Was previously never written by any code path (a static value
-                            # from a one-time seed insert, unrelated to the sla_days actually
-                            # used to compute `status` above) - wire it to the real,
-                            # gap-adjusted threshold so this column stops silently
-                            # contradicting the status it sits next to.
-                            table_health.sla_days,
-                            # last_updated must reflect real data recency (latest_date, the
-                            # table's own most recent row), not "when this health check ran".
-                            # This bulk executemany runs in ONE transaction on every orchestrator
-                            # run (pre-Phase-1, unconditional) - Postgres's NOW() is fixed for the
-                            # whole transaction, so the old `last_updated = NOW()` stamped every
-                            # one of the ~95 tracked tables with the SAME timestamp every run,
-                            # for EVERY table including ones with their own precise per-loader
-                            # last_updated (load_prices.py etc. already set this correctly via a
-                            # table-name-scoped UPDATE) - clobbering it. Confirmed live: every row
-                            # in data_loader_status shared one identical microsecond-precision
-                            # timestamp, and /api/algo/data-status (which computes age_hours/stale
-                            # status directly off this column, per its own last_updated.date() vs
-                            # expected_date comparison) reported every table as equally ~fresh
-                            # regardless of true staleness - masking exactly the kind of stale-data
-                            # condition this health check exists to surface. Fall back to NOW()
-                            # only when no latest_date could be determined (no usable date column
-                            # on that table) - see _infer_date_column's "skipping age check" path.
-                            table_health.latest_date,
+                                table_health.table_name,
+                                status_value,
+                                table_health.row_count,
+                                table_health.latest_date,
+                                table_health.age_days,
+                                error_value,
+                                # Was previously never written by any code path (a static value
+                                # from a one-time seed insert, unrelated to the sla_days actually
+                                # used to compute `status` above) - wire it to the real,
+                                # gap-adjusted threshold so this column stops silently
+                                # contradicting the status it sits next to.
+                                table_health.sla_days,
+                                # last_updated must reflect real data recency (latest_date, the
+                                # table's own most recent row), not "when this health check ran".
+                                # This bulk executemany runs in ONE transaction on every orchestrator
+                                # run (pre-Phase-1, unconditional) - Postgres's NOW() is fixed for the
+                                # whole transaction, so the old `last_updated = NOW()` stamped every
+                                # one of the ~95 tracked tables with the SAME timestamp every run,
+                                # for EVERY table including ones with their own precise per-loader
+                                # last_updated (load_prices.py etc. already set this correctly via a
+                                # table-name-scoped UPDATE) - clobbering it. Confirmed live: every row
+                                # in data_loader_status shared one identical microsecond-precision
+                                # timestamp, and /api/algo/data-status (which computes age_hours/stale
+                                # status directly off this column, per its own last_updated.date() vs
+                                # expected_date comparison) reported every table as equally ~fresh
+                                # regardless of true staleness - masking exactly the kind of stale-data
+                                # condition this health check exists to surface. Fall back to NOW()
+                                # only when no latest_date could be determined (no usable date column
+                                # on that table) - see _infer_date_column's "skipping age check" path.
+                                table_health.latest_date,
+                            )
                         )
-                        for table_health in status.tables.values()
-                    ]
                     cur.executemany(
                         """
                         INSERT INTO data_loader_status

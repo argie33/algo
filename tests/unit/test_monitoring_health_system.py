@@ -190,8 +190,8 @@ class TestPipelineHealthMonitoring:
 
         mock_cur = Mock()
         mock_cur.fetchall.return_value = [
-            ("sec_dividends", "Unknown table 'sec_dividends' (not in whitelist)"),
-            ("aaii_sentiment", "loader timed out connecting to source API"),
+            ("sec_dividends", "Unknown table 'sec_dividends' (not in whitelist)", "ERROR", 0),
+            ("aaii_sentiment", "loader timed out connecting to source API", "STALE", 0),
         ]
         with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
@@ -208,6 +208,68 @@ class TestPipelineHealthMonitoring:
         assert error_msg_by_table["aaii_sentiment"] == "loader timed out connecting to source API", (
             "STALE with no fresh message of its own must still fall back to the preserved historic message"
         )
+
+    def test_log_health_check_preserves_unresolved_loader_failure_status(self):
+        """This freshness sweep runs unconditionally on every orchestrator run (pre-Phase-1)
+        and previously overwrote `status` unconditionally too - silently erasing a loader's
+        real FAILED/TIMEOUT status (set by LoaderStatusManager.mark_failed(), tracked via
+        consecutive_failures) the moment this check ran again, as long as the target table's
+        existing data still looked fresh enough by age. Confirmed live 2026-07-27:
+        data_loader_status rows with consecutive_failures > 0 sat next to
+        status='HEALTHY'/'STALE', not the FAILED/TIMEOUT LoaderStatusManager actually recorded.
+
+        A table with an unresolved failure (consecutive_failures > 0) must keep its real
+        status/error_message from LoaderStatusManager, UNLESS this sweep's own live query
+        found something at least as severe (MISSING/ERROR) - those must still win since they
+        reflect this check's own fresh finding, not a stale failure count.
+        """
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth, PipelineStatus, TableHealth
+
+        status = PipelineStatus(
+            tables={
+                # Data still looks fresh by age, but the loader that writes it is actively
+                # failing (auth error) - must NOT be relabeled HEALTHY.
+                "insider_holdings_sec": TableHealth(
+                    table_name="insider_holdings_sec",
+                    status=HealthStatus.HEALTHY,
+                    row_count=500,
+                    latest_date=_date(2026, 7, 27),
+                ),
+                # A genuinely missing table must still win over a stale failure record -
+                # this sweep's own live query is more authoritative than an old failure count.
+                "dropped_table": TableHealth(
+                    table_name="dropped_table",
+                    status=HealthStatus.MISSING,
+                    row_count=0,
+                    error_message="Table is empty",
+                ),
+            }
+        )
+
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = [
+            ("insider_holdings_sec", "SEC EDGAR auth error: 403 Forbidden", "FAILED", 3),
+            ("dropped_table", "SEC EDGAR auth error: 403 Forbidden", "FAILED", 5),
+        ]
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            monitor = PipelineHealth()
+            monitor.log_health_check(status)
+
+        insert_values = mock_cur.executemany.call_args[0][1]
+        by_table = {row[0]: {"status": row[1], "error_message": row[5]} for row in insert_values}
+
+        assert by_table["insider_holdings_sec"]["status"] == "FAILED", (
+            "Unresolved loader failure (consecutive_failures=3) must not be silently relabeled "
+            "HEALTHY just because the existing data still looks fresh by age"
+        )
+        assert by_table["insider_holdings_sec"]["error_message"] == "SEC EDGAR auth error: 403 Forbidden"
+
+        assert by_table["dropped_table"]["status"] == "MISSING", (
+            "This sweep's own live MISSING finding must win over a stale unresolved-failure record"
+        )
+        assert by_table["dropped_table"]["error_message"] == "Table is empty"
 
     def test_infer_date_column_prefers_last_updated_at_over_created_at(self):
         """algo_runtime_state (RDS-fallback halt-flag state, actively upserted on every
