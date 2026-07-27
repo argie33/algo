@@ -389,9 +389,18 @@ class MarketFactorCalculator:
         No graceful degradation allowed (violates GOVERNANCE fail-fast principle).
         """
         try:
+            # put_call_ratio_data_unavailable must be excluded explicitly, not inferred from
+            # NULL-ness alone: 8 historical rows (2026-07-02 to 2026-07-14) have a real-looking
+            # non-NULL put_call_ratio (a stale 2.0531 repeated across every one of them) even
+            # though the fetch failed and data_unavailable=True - a failed-fetch value that was
+            # never cleared from the column. Without this filter, any eval_date landing on one
+            # of those dates (e.g. a backtest) would silently score real position-sizing input
+            # off fabricated sentiment data instead of raising the fail-fast error below.
             cur.execute(
                 "SELECT put_call_ratio FROM market_health_daily "
-                "WHERE date <= %s AND put_call_ratio IS NOT NULL ORDER BY date DESC LIMIT 1",
+                "WHERE date <= %s AND put_call_ratio IS NOT NULL "
+                "AND put_call_ratio_data_unavailable IS NOT TRUE "
+                "ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
