@@ -762,10 +762,19 @@ def run(  # noqa: C901
                     raise RuntimeError(f"[PHASE 1] market_health_daily has no rows for {health_max_date}")
 
                 if not pcr_rows:
-                    raise RuntimeError(
-                        f"[PHASE 1] CRITICAL: market_health_daily has no put_call_ratio data for {health_max_date}. "
-                        "Put/call ratio is required for market exposure calculation in Phase 2. "
-                        "Check market_health_daily loader completion status."
+                    # NOTE: put_call_ratio is OPTIONAL in Phase 2 (algo/risk/market_exposure.py,
+                    # commit 6a94934d4, "Make put_call_ratio truly optional") - it's an unofficial
+                    # yfinance-options-chain-derived sentiment enrichment (8pt of 100), explicitly
+                    # excluded from market_exposure's required_factors and gracefully skipped when
+                    # missing. This used to be a hard RuntimeError halting the entire orchestrator
+                    # (Phase 1/2/4/5/7 all skip), which contradicted that same-day optionality
+                    # decision and would halt real trading whenever this one non-critical field
+                    # was null - which happens routinely (e.g. before the daily options-chain
+                    # fetch completes). Downgraded to a warning, matching vix_rows below.
+                    logger.warning(
+                        f"[PHASE 1] WARNING: market_health_daily missing put_call_ratio data for {health_max_date}. "
+                        "Optional sentiment enrichment (Phase 2 skips it gracefully) - not halting. "
+                        "Check market_health_daily loader if this persists."
                     )
 
                 if not vix_rows:
