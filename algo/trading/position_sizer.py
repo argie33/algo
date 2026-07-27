@@ -57,6 +57,13 @@ class PositionSizer:
             "risk_reduction_at_minus_5",
             "risk_reduction_at_minus_10",
             "risk_reduction_at_minus_15",
+            # CRITICAL FIX: get_risk_adjustment() below reads risk_reduction_at_minus_20 for
+            # the >= 20% drawdown circuit breaker (its own docstring even claims "Config keys
+            # validated at init" - this key wasn't), but it was missing from this list, so a
+            # missing/deleted DB row would pass construction silently and only raise KeyError
+            # deep inside get_risk_adjustment() at the exact moment a portfolio hits a -20%
+            # drawdown - the worst possible time for a validation gap to surface.
+            "risk_reduction_at_minus_20",
             "vix_caution_threshold",
             "vix_max_threshold",
             "vix_caution_risk_reduction",

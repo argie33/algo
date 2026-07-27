@@ -550,6 +550,31 @@ class TestFinancialCalculationsWithMalformedData:
         except (KeyError, ValueError, TypeError, ConfigurationError):
             pass  # Expected behavior
 
+    def test_position_sizer_requires_risk_reduction_at_minus_20(self):
+        """CRITICAL FIX regression: get_risk_adjustment()'s >= 20% drawdown branch reads
+        risk_reduction_at_minus_20 (its own docstring even claims "Config keys validated at
+        init" for every risk threshold), but this key was missing from __init__'s
+        required_config_keys - a missing/deleted DB row would pass construction silently and
+        only raise KeyError deep inside get_risk_adjustment() at the exact moment a portfolio
+        hits a -20% drawdown, the worst possible time for a validation gap to surface. Must
+        fail fast at construction instead, like its _5/_10/_15 siblings already do."""
+        from algo.trading.exceptions import ConfigurationError
+        from algo.trading.position_sizer import PositionSizer
+
+        config = {
+            "base_risk_pct": 0.75,
+            "max_positions": 15,
+            "risk_reduction_at_minus_5": 0.75,
+            "risk_reduction_at_minus_10": 0.5,
+            "risk_reduction_at_minus_15": 0.25,
+            # risk_reduction_at_minus_20 deliberately omitted
+            "vix_caution_threshold": 20.0,
+            "vix_max_threshold": 30.0,
+            "vix_caution_risk_reduction": 0.5,
+        }
+        with pytest.raises(ConfigurationError, match="risk_reduction_at_minus_20"):
+            PositionSizer(config)
+
     def test_position_sizer_with_string_percentages(self):
         """Verify position sizer handles string percentages."""
         from algo.trading.position_sizer import PositionSizer
