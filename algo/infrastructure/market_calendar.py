@@ -163,9 +163,10 @@ class MarketCalendar:
         market_open = time(9, 30)
         market_close = time(16, 0)
 
-        # Early close: 3:00 PM
+        # NYSE/NASDAQ early closes (day before Independence Day, day after Thanksgiving,
+        # Christmas Eve) close at 1:00 PM ET, not 3:00 PM - this was previously wrong by 2 hours.
         if check_date in EARLY_CLOSES:
-            market_close = time(15, 0)
+            market_close = time(13, 0)
 
         return market_open <= check_time < market_close
 
@@ -198,7 +199,8 @@ class MarketCalendar:
         is_early_close = check_date in EARLY_CLOSES
 
         if is_early_close:
-            market_close = time(15, 0)
+            # NYSE/NASDAQ early closes are 1:00 PM ET, not 3:00 PM - see is_market_open() above.
+            market_close = time(13, 0)
 
         if check_time < market_open:
             mins_until = int(

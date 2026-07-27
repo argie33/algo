@@ -33,6 +33,7 @@ from typing import Any, cast
 
 import psycopg2
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading.executor import TradeExecutor
@@ -40,7 +41,6 @@ from algo.trading.position_sizer import PositionSizer
 from algo.trading.pretrade_checks import PreTradeChecks
 from utils.db.context import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
-from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
 from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
@@ -440,15 +440,22 @@ def run(
 
     logger.info("[PHASE 8] Starting entry execution")
 
-    # CRITICAL GUARD: Enforce market hours (9:30 AM - 4:00 PM ET)
-    # Entries executed outside market hours will be queued as pre-market/after-hours orders
-    # and may fill at unexpected prices or not fill at all. Risk: duplicate orders on next run.
-    now_et = datetime.now(EASTERN_TZ).time()
-    if not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
+    # CRITICAL GUARD: Enforce market hours (9:30 AM - 4:00 PM ET, 9:30 AM - 1:00 PM ET on
+    # NYSE/NASDAQ early-close days). Entries executed outside market hours will be queued as
+    # pre-market/after-hours orders and may fill at unexpected prices or not fill at all.
+    # Risk: duplicate orders on next run.
+    # MUST use MarketCalendar.is_market_open() (early-close aware), not a raw comparison
+    # against the fixed MARKET_OPEN_TIME/MARKET_CLOSE_TIME constants - those ignore early
+    # closes entirely, which would let this guard wave entries through from 1-4 PM ET on a
+    # day the market has already closed.
+    now_dt = datetime.now(EASTERN_TZ)
+    now_et = now_dt.time()
+    if not MarketCalendar.is_market_open(now_dt):
+        close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
         msg = (
             f"[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours. "
             f"Current time: {now_et.strftime('%H:%M:%S')} ET, "
-            f"market hours: 9:30 AM - 4:00 PM ET. Skipping Phase 8."
+            f"market hours: 9:30 AM - {close_time} ET. Skipping Phase 8."
         )
         logger.warning(msg)
         log_phase_result_fn(8, "entry_execution", "blocked", msg)
@@ -737,8 +744,6 @@ def run(
 
     try:
         from datetime import timedelta as td
-
-        from algo.infrastructure.market_calendar import MarketCalendar
 
         with DatabaseContext("read") as cur:
             cur.execute("""SELECT MAX(date) as latest_price_date FROM price_daily""")

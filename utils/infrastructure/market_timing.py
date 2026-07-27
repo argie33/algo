@@ -24,15 +24,14 @@ MARKET_CLOSE_HOUR = 16
 MARKET_CLOSE_MINUTE = 0
 MARKET_CLOSE_TIME = time(16, 0)
 
-# Early close time (half-days: day before Independence Day, day after Thanksgiving, Christmas Eve)
-MARKET_EARLY_CLOSE_HOUR = 15
+# Early close time (half-days: day before Independence Day, day after Thanksgiving, Christmas
+# Eve) - NYSE/NASDAQ close these at 1:00 PM ET, not 3:00 PM. There is no separate 3:00 PM
+# variant in current practice; a prior version of this file defined one (unused, never
+# correct) alongside this constant under an "Alternative" label - removed to avoid two
+# candidate early-close times sitting side by side with no indication which one is real.
+MARKET_EARLY_CLOSE_HOUR = 13
 MARKET_EARLY_CLOSE_MINUTE = 0
-MARKET_EARLY_CLOSE_TIME = time(15, 0)
-
-# Alternative: 1 PM early close (some half-days)
-MARKET_ALT_EARLY_CLOSE_HOUR = 13
-MARKET_ALT_EARLY_CLOSE_MINUTE = 0
-MARKET_ALT_EARLY_CLOSE_TIME = time(13, 0)
+MARKET_EARLY_CLOSE_TIME = time(13, 0)
 
 # Orchestrator run schedule (ET) - runs every 5 minutes during market hours
 # Dashboard requires portfolio snapshots fresher than 360s, so 5-min frequency ensures data freshness
