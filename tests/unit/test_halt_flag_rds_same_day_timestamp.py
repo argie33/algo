@@ -78,3 +78,40 @@ class TestHaltFlagRdsSameDayNaiveTimestamp:
 
         critical_calls = [str(c) for c in mock_logger.critical.call_args_list]
         assert any("Phase 1 degraded: stale data detected" in c for c in critical_calls), critical_calls
+
+
+class TestProactiveClearRdsDateRolloverWindow:
+    """_proactive_clear_stale_halt_rds shares the same root cause: mislabeling a naive
+    (genuinely-UTC) halt_triggered_at as Eastern shifts trigger_date forward by the
+    ET-UTC offset. For a halt genuinely triggered late evening ET (already past midnight
+    UTC), this pushes trigger_date from "yesterday" to "today" - so the
+    previous-trading-day auto-clear branch (ISSUE #31's startup-deadlock fix) never
+    fires for exactly the halts most likely to still be sitting there the next morning.
+    """
+
+    def test_late_evening_et_halt_still_auto_clears_next_morning(self):
+        # Real instant: 2026-07-26 23:00 ET (11 PM Saturday ET, EDT = UTC-4) = 2026-07-27
+        # 03:00 UTC. Confirmed DB round-trip behavior: the naive value read back from
+        # `timestamp without time zone` is exactly these UTC digits, no offset applied.
+        naive_utc_triggered_at = datetime(2026, 7, 27, 3, 0, 0)
+        fake_now_utc = datetime(2026, 7, 27, 14, 0, 0, tzinfo=timezone.utc)  # 10:00 AM EDT - past market open
+
+        manager = _manager()
+        row = (True, naive_utc_triggered_at)
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fake_now_utc if tz is not None else fake_now_utc.replace(tzinfo=None)
+
+        with (
+            patch("algo.orchestration.halt_flag_manager.DatabaseContext", return_value=_mock_db_context(row)),
+            patch("algo.orchestration.halt_flag_manager.datetime", _FrozenDatetime),
+        ):
+            cleared = manager._proactive_clear_stale_halt_rds()
+
+        assert cleared is True, (
+            "a halt genuinely triggered late evening ET the prior day must still be "
+            "recognized as stale and auto-cleared the next morning past market open - "
+            "not silently kept alive by mislabeling its UTC timestamp as Eastern"
+        )

@@ -718,11 +718,19 @@ class HaltFlagManager:
                     )
                     now_utc = datetime.now(timezone.utc)
 
-                    trigger_et = (
-                        trigger_dt.astimezone(EASTERN_TZ)
-                        if trigger_dt.tzinfo
-                        else trigger_dt.replace(tzinfo=EASTERN_TZ)
-                    )
+                    # Same root cause as _check_halt_flag_rds: _set_halt_flag_rds writes
+                    # halt_triggered_at as now_utc.isoformat() - genuinely UTC - into a
+                    # `timestamp without time zone` column, which stores the wall-clock
+                    # digits verbatim (no session-timezone conversion). Mislabeling the
+                    # naive value as Eastern instead of UTC shifts trigger_date forward by
+                    # the ET-UTC offset (4-5h) - for a halt genuinely triggered late evening
+                    # ET (e.g. 11 PM ET = past midnight UTC), this pushes trigger_date from
+                    # "yesterday" to "today", so the previous-trading-day auto-clear branch
+                    # below never fires. That branch exists specifically to break a startup
+                    # deadlock (ISSUE #31) - silently defeating it for exactly the halts most
+                    # likely to still be sitting there at the next morning's startup.
+                    trigger_dt = trigger_dt if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=timezone.utc)
+                    trigger_et = trigger_dt.astimezone(EASTERN_TZ)
                     now_et = now_utc.astimezone(EASTERN_TZ)
 
                     trigger_date = trigger_et.date()
