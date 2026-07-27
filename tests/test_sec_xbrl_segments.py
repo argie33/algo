@@ -600,6 +600,82 @@ class TestExtractSegmentRevenueFromXbrlXml:
 
         assert result["data_available"] is False
 
+    def test_reportable_segment_aggregation_subtotal_excluded_from_concentration_math(self) -> None:
+        """Real filer shape (verified live against Caterpillar's FY2025 10-K instance):
+        the ASU 2023-07 segment-reporting taxonomy's standard "subtotal before All
+        Other" member (us-gaap:ReportableSegmentAggregationBeforeOtherOperatingSegmentMember)
+        is tagged on the SAME StatementBusinessSegmentsAxis as real segments, with a
+        value equal to the sum of the real segments it aggregates - pre-fix, this was
+        counted as a peer 6th "segment", roughly doubling the true total and
+        corrupting HHI/largest_segment_revenue_pct for every filer that discloses
+        under the new taxonomy."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "ConstructionIndustriesMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "ResourceIndustriesMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "ReportableSegmentAggregationBeforeOtherOperatingSegmentMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">25060000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">12474000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c3">37534000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "ConstructionIndustriesMember": 25_060_000_000.0,
+            "ResourceIndustriesMember": 12_474_000_000.0,
+        }
+        assert result["segment_count"] == 2
+
+    def test_gross_boilerplate_paired_value_overridden_by_disagreeing_plain_value(self) -> None:
+        """Real filer shape (verified live against Caterpillar's FY2025 10-K instance):
+        Power & Energy's ConsolidationItemsAxis=OperatingSegmentsMember-paired context
+        tags $32.201B (gross, including intersegment sales - reconciles exactly against
+        CAT's own IntersegmentEliminationMember fact of -$5.058B) while its plain
+        (no ConsolidationItemsAxis dimension at all) context tags $27.143B (net, the
+        figure CAT actually discloses as segment revenue). Pre-fix, "keep the first
+        value seen" made this a coin flip on document order - real live run picked the
+        wrong (gross) value, overstating this segment's revenue by ~19%."""
+        contexts = _multi_dim_context(
+            "c1",
+            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "PowerEnergyMember")],
+            "2025-01-01",
+            "2025-12-31",
+        ) + _context("c2", "StatementBusinessSegmentsAxis", "PowerEnergyMember", "2025-01-01", "2025-12-31")
+        facts = """
+        <us-gaap:Revenues contextRef="c1">32201000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">27143000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"PowerEnergyMember": 27_143_000_000.0}
+
 
 def _plain_context(ctx_id: str, start: str, end: str) -> str:
     """A non-dimensioned context - the consolidated (not segment-level) figure."""

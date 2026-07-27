@@ -84,6 +84,16 @@ _OPERATING_SEGMENTS_MEMBER = "OperatingSegmentsMember"
 # axis's own member in the same context.
 _LEGAL_ENTITY_AXIS = "LegalEntityAxis"
 
+# Standard us-gaap StatementBusinessSegmentsAxis member (part of the ASU 2023-07
+# segment-reporting taxonomy) marking a SUBTOTAL of all reportable segments before
+# adding "All Other" - not a real segment itself. Confirmed live against
+# Caterpillar's FY2025 10-K: this member's tagged value ($73.955B) exactly equals
+# the sum of CAT's 4 real reportable segments (Construction Industries $25.060B +
+# Resource Industries $12.474B + Power Energy $32.201B + Financial Products
+# $4.220B) - counting it as a peer "segment" alongside its own components would
+# roughly double the true total and corrupt every HHI/concentration figure.
+_NON_SEGMENT_SUBTOTAL_MEMBERS = ("ReportableSegmentAggregationBeforeOtherOperatingSegmentMember",)
+
 # Revenue concepts to try, in preference order. Segment revenue is tagged using
 # the SAME concept as consolidated revenue - just against a dimensioned context -
 # so this list is really "which revenue concept does this filer use at all",
@@ -332,7 +342,7 @@ class XBRLSegmentParser:
         paired contexts keeps only the true segment-level (or geography-level)
         totals.
         """
-        context_segment: dict[str, tuple[str, str, str, str | None]] = {}
+        context_segment: dict[str, tuple[str, str, str, str | None, bool]] = {}
         for ctx in root.iter():
             if _local_name(ctx.tag) != "context":
                 continue
@@ -357,6 +367,9 @@ class XBRLSegmentParser:
             # Drop the boilerplate "this is a real operating segment, not the
             # eliminations line" marker before judging dimension count - it
             # doesn't narrow the fact to a sub-breakdown of the segment.
+            is_boilerplate_paired = any(
+                m[0] == _CONSOLIDATION_ITEMS_AXIS and m[1] == _OPERATING_SEGMENTS_MEMBER for m in explicit_members
+            )
             non_boilerplate = [
                 m
                 for m in explicit_members
@@ -377,16 +390,18 @@ class XBRLSegmentParser:
             axis, member = non_boilerplate[0]
             if axis not in _SEGMENT_AXIS_LOCAL_NAMES:
                 continue
+            if member in _NON_SEGMENT_SUBTOTAL_MEMBERS:
+                continue
 
             if axis and member and end_str:
-                context_segment[ctx_id] = (axis, member, end_str, start_str)
+                context_segment[ctx_id] = (axis, member, end_str, start_str, is_boilerplate_paired)
 
         return context_segment
 
     @staticmethod
     def _extract_segment_member_values(
         root: ET.Element,
-        context_segment: dict[str, tuple[str, str, str, str | None]],
+        context_segment: dict[str, tuple[str, str, str, str | None, bool]],
         axis_to_use: str,
         concept_local_names: tuple[str, ...],
         target_end: str,
@@ -416,7 +431,7 @@ class XBRLSegmentParser:
                 info = context_segment.get(elem.get("contextRef", ""))
                 if not info or info[0] != axis_to_use:
                     continue
-                _axis, member, end_str, start_str = info
+                _axis, member, end_str, start_str, _is_boilerplate = info
                 if end_str != target_end:
                     continue
                 if match_duration_days is not None:
@@ -658,7 +673,8 @@ class XBRLSegmentParser:
         available_axes = {info[0] for info in context_segment.values()}
         axis_to_use = _BUSINESS_SEGMENT_AXIS if _BUSINESS_SEGMENT_AXIS in available_axes else _GEOGRAPHIC_SEGMENT_AXIS
 
-        candidate_facts: list[tuple[str, str, int, float]] = []  # (member, end_date, duration_days, revenue)
+        candidate_facts: list[tuple[str, str, int, float, bool]] = []
+        # (member, end_date, duration_days, revenue, is_boilerplate_paired)
         matched_concept = None
         for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
             candidate_facts = []
@@ -668,7 +684,7 @@ class XBRLSegmentParser:
                 info = context_segment.get(elem.get("contextRef", ""))
                 if not info or info[0] != axis_to_use:
                     continue
-                _axis, member, end_str, start_str = info
+                _axis, member, end_str, start_str, is_boilerplate_paired = info
                 value = elem.text
                 if value is None:
                     continue
@@ -682,7 +698,7 @@ class XBRLSegmentParser:
                         duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
                     except ValueError:
                         duration_days = 0
-                candidate_facts.append((member, end_str, duration_days, revenue))
+                candidate_facts.append((member, end_str, duration_days, revenue, is_boilerplate_paired))
             if candidate_facts:
                 matched_concept = concept
                 break
@@ -717,22 +733,43 @@ class XBRLSegmentParser:
             # context for the same period - e.g. a plain single-axis context AND a
             # ConsolidationItemsAxis=OperatingSegmentsMember-paired one (confirmed
             # live: JNJ's FY2025 10-K tags Innovative Medicine revenue both ways,
-            # both contexts carrying the identical value). These are redundant
-            # taggings of ONE real fact, not two additive ones - summing them would
-            # silently double the segment's revenue. Keep one value per member; if
-            # duplicate taggings materially disagree (not just the same fact twice),
-            # that's a real anomaly worth surfacing rather than silently summing or
-            # silently discarding.
-            segments = {}
-            for member, _end, _duration, revenue in latest_facts:
-                if member in segments and abs(segments[member] - revenue) > max(1.0, abs(segments[member]) * 0.001):
+            # both contexts carrying the identical value). These are usually
+            # redundant taggings of ONE real fact, not two additive ones - summing
+            # them would silently double the segment's revenue. Keep one value per
+            # member.
+            #
+            # They can also genuinely disagree: confirmed live against Caterpillar's
+            # FY2025 10-K, Power & Energy's OperatingSegmentsMember-paired context
+            # tags $32.201B (gross, including intersegment sales) while its plain
+            # context tags $27.143B (net, externally reported) - the two reconcile
+            # exactly against CAT's own tagged IntersegmentEliminationMember fact
+            # (-$5.058B). The plain, non-boilerplate-paired context is the filer's
+            # actual externally-reported segment revenue; prefer it on disagreement
+            # rather than picking whichever happened to be tagged first in document
+            # order.
+            segments: dict[str, float] = {}
+            segment_is_boilerplate: dict[str, bool] = {}
+            for member, _end, _duration, revenue, is_boilerplate_paired in latest_facts:
+                if member not in segments:
+                    segments[member] = revenue
+                    segment_is_boilerplate[member] = is_boilerplate_paired
+                    continue
+                if abs(segments[member] - revenue) <= max(1.0, abs(segments[member]) * 0.001):
+                    continue  # same fact tagged twice, nothing to reconcile
+                if segment_is_boilerplate[member] and not is_boilerplate_paired:
+                    logger.warning(
+                        f"[{symbol}] Segment '{member}' tagged with disagreeing revenue values "
+                        f"across contexts ({segments[member]} vs {revenue}) for the same period - "
+                        "preferring the plain (non-OperatingSegmentsMember-paired) value."
+                    )
+                    segments[member] = revenue
+                    segment_is_boilerplate[member] = is_boilerplate_paired
+                else:
                     logger.warning(
                         f"[{symbol}] Segment '{member}' tagged with disagreeing revenue values "
                         f"across contexts ({segments[member]} vs {revenue}) for the same period - "
                         "keeping the first value seen."
                     )
-                    continue
-                segments[member] = revenue
 
         # Many filers tag a non-operating "Corporate and Eliminations" (or similarly
         # named) reconciling line under the same segment axis so segment totals foot
