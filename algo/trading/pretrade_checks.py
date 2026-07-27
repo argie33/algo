@@ -127,11 +127,14 @@ class PreTradeChecks:
                     return (False, f"Position already open for {symbol}")
 
                 # Check 1b: Also check algo_trades for open positions (constraint is at algo_trades level)
-                # CRITICAL: Database constraint algo_trades_symbol_open_positions_idx prevents duplicate
-                # OPEN trades per symbol at the algo_trades table level. Must check here to prevent
-                # validation passing when algo_positions and algo_trades are out of sync.
+                # CRITICAL: Database constraint algo_trades_symbol_live_status_idx (migration 1158;
+                # supersedes migration 007's status='open'-only index, which never fired for a live
+                # fill - see phase8_entry_execution.py's duplicate-gate comment) prevents duplicate
+                # non-terminal trades per symbol at the algo_trades table level. Must check here to
+                # prevent validation passing when algo_positions and algo_trades are out of sync.
                 cur.execute(
-                    "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status IN ('open', 'pending') LIMIT 1",
+                    "SELECT trade_id FROM algo_trades WHERE symbol = %s "
+                    "AND status IN ('open', 'filled', 'partially_filled', 'paper_pending', 'pending') LIMIT 1",
                     (symbol,),
                 )
                 if cur.fetchone():

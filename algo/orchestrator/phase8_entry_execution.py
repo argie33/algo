@@ -1474,14 +1474,21 @@ def run(
             # CRITICAL DEFENSIVE CHECK: Verify no open/pending positions exist for this symbol
             # KNOWN ISSUE: Duplicate-check and trade-execute are NOT atomic (separate transactions/locks).
             # This creates a race condition: two threads could both pass the check, then both create positions.
-            # MITIGATION: Database UNIQUE constraint on (symbol, date, status='open') prevents actual duplicates.
-            # If duplicate occurs, TradeExecutor will catch constraint violation and log error. This is rare
-            # because entry decisions typically only trigger during market hours with low concurrency.
+            # MITIGATION: algo_trades_symbol_live_status_idx, a partial UNIQUE index on
+            # algo_trades(symbol) WHERE status IN ('open','filled','partially_filled','paper_pending','pending')
+            # (migration 1158), prevents actual duplicates for every status a real order can be inserted
+            # with. Migration 007's original index only covered status='open', which a live
+            # (execution_mode=auto) fill never writes - it writes the broker-verified status literally
+            # ('filled'/'partially_filled') - so that index never actually fired for a live trade; fixed
+            # in migration 1158. If duplicate occurs, TradeExecutor will catch constraint violation and
+            # log error. This is rare because entry decisions typically only trigger during market hours
+            # with low concurrency.
             # TODO: Make atomic by wrapping duplicate-check-and-insert in advisory lock (requires refactor)
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status IN ('open', 'pending') LIMIT 1",
+                        "SELECT trade_id FROM algo_trades WHERE symbol = %s "
+                        "AND status IN ('open', 'filled', 'partially_filled', 'paper_pending', 'pending') LIMIT 1",
                         (symbol,),
                     )
                     if cur.fetchone():
