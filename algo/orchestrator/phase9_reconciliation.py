@@ -20,6 +20,7 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
+from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -1075,12 +1076,22 @@ def run(
         # This ensures the quantity field is populated for all open trades after reconciliation
         # Without this, dashboard and risk calculations cannot determine current position sizes
         try:
+            # CRITICAL FIX: `status = 'open'` never matches a live (execution_mode=auto) filled
+            # order, which writes status='filled'/'partially_filled' literally (see
+            # executor_entry_handler.py and the identical fix in exit_engine.py/position_monitor.py/
+            # exposure_policy.py). Use TradeStatus.all_open() so this sync actually covers live
+            # positions, not just paper-mode ones.
+            open_statuses = TradeStatus.all_open()
+            status_placeholders = ", ".join(["%s"] * len(open_statuses))
             with DatabaseContext("write") as cur:
-                cur.execute("""
+                cur.execute(
+                    f"""
                     UPDATE algo_trades
                     SET quantity = entry_quantity, updated_at = CURRENT_TIMESTAMP
-                    WHERE status = 'open' AND (quantity IS NULL OR quantity != entry_quantity)
-                """)
+                    WHERE status IN ({status_placeholders}) AND (quantity IS NULL OR quantity != entry_quantity)
+                    """,
+                    tuple(open_statuses),
+                )
                 synced_count = cur.rowcount
                 if synced_count > 0:
                     logger.info(
