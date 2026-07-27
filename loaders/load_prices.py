@@ -28,7 +28,6 @@ import psycopg2.sql
 
 from loaders.price_fetcher import PriceFetcher
 from loaders.price_transformer import PriceTransformer
-from loaders.price_validator import PriceValidator
 from monitoring.metrics_context import TimeBlock
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
@@ -145,7 +144,6 @@ class PriceLoader(OptimalLoader):
         )
         self.fetcher.set_circuit_breaker(self._circuit_breaker)
 
-        self.validator = PriceValidator(table_name=self.table_name, asset_class=asset_class)
         self.transformer = PriceTransformer(asset_class=asset_class)
 
         # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
