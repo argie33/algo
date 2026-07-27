@@ -127,15 +127,23 @@ class MetricsPublisher:
             if "status" not in result:
                 raise ValueError(f"phase_results[{phase_num}] missing 'status' key. Got: {list(result.keys())}")
 
-            # Same canonical vocabulary PhaseResult.ok uses (algo/orchestrator/phase_result.py):
-            # "ok"/"degraded" are successful outcomes, "halted"/"error"/"skipped" are not.
             # self.phase_results (what orchestrator.py actually passes in here) stores
-            # phase_result.status - the canonical "ok"/"halted"/"degraded"/"skipped"/"error"
-            # vocabulary - not the raw "success"/"halt" strings individual phase modules pass
-            # to log_phase_result_fn (those get normalized before reaching this dict). Checking
-            # for "success"/"halt" here never matched anything, so PhaseSuccess/PhaseFailure
-            # metrics reported every phase as failed on every run regardless of actual outcome.
-            phase_ok = result.get("status") in ("ok", "degraded")
+            # phase_result.status - the canonical "ok"/"halted"/"degraded"/"skipped"/"error"/
+            # "blocked" vocabulary - not the raw "success"/"halt" strings individual phase
+            # modules pass to log_phase_result_fn (those get normalized before reaching this
+            # dict). Checking for "success"/"halt" here never matched anything, so
+            # PhaseSuccess/PhaseFailure metrics reported every phase as failed on every run
+            # regardless of actual outcome.
+            #
+            # MUST match PhaseResult.ok (algo/orchestrator/phase_result.py) exactly: "ok",
+            # "degraded", "skipped", and "blocked" are all successful outcomes there ("skipped"
+            # = intentionally didn't run after an upstream halt; "blocked" = a safety guard
+            # correctly prevented execution, e.g. Phase 8's market-hours guard). This used to
+            # omit "skipped"/"blocked", so CloudWatch reported PhaseFailure=1/OrchestratorFailure=1
+            # for a perfectly healthy run every time Phase 8 was blocked outside market hours or
+            # a downstream phase was skipped after an upstream halt - a false page waiting to
+            # happen once this ships to production alerting.
+            phase_ok = result.get("status") in ("ok", "degraded", "skipped", "blocked")
             self._emit(
                 "PhaseSuccess",
                 1 if phase_ok else 0,
