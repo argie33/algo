@@ -98,6 +98,27 @@ def _context(ctx_id: str, axis_local: str, member_local: str, start: str, end: s
     """
 
 
+def _multi_dim_context(ctx_id: str, dims: list[tuple[str, str]], start: str, end: str) -> str:
+    members = "\n".join(
+        f'<xbrldi:explicitMember dimension="us-gaap:{axis}">aapl:{member}</xbrldi:explicitMember>'
+        for axis, member in dims
+    )
+    return f"""
+    <context id="{ctx_id}">
+        <entity>
+            <identifier scheme="http://www.sec.gov/CIK">0000789019</identifier>
+            <segment>
+                {members}
+            </segment>
+        </entity>
+        <period>
+            <startDate>{start}</startDate>
+            <endDate>{end}</endDate>
+        </period>
+    </context>
+    """
+
+
 def _instant_context(ctx_id: str, axis_local: str, member_local: str, instant: str) -> str:
     return f"""
     <context id="{ctx_id}">
@@ -278,6 +299,105 @@ class TestExtractSegmentRevenueFromXbrlXml:
         segment = result["segments"][0]
         assert segment["operating_income"] is None
         assert segment["assets"] is None
+
+    def test_cross_tabbed_subsegment_context_not_summed_into_segment_total(self) -> None:
+        """Real bug found live against JNJ's FY2025 10-K: Innovative Medicine revenue
+        is tagged once for the segment total, then AGAIN broken out by geography
+        (US/Non-US) and AGAIN by therapeutic sub-segment (Oncology, Immunology, ...),
+        every one of those extra contexts still carrying
+        StatementBusinessSegmentsAxis=InnovativeMedicineMember. Pre-fix, all of those
+        finer-grained contexts collapsed onto the same member key as the plain segment
+        total and got summed together, inflating revenue several times over (real
+        finding: parser reported $421B for a segment whose real revenue was $60B)."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "MedsSegmentMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c2",
+                [("StatementGeographicalAxis", "UnitedStatesMember"), ("StatementBusinessSegmentsAxis", "MedsSegmentMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [("StatementBusinessSegmentsAxis", "MedsSegmentMember"), ("SubsegmentsAxis", "OncologyMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">60000000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">35000000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c3">20000000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        # Only the plain single-dimension context (c1) should count - the
+        # geography- and sub-segment-cross-tabbed breakdowns (c2, c3) must be
+        # excluded, not summed in.
+        assert revenues == {"MedsSegmentMember": 60_000_000_000.0}
+
+    def test_consolidation_items_operating_segments_marker_still_counted(self) -> None:
+        """Real filer shape (verified live against Coca-Cola's FY2025 10-K): segment
+        revenue is ONLY ever tagged as (ConsolidationItemsAxis=OperatingSegmentsMember,
+        StatementBusinessSegmentsAxis=<segment>), never as a plain single-dimension
+        context - unlike JNJ's stray cross-tab breakdowns above, this companion
+        dimension is a standard us-gaap marker for "this is a real reportable-segment
+        figure" (as opposed to ConsolidationItemsAxis=MaterialReconcilingItemsMember,
+        the corporate/eliminations line), not a further breakdown of the segment."""
+        contexts = _multi_dim_context(
+            "c1",
+            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "NorthAmericaSegmentMember")],
+            "2025-01-01",
+            "2025-12-31",
+        ) + _multi_dim_context(
+            "c2",
+            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "EuropeSegmentMember")],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">19586000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">11513000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"NorthAmericaSegmentMember": 19_586_000_000.0, "EuropeSegmentMember": 11_513_000_000.0}
+
+    def test_duplicate_context_same_segment_not_double_counted(self) -> None:
+        """Real bug found live against JNJ's FY2025 10-K: the same segment's revenue
+        is tagged via TWO different qualifying contexts for the same period - a plain
+        single-axis context AND a ConsolidationItemsAxis=OperatingSegmentsMember-paired
+        one - both carrying the identical value. Pre-fix, both contexts' facts were
+        summed, exactly doubling every segment's revenue (real finding: $60.4B became
+        $120.8B after fixing the cross-tab bug above, because this duplicate-tagging
+        case was still being summed)."""
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "MedsSegmentMember", "2025-01-01", "2025-12-31"
+        ) + _multi_dim_context(
+            "c2",
+            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "MedsSegmentMember")],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">60000000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">60000000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"MedsSegmentMember": 60_000_000_000.0}
 
     def test_operating_income_from_wrong_duration_period_not_matched(self) -> None:
         """A quarterly OperatingIncomeLoss fact sharing the annual revenue fact's

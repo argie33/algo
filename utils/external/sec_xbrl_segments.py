@@ -57,6 +57,20 @@ _BUSINESS_SEGMENT_AXIS = "StatementBusinessSegmentsAxis"
 _GEOGRAPHIC_SEGMENT_AXIS = "StatementGeographicalAxis"
 _SEGMENT_AXIS_LOCAL_NAMES = (_BUSINESS_SEGMENT_AXIS, _GEOGRAPHIC_SEGMENT_AXIS)
 
+# Standard (non-filer-specific) us-gaap companion axis some filers pair with a
+# segment axis purely to mark "this is a real reportable-operating-segment
+# figure" as opposed to the corporate/elimination reconciling line
+# (ConsolidationItemsAxis=MaterialReconcilingItemsMember) - confirmed live
+# against Coca-Cola's FY2025 10-K, where segment revenue is ONLY ever tagged as
+# (ConsolidationItemsAxis=OperatingSegmentsMember, StatementBusinessSegmentsAxis=
+# <segment>), never as a plain single-dimension segment context. This is not a
+# further breakdown of the segment total (unlike a geography or product-line
+# axis paired with the segment axis - see _index_segment_contexts), so a
+# context carrying exactly this companion dimension alongside the segment axis
+# still counts as "single dimension" for that purpose.
+_CONSOLIDATION_ITEMS_AXIS = "ConsolidationItemsAxis"
+_OPERATING_SEGMENTS_MEMBER = "OperatingSegmentsMember"
+
 # Revenue concepts to try, in preference order. Segment revenue is tagged using
 # the SAME concept as consolidated revenue - just against a dimensioned context -
 # so this list is really "which revenue concept does this filer use at all",
@@ -238,10 +252,26 @@ class XBRLSegmentParser:
     def _index_segment_contexts(root: ET.Element) -> dict[str, tuple[str, str, str, str | None]]:
         """Map context id -> (axis_local_name, segment_member, period_end, period_start).
 
-        Only contexts carrying an explicitMember on a recognized segment axis are
-        included; non-segment-dimensioned contexts (the consolidated totals) and
-        contexts dimensioned on unrelated axes (product line, tax jurisdiction,
-        equity component, etc. - a real 10-K instance has dozens) are excluded.
+        Only contexts representing the segment's own total are included - a
+        recognized segment axis alone, or paired only with the standard
+        ConsolidationItemsAxis=OperatingSegmentsMember marker (see
+        _CONSOLIDATION_ITEMS_AXIS above). Non-segment-dimensioned contexts (the
+        consolidated totals) and contexts dimensioned on any OTHER additional axis
+        (product line, sub-segment, tax jurisdiction, equity component, etc. - a
+        real 10-K instance has dozens) are excluded.
+
+        Many filers cross-tab segment revenue against a further axis in the same
+        instance document - e.g. business segment x geography, or business segment
+        x product sub-line (confirmed live against JNJ's FY2025 10-K: Innovative
+        Medicine revenue is tagged once for the segment total, then again broken
+        out by US/Non-US, then again by therapeutic-area sub-segment, all sharing
+        the same StatementBusinessSegmentsAxis=InnovativeMedicineMember dimension).
+        A context dimensioned on one of those extra axes is one of those finer
+        breakdowns, not the segment-level total - counting it under the same
+        member key as the plain segment total silently multiplies revenue several
+        times over. Restricting to single-dimension-or-OperatingSegmentsMember-
+        paired contexts keeps only the true segment-level (or geography-level)
+        totals.
         """
         context_segment: dict[str, tuple[str, str, str, str | None]] = {}
         for ctx in root.iter():
@@ -251,21 +281,33 @@ class XBRLSegmentParser:
             if not ctx_id:
                 continue
 
-            axis = member = None
+            explicit_members: list[tuple[str, str]] = []
             start_str = end_str = None
             for child in ctx.iter():
                 loc = _local_name(child.tag)
                 if loc == "explicitMember":
                     dim_local = _qname_local(child.get("dimension"))
-                    if dim_local in _SEGMENT_AXIS_LOCAL_NAMES:
-                        axis = dim_local
-                        member = _qname_local(child.text)
+                    explicit_members.append((dim_local, _qname_local(child.text)))
                 elif loc == "startDate":
                     start_str = (child.text or "").strip() or None
                 elif loc == "endDate":
                     end_str = (child.text or "").strip() or None
                 elif loc == "instant":
                     end_str = (child.text or "").strip() or None
+
+            # Drop the boilerplate "this is a real operating segment, not the
+            # eliminations line" marker before judging dimension count - it
+            # doesn't narrow the fact to a sub-breakdown of the segment.
+            non_boilerplate = [
+                m
+                for m in explicit_members
+                if not (m[0] == _CONSOLIDATION_ITEMS_AXIS and m[1] == _OPERATING_SEGMENTS_MEMBER)
+            ]
+            if len(non_boilerplate) != 1:
+                continue
+            axis, member = non_boilerplate[0]
+            if axis not in _SEGMENT_AXIS_LOCAL_NAMES:
+                continue
 
             if axis and member and end_str:
                 context_segment[ctx_id] = (axis, member, end_str, start_str)
@@ -427,9 +469,26 @@ class XBRLSegmentParser:
         max_duration = max(f[2] for f in same_end)
         latest_facts = [f for f in same_end if f[2] == max_duration]
 
+        # A filer can tag the same segment's revenue via more than one qualifying
+        # context for the same period - e.g. a plain single-axis context AND a
+        # ConsolidationItemsAxis=OperatingSegmentsMember-paired one (confirmed
+        # live: JNJ's FY2025 10-K tags Innovative Medicine revenue both ways,
+        # both contexts carrying the identical value). These are redundant
+        # taggings of ONE real fact, not two additive ones - summing them would
+        # silently double the segment's revenue. Keep one value per member; if
+        # duplicate taggings materially disagree (not just the same fact twice),
+        # that's a real anomaly worth surfacing rather than silently summing or
+        # silently discarding.
         segments: dict[str, float] = {}
         for member, _end, _duration, revenue in latest_facts:
-            segments[member] = segments.get(member, 0.0) + revenue
+            if member in segments and abs(segments[member] - revenue) > max(1.0, abs(segments[member]) * 0.001):
+                logger.warning(
+                    f"[{symbol}] Segment '{member}' tagged with disagreeing revenue values "
+                    f"across contexts ({segments[member]} vs {revenue}) for the same period - "
+                    "keeping the first value seen."
+                )
+                continue
+            segments[member] = revenue
 
         # Many filers tag a non-operating "Corporate and Eliminations" (or similarly
         # named) reconciling line under the same segment axis so segment totals foot
