@@ -1139,10 +1139,52 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             code, error_type, message = handle_db_error(e, "fetch circuit breaker metrics")
             return error_response(code, error_type, message)
 
+        # CRITICAL: All thresholds below must come from algo_config (the same source
+        # algo/risk/circuit_breaker.py's _get_required_config reads at halt time), not
+        # hardcoded literals. This panel hardcoded threshold_dd=20.0 while the real
+        # configured halt_drawdown_pct was -10 (halt at 10% down) - a live 12-19% drawdown
+        # would already have halted real trading while this panel kept showing "not
+        # triggered". The drawdown threshold was fixed to read live, but CB2/CB3/CB4/CB5/CB7
+        # below still hardcoded their thresholds (threshold_dl=2.0, threshold_cl=3,
+        # threshold_vix=35.0, threshold_wl=5.0, threshold_risk=4.0) independent of
+        # algo_config - the exact same bug class, just not yet observable because the
+        # seeded defaults happen to currently match. Any operator tuning max_daily_loss_pct
+        # etc. via algo_config (their whole purpose) would silently desync this panel from
+        # the real halt gate. Same bug class as market.py's _get_data_status
+        # (commit 2a5a41c78) and loaders/compute_circuit_breakers.py (commit bca23264d).
+        try:
+            cur.execute(
+                """
+                SELECT key, value FROM algo_config
+                WHERE key IN ('halt_drawdown_pct', 'max_daily_loss_pct', 'max_consecutive_losses',
+                              'vix_max_threshold', 'max_weekly_loss_pct', 'max_total_risk_pct')
+                """
+            )
+            cb_cfg = {row[0]: row[1] for row in cur.fetchall()}
+            required_cb_cfg_keys = (
+                "halt_drawdown_pct",
+                "max_daily_loss_pct",
+                "max_consecutive_losses",
+                "vix_max_threshold",
+                "max_weekly_loss_pct",
+                "max_total_risk_pct",
+            )
+            missing_cb_cfg_keys = [k for k in required_cb_cfg_keys if k not in cb_cfg or cb_cfg[k] is None]
+            if missing_cb_cfg_keys:
+                raise ValueError(f"algo_config missing required circuit breaker keys: {missing_cb_cfg_keys}")
+            threshold_dd = abs(float(cb_cfg["halt_drawdown_pct"]))
+            threshold_dl = float(cb_cfg["max_daily_loss_pct"])
+            threshold_cl = int(cb_cfg["max_consecutive_losses"])
+            threshold_vix = float(cb_cfg["vix_max_threshold"])
+            threshold_wl = float(cb_cfg["max_weekly_loss_pct"])
+            threshold_risk = float(cb_cfg["max_total_risk_pct"])
+        except (psycopg2.errors.UndefinedTable, psycopg2.OperationalError, psycopg2.DatabaseError, ValueError) as e:
+            code, error_type, message = handle_db_error(e, "fetch circuit breaker thresholds")
+            return error_response(code, error_type, message)
+
         # CB1: Portfolio drawdown (from pre-computed metrics)
         try:
             dd = cbm_data["drawdown"]
-            threshold_dd = 20.0
             breakers.append(
                 {
                     "id": "drawdown",
@@ -1176,7 +1218,6 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         # CB2: Daily loss (from pre-computed metrics)
         try:
             daily_loss = cbm_data["daily_loss"]
-            threshold_dl = 2.0
             breakers.append(
                 {
                     "id": "daily_loss",
@@ -1210,7 +1251,6 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         # CB3: Consecutive losses (from pre-computed metrics)
         try:
             streak = cbm_data["consecutive_losses"]
-            threshold_cl = 3
             breakers.append(
                 {
                     "id": "consecutive_losses",
@@ -1268,7 +1308,6 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                         "_error": "VIX data unavailable. Trading disabled.",
                     },
                 )
-            threshold_vix = 35.0
             breakers.append(
                 {
                     "id": "vix_spike",
@@ -1302,7 +1341,6 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         # CB5: Weekly portfolio loss (from pre-computed metrics)
         try:
             weekly_loss = cbm_data["weekly_loss"]
-            threshold_wl = 5.0
             breakers.append(
                 {
                     "id": "weekly_loss",
@@ -1369,7 +1407,6 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         # CB7: Total open risk (from pre-computed metrics)
         try:
             risk_pct = cbm_data["total_risk"]
-            threshold_risk = 4.0
             breakers.append(
                 {
                     "id": "total_risk",
