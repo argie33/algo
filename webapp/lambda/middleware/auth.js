@@ -290,8 +290,13 @@ const authenticateTokenAsync = async (req, res, next) => {
 
     // SECURITY FIX #7: Check if token has been revoked
     const user = result.user;
-    const tokenJti = user.jti || user.token_use; // JWT jti claim (unique token ID)
-    const tokenExp = user.exp; // JWT exp claim (expiration timestamp)
+    // apiKeyService.validateJwtToken() remaps the JWT's real jti/exp claims to
+    // sessionId/tokenExpirationTime on the returned user object (see its own
+    // source) - there is no user.jti/user.exp in production. user.jti/user.exp
+    // are kept as a fallback only for a user object built directly from a raw
+    // decoded JWT payload (dev/test paths can take that shape).
+    const tokenJti = user.sessionId || user.jti;
+    const tokenExp = user.tokenExpirationTime || user.exp;
 
     try {
       const { isTokenRevoked } = require("../utils/tokenBlocklist");

@@ -28,16 +28,19 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
-    // Extract token identifier (jti claim or use token_use as fallback)
-    const tokenJti = user.jti || user.token_use;
-    const tokenExp = user.exp;
+    // Extract token identifier. apiKeyService.validateJwtToken() remaps the
+    // JWT's real jti/exp claims to sessionId/tokenExpirationTime on req.user
+    // (see middleware/auth.js's authenticateTokenAsync) - there is no
+    // user.jti/user.exp in production. user.jti/user.exp are kept as a
+    // fallback only for a user object built directly from a raw decoded JWT.
+    const tokenJti = user.sessionId || user.jti;
+    const tokenExp = user.tokenExpirationTime || user.exp;
 
     if (!tokenJti) {
       logger.warn(
-        "[LOGOUT] Token lacks jti claim - cannot revoke via blocklist",
+        "[LOGOUT] Token lacks a session identifier - cannot revoke via blocklist",
         {
           userId: user.sub,
-          token_type: user.token_use,
         }
       );
       // Still return success to client - they've called logout
