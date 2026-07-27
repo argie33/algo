@@ -124,18 +124,32 @@ class RDSLockManager:
         )
         return False
 
-    def release(self, lock_key: str = "orchestrator-run-lock") -> bool:
+    def release(self, lock_key: str | None = None) -> bool:
         """Release the distributed lock.
 
         Only release if we still own it (lock_id matches).
 
         Args:
-            lock_key: The lock identifier
+            lock_key: The lock identifier. CRITICAL FIX: this used to default to the
+                hardcoded string "orchestrator-run-lock" instead of self.lock_key (the key
+                actually recorded by acquire()). Any caller that acquires a non-default lock
+                (every loader lock - see utils/optimal_loader.py's
+                `lock_manager.acquire(lock_key=self.table_name, ...)`) and then calls
+                `.release()` with no argument would silently attempt to delete the WRONG row
+                ("orchestrator-run-lock" instead of the loader's own lock), leaving the real
+                lock held until its 600s TTL naturally expires - reproduced live 2026-07-27
+                via a standalone acquire/release script. No current call site actually hits
+                this (all pass lock_key explicitly to both acquire and release), but it's a
+                live footgun in a safety-critical shared utility. Default to the key this
+                instance actually acquired instead of an unrelated hardcoded string.
 
         Returns: True if released, False on error
         """
         if not self.acquired:
             return True
+
+        if lock_key is None:
+            lock_key = self.lock_key
 
         try:
             with DatabaseContext("write") as cur:
@@ -146,7 +160,20 @@ class RDSLockManager:
                     """,
                     (lock_key, self.lock_id),
                 )
+                deleted = cur.rowcount
                 self.acquired = False
+                if deleted == 0:
+                    # CRITICAL: a 0-row delete means this instance did NOT actually free the
+                    # lock it thinks it holds (wrong lock_key, already expired and reclaimed
+                    # by someone else, etc.) - the real row (if any) stays held until its TTL
+                    # expires. Surface this loudly instead of logging a false "Released".
+                    logger.error(
+                        f"[RDS_LOCK] Release for {lock_key} affected 0 rows - lock was NOT "
+                        f"actually released (wrong lock_key, already expired, or already "
+                        f"released). It will remain held by locked_by={self.lock_id} until "
+                        f"its TTL expires."
+                    )
+                    return False
                 logger.info(f"[RDS_LOCK] Released lock {lock_key}")
                 return True
 
