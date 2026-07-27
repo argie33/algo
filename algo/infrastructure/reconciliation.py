@@ -1497,13 +1497,42 @@ class DailyReconciliation:
                             f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has invalid prices/qty (entry={entry_price}, stop={stop_loss_price}, qty={entry_qty}) - must be > 0"
                         )
 
+                    # CRITICAL: use THIS order's actual filled quantity, not entry_qty (the
+                    # original full position size). For a trade closed via multiple partial
+                    # exits (T1/T2 profit-taking before a final stop/target exit), this order
+                    # only sold the shares remaining at final-exit time - using entry_qty here
+                    # would attribute the entire original position's P&L to just this leg's
+                    # price, silently discarding what the earlier legs actually realized. This
+                    # is the same financial-integrity bug class already found and fixed for the
+                    # synchronous exit path (see executor_exit_handler.py's
+                    # _compute_cumulative_pnl docstring, "2026-07-21 financial-integrity audit")
+                    # - this reconciliation fallback path (for fills whose price wasn't known
+                    # synchronously) never got the same fix.
+                    filled_qty_str = order.get("filled_qty")
+                    if not filled_qty_str:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        raise ValueError(
+                            f"[RECONCILIATION CRITICAL] Filled sell order missing filled_qty for {symbol}: {order}"
+                        )
+                    try:
+                        filled_qty = float(filled_qty_str)
+                    except (TypeError, ValueError) as e:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        raise ValueError(
+                            f"[RECONCILIATION CRITICAL] filled_qty not numeric '{filled_qty_str}' for {symbol}"
+                        ) from e
+                    if filled_qty <= 0:
+                        cur.execute("RELEASE SAVEPOINT reconcile_fill")
+                        raise ValueError(
+                            f"[RECONCILIATION CRITICAL] filled_qty invalid {filled_qty} for {symbol} - must be > 0"
+                        )
+
                     filled_dec = Decimal(str(filled_price))
                     entry_dec = Decimal(str(entry_price))
-                    qty_dec = Decimal(str(entry_qty))
-                    pnl_pct = float(
-                        ((filled_dec - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    entry_qty_dec = Decimal(str(entry_qty))
+                    leg_pnl_dollars_dec = ((filled_dec - entry_dec) * Decimal(str(filled_qty))).quantize(
+                        Decimal("0.01"), ROUND_HALF_UP
                     )
-                    pnl_dollars = float(((filled_dec - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
                     risk = entry_price - stop_loss_price
                     if risk <= 0:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
@@ -1512,9 +1541,55 @@ class DailyReconciliation:
                             f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
                             f"Cannot compute R-multiple with invalid stop price."
                         )
-                    exit_r_multiple = float(
-                        ((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+                    # Fold in any earlier partial-exit legs' realized P&L (mirrors
+                    # executor_exit_handler.py's _compute_cumulative_pnl exactly).
+                    cur.execute(
+                        """
+                        SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
+                        FROM algo_audit_log
+                        WHERE action_type LIKE 'exit_%%'
+                          AND (details->>'trade_id')::bigint = %s
+                          AND (details->>'full_exit')::boolean = false
+                        """,
+                        (trade_id,),
                     )
+                    prior_partial_pnl_row = cur.fetchone()
+                    prior_partial_pnl_dec = (
+                        Decimal(str(prior_partial_pnl_row[0])) if prior_partial_pnl_row else Decimal(0)
+                    )
+
+                    if prior_partial_pnl_dec == 0:
+                        # No prior partial legs - simple single-leg case, same formula as before.
+                        pnl_dollars = float(leg_pnl_dollars_dec)
+                        pnl_pct = float(
+                            ((filled_dec - entry_dec) / entry_dec * Decimal(100)).quantize(
+                                Decimal("0.01"), ROUND_HALF_UP
+                            )
+                        )
+                        exit_r_multiple = float(
+                            ((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                        )
+                    else:
+                        cumulative_pnl_dec = (prior_partial_pnl_dec + leg_pnl_dollars_dec).quantize(
+                            Decimal("0.01"), ROUND_HALF_UP
+                        )
+                        original_cost_basis = entry_dec * entry_qty_dec
+                        original_risk_dollars = Decimal(str(risk)) * entry_qty_dec
+                        pnl_dollars = float(cumulative_pnl_dec)
+                        pnl_pct = float(
+                            (cumulative_pnl_dec / original_cost_basis * Decimal(100)).quantize(
+                                Decimal("0.01"), ROUND_HALF_UP
+                            )
+                        )
+                        exit_r_multiple = float(
+                            (cumulative_pnl_dec / original_risk_dollars).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                        )
+                        logger.info(
+                            f"[RECONCILIATION MULTI_LEG] {symbol} trade {trade_id}: cumulative P&L across all "
+                            f"legs ${pnl_dollars:.2f} (prior partial legs: ${float(prior_partial_pnl_dec):.2f}, "
+                            f"final leg: ${float(leg_pnl_dollars_dec):.2f})"
+                        )
 
                     # Check if this trade had an estimated exit price (Phase 4 pre-market exit)
                     cur.execute(
