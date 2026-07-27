@@ -55,6 +55,38 @@ class TestUnavailableMarkerIsAPlainFunction:
         )
 
 
+class TestNoDeadGeographicFallback:
+    """2026-07-27: fetch_incremental() had a second query block, gated on `if not
+    segment_row`, that counted DISTINCT segment_name WHERE segment_type = 'geographic'
+    and built a fabricated-looking marker (has_data=True, largest_segment_pct=None,
+    hhi=None) as a "fallback" when no primary segment row was found. This was provably
+    dead: load_sec_segment_info.py's own _unavailable_marker() always writes
+    segment_type=None on data_unavailable=TRUE rows (confirmed by reading its source),
+    so a symbol with zero data_unavailable=FALSE rows (the only way `not segment_row`
+    fires) can never have a row with segment_type='geographic' to match on - the two
+    branches' preconditions are mutually exclusive by construction. Confirmed live
+    against the DB: zero sec_segment_metrics rows exist with the fallback's distinctive
+    signature (largest_segment_revenue_pct AND revenue_concentration_hhi both NULL
+    while data_unavailable=FALSE) - it had never once fired. Removed outright; the
+    primary query already correctly picks up real geographic-segment filers (their rows
+    have data_unavailable=FALSE regardless of segment_type, so they satisfy the primary
+    unfiltered query directly)."""
+
+    def test_fetch_incremental_has_no_geographic_fallback_query(self):
+        import inspect
+
+        from loaders.load_sec_segment_metrics import SecSegmentMetricsLoader
+
+        source = inspect.getsource(SecSegmentMetricsLoader.fetch_incremental)
+        assert "geographic" not in source, (
+            "the geographic-segment fallback query was dead code (provably "
+            "unreachable given how load_sec_segment_info.py builds unavailable "
+            "markers) and was removed - it should not be reintroduced without first "
+            "establishing a real code path that leaves segment_type='geographic' set "
+            "on a data_unavailable=TRUE row"
+        )
+
+
 class TestSafeFloatCallsIncludeFieldName:
     def test_safe_float_requires_field_name_positional_arg(self):
         """Confirms the underlying constraint this loader's bug violated: safe_float

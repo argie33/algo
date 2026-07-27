@@ -96,22 +96,6 @@ class SecSegmentMetricsLoader(OptimalLoader):
                 )
                 segment_row = cur.fetchone()
 
-                # If no segment disclosure data, try to infer from geography/subsidiary data
-                if not segment_row:
-                    # Fallback: check if company reports geographic segments
-                    cur.execute(
-                        """
-                        SELECT
-                            COUNT(DISTINCT segment_name) as segment_count
-                        FROM sec_segment_info
-                        WHERE symbol = %s AND segment_type = 'geographic'
-                        """,
-                        (symbol,),
-                    )
-                    geo_row = cur.fetchone()
-                    if geo_row and geo_row[0]:
-                        segment_row = (geo_row[0], None, None, True, False, None)
-
             # Check data availability
             if not segment_row:
                 # No segment information available - mark unavailable
