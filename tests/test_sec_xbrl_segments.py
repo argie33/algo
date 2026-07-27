@@ -480,6 +480,126 @@ class TestExtractSegmentRevenueFromXbrlXml:
 
         assert result["segments"][0]["revenue"] == 100_000_000.0
 
+    def test_custom_extension_concept_matched_by_local_name_regardless_of_namespace(self) -> None:
+        """Real filer shape (verified live against Bank of America's FY2025 10-K
+        instance): BAC tags segment revenue under a company-specific extension
+        concept (bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis, not the
+        standard us-gaap:RevenuesNetOfInterestExpense JPMorgan uses) - pre-fix, this
+        wasn't in _REVENUE_CONCEPT_LOCAL_NAMES, so BAC always reported
+        data_unavailable despite real, correctly-dimensioned segment facts. Matching
+        is by local name only (namespace-agnostic), so a custom bac: extension works
+        the same as a standard us-gaap: concept. Values match BAC's real reported
+        FY2025 segment revenue exactly: Consumer Banking $43.673B, GWIM $24.883B,
+        Global Banking $24.108B, Global Markets $24.096B, Corporate/Eliminations
+        -$3.054B (excluded by the existing negative-value filter) - summing to
+        BAC's real $113.706B consolidated revenue."""
+        contexts = (
+            _multi_dim_context(
+                "c1",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "ConsumerBankingSegmentMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "GlobalWealthAndInvestmentManagementSegmentMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [("ConsolidationItemsAxis", "CorporateReconcilingItemsAndEliminationsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis contextRef="c1">43673000000</bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis>
+        <bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis contextRef="c2">24883000000</bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis>
+        <bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis contextRef="c3">-3054000000</bac:RevenuesNetOfInterestExpenseFullTaxEquivalentBasis>
+        """
+        xml_content = self._xml(contexts, facts).replace(
+            '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+            '<xbrl xmlns:bac="http://www.bankofamerica.com/20251231" xmlns="http://www.xbrl.org/2003/instance"',
+        )
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "ConsumerBankingSegmentMember": 43_673_000_000.0,
+            "GlobalWealthAndInvestmentManagementSegmentMember": 24_883_000_000.0,
+        }
+
+    def test_legal_entity_axis_stripped_when_matching_segment_member(self) -> None:
+        """Real filer shape (verified live against NextEra Energy's FY2025 10-K
+        instance): combined parent+subsidiary co-registrant filings tag the
+        subsidiary's facts with dei:LegalEntityAxis IN ADDITION TO the segment axis
+        - NEE's Florida Power & Light segment context carries both
+        StatementBusinessSegmentsAxis=FloridaPowerLightCompanyMember AND
+        LegalEntityAxis=FloridaPowerLightCompanyMember (identical member on both).
+        Pre-fix, this looked like a 2-dimension (cross-tabbed) context and was
+        excluded entirely, same failure shape as JNJ's real sub-breakdown case -
+        except here the second dimension is entity identity, not a further
+        breakdown, so it must be stripped rather than treated as disqualifying.
+        Values match NEE's real reported FY2025 segment revenue: FPL $18.262B,
+        NEER $8.760B."""
+        contexts = _multi_dim_context(
+            "c1",
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "FloridaPowerLightCompanyMember"),
+                ("LegalEntityAxis", "FloridaPowerLightCompanyMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
+        ) + _multi_dim_context(
+            "c2",
+            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "NEERSegmentMember")],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c1">18262000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
+        <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c2">8760000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "FloridaPowerLightCompanyMember": 18_262_000_000.0,
+            "NEERSegmentMember": 8_760_000_000.0,
+        }
+
+    def test_legal_entity_axis_not_stripped_when_member_differs_from_segment(self) -> None:
+        """Guard against over-stripping: a LegalEntityAxis dimension whose member
+        does NOT match the segment axis member in the same context is a genuine
+        further breakdown (e.g. a different co-registrant reporting within the same
+        segment) and must still disqualify the context as a cross-tab, exactly like
+        any other unrecognized second dimension."""
+        contexts = _multi_dim_context(
+            "c1",
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "FloridaPowerLightCompanyMember"),
+                ("LegalEntityAxis", "SomeOtherSubsidiaryMember"),
+            ],
+            "2025-01-01",
+            "2025-12-31",
+        )
+        facts = """
+        <us-gaap:RegulatedAndUnregulatedOperatingRevenue contextRef="c1">18262000000</us-gaap:RegulatedAndUnregulatedOperatingRevenue>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+
 
 def _plain_context(ctx_id: str, start: str, end: str) -> str:
     """A non-dimensioned context - the consolidated (not segment-level) figure."""

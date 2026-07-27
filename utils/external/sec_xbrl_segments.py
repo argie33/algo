@@ -71,6 +71,19 @@ _SEGMENT_AXIS_LOCAL_NAMES = (_BUSINESS_SEGMENT_AXIS, _GEOGRAPHIC_SEGMENT_AXIS)
 _CONSOLIDATION_ITEMS_AXIS = "ConsolidationItemsAxis"
 _OPERATING_SEGMENTS_MEMBER = "OperatingSegmentsMember"
 
+# Combined parent+subsidiary co-registrant filings (e.g. NextEra Energy/Florida
+# Power & Light, both SEC registrants sharing one 10-K) tag facts belonging to
+# the subsidiary registrant with dei:LegalEntityAxis, in addition to whatever
+# segment axis identifies the same business line. Confirmed live against NEE's
+# FY2025 10-K: FPL's segment-revenue context carries BOTH
+# StatementBusinessSegmentsAxis=FloridaPowerLightCompanyMember AND
+# LegalEntityAxis=FloridaPowerLightCompanyMember (identical member on both) -
+# this is entity identity, not a further breakdown of the segment (unlike a
+# geography or product-line axis paired with the segment axis), so it's
+# stripped in _index_segment_contexts when its member matches the segment
+# axis's own member in the same context.
+_LEGAL_ENTITY_AXIS = "LegalEntityAxis"
+
 # Revenue concepts to try, in preference order. Segment revenue is tagged using
 # the SAME concept as consolidated revenue - just against a dimensioned context -
 # so this list is really "which revenue concept does this filer use at all",
@@ -90,6 +103,23 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     "Revenues",
     "SalesRevenueNet",
     "RevenuesNetOfInterestExpense",
+    # RegulatedAndUnregulatedOperatingRevenue: regulated utilities (verified live
+    # against NextEra Energy's FY2025 10-K) tag segment revenue under this
+    # concept rather than Revenues - FPL (regulated) $18.262B, NEER (unregulated)
+    # $8.760B, matching the real reported segment split.
+    "RegulatedAndUnregulatedOperatingRevenue",
+    # RevenuesNetOfInterestExpenseFullTaxEquivalentBasis: a company-specific
+    # extension concept (bac: namespace, not us-gaap:) - Bank of America's own
+    # FY2025 10-K tags segment revenue this way rather than the standard
+    # RevenuesNetOfInterestExpense JPMorgan uses. Matching is by local name only
+    # (see _local_name usage below), so a custom-namespace concept works the
+    # same as a standard one. Verified: Consumer Banking $43.673B, GWIM
+    # $24.883B, Global Banking $24.108B, Global Markets $24.096B, Corporate/
+    # Eliminations -$3.054B (excluded by the existing negative-value filter)
+    # sum to exactly BAC's real $113.706B consolidated revenue. Tried last -
+    # a custom extension name is inherently filer-specific, not a candidate
+    # any other filer would plausibly also use.
+    "RevenuesNetOfInterestExpenseFullTaxEquivalentBasis",
 )
 
 # Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment
@@ -331,6 +361,16 @@ class XBRLSegmentParser:
                 m
                 for m in explicit_members
                 if not (m[0] == _CONSOLIDATION_ITEMS_AXIS and m[1] == _OPERATING_SEGMENTS_MEMBER)
+            ]
+            # Also drop a co-registrant LegalEntityAxis dimension whose member is
+            # IDENTICAL to a segment-axis member already present in this same
+            # context - that's the subsidiary's own registrant identity, not a
+            # further breakdown (see _LEGAL_ENTITY_AXIS docstring). Only strips
+            # when the member matches exactly, so it can't hide a real
+            # further-breakdown-by-entity case.
+            segment_members = {m[1] for m in non_boilerplate if m[0] in _SEGMENT_AXIS_LOCAL_NAMES}
+            non_boilerplate = [
+                m for m in non_boilerplate if not (m[0] == _LEGAL_ENTITY_AXIS and m[1] in segment_members)
             ]
             if len(non_boilerplate) != 1:
                 continue
