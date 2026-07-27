@@ -90,7 +90,16 @@ def test_local_mode_env_var_ignored_for_orchestrator():
     """
     from utils.db.local_file_lock import get_lock_manager
 
-    # Set LOCAL_MODE
+    # Set LOCAL_MODE. FIX (2026-07-27): must restore the ORIGINAL value in finally, not
+    # unconditionally `del` - .env.local sets LOCAL_MODE=true for local dev, so an
+    # unconditional delete here permanently erased it for every test running later in
+    # the same pytest session/process (env vars are process-global). Confirmed live:
+    # running the full suite raised an uncaught RuntimeError from
+    # Orchestrator._check_loader_health's "CRITICAL HALT: All critical loaders are
+    # stale/missing" escalation in a test that only passes in LOCAL_MODE (where that
+    # escalation logs a warning instead of raising) - passed every time in isolation,
+    # only failed when this test ran first in the same process and wiped the env var.
+    original_local_mode = os.environ.get("LOCAL_MODE")
     os.environ["LOCAL_MODE"] = "1"
 
     try:
@@ -104,7 +113,10 @@ def test_local_mode_env_var_ignored_for_orchestrator():
             assert result is mock_lock_manager
             mock_dynamodb.assert_called_once()
     finally:
-        del os.environ["LOCAL_MODE"]
+        if original_local_mode is not None:
+            os.environ["LOCAL_MODE"] = original_local_mode
+        else:
+            os.environ.pop("LOCAL_MODE", None)
 
 
 def test_orchestrator_fails_fast_if_lock_manager_unavailable():

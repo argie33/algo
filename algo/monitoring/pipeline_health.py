@@ -213,8 +213,19 @@ class PipelineHealth:
     # KNOWN_DEPRECATED_TABLES solves for tables with no writer at all, but for tables that
     # ARE being written, just less often than daily.
     SECONDARY_TABLE_SLA_OVERRIDES: dict[str, int] = {
-        # loaders/load_prices.py resamples this from etf_price_daily once a month
-        # (targets = (("etf_price_weekly", "week", 28), ("etf_price_monthly", "month", 92))).
+        # loaders/load_prices.py resamples these from price_daily/etf_price_daily via
+        # derive_aggregate_prices() (targets = (("price_weekly", "week", 28),
+        # ("price_monthly", "month", 92)) and the etf_ equivalents). The stock-side
+        # price_monthly entry was missing here (only its etf_ counterpart was listed) -
+        # confirmed live 2026-07-27: price_monthly's own row (age 26 days, same as
+        # etf_price_monthly's) fell through to the 7-day default and reported VERY_STALE
+        # while etf_price_monthly reported HEALTHY for the identical situation, even
+        # though AAPL's price_monthly row was verified up to date (high/low/close exactly
+        # matching price_daily's July aggregate) - the row's `date` column is a bucket key
+        # (pinned to the 1st of the month) that legitimately stays constant while
+        # open/high/low/close/volume are refreshed daily, so a monthly table needs a
+        # month-scale SLA regardless of asset class.
+        "price_monthly": 35,
         "etf_price_monthly": 35,
     }
 
