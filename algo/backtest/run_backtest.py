@@ -486,11 +486,17 @@ def run_backtest(  # noqa: C901
         "equity_curve": equity_curve,
     }
 
+    # win_rate_pct is None on a zero-trade run and max_dd_pct is None when the equity curve
+    # starts non-positive - formatting either unconditionally with ":.1f" previously raised
+    # TypeError here, crashing run_backtest() itself (before it could even return results)
+    # on the exact zero-trade case a narrow/strict backtest window legitimately produces.
+    win_rate_str = f"{win_rate_pct:.1f}%" if win_rate_pct is not None else "n/a"
+    max_dd_str = f"{max_dd_pct:.1f}%" if max_dd_pct is not None else "n/a"
     logger.info(
         f"[BACKTEST] COMPLETE: {total_trades} trades, "
         f"return={total_return_pct:+.1f}% (annualized={annualized_return_pct:+.1f}%), "
-        f"win_rate={win_rate_pct:.1f}%, sharpe={sharpe}, "
-        f"max_dd={max_dd_pct:.1f}%"
+        f"win_rate={win_rate_str}, sharpe={sharpe}, "
+        f"max_dd={max_dd_str}"
     )
 
     return results
@@ -675,6 +681,14 @@ def main() -> int:
         logger.error("Backtest returned no results")
         return 1
 
+    # Several of these metrics are legitimately None (e.g. win_rate_pct/profit_factor/
+    # best_trade_pct on a zero-trade run, max_drawdown_pct on a non-positive equity curve) -
+    # formatting None with a numeric spec (":.1f", ":+.2f") raises TypeError, which previously
+    # crashed this summary print (and the whole CLI run) instead of just showing "n/a" for a
+    # backtest window that happened to produce no trades or no losses.
+    def _fmt(value: float | None, spec: str, suffix: str = "") -> str:
+        return f"{value:{spec}}{suffix}" if value is not None else "n/a"
+
     # Log summary
     separator = "=" * 60
     logger.info(f"\n{separator}")
@@ -683,18 +697,18 @@ def main() -> int:
     logger.info(f"Period:          {results['start_date']} to {results['end_date']}")
     logger.info(f"Initial Capital: ${results['initial_capital']:,.0f}")
     logger.info(f"Final Capital:   ${results['final_capital']:,.0f}")
-    logger.info(f"Total Return:    {results['total_return_pct']:+.2f}%")
-    logger.info(f"Ann. Return:     {results['annualized_return_pct']:+.2f}%")
-    logger.info(f"Max Drawdown:    {results['max_drawdown_pct']:.2f}%")
+    logger.info(f"Total Return:    {_fmt(results['total_return_pct'], '+.2f', '%')}")
+    logger.info(f"Ann. Return:     {_fmt(results['annualized_return_pct'], '+.2f', '%')}")
+    logger.info(f"Max Drawdown:    {_fmt(results['max_drawdown_pct'], '.2f', '%')}")
     logger.info(f"Sharpe Ratio:    {results['sharpe_ratio']}")
-    logger.info(f"Win Rate:        {results['win_rate_pct']:.1f}%")
-    logger.info(f"Profit Factor:   {results['profit_factor']:.2f}")
+    logger.info(f"Win Rate:        {_fmt(results['win_rate_pct'], '.1f', '%')}")
+    logger.info(f"Profit Factor:   {_fmt(results['profit_factor'], '.2f')}")
     logger.info(f"Total Trades:    {results['total_trades']}")
     logger.info(f"Wins/Losses:     {results['winning_trades']}/{results['losing_trades']}")
-    logger.info(f"Avg Trade:       {results['avg_trade_return_pct']:+.2f}%")
-    logger.info(f"Best Trade:      {results['best_trade_pct']:+.2f}%")
-    logger.info(f"Worst Trade:     {results['worst_trade_pct']:+.2f}%")
-    logger.info(f"Avg Hold:        {results['avg_holding_days']:.1f} days")
+    logger.info(f"Avg Trade:       {_fmt(results['avg_trade_return_pct'], '+.2f', '%')}")
+    logger.info(f"Best Trade:      {_fmt(results['best_trade_pct'], '+.2f', '%')}")
+    logger.info(f"Worst Trade:     {_fmt(results['worst_trade_pct'], '+.2f', '%')}")
+    logger.info(f"Avg Hold:        {_fmt(results['avg_holding_days'], '.1f', ' days')}")
     logger.info(separator)
 
     trades_list = results.pop("trades", [])
