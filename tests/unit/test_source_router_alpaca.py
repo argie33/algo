@@ -128,3 +128,74 @@ def test_default_source_never_touches_alpaca(router: DataSourceRouter, monkeypat
 
     alpaca_mock.assert_not_called()
     assert result["AAPL"] == _rows("AAPL")
+
+
+class TestMarketCloseGateChecksConfiguredSource:
+    """check_market_close_data_available_fast is the EOD pipeline's go/no-go gate,
+    called before load_prices.py starts the real fetch. It previously always probed
+    yfinance regardless of PRICE_DATA_SOURCE, so with PRICE_DATA_SOURCE=alpaca the
+    gate checked a source that had nothing to do with what the loader was actually
+    about to fetch from - a slow/rate-limited yfinance could stall or fail the whole
+    daily load even while Alpaca (the real, configured source) already had the day's
+    data ready."""
+
+    def test_alpaca_configured_checks_alpaca_not_yfinance(
+        self, router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
+
+        with (
+            patch.object(router, "_check_alpaca_market_close_data_available", return_value=True) as alpaca_check,
+        ):
+            result = router.check_market_close_data_available_fast(symbol="SPY", timeout_sec=15)
+
+        alpaca_check.assert_called_once_with("SPY", 15)
+        assert result is True
+
+    def test_default_source_still_checks_yfinance(
+        self, router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("PRICE_DATA_SOURCE", raising=False)
+
+        with patch.object(router, "_check_alpaca_market_close_data_available") as alpaca_check:
+            with patch("utils.data.source_router.yf", None):
+                # yf=None short-circuits to False without needing a real network call,
+                # while still proving the alpaca path was never touched.
+                result = router.check_market_close_data_available_fast(symbol="SPY", timeout_sec=15)
+
+        alpaca_check.assert_not_called()
+        assert result is False
+
+    def test_alpaca_check_reflects_fetch_daily_bars_result(
+        self, router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
+
+        class _FakeAlpaca:
+            def __init__(self, timeout_sec: float) -> None:
+                self.timeout_sec = timeout_sec
+
+            def fetch_daily_bars(self, symbols: list[str], start: date, end: date) -> dict[str, Any]:
+                return {"SPY": _rows("SPY")}
+
+        with patch("utils.external.alpaca_market_data.AlpacaMarketData", _FakeAlpaca):
+            result = router.check_market_close_data_available_fast(symbol="SPY", timeout_sec=15)
+
+        assert result is True
+
+    def test_alpaca_check_false_when_no_bars_yet(
+        self, router: DataSourceRouter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PRICE_DATA_SOURCE", "alpaca")
+
+        class _FakeAlpacaEmpty:
+            def __init__(self, timeout_sec: float) -> None:
+                pass
+
+            def fetch_daily_bars(self, symbols: list[str], start: date, end: date) -> dict[str, Any]:
+                return {}
+
+        with patch("utils.external.alpaca_market_data.AlpacaMarketData", _FakeAlpacaEmpty):
+            result = router.check_market_close_data_available_fast(symbol="SPY", timeout_sec=15)
+
+        assert result is False

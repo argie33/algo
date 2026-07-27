@@ -692,22 +692,28 @@ class DataSourceRouter:
     # ============== MARKET CLOSE DATA CHECK ==============
 
     def check_market_close_data_available_fast(self, symbol: str = "SPY", timeout_sec: int = 15) -> bool:
-        """Quick check if market close data is available from yfinance (short timeout).
+        """Quick check if market close data is available (short timeout).
 
-        Used by EOD pipeline to verify yfinance has ingested today's close data.
-        yfinance typically has data 5-15 min after market close (4 PM ET).
-
-        Uses a SHORT timeout (default 15s) to quickly determine availability without
-        burning time on long network calls. This allows more frequent retries within
-        the overall market close wait budget.
+        Used by the EOD pipeline as a go/no-go gate before starting the daily price
+        load. MUST check the same source fetch_ohlcv_batch will actually use
+        (PRICE_DATA_SOURCE env, same as fetch_ohlcv_interval/fetch_ohlcv_batch above) -
+        this used to unconditionally probe yfinance regardless of that setting, so
+        with PRICE_DATA_SOURCE=alpaca the loader's readiness gate was checking a
+        source's availability that had nothing to do with what it was actually about
+        to fetch from: a slow/rate-limited yfinance could block or fail the whole
+        loader even while Alpaca already had the day's data ready, and conversely a
+        stale Alpaca feed behind a healthy yfinance would have been waved through.
 
         Args:
             symbol: Which symbol to check (default 'SPY')
-            timeout_sec: Timeout for the yfinance API call (default 15s)
+            timeout_sec: Timeout for the API call (default 15s)
 
         Returns:
             True if data available, False if timeout/error
         """
+        if os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
+            return self._check_alpaca_market_close_data_available(symbol, timeout_sec)
+
         from datetime import datetime, timedelta
 
         try:
@@ -751,6 +757,34 @@ class DataSourceRouter:
         except Exception as e:
             msg = f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}"
             raise RuntimeError(msg) from e
+
+    def _check_alpaca_market_close_data_available(self, symbol: str, timeout_sec: float) -> bool:
+        """Quick check if today's daily bar is available from Alpaca.
+
+        Same free-plan SIP data Alpaca serves for the real fetch (fetch_daily_bars) -
+        checking a different source here would gate the loader's start on the wrong
+        provider's readiness (see check_market_close_data_available_fast's docstring).
+        """
+        from datetime import datetime
+
+        from utils.external.alpaca_market_data import AlpacaMarketData
+
+        today = datetime.now(EASTERN_TZ).date()
+        try:
+            alpaca = AlpacaMarketData(timeout_sec=timeout_sec)
+            bars = alpaca.fetch_daily_bars([symbol], today, today)
+        except TimeoutError as e:
+            msg = f"Market close data check timeout after {timeout_sec}s for {symbol} (alpaca)"
+            raise TimeoutError(msg) from e
+        except Exception as e:
+            msg = f"Error checking Alpaca market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}"
+            raise RuntimeError(msg) from e
+
+        if not bars.get(symbol):
+            logger.debug(f"[alpaca-fast-check] No data for {symbol}")
+            return False
+        logger.info(f"[alpaca-fast-check] ✓ {symbol} close data available")
+        return True
 
     # ============== YFINANCE REACHABILITY CHECK ==============
 
