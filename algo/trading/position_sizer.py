@@ -1047,10 +1047,32 @@ class PositionSizer:
                                 f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
                             )
             except Exception as e:
-                logger.warning(
-                    f"[POSITION_SIZER] {symbol}: Could not enforce total risk limit: {e}. Proceeding with calculated size."
+                # CRITICAL FIX: this used to log a warning and fall through to use the
+                # unscaled, pre-risk-limit `shares`/`risk_dollars` computed above - the
+                # comment justified it as "circuit breaker will catch it", but Phase 2
+                # (circuit breakers) runs BEFORE Phase 8 (entry execution) in every
+                # orchestrator cycle (see phase_registry.py phase_num ordering), so it
+                # cannot retroactively catch an aggregate-risk breach created by that same
+                # cycle's own entries - only the NEXT cycle's Phase 2 run would see it,
+                # by which point the oversized positions are already open. Every other
+                # validation failure in this exact function (missing config, invalid
+                # portfolio value, query failures elsewhere) fails closed; this was the
+                # one silent exception. A transient failure of just this one query should
+                # not abort the whole entry batch (Phase 8 handles each symbol
+                # independently), so this fails closed for this symbol only, not the run.
+                logger.error(
+                    f"[POSITION_SIZER] {symbol}: Could not enforce total open-risk limit ({e}). "
+                    f"Blocking this entry rather than risking an unenforced aggregate-risk breach - "
+                    f"Phase 2's circuit breaker only re-checks at the START of the NEXT cycle, not "
+                    f"before this position would be opened."
                 )
-                # Don't fail - let the trade go through; circuit breaker will catch if aggregate risk is exceeded
+                return {
+                    "shares": 0,
+                    "position_size_pct": 0,
+                    "risk_dollars": 0,
+                    "status": "risk_check_unavailable",
+                    "reason": f"Could not verify total open-risk limit for {symbol}: {e}",
+                }
 
         cascade_multiplier = (
             risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult * Decimal(str(regime_mult))
