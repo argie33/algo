@@ -325,8 +325,18 @@ class OptimalLoader:
             ) from last_exception
 
         if rows is None or not rows:
-            # No new data since watermark-expected for incremental loads
-            logger.warning(
+            # No new data since watermark - EXPECTED for incremental loads (most symbols have
+            # nothing new on most runs, e.g. no new SEC filing, no new signal, no price change
+            # since the last successful watermark). Was logged at WARNING despite this comment
+            # already documenting it as expected - on a full-universe run (~5000 symbols) this
+            # fires for most/all of them, drowning genuinely rare WARNING-level signals in noise
+            # (confirmed live: one run logged 4753 of these against price/signal data that
+            # legitimately hadn't changed since Friday's close, vs. single digits of every other
+            # WARNING/ERROR combined). The aggregate count is already surfaced properly via
+            # self._stats -> MetricsPublisher.put_loader_result and the loader's own return
+            # value, so nothing operationally useful is lost by not also logging each one at
+            # WARNING. DEBUG keeps it available for local troubleshooting without alert fatigue.
+            logger.debug(
                 f"[{self.table_name}] {symbol}: Empty result from fetch_incremental (previous={previous_date}), rows={len(rows) if rows else 'None'}, skipping"
             )
             self._stats.increment("symbols_skipped_by_watermark")
