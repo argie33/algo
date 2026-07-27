@@ -329,4 +329,83 @@ describe("Scores Routes Unit Tests", () => {
   // shape (13 quality inputs, 12 growth metrics, sector/market benchmarks) that doesn't
   // exist in either the "/" list endpoint (only symbol + 6 score columns) or "/:symbol"
   // (a raw `SELECT *` row, not a factors-shaped object) - see routes/scores.js.
+
+  describe("GET /scores/stockscores", () => {
+    test("returns null grade (not 'F') for a row with missing composite_score", async () => {
+      // COUNT query first, then the paginated data query.
+      query.mockResolvedValueOnce({ rows: [{ total: "1" }] });
+      query.mockResolvedValueOnce({
+        rows: [
+          {
+            symbol: "NODATA",
+            company_name: "No Data Corp",
+            sector: null,
+            industry: null,
+            composite_score: null, // missing - the exact case that must not become "F"
+            momentum_score: null,
+            quality_score: null,
+            value_score: null,
+            growth_score: null,
+            positioning_score: null,
+            stability_score: null,
+            price: null,
+            change_pct: null,
+            market_cap: null,
+            pe_ratio: null,
+            pb_ratio: null,
+            roe: null,
+            debt_to_equity: null,
+          },
+        ],
+      });
+
+      const response = await request(app)
+        .get("/scores/stockscores")
+        .set("Authorization", "Bearer test-token")
+        .expect(200);
+
+      const stock = response.body.items[0];
+      expect(stock.composite_score).toBeNull();
+      // A missing score must read as "no grade available", not the worst
+      // possible real grade.
+      expect(stock.grade).toBeNull();
+    });
+
+    test("still assigns grade F for a real, validated score of 0-49", async () => {
+      query.mockResolvedValueOnce({ rows: [{ total: "1" }] });
+      query.mockResolvedValueOnce({
+        rows: [
+          {
+            symbol: "REALLYBAD",
+            company_name: "Really Bad Co",
+            sector: null,
+            industry: null,
+            composite_score: 12.5,
+            momentum_score: null,
+            quality_score: null,
+            value_score: null,
+            growth_score: null,
+            positioning_score: null,
+            stability_score: null,
+            price: null,
+            change_pct: null,
+            market_cap: null,
+            pe_ratio: null,
+            pb_ratio: null,
+            roe: null,
+            debt_to_equity: null,
+          },
+        ],
+      });
+
+      const response = await request(app)
+        .get("/scores/stockscores")
+        .set("Authorization", "Bearer test-token")
+        .expect(200);
+
+      const stock = response.body.items[0];
+      expect(stock.composite_score).toBe(12.5);
+      expect(stock.grade).toBe("F");
+    });
+  });
 });
