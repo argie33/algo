@@ -1901,7 +1901,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogCompanyInfoSecFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "EarningsCalendarSec"
+        Next = "CompanyProfile"
       }
 
       LogCompanyInfoSecFailure = {
@@ -1909,6 +1909,69 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "company_info_sec"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "CompanyProfile"
+          ResultPath  = "$.logError"
+        }]
+        Next = "CompanyProfile"
+      }
+
+      # ── RESTORED 2026-07-27: sector/industry classification (SIC->GICS), sourced from
+      # CompanyInfoSec above, so it must run right after it. Deleted 2026-07-26 after being
+      # judged "orphaned" by checking only for terraform wiring - it was never wired here in
+      # the first place, while pretrade_checks.py (hard-blocks new entries without a
+      # company_profile row) and circuit_breaker.py (sector-concentration/sector-drawdown
+      # checks) kept depending on the table it feeds. Same failure mode this comment block
+      # already documents for CompanyInfoSec/EarningsCalendarSec above.
+      CompanyProfile = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["company_profile"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-company_profile"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogCompanyProfileFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "EarningsCalendarSec"
+      }
+
+      LogCompanyProfileFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "company_profile"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }

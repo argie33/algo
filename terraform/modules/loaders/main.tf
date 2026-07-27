@@ -366,6 +366,14 @@ locals {
     # Annual updates (company info changes rarely)
     "company_info_sec" = "load_company_info_sec.py"
 
+    # Restored 2026-07-27: SEC SIC->GICS sector/industry classification, sourced from
+    # company_info_sec (must run after it - only data source). Was deleted 2026-07-26 after
+    # being (incorrectly) judged orphaned for lacking terraform wiring; pretrade_checks.py
+    # hard-blocks new entries without a company_profile row, and circuit_breaker.py's
+    # sector-concentration/sector-drawdown checks both read it - same "restored after being
+    # believed superseded" mistake class as company_info_sec/earnings_calendar_sec below.
+    "company_profile" = "load_company_profile.py"
+
     # Phase 5b: Earnings Calendar from SEC EDGAR (replaces ~10% of yfinance_snapshot)
     # Official 10-K/10-Q filing dates (when earnings are announced to SEC)
     # Continuous updates (quarterly and annual filings)
@@ -514,6 +522,10 @@ locals {
     # Parallelism: 1-2 (SEC API rate-limited to ~10 req/sec globally, keep under limit)
     "company_info_sec" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
 
+    # Restored 2026-07-27: reads company_info_sec (already in RDS, no external API calls),
+    # so it's lighter and faster than company_info_sec itself.
+    "company_profile" = { cpu = 128, memory = 256, timeout = 300, parallelism = 2 }
+
     # Phase 5b: Earnings Calendar from SEC EDGAR (lightweight: submission parsing, <100MB)
     # Timeout: 900s (typical run ~5-15 min for 5k symbols + 10-K/10-Q extraction, 2x headroom)
     # Parallelism: 1-2 (SEC API rate-limited, keep under global limit)
@@ -614,6 +626,7 @@ locals {
     # SEC data sources
     "financials_all",
     "company_info_sec",
+    "company_profile",
     "earnings_calendar_sec",
     "institutional_holdings_13f",
     "insider_holdings_sec",
