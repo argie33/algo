@@ -1186,9 +1186,7 @@ function PortfolioDashboardPage() {
                         label="Unrealized Loss"
                         value={
                           <span className="mono tnum down">
-                            {fmtMoneyShort(
-                              perf?.total_open_losses_dollars ?? 0
-                            )}
+                            {fmtMoneyShort(perf?.total_open_losses_dollars)}
                           </span>
                         }
                       />
@@ -1384,8 +1382,12 @@ function PortfolioDashboardPage() {
               const regime = (safeCurrent.regime || "unknown")
                 .toString()
                 .toUpperCase();
-              const vixValue = market.vix ?? 0;
-              const distDays = market.distribution_days ?? 0;
+              // CRITICAL: null (not 0) when missing - market.vix ?? 0 used to render
+              // "VIX 0.0 / low" for genuinely missing data, telling a trader the market
+              // is calm when the real answer is "unknown". VIX=0 is not a valid real
+              // reading (never happens), so it was indistinguishable from missing data.
+              const vixValue = market.vix ?? null;
+              const distDays = market.distribution_days ?? null;
               return (
                 <div className="grid grid-4">
                   <Stile
@@ -1404,20 +1406,22 @@ function PortfolioDashboardPage() {
                       <span className="mono tnum">{num(vixValue, 1)}</span>
                     }
                     sub={
-                      vixValue > 25
-                        ? "elevated"
-                        : vixValue > 15
-                          ? "normal"
-                          : "low"
+                      vixValue == null
+                        ? "no data"
+                        : vixValue > 25
+                          ? "elevated"
+                          : vixValue > 15
+                            ? "normal"
+                            : "low"
                     }
                   />
                   <Stile
                     label="Distribution Days"
                     value={
                       <span
-                        className={`mono tnum ${distDays >= 5 ? "down" : ""}`}
+                        className={`mono tnum ${distDays != null && distDays >= 5 ? "down" : ""}`}
                       >
-                        {distDays}
+                        {distDays ?? "—"}
                       </span>
                     }
                     sub="trailing 4 weeks"
