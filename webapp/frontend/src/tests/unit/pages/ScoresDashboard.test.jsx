@@ -243,6 +243,30 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
+  it("expands a row to show detail without crashing (regression: undefined detailStock)", async () => {
+    // Regression test: RankingsTab's expanded-row branch referenced an undefined
+    // `detailStock` variable instead of its own `detail` prop (the prop was renamed at
+    // the call site but the child's render logic was never updated), throwing
+    // "ReferenceError: detailStock is not defined" the instant any row was expanded -
+    // a real runtime crash in production, not just a lint warning. Caught by ESLint's
+    // no-undef rule during a broader quality sweep; no test previously exercised the
+    // expand interaction at all.
+    renderScoresDashboard();
+    await waitFor(() => {
+      expect(screen.getAllByText("AAPL").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByText("AAPL")[0]);
+
+    await waitFor(() => {
+      // The row expands into a detail panel (StockScoreAccordion) rendering the
+      // factor labels - if the component had crashed (the original bug), none of
+      // this would render. "Quality" also matches a sort-select option, so scope
+      // to the accordion's own span label.
+      expect(screen.getAllByText(/Quality/i).length).toBeGreaterThan(1);
+    });
+  });
+
   it("clears search when Clear button is clicked", async () => {
     renderScoresDashboard();
     await waitFor(() => {

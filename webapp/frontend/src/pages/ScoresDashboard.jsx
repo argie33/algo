@@ -247,24 +247,6 @@ function ScoresDashboardPage() {
     return o;
   }, [items]);
 
-  const sectorAvgs = (sym) => {
-    if (!items || !sym) return {};
-    const stock = items.find((s) => s.symbol === sym);
-    if (!stock?.sector) return {};
-    const peers = items.filter((s) => s.sector === stock.sector);
-    const o = {};
-    FACTORS.forEach((f) => {
-      const vals = peers
-        .map((s) => s[f.scoreKey])
-        .filter((v) => v != null)
-        .map(Number);
-      o[f.key] = vals.length
-        ? vals.reduce((a, b) => a + b, 0) / vals.length
-        : null;
-    });
-    return o;
-  };
-
   const expandStock = async (symbol) => {
     if (selectedSymbol === symbol) {
       setSelectedSymbol(null);
@@ -492,10 +474,8 @@ function ScoresDashboardPage() {
           pageEnd={pageEnd}
           selectedSymbol={selectedSymbol}
           onExpand={expandStock}
-          onNavigate={(s) => navigate(`/app/stock/${s}`)}
           detail={detailStock}
           marketAvgs={marketAvgs}
-          sectorAvgs={selectedSymbol ? sectorAvgs(selectedSymbol) : {}}
         />
       )}
 
@@ -578,10 +558,8 @@ function RankingsTab({
   pageEnd,
   selectedSymbol,
   onExpand,
-  onNavigate,
   detail,
   marketAvgs,
-  sectorAvgs,
 }) {
   const [expandedKey, setExpandedKey] = useState(null);
 
@@ -663,11 +641,11 @@ function RankingsTab({
                 {/* ─── Expanded Detail Row ─── */}
                 {isExpanded && (
                   <div style={{ padding: "var(--space-4)", borderBottom: "2px solid var(--brand)", background: "var(--surface-1)" }}>
-                    {detailStock?.error ? (
-                      <div className="alert alert-danger">{detailStock.error}</div>
+                    {detail?.error ? (
+                      <div className="alert alert-danger">{detail.error}</div>
                     ) : (
                       <StockScoreAccordion
-                        stocks={[detailStock && selectedSymbol === s.symbol && "quality_inputs" in detailStock ? detailStock : s]}
+                        stocks={[detail && selectedSymbol === s.symbol && "quality_inputs" in detail ? detail : s]}
                         marketAvgs={marketAvgs}
                         sectorAvgs={computeSectorAvgs(all, s.sector)}
                       />
