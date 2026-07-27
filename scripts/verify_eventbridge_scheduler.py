@@ -15,16 +15,6 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-# Windows encoding fix (emoji output crashes cp1252 console otherwise)
-if sys.platform.startswith("win"):
-    import io
-
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -44,6 +34,11 @@ EXPECTED_SCHEDULES = {
         "schedule": "cron(5 16 ? * MON-FRI *)",
         "timezone": "America/New_York",
         "description": "End-of-day analysis & swing scores (4:05 PM ET)",
+    },
+    f"{PROJECT_NAME}-computed-metrics-pipeline-{ENVIRONMENT}": {
+        "schedule": "cron(0 19 ? * MON-FRI *)",
+        "timezone": "America/New_York",
+        "description": "Computed metrics: quality/growth/value/stability/scores (7:00 PM ET)",
     },
 }
 
@@ -137,7 +132,7 @@ def check_schedule(name: str, expected: dict) -> dict:
         "enabled": enabled,
         "correct": correct,
         "schedule_expr": schedule.get("ScheduleExpression"),
-        "timezone": schedule.get("Timezone"),
+        "timezone": schedule.get("ScheduleExpressionTimezone"),
         "state": schedule.get("State"),
     }
 
@@ -197,6 +192,21 @@ def check_all_schedules() -> dict:
 
 def main():
     import argparse
+
+    # Windows console encoding fix (emoji output crashes cp1252 console otherwise).
+    # Must only happen when this script is actually run directly - doing it at module
+    # import time permanently replaces pytest's own capture streams for the rest of
+    # the test process the first time anything imports this module, eventually
+    # crashing pytest's capture teardown with "ValueError: I/O operation on closed
+    # file" (same bug class already fixed in monitor_data_staleness.py).
+    if sys.platform.startswith("win"):
+        import io
+
+        try:
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
     parser = argparse.ArgumentParser(description="Verify EventBridge Scheduler configuration for data loaders")
     parser.add_argument(

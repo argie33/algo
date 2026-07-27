@@ -4,6 +4,7 @@
 import os
 import sys
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import boto3
 
@@ -25,6 +26,7 @@ def check_eventbridge_scheduler():
         data_pipeline_rules = [
             s for s in schedules
             if "morning-pipeline" in s["Name"] or "eod-pipeline" in s["Name"]
+            or "computed-metrics-pipeline" in s["Name"]
         ]
 
         if not data_pipeline_rules:
@@ -38,7 +40,7 @@ def check_eventbridge_scheduler():
             print(f"  Schedule: {schedule.get('ScheduleExpression', 'N/A')}")
             print(f"  Timezone: {schedule.get('ScheduleExpressionTimezone', 'N/A')}")
 
-        return len(data_pipeline_rules) >= 2  # Both morning and EOD should exist
+        return len(data_pipeline_rules) >= 3  # morning, EOD, and computed-metrics should exist
 
     except Exception as e:
         print(f"Error checking scheduler: {e}")
@@ -91,7 +93,12 @@ def check_step_functions_executions():
         response = sfn.list_state_machines(maxResults=50)
 
         for sm in response.get("stateMachines", []):
-            if "morning" in sm["name"].lower() or "eod" in sm["name"].lower():
+            if (
+                "morning" in sm["name"].lower()
+                or "eod" in sm["name"].lower()
+                or "computed-metrics" in sm["name"].lower()
+                or "computed_metrics" in sm["name"].lower()
+            ):
                 execs = sfn.list_executions(
                     stateMachineArn=sm["stateMachineArn"],
                     maxResults=3
@@ -102,14 +109,23 @@ def check_step_functions_executions():
                     exec_name = exec_info["name"]
                     start_time = exec_info.get("startDate")
 
-                    # Check if time matches schedule (2 AM or 4:05 PM)
+                    # boto3 returns startDate as a UTC-aware datetime, but the schedules
+                    # themselves fire on America/New_York wall-clock cron expressions
+                    # (2 AM morning, 4:05 PM EOD, 7 PM computed-metrics) - comparing raw
+                    # UTC hours against those ET hours would mismatch by 4-5h (DST-
+                    # dependent) and mislabel every on-time scheduled run as [MANUAL].
                     if start_time:
-                        hour = start_time.hour
-                        minute = start_time.minute
-                        scheduled = (hour == 2) or (hour == 16 and minute >= 5)
+                        start_time_et = start_time.astimezone(ZoneInfo("America/New_York"))
+                        hour = start_time_et.hour
+                        minute = start_time_et.minute
+                        scheduled = (
+                            (hour == 2)
+                            or (hour == 16 and minute >= 5)
+                            or (hour == 19)
+                        )
 
                         marker = "[SCHEDULED]" if scheduled else "[MANUAL]"
-                        print(f"  {marker}: {exec_name} at {start_time.strftime('%H:%M')}")
+                        print(f"  {marker}: {exec_name} at {start_time_et.strftime('%H:%M')} ET")
 
     except Exception as e:
         print(f"Error checking executions: {e}")
