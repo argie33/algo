@@ -890,14 +890,36 @@ def _record_closed_positions_exits(
     run_date: _date,
     log_phase_result_fn: Callable[..., Any],
 ) -> None:
-    """Record exits for recently closed positions."""
+    """Record exits for recently closed positions.
+
+    This is a catch-up pass for positions closed WITHOUT algo_trades being updated in the
+    same transaction (e.g. a broker-side close detected only during reconciliation) - the
+    normal exit_engine.py -> executor_exit_handler.py path already updates algo_trades
+    (exit_date, exit_price, profit_loss_dollars, status='closed') in the same transaction
+    as the algo_positions close, so those positions must never reach this function's
+    UPDATE, which assumes exactly one still-open (exit_date IS NULL) algo_trades row.
+
+    CRITICAL FIX: the SELECT below previously had no such filter - it picked up EVERY
+    position closed today regardless of whether algo_trades was already updated, so this
+    function crashed on any position that had already closed correctly through the normal
+    exit_engine path (the ordinary, everyday case for every stop-loss/target exit), not
+    just genuinely orphaned ones. Live-reproduced 2026-07-27: 9 positions closed normally
+    via exit_engine.py (algo_trades.exit_date already set) still matched this SELECT, and
+    the first one processed (LPG) then failed the UPDATE's `exit_date IS NULL` match with
+    "0 rows affected", raising a false "data integrity issue" and halting all trading -
+    on a day where every exit had in fact been recorded correctly.
+    """
     try:
         with DatabaseContext("read") as cursor:
             cursor.execute(
                 """
-                SELECT symbol, avg_entry_price, current_price, quantity
-                FROM algo_positions
-                WHERE status = 'closed' AND closed_at::date = %s
+                SELECT ap.symbol, ap.avg_entry_price, ap.current_price, ap.quantity
+                FROM algo_positions ap
+                WHERE ap.status = 'closed' AND ap.closed_at::date = %s
+                  AND EXISTS (
+                      SELECT 1 FROM algo_trades at
+                      WHERE at.symbol = ap.symbol AND at.exit_date IS NULL
+                  )
             """,
                 (run_date,),
             )
