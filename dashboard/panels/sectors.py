@@ -63,6 +63,7 @@ from ..error_boundary import has_error
 from ..formatters import fmt_age, sign
 from ..utilities import (
     CY,
+    DIM,
     G,
     R,
     Y,
@@ -174,7 +175,10 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
             avg_pnl = None
             if dv["pnls"] and len(dv["pnls"]) > 0:
                 avg_pnl = sum(dv["pnls"]) / len(dv["pnls"])
-            pc = G if (avg_pnl is not None and avg_pnl >= 0) else R
+            # DIM (not R) when unavailable - pc colors both the bar and the "N/A" text
+            # below unconditionally, so R here would paint an unknown-P&L sector the same
+            # as a losing one.
+            pc = DIM if avg_pnl is None else (G if avg_pnl >= 0 else R)
             bar_f = int(min(pct, 30) / 30 * 4)
             bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (4 - bar_f)}[/]"
             pnl_str = f"{avg_pnl:+.1f}%" if avg_pnl is not None else "N/A"
@@ -410,7 +414,8 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             for sec, dv in sorted_secs:
                 pct = dv["val"] / pv * 100
                 avg_pnl = (sum(dv["pnls"]) / len(dv["pnls"])) if dv["pnls"] else None
-                pc = G if (avg_pnl is not None and avg_pnl >= 0) else R
+                # DIM (not R) when unavailable - see panel_sector_compact's identical fix.
+                pc = DIM if avg_pnl is None else (G if avg_pnl >= 0 else R)
                 bar_f = int(min(pct, 25) / 25 * 8)
                 bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
                 # avg_pnl is None when every position in this sector lacks P&L data (empty

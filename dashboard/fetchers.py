@@ -26,6 +26,7 @@ from .fetchers_config import (
     fetch_circuit,
     fetch_health,
     fetch_run,
+    fetch_table_inventory,
 )
 from .fetchers_external import (
     fetch_activity,
@@ -89,6 +90,7 @@ __all__ = [
     "fetch_sentiment",
     "fetch_signal_eval",
     "fetch_signals",
+    "fetch_table_inventory",
     "load_all",
 ]
 
@@ -120,6 +122,7 @@ FETCHERS = {
     "exec_hist": fetch_exec_history,
     "exp_factors": fetch_exp_factors,
     "scores": fetch_scores,
+    "inventory": fetch_table_inventory,
 }
 
 
@@ -292,6 +295,7 @@ def load_all() -> dict[str, Any]:
         "audit": 6.0,
         "exec_hist": 6.0,
         "scores": 8.0,
+        "inventory": 6.0,
     }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections
@@ -326,6 +330,8 @@ def load_all() -> dict[str, Any]:
         "cb",  # Circuit breakers - moved from critical to optional.
         # Lambda endpoint returns 503 with exponential retry backoff (12+ seconds).
         # Not required for dashboard function; panels handle missing data gracefully.
+        "inventory",  # Table inventory (untracked/missing tables) - optional enrichment
+        # for the DATA FRESHNESS - EXPANDED panel only; own 5min cache limits DB load.
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:

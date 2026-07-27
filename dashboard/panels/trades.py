@@ -305,7 +305,10 @@ def panel_completed_trades(trades: Any) -> Any:
                 )
 
         pnl_for_color = pnl_d if pnl_d is not None else pnl_p
-        pc = G if (pnl_for_color is not None and pnl_for_color > 0) else R
+        # DIM (not R) when unavailable - Text(..., style=pc) below applies pc to the "--"
+        # placeholder unconditionally, so R here would render unavailable P&L identically
+        # to a real loss.
+        pc = DIM if pnl_for_color is None else (G if pnl_for_color > 0 else R)
         si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
         grade = _compute_trade_grade(rmul)
         grade_c = (
@@ -517,7 +520,8 @@ def panel_trades_expanded(trades: Any) -> Any:
         exit_rsn = exit_short.get(exit_rsn_raw, "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
-        pc = G if (pnl_p is not None and pnl_p > 0) else R
+        # DIM (not R) when unavailable - see panel_completed_trades' identical fix above.
+        pc = DIM if pnl_p is None else (G if pnl_p > 0 else R)
         si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
         grade_c = (
             G

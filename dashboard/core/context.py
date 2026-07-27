@@ -136,3 +136,7 @@ class DashboardContext:
     @property
     def scores(self) -> Any:
         return self.data.get("scores")
+
+    @property
+    def inventory(self) -> Any:
+        return self.data.get("inventory")

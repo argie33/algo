@@ -685,6 +685,7 @@ def _build_freshness_panel(
     hlth_items: list[Any],
     ready_to_trade: bool | None,
     hlth_dict: dict[str, Any] | None = None,
+    inventory: dict[str, Any] | None = None,
 ) -> Panel:
     """Build the standalone DATA FRESHNESS - EXPANDED panel: full table freshness detail.
 
@@ -693,6 +694,8 @@ def _build_freshness_panel(
         ready_to_trade: Boolean ready state (True/False/None)
         hlth_dict: Raw health response dict, for as_of/trading_halted context (optional -
             only the caller building the full standalone expanded view has this)
+        inventory: Table inventory data (/api/admin/inventory) - untracked/missing tables
+            (optional - not fetched by every caller)
 
     Returns:
         Rich Panel with freshness table
@@ -702,7 +705,7 @@ def _build_freshness_panel(
     age_s = f"  [dim]{fmt_age(as_of)}[/]" if as_of else ""
     title = rf"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim]\[l] return[/]"
 
-    left_rows: list[Text | Table | Layout] = []
+    left_rows: list[Text | Table | Layout | Rule] = []
 
     trading_halted = hlth_dict.get("trading_halted")
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
@@ -851,17 +854,37 @@ def _build_freshness_panel(
     # bare "STALE"/"EMPTY" badge above gives no way to tell "loader never ran" from "loader
     # is failing every day with an auth/rate-limit error" without reading raw logs.
     loader_errors = [
-        (r.get("tbl") or "unknown", r.get("loader_error"))
+        (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
         for r in sorted_items
         if r.get("st") != "ok" and r.get("loader_error")
     ]
     if loader_errors:
         left_rows.append(Rule(style="dim"))
         left_rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
-        for tbl_name, err in loader_errors[:8]:
-            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{str(err)[:90]}[/]"))
+        for tbl_name, err, lrs in loader_errors[:8]:
+            # TIMEOUT and FAILED both just populate error_message identically otherwise -
+            # tag with the loader's own run-state enum so the two aren't indistinguishable.
+            tag = f"[{lrs}] " if lrs in ("TIMEOUT", "FAILED") else ""
+            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:90]}[/]"))
         if len(loader_errors) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(loader_errors) - 8} more[/]"))
+
+    # Loaders that have literally never run (status row exists but no execution has ever
+    # started) - distinct from "ran and produced 0 rows" (status=empty). Without this, both
+    # looked identical on the freshness table (row_count=0/"--", no age), giving no signal
+    # that the loader itself has never been invoked at all.
+    never_started = [
+        r.get("tbl") or "unknown"
+        for r in sorted_items
+        if r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
+    ]
+    if never_started:
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(
+            Text.from_markup(f"[bold {R}]Never run:[/]  " + "  ".join(f"[white]{n}[/]" for n in never_started[:10]))
+        )
+        if len(never_started) > 10:
+            left_rows.append(Text.from_markup(f"  [dim]...and {len(never_started) - 10} more[/]"))
 
     in_progress = [r for r in sorted_items if r.get("execution_started") and not r.get("execution_completed")]
     if in_progress:
@@ -873,6 +896,45 @@ def _build_freshness_panel(
             sl, sc = r.get("symbols_loaded"), r.get("symbol_count")
             cnt_s = f" ({sl}/{sc} symbols)" if sl is not None and sc is not None else ""
             left_rows.append(Text.from_markup(f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s}"))
+
+    # Stale-table detail: each table's own configured cadence (stale_threshold_days), so
+    # "STALE at 3 days old" (a 1-day table) reads differently from "STALE at 10 days old"
+    # (a 7-day table already 3 days past its own threshold) instead of just a bare age.
+    stale_detail = [
+        (r.get("tbl") or "unknown", r.get("age"), r.get("stale_threshold_days"))
+        for r in sorted_items
+        if r.get("st") == "stale" and r.get("age") is not None and r.get("stale_threshold_days") is not None
+    ]
+    if stale_detail:
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold {Y}]Stale detail (age vs. own threshold):[/]"))
+        for tbl_name, age, threshold in stale_detail[:8]:
+            left_rows.append(Text.from_markup(f"  [{Y}]{tbl_name}:[/] [dim]{age}d old, threshold {threshold}d[/]"))
+        if len(stale_detail) > 8:
+            left_rows.append(Text.from_markup(f"  [dim]...and {len(stale_detail) - 8} more[/]"))
+
+    # Table inventory gaps (from /api/admin/inventory) - untracked tables exist in the DB but
+    # have no data_loader_status row at all (never wired into monitoring), and missing tables
+    # are tracked in data_loader_status but no longer exist (schema drift / dropped table).
+    # Neither is visible anywhere else on the dashboard - the per-table list above only ever
+    # shows what IS tracked.
+    if inventory and isinstance(inventory, dict) and not has_error(inventory):
+        untracked = inventory.get("untracked_tables")
+        missing = inventory.get("missing_tables")
+        if untracked:
+            left_rows.append(Rule(style="dim"))
+            names = "  ".join(str(n) for n in untracked[:10])
+            left_rows.append(Text.from_markup(f"[bold {Y}]Untracked tables ({len(untracked)}):[/]  [dim]{names}[/]"))
+            if len(untracked) > 10:
+                left_rows.append(Text.from_markup(f"  [dim]...and {len(untracked) - 10} more[/]"))
+        if missing:
+            left_rows.append(Rule(style="dim"))
+            names = "  ".join(str(n) for n in missing[:10])
+            left_rows.append(
+                Text.from_markup(f"[bold {R}]Tracked but missing from DB ({len(missing)}):[/]  [dim]{names}[/]")
+            )
+            if len(missing) > 10:
+                left_rows.append(Text.from_markup(f"  [dim]...and {len(missing) - 10} more[/]"))
 
     return Panel(
         Group(*left_rows),
@@ -3094,6 +3156,14 @@ def _build_results_panel(
         elif summary:
             right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
+    # Portfolio risk snapshot: `risk` was already fetched and passed into this panel (see
+    # renderers/pipeline.py's `risk=ctx.risk`) but never read - the fullscreen ALGO HEALTH
+    # view showed no VaR/CVaR/beta/concentration at all, even though the compact panel
+    # shows it (see panel_algo_health's own D2 section, same root cause, fixed prior
+    # session). Reuse the same formatter so both views stay consistent.
+    risk_line = _extract_orch_risk_metrics_string(risk).strip()
+    if risk_line:
+        right_rows.append(Text.from_markup(risk_line))
 
     right_rows.append(Rule(style="dim"))
 
@@ -3112,7 +3182,12 @@ def _build_results_panel(
         right_rows.append(
             Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
         )
-        for r in valid_hist_e[:3]:
+        # fetch_exec_history() requests up to 10 runs (see fetchers_external.py), but this
+        # fullscreen expanded panel only ever showed the first 3 - the compact panel_algo_health
+        # tile (far less screen real estate) already shows a 7-run badge summary, so the
+        # dedicated expanded view showing FEWER detailed rows than the compact view's badge
+        # count was an under-use of the extra space, not a deliberate design choice.
+        for r in valid_hist_e[:10]:
             s = _get_status_safe(r)
             dt = r.get("started_at")
             if dt is None:
@@ -3156,7 +3231,9 @@ def _build_results_panel(
     if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
-        for n in valid_notifs_raw[:3]:
+        # Compact panel_algo_health already shows 5 - this fullscreen panel showing only 3
+        # was fewer than the compact tile despite having far more room. Bump to 10.
+        for n in valid_notifs_raw[:10]:
             if not isinstance(n, dict):
                 continue
             severity_val = n.get("severity")
@@ -3224,9 +3301,17 @@ def panel_algo_health_expanded(
     return _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth)
 
 
-def panel_data_freshness_expanded(hlth: dict[str, Any] | list[Any] | None) -> Panel:
+def panel_data_freshness_expanded(
+    hlth: dict[str, Any] | list[Any] | None,
+    inventory: dict[str, Any] | None = None,
+) -> Panel:
     """Full-screen data freshness: every tracked table's status, age, row count, and the
     orchestrator's Phase 1 freshness-gate result, in one place.
+
+    Args:
+        hlth: Health/data-status response (per-table freshness)
+        inventory: Optional table inventory (/api/admin/inventory) - untracked/missing
+            tables. Not required; panel degrades gracefully without it.
     """
     hlth_err_exp = _error_panel("health", hlth, "DATA FRESHNESS EXPANDED")
     if hlth_err_exp is not None:
@@ -3234,7 +3319,7 @@ def panel_data_freshness_expanded(hlth: dict[str, Any] | list[Any] | None) -> Pa
 
     hlth_dict = hlth if isinstance(hlth, dict) else {}
     hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
-    return _build_freshness_panel(hlth_items, ready_to_trade, hlth_dict)
+    return _build_freshness_panel(hlth_items, ready_to_trade, hlth_dict, inventory=inventory)
 
 
 __all__ = [

@@ -66,6 +66,82 @@ def _get_data_status_cached() -> dict[str, Any]:
             return error_result
 
 
+_inventory_cache: dict[str, Any] = {}
+_inventory_lock = threading.Lock()
+_INVENTORY_CACHE_TTL_SEC = 300  # untracked/missing table set changes rarely; the endpoint
+# does a COUNT(*) scan across every untracked table server-side, so polling it every
+# refresh cycle (like data-status) would add avoidable DB load for data that's effectively
+# static between deploys/migrations.
+
+
+def fetch_table_inventory(c: None) -> dict[str, Any]:
+    """Fetch complete table inventory from /api/admin/inventory (non-critical, optional
+    enrichment for the DATA FRESHNESS - EXPANDED panel).
+
+    Surfaces two things no other dashboard data source shows:
+    - untracked_tables: tables that exist in the DB but have no data_loader_status row
+      at all (never wired into loader monitoring).
+    - missing_tables: tables tracked in data_loader_status but that no longer exist in
+      the DB (schema drift / a dropped table nobody removed from tracking).
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    import time as time_module
+
+    now = time_module.time()
+    with _inventory_lock:
+        cached = _inventory_cache.get("result")
+        cached_time = _inventory_cache.get("_time")
+        if cached is not None and cached_time is not None and (now - cached_time) < _INVENTORY_CACHE_TTL_SEC:
+            return cast(dict[str, Any], cached)
+
+    try:
+        data = api_call(get_endpoint_path("inventory"))
+
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("inventory", "api_call", "api_error", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(data, dict):
+            error_msg = "Table inventory API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("inventory", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        # api_call() already unwraps the {statusCode, data: {...}} envelope, so `data` here
+        # IS list_response()'s inner dict: {items, total, summary, missing_tables, as_of}.
+        items = data.get("items")
+        if not isinstance(items, list):
+            error_msg = "Table inventory API response missing 'items' list"
+            logger.error(error_msg)
+            record_data_quality_issue("inventory", "validation", "missing_items")
+            return FetcherValidator.build_error_response(error_msg)
+
+        untracked_tables = sorted(
+            str(t.get("name")) for t in items if isinstance(t, dict) and t.get("type") == "untracked" and t.get("name")
+        )
+        missing_tables_raw = data.get("missing_tables")
+        missing_tables = sorted(str(t) for t in missing_tables_raw) if isinstance(missing_tables_raw, list) else []
+        summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+
+        result = {
+            "untracked_tables": untracked_tables,
+            "missing_tables": missing_tables,
+            "summary": summary,
+        }
+        with _inventory_lock:
+            _inventory_cache["result"] = result
+            _inventory_cache["_time"] = now
+        return result
+    except Exception as e:
+        error_msg = format_fetcher_error("inventory", e)
+        logger.error(error_msg)
+        record_data_quality_issue("inventory", "exception", type(e).__name__, str(e))
+        # Don't cache errors - force a retry next call (same convention as _get_data_status_cached)
+        return FetcherValidator.build_error_response(error_msg)
+
+
 def fetch_run(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -384,6 +460,16 @@ def fetch_health(c: None) -> dict[str, Any]:
             symbols_loaded = s.get("symbols_loaded")
             symbol_count = s.get("symbol_count")
 
+            # loader_run_status (NOT_STARTED/RUNNING/COMPLETED/FAILED/TIMEOUT) and
+            # stale_threshold_days: written/computed by the API but previously dropped here -
+            # same class of gap as loader_error above. loader_run_status lets the freshness
+            # panel tell "loader never ran" (NOT_STARTED) apart from "ran, produced 0 rows"
+            # (status=empty), and TIMEOUT apart from FAILED. stale_threshold_days lets it show
+            # *why* a table is still "ok" at N days old (its own configured cadence) instead
+            # of just the raw age.
+            loader_run_status = s.get("loader_run_status")
+            stale_threshold_days = s.get("stale_threshold_days")
+
             sources.append(
                 {
                     "tbl": name,
@@ -405,6 +491,8 @@ def fetch_health(c: None) -> dict[str, Any]:
                     "completion_pct": completion_pct,
                     "symbols_loaded": symbols_loaded,
                     "symbol_count": symbol_count,
+                    "loader_run_status": loader_run_status,
+                    "stale_threshold_days": stale_threshold_days,
                 }
             )
         summary = inner.get("summary")

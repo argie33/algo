@@ -389,7 +389,9 @@ def panel_performance_spark(
     unrlzd = perf.get("unrealized_pnl")
     pnl_val_raw = perf.get("pnl")
     pnl_val = safe_float(pnl_val_raw, default=None, allow_none=True)
-    pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
+    # DIM (not R) when unavailable - pnl_s below wraps fmt_money(None)="--" in this color
+    # unconditionally, so R here would paint unavailable P&L the same as a real loss.
+    pnl_c = DIM if pnl_val is None else (G if pnl_val >= 0 else R)
     pf = safe_float(perf.get("profit_factor"), default=None, allow_none=True)
     pf_s = f"{pf:.2f}" if pf is not None else "--"
     pf_c = (
@@ -763,8 +765,12 @@ def panel_portfolio_perf_expanded(
             if wr_v is not None and wr_v >= 45
             else (Y if wr_v is not None and wr_v >= 40 else (R if wr_v is not None else DIM))
         )
-        pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
-        exp_c = G if (exp is None or exp >= 0) else R
+        # DIM (not R/G) when unavailable - matches the pf_c/exp_c definitions above (line
+        # ~397/401) used elsewhere in this file. exp_c previously treated exp is None as
+        # "positive" (green) - the most misleading direction of this bug class, actively
+        # signaling "good" for an unknown value rather than just failing to flag "bad."
+        pf_c = DIM if pf is None else (G if pf >= 1.5 else (Y if pf >= 1.0 else R))
+        exp_c = DIM if exp is None else (G if exp >= 0 else R)
         str_c = G if streak >= 0 else R
         str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
 
@@ -887,14 +893,10 @@ def panel_portfolio_perf_expanded(
         avg_l_r = safe_float(perf_anl.get("avg_l_r"), default=None, allow_none=True)
         exp2 = safe_float(perf_anl.get("expectancy"), default=None, allow_none=True)
         maxdd2 = safe_float(perf_anl.get("maxdd"), default=None, allow_none=True)
-        sharpe_style = (
-            G
-            if (sharpe252 is not None and sharpe252 >= 1)
-            else (Y if (sharpe252 is not None and sharpe252 >= 0) else R)
-        )
-        sortino_style = (
-            G if (sortino is not None and sortino >= 1.5) else (Y if (sortino is not None and sortino >= 0) else R)
-        )
+        # DIM (not R) when unavailable - Text(...) below renders "--" in this style
+        # unconditionally, so R would paint an unknown ratio the same as a genuinely bad one.
+        sharpe_style = DIM if sharpe252 is None else (G if sharpe252 >= 1 else (Y if sharpe252 >= 0 else R))
+        sortino_style = DIM if sortino is None else (G if sortino >= 1.5 else (Y if sortino >= 0 else R))
         anl.add_row(
             "Sharpe (252d):",
             Text(
@@ -907,10 +909,8 @@ def panel_portfolio_perf_expanded(
                 style=sortino_style,
             ),
         )
-        calmar_style = (
-            G if (calmar is not None and calmar >= 0.5) else (Y if (calmar is not None and calmar >= 0) else R)
-        )
-        wr50_style = G if (wr50 is not None and wr50 >= 50) else (Y if (wr50 is not None and wr50 >= 42) else R)
+        calmar_style = DIM if calmar is None else (G if calmar >= 0.5 else (Y if calmar >= 0 else R))
+        wr50_style = DIM if wr50 is None else (G if wr50 >= 50 else (Y if wr50 >= 42 else R))
         anl.add_row(
             "Calmar:",
             Text(
@@ -930,7 +930,8 @@ def panel_portfolio_perf_expanded(
             Text(f"{avg_l_r:.2f}R" if avg_l_r else "--", style=R),
         )
         if exp2 is not None or maxdd2 is not None:
-            exp_style = G if (exp2 is not None and exp2 >= 0) else R
+            # DIM (not R) when unavailable - matches maxdd_style's handling right below.
+            exp_style = DIM if exp2 is None else (G if exp2 >= 0 else R)
             # CRITICAL: Only set color for maxdd if value is not None (don't default to 0 which hides missing data)
             maxdd_abs = abs(maxdd2) if maxdd2 is not None else None
             maxdd_style = (

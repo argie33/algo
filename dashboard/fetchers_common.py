@@ -66,6 +66,10 @@ FETCHER_METADATA = {
         "endpoint": "/api/algo/scores",
         "desc": "Top stock scores for signals panel display",
     },
+    "inventory": {
+        "endpoint": "/api/admin/inventory",
+        "desc": "Complete table inventory (untracked/missing tables)",
+    },
 }
 
 

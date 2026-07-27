@@ -330,7 +330,7 @@ def render_expanded_view(  # noqa: C901
         case "data_freshness":
             if has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Data freshness unavailable[/]", border_style="red"))
-            return _expanded_layout(*_exp_top, panel_data_freshness_expanded(ctx.health))
+            return _expanded_layout(*_exp_top, panel_data_freshness_expanded(ctx.health, ctx.inventory))
         case "sectors":
             return _expanded_layout(
                 *_exp_top, panel_sectors_expanded(ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)

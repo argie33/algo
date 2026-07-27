@@ -295,10 +295,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # (auth failure, rate limit, timeout) showed up on the dashboard as bare "STALE" with no
             # way to tell why without reading raw logs. Select them so the freshness panel can surface
             # the actual failure reason and in-progress load state, not just an age/row-count guess.
+            # `status` (NOT_STARTED/RUNNING/COMPLETED/FAILED/TIMEOUT, see utils/loaders/status_enum.py)
+            # is also written by every loader via LoaderStatusManager but was never selected here either -
+            # without it, a loader that has literally never run (NOT_STARTED) looked identical to one
+            # that ran and legitimately produced zero rows (row_count=0), and a TIMEOUT looked identical
+            # to a FAILED - both collapsed into the same generic age/row-count-derived "stale"/"empty".
             cur.execute("""
                     SELECT table_name, row_count, last_updated, stale_threshold_days,
                            error_message, execution_started, execution_completed,
-                           completion_pct, symbols_loaded, symbol_count
+                           completion_pct, symbols_loaded, symbol_count, status
                     FROM data_loader_status
                     ORDER BY table_name
                 """)
@@ -602,6 +607,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "completion_pct": float(completion_pct) if completion_pct is not None else None,
                     "symbols_loaded": row.get("symbols_loaded"),
                     "symbol_count": row.get("symbol_count"),
+                    # Loader's own run-state enum (NOT_STARTED/RUNNING/COMPLETED/FAILED/TIMEOUT) -
+                    # distinct from `status` above (the age/row-count-derived freshness verdict).
+                    # algo_rows entries (orchestrator-written tables) have no loader run, so this
+                    # is always None for them.
+                    "loader_run_status": row.get("status"),
+                    "stale_threshold_days": max_age,
                 }
             )
 
