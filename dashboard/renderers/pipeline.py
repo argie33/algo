@@ -25,6 +25,8 @@ from dashboard.panels import (
     panel_circuit,
     panel_circuit_expanded,
     panel_completed_trades,
+    panel_data_freshness,
+    panel_data_freshness_expanded,
     panel_economic_expanded,
     panel_economic_pulse,
     panel_exposure_compact,
@@ -181,10 +183,16 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         if not (has_error(ctx.run) or has_error(ctx.health))
         else Panel("[red]Health data unavailable[/]", border_style="red")
     )
+    freshness_panel = (
+        safe_render(panel_data_freshness, ctx.health)
+        if not has_error(ctx.health)
+        else Panel("[red]Data freshness unavailable[/]", border_style="red")
+    )
 
     outer["r1"].split_row(
         Layout(cb_panel, ratio=3, name="cb"),
         Layout(health_panel, ratio=5, name="health"),
+        Layout(freshness_panel, ratio=4, name="freshness"),
     )
 
     port_panel = (
@@ -313,9 +321,16 @@ def render_expanded_view(  # noqa: C901
         case "health":
             if has_error(ctx.run) or has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
-            return panel_algo_health_expanded(
-                ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.exec_hist, risk=ctx.risk
+            return _expanded_layout(
+                *_exp_top,
+                panel_algo_health_expanded(
+                    ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.exec_hist, risk=ctx.risk
+                ),
             )
+        case "data_freshness":
+            if has_error(ctx.health):
+                return _expanded_layout(*_exp_top, Panel("[red]Data freshness unavailable[/]", border_style="red"))
+            return _expanded_layout(*_exp_top, panel_data_freshness_expanded(ctx.health))
         case "sectors":
             return _expanded_layout(
                 *_exp_top, panel_sectors_expanded(ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)

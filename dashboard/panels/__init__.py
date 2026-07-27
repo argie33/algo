@@ -28,6 +28,8 @@ from .exposure import (
 from .health import (
     panel_algo_health,
     panel_algo_health_expanded,
+    panel_data_freshness,
+    panel_data_freshness_expanded,
     panel_orch,
     panel_status,
 )
@@ -90,6 +92,9 @@ __all__ = [
     "panel_circuit_expanded",
     # Trade panels
     "panel_completed_trades",
+    # Data freshness panels
+    "panel_data_freshness",
+    "panel_data_freshness_expanded",
     "panel_economic_expanded",
     # Economic panels
     "panel_economic_pulse",

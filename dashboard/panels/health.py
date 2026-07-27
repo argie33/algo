@@ -681,17 +681,37 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     return rows
 
 
-def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -> Panel:
-    """Build LEFT panel: data freshness table with status summary.
+def _build_freshness_panel(
+    hlth_items: list[Any],
+    ready_to_trade: bool | None,
+    hlth_dict: dict[str, Any] | None = None,
+) -> Panel:
+    """Build the standalone DATA FRESHNESS - EXPANDED panel: full table freshness detail.
 
     Args:
         hlth_items: Validated list of health status items
         ready_to_trade: Boolean ready state (True/False/None)
+        hlth_dict: Raw health response dict, for as_of/trading_halted context (optional -
+            only the caller building the full standalone expanded view has this)
 
     Returns:
         Rich Panel with freshness table
     """
+    hlth_dict = hlth_dict if hlth_dict is not None else {}
+    as_of = hlth_dict.get("as_of")
+    age_s = f"  [dim]{fmt_age(as_of)}[/]" if as_of else ""
+    title = f"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim][l] return[/]"
+
     left_rows: list[Text | Table | Layout] = []
+
+    trading_halted = hlth_dict.get("trading_halted")
+    trading_halt_reason = hlth_dict.get("trading_halt_reason")
+    if trading_halted and trading_halt_reason:
+        left_rows.append(Text.from_markup(f"[{Y}]→ Trading halted:[/] {trading_halt_reason}"))
+
+    expected_date = hlth_dict.get("expected_date")
+    if expected_date:
+        left_rows.append(Text.from_markup(f"[dim]Expected data date:[/] {expected_date}"))
 
     if not hlth_items:
         msg = "⚠ Data health unavailable - loaders may not have run yet.\n"
@@ -699,7 +719,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         left_rows.append(Text(msg, style="dim"))
         return Panel(
             Group(*left_rows),
-            title="[bold yellow]DATA FRESHNESS[/]  [dim][h] return[/]",
+            title=title,
             border_style="yellow",
             padding=(0, 1),
         )
@@ -828,7 +848,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
     return Panel(
         Group(*left_rows),
-        title="[bold yellow]DATA FRESHNESS[/]  [dim][h] return[/]",
+        title=title,
         border_style="yellow",
         padding=(0, 1),
     )
@@ -2784,40 +2804,19 @@ def panel_algo_health(
 
     rows.append(Rule(style="dim"))
 
-    # ── D: Data health (compact) ──────────────────────────────────────────────
-    if hlth:
-        hlth_list_raw = safe_get_list(hlth)
-        hlth_list: list[Any] | None = None
-        if isinstance(hlth_list_raw, list):
-            hlth_list = hlth_list_raw
-        ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
-        # CRITICAL: Explicit unavailability marker when hlth_list is empty
-        # Cannot distinguish "no data" from "all fresh" with empty list
-        stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"] if hlth_list else None
-
-        if stale is None and hlth_list is None:
-            # No data available at all (expected in early initialization or LOCAL_MODE)
-            logger.debug("[HEALTH] Data health list is None, cannot assess table freshness")
-        elif not stale and hlth_list:
-            # All tables fresh
-            ages_raw = [_age_h(r) for r in hlth_list if isinstance(r, dict)]
-            # Convert dict markers (unavailability) to None for type compatibility
-            ages: list[float | None] = [a if isinstance(a, float) else None for a in ages_raw]
-            health_text = _format_health_data_fresh_section(hlth_list, hlth_list, ready_to_trade, ages)
-            rows.append(Text.from_markup(health_text))
-        elif stale is not None and stale:
-            # Some tables are stale
-            health_text = _format_health_data_stale_section(stale, hlth_list)
-            rows.append(Text.from_markup(health_text))
-
-        # ── E: Phase 2-9 Execution Health (Prominent Panel) ────────────────────────────────────
-        execution_health = hlth.get("execution_health") if isinstance(hlth, dict) else None
+    # ── D: Phase 1-9 Execution Health (Prominent Panel) ────────────────────────────────────
+    # Table-by-table data freshness (what used to render here) now lives in its own
+    # dedicated DATA FRESHNESS panel (panel_data_freshness) - see dashboard row 1, which
+    # frees this panel to focus on "what did the algo actually do" rather than competing
+    # for space with per-table staleness detail.
+    if hlth and isinstance(hlth, dict):
+        execution_health = hlth.get("execution_health")
         if execution_health is not None:
-            phase_panel = _build_phase_execution_panel(execution_health)
+            phase_panel = _build_phase_execution_panel(execution_health, run)
             if phase_panel:
                 rows.append(phase_panel)
 
-    # ── F: Notifications (compact) ────────────────────────────────────────────
+    # ── E: Notifications (compact) ────────────────────────────────────────────
     valid_notifs_raw = safe_get_list(notifs)
     if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         rows.append(Rule(style="dim"))
@@ -2857,6 +2856,138 @@ def panel_algo_health(
     return Panel(
         Group(*rows),
         title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
+
+
+def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
+    """Focused 'is our data current and complete?' panel: per-table freshness, critical
+    gaps, and the orchestrator's own Phase 1 freshness gate.
+
+    Split out of ALGO HEALTH so table-by-table staleness detail (row counts, ages, which
+    loaders are behind) has its own real estate instead of competing with run/execution
+    history for space in one crowded panel.
+    """
+    hlth_err = _error_panel("health", hlth, "DATA FRESHNESS")
+    if hlth_err is not None:
+        return hlth_err
+
+    rows: list[Text | Rule | Table] = []
+    hlth_dict = hlth if isinstance(hlth, dict) else {}
+    hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
+
+    as_of = hlth_dict.get("as_of")
+    age_s = f"  [dim]{fmt_age(as_of)}[/]" if as_of else ""
+
+    if not hlth_items:
+        rows.append(Text("⚠ No data health info available - loaders may not have run yet.", style="yellow"))
+        return Panel(
+            Group(*rows),
+            title=f"[bold yellow]DATA FRESHNESS[/]{age_s}  [dim][l] expand[/]",
+            border_style="yellow",
+            padding=(0, 1),
+        )
+
+    stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
+    if stale:
+        rows.append(Text.from_markup(_format_health_data_stale_section(stale, hlth_items)))
+    else:
+        crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
+        ages_raw = [_age_h(r) for r in hlth_items if isinstance(r, dict)]
+        ages: list[float | None] = [a if isinstance(a, float) else None for a in ages_raw]
+        rows.append(Text.from_markup(_format_health_data_fresh_section(hlth_items, crit, ready_to_trade, ages)))
+
+    # ready_to_trade folds BOTH data freshness AND the latest orchestrator run's halt state
+    # together (see lambda/api/routes/algo_handlers/market.py::_get_data_status), so a bare
+    # "NOT READY" could otherwise be mistaken for a data problem when the real cause was a
+    # circuit-breaker halt unrelated to staleness. Surface the actual reason when it's known.
+    trading_halted = hlth_dict.get("trading_halted")
+    trading_halt_reason = hlth_dict.get("trading_halt_reason")
+    if trading_halted and trading_halt_reason:
+        rows.append(Text.from_markup(f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}"))
+
+    summary = hlth_dict.get("summary")
+    if isinstance(summary, dict) and summary:
+        parts = []
+        ok_n = summary.get("ok")
+        stale_n = summary.get("stale")
+        empty_n = summary.get("empty")
+        error_n = summary.get("error")
+        if ok_n:
+            parts.append(f"[{G}]{ok_n} ok[/]")
+        if stale_n:
+            parts.append(f"[{Y}]{stale_n} stale[/]")
+        if empty_n:
+            parts.append(f"[{Y}]{empty_n} empty[/]")
+        if error_n:
+            parts.append(f"[{R}]{error_n} error[/]")
+        if parts:
+            rows.append(Text.from_markup("[dim]By status:[/]  " + "  ".join(parts)))
+
+    critical_stale = hlth_dict.get("critical_stale")
+    if critical_stale:
+        names = "  ".join(f"[bold {R}]{n}[/]" for n in critical_stale[:5])
+        rows.append(Text.from_markup(f"[{R}]⚠ CRIT STALE:[/]  {names}"))
+
+    rows.append(Rule(style="dim"))
+
+    # Per-table breakdown: not-ok tables first, CRIT role first within each group
+    def sort_key(r: dict[str, Any]) -> tuple[int, int, str]:
+        not_ok = 0 if r.get("st") != "ok" else 1
+        role_val = r.get("role")
+        role_rank = ROLE_ORDER.get(role_val, 3) if isinstance(role_val, str) else 3
+        name = str(r.get("tbl") or "")
+        return (not_ok, role_rank, name)
+
+    sorted_items = sorted([r for r in hlth_items if isinstance(r, dict)], key=sort_key)
+    shown = sorted_items[:10]
+
+    tbl = Table(
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="dim",
+        padding=(0, 1),
+        expand=True,
+        row_styles=["", "dim"],
+    )
+    tbl.add_column("Table", no_wrap=True, min_width=16)
+    tbl.add_column("Age", no_wrap=True, justify="right", min_width=5)
+    tbl.add_column("Rows", no_wrap=True, justify="right", min_width=7)
+    tbl.add_column("St", no_wrap=True, min_width=4)
+    for r in shown:
+        nm = str(r.get("tbl") or "--")
+        st = r.get("st") or "unknown"
+        ok = st == "ok"
+        ic = G if ok else (Y if st == "empty" else R)
+        row_count = safe_int(r.get("row_count"), default=None)
+        rc_s = f"{row_count:,}" if row_count is not None else "--"
+        tbl.add_row(
+            Text.from_markup(f"[{ic}]{'✓' if ok else ('-' if st == 'empty' else '✗')}[/] {nm}"),
+            Text(_fmt_age(r), style=DIM if ok else Y),
+            Text(rc_s, style="dim"),
+            Text("ok" if ok else st.upper()[:3], style=ic),
+        )
+    rows.append(tbl)
+    if len(sorted_items) > len(shown):
+        rows.append(Text.from_markup(f"[dim]...and {len(sorted_items) - len(shown)} more (see expanded view)[/]"))
+
+    # Phase 1: the orchestrator's own freshness gate result from the last run (distinct from
+    # the live per-table snapshot above - this is what the run actually evaluated at Phase 1).
+    execution_health = hlth_dict.get("execution_health")
+    p1 = execution_health.get("phase_1_data_check") if isinstance(execution_health, dict) else None
+    if p1:
+        vs = p1.get("validation_status")
+        vc = G if vs == "pass" else (Y if vs == "warn" else (R if vs == "fail" else DIM))
+        tf = p1.get("tables_fresh")
+        tv = p1.get("tables_validated")
+        counts_s = f"  [dim]{tf}/{tv} fresh[/]" if tf is not None and tv is not None else ""
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[dim]Phase 1 gate:[/] [{vc}]{vs or '?'}[/]{counts_s}"))
+
+    return Panel(
+        Group(*rows),
+        title=f"[bold yellow]DATA FRESHNESS[/]{age_s}  [dim][l] expand[/]",
         border_style="yellow",
         padding=(0, 1),
     )
@@ -3013,7 +3144,7 @@ def _build_results_panel(
 
     return Panel(
         Group(*right_rows),
-        title="[bold yellow]EXECUTION & SYSTEM STATUS[/]  [dim][h] return[/]",
+        title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]",
         border_style="yellow",
         padding=(0, 1),
     )
@@ -3027,21 +3158,19 @@ def panel_algo_health_expanded(
     algo_metrics: list[Any] | None = None,
     exec_hist: list[Any] | None = None,
     risk: dict[str, Any] | None = None,
-) -> Layout:
-    """Full-screen algo health - dual column: data freshness (left) | execution status (right)."""
-    hlth_err_exp = _error_panel("health", hlth, "HEALTH EXPANDED")
-    if hlth_err_exp is not None:
-        error_layout = Layout()
-        error_layout.split_row(Layout(hlth_err_exp))
-        return error_layout
-    notif_err_exp = _error_panel("notifications", notifs, "HEALTH EXPANDED")
-    if notif_err_exp is not None:
-        error_layout = Layout()
-        error_layout.split_row(Layout(notif_err_exp))
-        return error_layout
+) -> Panel:
+    """Full-screen algo health: run outcome, phase execution detail, run history, alerts.
 
-    hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
-    left_panel = _build_freshness_panel(hlth_items, ready_to_trade)
+    Data freshness detail lives in its own panel_data_freshness_expanded now - see that
+    function for the per-table breakdown this used to show side-by-side with.
+    """
+    hlth_err_exp = _error_panel("health", hlth, "ALGO HEALTH EXPANDED")
+    if hlth_err_exp is not None:
+        return hlth_err_exp
+    notif_err_exp = _error_panel("notifications", notifs, "ALGO HEALTH EXPANDED")
+    if notif_err_exp is not None:
+        return notif_err_exp
+
     # GOVERNANCE: Log when optional data sources are missing (fail-fast visibility).
     # These fallbacks to empty lists are intentional for UI graceful degradation.
     if algo_metrics is None:
@@ -3054,19 +3183,27 @@ def panel_algo_health_expanded(
         exec_hist_display = []
     else:
         exec_hist_display = exec_hist
-    right_panel = _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth)
+    return _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth)
 
-    dual = Layout()
-    dual.split_row(
-        Layout(left_panel, ratio=3, name="freshness"),
-        Layout(right_panel, ratio=2, name="runs"),
-    )
-    return dual
+
+def panel_data_freshness_expanded(hlth: dict[str, Any] | list[Any] | None) -> Panel:
+    """Full-screen data freshness: every tracked table's status, age, row count, and the
+    orchestrator's Phase 1 freshness-gate result, in one place.
+    """
+    hlth_err_exp = _error_panel("health", hlth, "DATA FRESHNESS EXPANDED")
+    if hlth_err_exp is not None:
+        return hlth_err_exp
+
+    hlth_dict = hlth if isinstance(hlth, dict) else {}
+    hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
+    return _build_freshness_panel(hlth_items, ready_to_trade, hlth_dict)
 
 
 __all__ = [
     "panel_algo_health",
     "panel_algo_health_expanded",
+    "panel_data_freshness",
+    "panel_data_freshness_expanded",
     "panel_orch",
     "panel_status",
 ]

@@ -1085,7 +1085,12 @@ DASHBOARD_PANELS = {
     "health": {
         "endpoint_deps": ["run", "health", "notifs", "algo_metrics", "audit", "risk"],
         "optional": True,
-        "description": "Algo health and data status",
+        "description": "Algo run outcome, phase execution health, run history, alerts",
+    },
+    "data_freshness": {
+        "endpoint_deps": ["health"],
+        "optional": True,
+        "description": "Per-table data freshness, critical staleness, and readiness-to-trade",
     },
     "portfolio": {
         "endpoint_deps": ["port", "cfg", "risk", "perf"],

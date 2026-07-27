@@ -70,6 +70,7 @@ class WatchModeController:
             "s": "signals",
             "c": "scores",
             "h": "health",
+            "l": "data_freshness",
             "r": "sectors",
             "t": "trades",
             "e": "economic",

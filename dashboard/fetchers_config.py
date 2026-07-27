@@ -405,12 +405,26 @@ def fetch_health(c: None) -> dict[str, Any]:
         if execution_health is None:
             logger.debug("Health API response missing execution_health field (Phase 2-9 metrics unavailable)")
 
+        # trading_halted/trading_halt_reason/expected_date/as_of: computed by the API
+        # (_get_data_status) but previously dropped here before reaching any panel - the
+        # dashboard's "NOT READY" badge had no way to say whether that meant stale data or
+        # a circuit-breaker halt, and the DATA FRESHNESS panel had no real "as of" timestamp
+        # of its own (only per-table ages).
+        trading_halted = inner.get("trading_halted")
+        trading_halt_reason = inner.get("trading_halt_reason")
+        expected_date = inner.get("expected_date")
+        as_of = inner.get("as_of")
+
         return {
             "items": sources,
             "ready_to_trade": ready_to_trade,
             "summary": summary,
             "critical_stale": critical_stale,
             "execution_health": execution_health,
+            "trading_halted": trading_halted,
+            "trading_halt_reason": trading_halt_reason,
+            "expected_date": expected_date,
+            "as_of": as_of,
         }
     except Exception as e:
         error_msg = format_fetcher_error("health", e)

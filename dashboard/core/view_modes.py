@@ -14,6 +14,7 @@ class ViewMode(str, Enum):
     SIGNALS = "signals"
     SCORES = "scores"
     HEALTH = "health"
+    DATA_FRESHNESS = "data_freshness"
     SECTORS = "sectors"
     TRADES = "trades"
     ECONOMIC = "economic"
