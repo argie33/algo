@@ -104,9 +104,18 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
     concepts = [
         "Revenues",
         "SalesRevenueNet",
-        # Post-ASC 606 (post-2018) revenue concepts used by most large-cap companies:
-        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        # Post-ASC 606 (post-2018) revenue concepts used by most large-cap companies.
+        # IncludingAssessedTax must be listed BEFORE ExcludingAssessedTax: both map to
+        # the same "revenue" output column (see load_financial_statements.py's
+        # _INCOME_FIELD_MAPPING), and the last-listed concept present wins on overwrite.
+        # ExcludingAssessedTax (net of sales/excise tax collected as agent) is the
+        # standard net-revenue measure most filers use, so it must win when both are
+        # reported; IncludingAssessedTax is kept only as a fallback for the minority of
+        # filers (e.g. some telecom/utility filers passing through excise tax) that
+        # report solely the tax-inclusive tag - previously unmapped entirely, silently
+        # dropping their revenue.
         "RevenueFromContractWithCustomerIncludingAssessedTax",
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
         "CostOfRevenue",
         "CostsAndExpenses",
         "GrossProfit",

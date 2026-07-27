@@ -79,8 +79,11 @@ def get_all_statement_configs() -> list[tuple[str, str]]:
 # persisted a real row since consolidation. Keys are _to_snake()'d XBRL concept names
 # from utils/external/sec_statements.py; unmapped keys are skipped by transform().
 # Multiple revenue concepts intentionally map to "revenue": transform iterates in row
-# insertion order (= concepts-list order), so the post-ASC-606 contract-revenue
-# concept overwrites the legacy Revenues value when a filer reports both.
+# insertion order (= concepts-list order in sec_statements.get_income_statement()), so
+# the last-listed concept present wins on overwrite - legacy Revenues < SalesRevenueNet
+# < tax-inclusive ASC-606 tag < tax-exclusive ASC-606 tag (the standard net-revenue
+# measure). See sec_statements.py's concept-list ordering comment for why the
+# tax-inclusive concept must be mapped too, not just the exclusive one.
 # data_unavailable/reason must pass through so marker rows keep their flags.
 _MARKER_FIELDS = {
     "data_unavailable": "data_unavailable",
@@ -90,6 +93,7 @@ _MARKER_FIELDS = {
 _INCOME_FIELD_MAPPING = {
     "revenues": "revenue",
     "sales_revenue_net": "revenue",
+    "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
     "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
     "cost_of_revenue": "cost_of_revenue",
     "gross_profit": "gross_profit",
