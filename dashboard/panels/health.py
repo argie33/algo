@@ -333,6 +333,16 @@ def _build_phase_execution_panel(
         phase_header = f"  {status_icon} [bold]{phase_name}[/] [{base_color}]{status_text}[/]"
         phase_rows.append(Text.from_markup(phase_header))
 
+        # NOT RUN means this specific orchestrator run's phase_results has no entry for this
+        # phase (e.g. an earlier phase halted before it started). The detail rows below,
+        # though, come from execution_health - a live, independent query of each phase's
+        # underlying table (e.g. circuit_breaker_status) - not from this run. Without this
+        # note, "Circuit Breakers NOT RUN" next to a detail line reading "Status: TRIGGERED"
+        # reads as self-contradictory instead of "didn't run this time, but here's the
+        # latest live reading regardless."
+        if status_str == "not_run" and phase_data is not None:
+            phase_rows.append(Text.from_markup("      [dim](live check, not from this run)[/]"))
+
         # Phase details - expand each phase with all relevant info
         if phase_data is None:
             phase_rows.append(Text.from_markup("      [dim]─ no data available[/]"))
