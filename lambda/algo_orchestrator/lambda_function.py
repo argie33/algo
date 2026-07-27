@@ -31,6 +31,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Import the orchestrator
 from algo.orchestration import Orchestrator  # noqa: E402
 
+# Maps EventBridge Scheduler run_identifier -> trading mode when dry_run isn't explicit.
+# Live-trading runs execute real orders (paper or live per execution_mode); dry-run/monitor
+# runs generate signals for review but do not submit orders. Module-level (not inline in the
+# handler) so scripts/run_local_orchestrator.py can import these directly instead of keeping
+# its own copy that could silently drift out of sync with the real production mapping - see
+# that script's docstring for the local-dev consequence of exactly that drift.
+LIVE_TRADING_RUN_IDENTIFIERS = {"morning", "afternoon", "preclose", "premarket"}
+MONITOR_ONLY_RUN_IDENTIFIERS = {"evening", "default", "prewarm", "manual"}
+
 
 def _load_alpaca_credentials_from_secrets() -> None:
     """Load Alpaca API credentials from AWS Secrets Manager into environment.
@@ -231,11 +240,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             # Map run_identifier to dry_run mode:
             # Live-trading runs execute real orders (paper or live per execution_mode)
             # Dry-run/monitor runs generate signals for review but do not submit orders
-            live_trading_ids = {"morning", "afternoon", "preclose", "premarket"}
-            monitor_ids = {"evening", "default", "prewarm", "manual"}
-            if run_identifier in live_trading_ids:
+            if run_identifier in LIVE_TRADING_RUN_IDENTIFIERS:
                 dry_run = False
-            elif run_identifier in monitor_ids:
+            elif run_identifier in MONITOR_ONLY_RUN_IDENTIFIERS:
                 dry_run = True
             else:
                 # Unknown identifier - fail safe: observe-only, no trades

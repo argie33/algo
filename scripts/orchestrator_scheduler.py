@@ -21,11 +21,18 @@ logger = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
 
-# Trading session times (ET)
+# Trading session times (ET). Must match terraform/modules/services/2x-daily-orchestrator.tf's
+# 4 real scheduled sessions (morning/afternoon/preclose/evening) exactly - this dict previously
+# had only 3 entries and mislabeled the 3:00 PM slot as "evening", which both ran the wrong
+# --{session_name} flag (there was no --preclose) and meant this local scheduler never
+# exercised the real 5:30 PM evening run (production's evening is monitor-only/dry_run - see
+# LIVE_TRADING_RUN_IDENTIFIERS/MONITOR_ONLY_RUN_IDENTIFIERS in
+# lambda/algo_orchestrator/lambda_function.py) at all locally.
 TRADING_SESSIONS = {
-    "morning": time(9, 30),  # 9:30 AM ET (market open)
-    "afternoon": time(13, 0),  # 1:00 PM ET (rebalance)
-    "evening": time(15, 0),  # 3:00 PM ET (pre-close)
+    "morning": time(9, 30),  # 9:30 AM ET (market open, live trading)
+    "afternoon": time(13, 0),  # 1:00 PM ET (rebalance, live trading)
+    "preclose": time(15, 0),  # 3:00 PM ET (final entries/exits before close, live trading)
+    "evening": time(17, 30),  # 5:30 PM ET (full pipeline, monitor-only - no new entries)
 }
 
 
@@ -44,7 +51,7 @@ def get_next_session() -> tuple[str, time] | None:
     current_time = now.time()
 
     # Check each session in order
-    for session_name in ["morning", "afternoon", "evening"]:
+    for session_name in ["morning", "afternoon", "preclose", "evening"]:
         session_time = TRADING_SESSIONS[session_name]
         if current_time < session_time:
             return session_name, session_time

@@ -7,12 +7,23 @@ Useful when developing locally with --local flag on the dashboard.
 Usage:
   python scripts/run_local_orchestrator.py              # runs morning orchestrator
   python scripts/run_local_orchestrator.py --afternoon   # runs afternoon orchestrator
+  python scripts/run_local_orchestrator.py --preclose    # runs pre-close orchestrator
   python scripts/run_local_orchestrator.py --evening     # runs evening orchestrator
+
+Production actually schedules 4 sessions (terraform/modules/services/2x-daily-orchestrator.tf):
+morning 9:30 AM ET, afternoon 1:00 PM ET, preclose 3:00 PM ET, evening 5:30 PM ET. Per
+lambda/algo_orchestrator/lambda_function.py's LIVE_TRADING_RUN_IDENTIFIERS/
+MONITOR_ONLY_RUN_IDENTIFIERS, morning/afternoon/preclose submit real (paper or live) orders;
+evening is monitor-only (dry_run=True) - it doesn't place new entries. This script mirrors
+that mapping below so --evening locally behaves like the real evening run, not like another
+live-trading session with a different label.
 """
 
 import argparse
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # CRITICAL: Load environment variables from .env.local BEFORE any boto3/AWS calls
@@ -20,18 +31,28 @@ from utils.dotenv_loader import load_env_local
 
 load_env_local()
 
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 # Load Alpaca credentials from database (persistent storage, not files)
 try:
-    import sys
-    from pathlib import Path
-    project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
     from scripts.load_credentials import ensure_credentials_loaded
     ensure_credentials_loaded()
 except Exception as e:
     # Log but don't crash - credentials might come from environment
     import logging
     logging.getLogger(__name__).warning(f"[CREDS] Could not load credentials from database: {e}")
+
+# `lambda` is a Python reserved word, so `lambda.algo_orchestrator.lambda_function` can't be
+# imported as a dotted package path - add the directory to sys.path and import the bare module
+# name instead (same trick lambda/api/dev_server.py uses for its own lambda_function.py).
+# Reuses the real production run_identifier -> dry_run mapping rather than keeping a second,
+# driftable copy here.
+sys.path.insert(0, str(project_root / "lambda" / "algo_orchestrator"))
+from lambda_function import (  # noqa: E402
+    LIVE_TRADING_RUN_IDENTIFIERS,
+    MONITOR_ONLY_RUN_IDENTIFIERS,
+)
 
 
 def _find_todays_run(run_type: str, run_date) -> dict | None:
@@ -80,14 +101,19 @@ def main() -> None:
         help="Run afternoon orchestrator (1:00 PM ET)",
     )
     parser.add_argument(
+        "--preclose",
+        action="store_true",
+        help="Run pre-close orchestrator (3:00 PM ET, live-trading, SLA: finish by 3:15 PM ET)",
+    )
+    parser.add_argument(
         "--evening",
         action="store_true",
-        help="Run evening orchestrator (5:30 PM ET)",
+        help="Run evening orchestrator (5:30 PM ET, monitor-only - does not place new entries)",
     )
     parser.add_argument(
         "--run-all",
         action="store_true",
-        help="Run all orchestrator times (morning + afternoon + evening)",
+        help="Run all orchestrator times (morning + afternoon + preclose + evening)",
     )
     parser.add_argument(
         "--force",
@@ -105,9 +131,11 @@ def main() -> None:
     # Default to morning if no specific time requested
     runs = []
     if args.run_all:
-        runs = ["morning", "afternoon", "evening"]
+        runs = ["morning", "afternoon", "preclose", "evening"]
     elif args.afternoon:
         runs = ["afternoon"]
+    elif args.preclose:
+        runs = ["preclose"]
     elif args.evening:
         runs = ["evening"]
     else:
@@ -169,7 +197,24 @@ def main() -> None:
             # Create and run orchestrator instance
             # Support ORCHESTRATOR_DRY_RUN env var for local development/testing
             # Bypasses Phase 1 staleness checks when data is being loaded
-            dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("1", "true", "yes")
+            dry_run_override = os.environ.get("ORCHESTRATOR_DRY_RUN")
+            if dry_run_override is not None:
+                dry_run = dry_run_override.lower() in ("1", "true", "yes")
+            elif run_type in MONITOR_ONLY_RUN_IDENTIFIERS:
+                # CRITICAL FIX: previously always defaulted to dry_run=False regardless of
+                # run_type, so --evening locally submitted real (paper) orders exactly like
+                # --morning/--afternoon - but production's real evening run (run_identifier=
+                # "evening") is monitor-only (see LIVE_TRADING_RUN_IDENTIFIERS/
+                # MONITOR_ONLY_RUN_IDENTIFIERS in lambda_function.py) and never places new
+                # entries. Local --evening testing must match that, not silently diverge from it.
+                dry_run = True
+            elif run_type in LIVE_TRADING_RUN_IDENTIFIERS:
+                dry_run = False
+            else:
+                raise ValueError(
+                    f"run_type '{run_type}' is in neither LIVE_TRADING_RUN_IDENTIFIERS nor "
+                    "MONITOR_ONLY_RUN_IDENTIFIERS - add it to one in lambda_function.py."
+                )
 
             orchestrator_instance = Orchestrator(
                 config=config,
