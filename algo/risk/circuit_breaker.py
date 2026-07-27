@@ -197,7 +197,21 @@ class CircuitBreaker:
                     try:
                         fn = self._checks[check_name]
                         state = fn(current_date, cur)
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    except Exception as e:
+                        # CRITICAL FIX: previously only caught (psycopg2.DatabaseError,
+                        # psycopg2.OperationalError) - stress-tested live and confirmed a plain
+                        # ValueError (e.g. a malformed algo_config value) from any individual
+                        # _check_* method propagated straight out of check_all() uncaught,
+                        # contradicting this exact comment block's own stated contract ("All
+                        # check failures result in fail-closed halt"). check_all() only stayed
+                        # safe in practice because both of its current callers
+                        # (phase2_circuit_breakers.py, utils/orchestrator_diagnostics.py)
+                        # happen to also wrap it in a broad except Exception - a landmine for
+                        # any future caller that reasonably trusts this function's own
+                        # docstring ("Returns dict with per-check status") instead of
+                        # independently re-adding that same broad catch. Widened to catch
+                        # every exception type, not just DB errors, so check_all() is
+                        # genuinely self-contained and fail-closed regardless of caller.
                         import traceback
 
                         tb = traceback.format_exc()
@@ -230,7 +244,13 @@ class CircuitBreaker:
                     self._log_halt(results, cur)
 
                 return results
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            except Exception as e:
+                # CRITICAL FIX: previously only caught (psycopg2.DatabaseError,
+                # psycopg2.OperationalError) - widened for the same reason as the per-check
+                # handler above (see its comment): a non-DB exception anywhere in this method
+                # (e.g. the "missing 'halted' field" ValueError a few lines up, or a bug in
+                # _log_halt) must fail closed here directly, not rely on every caller
+                # independently re-adding a broad except Exception around check_all().
                 logger.error(f"CRITICAL ERROR in circuit breaker check: {e}", exc_info=True)
                 # B12: Fail-closed - if circuit breaker logic itself fails, halt trading
                 # Do NOT allow trading when we can't verify safety checks
