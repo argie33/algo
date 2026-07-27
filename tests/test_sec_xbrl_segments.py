@@ -418,6 +418,68 @@ class TestExtractSegmentRevenueFromXbrlXml:
         assert result["data_available"] is True
         assert result["segments"][0]["operating_income"] is None
 
+    def test_bank_holding_company_revenues_net_of_interest_expense(self) -> None:
+        """Real filer shape (verified live against JPMorgan Chase's FY2025 10-K
+        instance): banks don't tag plain Revenues/RevenueFromContractWithCustomer* at
+        the per-segment level - they use RevenuesNetOfInterestExpense instead
+        (NoninterestIncome + InterestIncomeExpenseNet, standard bank-holding-company
+        income-statement framing). Pre-fix, this concept wasn't in
+        _REVENUE_CONCEPT_LOCAL_NAMES at all, so JPM (and presumably other bank/
+        financial filers) always reported data_unavailable despite having real,
+        correctly-dimensioned segment revenue facts in the XML. Values below match
+        JPM's real reported FY2025 segment revenue exactly: Consumer & Community
+        Banking $76.029B, Commercial & Investment Bank $78.454B, Asset & Wealth
+        Management $24.073B."""
+        contexts = (
+            _context(
+                "c1", "StatementBusinessSegmentsAxis", "ConsumerCommunityBankingMember", "2025-01-01", "2025-12-31"
+            )
+            + _context(
+                "c2", "StatementBusinessSegmentsAxis", "CommercialAndInvestmentBankMember", "2025-01-01", "2025-12-31"
+            )
+            + _context(
+                "c3",
+                "StatementBusinessSegmentsAxis",
+                "AssetandWealthManagementSegmentMember",
+                "2025-01-01",
+                "2025-12-31",
+            )
+        )
+        facts = """
+        <us-gaap:RevenuesNetOfInterestExpense contextRef="c1">76029000000</us-gaap:RevenuesNetOfInterestExpense>
+        <us-gaap:RevenuesNetOfInterestExpense contextRef="c2">78454000000</us-gaap:RevenuesNetOfInterestExpense>
+        <us-gaap:RevenuesNetOfInterestExpense contextRef="c3">24073000000</us-gaap:RevenuesNetOfInterestExpense>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 3
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {
+            "ConsumerCommunityBankingMember": 76_029_000_000.0,
+            "CommercialAndInvestmentBankMember": 78_454_000_000.0,
+            "AssetandWealthManagementSegmentMember": 24_073_000_000.0,
+        }
+
+    def test_plain_revenues_still_preferred_over_bank_concept_when_both_present(self) -> None:
+        """RevenuesNetOfInterestExpense is last in the preference order - a filer
+        that tags the normal Revenues concept must not have it overridden by a
+        stray/irrelevant RevenuesNetOfInterestExpense fact."""
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>
+        <us-gaap:RevenuesNetOfInterestExpense contextRef="c1">999999999</us-gaap:RevenuesNetOfInterestExpense>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["segments"][0]["revenue"] == 100_000_000.0
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

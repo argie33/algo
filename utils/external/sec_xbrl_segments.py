@@ -75,11 +75,21 @@ _OPERATING_SEGMENTS_MEMBER = "OperatingSegmentsMember"
 # the SAME concept as consolidated revenue - just against a dimensioned context -
 # so this list is really "which revenue concept does this filer use at all",
 # checked most-specific (post-ASC-606 contract revenue) to least.
+#
+# RevenuesNetOfInterestExpense: banks/financial institutions (verified live
+# against JPMorgan Chase's FY2025 10-K) don't tag plain Revenues at the
+# per-segment level - they tag this concept instead (NoninterestIncome +
+# InterestIncomeExpenseNet, the standard bank-holding-company income-statement
+# framing). Confirmed the extracted per-segment values match JPM's real
+# reported segment revenue: Consumer & Community Banking $76.0B, Commercial &
+# Investment Bank $78.5B, Asset & Wealth Management $24.1B (FY2025). Tried
+# last since it's specific to this one sector, not a general fallback.
 _REVENUE_CONCEPT_LOCAL_NAMES = (
     "RevenueFromContractWithCustomerExcludingAssessedTax",
     "RevenueFromContractWithCustomerIncludingAssessedTax",
     "Revenues",
     "SalesRevenueNet",
+    "RevenuesNetOfInterestExpense",
 )
 
 # ASC 280 also requires segment operating income and assets "if regularly
