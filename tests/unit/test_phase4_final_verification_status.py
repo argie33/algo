@@ -87,5 +87,39 @@ def test_clean_reconciliation_still_reports_success(mock_config):
     assert logged[-1][2] == "success"
 
 
+def test_reconciliation_failure_logs_error_not_alert(mock_config):
+    """Regression: log_phase_result_fn used to be called with status "alert" on reconciliation
+    failure - a status string dashboard/panels/health.py's phase-execution panel doesn't
+    recognize (its ERROR_STATES tuple is ("error", "failed")). "alert" fell into that panel's
+    default branch and rendered as dim "NOT RUN", identical to a phase that simply hasn't
+    executed yet - hiding a real broker/reconciliation failure from anyone watching the
+    dashboard. Must use "error" to match this function's own PhaseResult.status for the same
+    event and the vocabulary the dashboard actually classifies."""
+    recon_result = {
+        "success": False,
+        "reason": "Alpaca API returned 401 unauthorized",
+    }
+
+    result, logged = _run_with_result(recon_result, mock_config)
+
+    assert result.status == "error"
+    assert logged, "log_phase_result_fn must have been called"
+    logged_status = logged[-1][2]
+    assert logged_status == "error", (
+        f"expected log_phase_result_fn status 'error', got {logged_status!r} - "
+        "if this is 'alert' again, the dashboard will misrender this failure as NOT RUN"
+    )
+
+    from dashboard.panels.health import ERROR_STATES, HALTED_STATES, SUCCESS_STATES
+
+    assert logged_status not in SUCCESS_STATES
+    assert logged_status not in HALTED_STATES
+    assert logged_status in ERROR_STATES, (
+        "the status phase4 logs on failure must be one dashboard/panels/health.py's "
+        "phase-execution panel actually classifies as an error, not silently falls "
+        "through to the 'NOT RUN' default"
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

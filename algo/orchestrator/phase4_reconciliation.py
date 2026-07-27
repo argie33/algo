@@ -246,10 +246,18 @@ def run(  # noqa: C901
                 # Broker authentication/availability error during market hours = critical failure
                 # Only gracefully skip on weekends/market-closed, otherwise fail-fast
                 logger.error(f"[PHASE 4] CRITICAL: Broker authentication/availability error: {error_msg[:120]}")
+                # CRITICAL FIX: was "alert", a status string neither the dashboard's phase
+                # panel (dashboard/panels/health.py ERROR_STATES=("error","failed")) nor
+                # most of this file's own status vocabulary recognizes - it fell into the
+                # panel's default "else" branch and rendered as dim "NOT RUN", identical to
+                # a phase that simply hasn't executed yet, hiding a real reconciliation
+                # failure. Use "error" to match this same function's PhaseResult.status
+                # below for the identical event (execution_tracker.py already had to work
+                # around this exact "alert" vs "error" split - see its own comment there).
                 log_phase_result_fn(
                     4,
                     "reconciliation",
-                    "alert",
+                    "error",
                     f"Broker unavailable ({error_msg[:100]}). Positions cannot be reconciled. Check Alpaca API status.",
                 )
             else:
@@ -262,7 +270,7 @@ def run(  # noqa: C901
                 log_phase_result_fn(
                     4,
                     "reconciliation",
-                    "alert",
+                    "error",
                     reason,
                 )
             return PhaseResult(4, "reconciliation", "error", result, False, error_msg)
@@ -277,7 +285,7 @@ def run(  # noqa: C901
             logger.error(f"[PHASE 4] CRITICAL: Reconciliation ValueError: {str(e)[:120]}")
             error_msg = f"Reconciliation error: {str(e)[:200]}"
 
-        log_phase_result_fn(4, "reconciliation", "alert", error_msg)
+        log_phase_result_fn(4, "reconciliation", "error", error_msg)
         return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, False, error_msg)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -297,5 +305,5 @@ def run(  # noqa: C901
         logger.error(f"[PHASE 4] CRITICAL: Reconciliation failed: {type(e).__name__}: {str(e)[:120]}")
 
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
-        log_phase_result_fn(4, "reconciliation", "alert", error_msg)
+        log_phase_result_fn(4, "reconciliation", "error", error_msg)
         return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, False, error_msg)
