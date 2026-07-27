@@ -70,6 +70,23 @@ if str(_project_root) not in sys.path:
 logger = logging.getLogger(__name__)
 
 
+def compute_run_mode_label(dry_run: bool, execution_mode: str, alpaca_paper_trading: bool) -> str:
+    """Compute the run-mode label for the startup banner operators scan for real-money risk.
+
+    dry_run alone does NOT mean real money is at risk - execution_mode="paper" (or
+    "auto"/"live" with alpaca_paper_trading=True) still routes to Alpaca's paper endpoint.
+    Only execution_mode in ("live", "auto") with alpaca_paper_trading=False actually risks
+    real money. Previously the banner printed "LIVE" for any non-dry-run, including ordinary
+    local paper-mode test runs, which was indistinguishable in the logs from an actual
+    real-money run.
+    """
+    if dry_run:
+        return "DRY RUN"
+    if execution_mode in ("live", "auto") and not alpaca_paper_trading:
+        return "LIVE - REAL MONEY"
+    return "PAPER"
+
+
 class Orchestrator:
     """Daily workflow runner with explicit phases.
 
@@ -625,36 +642,64 @@ class Orchestrator:
         Session 391: Fixed stale signal_quality_scores lock that held 2-hour TTL.
         Session 398: Be more aggressive - delete locks held > 1 hour even if not expired.
         Session 428: Further improvement - lower threshold to 10 min and alert on stuck locks.
+
+        FIX (2026-07-27): The flat 10-minute threshold from Session 428 predates, and was
+        never reconciled with, utils/optimal_loader.py's later per-loader lock_ttl fix
+        (lock_ttl=7200s in production specifically because real loader runtimes are
+        60-90+ min for price_daily, ~15 min for insider_transaction_velocity - see that
+        file's own comment on why TTL "must outlive the longest legitimate run"). This
+        routine ran unconditionally on every orchestrator preflight and force-DELETEd
+        (not just alerted on) any lock older than 600s regardless of environment or the
+        lock's own expires_at, which in production would strip a still-legitimately-running
+        loader's lock and let a concurrent trigger acquire it and double-write - exactly the
+        race the lock exists to prevent. Live-reproduced 2026-07-27: a real dry-run flagged
+        insider_transaction_velocity's lock as "crash suspected" at 702s into its known-normal
+        ~900s run. Now mirrors optimal_loader.py's own LOCAL_MODE-aware threshold instead of
+        a threshold disconnected from the TTL loaders actually request.
         """
         try:
+            is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
+            stuck_threshold_seconds = 600 if is_local_mode else int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
+
             with DatabaseContext("write") as cur:
                 # First: Alert on stuck locks BEFORE deleting them (for debugging)
                 # Stuck locks indicate loader crash/hang - need visibility
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT loader_name, locked_at,
                            EXTRACT(EPOCH FROM (NOW() - locked_at)) as duration_sec
                     FROM loader_execution_locks
-                    WHERE EXTRACT(EPOCH FROM (NOW() - locked_at)) > 600
+                    WHERE EXTRACT(EPOCH FROM (NOW() - locked_at)) > %s
                     ORDER BY locked_at ASC
-                """)
+                    """,
+                    (stuck_threshold_seconds,),
+                )
                 stuck_locks = cur.fetchall()
                 if stuck_locks:
                     logger.critical(
-                        f"[LOCK_CLEANUP ALERT] {len(stuck_locks)} loader lock(s) held > 10 minutes (loader crash/hang suspected): "
+                        f"[LOCK_CLEANUP ALERT] {len(stuck_locks)} loader lock(s) held > {stuck_threshold_seconds}s "
+                        f"(loader crash/hang suspected): "
                         + ", ".join([f"{name}({dur:.0f}s)" for name, _, dur in stuck_locks])
                     )
 
-                # Second: Delete expired locks OR locks held > 10 minutes (more aggressive than 30min)
-                # Loaders should complete within 10 minutes - anything longer indicates failure
-                cur.execute("""
+                # Second: Delete expired locks OR locks held past the same SLA threshold
+                # loaders themselves use to set expires_at (matches optimal_loader.py's
+                # lock_ttl, so this never deletes out from under a still-legitimate run).
+                cur.execute(
+                    """
                     DELETE FROM loader_execution_locks
                     WHERE expires_at <= CURRENT_TIMESTAMP
-                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > 600
-                """)
+                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > %s
+                    """,
+                    (stuck_threshold_seconds,),
+                )
                 deleted_count = cur.rowcount
 
                 if deleted_count > 0:
-                    logger.info(f"[LOCK_CLEANUP] Force-deleted {deleted_count} stuck loader lock(s) (held > 10min)")
+                    logger.info(
+                        f"[LOCK_CLEANUP] Force-deleted {deleted_count} stuck loader lock(s) "
+                        f"(held > {stuck_threshold_seconds}s)"
+                    )
         except Exception as e:
             logger.critical(
                 f"[LOCK_CLEANUP FAILED] Could not clean expired locks: {e}. Loader pipeline may be blocked!"
@@ -1882,8 +1927,11 @@ class Orchestrator:
 
     def run(self) -> dict[str, Any]:
         self.run_start = time.time()
+        run_mode_label = compute_run_mode_label(
+            self.dry_run, self.execution_mode, self.config.get("alpaca_paper_trading", True)
+        )
         logger.info(f"\n{'#' * 70}")
-        logger.info(f"#   ALGO ORCHESTRATOR - {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
+        logger.info(f"#   ALGO ORCHESTRATOR - {self.run_date}  ({run_mode_label})")
         logger.info(f"#   run_id: {self.run_id}")
         logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
         logger.info(f"{'#' * 70}")
@@ -1936,7 +1984,23 @@ class Orchestrator:
 
         any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
         any_halt = any(p["status"] == "halted" for p in self.phase_results.values())
-        any_degraded = any(p["status"] == "degraded" for p in self.phase_results.values())
+        # FIX (2026-07-27): Phase 6 reports status="degraded" for two unrelated reasons -
+        # a benign, unconditional "DRY-RUN: execution skipped (no real trades)" stub
+        # (phase6_exit_execution.py's dry_run branch returns before any real per-item
+        # execution logic even runs, so this text can never coexist with a real error) vs.
+        # genuine per-item exit-execution errors (errors > 0). Both used the same "degraded"
+        # status string, so any_degraded below used to be true for both - which made the
+        # elif chain always take the "real degraded" branch (overall_status="degraded",
+        # success=False) whenever a local dry-run test happened to also hit Phase 8's
+        # market-hours/freshness guard (status="blocked"), even though that combination -
+        # a dry-run stub plus an expected safety block - is exactly what a healthy pre-market
+        # local test run looks like. The already-correct "blocked guard + Phase 9 ok = ok"
+        # logic further down never got a chance to run. Excluding the dry-run stub from
+        # any_degraded lets that existing logic decide the outcome instead.
+        any_degraded = any(
+            p["status"] == "degraded" and "DRY-RUN" not in (p.get("summary") or "")
+            for p in self.phase_results.values()
+        )
         any_blocked = any(p["status"] == "blocked" for p in self.phase_results.values())
         any_skipped = any(p["status"] == "skipped" for p in self.phase_results.values())
 
@@ -2004,8 +2068,15 @@ class Orchestrator:
                 # CRITICAL: "blocked" means a safety guard stopped Phase 8 (risk limit, pending orders, market hours).
                 # This is EXPECTED and CORRECT behavior - a guard preventing over-leveraging is not a failure.
                 # If Phase 9 still runs and succeeds, the run is healthy.
+                # FIX (2026-07-27): log_phase_result() stores {"name", "status", "summary"} per phase -
+                # it never sets a "phase" key on the inner dict, so the old `p.get("phase") == 8` check
+                # was always None == 8 (always False). phase_8_blocked was permanently False, so this
+                # entire "blocked guard + Phase 9 ok = healthy run" branch never actually reached the
+                # "ok" outcome - it always fell through to the "degraded" else below, silently
+                # defeating the exact fix this comment describes. Check the dict key (the real phase
+                # number) instead of a field that's never populated.
                 phase_8_blocked = any(
-                    p["status"] == "blocked" and p.get("phase") == 8 for p in self.phase_results.values()
+                    phase_num == 8 and p["status"] == "blocked" for phase_num, p in self.phase_results.items()
                 )
                 # FAIL-FAST: Phase 9 must be present (always_run) - no fallback to alternate key type
                 # CRITICAL FIX: phase_results should ALWAYS use int keys (9, not "9").
