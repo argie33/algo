@@ -131,6 +131,15 @@ class OrchestratorExecutionTracker:
                 # execution: DRY-RUN: execution skipped (no real trades)" - a false alarm for
                 # completely expected behavior.
                 summary = f"Degraded: {halt_reason or 'unknown reason'}"
+            elif overall_status == "ok":
+                # NOT an error either - orchestrator.py sets overall_status="ok" specifically
+                # for "a guard (e.g. Phase 8's market-hours guard) correctly blocked/skipped
+                # execution, but Phase 9 (always_run) still succeeded" - a healthy run, by far
+                # the most common daytime-boundary outcome. halt_reason here carries the
+                # guard's own summary (e.g. "[PHASE 8 MARKET HOURS GUARD] Cannot execute
+                # entries..."), which - like the "degraded" case above - used to fall through
+                # to the else clause and get logged as "Error during execution: ...".
+                summary = f"Healthy run (guard): {halt_reason or 'all phases completed as expected'}"
             else:
                 summary = f"Error during execution: {halt_reason or 'unknown error'}"
 

@@ -622,3 +622,44 @@ class TestDegradedRunNotLabeledAsError:
         saved_summary = mock_cur.execute.call_args[0][1][6]
         assert "Error during execution" not in saved_summary
         assert saved_summary == "Degraded: DRY-RUN: execution skipped (no real trades)"
+
+    def test_ok_status_summary_does_not_say_error(self):
+        """Regression: overall_status="ok" - set by orchestrator.py specifically for "Phase 8
+        blocked/skipped by a guard (e.g. market-hours) but Phase 9 still succeeded", the most
+        common daytime-boundary outcome - hit the exact same unhandled-else-branch bug as
+        "degraded" above. Confirmed live: orchestrator_execution_log rows written after the
+        "degraded" fix landed still read "Error during execution: [PHASE 8 MARKET HOURS
+        GUARD] Cannot execute entries..." for overall_status="ok" runs, because the fix only
+        added an elif for "degraded" and missed "ok"."""
+        from unittest.mock import patch
+
+        from utils.logging.execution_tracker import OrchestratorExecutionTracker
+
+        tracker = OrchestratorExecutionTracker()
+        tracker.run_id = "test-run-ok"
+        tracker.run_date = date.today()
+        tracker.phase_results = {
+            8: {
+                "phase": "8",
+                "name": "entry_execution",
+                "status": "blocked",
+                "summary": "[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours.",
+            },
+            9: {"phase": "9", "name": "reconciliation", "status": "ok", "summary": "Portfolio state: ok"},
+        }
+
+        with (
+            patch.object(OrchestratorExecutionTracker, "_ensure_table_exists"),
+            patch("utils.logging.execution_tracker.DatabaseContext") as mock_db_ctx,
+        ):
+            mock_cur = MagicMock()
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            tracker.save_execution_log(
+                "ok", "[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours."
+            )
+
+        saved_summary = mock_cur.execute.call_args[0][1][6]
+        assert "Error during execution" not in saved_summary
+        assert saved_summary == (
+            "Healthy run (guard): [PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours."
+        )
