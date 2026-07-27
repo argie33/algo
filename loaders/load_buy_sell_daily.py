@@ -29,6 +29,44 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 
+def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150) -> None:
+    """Raise if buy_sell_daily's most recent date has a suspiciously low signal count.
+
+    BUG (found 2026-07-26): the original version of this check averaged total_signals
+    over COUNT(DISTINCT date) across the table's ENTIRE history. With enough accumulated
+    history, that all-time average can never fall below the threshold again no matter how
+    many consecutive days produce zero new signals - it's diluted by every healthy day
+    that ever ran. This masked buy_sell_daily sitting frozen at a stale date for 9+
+    consecutive days while this loader kept reporting status=success/COMPLETED the whole
+    time (loader_execution_history showed dozens of "success" runs with no forward
+    progress). Checking only the most recent date's count catches a live degradation
+    immediately, and raising (not just logging critical) ensures a degraded run is
+    recorded as a failure instead of silently marked complete.
+    """
+    cur.execute("SELECT MAX(date) FROM buy_sell_daily")
+    result = cur.fetchone()
+    latest_signal_date = result[0] if result else None
+    if latest_signal_date is None:
+        return
+
+    cur.execute("SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s", (latest_signal_date,))
+    result = cur.fetchone()
+    latest_day_signals = result[0] if result else 0
+
+    if latest_day_signals < min_signals_per_day_threshold:
+        raise RuntimeError(
+            f"[SIGNAL_DEGRADATION_DETECTED] buy_sell_daily's most recent date "
+            f"({latest_signal_date}) has only {latest_day_signals} signals "
+            f"(expected >= {min_signals_per_day_threshold}). This indicates either: "
+            f"(1) Pivot detection logic is too strict, (2) Price/technical data quality "
+            f"is poor, (3) upstream price_daily/technical_data_daily coverage collapsed, "
+            f"or (4) this run silently failed to advance the watermark. "
+            f"Phase 7 requires minimum ~300 signals/day to function. "
+            f"OPERATOR ACTION: Check BuySignalGenerator logic and price_daily coverage. "
+            f"Do NOT accept this as normal - investigate immediately."
+        )
+
+
 class SignalsDailyLoader(OptimalLoader):
     """Daily signals loader that generates buy/sell signals from technical indicators."""
 
@@ -1091,34 +1129,13 @@ def main() -> int:  # noqa: C901
             # Enrichment module not available - this is expected, it's optional infrastructure
             logger.debug("[LOADER] Optional enrichment module not found. Signals generated from technical_data_daily only.")
 
-        # SANITY CHECK (Session 267 FIX): Detect signal count degradation BEFORE marking loader COMPLETED
-        # Problem: Loader marked as 100% complete even when generating only 17 signals/day instead of 300-800
-        # This cascaded into Phase 7 failures and 167 halted orchestrator runs
-        # Solution: Validate signal count is healthy. If < threshold, log CRITICAL and warn operator.
+        # SANITY CHECK (Session 267 FIX, hardened 2026-07-26): Detect signal count degradation
+        # BEFORE marking loader COMPLETED. See _check_signal_degradation() docstring for the
+        # all-time-average bug this replaced.
         try:
             with DatabaseContext("read") as cur:
-                cur.execute("SELECT COUNT(*) FROM buy_sell_daily")
-                result = cur.fetchone()
-                total_signals = result[0] if result else 0
-
-                cur.execute("SELECT COUNT(DISTINCT date) FROM buy_sell_daily")
-                result = cur.fetchone()
-                trading_days = result[0] if result else 1
-
-                signals_per_day = total_signals / max(trading_days, 1) if trading_days > 0 else 0
-                min_signals_per_day_threshold = 150  # Conservative: expect 300-800, warn at < 150
-
-                if signals_per_day < min_signals_per_day_threshold and total_signals > 0:
-                    logger.critical(
-                        f"[SIGNAL_DEGRADATION_DETECTED] buy_sell_daily generating only {signals_per_day:.1f} signals/day "
-                        f"(total: {total_signals}, days: {trading_days}). Expected >= {min_signals_per_day_threshold}/day. "
-                        f"This indicates either: (1) Pivot detection logic is too strict, "
-                        f"(2) Price/technical data quality is poor, (3) Market conditions unusual. "
-                        f"Phase 7 requires minimum ~300 signals/day to function. "
-                        f"OPERATOR ACTION: Check BuySignalGenerator logic and price_daily coverage. "
-                        f"Do NOT accept this as normal - investigate immediately."
-                    )
-        except Exception as sanity_check_err:
+                _check_signal_degradation(cur)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as sanity_check_err:
             logger.warning(f"[SANITY_CHECK] Could not validate signal count: {sanity_check_err}. Continuing.")
 
         # CRITICAL FIX: Update loader status to COMPLETED with actual latest_date from table
