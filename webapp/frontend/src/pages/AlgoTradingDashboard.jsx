@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Inbox,
   Shield,
+  MinusCircle,
 } from "lucide-react";
 import {
   BarChart,
@@ -40,16 +41,29 @@ const TOOLTIP_STYLE = {
   padding: "var(--space-2) var(--space-3)",
 };
 
+// overall_status values actually written by save_execution_log() (see
+// utils/logging/execution_tracker.py): success, ok, degraded, halted, error, skipped.
+// "ok"/"degraded"/"skipped" were missing here, so a run correctly reported as "ok" (e.g.
+// Phase 8 blocked by the market-hours guard but Phase 9 still succeeded - a healthy run,
+// not a failure) or "degraded"/"skipped" rendered with no color, no badge style, and no
+// icon at all - indistinguishable from an undefined status in the one place this gets
+// checked before trading real money.
 const STATUS_COLORS = {
   success: "var(--success)",
+  ok: "var(--success)",
+  degraded: "var(--amber)",
   halted: "var(--amber)",
+  skipped: "var(--text-faint)",
   error: "var(--danger)",
   running: "var(--brand)",
 };
 
 const STATUS_BADGE = {
   success: "badge-success",
+  ok: "badge-success",
+  degraded: "badge-warning",
   halted: "badge-amber",
+  skipped: "badge-neutral",
   error: "badge-danger",
   running: "badge-indigo",
   no_runs_yet: "badge",
@@ -57,7 +71,10 @@ const STATUS_BADGE = {
 
 const STATUS_ICON = {
   success: <CheckCircle size={14} />,
+  ok: <CheckCircle size={14} />,
+  degraded: <AlertTriangle size={14} />,
   halted: <AlertTriangle size={14} />,
+  skipped: <MinusCircle size={14} />,
   error: <XCircle size={14} />,
   running: <Activity size={14} />,
 };
