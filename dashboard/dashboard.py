@@ -449,8 +449,11 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.loading = False
             state.error = error_msg
 
-    # Start preload in background thread (non-daemon so we wait for completion before exit)
-    load_data_thread = threading.Thread(target=preload_data, daemon=False)
+    # Daemon: run_once() gives up waiting for data after 30s and logs that it is exiting.
+    # A non-daemon thread here would block process exit for as long as load_all() takes
+    # internally (up to its own ~60-300s timeouts) even after that log line, leaving the
+    # user staring at a cleared screen with no indication anything is still happening.
+    load_data_thread = threading.Thread(target=preload_data, daemon=True)
     load_data_thread.start()
 
     # Warm up the render pipeline to avoid 2+ second delay on first render
@@ -608,7 +611,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             }
 
     try:
-        reload_thread = threading.Thread(target=reload, daemon=False)
+        reload_thread = threading.Thread(target=reload, daemon=True)
         reload_thread.start()
         with active_threads_lock:
             active_threads.append(reload_thread)
@@ -678,7 +681,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
                     if should_reload or should_retry_load:
                         cleanup_dead_threads()
-                        reload_thread = threading.Thread(target=reload, daemon=False)
+                        reload_thread = threading.Thread(target=reload, daemon=True)
                         reload_thread.start()
                         with active_threads_lock:
                             active_threads.append(reload_thread)
