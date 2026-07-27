@@ -917,7 +917,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
                    trade_duration_days, mfe_pct, mae_pct, created_at
             FROM algo_trades
             {where_clause}
-            ORDER BY trade_date DESC, trade_id DESC
+            ORDER BY COALESCE(exit_date, trade_date) DESC, trade_id DESC
             LIMIT %s
         """,
         params,
