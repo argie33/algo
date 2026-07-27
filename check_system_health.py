@@ -20,14 +20,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Fix Windows console encoding for unicode output
-if sys.platform.startswith("win"):
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    except Exception as e:
-        # Log but don't crash - console encoding issues are non-fatal but should be visible
-        logger.warning(f"[STARTUP] Failed to set UTF-8 console encoding: {type(e).__name__}: {e}")
-
 # Add repo root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -178,11 +170,16 @@ def check_database() -> dict:
                         prev_trading_day = today - timedelta(days=1)
                     gap_days = (today - prev_trading_day).days
 
-                    if table_name in ("price_daily", "technical_data_daily", "market_exposure_daily"):
+                    if table_name in ("price_daily", "technical_data_daily", "market_exposure_daily", "stock_scores"):
                         # On trading days with no gap: 24h (one trading day's normal loader lag).
                         # Across a weekend/holiday gap, add a full day per gap day so Friday's close on
                         # Monday morning (a 3-calendar-day gap, expected and not actionable) doesn't
                         # trip this WARN - only a loader that's actually stuck past that should.
+                        # stock_scores shares the identical once-per-trading-day cadence as the other
+                        # three (confirmed: monitor_data_staleness.py's THRESHOLDS applies the same
+                        # gap-awareness to it) - omitting it here left this tool's own comment's claim
+                        # of parity with monitor_data_staleness.py false for this one table, producing
+                        # a false WARN every Monday/post-holiday morning.
                         threshold = 24 + gap_days * 24 if gap_days > 1 else 24
                     else:
                         # Always use 24h for other tables
@@ -349,6 +346,19 @@ def check_dashboard_module() -> dict:
 
 def main() -> int:
     """Run all health checks."""
+    # Fix Windows console encoding for unicode output. Must only happen when this
+    # script is actually run directly - doing it at module import time permanently
+    # replaces pytest's own capture streams for the rest of the test process the
+    # first time anything imports this module, crashing pytest's capture teardown
+    # with "ValueError: I/O operation on closed file" (same bug class already fixed
+    # in monitor_data_staleness.py and verify_eventbridge_scheduler.py).
+    if sys.platform.startswith("win"):
+        try:
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        except Exception as e:
+            # Log but don't crash - console encoding issues are non-fatal but should be visible
+            logger.warning(f"[STARTUP] Failed to set UTF-8 console encoding: {type(e).__name__}: {e}")
+
     print("\n" + "=" * 70)
     print("ALGO SYSTEM HEALTH CHECK")
     print("=" * 70 + "\n")
