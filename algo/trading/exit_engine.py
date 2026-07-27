@@ -86,6 +86,8 @@ class PositionContext:
         t1_hit_time: datetime | None = None,
         t2_hit_time: datetime | None = None,
         t3_hit_time: datetime | None = None,
+        last_partial_exit_date: _date | None = None,
+        partial_exits_log: str | None = None,
     ) -> None:
         self.symbol = symbol
         self.current_date = current_date
@@ -109,6 +111,8 @@ class PositionContext:
         self.t1_hit_time = t1_hit_time
         self.t2_hit_time = t2_hit_time
         self.t3_hit_time = t3_hit_time
+        self.last_partial_exit_date = last_partial_exit_date
+        self.partial_exits_log = partial_exits_log
         self.config = config
         self.cur = cur
 
@@ -203,6 +207,25 @@ class PositionContext:
             return False
         hit_date = hit_time.date() if isinstance(hit_time, datetime) else hit_time
         return hit_date == self.current_date
+
+    def _was_distribution_reduced_today(self) -> bool:
+        """Guard against check_distribution firing repeatedly on every exit-engine pass
+        while dist_days_today stays above max_dd, which - unlike the T1/T2/T3 checks - has no
+        per-day dedup of its own. Confirmed live 2026-07-27: 7 positions were each reduced by
+        50% THREE separate times in the same single day (all three logged under the same
+        last_partial_exit_date), compounding down to ~12.5% of their original size from one
+        ongoing market condition instead of a single one-time de-risking action."""
+        if self.last_partial_exit_date is None or self.partial_exits_log is None:
+            return False
+        last_exit_date = (
+            self.last_partial_exit_date.date()
+            if isinstance(self.last_partial_exit_date, datetime)
+            else self.last_partial_exit_date
+        )
+        if last_exit_date != self.current_date:
+            return False
+        last_log_entry = self.partial_exits_log.rsplit("; ", 1)[-1]
+        return "Market distribution" in last_log_entry
 
     def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """T1 target exit (1.5R): 50% position reduction."""
@@ -411,7 +434,7 @@ class PositionContext:
                 raise ValueError("CRITICAL: max_distribution_days config missing.")
 
             max_dd = int(max_dd_val)
-            if self.dist_days_today > max_dd:
+            if self.dist_days_today > max_dd and not self._was_distribution_reduced_today():
                 # Unlike every other breakeven-raise trigger in this file (T1/T2 target hit,
                 # first_red_day, climax_exhaustion), this one has no profitability gate - it's
                 # a market-wide condition, not a per-position price level. Raising the stop to
@@ -528,7 +551,8 @@ class ExitEngine:
                               t.target_1_price, t.target_2_price, t.target_3_price,
                               t.trade_date,
                               p.position_id, p.quantity, p.target_levels_hit,
-                              p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time
+                              p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
+                              t.last_partial_exit_date, t.partial_exits_log
                        FROM algo_trades t
                        JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                        WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
@@ -568,6 +592,8 @@ class ExitEngine:
                         t1_hit_time,
                         t2_hit_time,
                         t3_hit_time,
+                        last_partial_exit_date,
+                        partial_exits_log,
                     ) = row
 
                     _sp = f"sp_exit_{_idx}"
@@ -762,6 +788,8 @@ class ExitEngine:
                             t1_hit_time,
                             t2_hit_time,
                             t3_hit_time,
+                            last_partial_exit_date,
+                            partial_exits_log,
                         )
 
                         if not exit_signal:
@@ -884,12 +912,16 @@ class ExitEngine:
         t1_hit_time: datetime | None = None,
         t2_hit_time: datetime | None = None,
         t3_hit_time: datetime | None = None,
-    ) -> dict[str, Any]:
-        """Decide what exit to take (or hold decision).
+        last_partial_exit_date: _date | None = None,
+        partial_exits_log: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Decide what exit to take, or None if no action is needed.
 
         Uses ExitStrategyChain to evaluate strategies in priority order.
         Each strategy returns an ExitSignal; first triggered signal wins.
-        If none triggered, returns hold decision.
+        If none triggered, returns None - the caller's `if not exit_signal:` branch
+        already exists specifically to handle this (log "hold", release savepoint,
+        move to the next position).
         """
         if cur_price is None:
             raise RuntimeError(
@@ -928,11 +960,18 @@ class ExitEngine:
 
         min_hold_days = int(min_hold_val)
         if days_held < min_hold_days:
-            return {
-                "stage": "hold",
-                "fraction": 0.0,
-                "reason": f"Minimum holding period not met: {days_held} days held < {min_hold_days} required",
-            }
+            # CRITICAL FIX: this used to return a "hold" dict with fraction=0.0 and no
+            # new_stop key. The caller's `if not exit_signal:` guard treats any non-empty
+            # dict as truthy - a real signal to act on - so this "nothing to do" outcome
+            # fell through into the stop-raise-only branch downstream, which requires
+            # new_stop and immediately raised. None is what the caller's guard actually
+            # checks for (see check_and_execute_exits's `if not exit_signal:` "hold, log,
+            # continue" branch, which exists specifically for this case).
+            if self.verbose:
+                logger.info(
+                    f"  {symbol}: hold (min hold period not met: {days_held}d held < {min_hold_days}d required)"
+                )
+            return None
 
         ctx = PositionContext(
             symbol=symbol,
@@ -953,6 +992,8 @@ class ExitEngine:
             t1_hit_time=t1_hit_time,
             t2_hit_time=t2_hit_time,
             t3_hit_time=t3_hit_time,
+            last_partial_exit_date=last_partial_exit_date,
+            partial_exits_log=partial_exits_log,
         )
 
         # Evaluate all strategies in priority order using strategy chain
@@ -964,12 +1005,13 @@ class ExitEngine:
         if signal.triggered:
             return signal.to_dict()
 
-        # No exit conditions met - hold the position
-        return {
-            "stage": "hold",
-            "fraction": 0.0,
-            "reason": "No exit conditions met",
-        }
+        # No exit conditions met - hold the position. Must be None (falsy), not a "hold"
+        # dict - see the min_hold_days branch above for why a truthy fraction=0.0 dict
+        # here crashes the caller. This is the single most common outcome (a healthy
+        # position with nothing currently triggered), so this bug fired on essentially
+        # every ordinary exit evaluation - live-reproduced 2026-07-27: 7/7 open positions
+        # crashed here in one run, all with "no exit conditions met."
+        return None
 
     # ---------- Data helpers ----------
 

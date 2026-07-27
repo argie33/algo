@@ -41,7 +41,7 @@ def mock_config():
     }
 
 
-def _evaluate(mock_config, cur_price, entry_price):
+def _evaluate(mock_config, cur_price, entry_price, last_partial_exit_date=None, partial_exits_log=None):
     # Patch stays active through _evaluate_position(): the ExitStrategyChain constructs a
     # fresh ExitEngine(self.config) internally for several strategies (MinerviniBreak, etc.)
     # before reaching the distribution check, and that construction needs TradeExecutor mocked too.
@@ -72,6 +72,8 @@ def _evaluate(mock_config, cur_price, entry_price):
             target_hits=0,
             days_held=3,
             dist_days_today=7,  # > max_distribution_days=4
+            last_partial_exit_date=last_partial_exit_date,
+            partial_exits_log=partial_exits_log,
         )
 
 
@@ -97,3 +99,36 @@ class TestDistributionDayBreakevenGate:
         assert decision["stage"] == "distribution"
         assert decision["fraction"] == 0.5
         assert decision["new_stop"] == Decimal("45.61"), "stop should raise to breakeven when already profitable"
+
+    def test_distribution_day_does_not_refire_same_day_already_reduced(self, mock_config):
+        """A second, third, etc. exit-engine pass on the SAME day must not re-trigger the
+        distribution reduction again - confirmed live 2026-07-27: 7 positions were each cut by
+        50% three separate times in one day (all logged under the same last_partial_exit_date),
+        compounding down to ~12.5% of their original size from what should have been a single
+        one-time de-risking action."""
+        decision = _evaluate(
+            mock_config,
+            cur_price=Decimal("45.32"),
+            entry_price=Decimal("45.61"),
+            last_partial_exit_date=date(2026, 7, 27),  # same as current_date in _evaluate
+            partial_exits_log="14.5sh @ $45.32 (Market distribution: 7 dist days > 4  - reducing 50%, stop raised to breakeven, -0.05R)",
+        )
+
+        # None means "no action" (nothing else should trigger in this scenario either) -
+        # see check_and_execute_exits' `if not exit_signal:` guard.
+        assert decision is None, (
+            f"distribution must not fire again the same day it already reduced this position, got {decision}"
+        )
+
+    def test_distribution_day_refires_on_a_new_day(self, mock_config):
+        """Sanity check: the guard is per-day, not permanent - a later day should still be able
+        to trigger a fresh distribution-day reduction if the condition persists."""
+        decision = _evaluate(
+            mock_config,
+            cur_price=Decimal("45.32"),
+            entry_price=Decimal("45.61"),
+            last_partial_exit_date=date(2026, 7, 24),  # an earlier day, not the current_date
+            partial_exits_log="14.5sh @ $45.32 (Market distribution: 7 dist days > 4  - reducing 50%, stop raised to breakeven, -0.05R)",
+        )
+
+        assert decision["stage"] == "distribution"

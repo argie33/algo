@@ -63,6 +63,8 @@ def test_stop_raise_only_outcome_is_not_counted_as_an_exit(mock_config):
         None,
         None,
         None,  # t1/t2/t3 hit times
+        None,  # last_partial_exit_date
+        None,  # partial_exits_log
     )
 
     mock_cur = MagicMock()

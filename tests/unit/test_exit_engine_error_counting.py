@@ -67,6 +67,8 @@ def test_unexpected_per_trade_exception_is_counted_and_returned(mock_config):
         None,
         None,
         None,  # t1/t2/t3 hit times
+        None,  # last_partial_exit_date
+        None,  # partial_exits_log
     )
 
     mock_cur = MagicMock()

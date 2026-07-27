@@ -65,6 +65,8 @@ def _make_trade_row(current_date):
         None,
         None,
         None,  # t1/t2/t3 hit times
+        None,  # last_partial_exit_date
+        None,  # partial_exits_log
     )
 
 
