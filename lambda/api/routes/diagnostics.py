@@ -41,9 +41,13 @@ def _check_data_sync_health(cur: cursor) -> Any:
     - algo_positions_with_risk (cached view)
     """
     # Count open positions in algo_trades (what reconciliation uses)
+    # CRITICAL: must match utils.trading.TradeStatus.all_open() - this list previously
+    # omitted 'pending'/'paper_pending', which would make this drift-detection endpoint
+    # itself under-count algo_trades and mask a real trade stuck in one of those statuses
+    # as if it didn't exist, rather than surfacing the sync issue it exists to catch.
     cur.execute("""
         SELECT COUNT(*) FROM algo_trades
-        WHERE status IN ('open', 'filled', 'active', 'partially_filled')
+        WHERE status IN ('open', 'filled', 'active', 'partially_filled', 'pending', 'paper_pending')
         AND exit_date IS NULL
     """)
     result = cur.fetchone()
