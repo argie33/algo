@@ -889,7 +889,8 @@ def _record_closed_positions_exits(
                             write_cursor.execute(
                                 """
                                 UPDATE algo_trades
-                                SET exit_date = %s, exit_price = %s, estimated_exit_price = %s,
+                                SET exit_date = %s, exit_time = CURRENT_TIMESTAMP,
+                                    exit_price = %s, estimated_exit_price = %s,
                                     profit_loss_dollars = NULL, profit_loss_pct = NULL, exit_r_multiple = NULL,
                                     exit_reason = %s, status = 'closed',
                                     trade_duration_days = %s::date - entry_date,

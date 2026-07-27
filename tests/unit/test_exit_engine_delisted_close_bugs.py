@@ -112,6 +112,12 @@ def _assert_close_updates_are_valid(mock_cur):
     for status in TradeStatus.all_open():
         assert status in trade_params, f"expected {status!r} among close UPDATE params"
 
+    # Bug 3: exit_time was never set on this close path (only exit_date), unlike
+    # executor_exit_handler.py's normal exit path - this left algo_trades.exit_time NULL
+    # for every trade closed here, undermining any query (e.g. circuit_breaker.py's
+    # consecutive-losses/win-rate-floor checks) that orders "most recent exits" by exit_time.
+    assert "exit_time = CURRENT_TIMESTAMP" in trade_sql
+
     position_sql, position_params = position_update_calls[0].args
     assert "status IN" in position_sql or "status = %s" in position_sql
 

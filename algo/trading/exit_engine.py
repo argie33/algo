@@ -643,6 +643,7 @@ class ExitEngine:
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
+                                       exit_time = CURRENT_TIMESTAMP,
                                        exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE trade_id = (
                                            SELECT trade_id FROM algo_trades
@@ -689,6 +690,7 @@ class ExitEngine:
                             trade_status_placeholders2 = ", ".join(["%s"] * len(open_trade_statuses_close2))
                             cur.execute(
                                 f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
+                                   exit_time = CURRENT_TIMESTAMP,
                                    exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                    WHERE trade_id = (
                                        SELECT trade_id FROM algo_trades

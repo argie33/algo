@@ -467,12 +467,21 @@ class CircuitBreaker:
         }
 
     def _check_consecutive_losses(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        # CRITICAL FIX: tiebreak was `id DESC` - id is the row's insertion order, which tracks
+        # when the trade was ENTERED, not when it EXITED. Confirmed live against this DB that
+        # this genuinely reorders same-exit_date trades differently from an exit_time-based
+        # ordering (the convention _check_win_rate_floor already uses below for the identical
+        # "most recent N closed trades" query). A day with 2+ exits could evaluate the
+        # consecutive-loss streak against the wrong subset/order of trades. `id DESC` kept as a
+        # final tiebreak (not the primary one) since exit_time is frequently NULL on this table
+        # (several close paths didn't set it until this same fix round) and ORDER BY must stay
+        # fully deterministic even when it is.
         cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
               AND trade_id NOT LIKE 'EXT-%%'
-            ORDER BY exit_date DESC, id DESC
+            ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
             LIMIT 10
             """,
             (TradeStatus.CLOSED.value,),
@@ -528,7 +537,7 @@ class CircuitBreaker:
                 -- Most recent 30 closed trades with confirmed exits (rolling window, not all-time)
                 SELECT profit_loss_pct as pnl_pct
                 FROM (
-                    SELECT profit_loss_pct
+                    SELECT profit_loss_pct, id
                     FROM algo_trades
                     WHERE status = %s AND exit_date IS NOT NULL
                       AND exit_r_multiple IS NOT NULL
@@ -536,7 +545,13 @@ class CircuitBreaker:
                       AND exit_reason NOT LIKE %s
                       AND exit_reason NOT LIKE %s
                       AND exit_reason NOT LIKE %s
-                    ORDER BY exit_date DESC, exit_time DESC NULLS LAST
+                    -- CRITICAL FIX: exit_time is frequently NULL on this table (several close
+                    -- paths didn't set it until this same fix round - see
+                    -- _check_consecutive_losses's comment above), so NULLS LAST alone left ties
+                    -- among NULL-exit_time rows in a non-deterministic order (no further ORDER BY
+                    -- key) - this "most recent 30" window could silently vary between runs on the
+                    -- same underlying data. id DESC is a final deterministic tiebreak.
+                    ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
                     LIMIT 30
                 ) recent_closed
                 UNION ALL

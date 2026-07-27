@@ -316,6 +316,37 @@ class TestWinRateFloorSampleSize:
         executed_sql = mock_cur.execute.call_args_list[0][0][0]
         assert "LIMIT 30" in executed_sql
 
+    def test_query_ordering_is_fully_deterministic_via_id_tiebreak(self, mock_config):
+        """CRITICAL FIX regression: exit_time is frequently NULL on algo_trades (several close
+        paths didn't set it until this same fix round), so `ORDER BY exit_date DESC, exit_time
+        DESC NULLS LAST` alone leaves ties among same-day, NULL-exit_time trades in a
+        non-deterministic order - the "most recent 30" window could silently vary between runs
+        on identical underlying data. `id DESC` must be present as a final, always-populated
+        tiebreak."""
+        config = dict(mock_config, min_win_rate_pct=40.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.side_effect = [(3, 7, 0, 10), (15,)]
+        cb._check_win_rate_floor(current_date=None, cur=mock_cur)
+        executed_sql = mock_cur.execute.call_args_list[0][0][0]
+        assert "exit_time DESC NULLS LAST, id DESC" in executed_sql
+
+
+class TestConsecutiveLossesOrdering:
+    def test_query_orders_by_exit_time_not_insertion_id(self, mock_config):
+        """CRITICAL FIX regression: the tiebreak was `id DESC` - id tracks insertion (ENTRY)
+        order, not exit order. Confirmed live against real data that this genuinely reorders
+        same-exit_date trades differently from an exit_time-based ordering. Must match
+        _check_win_rate_floor's convention: exit_time DESC NULLS LAST first, id DESC as the
+        final deterministic tiebreak (exit_time is frequently NULL on this table)."""
+        cb = CircuitBreaker(config=mock_config)
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = []
+        cb._check_consecutive_losses(current_date=None, cur=mock_cur)
+        executed_sql = mock_cur.execute.call_args_list[0][0][0]
+        assert "ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC" in executed_sql
+        assert "ORDER BY exit_date DESC, id DESC" not in executed_sql
+
 
 class TestCircuitBreakerTotalRisk:
     """_check_total_risk's algo_trades JOIN can silently drop open positions whose
