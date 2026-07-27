@@ -480,7 +480,13 @@ class OrderManager:
                         return (True, float(filled_price), "")
 
                     elif status in ("cancelled", "rejected", "expired"):
-                        reason = data["cancel_reason"]
+                        # Alpaca doesn't guarantee 'cancel_reason' is present for every terminal
+                        # status (utils/validation/alpaca.py's own validator already falls back
+                        # through cancel_reason -> failed_reason -> reason for this exact reason).
+                        # A bare data["cancel_reason"] subscript would raise an uncaught KeyError
+                        # here instead of returning the documented (False, None, error_message)
+                        # tuple, turning a normal order rejection into an unhandled crash.
+                        reason = data.get("cancel_reason") or data.get("failed_reason") or data.get("reason") or "no reason provided"
                         error_msg = f"Order {status}: {reason}"
                         logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
                         return (False, None, error_msg)
@@ -516,11 +522,24 @@ class OrderManager:
         logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
         return (False, None, error_msg)
 
-    def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any]:  # noqa: C901
+    def send_market_exit(
+        self, symbol: str, shares: float, execution_mode: str, client_order_id: str | None = None
+    ) -> dict[str, Any]:  # noqa: C901
         """Send a market sell order to Alpaca.
 
         Returns { success, order_id, filled_price }.
         Never returns None - always returns dict with success/error fields.
+
+        client_order_id: Passed through to Alpaca on every retry attempt within this call, as
+        broker-side idempotency protection - same reasoning as send_bracket_order's
+        client_order_id (see its docstring). Without this, a timeout/connection error on
+        attempt 1 whose response never arrived (order may have actually reached Alpaca) would
+        let attempt 2 submit a genuinely separate market sell order for the same intent - a
+        real double-sell, not just a duplicate no-op. Caller must generate ONE id per call to
+        this method (stable across this call's own retry loop) - NOT a single id reused across
+        separate calls/days, since unlike entries, one trade can have multiple legitimate
+        partial exits over its lifetime; a key stable forever per trade_id would cause Alpaca
+        to reject a later, genuinely different partial exit as a duplicate of an earlier one.
         """
         if execution_mode in ("paper", "dry", "review"):
             logger.info(f"[SEND_EXIT] {symbol}: Paper mode exit - {shares}sh")
@@ -546,15 +565,18 @@ class OrderManager:
         last_error = None
         for attempt in range(max_attempts):
             try:
+                order_data: dict[str, Any] = {
+                    "symbol": symbol,
+                    "qty": shares,
+                    "side": "sell",
+                    "type": "market",
+                    "time_in_force": "day",
+                }
+                if client_order_id:
+                    order_data["client_order_id"] = client_order_id
                 resp = requests.post(
                     f"{self.alpaca_base_url}/v2/orders",
-                    json={
-                        "symbol": symbol,
-                        "qty": shares,
-                        "side": "sell",
-                        "type": "market",
-                        "time_in_force": "day",
-                    },
+                    json=order_data,
                     headers={
                         "APCA-API-KEY-ID": self.alpaca_key,
                         "APCA-API-SECRET-KEY": self.alpaca_secret,

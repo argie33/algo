@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import uuid
 from collections.abc import Callable
 from datetime import date as _date
 from decimal import Decimal
@@ -632,7 +633,15 @@ class TradeExecutor:
         return self.order_manager.wait_for_order_fill(symbol, alpaca_order_id, max_wait_seconds)
 
     def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:
-        return self.order_manager.send_market_exit(symbol, shares, self.execution_mode)
+        # CRITICAL: fresh id per call, stable across send_market_exit's own internal retry
+        # loop (passed through to Alpaca as client_order_id) - protects against a timeout/
+        # connection error whose response never arrived (order may have actually reached
+        # Alpaca) causing the retry to submit a genuinely separate sell order. Must NOT be
+        # reused across separate calls to this method: unlike entries, one trade can have
+        # multiple legitimate partial exits, so a key stable forever per trade would make
+        # Alpaca reject a later, real partial exit as a duplicate of an earlier one.
+        client_order_id = f"exit-{uuid.uuid4().hex}"
+        return self.order_manager.send_market_exit(symbol, shares, self.execution_mode, client_order_id)
 
     # ---------- Entry ----------
 
