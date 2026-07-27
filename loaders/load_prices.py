@@ -1890,18 +1890,29 @@ class PriceLoader(OptimalLoader):
                 )
 
             with DatabaseContext("write") as cur:
-                cur.execute(
-                    "DELETE FROM data_loader_status WHERE table_name = %s",
-                    (self.table_name,),
-                )
                 from datetime import timezone
 
                 exec_completed_utc = datetime.now(timezone.utc)
+                # UPSERT, not DELETE+INSERT: table_name is the PK, and
+                # data_loader_status_history.table_name FK-references it (see
+                # utils/optimal_loader.py's identical fix, 2026-07-27) - once any history
+                # row exists for this table, a DELETE here would fail with
+                # ForeignKeyViolation and silently freeze this table's status forever.
                 cur.execute(
                     "INSERT INTO data_loader_status "
                     "(table_name, row_count, latest_date, last_updated, status, "
                     "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                    "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s)",
+                    "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s) "
+                    "ON CONFLICT (table_name) DO UPDATE SET "
+                    "row_count = EXCLUDED.row_count, "
+                    "latest_date = EXCLUDED.latest_date, "
+                    "last_updated = EXCLUDED.last_updated, "
+                    "status = EXCLUDED.status, "
+                    "completion_pct = EXCLUDED.completion_pct, "
+                    "symbol_count = EXCLUDED.symbol_count, "
+                    "symbols_loaded = EXCLUDED.symbols_loaded, "
+                    "execution_started = EXCLUDED.execution_started, "
+                    "execution_completed = EXCLUDED.execution_completed",
                     (
                         self.table_name,
                         total_rows,
