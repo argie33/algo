@@ -32,6 +32,7 @@ from algo.trading.exceptions import (
 )
 from algo.trading.handler_context import HandlerContext
 from algo.trading.trade_context import TradeContext
+from utils.trading import PositionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -919,7 +920,40 @@ class EntryHandler:
             # This ensures trade and position are linked via foreign key
             # CRITICAL: Paper_pending trades MUST create open positions for portfolio tracking
             # This ensures paper mode trading maintains accurate position state
-            position_status = "paper_open" if order_status == "paper_pending" else "open"
+            #
+            # CRITICAL FIX: this previously used the literal string "paper_open" - a value
+            # that isn't in the PositionStatus enum at all and that almost every real
+            # position query in this codebase (exit_engine.py's core exit-candidate query,
+            # circuit_breaker.py's _check_total_risk/_check_win_rate_floor/
+            # _check_sector_drawdown/_check_sector_concentration, position_monitor.py) checks
+            # against PositionStatus.OPEN.value ("open") specifically, not "paper_open". A
+            # position created via this paper-mode-Alpaca-unavailable fallback path (see
+            # order_status="paper_pending" above) would therefore be invisible to every
+            # automated stop-loss/target exit check and every risk-limit halt check - the
+            # exact same "no bypasses" bug class as this session's other TradeStatus.all_open()
+            # fixes, just on the PositionStatus side and with an undeclared status string
+            # instead of an incomplete-but-declared one. algo/infrastructure/reconciliation.py
+            # separately handles "paper_open" via `status IN ('open', 'paper_open')` in a few
+            # aggregate-count queries, but treats it identically to "open" there too - there
+            # was never a reason for these to be different values. Use PositionStatus.OPEN.value
+            # for both cases so every existing "status = 'open'" check already covers it.
+            # CRITICAL FIX: this previously used the literal string "paper_open" - a value
+            # that isn't in the PositionStatus enum at all and that almost every real
+            # position query in this codebase (exit_engine.py's core exit-candidate query,
+            # circuit_breaker.py's _check_total_risk/_check_win_rate_floor/
+            # _check_sector_drawdown/_check_sector_concentration, position_monitor.py) checks
+            # against PositionStatus.OPEN.value ("open") specifically, not "paper_open". A
+            # position created via this paper-mode-Alpaca-unavailable fallback path (see
+            # order_status="paper_pending" above) would therefore be invisible to every
+            # automated stop-loss/target exit check and every risk-limit halt check - the
+            # exact same "no bypasses" bug class as this session's other TradeStatus.all_open()
+            # fixes, just on the PositionStatus side and with an undeclared status string
+            # instead of an incomplete-but-declared one. algo/infrastructure/reconciliation.py
+            # separately handles "paper_open" via `status IN ('open', 'paper_open')` in a few
+            # aggregate-count queries, but treats it identically to "open" there too - there
+            # was never a reason for these to be different values. Use PositionStatus.OPEN.value
+            # for both cases so every existing "status = 'open'" check already covers it.
+            position_status = PositionStatus.OPEN.value
 
             # r_multiple at the instant of entry is 0 (current_price == executed_price, no
             # movement yet), not the 1.0 this previously hardcoded - position_monitor.py's
