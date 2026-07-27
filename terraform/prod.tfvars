@@ -44,9 +44,23 @@ cognito_advanced_security_mode = "ENFORCED"   # SECURITY: Fraud detection in pro
 # ORCHESTRATOR SCHEDULE (PRODUCTION)
 # ============================================================
 
-# Production: 2x daily execution (market open + after close)
-algo_schedule_enabled         = true
-algo_schedule_expression      = "cron(30 9 ? * MON-FRI *)"  # 9:30 AM ET (market open)
+# Production: 1x daily execution (market open only)
+# CRITICAL FIX: algo_schedule_enabled was `true` with algo_schedule_expression set to
+# "cron(30 9 ...)" - the EXACT same 9:30 AM trigger time as the dedicated
+# algo_orchestrator_morning schedule below (enable_morning_orchestrator=true), while this
+# resource's own run_identifier is hardcoded to "evening" whenever enable_morning_orchestrator
+# is true (see terraform/modules/services/2x-daily-orchestrator.tf's algo_orchestrator
+# resource). That directly contradicted the comment immediately below ("Evening orchestrator
+# disabled in favor of morning-only... evaluate daily at 9:30 AM only") - if deployed as
+# written, two separate EventBridge schedules would both invoke the orchestrator Lambda at
+# 9:30 AM ET every trading day, one correctly labeled "morning" and one mislabeled "evening".
+# The orchestrator's own run-lock (5s acquire timeout, see utils/db/rds_lock.py) means
+# whichever invocation loses the race would abort with "Could not acquire run lock" every
+# single day - noisy and wasteful, though the other still succeeds so trading isn't blocked.
+# Disabling this schedule entirely now matches the documented intent below exactly, rather
+# than guessing at an unstated "real" evening time.
+algo_schedule_enabled         = false
+algo_schedule_expression      = "cron(30 9 ? * MON-FRI *)"  # unused while disabled above
 algo_schedule_timezone        = "America/New_York"
 enable_morning_orchestrator   = true                        # Primary: 9:30 AM market open
 enable_afternoon_orchestrator = false                       # Disabled: reduce complexity

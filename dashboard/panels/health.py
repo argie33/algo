@@ -681,6 +681,172 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     return rows
 
 
+def _build_data_quality_section(hlth_items: list[Any]) -> list[Text | Rule]:
+    """Build data quality issues section showing NULLs, duplicates, constraint violations.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    quality_issues = []
+    for r in hlth_items:
+        if isinstance(r, dict):
+            issues = r.get("data_quality_issues", [])
+            if issues:
+                quality_issues.append((r.get("tbl") or "unknown", issues, r.get("quality_status")))
+
+    if not quality_issues:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {R}]Data Quality Issues:[/]"))
+
+    for tbl_name, issues, quality_status in quality_issues[:8]:
+        status_color = R if quality_status == "error" else Y if quality_status == "warning" else G
+        for issue in issues:
+            rows.append(Text.from_markup(f"  [{status_color}]{tbl_name}:[/] [dim]{issue[:80]}[/]"))
+
+    if len(quality_issues) > 8:
+        rows.append(Text.from_markup(f"  [dim]...and {len(quality_issues) - 8} more tables with issues[/]"))
+
+    return rows
+
+
+def _build_coverage_section(hlth_items: list[Any]) -> list[Text | Rule]:
+    """Build coverage completeness section showing symbol/date/sector gaps.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    coverage_gaps = []
+    for r in hlth_items:
+        if isinstance(r, dict):
+            coverage_pct = r.get("symbol_coverage_pct")
+            if coverage_pct is not None and coverage_pct < 100:
+                coverage_gaps.append((
+                    r.get("tbl") or "unknown",
+                    coverage_pct,
+                    r.get("missing_symbols", []),
+                    r.get("coverage_status")
+                ))
+
+    if not coverage_gaps:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]Coverage Gaps:[/]"))
+
+    for tbl_name, coverage_pct, missing_syms, status in coverage_gaps[:8]:
+        status_color = R if status == "sparse" else Y if status == "partial" else G
+        coverage_str = f"{coverage_pct:.1f}% coverage"
+        missing_str = f" (missing: {', '.join(missing_syms)})" if missing_syms else ""
+        rows.append(
+            Text.from_markup(
+                f"  [{status_color}]{tbl_name}:[/] [dim]{coverage_str}{missing_str}[/]"
+            )
+        )
+
+    if len(coverage_gaps) > 8:
+        rows.append(Text.from_markup(f"  [dim]...and {len(coverage_gaps) - 8} more tables[/]"))
+
+    return rows
+
+
+def _build_failure_pattern_section(hlth_items: list[Any]) -> list[Text | Rule]:
+    """Build failure pattern analysis section.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    failure_data = []
+    for r in hlth_items:
+        if isinstance(r, dict):
+            failure_rate = r.get("failure_rate_30d")
+            if failure_rate is not None and failure_rate > 0:
+                failure_data.append((
+                    r.get("tbl") or "unknown",
+                    failure_rate,
+                    r.get("failure_pattern"),
+                    r.get("mttr_hours"),
+                    r.get("recovery_trend"),
+                    r.get("last_5_runs")
+                ))
+
+    if not failure_data:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]Failure Patterns (30-day):[/]"))
+
+    for tbl_name, rate, pattern, mttr, trend, last_5 in failure_data[:6]:
+        rate_color = R if rate > 20 else Y if rate > 5 else G
+        lines = [f"  [{rate_color}]{tbl_name}:[/] {rate:.1f}% failures"]
+
+        if pattern:
+            lines.append(f"    [dim]Pattern: {pattern}[/]")
+        if mttr:
+            lines.append(f"    [dim]MTTR: {mttr}h[/]")
+        if last_5:
+            lines.append(f"    [dim]Last 5: {last_5}[/]")
+        if trend:
+            trend_color = G if trend == "improving" else R if trend == "degrading" else Y
+            lines.append(f"    [dim]Trend: [{trend_color}]{trend}[/][/]")
+
+        for line in lines:
+            rows.append(Text.from_markup(line))
+
+    if len(failure_data) > 6:
+        rows.append(Text.from_markup(f"  [dim]...and {len(failure_data) - 6} more tables[/]"))
+
+    return rows
+
+
+def _build_api_diagnostics_section(hlth_items: list[Any]) -> list[Text | Rule]:
+    """Build API diagnostics section for rate limits and retry strategy.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    api_issues = []
+    for r in hlth_items:
+        if isinstance(r, dict):
+            api_status = r.get("api_status")
+            if api_status and api_status != "ok":
+                api_issues.append((
+                    r.get("tbl") or "unknown",
+                    api_status,
+                    r.get("rate_limit_quota"),
+                    r.get("retry_strategy")
+                ))
+
+    if not api_issues:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]API Diagnostics:[/]"))
+
+    for tbl_name, status, quota, strategy in api_issues[:6]:
+        status_color = R if status == "auth_failed" else Y if status == "rate_limited" else R
+        status_label = status.replace("_", " ").title()
+        lines = [f"  [{status_color}]{tbl_name}:[/] {status_label}"]
+
+        if quota:
+            lines.append(f"    [dim]Quota: {quota}[/]")
+        if strategy:
+            lines.append(f"    [dim]Action: {strategy}[/]")
+
+        for line in lines:
+            rows.append(Text.from_markup(line))
+
+    if len(api_issues) > 6:
+        rows.append(Text.from_markup(f"  [dim]...and {len(api_issues) - 6} more[/]"))
+
+    return rows
+
+
 def _build_freshness_panel(
     hlth_items: list[Any],
     ready_to_trade: bool | None,
@@ -932,6 +1098,26 @@ def _build_freshness_panel(
             left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{n_fail}x in a row, {last_ok_s}[/]"))
         if len(repeated_failures) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 8} more[/]"))
+
+    # ── DATA QUALITY METRICS (NEW) ──────────────────────────────
+    # Display NULLs, duplicates, and constraint violations that make data unusable
+    quality_section = _build_data_quality_section(sorted_items)
+    left_rows.extend(quality_section)
+
+    # ── COVERAGE COMPLETENESS (NEW) ──────────────────────────────
+    # Show missing symbols, dates, sectors that create blind spots
+    coverage_section = _build_coverage_section(sorted_items)
+    left_rows.extend(coverage_section)
+
+    # ── FAILURE PATTERN ANALYSIS (NEW) ───────────────────────────
+    # Distinguish transient failures from systemic issues with pattern detection
+    failure_section = _build_failure_pattern_section(sorted_items)
+    left_rows.extend(failure_section)
+
+    # ── API DIAGNOSTICS (NEW) ────────────────────────────────────
+    # Show rate limits, auth issues, retry strategies for clear action items
+    api_section = _build_api_diagnostics_section(sorted_items)
+    left_rows.extend(api_section)
 
     # Table inventory gaps (from /api/admin/inventory) - untracked tables exist in the DB but
     # have no data_loader_status row at all (never wired into monitoring), and missing tables

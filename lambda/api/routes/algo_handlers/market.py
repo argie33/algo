@@ -474,6 +474,47 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         rows = enriched_rows + algo_rows
 
+        # ── ENRICH HEALTH ITEMS WITH NEW METRICS ──────────────────────────────
+        # Add data quality, coverage, and failure pattern data to each health item
+        # so dashboard can display comprehensive operational health, not just freshness
+        try:
+            from dashboard.freshness_enhancements import (
+                enrich_health_item_with_data_quality,
+                enrich_health_item_with_coverage,
+                enrich_health_item_with_failure_pattern,
+                enrich_health_item_with_api_diagnostics,
+            )
+
+            enriched_sources = []
+            for source in sources:
+                # Each enrichment adds new fields to the source dict
+                # These fields are only used by the dashboard (not critical for API contract)
+                try:
+                    source = enrich_health_item_with_data_quality(source, cur)
+                except Exception as e:
+                    logger.debug(f"[DATA_STATUS] Data quality enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_coverage(source, cur)
+                except Exception as e:
+                    logger.debug(f"[DATA_STATUS] Coverage enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_failure_pattern(source, cur)
+                except Exception as e:
+                    logger.debug(f"[DATA_STATUS] Failure pattern enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_api_diagnostics(source)
+                except Exception as e:
+                    logger.debug(f"[DATA_STATUS] API diagnostics enrichment failed for {source.get('name')}: {e}")
+
+                enriched_sources.append(source)
+
+            sources = enriched_sources
+        except ImportError as e:
+            logger.warning(f"[DATA_STATUS] Freshness enhancements module not available: {e}. Dashboard will show basic freshness only.")
+
         # Critical tables: trading cannot proceed if these are stale/empty
         # These are the core input/output tables for all 9 phases
         critical_tables = {
