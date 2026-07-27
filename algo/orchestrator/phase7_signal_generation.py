@@ -859,7 +859,17 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             today_count_row = cur.fetchone()
             today_count = today_count_row[0] if today_count_row else 0
 
-            if today_count == 0 and latest_buysell_date >= run_date - timedelta(days=1):
+            # NOTE: no separate "is latest_buysell_date recent enough" gate here - the
+            # acceptable_staleness check above already halted (returned False) if
+            # latest_buysell_date were too old, so by this point it's already confirmed to be
+            # the correct current reference day. A flat `>= run_date - timedelta(days=1)`
+            # gate here used to silently disable this anomaly check every weekend (e.g. on a
+            # Monday, Friday's real latest_buysell_date is < Sunday, so the gate was always
+            # False) - the same bug class as the staleness check itself, but in the opposite,
+            # more dangerous direction: it made a real zero-signal upstream failure on the
+            # most recent trading day invisible instead of halting on it, the exact failure
+            # mode this check exists to catch.
+            if today_count == 0:
                 # Most recent trading day has 0 signals - this is anomalous
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has ZERO BUY signals. "
@@ -881,9 +891,10 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # defined but never checked, so a drop from the typical 300+/day to a handful of
             # signals silently passed through as "OK" - same underlying failure modes as the
             # zero-signal case above (upstream loader degradation), just not total.
-            if 0 < today_count < _SIGNAL_COUNT_ANOMALY_THRESHOLD and latest_buysell_date >= run_date - timedelta(
-                days=1
-            ):
+            # Same reasoning as the zero-signal check above: no separate recency gate needed,
+            # latest_buysell_date is already confirmed current by the acceptable_staleness
+            # check earlier in this function.
+            if 0 < today_count < _SIGNAL_COUNT_ANOMALY_THRESHOLD:
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has only {today_count} "
                     f"BUY signals (< anomaly floor of {_SIGNAL_COUNT_ANOMALY_THRESHOLD}). "
