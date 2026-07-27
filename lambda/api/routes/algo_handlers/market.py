@@ -667,57 +667,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             execution_health["phase_1_data_check"] = None
 
         # Phase 2: Circuit Breaker Status
+        # Thresholds MUST come from algo_config (the same source
+        # algo/risk/circuit_breaker.py's _get_required_config reads at halt time). This used
+        # to hardcode portfolio_drawdown_pct >= 20.0 while the real configured
+        # halt_drawdown_pct was -10 (halt at 10% down) - a live drawdown of 12-19% would
+        # already have halted real trading while this panel kept showing "OK".
         try:
-            cur.execute("""
-                SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct,
-                       vix_level, market_stage, check_date
-                FROM circuit_breaker_status
-                ORDER BY check_date DESC LIMIT 1
-            """)
-            cb_row = cur.fetchone()
-            if cb_row:
-                cb_dict = safe_dict_convert(cb_row)
-                any_triggered = False
-                if (
-                    cb_dict.get("portfolio_drawdown_pct") is not None
-                    and float(cb_dict["portfolio_drawdown_pct"]) >= 20.0
-                ):
-                    any_triggered = True
-                if cb_dict.get("daily_loss_pct") is not None and float(cb_dict["daily_loss_pct"]) >= 2.0:
-                    any_triggered = True
-                if cb_dict.get("weekly_loss_pct") is not None and float(cb_dict["weekly_loss_pct"]) >= 5.0:
-                    any_triggered = True
-                if cb_dict.get("open_risk_pct") is not None and float(cb_dict["open_risk_pct"]) >= 4.0:
-                    any_triggered = True
-                if cb_dict.get("vix_level") is not None and float(cb_dict["vix_level"]) >= 35.0:
-                    any_triggered = True
-
-                check_date = cb_dict.get("check_date")
-                check_date_str = (
-                    check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
-                )
-
-                execution_health["phase_2_circuit_breakers"] = {
-                    "any_triggered": any_triggered,
-                    "drawdown_pct": (
-                        float(cb_dict["portfolio_drawdown_pct"])
-                        if cb_dict.get("portfolio_drawdown_pct") is not None
-                        else None
-                    ),
-                    "daily_loss_pct": (
-                        float(cb_dict["daily_loss_pct"]) if cb_dict.get("daily_loss_pct") is not None else None
-                    ),
-                    "weekly_loss_pct": (
-                        float(cb_dict["weekly_loss_pct"]) if cb_dict.get("weekly_loss_pct") is not None else None
-                    ),
-                    "open_risk_pct": (
-                        float(cb_dict["open_risk_pct"]) if cb_dict.get("open_risk_pct") is not None else None
-                    ),
-                    "vix_level": float(cb_dict["vix_level"]) if cb_dict.get("vix_level") is not None else None,
-                    "last_check": check_date_str,
-                }
+            _collect_phase2_circuit_breakers(cur, execution_health)
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
-            logger.debug(f"[HEALTH] Phase 2 circuit breaker query failed: {e}")
+            logger.error(f"[HEALTH] Phase 2 circuit breaker query failed - reporting as unknown, not clear: {e}")
             execution_health["phase_2_circuit_breakers"] = None
 
         # Phase 3: Position Monitor Health
@@ -1760,3 +1718,122 @@ def _get_trend_criteria(cur: cursor) -> Any:
     ]
 
     return list_response(criteria, total=total_symbols, limit=None, offset=None)
+
+
+def _is_any_circuit_breaker_triggered(
+    metrics: dict[str, Any],
+    drawdown_threshold: float,
+    daily_loss_threshold: float,
+    weekly_loss_threshold: float,
+    open_risk_threshold: float,
+    vix_threshold: float,
+) -> bool:
+    """Check if any circuit breaker metric exceeds its configured threshold.
+
+    Args:
+        metrics: Dict with keys portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct,
+                open_risk_pct, vix_level
+        *_threshold: Configured thresholds from algo_config (absolute values for comparisons)
+
+    Returns:
+        True if any metric >= threshold, False if all below thresholds or None.
+    """
+    if metrics.get("portfolio_drawdown_pct") is not None:
+        if float(metrics["portfolio_drawdown_pct"]) >= drawdown_threshold:
+            return True
+    if metrics.get("daily_loss_pct") is not None:
+        if float(metrics["daily_loss_pct"]) >= daily_loss_threshold:
+            return True
+    if metrics.get("weekly_loss_pct") is not None:
+        if float(metrics["weekly_loss_pct"]) >= weekly_loss_threshold:
+            return True
+    if metrics.get("open_risk_pct") is not None:
+        if float(metrics["open_risk_pct"]) >= open_risk_threshold:
+            return True
+    if metrics.get("vix_level") is not None:
+        if float(metrics["vix_level"]) >= vix_threshold:
+            return True
+    return False
+
+
+def _collect_phase2_circuit_breakers(cur: cursor, execution_health: dict[str, Any]) -> None:
+    """Collect Phase 2 circuit breaker status with thresholds from algo_config.
+
+    CRITICAL: Thresholds MUST come from algo_config (same source the real circuit breaker
+    reads), not hardcoded. Dashboard indicator and real halt logic must stay in sync.
+    If any threshold key is missing from algo_config, sets execution_health to None
+    (unknown status), not a silent "all clear" with a guessed default.
+    """
+    cur.execute(
+        """
+        SELECT key, value FROM algo_config
+        WHERE key IN ('halt_drawdown_pct', 'max_daily_loss_pct', 'max_weekly_loss_pct',
+                      'max_total_risk_pct', 'vix_max_threshold')
+        """
+    )
+    cb_config = {row[0]: row[1] for row in cur.fetchall()}
+    required_keys = (
+        "halt_drawdown_pct",
+        "max_daily_loss_pct",
+        "max_weekly_loss_pct",
+        "max_total_risk_pct",
+        "vix_max_threshold",
+    )
+    missing_keys = [k for k in required_keys if k not in cb_config]
+    if missing_keys:
+        logger.warning(f"[HEALTH] Phase 2 algo_config missing keys: {missing_keys}")
+        execution_health["phase_2_circuit_breakers"] = None
+        return
+
+    drawdown_threshold = abs(float(cb_config["halt_drawdown_pct"]))
+    daily_loss_threshold = float(cb_config["max_daily_loss_pct"])
+    weekly_loss_threshold = float(cb_config["max_weekly_loss_pct"])
+    open_risk_threshold = float(cb_config["max_total_risk_pct"])
+    vix_threshold = float(cb_config["vix_max_threshold"])
+
+    cur.execute(
+        """
+        SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct,
+               vix_level, market_stage, check_date
+        FROM circuit_breaker_status
+        ORDER BY check_date DESC LIMIT 1
+        """
+    )
+    cb_row = cur.fetchone()
+    if cb_row:
+        cb_dict = safe_dict_convert(cb_row)
+        any_triggered = _is_any_circuit_breaker_triggered(
+            cb_dict,
+            drawdown_threshold=drawdown_threshold,
+            daily_loss_threshold=daily_loss_threshold,
+            weekly_loss_threshold=weekly_loss_threshold,
+            open_risk_threshold=open_risk_threshold,
+            vix_threshold=vix_threshold,
+        )
+
+        check_date = cb_dict.get("check_date")
+        check_date_str = (
+            check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
+        )
+
+        execution_health["phase_2_circuit_breakers"] = {
+            "any_triggered": any_triggered,
+            "drawdown_pct": (
+                float(cb_dict["portfolio_drawdown_pct"])
+                if cb_dict.get("portfolio_drawdown_pct") is not None
+                else None
+            ),
+            "daily_loss_pct": (
+                float(cb_dict["daily_loss_pct"]) if cb_dict.get("daily_loss_pct") is not None else None
+            ),
+            "weekly_loss_pct": (
+                float(cb_dict["weekly_loss_pct"]) if cb_dict.get("weekly_loss_pct") is not None else None
+            ),
+            "open_risk_pct": (
+                float(cb_dict["open_risk_pct"]) if cb_dict.get("open_risk_pct") is not None else None
+            ),
+            "vix_level": float(cb_dict["vix_level"]) if cb_dict.get("vix_level") is not None else None,
+            "last_check": check_date_str,
+        }
+    else:
+        execution_health["phase_2_circuit_breakers"] = None

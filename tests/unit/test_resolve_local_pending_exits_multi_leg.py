@@ -26,6 +26,33 @@ def _make_recon() -> DailyReconciliation:
 
 
 class TestResolveLocalPendingExitsMultiLeg:
+    def test_prior_partial_leg_query_uses_details_jsonb_not_top_level_columns(self):
+        """algo_audit_log has no top-level trade_id/event_type/amount/quantity columns
+        (see migrations/versions/094a_create_algo_audit_log_table.py) - only action_type
+        and a JSONB 'details' column. A query referencing those non-existent columns
+        raises psycopg2.errors.UndefinedColumn against a real database, crashing this
+        fallback path (documented as running unconditionally in every environment)
+        the first time it processes any pending trade."""
+        recon = _make_recon()
+        cur = MagicMock()
+        cur.fetchall.return_value = [
+            (1, "AAPL", 50.0, 45.0, 100, date(2026, 7, 25), 55.0),
+        ]
+        cur.fetchone.side_effect = [
+            (55.0,),
+            (Decimal("0"), Decimal("0")),
+        ]
+
+        recon.resolve_local_pending_exits(cur)
+
+        audit_query = [
+            c.args[0] for c in cur.execute.call_args_list if "algo_audit_log" in c.args[0]
+        ][0]
+        assert "details->>" in audit_query
+        assert "trade_id" not in audit_query.split("WHERE")[0]  # not a top-level SELECT column
+        for bad_column in ("event_type", " amount", " quantity"):
+            assert bad_column not in audit_query, f"query references non-existent column: {bad_column}"
+
     def test_no_prior_partial_legs_uses_entry_qty(self):
         """Simple single-leg case: no partial legs recorded, so this must produce the
         same result as before the fix."""

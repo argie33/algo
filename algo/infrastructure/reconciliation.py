@@ -1745,21 +1745,68 @@ class DailyReconciliation:
                 )
                 continue
 
+            # CRITICAL FIX: For multi-leg exits, sum prior partial exit P&L with this final leg's P&L.
+            # When a position closes via multiple partial exits (T1/T2 profit-taking before final
+            # stop/target), each exit fills at a different price. This function receives fill_price
+            # for the FINAL leg only, but must report total realized P&L across ALL legs.
+            # Without this, multi-leg exits would report only the final leg's P&L (or loss),
+            # discarding every dollar from earlier legs - exact same bug that was already fixed
+            # in reconcile_exit_fills() and executor_exit_handler.py's _compute_cumulative_pnl.
+            #
+            # Prior partial leg data comes from algo_audit_log's JSONB 'details' column (this
+            # table has no top-level trade_id/event_type/amount/quantity columns - see migration
+            # 094a_create_algo_audit_log_table.py - only action_type and details JSONB). Exit
+            # legs are logged by executor_exit_handler.py as action_type='exit_{stage}' with
+            # details containing trade_id/pnl_dollars/shares_exited/full_exit (see its
+            # _compute_cumulative_pnl and reconcile_exit_fills() above for the identical query).
+            prior_pnl_dollars = Decimal("0")
+            prior_exit_qty = Decimal("0")
+            cur.execute(
+                """
+                SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0),
+                       COALESCE(SUM((details->>'shares_exited')::numeric), 0)
+                FROM algo_audit_log
+                WHERE action_type LIKE 'exit_%%'
+                  AND (details->>'trade_id')::bigint = %s
+                  AND (details->>'full_exit')::boolean = false
+                """,
+                (trade_id,),
+            )
+            audit_row = cur.fetchone()
+            if audit_row:
+                prior_pnl_dollars = Decimal(str(audit_row[0])) if audit_row[0] is not None else Decimal("0")
+                prior_exit_qty = Decimal(str(audit_row[1])) if audit_row[1] is not None else Decimal("0")
+
+            # Calculate P&L for THIS leg only (not cumulative yet)
             entry_dec = Decimal(str(entry_price))
             qty_dec = Decimal(str(entry_qty))
-            pnl_pct = float(
-                ((fill_price - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
-            )
-            pnl_dollars = float(((fill_price - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
-            risk = float(entry_price) - float(stop_loss_price)
-            if risk > 0:
+            # This leg's P&L: (fill_price - entry_price) * remaining_qty
+            # remaining_qty = entry_qty - prior_exit_qty (amount of position resolved by this exit)
+            this_leg_qty = qty_dec - prior_exit_qty
+            this_leg_pnl = (fill_price - entry_dec) * this_leg_qty if this_leg_qty > 0 else Decimal("0")
+            # Cumulative P&L: prior legs + this leg
+            cumulative_pnl = prior_pnl_dollars + this_leg_pnl
+
+            # Risk/reward based on TOTAL realized P&L, not just this leg
+            # R multiple = total_pnl / (risk_per_share * total_entry_qty)
+            risk_per_share = float(entry_price) - float(stop_loss_price)
+            if risk_per_share > 0:
+                total_risk = Decimal(str(risk_per_share)) * qty_dec
                 exit_r_multiple = float(
-                    (Decimal(str(float(fill_price) - float(entry_price))) / Decimal(str(risk))).quantize(
+                    (cumulative_pnl / total_risk).quantize(
                         Decimal("0.01"), ROUND_HALF_UP
                     )
                 )
             else:
                 exit_r_multiple = None
+
+            # P&L % based on total realized P&L relative to total position cost
+            pnl_pct = float(
+                (cumulative_pnl / (entry_dec * qty_dec) * Decimal(100)).quantize(
+                    Decimal("0.01"), ROUND_HALF_UP
+                )
+            )
+            pnl_dollars = float(cumulative_pnl.quantize(Decimal("0.01"), ROUND_HALF_UP))
 
             cur.execute(
                 """
