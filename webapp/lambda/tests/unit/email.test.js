@@ -3,16 +3,29 @@
  * Tests email sending functionality with AWS SES and SMTP
  */
 
+// utils/email.js only exports sendEmail/getEmailConfig/initEmailService (a minimal SES
+// wrapper) - sendContactConfirmationEmail/sendCommunityWelcomeEmail/sendNewsletter/
+// getEmailService belonged to a richer email service removed in an earlier cleanup and
+// were never re-added. Those cases were deleted here; only real exports are covered.
+const mockSend = jest.fn().mockResolvedValue({ MessageId: "test-id" });
+jest.mock("@aws-sdk/client-ses", () => ({
+  SESClient: jest.fn().mockImplementation(() => ({ send: mockSend })),
+  SendEmailCommand: jest.fn(),
+}));
+
 describe("Email Service", () => {
   let emailService;
 
   beforeEach(() => {
     // Clear module cache to force re-initialization
     jest.resetModules();
+    mockSend.mockClear();
+    mockSend.mockResolvedValue({ MessageId: "test-id" });
     // Set AWS region for SES in test
     process.env.AWS_REGION = "us-east-1";
     process.env.CONTACT_NOTIFICATION_EMAIL = "edgebrookecapital@gmail.com";
     process.env.EMAIL_FROM = "noreply@bullseyefinancial.com";
+    emailService = require("../../utils/email");
   });
 
   afterEach(() => {
@@ -21,32 +34,18 @@ describe("Email Service", () => {
     delete process.env.EMAIL_FROM;
   });
 
-  test("should export sendEmail and confirmation functions", () => {
-    emailService = require("../../utils/email");
+  test("should export sendEmail and config functions", () => {
     expect(typeof emailService.sendEmail).toBe("function");
-    expect(typeof emailService.sendContactConfirmationEmail).toBe("function");
-    expect(typeof emailService.sendCommunityWelcomeEmail).toBe("function");
-    expect(typeof emailService.sendNewsletter).toBe("function");
+    expect(typeof emailService.getEmailConfig).toBe("function");
+    expect(typeof emailService.initEmailService).toBe("function");
   });
 
-  test("should initialize with a valid email service", () => {
-    emailService = require("../../utils/email");
-    const service = emailService.getEmailService();
-    expect(["aws-ses", "smtp", "console"]).toContain(service);
+  test("should report configured state via getEmailConfig", async () => {
+    const config = await emailService.getEmailConfig();
+    expect(config).toHaveProperty("isConfigured", true);
   });
 
   test("should handle single recipient email", async () => {
-    emailService = require("../../utils/email");
-
-    // Mock SES for testing
-    jest.mock("@aws-sdk/client-ses", () => {
-      const mockSend = jest.fn().mockResolvedValue({ MessageId: "test-id" });
-      return {
-        SESClient: jest.fn(),
-        SendEmailCommand: jest.fn(),
-      };
-    });
-
     const result = await emailService.sendEmail({
       to: "test@example.com",
       subject: "Test Email",
@@ -54,11 +53,10 @@ describe("Email Service", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   test("should handle multiple recipient emails", async () => {
-    emailService = require("../../utils/email");
-
     const result = await emailService.sendEmail({
       to: ["test1@example.com", "test2@example.com"],
       subject: "Test Email",
@@ -68,42 +66,18 @@ describe("Email Service", () => {
     expect(result.success).toBe(true);
   });
 
-  test("should include CC and BCC recipients", async () => {
+  test("should skip sending when EMAIL_FROM is not configured", async () => {
+    delete process.env.EMAIL_FROM;
+    jest.resetModules();
     emailService = require("../../utils/email");
 
     const result = await emailService.sendEmail({
       to: "test@example.com",
-      cc: "cc@example.com",
-      bcc: "bcc@example.com",
       subject: "Test Email",
       html: "<h1>Test</h1>",
     });
 
-    expect(result.success).toBe(true);
-  });
-
-  test("should send contact confirmation email to user", async () => {
-    emailService = require("../../utils/email");
-
-    await emailService.sendContactConfirmationEmail(
-      "user@example.com",
-      "John Doe",
-      "12345"
-    );
-
-    // Should not throw error
-    expect(true).toBe(true);
-  });
-
-  test("should send community welcome email to subscriber", async () => {
-    emailService = require("../../utils/email");
-
-    await emailService.sendCommunityWelcomeEmail(
-      "subscriber@example.com",
-      "John"
-    );
-
-    // Should not throw error
-    expect(true).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/EMAIL_FROM/);
   });
 });

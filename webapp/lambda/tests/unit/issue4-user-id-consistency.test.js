@@ -20,17 +20,22 @@ jest.mock("../../utils/database", () => ({
 
 const { query } = require("../../utils/database");
 
-// Mock auth middleware
+// Mock auth middleware. Preserve req.user if a preceding test-app middleware already set
+// it (e.g. the per-userId loop in "user_id column data types" below) - only fall back to
+// the fixed test UUID when nothing set req.user yet, so this doesn't clobber the very
+// user-id variation these tests exist to exercise.
 jest.mock("../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
-    // Use a realistic Cognito-like UUID string
-    req.user = {
-      sub: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", // UUID format
-      id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      username: "testuser",
-      email: "test@example.com",
-      role: "user",
-    };
+    if (!req.user) {
+      // Use a realistic Cognito-like UUID string
+      req.user = {
+        sub: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", // UUID format
+        id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        username: "testuser",
+        email: "test@example.com",
+        role: "user",
+      };
+    }
     req.token = "test-jwt-token";
     next();
   }),

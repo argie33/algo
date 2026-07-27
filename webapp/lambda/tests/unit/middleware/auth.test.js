@@ -19,11 +19,35 @@ const {
   authenticateToken,
   requireRole,
   optionalAuth,
-  requireApiKey,
   validateSession,
   rateLimitByUser,
   logApiAccess,
 } = require("../../../middleware/auth");
+
+// middleware/auth.js's authenticateToken/requireRole/rateLimitByUser all respond via
+// utils/apiResponse.js's sendError, which returns the unified envelope
+// { success: false, statusCode, error: <code>, message, timestamp } - `error` is a fixed
+// code derived from statusCode (401 -> "unauthorized", 403 -> "forbidden", etc.), and the
+// per-call `details` (e.g. { code: "MISSING_TOKEN" }) is only included when
+// NODE_ENV === "development", not in this "test" env - see apiResponse.js sendError.
+const ERROR_CODE_BY_STATUS = {
+  400: "bad_request",
+  401: "unauthorized",
+  403: "forbidden",
+  429: "rate_limited",
+  500: "internal_error",
+};
+
+function expectErrorResponse(res, statusCode, message) {
+  expect(res.status).toHaveBeenCalledWith(statusCode);
+  expect(res.json).toHaveBeenCalledWith({
+    success: false,
+    statusCode,
+    error: ERROR_CODE_BY_STATUS[statusCode],
+    message,
+    timestamp: expect.any(String),
+  });
+}
 
 describe("Authentication Middleware", () => {
   let req, res, next;
@@ -58,23 +82,13 @@ describe("Authentication Middleware", () => {
     });
     test("should reject request without authorization header", () => {
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Authentication required",
-        code: "MISSING_TOKEN",
-      });
+      expectErrorResponse(res, 401, "Authentication required");
       expect(next).not.toHaveBeenCalled();
     });
     test("should reject malformed authorization header", () => {
       req.headers.authorization = "InvalidFormat token";
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Invalid token format",
-        code: "INVALID_TOKEN_FORMAT",
-      });
+      expectErrorResponse(res, 401, "Invalid token format");
       expect(next).not.toHaveBeenCalled();
     });
     test("should reject expired JWT tokens", () => {
@@ -85,12 +99,7 @@ describe("Authentication Middleware", () => {
         throw tokenError;
       });
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Token expired",
-        code: "TOKEN_EXPIRED",
-      });
+      expectErrorResponse(res, 401, "Token expired");
       expect(next).not.toHaveBeenCalled();
     });
     test("should reject invalid JWT tokens", () => {
@@ -101,12 +110,7 @@ describe("Authentication Middleware", () => {
         throw tokenError;
       });
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Invalid token",
-        code: "INVALID_TOKEN",
-      });
+      expectErrorResponse(res, 401, "Invalid token");
       expect(next).not.toHaveBeenCalled();
     });
     test("should handle missing JWT secret", () => {
@@ -114,11 +118,7 @@ describe("Authentication Middleware", () => {
       const originalEnv = process.env.JWT_SECRET;
       delete process.env.JWT_SECRET;
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Authentication configuration error",
-      });
+      expectErrorResponse(res, 500, "Authentication service misconfigured");
       process.env.JWT_SECRET = originalEnv;
     });
     test("should extract token from Authorization header correctly", () => {
@@ -151,12 +151,7 @@ describe("Authentication Middleware", () => {
     test("should reject empty token", () => {
       req.headers.authorization = "Bearer ";
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Authentication required",
-        code: "MISSING_TOKEN",
-      });
+      expectErrorResponse(res, 401, "Authentication required");
     });
     test("should handle authorization header with extra data", () => {
       req.headers.authorization = "Bearer valid-token extra-data";
@@ -201,17 +196,19 @@ describe("Authentication Middleware", () => {
         throw unexpectedError;
       });
       authenticateToken(req, res, next);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        error: "Authentication failed",
-        code: "AUTH_FAILED",
-      });
+      // Any non-TokenExpiredError thrown by jwt.verify() (including an unexpected error
+      // like this) is caught by the same catch block and reported as "Invalid token" -
+      // see middleware/auth.js's authenticateToken.
+      expectErrorResponse(res, 401, "Invalid token");
     });
     test("should handle missing JWT library", () => {
       req.headers.authorization = "Bearer valid-token";
       jwt.verify = undefined;
-      expect(() => authenticateToken(req, res, next)).toThrow();
+      // authenticateToken calls jwt.verify() inside its own try/catch, so a missing
+      // jwt.verify (TypeError: jwt.verify is not a function) is caught gracefully and
+      // reported as an invalid token rather than propagating - it does not throw.
+      authenticateToken(req, res, next);
+      expectErrorResponse(res, 401, "Invalid token");
     });
   });
   describe("security considerations", () => {
@@ -257,10 +254,10 @@ describe("Authentication Middleware", () => {
       authenticateToken(req, res, next);
       expect(req.user).toEqual({
         sub: "test-user-123",
-        id: "test-user-123",
         email: "test@example.com",
         username: "test-user",
         role: "user",
+        groups: ["user"],
         sessionId: "test-session",
       });
       expect(req.token).toBe("test-token");
@@ -279,6 +276,8 @@ describe("RequireRole Middleware", () => {
   beforeEach(() => {
     req = {
       user: null,
+      path: "/test",
+      ip: "127.0.0.1",
     };
     res = {
       unauthorized: jest.fn().mockReturnThis(),
@@ -292,9 +291,10 @@ describe("RequireRole Middleware", () => {
   test("should require authentication first", () => {
     const middleware = requireRole(["admin"]);
     middleware(req, res, next);
-    expect(res.unauthorized).toHaveBeenCalledWith(
-      "User must be authenticated to access this resource",
-      { code: "AUTH_REQUIRED" }
+    expectErrorResponse(
+      res,
+      401,
+      "User must be authenticated to access this resource"
     );
     expect(next).not.toHaveBeenCalled();
   });
@@ -316,15 +316,7 @@ describe("RequireRole Middleware", () => {
     req.user = { role: "user", groups: ["viewer"] };
     const middleware = requireRole(["admin"]);
     middleware(req, res, next);
-    expect(res.forbidden).toHaveBeenCalledWith(
-      "Access denied. Required roles: admin",
-      {
-        code: "INSUFFICIENT_PERMISSIONS",
-        userRole: "user",
-        userGroups: ["viewer"],
-        requiredRoles: ["admin"],
-      }
-    );
+    expectErrorResponse(res, 403, "Access denied. Required roles: admin");
     expect(next).not.toHaveBeenCalled();
   });
   test("should handle multiple required roles", () => {
@@ -408,81 +400,8 @@ describe("OptionalAuth Middleware", () => {
 // ================================
 // RequireApiKey Middleware Tests
 // ================================
-describe("RequireApiKey Middleware", () => {
-  let req, res, next;
-  beforeEach(() => {
-    req = {
-      user: null,
-      token: null,
-    };
-    res = {
-      unauthorized: jest.fn().mockReturnThis(),
-      error: jest.fn().mockReturnThis(),
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-    };
-    next = jest.fn();
-    jest.clearAllMocks();
-  });
-  test("should require authentication first", async () => {
-    const middleware = requireApiKey("alpaca");
-    await middleware(req, res, next);
-    expect(res.unauthorized).toHaveBeenCalledWith(
-      "User must be authenticated to access API configuration",
-      { code: "AUTH_REQUIRED" }
-    );
-    expect(next).not.toHaveBeenCalled();
-  });
-  test("should require API key for provider", async () => {
-    req.user = { sub: "user123" };
-    req.token = "valid-token";
-    // Mock getApiKey to return null (no API key configured)
-    apiKeyService.getApiKey.mockResolvedValue(null);
-    const middleware = requireApiKey("alpaca");
-    await middleware(req, res, next);
-    expect(res.error).toHaveBeenCalledWith(
-      "alpaca API configuration is required for this operation",
-      400,
-      {
-        code: "API_CONFIG_REQUIRED",
-        provider: "alpaca",
-      }
-    );
-    expect(next).not.toHaveBeenCalled();
-  });
-  test("should proceed when API key is available", async () => {
-    req.user = { sub: "user123" };
-    req.token = "valid-token";
-    const mockApiKey = "test-api-key-123";
-    apiKeyService.getApiKey.mockResolvedValue(mockApiKey);
-    const middleware = requireApiKey("alpaca");
-    await middleware(req, res, next);
-    expect(req.apiKey).toBe(mockApiKey);
-    expect(req.provider).toBe("alpaca");
-    expect(next).toHaveBeenCalled();
-    expect(apiKeyService.getApiKey).toHaveBeenCalledWith(
-      "valid-token",
-      "alpaca"
-    );
-  });
-  test("should handle API key service errors", async () => {
-    req.user = { sub: "user123" };
-    req.token = "valid-token";
-    apiKeyService.getApiKey.mockRejectedValue(new Error("Service unavailable"));
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
-    const middleware = requireApiKey("alpaca");
-    await middleware(req, res, next);
-    expect(res.error).toHaveBeenCalledWith(
-      "Could not validate API configuration",
-      500,
-      { code: "API_CONFIG_VALIDATION_FAILED" }
-    );
-    // Console logging is disabled during tests for performance
-    expect(consoleSpy).not.toHaveBeenCalled();
-    expect(next).not.toHaveBeenCalled();
-    consoleSpy.mockRestore();
-  });
-});
+// requireApiKey was removed from middleware/auth.js (grep confirms zero references
+// anywhere in webapp/lambda outside this old test) - no replacement to test against.
 // ================================
 // ValidateSession Middleware Tests
 // ================================
@@ -562,7 +481,8 @@ describe("RateLimitByUser Middleware", () => {
       ip: "127.0.0.1",
     };
     res = {
-      error: jest.fn().mockReturnThis(),
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
     };
     next = jest.fn();
     jest.clearAllMocks();
@@ -572,13 +492,13 @@ describe("RateLimitByUser Middleware", () => {
     const middleware = rateLimitByUser(10); // 10 requests per minute
     middleware(req, res, next);
     expect(next).toHaveBeenCalled();
-    expect(res.error).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
   test("should use IP address when user is not authenticated", () => {
     const middleware = rateLimitByUser(10);
     middleware(req, res, next);
     expect(next).toHaveBeenCalled();
-    expect(res.error).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
   test("should enforce rate limit", () => {
     req.user = { sub: "user123" };
@@ -590,14 +510,7 @@ describe("RateLimitByUser Middleware", () => {
     expect(next).toHaveBeenCalledTimes(2);
     // Third request should be rate limited
     middleware(req, res, next);
-    expect(res.error).toHaveBeenCalledWith(
-      "Too many requests. Limit: 2 per minute",
-      429,
-      {
-        code: "RATE_LIMIT_EXCEEDED",
-        retryAfter: expect.any(Number),
-      }
-    );
+    expectErrorResponse(res, 429, "Too many requests. Limit: 2 per minute");
     expect(next).toHaveBeenCalledTimes(2); // Should not increment
   });
   test("should clean up old requests from sliding window", () => {

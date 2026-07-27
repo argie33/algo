@@ -86,6 +86,22 @@ app.get(
 // Apply error handler AFTER all routes
 app.use(errorHandler);
 
+// middleware/errorHandler.js's canonical response is flat:
+// { error: <message>, statusCode, success: false, timestamp } - `error` is the message
+// string itself, not a nested object (there is no response.body.error.status etc). A
+// `details` object ({ code, path, requestId, timestamp, message?, stack? }) is only added
+// in NODE_ENV === "development". It logs via console.error(" API ERROR:", ...), not
+// "AWS Lambda Error:".
+function expectErrorResponse(response, statusCode, message) {
+  expect(response.status).toBe(statusCode);
+  expect(response.body).toMatchObject({
+    success: false,
+    statusCode,
+    error: message,
+  });
+  expect(response.body).toHaveProperty("timestamp");
+}
+
 describe("Error Handler Middleware", () => {
   let originalEnv;
   let consoleErrorSpy;
@@ -104,19 +120,14 @@ describe("Error Handler Middleware", () => {
     test("should handle generic errors with 500 status", async () => {
       const response = await request(app).get("/test-generic-error");
 
-      expect(response.status).toBe(500);
-      expect(response.body).toHaveProperty("error");
-      expect(response.body.error.status).toBe(500);
-      expect(response.body.error.message).toBe("Generic error message");
-      expect(response.body.error).toHaveProperty("timestamp");
-      expect(response.body.error.path).toBe("/test-generic-error");
+      expectErrorResponse(response, 500, "Generic error message");
     });
 
     test("should log error details", async () => {
       await request(app).get("/test-generic-error");
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "AWS Lambda Error:",
+        " API ERROR:",
         expect.stringMatching(/"message":\s*"Generic error message"/)
       );
     });
@@ -124,8 +135,7 @@ describe("Error Handler Middleware", () => {
     test("should handle errors without message", async () => {
       const response = await request(app).get("/test-error-without-message");
 
-      expect(response.status).toBe(500);
-      expect(response.body.error.message).toBe("Internal Server Error");
+      expectErrorResponse(response, 500, "Internal Server Error");
     });
   });
 
@@ -133,17 +143,13 @@ describe("Error Handler Middleware", () => {
     test("should handle ValidationError with 400 status", async () => {
       const response = await request(app).get("/test-validation-error");
 
-      expect(response.status).toBe(400);
-      expect(response.body.error.status).toBe(400);
-      expect(response.body.error.message).toBe("Validation Error");
+      expectErrorResponse(response, 400, "Validation Error");
     });
 
     test("should handle custom status errors", async () => {
       const response = await request(app).get("/test-custom-status-error");
 
-      expect(response.status).toBe(403);
-      expect(response.body.error.status).toBe(403);
-      expect(response.body.error.message).toBe("Custom status error");
+      expectErrorResponse(response, 403, "Custom status error");
     });
 
     test("should handle PostgreSQL unique violation (23505)", async () => {
@@ -151,25 +157,19 @@ describe("Error Handler Middleware", () => {
         "/test-postgres-unique-violation"
       );
 
-      expect(response.status).toBe(409);
-      expect(response.body.error.status).toBe(409);
-      expect(response.body.error.message).toBe("Duplicate entry");
+      expectErrorResponse(response, 409, "Duplicate entry");
     });
 
     test("should handle PostgreSQL foreign key violation (23503)", async () => {
       const response = await request(app).get("/test-postgres-foreign-key");
 
-      expect(response.status).toBe(400);
-      expect(response.body.error.status).toBe(400);
-      expect(response.body.error.message).toBe("Invalid reference");
+      expectErrorResponse(response, 400, "Invalid reference");
     });
 
-    test("should handle PostgreSQL table missing (42P01)", async () => {
+    test("should handle PostgreSQL table missing (42P01) as service unavailable", async () => {
       const response = await request(app).get("/test-postgres-table-missing");
 
-      expect(response.status).toBe(500);
-      expect(response.body.error.status).toBe(500);
-      expect(response.body.error.message).toBe("Database configuration error");
+      expectErrorResponse(response, 503, "Feature not yet available");
     });
   });
 
@@ -182,8 +182,8 @@ describe("Error Handler Middleware", () => {
       );
 
       expect(response.status).toBe(409);
-      expect(response.body.error).toHaveProperty("details");
-      expect(response.body.error.details).toBe(
+      expect(response.body).toHaveProperty("details");
+      expect(response.body.details.message).toBe(
         "A record with this information already exists"
       );
     });
@@ -194,8 +194,8 @@ describe("Error Handler Middleware", () => {
       const response = await request(app).get("/test-validation-error");
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toHaveProperty("details");
-      expect(response.body.error.details).toBe("Validation failed");
+      expect(response.body).toHaveProperty("details");
+      expect(response.body.details.message).toBe("Validation failed");
     });
   });
 
@@ -226,14 +226,13 @@ describe("Error Handler Middleware", () => {
       const response = await request(app).get("/test-generic-error");
 
       expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toHaveProperty("status");
-      expect(response.body.error).toHaveProperty("message");
-      expect(response.body.error).toHaveProperty("timestamp");
-      expect(response.body.error).toHaveProperty("path");
+      expect(response.body).toHaveProperty("statusCode");
+      expect(response.body).toHaveProperty("success", false);
+      expect(response.body).toHaveProperty("timestamp");
 
       // Validate timestamp format (ISO string)
-      expect(new Date(response.body.error.timestamp)).toBeInstanceOf(Date);
-      expect(response.body.error.timestamp).toMatch(
+      expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
+      expect(response.body.timestamp).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
       );
     });
@@ -256,12 +255,11 @@ describe("Error Handler Middleware", () => {
         const response = await request(app).get(testCase);
 
         expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toHaveProperty("status");
-        expect(response.body.error).toHaveProperty("message");
-        expect(response.body.error).toHaveProperty("timestamp");
-        expect(response.body.error).toHaveProperty("path");
-        expect(typeof response.body.error.status).toBe("number");
-        expect(typeof response.body.error.message).toBe("string");
+        expect(response.body).toHaveProperty("statusCode");
+        expect(response.body).toHaveProperty("success", false);
+        expect(response.body).toHaveProperty("timestamp");
+        expect(typeof response.body.statusCode).toBe("number");
+        expect(typeof response.body.error).toBe("string");
       }
     });
   });
@@ -291,8 +289,7 @@ describe("Error Handler Middleware", () => {
 
       const response = await request(testApp).get("/test-no-stack");
 
-      expect(response.status).toBe(500);
-      expect(response.body.error.message).toBe("No stack error");
+      expectErrorResponse(response, 500, "No stack error");
     });
 
     test("should handle very long error messages", async () => {
@@ -305,8 +302,7 @@ describe("Error Handler Middleware", () => {
 
       const response = await request(testApp).get("/test-long-message");
 
-      expect(response.status).toBe(500);
-      expect(response.body.error.message).toBe(longMessage);
+      expectErrorResponse(response, 500, longMessage);
     });
 
     test("should handle special characters in error messages", async () => {
@@ -319,8 +315,7 @@ describe("Error Handler Middleware", () => {
 
       const response = await request(testApp).get("/test-special-chars");
 
-      expect(response.status).toBe(500);
-      expect(response.body.error.message).toBe(specialMessage);
+      expectErrorResponse(response, 500, specialMessage);
     });
   });
 
@@ -336,8 +331,7 @@ describe("Error Handler Middleware", () => {
 
       const response = await request(testApp).get("/test-unknown-pg-error");
 
-      expect(response.status).toBe(500);
-      expect(response.body.error.message).toBe("Unknown PostgreSQL error");
+      expectErrorResponse(response, 500, "Unknown PostgreSQL error");
     });
 
     test("should prioritize custom status over default for PostgreSQL errors", async () => {
