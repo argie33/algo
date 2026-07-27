@@ -380,12 +380,12 @@ router.get("/leading-indicators", async (req, res) => {
       (() => {
         // Calculate GDP growth rate: (latest - previous) / previous * 100
         // Positive = expansion, negative = contraction
+        // historicalData is newest-first (see the forEach above), same as every
+        // other indicator's calculateTrend() - so index 0 is current, 1 is prior.
         const hist = historicalData["GDPC1"];
         const gdpGrowth =
-          hist && hist.length >= 2 && hist[hist.length - 2]?.value
-            ? ((hist[hist.length - 1]?.value - hist[hist.length - 2]?.value) /
-                hist[hist.length - 2]?.value) *
-              100
+          hist && hist.length >= 2 && hist[1]?.value
+            ? ((hist[0]?.value - hist[1]?.value) / hist[1]?.value) * 100
             : null;
 
         return {

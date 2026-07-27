@@ -90,4 +90,33 @@ describe("Economic Routes Unit Tests", () => {
       expect(response.body.message).toContain("Failed to fetch indicator");
     });
   });
+
+  describe("GET /economic/leading-indicators", () => {
+    test("computes GDP growth from the two most recent quarters, not the two oldest in the window", async () => {
+      // Rows come back DESC by date (most recent first) - same shape the real
+      // query produces. 5 quarters: latest 22000 vs prior 20000 is +10% QoQ.
+      // The oldest two quarters in this window (16000 -> 18000) would give a
+      // very different, wrong answer if the code read from the wrong end.
+      const gdpRows = [
+        { series_id: "GDPC1", value: "22000", date: "2026-04-01" },
+        { series_id: "GDPC1", value: "20000", date: "2026-01-01" },
+        { series_id: "GDPC1", value: "19000", date: "2025-10-01" },
+        { series_id: "GDPC1", value: "18000", date: "2025-07-01" },
+        { series_id: "GDPC1", value: "16000", date: "2025-04-01" },
+      ];
+      query.mockResolvedValueOnce({ rows: gdpRows }); // economicQuery
+      query.mockResolvedValueOnce({ rows: [] }); // calendarQuery
+
+      const response = await request(app)
+        .get("/economic/leading-indicators")
+        .expect(200);
+
+      const gdp = response.body.data.indicators.find(
+        (ind) => ind.name === "GDP Growth"
+      );
+      expect(gdp).toBeDefined();
+      // (22000 - 20000) / 20000 * 100 = 10%, NOT (18000-16000)/16000*100 = 12.5%
+      expect(gdp.rawValue).toBeCloseTo(10, 5);
+    });
+  });
 });
