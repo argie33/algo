@@ -512,6 +512,41 @@ def run(
     else:
         logger.info("[PHASE 8 PENDING ORDERS GUARD] Skipping in paper mode (no real pending orders)")
 
+    # SIGNAL FRESHNESS GUARD: algo/risk/stale_signal_circuit_breaker.py was written
+    # ("ROOT CAUSE #4 fix") specifically to catch entries placed off stale signals -
+    # buy_sell_daily generated from price data older than the threshold, or lagging behind
+    # price_daily entirely - but was never actually called from anywhere in the orchestrator.
+    # Phase 1 validates price_daily/market_health/market_exposure freshness but explicitly
+    # excludes buy_sell_daily (not generated yet at that point in the run); nothing downstream
+    # ever checked whether the signals Phase 8 is about to trade on are themselves fresh
+    # relative to the price data they were computed from. Block (not halt orchestration)
+    # entries this run if stale, matching the market-hours/pending-orders guards above.
+    try:
+        from algo.risk.stale_signal_circuit_breaker import StaleSignalCircuitBreaker
+
+        signals_fresh, freshness_msg = StaleSignalCircuitBreaker.check_signal_freshness()
+        if not signals_fresh:
+            msg = f"[PHASE 8 SIGNAL FRESHNESS GUARD] Blocking Phase 8: {freshness_msg}"
+            logger.critical(msg)
+            log_phase_result_fn(8, "entry_execution", "blocked", msg)
+            result = PhaseResult(
+                8,
+                "entry_execution",
+                "blocked",
+                {"entered": 0},
+                False,  # halted=False: guard is just blocking entries, not halting orchestration
+                msg,
+            )
+            return result
+    except RuntimeError as e:
+        msg = (
+            f"[PHASE 8 CRITICAL] Could not verify signal freshness: {e}. "
+            f"Cannot safely execute new entries without knowing if signals are stale. Must halt and investigate."
+        )
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        raise RuntimeError(msg) from e
+
     # SESSION 396 FIX: PROACTIVE RISK ENFORCEMENT
     # Phase 8 now ALWAYS runs (always_run=True) to enforce proactive risk checks
     # even when Phase 2 circuit breaker has halted earlier phases.
