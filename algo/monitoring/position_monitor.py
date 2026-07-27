@@ -28,6 +28,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 import psycopg2
 import requests
@@ -142,9 +143,22 @@ class PositionMonitor:
 
                     for row in stale_orders:
                         trade_id, symbol, price, qty, created_at = row
-                        # Ensure created_at is timezone-aware (UTC) for subtraction
+                        # algo_trades.created_at is a `timestamp without time zone` column
+                        # written via SQL CURRENT_TIMESTAMP, so a naive value here is in the
+                        # DB session's local wall-clock timezone (utils/bulk_insert_manager.py's
+                        # documented convention), not UTC - confirmed live this session's actual
+                        # `SHOW timezone` is America/Chicago, 5+ hours off UTC. Mislabeling it as
+                        # UTC via .replace(tzinfo=timezone.utc) silently inflated age_minutes by
+                        # that offset - a pending order submitted minutes ago would compute as
+                        # hours old, immediately tripping alert_threshold/auto_cancel_threshold
+                        # and cancelling a legitimate, still-processing live order. Same bug class
+                        # already fixed in algo/risk/market_exposure.py's cache-age check and
+                        # algo/trading/pretrade_checks.py's re-entry cooldown: resolve the real
+                        # session timezone dynamically instead of assuming UTC.
                         if not getattr(created_at, "tzinfo", None):
-                            created_at = created_at.replace(tzinfo=timezone.utc)
+                            cur.execute("SHOW timezone")
+                            naive_tz = ZoneInfo(cur.fetchone()[0])
+                            created_at = created_at.replace(tzinfo=naive_tz)
                         age_minutes = int((datetime.now(timezone.utc) - created_at).total_seconds() / 60)
                         logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
 
