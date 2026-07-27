@@ -405,7 +405,10 @@ def panel_trades_expanded(trades: Any) -> Any:
     )
     avg_r_list = [float(r) for t in displayed_trades if (r := safe_get_field(t, "exit_r_multiple")) is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
-    wc = G if (wr is not None and wr >= 45) else (Y if (wr is not None and wr >= 40) else R)
+    # DIM (not R) when unavailable - wr_str below is "N/A" when there are no decisive
+    # trades to compute a win rate from; this previously painted that "N/A" bright red,
+    # the same as a genuinely poor win rate.
+    wc = DIM if wr is None else (G if wr >= 45 else (Y if wr >= 40 else R))
     pnl_c = G if total_pnl >= 0 else R
     wr_str = f"{wr:.0f}%" if wr is not None else "N/A"
     rows.append(

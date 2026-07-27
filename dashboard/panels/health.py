@@ -913,6 +913,26 @@ def _build_freshness_panel(
         if len(stale_detail) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(stale_detail) - 8} more[/]"))
 
+    # Repeated-failure streaks (migration 1163: consecutive_failures/last_success_at) - a
+    # loader that failed once and one that's failed every run for a week both show up
+    # identically as bare "STALE"/error text above; this distinguishes a transient blip
+    # from a genuinely stuck loader, which is a very different response ("wait" vs
+    # "investigate now").
+    repeated_failures = [
+        (r.get("tbl") or "unknown", r.get("consecutive_failures"), r.get("last_success_at"))
+        for r in sorted_items
+        if isinstance(r.get("consecutive_failures"), (int, float)) and r.get("consecutive_failures", 0) >= 2
+    ]
+    if repeated_failures:
+        repeated_failures.sort(key=lambda t: t[1], reverse=True)
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold {R}]Repeated failures:[/]"))
+        for tbl_name, n_fail, last_ok in repeated_failures[:8]:
+            last_ok_s = f"last ok {fmt_age(last_ok)}" if last_ok else "never succeeded"
+            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{int(n_fail)}x in a row, {last_ok_s}[/]"))
+        if len(repeated_failures) > 8:
+            left_rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 8} more[/]"))
+
     # Table inventory gaps (from /api/admin/inventory) - untracked tables exist in the DB but
     # have no data_loader_status row at all (never wired into monitoring), and missing tables
     # are tracked in data_loader_status but no longer exist (schema drift / dropped table).
@@ -1334,7 +1354,11 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
         wr_h = None
     else:
         wr_h = n_ok / total_h * 100
-    wc_h = G if wr_h is not None and wr_h >= 80 else (Y if wr_h is not None and wr_h >= 50 else R)
+    # DIM (not R) when unavailable, matching the same guard applied elsewhere in this file -
+    # total_h==0 can't currently reach here (the empty-list early-return above already
+    # catches it), but wr_h is None whenever it can't be computed, so this stays a safe
+    # default rather than defaulting an unknown value to "bad" (red).
+    wc_h = DIM if wr_h is None else (G if wr_h >= 80 else (Y if wr_h >= 50 else R))
 
     badges = []
     for r in valid_hist[:7]:

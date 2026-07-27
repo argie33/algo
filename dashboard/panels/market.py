@@ -350,7 +350,9 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     halts = _get_market_halts(mkt, "Market summary panel")
 
     spy_s = f"${spy_raw:.2f}" if spy_raw else "--"
-    spy_chg_c = G if (spy_chg is not None and spy_chg >= 0) else R
+    # DIM (not R) when unavailable - line ~388 renders "--" in this color unconditionally
+    # when spy_chg is None, previously painting unavailable data the same red as a real drop.
+    spy_chg_c = DIM if spy_chg is None else (G if spy_chg >= 0 else R)
     spy_chg_s = f"{sign(spy_chg)}{abs(spy_chg):.2f}%" if spy_chg is not None else "--"
     dist_c = R if (dist is not None and dist >= 5) else (Y if (dist is not None and dist >= 3) else G)
     dist_s = f"{dist} days" if dist is not None else "--"
