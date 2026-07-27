@@ -44,10 +44,15 @@ docker run --rm -d -p 5432:5432 \
 
 ### 4. Initialize Database (One-Time)
 ```bash
-python scripts/apply_local_migrations.py
+export DB_HOST=localhost DB_PORT=5432 DB_USER=stocks DB_PASSWORD=stocks DB_NAME=stocks
+python migrations/run.py apply --all
 ```
 
-This creates all tables and indices. Safe to run multiple times (uses CREATE TABLE IF NOT EXISTS).
+This runs every migration in `migrations/versions/`, the same source of truth applied to
+production via the db-migration Lambda (see `.github/workflows/deploy-all-infrastructure.yml`).
+Safe to run multiple times - tracks applied versions in a `schema_version` table and skips
+migrations already applied. Set the same `DB_*` environment variables in your shell profile;
+loaders, the dashboard, and `check_system_health.py` all read them the same way.
 
 ---
 
@@ -363,8 +368,10 @@ algo/
 │       └── dev_server.py   # Local API server (Terminal 1)
 ├── scripts/
 │   ├── run_local_orchestrator.py   # Local trading engine
-│   ├── monitor_data_staleness.py   # Check data freshness
-│   └── apply_local_migrations.py   # Database init
+│   └── monitor_data_staleness.py   # Check data freshness
+├── migrations/
+│   ├── run.py                      # Database init/migration runner
+│   └── versions/                   # Versioned migration files
 ├── algo/
 │   ├── algo_orchestrator.py        # Trading logic
 │   └── circuit_breaker.py          # Risk gates

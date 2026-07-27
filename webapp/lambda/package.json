@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "test": "jest --coverage --coverageReporters=text --coverageReporters=html --coverageReporters=lcov",
-    "test:unit": "jest --config jest.unit.config.js tests/unit/",
+    "test:unit": "jest tests/unit/",
     "test:integration": "jest tests/integration/",
     "test:e2e": "jest tests/integration/ --testNamePattern='e2e'",
     "test:financial": "jest tests/integration/database/portfolio-calculations.integration.test.js tests/unit/ --testNamePattern='portfolio|calculation|financial'",

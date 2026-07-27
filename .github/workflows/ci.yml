@@ -121,6 +121,10 @@ jobs:
         working-directory: webapp/lambda
         run: npm run format:check
 
+      - name: Run Jest unit tests
+        working-directory: webapp/lambda
+        run: npm run test:unit
+
       - name: Run npm audit
         working-directory: webapp/lambda
         run: npm audit --audit-level=high
