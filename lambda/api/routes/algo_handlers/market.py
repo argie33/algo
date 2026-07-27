@@ -653,43 +653,33 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "sector_ranking",
             ]
 
-            cur.execute(
-                """
-                SELECT COUNT(*) as total_tables,
-                       COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 <= 24) as fresh_count,
-                       COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 > 24) as stale_count,
-                       MAX(last_updated) as last_checked
-                FROM data_loader_status
-                WHERE table_name = ANY(%s)
-            """,
-                (phase1_tables,),
-            )
-            phase1_row = cur.fetchone()
-            if phase1_row:
-                phase1_dict = safe_dict_convert(phase1_row)
-                total_tables = phase1_dict.get("total_tables")
-                fresh_count = phase1_dict.get("fresh_count")
-                stale_count = phase1_dict.get("stale_count")
-                if total_tables is None or fresh_count is None or stale_count is None:
-                    logger.error(
-                        "[HEALTH] Phase 1 data check incomplete: missing table counts. "
-                        f"total_tables={total_tables}, fresh_count={fresh_count}, stale_count={stale_count}"
-                    )
-                    execution_health["phase_1_data_check"] = None
-                else:
-                    total_tables = int(total_tables)
-                    fresh_count = int(fresh_count)
-                    stale_count = int(stale_count)
-                    execution_health["phase_1_data_check"] = {
-                        "tables_validated": total_tables,
-                        "tables_fresh": fresh_count,
-                        "tables_stale": stale_count,
-                        "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
-                        "last_checked": (
-                            phase1_dict.get("last_checked").isoformat() if phase1_dict.get("last_checked") else None
-                        ),
-                    }
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
+            # CRITICAL FIX: this used to re-query data_loader_status with a flat
+            # "updated within the last 24 raw hours of NOW()" filter, applied identically to
+            # every table regardless of its real cadence - unlike `sources` above (built a few
+            # dozen lines earlier in this same function), which already uses each table's real
+            # trading-day-aware/stale_threshold_days-based status. Confirmed live 2026-07-27
+            # (a Monday): 8 of these 11 tables were last updated Thu/Fri/Sat (their correct,
+            # expected cadence - weekly metrics loaders, or Friday's close before the weekend)
+            # and were all flagged "stale"/"fail" here purely because >24 raw hours had passed
+            # since NOW(), while the real Phase 1 gate (algo/orchestrator/phase1_data_freshness.py)
+            # correctly treated the same data as fresh and let trading proceed - this panel section
+            # was pure false-alarm noise, never reflecting the actual orchestrator decision.
+            # Derive from the already-correct `sources` list instead of re-deriving staleness here.
+            phase1_sources = [s for s in sources if s["name"] in phase1_tables]
+            if phase1_sources:
+                fresh_count = sum(1 for s in phase1_sources if s["status"] == "ok")
+                stale_count = len(phase1_sources) - fresh_count
+                last_checked_candidates = [s["last_updated"] for s in phase1_sources if s["last_updated"]]
+                execution_health["phase_1_data_check"] = {
+                    "tables_validated": len(phase1_sources),
+                    "tables_fresh": fresh_count,
+                    "tables_stale": stale_count,
+                    "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
+                    "last_checked": max(last_checked_candidates) if last_checked_candidates else None,
+                }
+            else:
+                execution_health["phase_1_data_check"] = None
+        except (ValueError, TypeError):
             execution_health["phase_1_data_check"] = None
 
         # Phase 2: Circuit Breaker Status
