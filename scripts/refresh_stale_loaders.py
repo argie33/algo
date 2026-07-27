@@ -132,10 +132,10 @@ def run_loader(loader_path: str, timeout_seconds: int = 300) -> bool:
         )
 
         if result.returncode == 0:
-            logger.info(f"✓ SUCCESS: {loader_path}")
+            logger.info(f"SUCCESS: {loader_path}")
             return True
         else:
-            logger.error(f"✗ FAILED: {loader_path}")
+            logger.error(f"FAILED: {loader_path}")
             logger.error(f"  stderr: {result.stderr[:200]}")
             return False
     except subprocess.TimeoutExpired:
@@ -143,7 +143,7 @@ def run_loader(loader_path: str, timeout_seconds: int = 300) -> bool:
         # Long-running loaders (SEC API) may timeout; this is not necessarily failure
         return True  # Optimistic - assume it's working
     except Exception as e:
-        logger.error(f"✗ ERROR: {loader_path}: {e!s}")
+        logger.error(f"ERROR: {loader_path}: {e!s}")
         return False
 
 def main():
@@ -181,17 +181,16 @@ def main():
                 if age > threshold_days
                 else "OK"
             )
-            marker = "🔴" if status == "CRITICAL" else "🟡" if status == "STALE" else "🟢"
             age_str = f"{age:3}" if age is not None else "N/A"
 
             logger.info(
-                f"{marker} {table_name:25} | Age: {age_str}d | Threshold: {threshold_days}d | {status:8} | {age_info['rows']:,} rows"
+                f"{table_name:25} | Age: {age_str}d | Threshold: {threshold_days}d | {status:8} | {age_info['rows']:,} rows"
             )
 
             if status in ("STALE", "CRITICAL"):
                 stale_loaders.append((loader_path, table_name, priority, age))
         else:
-            logger.error(f"✗ {table_name:25} | Table not found or error: {age_info.get('error')}")
+            logger.error(f"{table_name:25} | Table not found or error: {age_info.get('error')}")
 
     if not stale_loaders:
         logger.info("\n[OK] All loaders are fresh! No refresh needed.")
@@ -231,13 +230,13 @@ def main():
 
         if age_info['exists'] and age_info['age_days'] is not None:
             age = age_info['age_days']
-            status = "✓ REFRESHED" if age <= 1 else "✓ UPDATED" if age <= 3 else "⚠ NOT FRESH"
+            status = "REFRESHED" if age <= 1 else "UPDATED" if age <= 3 else "NOT FRESH"
             logger.info(f"  {status}: {table_name:25} | Age: {age:3}d old")
 
-            if status == "⚠ NOT FRESH":
+            if status == "NOT FRESH":
                 all_fresh = False
         else:
-            logger.error(f"  ✗ FAILED: {table_name:25} | Still no data")
+            logger.error(f"  FAILED: {table_name:25} | Still no data")
             all_fresh = False
 
     # Summary
@@ -252,10 +251,10 @@ def main():
     logger.info(f"Successful: {successful}/{total}")
 
     if all_fresh:
-        logger.info("[✓] All critical data is now fresh!")
+        logger.info("All critical data is now fresh!")
         return 0
     else:
-        logger.warning("[⚠] Some data is still stale. Recommend manual investigation.")
+        logger.warning("Some data is still stale. Recommend manual investigation.")
         return 1
 
 if __name__ == '__main__':

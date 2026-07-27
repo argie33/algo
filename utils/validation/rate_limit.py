@@ -208,14 +208,14 @@ class RateLimitValidator:
         )
 
         if health["all_available"]:
-            logger.info("[RATE-LIMITS] ✓ All APIs available")
+            logger.info("[RATE-LIMITS] All APIs available")
         else:
-            logger.warning(f"[RATE-LIMITS] ⚠ Some APIs unavailable: {health['issues']}")
+            logger.warning(f"[RATE-LIMITS] Some APIs unavailable: {health['issues']}")
 
         if not validation["test_passed"]:
             logger.warning(f"[RATE-LIMITS] Issues found: {validation['issues']}")
         else:
-            logger.info("[RATE-LIMITS] ✓ Rate limit handling validated")
+            logger.info("[RATE-LIMITS] Rate limit handling validated")
 
         for rec in validation["recommendations"]:
             logger.info(f"[RATE-LIMITS] Tip: {rec}")

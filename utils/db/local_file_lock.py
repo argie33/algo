@@ -247,11 +247,11 @@ def get_lock_manager(
             test_acquired = lock_mgr.acquire(lock_key="__lock_test__", timeout_seconds=1)
             if test_acquired:
                 lock_mgr.release(lock_key="__lock_test__")
-                logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available")
+                logger.info("[LOCK_FACTORY] DynamoDB lock manager available")
                 return lock_mgr
             elif lock_mgr.is_available:
                 # Timeout acquiring lock (contention) but DynamoDB is reachable
-                logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available (contention on test lock)")
+                logger.info("[LOCK_FACTORY] DynamoDB lock manager available (contention on test lock)")
                 return lock_mgr
         except Exception as e:
             logger.debug(f"[LOCK_FACTORY] DynamoDB initialization/test failed: {e}")
@@ -265,7 +265,7 @@ def get_lock_manager(
             enable_auto_cleanup=enable_auto_cleanup,
         )
         if lock_mgr.is_available:
-            logger.warning("[LOCK_FACTORY] ⚠️  Using RDS fallback for distributed locking (no AWS credentials)")
+            logger.warning("[LOCK_FACTORY] Using RDS fallback for distributed locking (no AWS credentials)")
             return lock_mgr
     except Exception as e:
         logger.debug(f"[LOCK_FACTORY] RDS initialization failed: {e}")

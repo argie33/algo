@@ -88,7 +88,7 @@ def get_db_connection() -> psycopg2.extensions.connection:
         )
         return conn
     except psycopg2.OperationalError as e:
-        logger.error(f"❌ Failed to connect to database: {e}")
+        logger.error(f"Failed to connect to database: {e}")
         logger.error("   Make sure PostgreSQL is running: psql -d stocks -c 'SELECT 1'")
         sys.exit(1)
 
@@ -137,19 +137,19 @@ def create_test_trades() -> None:
 
         conn.commit()
 
-        logger.info(f"✅ Inserted {len(inserted)} test trades:")
+        logger.info(f"Inserted {len(inserted)} test trades:")
         for row in inserted:
             pnl_indicator = "📈" if float(row["profit_loss_pct"]) > 0 else "📉"
             logger.info(
                 f"   {pnl_indicator} {row['symbol']:6} | P&L: {row['profit_loss_pct']:+6.1f}% | "
                 f"ID: {row['trade_id']}"
             )
-        logger.info("\n✅ Test trades ready. Run dashboard to verify RECENT TRADES panel displays them.")
+        logger.info("\nTest trades ready. Run dashboard to verify RECENT TRADES panel displays them.")
         logger.info("   python dashboard.py\n")
 
     except psycopg2.Error as e:
         conn.rollback()
-        logger.error(f"❌ Database error: {e}")
+        logger.error(f"Database error: {e}")
         sys.exit(1)
     finally:
         cur.close()
@@ -176,10 +176,10 @@ def verify_test_trades() -> None:
         rows = cur.fetchall()
 
         if not rows:
-            logger.warning("⚠️  No test trades found in database.")
+            logger.warning("No test trades found in database.")
             return
 
-        logger.info(f"\n✅ Found {len(rows)} test trades in database:\n")
+        logger.info(f"\nFound {len(rows)} test trades in database:\n")
         logger.info(
             f"{'Symbol':<8} {'Entry$':<10} {'Exit$':<10} {'P&L%':<8} {'R':<6} {'Exit Date':<12}"
         )
@@ -208,10 +208,10 @@ def verify_test_trades() -> None:
         logger.info(
             f"Summary: {wins}W / {losses}L | Avg P&L: {float(total_pnl)/len(rows):+.1f}%\n"
         )
-        logger.info("✅ Test trades verified. Open dashboard to see them in RECENT TRADES panel.")
+        logger.info("Test trades verified. Open dashboard to see them in RECENT TRADES panel.")
 
     except psycopg2.Error as e:
-        logger.error(f"❌ Database error: {e}")
+        logger.error(f"Database error: {e}")
         sys.exit(1)
     finally:
         cur.close()
@@ -232,19 +232,19 @@ def cleanup_test_trades() -> None:
         count = result["count"]
 
         if count == 0:
-            logger.info("✅ No test trades to clean up.")
+            logger.info("No test trades to clean up.")
             return
 
         # Delete all test trades
         cur.execute("DELETE FROM algo_trades WHERE trade_id LIKE %s", (f"{TEST_MARKER}%",))
         conn.commit()
 
-        logger.info(f"✅ Deleted {count} test trades from database.")
+        logger.info(f"Deleted {count} test trades from database.")
         logger.info("   Database is clean. Ready for real trading pipeline.\n")
 
     except psycopg2.Error as e:
         conn.rollback()
-        logger.error(f"❌ Database error: {e}")
+        logger.error(f"Database error: {e}")
         sys.exit(1)
     finally:
         cur.close()

@@ -197,10 +197,10 @@ class SecretsManager:
         logger.info(f"GitHub Secrets: {gh_audit['total_secrets']} total")
         if gh_audit.get("old_secrets"):
             for name, age in gh_audit["old_secrets"]:
-                logger.warning(f"  ⚠️  {name} is {age} days old (rotate every {self.rotation_age_threshold_days} days)")
+                logger.warning(f"  {name} is {age} days old (rotate every {self.rotation_age_threshold_days} days)")
         if gh_audit.get("duplicates"):
             for dup in gh_audit["duplicates"]:
-                logger.warning(f"  ⚠️  Duplicate found: {dup}")
+                logger.warning(f"  Duplicate found: {dup}")
 
         sm_audit = self.audit_aws_secrets_manager()
         logger.info(f"AWS Secrets Manager: {sm_audit.get('total', 'Unknown')} secrets")
@@ -246,7 +246,7 @@ class SecretsManager:
             logger.error(f"Missing required secrets: {missing}")
             return False
 
-        logger.info(f"✓ All {len(required)} required secrets present")
+        logger.info(f"All {len(required)} required secrets present")
         return True
 
     def validate_database_rotation(self) -> bool:
@@ -276,10 +276,10 @@ class SecretsManager:
         try:
             rules = json.loads(stdout) if stdout else {}
             if rules.get("AutomaticallyAfterDays"):
-                logger.info(f"✓ Database rotation enabled (every {rules['AutomaticallyAfterDays']} days)")
+                logger.info(f"Database rotation enabled (every {rules['AutomaticallyAfterDays']} days)")
                 return True
             else:
-                logger.error("✗ Database rotation NOT enabled")
+                logger.error("Database rotation NOT enabled")
                 return False
         except json.JSONDecodeError:
             logger.error("Could not parse rotation rules")
@@ -305,11 +305,11 @@ class SecretsManager:
                 try:
                     response = requests.get(f"{base_url}{endpoint}", timeout=5)
                     if response.status_code < 400:
-                        logger.info(f"✓ {endpoint}")
+                        logger.info(f"{endpoint}")
                     else:
-                        logger.warning(f"⚠️  {endpoint} returned {response.status_code}")
+                        logger.warning(f"{endpoint} returned {response.status_code}")
                 except requests.exceptions.RequestException as e:
-                    logger.warning(f"⚠️  {endpoint}: {e}")
+                    logger.warning(f"{endpoint}: {e}")
 
             return True
         except ImportError:

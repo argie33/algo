@@ -72,7 +72,7 @@ def backfill_metrics(dry_run: bool = False, force: bool = False) -> bool:
             return False
 
         if count == 0:
-            logger.info("✅ No trades need metric calculation. All done!")
+            logger.info("No trades need metric calculation. All done!")
             return True
 
         logger.info(f"Found {count} closed trade(s) needing metric calculation")
@@ -93,7 +93,7 @@ def backfill_metrics(dry_run: bool = False, force: bool = False) -> bool:
 
         if "total_updated" in result:
             updated = result["total_updated"]
-            logger.info(f"✅ Successfully updated metrics for {updated} trade(s)")
+            logger.info(f"Successfully updated metrics for {updated} trade(s)")
 
             # Show sample of updated trades
             if updated > 0 and "results" in result:

@@ -183,7 +183,7 @@ def check_loader_status() -> None:
                 if status in ("RUNNING", "ERROR") and updated:
                     hours_ago = (datetime.now(timezone.utc) - updated.replace(tzinfo=timezone.utc)).total_seconds() / 3600
                     if hours_ago > 1:
-                        logger.warning(f"  ⚠️  Status unchanged for {hours_ago:.1f} hours (may be stuck)")
+                        logger.warning(f"  Status unchanged for {hours_ago:.1f} hours (may be stuck)")
                 if error:
                     logger.error(f"  ERROR: {error[:100]}")
 
@@ -225,20 +225,20 @@ def main():
         affected_symbols.update(symbols)
 
     if not affected_symbols:
-        logger.info("\n✓ No incomplete SEC data found - all stocks have complete financials")
+        logger.info("\nNo incomplete SEC data found - all stocks have complete financials")
         return 0
 
-    logger.info(f"\n⚠️  Found {len(affected_symbols)} stocks with incomplete SEC data")
+    logger.info(f"\nFound {len(affected_symbols)} stocks with incomplete SEC data")
 
     if args.fix:
         logger.info("\nFIXING: Resetting watermarks for affected stocks...")
         if reset_watermarks_for_stocks(list(affected_symbols)):
-            logger.info("✓ Watermarks reset successfully")
+            logger.info("Watermarks reset successfully")
             logger.info("\nNEXT STEP: Run loaders to backfill missing data:")
             logger.info("  python3 scripts/local_loader_scheduler.py --now metrics")
             return 0
         else:
-            logger.error("✗ Failed to reset watermarks")
+            logger.error("Failed to reset watermarks")
             return 1
 
     elif args.full_reload:

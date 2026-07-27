@@ -39,18 +39,18 @@ def validate_environment():
         value = os.getenv(var)
         if not value:
             missing.append(f"  ✗ {var}: {desc}")
-            logger.warning(f"  ✗ {var} not set")
+            logger.warning(f"  {var} not set")
         else:
-            logger.info(f"  ✓ {var} is set")
+            logger.info(f"  {var} is set")
 
     # Set optional variables with defaults if not set
     for var, (default_val, _desc) in optional_vars.items():
         value = os.getenv(var)
         if not value:
             os.environ[var] = default_val
-            logger.info(f"  ✓ {var} defaults to: {default_val}")
+            logger.info(f"  {var} defaults to: {default_val}")
         else:
-            logger.info(f"  ✓ {var} is set to: {value}")
+            logger.info(f"  {var} is set to: {value}")
 
     if missing:
         logger.error("\nMissing environment variables:")
@@ -58,7 +58,7 @@ def validate_environment():
             logger.error(m)
         return False
 
-    logger.info("✓ All required environment variables present")
+    logger.info("All required environment variables present")
     return True
 
 
@@ -76,12 +76,12 @@ def validate_imports():
         try:
             module = __import__(module_name, fromlist=[class_name])
             getattr(module, class_name)
-            logger.info(f"  ✓ {module_name}.{class_name}")
+            logger.info(f"  {module_name}.{class_name}")
         except Exception as e:
-            logger.error(f"  ✗ {module_name}.{class_name}: {e}")
+            logger.error(f"  {module_name}.{class_name}: {e}")
             return False
 
-    logger.info("✓ All imports successful")
+    logger.info("All imports successful")
     return True
 
 
@@ -95,13 +95,13 @@ def validate_database():
             cur.execute("SELECT 1")
             result = cur.fetchone()
             if result:
-                logger.info("  ✓ Database connection works")
+                logger.info("  Database connection works")
                 return True
             else:
-                logger.error("  ✗ Database query returned no result")
+                logger.error("  Database query returned no result")
                 return False
     except Exception as e:
-        logger.error(f"  ✗ Database connection failed: {e}")
+        logger.error(f"  Database connection failed: {e}")
         return False
 
 
@@ -123,15 +123,15 @@ def validate_required_tables():
             try:
                 with DatabaseContext("read", timeout=5) as cur:
                     cur.execute(f"SELECT 1 FROM {table} LIMIT 1")
-                    logger.info(f"  ✓ {table} exists")
+                    logger.info(f"  {table} exists")
             except Exception as e:
-                logger.error(f"  ✗ {table}: {e}")
+                logger.error(f"  {table}: {e}")
                 return False
 
-        logger.info("✓ All required tables exist")
+        logger.info("All required tables exist")
         return True
     except Exception as e:
-        logger.error(f"✗ Error checking tables: {e}")
+        logger.error(f"Error checking tables: {e}")
         return False
 
 
@@ -145,12 +145,12 @@ def validate_orchestrator_init():
         config = get_config()
         orchestrator = Orchestrator(config=config, dry_run=True, verbose=False)
 
-        logger.info(f"  ✓ Orchestrator initialized (run_id: {orchestrator.run_id})")
-        logger.info(f"  ✓ Execution mode: {orchestrator.config.get('execution_mode')}")
-        logger.info(f"  ✓ Dry run: {orchestrator.dry_run}")
+        logger.info(f"  Orchestrator initialized (run_id: {orchestrator.run_id})")
+        logger.info(f"  Execution mode: {orchestrator.config.get('execution_mode')}")
+        logger.info(f"  Dry run: {orchestrator.dry_run}")
         return True
     except Exception as e:
-        logger.error(f"  ✗ Orchestrator initialization failed: {e}")
+        logger.error(f"  Orchestrator initialization failed: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
@@ -177,19 +177,19 @@ def validate_loaders():
                 latest = result.get("latest")
 
                 if count > 0:
-                    logger.info(f"  ✓ {count} critical loaders have run")
+                    logger.info(f"  {count} critical loaders have run")
                     if latest:
-                        logger.info(f"  ✓ Latest run: {latest}")
+                        logger.info(f"  Latest run: {latest}")
                     return True
                 else:
-                    logger.warning("  ⚠ No critical loaders have run yet")
+                    logger.warning("  No critical loaders have run yet")
                     logger.info("  → First run will need loader pipeline to complete")
                     return True
             else:
-                logger.warning("  ⚠ Cannot query loader status (table might be empty)")
+                logger.warning("  Cannot query loader status (table might be empty)")
                 return True
     except Exception as e:
-        logger.error(f"  ✗ Loader validation failed: {e}")
+        logger.error(f"  Loader validation failed: {e}")
         return False
 
 
@@ -227,10 +227,10 @@ def main():
     logger.info(f"\nTotal: {passed}/{total} checks passed")
 
     if passed == total:
-        logger.info("\n✓ ORCHESTRATOR IS READY FOR EXECUTION")
+        logger.info("\nORCHESTRATOR IS READY FOR EXECUTION")
         return 0
     else:
-        logger.error("\n✗ ORCHESTRATOR IS NOT READY - FIX FAILURES ABOVE")
+        logger.error("\nORCHESTRATOR IS NOT READY - FIX FAILURES ABOVE")
         return 1
 
 

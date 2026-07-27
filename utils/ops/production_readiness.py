@@ -304,7 +304,7 @@ class ProductionReadinessCheck:
                 status = "✓ PASS" if result else "✗ FAIL"
                 logger.info(f"  {status}")
             except Exception as e:
-                logger.error(f"  ✗ EXCEPTION: {str(e)[:80]}")
+                logger.error(f"  EXCEPTION: {str(e)[:80]}")
 
         # Summary
         logger.info("\n" + "=" * 70)
@@ -312,13 +312,13 @@ class ProductionReadinessCheck:
         logger.info("=" * 70)
 
         for msg in self.checks_passed:
-            logger.info(f"✓ {msg}")
+            logger.info(f"{msg}")
 
         for msg in self.checks_warnings:
-            logger.warning(f"⚠ {msg}")
+            logger.warning(f"{msg}")
 
         for msg in self.checks_failed:
-            logger.error(f"✗ {msg}")
+            logger.error(f"{msg}")
 
         total_passed = len(self.checks_passed)
         total_failed = len(self.checks_failed)
@@ -327,7 +327,7 @@ class ProductionReadinessCheck:
         ready_for_production = total_failed == 0
 
         logger.info(f"\nResult: {total_passed} passed, {total_warnings} warnings, {total_failed} failures")
-        logger.info(f"Status: {'✓ READY FOR PRODUCTION' if ready_for_production else '✗ NOT READY'}")
+        logger.info(f"Status: {'READY FOR PRODUCTION' if ready_for_production else 'NOT READY'}")
 
         return {
             "ready_for_production": ready_for_production,

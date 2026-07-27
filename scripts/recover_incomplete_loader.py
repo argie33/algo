@@ -88,7 +88,7 @@ def trigger_loader_retry(loader_name: str) -> bool:
             logger.error(f"Trigger failed: {payload}")
             return False
 
-        logger.info(f"✅ Retry triggered for {loader_name}")
+        logger.info(f"Retry triggered for {loader_name}")
         return True
 
     except Exception as e:
@@ -129,11 +129,11 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
             last_pct = pct
 
         if pct >= 75.0:
-            logger.info(f"✅ RECOVERED: {loader_name} at {pct:.1f}% coverage")
+            logger.info(f"RECOVERED: {loader_name} at {pct:.1f}% coverage")
             return True, status
 
         if status["status"] == "COMPLETED" and pct < 75.0:
-            logger.error(f"❌ Loader completed but still incomplete: {pct:.1f}%")
+            logger.error(f"Loader completed but still incomplete: {pct:.1f}%")
             if status["error"]:
                 logger.error(f"   Error: {status['error'][:150]}")
             return False, status
@@ -165,7 +165,7 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
     logger.info(f"{'=' * 60}\n")
 
     # Step 1: Check current status
-    logger.info(f"📊 Checking {loader_name} status...")
+    logger.info(f"Checking {loader_name} status...")
     status = check_loader_status(loader_name)
 
     if not status:
@@ -178,7 +178,7 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
     logger.info(f"   Last updated: {status['last_updated']}")
 
     if pct >= 75.0:
-        logger.info(f"✅ Already recovered ({pct:.1f}% >= 75%)")
+        logger.info(f"Already recovered ({pct:.1f}% >= 75%)")
         return 0
 
     if status["error"]:
@@ -190,7 +190,7 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
         return 0 if recovered else 1
 
     # Step 2: Trigger retry
-    logger.info("\n⚡ Triggering retry...")
+    logger.info("\nTriggering retry...")
     if not trigger_loader_retry(loader_name):
         logger.error("Failed to trigger retry")
         return 1
@@ -200,11 +200,11 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
     recovered, final_status = monitor_loader_recovery(loader_name)
 
     if recovered:
-        logger.info(f"\n✅ SUCCESS: {loader_name} recovered to {final_status['coverage_pct']:.1f}%")
+        logger.info(f"\nSUCCESS: {loader_name} recovered to {final_status['coverage_pct']:.1f}%")
         logger.info("   Ready for trading. Run: python scripts/run_local_orchestrator.py --morning")
         return 0
     else:
-        logger.warning(f"\n⚠️ INCOMPLETE: {loader_name} at {final_status.get('coverage_pct', 0):.1f}%")
+        logger.warning(f"\nINCOMPLETE: {loader_name} at {final_status.get('coverage_pct', 0):.1f}%")
         logger.info("   Still loading in background. Check status later:")
         logger.info("   python scripts/verify_prices_loaded.py")
         return 1
@@ -239,11 +239,11 @@ def main():
 
     logger.info(f"\n{'=' * 60}")
     if all_succeeded:
-        logger.info("✅ All loaders recovered successfully")
+        logger.info("All loaders recovered successfully")
         logger.info(f"{'=' * 60}\n")
         return 0
     else:
-        logger.warning("⚠️ Some loaders still incomplete (check status later)")
+        logger.warning("Some loaders still incomplete (check status later)")
         logger.info(f"{'=' * 60}\n")
         return 1
 

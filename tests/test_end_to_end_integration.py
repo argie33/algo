@@ -114,10 +114,10 @@ class EndToEndIntegrationTest:
                     raise RuntimeError("COUNT(*) query returned no rows")
                 count = row[0]
                 checks["database_connectivity"] = True
-                logger.info(f"✓ Database connectivity OK ({count} loader records)")
+                logger.info(f"Database connectivity OK ({count} loader records)")
         except Exception as e:
             checks["database_connectivity"] = False
-            logger.error(f"✗ Database connectivity FAILED: {e}")
+            logger.error(f"Database connectivity FAILED: {e}")
             return False
 
         # Check 2: Required tables exist
@@ -134,11 +134,11 @@ class EndToEndIntegrationTest:
                 for table in required_tables:
                     table_safe = assert_safe_table(table)
                     cur.execute(f"SELECT 1 FROM {table_safe} LIMIT 1")
-                    logger.info(f"✓ Table {table} exists")
+                    logger.info(f"Table {table} exists")
                 checks["required_tables"] = True
         except Exception as e:
             checks["required_tables"] = False
-            logger.error(f"✗ Required table check FAILED: {e}")
+            logger.error(f"Required table check FAILED: {e}")
             return False
 
         # Check 3: Config values for all Issues
@@ -155,11 +155,11 @@ class EndToEndIntegrationTest:
                     cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
                     result = cur.fetchone()
                     if result:
-                        logger.info(f"✓ Config {key} = {result[0]}")
+                        logger.info(f"Config {key} = {result[0]}")
                     else:
-                        logger.warning(f"⚠ Config {key} not found (may be optional)")
+                        logger.warning(f"Config {key} not found (may be optional)")
             except Exception as e:
-                logger.warning(f"⚠ Could not read config {key}: {e}")
+                logger.warning(f"Could not read config {key}: {e}")
 
         self.results["pre_checks"] = checks
         return all(checks.values())
@@ -296,20 +296,20 @@ class EndToEndIntegrationTest:
             try:
                 Orchestrator(config=self.config, dry_run=True)
                 checks["orchestrator_init"] = True
-                logger.info("  ✓ Orchestrator initialization")
+                logger.info("  Orchestrator initialization")
             except Exception as e:
                 checks["orchestrator_init"] = False
-                logger.error(f"  ✗ Orchestrator init failed: {e}")
+                logger.error(f"  Orchestrator init failed: {e}")
 
             # Check 2: Halt flag mechanism exists
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute("SELECT 1 FROM algo_orchestrator_state LIMIT 1")
                     checks["halt_flag_table"] = True
-                    logger.info("  ✓ Halt flag table (algo_orchestrator_state)")
+                    logger.info("  Halt flag table (algo_orchestrator_state)")
             except Exception:
                 checks["halt_flag_table"] = False
-                logger.info("  ⚠ Halt flag table not accessible (may be OK in dry-run)")
+                logger.info("  Halt flag table not accessible (may be OK in dry-run)")
 
             # Check 3: Failsafe timeout configuration
             try:
@@ -321,10 +321,10 @@ class EndToEndIntegrationTest:
                     result = cur.fetchone()
                     timeout = int(result[0]) if result else 180
                     checks["failsafe_timeout_config"] = timeout >= 180
-                    logger.info(f"  ✓ Failsafe timeout configured: {timeout}s")
+                    logger.info(f"  Failsafe timeout configured: {timeout}s")
             except Exception as e:
                 checks["failsafe_timeout_config"] = False
-                logger.warning(f"  ⚠ Failsafe timeout config: {e}")
+                logger.warning(f"  Failsafe timeout config: {e}")
 
             # Check 4: Morning prep timing windows
             now = datetime.now(EASTERN_TZ)

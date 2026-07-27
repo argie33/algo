@@ -338,7 +338,7 @@ def lambda_handler(event, context):  # noqa: C901
 
                 master_cursor.close()
                 master_conn.close()
-                logger.info("✅ Stocks user setup complete")
+                logger.info("Stocks user setup complete")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"Could not connect as master user to create stocks user: {e}")
         else:

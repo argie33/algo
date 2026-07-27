@@ -141,11 +141,11 @@ def main() -> int:
         status = info["status"]
         if status in OK_STATUSES:
             age = info.get("age_days")
-            logger.info(f"  ✓ {table_name}: {status} (age={age}d, rows={info.get('row_count')})")
+            logger.info(f"  {table_name}: {status} (age={age}d, rows={info.get('row_count')})")
         elif status in DEPRECATED_STATUSES:
             logger.info(f"  - {table_name}: DEPRECATED ({info.get('reason', 'no reason recorded')})")
         elif status == "NOT_TRACKED":
-            logger.critical(f"  ❌ {table_name}: {info['issue']}")
+            logger.critical(f"  {table_name}: {info['issue']}")
             critical_failures += 1
         else:
             # MISSING, STALE, VERY_STALE, or any other status data_loader_status assigns
@@ -161,13 +161,13 @@ def main() -> int:
         for table_name, info in results["secondary"].items():
             status = info["status"]
             if status in OK_STATUSES:
-                logger.info(f"  ✓ {table_name}: {status}")
+                logger.info(f"  {table_name}: {status}")
             elif status in DEPRECATED_STATUSES:
                 logger.info(f"  - {table_name}: DEPRECATED ({info.get('reason', 'no reason recorded')})")
             elif status == "NOT_TRACKED":
                 logger.warning(f"  ? {table_name}: not tracked in data_loader_status")
             else:
-                logger.warning(f"  ⚠️  {table_name}: {status} (age={info.get('age_days')}d)")
+                logger.warning(f"  {table_name}: {status} (age={info.get('age_days')}d)")
 
     total_critical = len(results["critical"])
     ok = len([s for s in results["critical"].values() if s["status"] in OK_STATUSES])

@@ -134,9 +134,9 @@ class PositionAggregator:
         for factor, flag_data in flags.items():
             status = flag_data["status"]
             score = flag_data["score"]
-            icon = "[STOP]" if status == "RED" else "🟡"
+            icon = "[STOP]" if status == "RED" else "[WARN]"
             flag_lines.append(f"  {icon} {factor}: {score:.0f}/100")
 
-        summary = f"[WARN]️ Severity: {severity:.1f} flags (recommendation: {recommendation})\n"
+        summary = f"[WARN] Severity: {severity:.1f} flags (recommendation: {recommendation})\n"
         summary += "\n".join(flag_lines)
         return summary

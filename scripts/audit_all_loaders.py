@@ -158,10 +158,10 @@ def main():
         # Check if importable
         import_check = check_loader_imports(loader_file)
         if import_check['importable']:
-            logger.info("  [✓] Code compiles")
+            logger.info("  Code compiles")
             audit_results['importable'] += 1
         else:
-            logger.error(f"  [✗] Compilation error: {import_check['error']}")
+            logger.error(f"  Compilation error: {import_check['error']}")
             audit_results['syntax_errors'].append((loader_name, import_check['error']))
             continue
 
@@ -210,26 +210,26 @@ def main():
     logger.info(f"Importable: {audit_results['importable']}")
 
     if audit_results['syntax_errors']:
-        logger.error(f"\n🔴 SYNTAX ERRORS ({len(audit_results['syntax_errors'])}):")
+        logger.error(f"\nSYNTAX ERRORS ({len(audit_results['syntax_errors'])}):")
         for loader, error in audit_results['syntax_errors']:
             logger.error(f"  - {loader}: {error}")
 
     if audit_results['tables_missing']:
-        logger.error(f"\n🔴 MISSING OUTPUT TABLES ({len(audit_results['tables_missing'])}):")
+        logger.error(f"\nMISSING OUTPUT TABLES ({len(audit_results['tables_missing'])}):")
         for loader, table in audit_results['tables_missing']:
             logger.error(f"  - {loader} → {table}")
 
     if audit_results['tables_stale_critical']:
-        logger.error(f"\n🔴 CRITICAL: STALE DATA >14 DAYS ({len(audit_results['tables_stale_critical'])}):")
+        logger.error(f"\nCRITICAL: STALE DATA >14 DAYS ({len(audit_results['tables_stale_critical'])}):")
         for loader, table, age in audit_results['tables_stale_critical']:
             logger.error(f"  - {loader} → {table}: {age}d old")
 
     if audit_results['tables_stale']:
-        logger.warning(f"\n🟡 STALE DATA 3-14 DAYS ({len(audit_results['tables_stale'])}):")
+        logger.warning(f"\nSTALE DATA 3-14 DAYS ({len(audit_results['tables_stale'])}):")
         for loader, table, age in audit_results['tables_stale']:
             logger.warning(f"  - {loader} → {table}: {age}d old")
 
-    logger.info(f"\n🟢 OK DATA (<3 DAYS): {len(audit_results['tables_ok'])} tables")
+    logger.info(f"\nOK DATA (<3 DAYS): {len(audit_results['tables_ok'])} tables")
 
     # Final verdict
     critical_issues = len(audit_results['syntax_errors']) + len(audit_results['tables_missing']) + len(audit_results['tables_stale_critical'])
