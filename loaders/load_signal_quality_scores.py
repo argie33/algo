@@ -31,6 +31,17 @@ from utils.validation import safe_parse_date  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
+class _NoBuySellSignalsError(RuntimeError):
+    """Raised when a symbol has no buy_sell_daily rows in the lookback window.
+
+    This is the ordinary, expected case for the large majority of symbols on any
+    given day (only a few hundred to low thousands of ~10k symbols have an active
+    BUY/SELL signal at once) - it is not a data-quality failure. Distinguished from
+    genuine exceptions (DB errors, computation bugs) so it can be logged at a level
+    that doesn't drown real errors in routine noise.
+    """
+
+
 class SignalQualityScoresLoader(OptimalLoader):
     table_name = "signal_quality_scores"
     primary_key = ("symbol", "date")
@@ -280,7 +291,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         try:
             buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
             if not buy_sell_rows:
-                raise RuntimeError(
+                raise _NoBuySellSignalsError(
                     f"[SIGNAL_QUALITY] Signal quality scoring failed for {symbol} [{start} to {end}]: "
                     f"No buy/sell signals found. Signal quality assessment is REQUIRED for validating trades. "
                     f"Check that buy_sell_daily table has signals for this symbol or adjust date range."
@@ -358,9 +369,16 @@ class SignalQualityScoresLoader(OptimalLoader):
             return scores
 
         except Exception as e:
-            # On any exception, log error and create unavailable marker records
+            # On any exception, log and create unavailable marker records.
+            # _NoBuySellSignalsError is the ordinary case (symbol has no active signal
+            # today) and logged at debug - genuine failures stay at error so they aren't
+            # drowned out by what is routinely hundreds to thousands of no-signal symbols
+            # per run.
             error_reason = str(e)
-            logger.error(f"[SIGNAL_QUALITY_ERROR] Failed to compute scores for {symbol}: {error_reason}")
+            if isinstance(e, _NoBuySellSignalsError):
+                logger.debug(f"[SIGNAL_QUALITY_SKIP] No signals for {symbol}: {error_reason}")
+            else:
+                logger.error(f"[SIGNAL_QUALITY_ERROR] Failed to compute scores for {symbol}: {error_reason}")
 
             # Create error marker records for the date range
             # This ensures downstream code sees explicit data_unavailable flags
