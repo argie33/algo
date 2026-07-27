@@ -164,10 +164,21 @@ class StockScoresLoader(OptimalLoader):
                         if max_update_row and max_update_row[0]:
                             max_update_ts = max_update_row[0]
                             from datetime import datetime, timezone
+                            from zoneinfo import ZoneInfo
 
                             now_utc = datetime.now(timezone.utc)
                             if max_update_ts.tzinfo is None:
-                                max_update_ts = max_update_ts.replace(tzinfo=timezone.utc)
+                                # {table_name}.updated_at is a `timestamp without time zone`
+                                # column written via SQL CURRENT_TIMESTAMP, so a naive value
+                                # here is in the DB session's local wall-clock timezone
+                                # (utils/bulk_insert_manager.py's documented convention), not
+                                # UTC. Same bug class already fixed in
+                                # algo/trading/pretrade_checks.py's re-entry cooldown and
+                                # algo/risk/market_exposure.py's cache-age check: resolve the
+                                # real session timezone dynamically instead of assuming UTC.
+                                cur.execute("SHOW timezone")
+                                naive_tz = ZoneInfo(cur.fetchone()[0])
+                                max_update_ts = max_update_ts.replace(tzinfo=naive_tz)
                             stale_days = (now_utc - max_update_ts).days
                             max_staleness_days = 14  # Metrics older than 2 weeks are stale
                             if stale_days > max_staleness_days:
