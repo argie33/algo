@@ -227,16 +227,19 @@ router.get("/stockscores", async (req, res) => {
         { min: 0, max: 100, allowZero: true }
       );
 
-      let compositeScore = 0;
-      let grade = "F";
+      // GOVERNANCE: missing/invalid composite_score must never present as a real
+      // grade. Defaulting to "F" here would show a stock with no score data as
+      // if it had been evaluated and failed the worst possible grade.
+      let grade = null;
 
       if (!isDataError(compositeValidation)) {
-        compositeScore = compositeValidation;
+        const compositeScore = compositeValidation;
         if (compositeScore >= 90) grade = "A+";
         else if (compositeScore >= 80) grade = "A";
         else if (compositeScore >= 70) grade = "B";
         else if (compositeScore >= 60) grade = "C";
         else if (compositeScore >= 50) grade = "D";
+        else grade = "F";
       }
 
       // Validate all component scores - these drive investment decisions
