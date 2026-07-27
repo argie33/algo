@@ -474,10 +474,10 @@ class RiskMetricsLoader(OptimalLoader):
                     """
                     INSERT INTO stability_metrics
                     (symbol, volatility_30d, volatility_60d, volatility_252d, beta, debt_to_assets,
-                     created_at, data_unavailable, reason, reason_type,
+                     created_at, data_unavailable, reason, reason_type, data_source,
                      beta_unavailable_reason, volatility_30d_unavailable_reason,
                      volatility_60d_unavailable_reason, volatility_252d_unavailable_reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
@@ -488,6 +488,7 @@ class RiskMetricsLoader(OptimalLoader):
                       data_unavailable = EXCLUDED.data_unavailable,
                       reason = EXCLUDED.reason,
                       reason_type = EXCLUDED.reason_type,
+                      data_source = EXCLUDED.data_source,
                       beta_unavailable_reason = EXCLUDED.beta_unavailable_reason,
                       volatility_30d_unavailable_reason = EXCLUDED.volatility_30d_unavailable_reason,
                       volatility_60d_unavailable_reason = EXCLUDED.volatility_60d_unavailable_reason,
@@ -505,6 +506,11 @@ class RiskMetricsLoader(OptimalLoader):
                         row["data_unavailable"],
                         row.get("reason"),
                         row.get("reason_type"),
+                        # Migration 1022 documents this column's intended value as
+                        # "computed_from_price_daily" (volatility/beta are computed from
+                        # price_daily here, not fetched from any external vendor) - never
+                        # actually written until this fix, leaving all rows NULL.
+                        "computed_from_price_daily",
                         row.get("beta_unavailable_reason"),
                         row.get("volatility_30d_unavailable_reason"),
                         row.get("volatility_60d_unavailable_reason"),
