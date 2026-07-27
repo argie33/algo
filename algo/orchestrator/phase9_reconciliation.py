@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import traceback
 from collections.abc import Callable
 from datetime import date as _date
@@ -263,6 +264,66 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
         log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")
+
+
+def _refresh_positions_with_risk_view(log_phase_result_fn: Callable[..., Any]) -> None:
+    """Refresh the algo_positions_with_risk materialized view so the dashboard reflects
+    current state after reconciliation updates algo_positions from the broker.
+
+    CRITICAL FIX: a permission-denied error is only expected when actually running in
+    LOCAL_MODE (the local dev DB role isn't a superuser and can't refresh materialized
+    views). Previously this treated ANY InsufficientPrivilege as that expected local
+    case unconditionally, so a real production misconfiguration - e.g. the DB role
+    losing REFRESH privilege after a credential rotation, or a migration applied under
+    the wrong role - would silently downgrade to a warning forever, leaving the
+    positions/risk dashboard serving stale data with no critical alert ever firing.
+    """
+    try:
+        with DatabaseContext("write") as cur:
+            cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
+        logger.info("[PHASE 9] Refreshed algo_positions_with_risk materialized view")
+        log_phase_result_fn(
+            9,
+            "positions_view_refresh",
+            "success",
+            "algo_positions_with_risk refreshed",
+        )
+    except psycopg2.errors.InsufficientPrivilege as e:
+        local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
+        if local_mode:
+            # Permission denied is expected in LOCAL_MODE (non-superuser cannot refresh materialized views)
+            # This is not a critical failure - just log warning and continue
+            logger.warning(
+                "[PHASE 9] Cannot refresh algo_positions_with_risk (permission denied - expected in LOCAL_MODE). "
+                "View will use cached data; next proper execution with elevated privileges will refresh it."
+            )
+            log_phase_result_fn(
+                9,
+                "positions_view_refresh",
+                "warning",
+                "skipped (permission denied - expected in LOCAL_MODE)",
+            )
+        else:
+            # Outside LOCAL_MODE this means the DB role lost REFRESH privilege on the
+            # view (e.g. a credential rotation or migration ran as the wrong role) -
+            # a real misconfiguration, not an expected condition. Treat as critical
+            # like other view-refresh failures instead of silently downgrading forever.
+            error_msg = (
+                f"[PHASE 9 CRITICAL] Failed to refresh algo_positions_with_risk materialized view: "
+                f"permission denied ({e}). Dashboard position data will become stale. "
+                f"Check: DB role/grants on algo_positions_with_risk."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from e
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        # Other DB errors are critical (disk space, connection issues, view corruption)
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Failed to refresh algo_positions_with_risk materialized view: {e}. "
+            f"Dashboard position data will become stale. "
+            f"Check: (1) materialized view definition, (2) database disk space"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
 
 
 def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) -> int:
@@ -1116,39 +1177,7 @@ def run(
 
         # Refresh materialized view so positions dashboard reflects current state.
         # This runs after reconciliation updates algo_positions from Broker.
-        # CRITICAL FIX: Permission errors in LOCAL_MODE are expected (non-superuser), skip view refresh gracefully
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
-            logger.info("[PHASE 9] Refreshed algo_positions_with_risk materialized view")
-            log_phase_result_fn(
-                9,
-                "positions_view_refresh",
-                "success",
-                "algo_positions_with_risk refreshed",
-            )
-        except psycopg2.errors.InsufficientPrivilege:
-            # Permission denied is expected in LOCAL_MODE (non-superuser cannot refresh materialized views)
-            # This is not a critical failure - just log warning and continue
-            logger.warning(
-                "[PHASE 9] Cannot refresh algo_positions_with_risk (permission denied - expected in LOCAL_MODE). "
-                "View will use cached data; next proper execution with elevated privileges will refresh it."
-            )
-            log_phase_result_fn(
-                9,
-                "positions_view_refresh",
-                "warning",
-                "skipped (permission denied - expected in LOCAL_MODE)",
-            )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            # Other DB errors are critical (disk space, connection issues, view corruption)
-            error_msg = (
-                f"[PHASE 9 CRITICAL] Failed to refresh algo_positions_with_risk materialized view: {e}. "
-                f"Dashboard position data will become stale. "
-                f"Check: (1) materialized view definition, (2) database disk space"
-            )
-            logger.critical(error_msg)
-            raise RuntimeError(error_msg) from e
+        _refresh_positions_with_risk_view(log_phase_result_fn)
 
         # Compute circuit breaker metrics and write to circuit_breaker_status table.
         # Runs after reconciliation so algo_portfolio_snapshots has today's data.
