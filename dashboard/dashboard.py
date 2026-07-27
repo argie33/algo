@@ -400,9 +400,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     # Warm up the render pipeline to avoid 2+ second delay on first render
     def warmup_render() -> None:
         try:
-            from .core import DashboardContext
-            from .renderers import render_header_components
-
             ctx = DashboardContext({})
             render_header_components(ctx, 0, None, None, False, "AWS")
         except Exception as e:
@@ -560,9 +557,6 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         # Warm up the render pipeline to avoid 2+ second delay on first render
         def warmup_render() -> None:
             try:
-                from .core import DashboardContext
-                from .renderers import render_header_components
-
                 ctx = DashboardContext({})  # empty context for warmup
                 render_header_components(ctx, 0, None, None, False, data_source)
             except Exception as e:
