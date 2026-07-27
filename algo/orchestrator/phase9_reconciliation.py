@@ -228,6 +228,43 @@ def _audit_exit_prices_step(
         raise RuntimeError(error_msg) from e
 
 
+def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> None:
+    """Sync algo_trades.quantity from entry_quantity for every live (non-terminal) trade.
+
+    CRITICAL FIX: previously hardcoded `status = 'open'`, which never matches a live
+    (execution_mode=auto) filled order - those write status='filled'/'partially_filled'
+    literally (see executor_entry_handler.py and the identical fix in exit_engine.py/
+    position_monitor.py/exposure_policy.py). Use TradeStatus.all_open() so this sync
+    actually covers live positions, not just paper-mode ones.
+    """
+    try:
+        open_statuses = TradeStatus.all_open()
+        status_placeholders = ", ".join(["%s"] * len(open_statuses))
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                f"""
+                UPDATE algo_trades
+                SET quantity = entry_quantity, updated_at = CURRENT_TIMESTAMP
+                WHERE status IN ({status_placeholders}) AND (quantity IS NULL OR quantity != entry_quantity)
+                """,
+                tuple(open_statuses),
+            )
+            synced_count = cur.rowcount
+            if synced_count > 0:
+                logger.info(f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)")
+            else:
+                logger.debug("[PHASE 9] No quantity sync needed - all open positions have quantity set")
+        log_phase_result_fn(
+            9,
+            "quantity_sync",
+            "success",
+            f"synced {synced_count} open positions" if synced_count > 0 else "no sync needed",
+        )
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
+        log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")
+
+
 def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) -> int:
     """Populate signal trade performance from closed trades."""
     from algo.signals.trade_performance import SignalTradePerformancePopulator
@@ -1072,42 +1109,9 @@ def run(
         # Fail-fast per GOVERNANCE - audit trail integrity is non-negotiable.
         _update_daily_metrics(run_date, log_phase_result_fn)
 
-        # CRITICAL FIX: Sync quantity column for all open positions (entry_quantity -> quantity)
-        # This ensures the quantity field is populated for all open trades after reconciliation
-        # Without this, dashboard and risk calculations cannot determine current position sizes
-        try:
-            # CRITICAL FIX: `status = 'open'` never matches a live (execution_mode=auto) filled
-            # order, which writes status='filled'/'partially_filled' literally (see
-            # executor_entry_handler.py and the identical fix in exit_engine.py/position_monitor.py/
-            # exposure_policy.py). Use TradeStatus.all_open() so this sync actually covers live
-            # positions, not just paper-mode ones.
-            open_statuses = TradeStatus.all_open()
-            status_placeholders = ", ".join(["%s"] * len(open_statuses))
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    f"""
-                    UPDATE algo_trades
-                    SET quantity = entry_quantity, updated_at = CURRENT_TIMESTAMP
-                    WHERE status IN ({status_placeholders}) AND (quantity IS NULL OR quantity != entry_quantity)
-                    """,
-                    tuple(open_statuses),
-                )
-                synced_count = cur.rowcount
-                if synced_count > 0:
-                    logger.info(
-                        f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)"
-                    )
-                else:
-                    logger.debug("[PHASE 9] No quantity sync needed - all open positions have quantity set")
-            log_phase_result_fn(
-                9,
-                "quantity_sync",
-                "success",
-                f"synced {synced_count} open positions" if synced_count > 0 else "no sync needed",
-            )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
-            log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")
+        # Sync quantity column for all live trades (entry_quantity -> quantity). Without this,
+        # dashboard and risk calculations cannot determine current position sizes.
+        _sync_position_quantities_step(log_phase_result_fn)
 
         # Refresh materialized view so positions dashboard reflects current state.
         # This runs after reconciliation updates algo_positions from Broker.
