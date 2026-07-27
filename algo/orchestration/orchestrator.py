@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import signal
 import sys
 import time
 from datetime import date as _date
@@ -1117,6 +1118,43 @@ class Orchestrator:
         if self._lock_acquired:
             self.lock_manager.release()
 
+    def _install_shutdown_handler(self) -> None:
+        """Convert SIGTERM into a controlled exception so run()'s finally block still
+        releases the run lock on a graceful-shutdown signal.
+
+        CRITICAL FIX: there was no signal handling anywhere in this module - a killed
+        process (Ctrl+C sends SIGINT, which Python already raises as KeyboardInterrupt and
+        run()'s try/finally already handles correctly; but SIGTERM - sent by process
+        managers/orchestration tooling for graceful shutdown, and effectively by some
+        shell-level `timeout` implementations on Windows) terminates the process immediately
+        with no chance for the finally block to run. Confirmed live 2026-07-27: a killed
+        local orchestrator test run left the orchestrator-run-lock row held for its full
+        600s TTL, blocking every subsequent run attempt for up to 10 minutes with "ABORT:
+        Could not acquire run lock" until the TTL expired or someone manually deleted the
+        row. This closes the SIGTERM gap; a hard SIGKILL can never run any Python code (not
+        fixable at this layer) and still relies on the existing TTL expiry as the backstop.
+        signal.signal() only works from the main thread - if invoked elsewhere (e.g. a
+        non-main-thread Lambda invocation path), fails soft and leaves the TTL as the only
+        recovery mechanism, same as before this fix.
+        """
+        self._prior_sigterm_handler = None
+
+        def _handle_shutdown_signal(signum: int, frame: Any) -> None:
+            raise SystemExit(f"Received signal {signum} - shutting down and releasing run lock")
+
+        try:
+            self._prior_sigterm_handler = signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+        except (ValueError, AttributeError, OSError) as e:
+            logger.debug(f"Could not install SIGTERM handler (non-fatal, TTL still bounds lock staleness): {e}")
+
+    def _restore_shutdown_handler(self) -> None:
+        """Restore whatever SIGTERM handler (if any) was in place before this run."""
+        if getattr(self, "_prior_sigterm_handler", None) is not None:
+            try:
+                signal.signal(signal.SIGTERM, self._prior_sigterm_handler)
+            except (ValueError, AttributeError, OSError):
+                pass
+
     def log_phase_start(self, phase_num: int | str, name: str) -> None:
         if self.verbose:
             logger.info(f"\n{'=' * 70}")
@@ -1684,6 +1722,7 @@ class Orchestrator:
                         "success": False,
                         "error": "Distributed lock system unavailable. Cannot proceed with trading.",
                     }
+            self._install_shutdown_handler()
         else:
             # Only reason to skip lock is dry_run (which doesn't write to database/broker)
             if not self.dry_run:
@@ -2016,6 +2055,7 @@ class Orchestrator:
             return self._final_report()
         finally:
             self._release_run_lock()
+            self._restore_shutdown_handler()
 
     def _save_early_exit_log(self, exit_result: dict[str, Any]) -> None:
         """Save execution log for early exits (non-trading days, preflight failures).
