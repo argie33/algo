@@ -74,17 +74,50 @@ class CircuitBreakerDef:
         return self.operator(value, self.threshold)
 
 
-CIRCUIT_BREAKERS = [
-    CircuitBreakerDef("CB1", "portfolio_drawdown_pct", 20.0, lambda v, t: v >= t),
-    CircuitBreakerDef("CB2", "daily_loss_pct", 2.0, lambda v, t: v >= t),
-    CircuitBreakerDef("CB3", "consecutive_losses", 3, lambda v, t: v >= t),
-    CircuitBreakerDef("CB4", "vix_level", 35.0, lambda v, t: v >= t),
-    CircuitBreakerDef("CB5", "weekly_loss_pct", 5.0, lambda v, t: v >= t),
-    CircuitBreakerDef("CB6", "market_stage", 4, lambda v, t: v == t),
-    CircuitBreakerDef("CB7", "open_risk_pct", 4.0, lambda v, t: v >= t),
-    CircuitBreakerDef("CB8", "spy_prior_day_change_pct", -2.0, lambda v, t: v <= t),
-    CircuitBreakerDef("CB9", "win_rate_last_30_pct", 40.0, lambda v, t: v < t and v > 0),
-]
+def _build_circuit_breakers(cur: Any) -> list[CircuitBreakerDef]:
+    """Build circuit breaker definitions with thresholds read live from algo_config.
+
+    CRITICAL: This used to hardcode thresholds (e.g. portfolio_drawdown_pct >= 20.0)
+    completely independent of the actual configured values algo/risk/circuit_breaker.py
+    reads at halt time (halt_drawdown_pct = -10, i.e. halt at 10% down). A live 12-19%
+    drawdown would already have halted real trading while this loader - which writes
+    the any_triggered/triggered_count this session's dashboard and Phase 9 alerting both
+    read - kept reporting "all clear" for the same condition. Thresholds must come from
+    the same source of truth so this reporting layer and the real halt gate never diverge.
+    """
+    cur.execute(
+        """
+        SELECT key, value FROM algo_config
+        WHERE key IN ('halt_drawdown_pct', 'max_daily_loss_pct', 'max_weekly_loss_pct',
+                      'max_total_risk_pct', 'vix_max_threshold', 'max_consecutive_losses',
+                      'min_win_rate_pct')
+        """
+    )
+    cfg = {row["key"]: row["value"] for row in cur.fetchall()}
+    required = (
+        "halt_drawdown_pct",
+        "max_daily_loss_pct",
+        "max_weekly_loss_pct",
+        "max_total_risk_pct",
+        "vix_max_threshold",
+        "max_consecutive_losses",
+        "min_win_rate_pct",
+    )
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        raise ValueError(f"algo_config missing required circuit breaker keys: {missing}")
+
+    return [
+        CircuitBreakerDef("CB1", "portfolio_drawdown_pct", abs(float(cfg["halt_drawdown_pct"])), lambda v, t: v >= t),
+        CircuitBreakerDef("CB2", "daily_loss_pct", float(cfg["max_daily_loss_pct"]), lambda v, t: v >= t),
+        CircuitBreakerDef("CB3", "consecutive_losses", int(cfg["max_consecutive_losses"]), lambda v, t: v >= t),
+        CircuitBreakerDef("CB4", "vix_level", float(cfg["vix_max_threshold"]), lambda v, t: v >= t),
+        CircuitBreakerDef("CB5", "weekly_loss_pct", float(cfg["max_weekly_loss_pct"]), lambda v, t: v >= t),
+        CircuitBreakerDef("CB6", "market_stage", 4, lambda v, t: v == t),
+        CircuitBreakerDef("CB7", "open_risk_pct", float(cfg["max_total_risk_pct"]), lambda v, t: v >= t),
+        CircuitBreakerDef("CB8", "spy_prior_day_change_pct", -2.0, lambda v, t: v <= t),
+        CircuitBreakerDef("CB9", "win_rate_last_30_pct", float(cfg["min_win_rate_pct"]), lambda v, t: v < t and v > 0),
+    ]
 
 
 def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict[str, Any]:
@@ -133,8 +166,9 @@ def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict
         metrics["win_rate_last_30_pct"] = _compute_win_rate(cur)
 
         # Determine if any circuit breaker is triggered
-        metrics["any_triggered"] = _check_any_triggered(metrics)
-        metrics["triggered_count"] = _count_triggered(metrics)
+        breakers = _build_circuit_breakers(cur)
+        metrics["any_triggered"] = _check_any_triggered(metrics, breakers)
+        metrics["triggered_count"] = _count_triggered(metrics, breakers)
 
         # Validate all required metrics are present and not None before DB insert
         required_keys = [
@@ -198,7 +232,7 @@ def _compute_drawdown(cur: Any) -> float:
     if peak <= 0:
         raise ValueError(f"Invalid peak portfolio value: {peak}")
     dd = (peak - current) / peak * 100
-    return round(dd, 2)
+    return dd
 
 
 def _compute_daily_loss(cur: Any, today: date) -> float:
@@ -217,7 +251,7 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
         raise ValueError(f"Portfolio snapshot unavailable on or before {today}")
     daily = float(row["daily_return_pct"])
     loss = abs(min(0, daily))
-    return round(loss, 2)
+    return loss
 
 
 def _compute_consecutive_losses(cur: Any) -> int:
@@ -259,8 +293,7 @@ def _compute_vix_level(cur: Any) -> float | None:
         raise ValueError(
             "VIX level not available in market_health_daily - circuit breaker CB4 metric cannot be computed"
         )
-    vix = float(row["vix_level"])
-    return round(vix, 1)
+    return float(row["vix_level"])
 
 
 def _compute_weekly_loss(cur: Any, today: date) -> float:
@@ -296,7 +329,7 @@ def _compute_weekly_loss(cur: Any, today: date) -> float:
 
     weekly_ret = (ev - sv) / sv * 100
     loss = abs(min(0, weekly_ret))
-    return round(loss, 2)
+    return loss
 
 
 def _compute_market_stage(cur: Any) -> int:
@@ -389,7 +422,7 @@ def _compute_open_risk(cur: Any) -> float:
         raise ValueError(f"Invalid portfolio value for risk calculation: {port_val}")
 
     risk_pct = total_risk / port_val * 100
-    return round(risk_pct, 2)
+    return risk_pct
 
 
 def _compute_spy_change(cur: Any, today: date) -> float:
@@ -413,7 +446,7 @@ def _compute_spy_change(cur: Any, today: date) -> float:
         raise ValueError(f"Invalid SPY prices for {today}: latest={latest}, prior={prior}")
 
     change = (latest - prior) / prior * 100
-    return round(change, 2)
+    return change
 
 
 def _compute_win_rate(cur: Any) -> float:
@@ -444,10 +477,10 @@ def _compute_win_rate(cur: Any) -> float:
         return 0.0
 
     win_rate = wins / decisive * 100
-    return round(win_rate, 1)
+    return win_rate
 
 
-def _validate_all_metrics_present(metrics: dict[str, Any]) -> None:
+def _validate_all_metrics_present(metrics: dict[str, Any], breakers: list[CircuitBreakerDef]) -> None:
     """CRITICAL: Atomically validate ALL required circuit breaker metrics are present.
 
     Fails immediately if ANY metric is missing or None. This prevents partial risk
@@ -457,7 +490,7 @@ def _validate_all_metrics_present(metrics: dict[str, Any]) -> None:
         RuntimeError: If ANY required metric missing or None
     """
     missing_metrics = []
-    for cb in CIRCUIT_BREAKERS:
+    for cb in breakers:
         if cb.metric_key not in metrics or metrics[cb.metric_key] is None:
             missing_metrics.append(cb.metric_key)
 
@@ -470,26 +503,26 @@ def _validate_all_metrics_present(metrics: dict[str, Any]) -> None:
         )
 
 
-def _check_any_triggered(metrics: dict[str, Any]) -> bool:
+def _check_any_triggered(metrics: dict[str, Any], breakers: list[CircuitBreakerDef]) -> bool:
     """Check if any circuit breaker is triggered based on registry.
 
     If a required metric is missing or None, fail closed (return True).
     This ensures data quality issues don't silently pass safety checks.
     """
     # CRITICAL: Validate ALL metrics present before checking any breaker
-    _validate_all_metrics_present(metrics)
-    return any(cb.is_triggered(metrics) for cb in CIRCUIT_BREAKERS)
+    _validate_all_metrics_present(metrics, breakers)
+    return any(cb.is_triggered(metrics) for cb in breakers)
 
 
-def _count_triggered(metrics: dict[str, Any]) -> int:
+def _count_triggered(metrics: dict[str, Any], breakers: list[CircuitBreakerDef]) -> int:
     """Count how many circuit breakers are triggered.
 
     If a required metric is missing or None, fail closed (count as triggered).
     This ensures data quality issues don't silently reduce triggered count.
     """
     # CRITICAL: Validate ALL metrics present before counting
-    _validate_all_metrics_present(metrics)
-    return sum(1 for cb in CIRCUIT_BREAKERS if cb.is_triggered(metrics))
+    _validate_all_metrics_present(metrics, breakers)
+    return sum(1 for cb in breakers if cb.is_triggered(metrics))
 
 
 def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any]) -> None:
