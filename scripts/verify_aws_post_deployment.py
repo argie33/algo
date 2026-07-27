@@ -18,8 +18,11 @@ from datetime import datetime, timezone
 
 import boto3
 
-# Fix Windows console encoding for emoji/unicode
-if sys.platform.startswith("win"):
+# Fix Windows console encoding for emoji/unicode. Skipped under pytest -
+# reassigning sys.stdout at import time permanently corrupts pytest's own capture
+# streams (same bug class fixed in monitor_data_staleness.py/check_system_health.py/
+# verify_eventbridge_scheduler.py).
+if sys.platform.startswith("win") and "pytest" not in sys.modules:
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")

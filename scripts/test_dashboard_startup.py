@@ -5,8 +5,11 @@ import os
 import sys
 import traceback
 
-# Fix Windows console encoding before doing anything else
-if sys.platform.startswith("win"):
+# Fix Windows console encoding before doing anything else. Skipped under pytest -
+# reassigning sys.stdout at import time permanently corrupts pytest's own capture
+# streams (same bug class fixed in monitor_data_staleness.py/check_system_health.py/
+# verify_eventbridge_scheduler.py).
+if sys.platform.startswith("win") and "pytest" not in sys.modules:
     import io
 
     # Allow UTF-8 output even on Windows

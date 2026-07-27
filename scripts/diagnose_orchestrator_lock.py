@@ -5,8 +5,10 @@ import sys
 
 import psycopg2
 
-# Fix encoding on Windows
-if sys.platform == "win32":
+# Fix encoding on Windows. Skipped under pytest - reassigning sys.stdout at import
+# time permanently corrupts pytest's own capture streams (same bug class fixed in
+# monitor_data_staleness.py/check_system_health.py/verify_eventbridge_scheduler.py).
+if sys.platform == "win32" and "pytest" not in sys.modules:
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 

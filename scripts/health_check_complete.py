@@ -24,8 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# CRITICAL: Windows UTF-8 encoding fix
-if sys.platform.startswith("win"):
+# CRITICAL: Windows UTF-8 encoding fix. Skipped under pytest - reassigning
+# sys.stdout at import time permanently corrupts pytest's own capture streams
+# (same bug class fixed in monitor_data_staleness.py/check_system_health.py/
+# verify_eventbridge_scheduler.py).
+if sys.platform.startswith("win") and "pytest" not in sys.modules:
     import io
 
     try:
