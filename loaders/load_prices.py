@@ -253,7 +253,7 @@ class PriceLoader(OptimalLoader):
                 if not is_valid:
                     error_msg = "\n".join(errors)
                     logger.error(
-                        f"[SCHEMA]  Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
+                        f"[SCHEMA] Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
                         "This will cause data loading to fail. "
                         "Verify table schema matches expected definition."
                     )
@@ -296,31 +296,43 @@ class PriceLoader(OptimalLoader):
             return
 
         pk_cols = ",".join(self.primary_key)
+        pk_col_set = frozenset(self.primary_key)
         try:
-            # Check for unique constraint or index on primary key
+            # Check for a UNIQUE constraint whose column set matches primary_key exactly -
+            # NOT just any UNIQUE constraint on the table. A table can carry an unrelated
+            # UNIQUE constraint (e.g. on a surrogate column) while (symbol, date) itself has
+            # none; checking constraint_type alone without joining to the actual constrained
+            # columns would pass that case and defeat the whole point of this check.
             cur.execute(
                 """
-                SELECT 1 FROM information_schema.table_constraints
-                WHERE table_name = %s
-                  AND constraint_type = 'UNIQUE'
-                LIMIT 1
+                SELECT tc.constraint_name, array_agg(kcu.column_name)
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON kcu.constraint_name = tc.constraint_name
+                 AND kcu.table_name = tc.table_name
+                WHERE tc.table_name = %s
+                  AND tc.constraint_type = 'UNIQUE'
+                GROUP BY tc.constraint_name
             """,
                 (self.table_name,),
             )
-
-            constraint_exists = cur.fetchone() is not None
+            constraint_exists = any(frozenset(cols) == pk_col_set for _, cols in cur.fetchall())
 
             if not constraint_exists:
-                # Check for unique index as fallback
+                # Check for a unique index covering exactly the same columns as a fallback
+                # (a UNIQUE INDEX without a named constraint enforces the same guarantee).
                 cur.execute(
                     """
-                    SELECT 1 FROM pg_indexes
-                    WHERE tablename = %s AND indexdef LIKE '%UNIQUE%'
-                    LIMIT 1
+                    SELECT ix.indexrelid::regclass, array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum))
+                    FROM pg_index ix
+                    JOIN pg_class t ON t.oid = ix.indrelid
+                    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+                    WHERE t.relname = %s AND ix.indisunique
+                    GROUP BY ix.indexrelid
                 """,
                     (self.table_name,),
                 )
-                index_exists = cur.fetchone() is not None
+                index_exists = any(frozenset(cols) == pk_col_set for _, cols in cur.fetchall())
             else:
                 index_exists = True
 
@@ -333,7 +345,7 @@ class PriceLoader(OptimalLoader):
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
                 error_msg = (
-                    f"[CONSTRAINT]  CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
+                    f"[CONSTRAINT] CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
                     f"This allows duplicate rows to be inserted, corrupting the dataset. "
                     f"Root cause analysis: https://github.com/yourorg/algo/blob/main/steering/duplicate_rows_root_cause_analysis.md. "
                     f"Create constraint with: ALTER TABLE {self.table_name} ADD CONSTRAINT "
