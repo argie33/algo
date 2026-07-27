@@ -112,6 +112,24 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
 # the operational logs - only the DB audit row is shortened.
 _REJECTION_REASON_MAX_LEN = 200
 
+# TradeExecutor.execute_trade() returns these statuses from its pre-submission validation
+# checks (CheckHandlerRegistry in check_handler_strategies.py, plus the direct
+# duplicate-position check in executor_entry_handler.py) - all fire before an order is ever
+# attempted, exactly matching this function's own "skipped" definition below ("signals
+# filtered out by policy before an order was ever attempted"). Confirmed live 2026-07-27:
+# 2 signals correctly blocked by the 5-day reentry-reset rule (reentry_cooldown) for symbols
+# closed earlier the same session were counted as failed_count instead, corrupting
+# success_rate's attempted=executed+failed denominator and marking Phase 8 "degraded" - and
+# the whole run "degraded" - on a day where every risk gate worked exactly as designed,
+# indistinguishable from a real broker/DB outage in the final report.
+_POLICY_REJECTION_STATUSES = {
+    "duplicate",
+    "duplicate_position",
+    "pending_trade_exists",
+    "reentry_cooldown",
+    "reentry_blocked",
+}
+
 
 def _log_signal_rejection(
     symbol: str,
@@ -1607,17 +1625,27 @@ def run(
                     else:
                         message = trade_result["message"]
                         status = trade_result["status"]
-                        logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
-                        # Persist the failure reason - previously this only went to logger.error(),
-                        # which is lost once the process exits. Skipped/rejected signals were already
-                        # audited via _log_signal_rejection() below in this same function; actual
-                        # broker-execution failures were the one path with no queryable audit trail,
-                        # making them undiagnosable in production without live log access.
-                        _log_signal_rejection(
-                            symbol, "execution_failed", f"{message} (status={status})", run_date, entry_price, risk_pct
-                        )
+                        if status in _POLICY_REJECTION_STATUSES:
+                            logger.info(f"[PHASE 8] {symbol}: SKIPPED (policy) - {message} (status={status})")
+                            _log_signal_rejection(symbol, status, message, run_date, entry_price, risk_pct)
+                            skipped_count += 1
+                        else:
+                            logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
+                            # Persist the failure reason - previously this only went to logger.error(),
+                            # which is lost once the process exits. Skipped/rejected signals were already
+                            # audited via _log_signal_rejection() below in this same function; actual
+                            # broker-execution failures were the one path with no queryable audit trail,
+                            # making them undiagnosable in production without live log access.
+                            _log_signal_rejection(
+                                symbol,
+                                "execution_failed",
+                                f"{message} (status={status})",
+                                run_date,
+                                entry_price,
+                                risk_pct,
+                            )
 
-                        failed_count += 1
+                            failed_count += 1
 
                 except (ValueError, ZeroDivisionError, TypeError) as exec_err:
                     logger.error(

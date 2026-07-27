@@ -17,6 +17,41 @@ from unittest.mock import MagicMock, patch
 from algo.orchestrator.phase8_entry_execution import _log_signal_rejection
 
 
+def test_policy_rejection_statuses_exclude_genuine_execution_failures():
+    """CRITICAL FIX regression: TradeExecutor.execute_trade() returns success=False for two
+    fundamentally different reasons - (1) a pre-submission policy check correctly blocked the
+    entry before an order was ever attempted (duplicate/pending/reentry-cooldown), or (2) a
+    real broker/DB/execution failure. Confirmed live 2026-07-27 (run
+    LOCAL-AFTERNOON-20260727-145647-651040): 2 signals correctly rejected by the 5-day
+    reentry-reset rule for symbols closed earlier the same session were counted as
+    failed_count instead of skipped_count, corrupting success_rate's attempted=executed+failed
+    denominator and marking Phase 8 (and the whole run) "degraded" on a day every risk gate
+    worked exactly as designed - indistinguishable in the final report from a real broker
+    outage. This pins the taxonomy: only pre-attempt policy statuses belong here.
+    """
+    from algo.orchestrator.phase8_entry_execution import _POLICY_REJECTION_STATUSES
+
+    assert _POLICY_REJECTION_STATUSES == {
+        "duplicate",
+        "duplicate_position",
+        "pending_trade_exists",
+        "reentry_cooldown",
+        "reentry_blocked",
+    }
+    # Statuses produced by genuine order/DB/execution failures (executor.py's exception
+    # handlers) must never be classified as a policy skip.
+    genuine_failure_statuses = {
+        "order_rejected",
+        "order_failed",
+        "database_error",
+        "trading_error",
+        "error",
+        "portfolio_value_unavailable",
+        "invalid",
+    }
+    assert _POLICY_REJECTION_STATUSES.isdisjoint(genuine_failure_statuses)
+
+
 def test_execution_failed_is_persisted_to_signal_rejections_audit_table():
     mock_cur = MagicMock()
 
