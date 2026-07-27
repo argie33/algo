@@ -676,7 +676,14 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         )
 
     stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
-    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
+    # BUG FIX: This used to flag ANY non-"ok" table (role CRIT/IMP/NORM alike) under the
+    # "CRIT STALE" banner, even though the API already computes and attaches a "role" field
+    # per table (see dashboard/fetchers_config.py). That meant known-non-critical,
+    # intentionally-not-always-populated tables (e.g. equity_curve_daily, algo_untracked_positions
+    # - see lambda/api/routes/algo_handlers/market.py's own comments on those two) triggered the
+    # same red "CRIT STALE" alarm as an actually-critical table like price_daily, producing false
+    # TRIGGERED/NOT READY-looking alarms. Filter to role == "CRIT" so the banner matches its label.
+    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok" and r.get("role") == "CRIT"]
 
     if crit_stale:
         # CRITICAL: Explicit None check instead of OR fallback
