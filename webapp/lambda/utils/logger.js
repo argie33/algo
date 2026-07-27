@@ -29,7 +29,12 @@ class Logger {
 
   parseLogLevel(level) {
     if (typeof level === "number") return level;
-    return LOG_LEVELS[level.toUpperCase()] || LOG_LEVELS.INFO;
+    // CRITICAL FIX: LOG_LEVELS.ERROR is 0, a falsy value - `||` treated it as "not
+    // found" and silently fell back to INFO, so LOG_LEVEL=ERROR never actually reduced
+    // verbosity (WARN/INFO still passed shouldLog's `level <= currentLevel` check).
+    // `??` only falls back on a genuine missing/invalid level (undefined lookup).
+    if (typeof level !== "string") return LOG_LEVELS.INFO;
+    return LOG_LEVELS[level.toUpperCase()] ?? LOG_LEVELS.INFO;
   }
 
   shouldLog(level) {

@@ -154,9 +154,13 @@ describe("Logger", () => {
       process.env.NODE_ENV = "development";
       const freshLogger = require("../../../utils/logger");
 
+      // output()'s third bracket is `service`, not `correlationId` (correlationId is one
+      // of the fields excluded from the extra-context JSON blob below, alongside
+      // timestamp/level/message/service/version/environment) - see utils/logger.js.
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
         level: "INFO",
+        service: "test-service",
         message: "Test message",
         correlationId: "12345",
         extra: "data",
@@ -167,11 +171,10 @@ describe("Logger", () => {
       expect(consoleSpy).toHaveBeenCalledTimes(2);
       expect(consoleSpy).toHaveBeenNthCalledWith(
         1,
-        "[2023-01-01T00:00:00.000Z] [INFO] [12345] Test message"
+        "[2023-01-01T00:00:00.000Z] [INFO] [test-service] Test message"
       );
       expect(consoleSpy).toHaveBeenNthCalledWith(
         2,
-        "Context:",
         JSON.stringify({ extra: "data" }, null, 2)
       );
     });
@@ -203,6 +206,7 @@ describe("Logger", () => {
       const logEntry = {
         timestamp: "2023-01-01T00:00:00.000Z",
         level: "INFO",
+        service: "test-service",
         message: "Test message",
         correlationId: "12345",
       };
@@ -211,7 +215,7 @@ describe("Logger", () => {
 
       expect(consoleSpy).toHaveBeenCalledTimes(1);
       expect(consoleSpy).toHaveBeenCalledWith(
-        "[2023-01-01T00:00:00.000Z] [INFO] [12345] Test message"
+        "[2023-01-01T00:00:00.000Z] [INFO] [test-service] Test message"
       );
     });
   });
@@ -254,12 +258,13 @@ describe("Logger", () => {
       logger.output({
         timestamp: "test",
         level: "WARN",
+        service: "test-service",
         message: "Direct test",
         correlationId: "123",
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        "[test] [WARN] [123] Direct test"
+        "[test] [WARN] [test-service] Direct test"
       );
 
       // Clear spy for the actual test
