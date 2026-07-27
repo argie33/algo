@@ -1057,7 +1057,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
           : "—",
     ],
     [
-      "Short Float",
+      "Short % of Shares O/S",
       p.short_percent_of_float != null
         ? fmtPct(p.short_percent_of_float, 1)
         : "—",

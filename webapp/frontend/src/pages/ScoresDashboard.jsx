@@ -2183,7 +2183,7 @@ const POSITIONING_SCHEMA = [
   },
   {
     key: "short_percent_of_float",
-    label: "Short % of Float",
+    label: "Short % of Shares O/S",
     fmt: (v) => pct(v, 1),
   },
   {

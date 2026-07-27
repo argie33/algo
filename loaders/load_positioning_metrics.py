@@ -115,7 +115,12 @@ class PositioningMetricsLoader(OptimalLoader):
                     else:
                         short_interest_trend = "stable"
 
-            # Calculate short_percent_of_float if we have shares outstanding
+            # NOTE: this is short_shares / shares_outstanding, NOT true public float -
+            # SEC filings don't expose a float figure (it would require subtracting
+            # insider/restricted/locked-up shares, not a standard XBRL concept). Same
+            # denominator as short_interest_pct above. Real float <= shares outstanding,
+            # so the true float-based percentage is typically higher than this value -
+            # frontend labels this "Short % of Shares O/S" (not "of Float") for that reason.
             if short_rows and short_rows[0][1] is not None:  # short_shares
                 try:
                     with DatabaseContext("read") as cur:
