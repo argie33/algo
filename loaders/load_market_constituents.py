@@ -208,7 +208,8 @@ class MarketConstituentsLoader(OptimalLoader):
                 nas_text = requests.get(NASDAQ_URL, timeout=15).text
             except requests.exceptions.Timeout as e:
                 raise RuntimeError(
-                    "[MARKET_CONSTITUENTS] NASDAQ symbols fetch timeout. Wikipedia API is unreachable or slow."
+                    f"[MARKET_CONSTITUENTS] NASDAQ symbols fetch timeout ({NASDAQ_URL}). "
+                    "nasdaqtrader.com is unreachable or slow."
                 ) from e
 
             logger.debug("Downloading OTHER list")
@@ -216,7 +217,8 @@ class MarketConstituentsLoader(OptimalLoader):
                 oth_text = requests.get(OTHER_URL, timeout=15).text
             except requests.exceptions.Timeout as e:
                 raise RuntimeError(
-                    "[MARKET_CONSTITUENTS] Other symbols fetch timeout. NASDAQ API is unreachable or slow."
+                    f"[MARKET_CONSTITUENTS] Other symbols fetch timeout ({OTHER_URL}). "
+                    "nasdaqtrader.com is unreachable or slow."
                 ) from e
 
             rows = []
@@ -306,8 +308,6 @@ class MarketConstituentsLoader(OptimalLoader):
                         continue
 
                     if should_exclude(name):
-                        continue
-                    if re.match(r"^[A-Z]+\.[A-Z]$", sym):
                         continue
                     if r["Test Issue"].upper() == "Y":
                         continue
