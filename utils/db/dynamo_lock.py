@@ -65,6 +65,7 @@ class DynamoDBLockManager:
         self.lock_id = str(uuid.uuid4())
         self.acquired = False
         self.is_available = True
+        self.lock_key = "orchestrator-run-lock"
 
         try:
             self.dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
@@ -91,6 +92,7 @@ class DynamoDBLockManager:
         """
         start_time = time.time()
         attempt = 0
+        self.lock_key = lock_key
 
         while time.time() - start_time < timeout_seconds:
             attempt += 1
@@ -152,19 +154,31 @@ class DynamoDBLockManager:
         )
         return False
 
-    def release(self, lock_key: str = "orchestrator-run-lock") -> bool:
+    def release(self, lock_key: str | None = None) -> bool:
         """Release the distributed lock.
 
         Only release if we still own it (lock_id matches).
         Enhanced with better error handling to prevent re-release attempts.
 
         Args:
-            lock_key: The lock identifier
+            lock_key: The lock identifier. CRITICAL FIX: this used to default to the
+                hardcoded string "orchestrator-run-lock" instead of self.lock_key (the key
+                acquire() actually recorded) - see the identical bug fixed in
+                utils/db/rds_lock.py (this class's "same interface" sibling, per that
+                module's own docstring) for the full live-reproduced failure. A caller that
+                acquires a non-default lock and then calls .release() with no argument would
+                target a different DynamoDB item entirely - its ConditionExpression would
+                fail (wrong/missing lock_id), silently treated as "already released" below,
+                while the real lock item stays held until its TTL expires. Default to the
+                key this instance actually acquired.
 
         Returns: True if released, False on error
         """
         if not self.acquired:
             return True  # No lock to release
+
+        if lock_key is None:
+            lock_key = self.lock_key
 
         try:
             self.table.delete_item(
