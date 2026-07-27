@@ -9,23 +9,37 @@ dataset - NOT a "ticker" column, contrary to this loader's original assumption):
 ACCESSION_NUMBER, INFOTABLE_SK, NAMEOFISSUER, TITLEOFCLASS, CUSIP, FIGI, VALUE,
 SSHPRNAMT, SSHPRNAMTTYPE, PUTCALL, INVESTMENTDISCRETION, OTHERMANAGER,
 VOTING_AUTH_*. 13F filings identify securities by CUSIP only - SEC does not
-publish a free CUSIP->ticker crosswalk, and none exists elsewhere in this
-codebase (see migrations 1124/1151, utils/sec_form13f_aggregator.py).
+publish a free CUSIP->ticker crosswalk (CUSIP itself is licensed).
+
+CROSSWALK (2026-07-27): OpenFIGI (api.openfigi.com) is a free, public, no-signup
+mapping service that resolves a CUSIP directly to its real ticker - no CUSIP
+license needed on our end, since we're only ever the requester, not redistributing
+CUSIP data. See utils/external/openfigi_crosswalk.py for the client and a documented
+rejected-approach lesson: an earlier version tried to shortcut via SEC's own optional
+FIGI column instead of a direct CUSIP query, and that was live-verified to
+undercount real institutional shares by ~12x (most filers don't report FIGI) - the
+direct CUSIP->ticker query below uses the FULL reported share total per CUSIP.
+CUSIP->ticker attribution is cached permanently in `sec_13f_cusip_crosswalk`
+(migration 1161) since it almost never changes quarter to quarter - only the small
+delta of never-seen CUSIPs costs a live OpenFIGI call on any given run.
 
 Updated: SEC publishes rolling ~3-month windows keyed to the 45-day-after-quarter-end
 filing deadline (e.g. "01jun2025-31aug2025_form13f.zip", not a plain
 "{year}-Q{quarter}" label - the dataset filenames are discovered by scraping SEC's own
 listing page rather than guessed via calendar-quarter date arithmetic, since the
 window boundaries don't align to calendar quarters cleanly).
-Coverage: Institutional managers with $100M+ in assets (excludes small institutions)
+Coverage: Institutional managers with $100M+ in assets (excludes small institutions).
+Additional, separate coverage gap: only symbols whose CUSIP OpenFIGI can resolve to a
+plausible entity match get a real ownership %; everything else stays honestly
+data_unavailable.
 
 Architecture:
 - fetch_global() downloads & parses the latest published 13F bulk dataset once,
   aggregating shares held per CUSIP across all institutional managers
-- Without a CUSIP->ticker crosswalk, per-symbol ownership % cannot be computed from
-  this alone - fails fast with an explicit reason rather than fabricating estimates
-- fetch_incremental() returns cached global results per symbol (once a crosswalk
-  exists to populate them)
+- Crosswalks CUSIPs to tickers via the cached OpenFIGI mapping (only querying
+  OpenFIGI live for CUSIPs never seen before), computing ownership % for whatever
+  subset of our tracked universe resolves - no fabrication for the rest
+- fetch_incremental() returns cached global results per symbol
 
 Run:
     python3 loaders/load_institutional_holdings_13f.py [--symbols AAPL,MSFT]
@@ -44,7 +58,9 @@ from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
+from utils.external.openfigi_crosswalk import fetch_cusip_tickers, names_plausibly_match
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -117,23 +133,24 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 )
                 return self._calculate_and_cache_ownership(self._aggregate_top_manager_13fs(), period_end)
 
-            # Real SEC data, correctly reached and parsed - but 13F filings identify
-            # securities by CUSIP only. Without a CUSIP->ticker crosswalk (not
-            # implemented anywhere in this codebase - see module docstring), these
-            # holdings cannot be attributed to a stock symbol. Fail fast here rather
-            # than pass CUSIP keys into _calculate_and_cache_ownership, which queries
-            # company_info_sec by symbol and would silently return zero rows.
-            msg = (
-                f"[13F CRITICAL] Downloaded and parsed real SEC 13F bulk data from {url}: "
-                f"{len(holdings_by_cusip)} CUSIPs, period end {period_end}. Cannot compute "
-                f"per-symbol institutional_ownership_pct without a CUSIP->ticker crosswalk "
-                f"(not yet implemented - see migrations 1124/1151). This is a missing "
-                f"feature, not a data-availability problem: SEC's data was reachable and "
-                f"parsed correctly. ACTION: implement a CUSIP->ticker mapping before this "
-                f"loader can populate institutional_holdings_13f."
+            logger.info(
+                f"[13F] Downloaded and parsed real SEC 13F bulk data from {url}: "
+                f"{len(holdings_by_cusip)} CUSIPs, period end {period_end}. "
+                f"Crosswalking to our own tracked universe via OpenFIGI..."
             )
-            logger.critical(msg)
-            raise RuntimeError(msg)
+            holdings_by_ticker = self._crosswalk_to_tickers(holdings_by_cusip)
+            if not holdings_by_ticker:
+                msg = (
+                    f"[13F CRITICAL] Downloaded and parsed real SEC 13F bulk data from {url} "
+                    f"({len(holdings_by_cusip)} CUSIPs) but the OpenFIGI CUSIP->ticker crosswalk "
+                    f"resolved zero symbols in our own tracked universe. This is a hard failure, "
+                    f"not a coverage gap - some real data should always resolve. ACTION: check "
+                    f"OpenFIGI reachability and get_active_symbols()."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
+
+            return self._calculate_and_cache_ownership(holdings_by_ticker, period_end)
 
         except RuntimeError:
             # Re-raise RuntimeError from above or from _aggregate_top_manager_13fs
@@ -286,7 +303,94 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                                 holdings_by_cusip[cusip] += shares
 
             logger.info(f"[13F] Aggregated {len(holdings_by_cusip)} CUSIPs from bulk data")
-            return holdings_by_cusip
+            return dict(holdings_by_cusip)
+
+    def _crosswalk_to_tickers(self, holdings_by_cusip: dict[str, int]) -> dict[str, int]:
+        """Resolve CUSIPs to our own tracked universe's tickers via OpenFIGI, using a
+        permanent DB cache (sec_13f_cusip_crosswalk) so only never-seen CUSIPs cost a
+        live OpenFIGI call - CUSIP->ticker attribution is stable across quarters.
+
+        Returns {symbol: total_shares} for whatever subset of our universe resolves to
+        a CUSIP OpenFIGI could map to a ticker in our own tracked universe AND whose
+        OpenFIGI-returned name plausibly matches our own SEC-sourced entity_name
+        (defense against the documented wrong-entity gotcha - see this module's and
+        openfigi_crosswalk.py's docstrings). Symbols that don't clear both are simply
+        absent from the result - handled naturally by fetch_incremental()'s existing
+        "not found" path, not a fabrication.
+        """
+        all_cusips = list(holdings_by_cusip.keys())
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT cusip, ticker, resolved_name FROM sec_13f_cusip_crosswalk WHERE cusip = ANY(%s)",
+                (all_cusips,),
+            )
+            cached: dict[str, tuple[str | None, str | None]] = {row[0]: (row[1], row[2]) for row in cur.fetchall()}
+
+        new_cusips = [c for c in all_cusips if c not in cached]
+        logger.info(f"[13F] {len(cached)} CUSIPs already crosswalked, {len(new_cusips)} new - querying OpenFIGI")
+
+        if new_cusips:
+            resolved = fetch_cusip_tickers(new_cusips)
+            newly_cached = {
+                cusip: (resolved[cusip]["ticker"], resolved[cusip]["name"]) if cusip in resolved else (None, None)
+                for cusip in new_cusips
+            }
+            self._save_crosswalk_cache(newly_cached)
+            cached.update(newly_cached)
+
+        symbols = set(get_active_symbols(exclude_etfs=True))
+        local_names = self._fetch_local_entity_names(symbols)
+
+        holdings_by_ticker: dict[str, int] = defaultdict(int)
+        for cusip, shares in holdings_by_cusip.items():
+            ticker, resolved_name = cached.get(cusip, (None, None))
+            if not ticker or ticker not in symbols:
+                continue
+            if not names_plausibly_match(resolved_name, local_names.get(ticker)):
+                logger.debug(
+                    f"[13F] {ticker} (CUSIP {cusip}): OpenFIGI name '{resolved_name}' doesn't plausibly "
+                    f"match our own entity_name '{local_names.get(ticker)}' - skipping to avoid a wrong-entity join"
+                )
+                continue
+            holdings_by_ticker[ticker] += shares
+
+        logger.info(f"[13F] Crosswalk resolved {len(holdings_by_ticker)}/{len(symbols)} tracked symbols to real holdings")
+        return dict(holdings_by_ticker)
+
+    def _fetch_local_entity_names(self, symbols: set[str]) -> dict[str, str]:
+        """Our own SEC-sourced entity_name per symbol - the ground truth
+        names_plausibly_match() checks an OpenFIGI resolution against."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT symbol, entity_name FROM company_info_sec WHERE symbol = ANY(%s) AND entity_name IS NOT NULL",
+                (list(symbols),),
+            )
+            return dict(cur.fetchall())
+
+    def _save_crosswalk_cache(self, resolved: dict[str, tuple[str | None, str | None]]) -> None:
+        """Persist OpenFIGI's CUSIP->ticker resolution (including negative results -
+        a CUSIP OpenFIGI couldn't resolve at all) so future runs never re-query it.
+
+        Deliberately NOT filtered to our own tracked universe: caches whatever OpenFIGI
+        actually said, so a symbol added to our universe later can use an
+        already-cached CUSIP without a fresh OpenFIGI call.
+        """
+        if not resolved:
+            return
+        with DatabaseContext("write") as cur:
+            for cusip, (ticker, name) in resolved.items():
+                cur.execute(
+                    """
+                    INSERT INTO sec_13f_cusip_crosswalk (cusip, ticker, resolved_name, verified_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (cusip) DO UPDATE SET
+                        ticker = EXCLUDED.ticker,
+                        resolved_name = EXCLUDED.resolved_name,
+                        verified_at = EXCLUDED.verified_at
+                    """,
+                    (cusip, ticker, name),
+                )
 
     def _aggregate_top_manager_13fs(self) -> dict[str, int]:
         """Aggregate per-manager 13F holdings via CUSIP→ticker mapper (correct architecture).

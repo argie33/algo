@@ -111,16 +111,21 @@ clamped to parallelism 1-2 to protect rate limits.
   SEC shares-outstanding figure are marked `data_unavailable` even when FINRA has data.
   Lifted `positioning_metrics` availability from 58.9% -> ~93% and `stock_scores`
   tradeable coverage (>=70% completeness) from 53.4% -> ~64%.
-- **Institutional holdings (13F):** still unavailable (`institutional_holdings_13f`).
+- **Institutional holdings (13F):** partial coverage (2026-07-27, was fully blocked).
   Form 13F is filed by the institutional manager under their OWN CIK with CUSIP-level
   holdings, not cross-indexed under the issuer's CIK - there's no per-issuer 13F lookup.
-  A real implementation needs the SEC's bulk quarterly structured datasets
-  (sec.gov/files/structureddata/data/form-13f-data-sets/*.zip, INFOTABLE.tsv) aggregated
-  by CUSIP, which requires a CUSIP->ticker crosswalk SEC does not publish for free (CUSIP
-  is licensed by CUSIP Global Services). `utils/sec_form13f_aggregator.py` currently only
-  checks whether the ISSUER'S OWN CIK filed a `13F-HR` (which it never will for an
-  operating company) - that check is a dead end and needs to be replaced with the bulk
-  INFOTABLE approach, which is blocked on the crosswalk.
+  `loaders/load_institutional_holdings_13f.py` downloads SEC's real bulk quarterly
+  INFOTABLE.tsv dataset directly. CUSIP itself is licensed (no free crosswalk), but SEC's
+  own FIGI column - populated by ~47% of distinct CUSIPs in a real quarter, live-verified,
+  weighted toward larger/more liquid names - is a free, open identifier. The loader
+  crosswalks our own tracked ticker universe to FIGI via OpenFIGI's free public mapping
+  API (`utils/external/openfigi_crosswalk.py`) and joins on FIGI equality, never a CUSIP
+  purchase or name-guessing. Coverage is real but partial: only symbols where (a) a filer
+  reported FIGI for that CUSIP, (b) OpenFIGI resolves the ticker, and (c) the resolved
+  entity name plausibly matches our own SEC entity_name get a real ownership % - see
+  that module's docstring for a live-verified wrong-entity gotcha (OpenFIGI resolves
+  "XOM" to a different corporate entity than the real 10-K filer) that (c) guards against.
+  Everything else stays honestly `data_unavailable`, per GOVERNANCE fail-fast.
 - **Insider holdings (Form 4/5):** implemented (Session 304) via SEC's official bulk
   "Insider Transactions Data Sets" (sec.gov/data-research/sec-markets-data/
   insider-transactions-data-sets - quarterly ZIPs of SUBMISSION/REPORTINGOWNER/

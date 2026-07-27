@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests: SEC Form 13F bulk dataset discovery and parsing.
+"""Regression tests: SEC Form 13F bulk dataset discovery, parsing, and crosswalk.
 
 Previously this loader (1) guessed the bulk dataset filename as
 "{year}-Q{quarter}_FORM13FDATA.zip", which never matches SEC's real naming
@@ -9,6 +9,10 @@ and (2) parsed the downloaded TSV assuming a "ticker"/"shrsOrPrnAmt" column pair
 that does not exist - real INFOTABLE.tsv columns are NAMEOFISSUER/CUSIP/SSHPRNAMT
 (13F filings identify securities by CUSIP only). Confirmed live against SEC's real
 listing page and a real downloaded dataset before fixing.
+
+Later (2026-07-27), closed the standing "no free CUSIP->ticker crosswalk" gap via
+OpenFIGI, cached in sec_13f_cusip_crosswalk (migration 1161) - see
+_crosswalk_to_tickers tests below.
 """
 
 from loaders.load_institutional_holdings_13f import InstitutionalHoldings13FLoader
@@ -85,3 +89,157 @@ def test_parses_real_infotable_columns_keyed_by_cusip(monkeypatch) -> None:
     # Both rows share CUSIP 88579Y101 (same issuer, different manager filings) -
     # must sum, not overwrite, and must be keyed by CUSIP since there is no ticker.
     assert holdings == {"88579Y101": 100}
+
+
+class _FakeCrosswalkCursor:
+    """Routes by query shape: cache SELECT, entity-name SELECT, or cache upsert."""
+
+    def __init__(self, cached_rows, local_name_rows):
+        self._cached_rows = cached_rows
+        self._local_name_rows = local_name_rows
+        self._pending_result: list = []
+        self.upserts: list = []
+
+    def execute(self, query, params=None):
+        if "FROM sec_13f_cusip_crosswalk" in query:
+            self._pending_result = self._cached_rows
+        elif "FROM company_info_sec" in query:
+            self._pending_result = self._local_name_rows
+        elif "INSERT INTO sec_13f_cusip_crosswalk" in query:
+            self.upserts.append(params)
+        else:
+            raise AssertionError(f"unexpected query: {query}")
+
+    def fetchall(self):
+        return self._pending_result
+
+
+def test_crosswalk_to_tickers_uses_cache_and_only_queries_openfigi_for_new_cusips(monkeypatch):
+    """A CUSIP already in sec_13f_cusip_crosswalk must not trigger a live OpenFIGI
+    call - the whole point of the cache is to avoid re-crosswalking the ~34k-CUSIP
+    universe every quarter."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("037833100", "AAPL", "APPLE INC")],  # already cached
+        local_name_rows=[("AAPL", "Apple Inc.")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"])
+
+    def _fail_if_called(cusips):
+        raise AssertionError(f"OpenFIGI should not be queried for already-cached CUSIPs, got {cusips}")
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.fetch_cusip_tickers", _fail_if_called)
+
+    result = loader._crosswalk_to_tickers({"037833100": 914936485})
+
+    assert result == {"AAPL": 914936485}
+    assert cursor.upserts == []  # nothing new to cache
+
+
+def test_crosswalk_to_tickers_queries_and_caches_new_cusips(monkeypatch):
+    """A CUSIP never seen before must trigger a live OpenFIGI call, and the result
+    (including a negative/unresolved one) must be persisted to the cache table."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[],  # nothing cached yet
+        local_name_rows=[("AAPL", "Apple Inc.")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"])
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.fetch_cusip_tickers",
+        lambda cusips: {"037833100": {"ticker": "AAPL", "name": "APPLE INC"}},
+    )
+
+    result = loader._crosswalk_to_tickers({"037833100": 914936485, "UNRESOLVABLE": 500})
+
+    assert result == {"AAPL": 914936485}
+    # Both the resolved and unresolved CUSIP must be cached (a negative result is a
+    # real, cacheable outcome - never re-queried again).
+    cached_cusips = {call[0] for call in cursor.upserts}
+    assert cached_cusips == {"037833100", "UNRESOLVABLE"}
+
+
+def test_crosswalk_to_tickers_rejects_the_live_verified_xom_wrong_entity_match(monkeypatch):
+    """Live-verified 2026-07-27: OpenFIGI can resolve a CUSIP to a ticker that IS in
+    our tracked universe but is the WRONG entity (XOM -> a different corporate entity
+    than the real 10-K filer). The name-plausibility check must reject this even
+    though the ticker itself matches."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("999999999", "XOM", "EXXONMOBIL HOLDINGS CORP")],
+        local_name_rows=[("XOM", "EXXON MOBIL CORP")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["XOM"])
+
+    result = loader._crosswalk_to_tickers({"999999999": 999})
+
+    assert result == {}
+
+
+def test_crosswalk_to_tickers_ignores_a_resolved_ticker_outside_our_universe(monkeypatch):
+    """Live-verified 2026-07-27: the real Exxon Mobil Corp CUSIP (30231G102) resolves
+    via OpenFIGI to ticker 'EXMOC', not 'XOM' - a real Bloomberg-side ticker variant.
+    A resolved ticker that isn't in our tracked universe at all must be silently
+    skipped, not treated as an error."""
+    loader = _make_loader()
+
+    cursor = _FakeCrosswalkCursor(
+        cached_rows=[("30231G102", "EXMOC", "EXXON MOBIL CORP")],
+        local_name_rows=[("XOM", "EXXON MOBIL CORP")],
+    )
+
+    class _FakeDatabaseContext:
+        def __init__(self, mode):
+            pass
+
+        def __enter__(self):
+            return cursor
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
+    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["XOM"])
+
+    result = loader._crosswalk_to_tickers({"30231G102": 5720000000})
+
+    assert result == {}
