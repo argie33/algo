@@ -868,6 +868,37 @@ class ExitEngine:
         Each strategy returns an ExitSignal; first triggered signal wins.
         If none triggered, returns hold decision.
         """
+        if cur_price is None:
+            raise RuntimeError(
+                f"Exit evaluation failed for {symbol}: current price is None. "
+                "Cannot evaluate exit conditions without current price. Check Alpaca price feed."
+            )
+
+        # CRITICAL: the hard stop-loss must never be gated by min_hold_days. This file's own
+        # documented exit hierarchy lists it first specifically because it's an unconditional
+        # "hard capital preservation rule", not a discretionary trend-following signal like the
+        # other 11 checks below (which legitimately benefit from a min-hold buffer to avoid
+        # same-day whipsaw exits). The min_hold_days gate below used to run BEFORE the
+        # ExitStrategyChain existed at all - meaning a position that gapped/crashed through its
+        # stop before min_hold_days was satisfied (min_hold_days=1 in production - the entire
+        # entry day) would report "hold" and never exit. In execution_mode="auto" (real Alpaca
+        # orders) the broker's own bracket stop-loss order is a backstop, but in paper/dry/
+        # LOCAL_MODE (no real Alpaca order at all - see executor.py's _submit_and_validate_order)
+        # this Python-side check is the ONLY stop-loss enforcement that exists, and even in auto
+        # mode it's a real defense-in-depth gap if the broker order is ever cancelled/modified/
+        # missed. Check the hard stop first, unconditionally, before the min-hold gate.
+        cur_price_dec = Decimal(str(cur_price)) if not isinstance(cur_price, Decimal) else cur_price
+        active_stop_dec = Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop
+        if cur_price_dec <= active_stop_dec:
+            return {
+                "stage": "stop",
+                "fraction": 1.0,
+                "reason": (
+                    f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
+                    "(hard capital preservation - not subject to min_hold_days)"
+                ),
+            }
+
         min_hold_val = self.config.get("min_hold_days")
         if min_hold_val is None:
             raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
@@ -879,12 +910,6 @@ class ExitEngine:
                 "fraction": 0.0,
                 "reason": f"Minimum holding period not met: {days_held} days held < {min_hold_days} required",
             }
-
-        if cur_price is None:
-            raise RuntimeError(
-                f"Exit evaluation failed for {symbol}: current price is None. "
-                "Cannot evaluate exit conditions without current price. Check Alpaca price feed."
-            )
 
         ctx = PositionContext(
             symbol=symbol,
