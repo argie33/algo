@@ -525,7 +525,19 @@ def run(  # noqa: C901
             # CRITICAL FIX: This tolerance should NOT apply hours later (after 4:30 PM).
             # By 5:00 PM+, all data providers should have same-day prices ready.
             acceptable_min_date = last_trading_day
-            if pipeline_context == "EOD" and 16 <= now_et.hour < 16.5:  # Only 4:00-4:30 PM grace period
+            # CRITICAL FIX: `now_et.hour` is always an integer, so comparing it against the
+            # float 16.5 can never distinguish "before 4:30 PM" from "after" within the same
+            # clock hour - `16 <= 16 < 16.5` and `16 >= 16.5` are True/False respectively for
+            # EVERY minute from 16:00:00 through 16:59:59, not just the first 30. Confirmed live
+            # 2026-07-27: for any EOD-context run landing in that hour (e.g. a late/retried run,
+            # not the fixed morning/afternoon/preclose/evening schedule), the grace period would
+            # silently stay active the entire hour instead of expiring at 16:30 as the comments
+            # below and the log line at 16:36 both claim - stale same-day data would be masked by
+            # falling back to the prior trading day for up to 30 extra minutes. Compare against
+            # an actual time boundary instead of an hour/float mismatch.
+            grace_period_end = now_et.replace(hour=16, minute=30, second=0, microsecond=0)
+            market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            if pipeline_context == "EOD" and market_close <= now_et < grace_period_end:
                 # Allow previous trading day as fallback if same-day not yet available
                 # (ONLY in immediate aftermath of market close, within 30 min)
                 prev_trading_day = last_trading_day - td(days=1)
@@ -537,7 +549,7 @@ def run(  # noqa: C901
                         )
                         break
                     prev_trading_day -= td(days=1)
-            elif pipeline_context == "EOD" and now_et.hour >= 16.5:
+            elif pipeline_context == "EOD" and now_et >= grace_period_end:
                 # After 4:30 PM: must have same-day data
                 logger.info(f"[PHASE 1] Grace period expired (> 4:30 PM): requiring {last_trading_day} data")
 
