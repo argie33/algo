@@ -1699,7 +1699,7 @@ function AnalystsTab({ data, last, error }) {
                 <span className="mono tnum up">
                   <SafeMetricValue value={bullishCount} formatter="number" fallback="—" /> (
                   {num(
-                    metrics?.bullishPercent ?? metrics?.bullish_percent ?? 0,
+                    metrics?.bullishPercent ?? metrics?.bullish_percent ?? null,
                     0
                   )}
                   %)
@@ -1712,7 +1712,7 @@ function AnalystsTab({ data, last, error }) {
                 <span className="mono tnum">
                   <SafeMetricValue value={neutralCount} formatter="number" fallback="—" /> (
                   {num(
-                    metrics?.neutralPercent ?? metrics?.neutral_percent ?? 0,
+                    metrics?.neutralPercent ?? metrics?.neutral_percent ?? null,
                     0
                   )}
                   %)
@@ -1725,7 +1725,7 @@ function AnalystsTab({ data, last, error }) {
                 <span className="mono tnum down">
                   <SafeMetricValue value={bearishCount} formatter="number" fallback="—" /> (
                   {num(
-                    metrics?.bearishPercent ?? metrics?.bearish_percent ?? 0,
+                    metrics?.bearishPercent ?? metrics?.bearish_percent ?? null,
                     0
                   )}
                   %)

@@ -1230,8 +1230,16 @@ function AnalystInsights({ symbol, onClose }) {
                     label="Net Momentum"
                     value={
                       (() => {
-                        const upgrades = momentum.upgrades30d ?? 0;
-                        const downgrades = momentum.downgrades30d ?? 0;
+                        // CRITICAL: computing upgrades-downgrades with either side defaulted
+                        // to 0 fabricates a one-sided momentum reading when only one of the
+                        // two is actually missing (e.g. downgrades30d=5 but upgrades30d never
+                        // returned - old code showed "Net Momentum: -5" as if upgrades were
+                        // confirmed zero, not unknown). Only compute when both are present.
+                        const upgrades = momentum.upgrades30d;
+                        const downgrades = momentum.downgrades30d;
+                        if (upgrades == null || downgrades == null) {
+                          return <span>—</span>;
+                        }
                         const netMomentum = upgrades - downgrades;
                         return (
                           <span
