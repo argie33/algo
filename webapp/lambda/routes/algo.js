@@ -1376,6 +1376,19 @@ router.put("/config/:key", requireAuth, requireAdmin, async (req, res) => {
       return sendError(res, "Failed to update configuration", 500);
     }
 
+    // CRITICAL: Record this change in algo_config_audit - the governed config-change
+    // path in algo/infrastructure/config/main.py's AlgoConfig.update_config() always
+    // writes this trail, but this endpoint (the actual path admins use to edit config
+    // via the dashboard) never did. For risk-critical keys like halt_drawdown_pct,
+    // max_daily_loss_pct, sector_drawdown_halt_pct, an unaudited change to a live
+    // safety threshold is exactly the kind of gap a financial system can't have.
+    const changedBy = req.user?.sub || "unknown";
+    await pool.query(
+      `INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [key, config.value, storedValue, changedBy]
+    );
+
     const updatedRow = updateResult.rows[0];
 
     // Parse the updated value to match frontend expectations
