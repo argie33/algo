@@ -918,18 +918,18 @@ def _build_freshness_panel(
     # identically as bare "STALE"/error text above; this distinguishes a transient blip
     # from a genuinely stuck loader, which is a very different response ("wait" vs
     # "investigate now").
-    repeated_failures = [
-        (r.get("tbl") or "unknown", r.get("consecutive_failures"), r.get("last_success_at"))
-        for r in sorted_items
-        if isinstance(r.get("consecutive_failures"), (int, float)) and r.get("consecutive_failures", 0) >= 2
-    ]
+    repeated_failures: list[tuple[str, int, Any]] = []
+    for r in sorted_items:
+        n_fail_raw = r.get("consecutive_failures")
+        if isinstance(n_fail_raw, (int, float)) and n_fail_raw >= 2:
+            repeated_failures.append((r.get("tbl") or "unknown", int(n_fail_raw), r.get("last_success_at")))
     if repeated_failures:
         repeated_failures.sort(key=lambda t: t[1], reverse=True)
         left_rows.append(Rule(style="dim"))
         left_rows.append(Text.from_markup(f"[bold {R}]Repeated failures:[/]"))
         for tbl_name, n_fail, last_ok in repeated_failures[:8]:
             last_ok_s = f"last ok {fmt_age(last_ok)}" if last_ok else "never succeeded"
-            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{int(n_fail)}x in a row, {last_ok_s}[/]"))
+            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{n_fail}x in a row, {last_ok_s}[/]"))
         if len(repeated_failures) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 8} more[/]"))
 

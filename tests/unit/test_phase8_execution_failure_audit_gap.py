@@ -90,6 +90,39 @@ def test_long_rejection_reason_truncated_not_crashed():
     assert persisted_reason.endswith("...")
 
 
+def test_sizer_blocked_and_liquidity_skips_are_persisted_to_audit_table():
+    """CRITICAL FIX regression: the sizer_blocked (both the sizing["status"] != "ok" branch and
+    the shares < 1 branch) and liquidity skip paths in run() incremented skipped_count and
+    logged, but never called _log_signal_rejection() - unlike every other skip reason in the
+    same loop (pretrade_check, duplicate_position, quality_gate, stop_too_tight, ...). Confirmed
+    live 2026-07-27 (run LOCAL-AFTERNOON-20260727-154015-391286): with all 17 position slots
+    full, all 16 qualified signals hit "sizer blocked - 17 open positions >= 17 hard limit" and
+    algo_signal_rejections showed zero new rows for any of them - a routine, expected "at
+    capacity" run was indistinguishable from a silent audit-logging failure. This is a source
+    check (not a mocked run() call - run() has ~15 injected dependencies with no existing test
+    harness) pinning that each skip branch's logger call is paired with a
+    _log_signal_rejection(...) call using the given rejection_stage, so the pairing can't
+    silently regress even though the assertion doesn't execute run() itself.
+    """
+    import inspect
+
+    from algo.orchestrator import phase8_entry_execution as p8
+
+    source = inspect.getsource(p8.run)
+
+    liquidity_branch = source.split('if not liq_ok:')[1].split("continue", 1)[0]
+    assert '_log_signal_rejection(' in liquidity_branch
+    assert '"liquidity"' in liquidity_branch
+
+    sizer_status_branch = source.split('if sizing["status"] != "ok":')[1].split("continue", 1)[0]
+    assert '_log_signal_rejection(' in sizer_status_branch
+    assert '"sizer_blocked"' in sizer_status_branch
+
+    sizer_shares_branch = source.split('elif sizing["shares"] < 1:')[1].split("continue", 1)[0]
+    assert '_log_signal_rejection(' in sizer_shares_branch
+    assert '"sizer_blocked"' in sizer_shares_branch
+
+
 def test_audit_failure_itself_raises_rather_than_silently_dropping():
     """If the audit insert itself fails, the caller must find out (raise), not swallow it -
     a silently-failing audit trail is worse than no audit trail (false confidence)."""

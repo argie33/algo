@@ -1253,7 +1253,13 @@ def run(
             )
 
             if not liq_ok:
-                logger.debug(f"[PHASE 8] {symbol}: liquidity - {liq_reason}")
+                # Same audit-trail gap as the sizer_blocked branch below: this was the only skip
+                # path in the loop logging at debug (invisible by default) instead of info, and the
+                # only one never writing to algo_signal_rejections.
+                logger.info(f"[PHASE 8] {symbol}: liquidity - {liq_reason}")
+                _log_signal_rejection(
+                    symbol, "liquidity", liq_reason, run_date, float(entry_price_hint), None
+                )
 
                 skipped_count += 1
 
@@ -1437,6 +1443,13 @@ def run(
                         f"Sizer must provide reason for rejection. Response: {sizing}"
                     )
                 logger.info(f"[PHASE 8] {symbol}: sizer blocked - {reason}")
+                # Unlike every other skip path in this function (pretrade_check, duplicate_position,
+                # quality_gate, stop_too_tight, ...), this one never wrote to algo_signal_rejections -
+                # confirmed live 2026-07-27: with all 17 position slots full, every one of 16 qualified
+                # signals hit this exact branch and the audit table showed zero rows for them, making
+                # a routine, expected "we're at the position cap" run indistinguishable from a silent
+                # data/logic failure to anyone checking the audit trail instead of raw logs.
+                _log_signal_rejection(symbol, "sizer_blocked", reason, run_date, entry_price, risk_pct)
                 skipped_count += 1
                 continue
 
@@ -1449,7 +1462,9 @@ def run(
                     f"Position sizer failed to provide shares for {symbol}. Cannot proceed with zero-share position."
                 )
             elif sizing["shares"] < 1:
-                logger.info(f"[PHASE 8] {symbol}: sizer blocked - insufficient shares ({sizing['shares']})")
+                reason = f"insufficient shares ({sizing['shares']})"
+                logger.info(f"[PHASE 8] {symbol}: sizer blocked - {reason}")
+                _log_signal_rejection(symbol, "sizer_blocked", reason, run_date, entry_price, risk_pct)
 
                 skipped_count += 1
 

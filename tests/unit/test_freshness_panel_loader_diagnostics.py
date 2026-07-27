@@ -120,6 +120,56 @@ def test_inventory_omitted_does_not_break_panel():
     assert "Tracked but missing from DB" not in text
 
 
+def test_repeated_failures_section_shows_streak_and_last_success(): # migration 1163
+    items = [
+        {
+            "tbl": "sec_valuations",
+            "st": "stale",
+            "role": "NORM",
+            "age": 5,
+            "row_count": 10,
+            "consecutive_failures": 4,
+            "last_success_at": "2026-07-20T09:00:00+00:00",
+        },
+        {
+            "tbl": "dividend_data",
+            "st": "stale",
+            "role": "NORM",
+            "age": 5,
+            "row_count": 10,
+            "consecutive_failures": 1,  # below the >=2 threshold - must NOT appear
+        },
+    ]
+
+    panel = _build_freshness_panel(items, ready_to_trade=True)
+    text = render_panel_to_text(panel)
+
+    assert "Repeated failures:" in text
+    section = text.split("Repeated failures:")[1]
+    assert "sec_valuations" in section
+    assert "4x in a row" in section
+    assert "dividend_data" not in section
+
+
+def test_repeated_failures_never_succeeded_shown_when_no_last_success():
+    items = [
+        {
+            "tbl": "never_worked_table",
+            "st": "empty",
+            "role": "NORM",
+            "age": None,
+            "row_count": 0,
+            "consecutive_failures": 3,
+            "last_success_at": None,
+        },
+    ]
+
+    panel = _build_freshness_panel(items, ready_to_trade=True)
+    text = render_panel_to_text(panel)
+
+    assert "never succeeded" in text
+
+
 def test_inventory_error_marker_does_not_break_panel():
     items = [
         {"tbl": "price_daily", "st": "ok", "role": "CRIT", "age": 0.1, "row_count": 100},

@@ -470,6 +470,13 @@ def fetch_health(c: None) -> dict[str, Any]:
             loader_run_status = s.get("loader_run_status")
             stale_threshold_days = s.get("stale_threshold_days")
 
+            # last_success_at/consecutive_failures (migration 1163): execution_completed alone
+            # can't distinguish "last finished successfully" from "last finished at all" (it's
+            # stamped on FAILED/TIMEOUT too) - these let the panel tell a loader that's failed
+            # once apart from one that's failed every run for days.
+            last_success_at = s.get("last_success_at")
+            consecutive_failures = s.get("consecutive_failures")
+
             sources.append(
                 {
                     "tbl": name,
@@ -493,6 +500,8 @@ def fetch_health(c: None) -> dict[str, Any]:
                     "symbol_count": symbol_count,
                     "loader_run_status": loader_run_status,
                     "stale_threshold_days": stale_threshold_days,
+                    "last_success_at": last_success_at,
+                    "consecutive_failures": consecutive_failures,
                 }
             )
         summary = inner.get("summary")

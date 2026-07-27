@@ -132,7 +132,10 @@ class LoaderStatusManager:
     def mark_completed(self) -> None:
         """Mark loader as completed successfully.
 
-        Sets: status=COMPLETED, execution_completed=NOW, completion_pct=100, error_message=NULL
+        Sets: status=COMPLETED, execution_completed=NOW, completion_pct=100, error_message=NULL,
+        last_success_at=NOW, consecutive_failures=0 (see migration 1163 - execution_completed
+        alone can't distinguish "last finished successfully" from "last finished at all",
+        since it's also stamped on FAILED/TIMEOUT).
         """
         try:
             with DatabaseContext("write") as cur:
@@ -140,7 +143,8 @@ class LoaderStatusManager:
                     """
                     UPDATE data_loader_status
                     SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
-                        error_message = NULL, last_updated = NOW()
+                        error_message = NULL, last_updated = NOW(),
+                        last_success_at = NOW(), consecutive_failures = 0
                     WHERE table_name = %s
                     """,
                     (LoaderStatus.COMPLETED.value, self.table_name),
@@ -166,7 +170,8 @@ class LoaderStatusManager:
                         """
                         UPDATE data_loader_status
                         SET status = %s, execution_completed = NOW(), completion_pct = %s,
-                            error_message = %s, last_updated = NOW()
+                            error_message = %s, last_updated = NOW(),
+                            consecutive_failures = consecutive_failures + 1
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.FAILED.value, completion_pct, msg, self.table_name),
@@ -176,7 +181,7 @@ class LoaderStatusManager:
                         """
                         UPDATE data_loader_status
                         SET status = %s, execution_completed = NOW(), error_message = %s,
-                            last_updated = NOW()
+                            last_updated = NOW(), consecutive_failures = consecutive_failures + 1
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.FAILED.value, msg, self.table_name),
@@ -197,7 +202,8 @@ class LoaderStatusManager:
                 cur.execute(
                     """
                     UPDATE data_loader_status
-                    SET status = %s, execution_completed = NOW(), error_message = %s, last_updated = NOW()
+                    SET status = %s, execution_completed = NOW(), error_message = %s, last_updated = NOW(),
+                        consecutive_failures = consecutive_failures + 1
                     WHERE table_name = %s
                     """,
                     (LoaderStatus.TIMEOUT.value, msg, self.table_name),

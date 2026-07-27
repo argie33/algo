@@ -300,10 +300,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # without it, a loader that has literally never run (NOT_STARTED) looked identical to one
             # that ran and legitimately produced zero rows (row_count=0), and a TIMEOUT looked identical
             # to a FAILED - both collapsed into the same generic age/row-count-derived "stale"/"empty".
+            # last_success_at/consecutive_failures (migration 1163) distinguish "last time this
+            # loader finished successfully" from execution_completed's "last time it finished at
+            # all" (that column is stamped on FAILED/TIMEOUT too), and let a loader that's failed
+            # every run for days read differently from one that failed once.
             cur.execute("""
                     SELECT table_name, row_count, last_updated, stale_threshold_days,
                            error_message, execution_started, execution_completed,
-                           completion_pct, symbols_loaded, symbol_count, status
+                           completion_pct, symbols_loaded, symbol_count, status,
+                           last_success_at, consecutive_failures
                     FROM data_loader_status
                     ORDER BY table_name
                 """)
@@ -593,6 +598,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             exec_started = row.get("execution_started")
             exec_completed = row.get("execution_completed")
             completion_pct = row.get("completion_pct")
+            last_success_at = row.get("last_success_at")
             sources.append(
                 {
                     "name": row["table_name"],
@@ -613,6 +619,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     # is always None for them.
                     "loader_run_status": row.get("status"),
                     "stale_threshold_days": max_age,
+                    "last_success_at": last_success_at.isoformat() if last_success_at else None,
+                    "consecutive_failures": row.get("consecutive_failures"),
                 }
             )
 

@@ -41,6 +41,8 @@ def test_fetch_health_threads_loader_run_status_and_threshold(monkeypatch):
                 "row_count": 0,
                 "loader_run_status": "NOT_STARTED",
                 "stale_threshold_days": 7,
+                "consecutive_failures": 5,
+                "last_success_at": None,
             },
         ],
         "ready_to_trade": True,
@@ -55,6 +57,8 @@ def test_fetch_health_threads_loader_run_status_and_threshold(monkeypatch):
     assert items["price_daily"]["stale_threshold_days"] == 1
     assert items["insider_transaction_velocity"]["loader_run_status"] == "NOT_STARTED"
     assert items["insider_transaction_velocity"]["stale_threshold_days"] == 7
+    assert items["insider_transaction_velocity"]["consecutive_failures"] == 5
+    assert items["insider_transaction_velocity"]["last_success_at"] is None
     _reset_caches()
 
 
