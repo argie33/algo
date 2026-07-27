@@ -404,13 +404,27 @@ def run(
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
         if not dry_run:
             engine = ExitEngine(config)
-            engine_exits = engine.check_and_execute_exits(run_date)
+            engine_exits, engine_errors = engine.check_and_execute_exits(run_date)
             exit_count += engine_exits
+            # CRITICAL FIX: check_and_execute_exits() catches per-trade exceptions
+            # internally (logs "Exit check failed for X" and moves on to the next
+            # position) so a real failure never raised past this call - it just
+            # silently produced no exit/stop check for that position this run. This
+            # count was previously discarded entirely, so the phase always reported
+            # "0 errors" and status "ok" no matter how many positions failed their
+            # exit evaluation (confirmed against a live run's log showing 8 logged
+            # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
+            errors += engine_errors
 
+        # CRITICAL FIX: status was hardcoded "success"/"ok" below regardless of `errors`,
+        # so a run where every open position failed its exit/stop check still reported
+        # a clean success - operators had no signal to go look. Positions that error here
+        # get no exit/stop coverage for this run (see check_and_execute_exits errors above).
+        phase_status = "degraded" if errors > 0 else "success"
         log_phase_result_fn(
             6,
             "exit_execution",
-            "success",
+            phase_status,
             f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors",
         )
         # exits_executed/success_rate: the health dashboard (dashboard/panels/health.py,
@@ -438,10 +452,10 @@ def run(
         return PhaseResult(
             6,
             "exit_execution",
-            "ok",
+            "degraded" if errors > 0 else "ok",
             result_data,
             False,
-            None,
+            f"{errors} position(s) failed exit/stop evaluation this run" if errors > 0 else None,
         )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

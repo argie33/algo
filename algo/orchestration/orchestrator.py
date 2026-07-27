@@ -927,6 +927,15 @@ class Orchestrator:
                 f"[ORCHESTRATOR] CRITICAL: Cannot verify loader health: {e}. "
                 f"Halting trading - unable to confirm data freshness."
             ) from e
+        except RuntimeError:
+            # The deliberate "CRITICAL HALT: All critical loaders are stale/missing" raise
+            # above is expected control flow for a known condition (caller catches RuntimeError
+            # and defers to Phase 1's own re-check), not a bug in this health-check logic.
+            # Letting it fall into the generic `except Exception` below double-wrapped it as
+            # "[LOADER HEALTH] UNEXPECTED ERROR ... unexpected runtime error in the health
+            # check logic" - misleading an operator into debugging this function instead of
+            # the actual loader/EventBridge infrastructure the message already pointed at.
+            raise
         except Exception as e:
             logger.error(
                 f"[LOADER HEALTH] UNEXPECTED ERROR checking loader health: {e}. "

@@ -459,7 +459,17 @@ class ExitEngine:
                 f"Cannot initialize exit engine without these values."
             )
 
-    def check_and_execute_exits(self, current_date: _date | None = None) -> int:
+    def check_and_execute_exits(self, current_date: _date | None = None) -> tuple[int, int]:
+        """Evaluate all open positions for exit/stop-raise conditions.
+
+        Returns:
+            (exits_executed, trade_errors) - trade_errors counts per-trade exceptions
+            caught and swallowed below (savepoint rolled back, position left for the
+            next run to re-evaluate). Callers MUST surface this, not just exits_executed:
+            a trade that errors here got no exit/stop check at all this run, which is a
+            real gap in position risk coverage even though it isn't visible as an
+            exception (see phase6_exit_execution.py caller).
+        """
 
         if current_date is None:
             # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
@@ -513,13 +523,14 @@ class ExitEngine:
                 if not trades:
                     logger.info("No open positions.\n")
 
-                    return 0
+                    return 0, 0
 
                 # Cache market distribution-day status once for the run
 
                 dist_days_today = self._fetch_market_dist_days(cur, current_date)
 
                 exits_executed = 0
+                trade_errors = 0
 
                 for _idx, row in enumerate(trades):
                     (
@@ -756,6 +767,7 @@ class ExitEngine:
 
                     except Exception as _trade_err:
                         cur.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                        trade_errors += 1
                         logger.error(
                             f"Exit check failed for {symbol} (trade {trade_id}): "
                             f"{type(_trade_err).__name__}: {_trade_err}"
@@ -763,11 +775,14 @@ class ExitEngine:
 
                 logger.info(f"\n{'=' * 70}")
 
-                logger.info(f"Exits executed: {exits_executed}/{len(trades)} positions")
+                logger.info(
+                    f"Exits executed: {exits_executed}/{len(trades)} positions "
+                    f"({trade_errors} errors)"
+                )
 
                 logger.info(f"{'=' * 70}\n")
 
-                return exits_executed
+                return exits_executed, trade_errors
 
             except (ValueError, RuntimeError) as e:
                 logger.error(f"Exit engine error (configuration or data): {type(e).__name__}: {e}")

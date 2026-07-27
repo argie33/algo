@@ -1346,6 +1346,11 @@ def run(
                     f"Cannot verify stop loss against support levels - {type(e).__name__}",
                     run_date,
                 )
+                # Sibling rejection paths below (negative stop, low risk_pct, etc.) all
+                # increment skipped_count - this one didn't, so a symbol rejected here
+                # silently vanished from total_evaluated/execution_rejection_rate instead
+                # of showing up as a skip.
+                skipped_count += 1
                 continue
 
             # EDGE CASE FIX: Stop loss can become negative when ATR is very large
@@ -1659,7 +1664,13 @@ def run(
             f"({skipped_count}/{total_evaluated} signals rejected)"
         )
 
-    log_phase_result_fn(8, "entry_execution", "success", f"{executed_count} trades executed")
+    # CRITICAL FIX: status was hardcoded "success"/"ok" below regardless of failed_count,
+    # so a run where every entry attempt raised (order rejected, DB error, etc.) still
+    # reported clean success with 0 executed - same bug class as phase6_exit_execution.py's
+    # previously-always-"success" status (which errors already fed into but the status
+    # string itself ignored).
+    phase_status = "degraded" if failed_count > 0 else "success"
+    log_phase_result_fn(8, "entry_execution", phase_status, f"{executed_count} trades executed, {failed_count} failed")
 
     # success_rate: percentage of actual submission attempts (executed + failed) that
     # succeeded. Deliberately excludes skipped_count from the denominator - those are
@@ -1686,8 +1697,9 @@ def run(
     return PhaseResult(
         8,
         "entry_execution",
-        "ok",
+        "degraded" if failed_count > 0 else "ok",
         result_data,
         False,
-        f"Executed {executed_count} trades (rejection rate: {execution_rejection_rate}%)",
+        f"Executed {executed_count} trades (rejection rate: {execution_rejection_rate}%)"
+        + (f", {failed_count} failed" if failed_count > 0 else ""),
     )
