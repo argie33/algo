@@ -477,6 +477,27 @@ def fetch_health(c: None) -> dict[str, Any]:
             last_success_at = s.get("last_success_at")
             consecutive_failures = s.get("consecutive_failures")
 
+            # Data quality / coverage / failure-pattern / API diagnostics: attached server-side
+            # by dashboard/freshness_enhancements.py (see market.py's _get_data_status
+            # enrichment block) but previously dropped here since this function rebuilds each
+            # source into an explicit whitelist dict - the DATA FRESHNESS - EXPANDED panel's
+            # quality/coverage/failure-pattern/API-diagnostics sections (dashboard/panels/
+            # health.py's _build_data_quality_section et al.) read these fields and had nothing
+            # to show even once the server-side enrichment itself worked.
+            data_quality_issues = s.get("data_quality_issues")
+            quality_status = s.get("quality_status")
+            symbol_coverage_pct = s.get("symbol_coverage_pct")
+            missing_symbols = s.get("missing_symbols")
+            coverage_status = s.get("coverage_status")
+            failure_rate_30d = s.get("failure_rate_30d")
+            failure_pattern = s.get("failure_pattern")
+            mttr_hours = s.get("mttr_hours")
+            last_5_runs = s.get("last_5_runs")
+            recovery_trend = s.get("recovery_trend")
+            api_status = s.get("api_status")
+            rate_limit_quota = s.get("rate_limit_quota")
+            retry_strategy = s.get("retry_strategy")
+
             sources.append(
                 {
                     "tbl": name,
@@ -502,6 +523,19 @@ def fetch_health(c: None) -> dict[str, Any]:
                     "stale_threshold_days": stale_threshold_days,
                     "last_success_at": last_success_at,
                     "consecutive_failures": consecutive_failures,
+                    "data_quality_issues": data_quality_issues,
+                    "quality_status": quality_status,
+                    "symbol_coverage_pct": symbol_coverage_pct,
+                    "missing_symbols": missing_symbols,
+                    "coverage_status": coverage_status,
+                    "failure_rate_30d": failure_rate_30d,
+                    "failure_pattern": failure_pattern,
+                    "mttr_hours": mttr_hours,
+                    "last_5_runs": last_5_runs,
+                    "recovery_trend": recovery_trend,
+                    "api_status": api_status,
+                    "rate_limit_quota": rate_limit_quota,
+                    "retry_strategy": retry_strategy,
                 }
             )
         summary = inner.get("summary")

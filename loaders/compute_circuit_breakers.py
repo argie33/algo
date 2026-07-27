@@ -244,20 +244,33 @@ def _compute_drawdown(cur: Any) -> float:
 
 
 def _compute_daily_loss(cur: Any, today: date) -> float:
+    """Cash-flow-adjusted daily loss (migration 1134): mirrors _compute_drawdown above and
+    algo/risk/circuit_breaker.py::_check_daily_loss - the precomputed daily_return_pct
+    column is derived from raw total_portfolio_value deltas, so a same-day capital
+    withdrawal reads as an equivalent trading loss here just like the pre-1134 drawdown
+    bug this loader already fixed once for CB1. Confirmed live 2026-07-27: this still used
+    the raw column and disagreed with the live gate's adjusted_equity-based value.
+    """
+    cur.execute("SELECT adjusted_equity FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (today,))
+    today_row = cur.fetchone()
+    if not today_row or today_row["adjusted_equity"] is None:
+        raise ValueError(f"No adjusted_equity snapshot for {today} (CB2)")
     cur.execute(
         """
-        SELECT daily_return_pct FROM algo_portfolio_snapshots
-        WHERE snapshot_date <= %s
-        ORDER BY snapshot_date DESC
-        LIMIT 1
-    """,
+        SELECT adjusted_equity FROM algo_portfolio_snapshots
+        WHERE snapshot_date < %s AND adjusted_equity IS NOT NULL
+        ORDER BY snapshot_date DESC LIMIT 1
+        """,
         (today,),
     )
-    row = cur.fetchone()
-    if not row or row["daily_return_pct"] is None:
-        logger.warning(f"[CIRCUIT_BREAKER] Portfolio snapshot unavailable on or before {today} (CB2)")
-        raise ValueError(f"Portfolio snapshot unavailable on or before {today}")
-    daily = float(row["daily_return_pct"])
+    prev_row = cur.fetchone()
+    if not prev_row or prev_row["adjusted_equity"] is None:
+        raise ValueError(f"Insufficient adjusted_equity history before {today} (CB2)")
+    cur_val = float(today_row["adjusted_equity"])
+    prev_val = float(prev_row["adjusted_equity"])
+    if prev_val <= 0:
+        raise ValueError(f"Invalid prior adjusted_equity for daily loss calculation: {prev_val}")
+    daily = (cur_val - prev_val) / prev_val * 100
     loss = abs(min(0, daily))
     return loss
 
@@ -320,37 +333,37 @@ def _compute_vix_level(cur: Any) -> float | None:
 
 
 def _compute_weekly_loss(cur: Any, today: date) -> float:
+    """Cash-flow-adjusted 7-day return, mirroring algo/risk/circuit_breaker.py::_check_weekly_loss
+    (see _compute_daily_loss above for why raw total_portfolio_value must not be used).
+    Reference points are the most recent snapshot on/before `today` and on/before
+    `today - 7d` (not the earliest snapshot AT OR AFTER 7 days ago) - the prior version's
+    ORDER BY ASC picked a different, later snapshot than the live gate whenever a snapshot
+    was missing exactly 7 days back (weekend/holiday gap), silently comparing a different
+    time window than the check it's supposed to mirror.
+    """
+    week_ago = today - timedelta(days=7)
     cur.execute(
         """
-        SELECT total_portfolio_value FROM algo_portfolio_snapshots
-        WHERE snapshot_date >= %s
-        ORDER BY snapshot_date ASC
-        LIMIT 1
-    """,
-        (today - timedelta(days=7),),
+        SELECT
+            (SELECT adjusted_equity FROM algo_portfolio_snapshots
+             WHERE snapshot_date <= %s AND adjusted_equity IS NOT NULL
+             ORDER BY snapshot_date DESC LIMIT 1) AS cur_val,
+            (SELECT adjusted_equity FROM algo_portfolio_snapshots
+             WHERE snapshot_date <= %s AND adjusted_equity IS NOT NULL
+             ORDER BY snapshot_date DESC LIMIT 1) AS week_ago_val
+        """,
+        (today, week_ago),
     )
-    week_start = cur.fetchone()
+    row = cur.fetchone()
+    if not row or row["cur_val"] is None or row["week_ago_val"] is None:
+        raise ValueError("Insufficient adjusted_equity snapshot data for 7-day loss calculation")
 
-    cur.execute("""
-        SELECT total_portfolio_value FROM algo_portfolio_snapshots
-        ORDER BY snapshot_date DESC LIMIT 1
-    """)
-    week_end = cur.fetchone()
+    cur_val = float(row["cur_val"])
+    week_ago_val = float(row["week_ago_val"])
+    if week_ago_val <= 0:
+        raise ValueError(f"Invalid week-ago adjusted_equity for 7-day calculation: {week_ago_val}")
 
-    if (
-        not week_start
-        or not week_end
-        or week_start["total_portfolio_value"] is None
-        or week_end["total_portfolio_value"] is None
-    ):
-        raise ValueError("Insufficient portfolio snapshot data for 7-day loss calculation")
-
-    sv = float(week_start["total_portfolio_value"])
-    ev = float(week_end["total_portfolio_value"])
-    if sv <= 0:
-        raise ValueError(f"Invalid portfolio value for 7-day calculation: {sv}")
-
-    weekly_ret = (ev - sv) / sv * 100
+    weekly_ret = (cur_val - week_ago_val) / week_ago_val * 100
     loss = abs(min(0, weekly_ret))
     return loss
 
@@ -473,16 +486,39 @@ def _compute_spy_change(cur: Any, today: date) -> float:
 
 
 def _compute_win_rate(cur: Any) -> float:
+    # Mirrors algo/risk/circuit_breaker.py's _check_win_rate_floor (the live trading gate):
+    # same exclusions (reconciliation/force-close/delisted/DATA-QC closes and EXT- trades
+    # aren't real strategy outcomes), same exit_r_multiple IS NOT NULL guard, same
+    # exit_time-based tiebreak, and same inclusion of open positions' unrealized P&L so a
+    # good closed-trade history can't mask live bleeding. Without this, this reporting
+    # table disagreed with the live gate - confirmed live 2026-07-27: this query reported
+    # 40.0% (dragged down by the live gate's already-excluded bug-induced DATA-QC closes)
+    # while the live gate's own win_rate_floor check reported the real 61.1%.
     cur.execute("""
-        SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
-               COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses
+        SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
+               COUNT(*) FILTER (WHERE pnl_pct < 0) as losses
         FROM (
-            SELECT profit_loss_pct
-            FROM algo_trades
-            WHERE status = 'closed' AND exit_date IS NOT NULL
-            ORDER BY exit_date DESC LIMIT 30
+            SELECT profit_loss_pct as pnl_pct
+            FROM (
+                SELECT profit_loss_pct, id
+                FROM algo_trades
+                WHERE status = 'closed' AND exit_date IS NOT NULL
+                  AND exit_r_multiple IS NOT NULL
+                  AND trade_id NOT LIKE 'EXT-%%'
+                  AND exit_reason NOT LIKE %s
+                  AND exit_reason NOT LIKE %s
+                  AND exit_reason NOT LIKE %s
+                  AND exit_reason NOT LIKE %s
+                ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
+                LIMIT 30
+            ) recent_closed
+            UNION ALL
+            SELECT unrealized_pnl_pct as pnl_pct
+            FROM algo_positions
+            WHERE status = 'open'
+              AND quantity > 0
         ) recent_trades
-    """)
+    """, ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"))
     row = cur.fetchone()
     if not row:
         raise ValueError("Win rate query failed")

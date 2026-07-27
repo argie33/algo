@@ -19,6 +19,22 @@ from dashboard.data_validation import safe_int, safe_float
 logger = logging.getLogger(__name__)
 
 
+def _rollback_after_error(cur: Any) -> None:
+    """Reset an aborted transaction after a caught-and-continue DB error.
+
+    Postgres marks a transaction as failed after any statement error - every later query
+    on the same connection raises InFailedSqlTransaction until a ROLLBACK runs. The checks
+    below run per-table across ~48 tables on a single shared cursor (passed in from
+    market.py's _get_data_status) and treat a single bad table (e.g. a column that doesn't
+    exist on that table) as non-fatal, so without this the first such error silently
+    cascades and blanks out every remaining table's enrichment for the rest of the request.
+    """
+    try:
+        cur.connection.rollback()
+    except Exception as rollback_err:
+        logger.debug(f"[FRESHNESS] Failed to rollback after query error: {rollback_err}")
+
+
 def enrich_health_item_with_data_quality(health_item: dict[str, Any], cur: Any = None) -> dict[str, Any]:
     """Enrich health item with data quality metrics (NULL ratios, duplicates, constraints).
 
@@ -37,12 +53,13 @@ def enrich_health_item_with_data_quality(health_item: dict[str, Any], cur: Any =
     if not isinstance(health_item, dict):
         return health_item
 
-    table_name = health_item.get("tbl") or health_item.get("table_name")
+    table_name = health_item.get("tbl") or health_item.get("table_name") or health_item.get("name")
     if not table_name:
         return health_item
 
     # Only run quality checks for tables that exist and have data
-    if health_item.get("st") in ("empty", "error") or health_item.get("row_count") == 0:
+    item_status = health_item.get("st") or health_item.get("status")
+    if item_status in ("empty", "error") or health_item.get("row_count") == 0:
         health_item["quality_status"] = "unknown"  # No data to check
         return health_item
 
@@ -118,6 +135,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
                     if null_ratio > 5:
                         issues.append(f"{col}: {null_ratio:.1f}% NULL (threshold 5%, sampled)")
         except Exception as e:
+            _rollback_after_error(cur)
             logger.debug(f"[QUALITY] NULL check failed for {table_name}.{col}: {e}")
 
     # Check 2: Duplicate rows (on primary key columns if identifiable)
@@ -143,6 +161,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
             if dup_count > 0:
                 issues.append(f"{dup_count} exact duplicate rows detected (sampled)")
     except Exception as e:
+        _rollback_after_error(cur)
         logger.debug(f"[QUALITY] Duplicate check failed for {table_name}: {e}")
 
     # Check 3: Table-specific value range violations
@@ -158,6 +177,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
             if result and result[0] and result[0] > 0:
                 issues.append(f"{result[0]} price constraint violations (negative/inverted)")
         except Exception as e:
+            _rollback_after_error(cur)
             logger.debug(f"[QUALITY] Price range check failed: {e}")
 
     elif table_name == "technical_data_daily":
@@ -172,6 +192,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
             if result and result[0] and result[0] > 0:
                 issues.append(f"{result[0]} technical indicator violations (RSI out of range)")
         except Exception as e:
+            _rollback_after_error(cur)
             logger.debug(f"[QUALITY] Technical check failed: {e}")
 
     elif table_name == "market_health_daily":
@@ -186,6 +207,7 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
             if result and result[0] and result[0] > 0:
                 issues.append(f"{result[0]} market health violations (VIX or regime invalid)")
         except Exception as e:
+            _rollback_after_error(cur)
             logger.debug(f"[QUALITY] Market health check failed: {e}")
 
     # Determine quality status based on issue severity
@@ -215,19 +237,20 @@ def enrich_health_item_with_coverage(health_item: dict[str, Any], cur: Any = Non
     if not isinstance(health_item, dict):
         return health_item
 
-    table_name = health_item.get("tbl") or health_item.get("table_name")
+    table_name = health_item.get("tbl") or health_item.get("table_name") or health_item.get("name")
     if not table_name:
         return health_item
 
-    # Only check coverage for symbol-based tables
+    # Only check coverage for tables expected to hold the full active-symbol universe daily.
+    # algo_positions/algo_signals/algo_trades are inherently selective (only symbols with an
+    # open position, a generated signal, or an executed trade) - "coverage vs. full universe"
+    # isn't a meaningful metric for them and would falsely flag a healthy, quiet trading day
+    # as "SPARSE" coverage.
     symbol_tables = {
         "price_daily",
         "technical_data_daily",
         "stock_scores",
-        "algo_positions",
-        "algo_trades",
         "buy_sell_daily",
-        "algo_signals",
     }
 
     if table_name not in symbol_tables:
@@ -280,11 +303,16 @@ def _calculate_coverage(table_name: str, cur: Any) -> tuple[float | None, list[s
         if expected_count == 0:
             return None, []
 
+        # stock_scores holds one current row per symbol (no `date` column - see
+        # information_schema.columns) rather than a daily snapshot history like price_daily/
+        # technical_data_daily/buy_sell_daily, so "latest date" filtering doesn't apply there.
+        latest_date_filter = "" if table_name == "stock_scores" else f'WHERE date = (SELECT MAX(date) FROM "{table_name}")'
+
         # Get symbols in table for latest date
         cur.execute(f"""
             SELECT COUNT(DISTINCT symbol) as loaded_symbols
             FROM "{table_name}"
-            WHERE date = (SELECT MAX(date) FROM "{table_name}")
+            {latest_date_filter}
         """)
         result = cur.fetchone()
         loaded_count = result[0] if result else 0
@@ -304,18 +332,20 @@ def _calculate_coverage(table_name: str, cur: Any) -> tuple[float | None, list[s
                 WHERE active = true
                 AND symbol NOT IN (
                     SELECT DISTINCT symbol FROM "{table_name}"
-                    WHERE date = (SELECT MAX(date) FROM "{table_name}")
+                    {latest_date_filter}
                 )
                 ORDER BY symbol
                 LIMIT 5
             """)
             missing_symbols = [row[0] for row in cur.fetchall()]
         except Exception as e:
+            _rollback_after_error(cur)
             logger.debug(f"[COVERAGE] Could not retrieve missing symbols for {table_name}: {e}")
 
         return coverage_pct, missing_symbols
 
     except Exception as e:
+        _rollback_after_error(cur)
         logger.warning(f"[COVERAGE] Coverage calculation failed for {table_name}: {e}")
         return None, []
 
@@ -338,7 +368,7 @@ def enrich_health_item_with_failure_pattern(health_item: dict[str, Any], cur: An
     if not isinstance(health_item, dict):
         return health_item
 
-    table_name = health_item.get("tbl") or health_item.get("table_name")
+    table_name = health_item.get("tbl") or health_item.get("table_name") or health_item.get("name")
     if not table_name:
         return health_item
 
@@ -445,6 +475,7 @@ def _analyze_failure_patterns(table_name: str, cur: Any) -> dict[str, Any]:
                 result["recovery_trend"] = "stable"
 
     except Exception as e:
+        _rollback_after_error(cur)
         logger.debug(f"[FAILURE_PATTERN] Analysis failed for {table_name}: {e}")
 
     return result
