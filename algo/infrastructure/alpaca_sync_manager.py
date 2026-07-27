@@ -166,6 +166,7 @@ class AlpacaSyncManager:
         """
         untracked_count = 0
         untracked_closed_count = 0
+        newly_detected: list[tuple[str, float, float]] = []
 
         if orphan_symbols:
             for symbol in orphan_symbols:
@@ -222,11 +223,41 @@ class AlpacaSyncManager:
                                 position_value,
                             ),
                         )
+                        # CRITICAL: this is a real broker position (real shares, real dollars)
+                        # with no algo_trades/algo_positions row at all - no stop-loss, no exit
+                        # management, no risk-limit accounting will ever apply to it, because
+                        # every part of this system except this sync loop assumes a position it
+                        # doesn't know about doesn't exist. Before this fix, detecting one here
+                        # only wrote a DB row nobody actively watches (dashboard/panels/health.py
+                        # excludes this table from its staleness alarms, and does not check its
+                        # row count either) - a real orphaned position could sit silently for
+                        # days. Notify only on first detection (this branch, not the UPDATE
+                        # above) so an already-known, still-unresolved position doesn't spam an
+                        # alert every reconciliation cycle.
+                        newly_detected.append((symbol, qty_float, position_value))
 
                     if cur.rowcount > 0:
                         untracked_count += 1
                 except Exception as e:
                     logger.error(f"[POSITION_SYNC] Failed to sync untracked position {symbol}: {e}")
+
+        if newly_detected:
+            try:
+                from algo.reporting.notifications import notify
+
+                details_str = ", ".join(f"{sym}: {qty}sh (${val:,.2f})" for sym, qty, val in newly_detected)
+                notify(
+                    "critical",
+                    title="Untracked Broker Position(s) Detected",
+                    message=(
+                        f"{len(newly_detected)} broker position(s) exist with no matching "
+                        f"algo_trades/algo_positions record - no stop-loss or exit management "
+                        f"applies to them: {details_str}. Investigate immediately: check "
+                        "algo_untracked_positions and whether these need manual entry/exit."
+                    ),
+                )
+            except Exception as e:
+                logger.error(f"[POSITION_SYNC] Failed to send untracked-position alert: {e}", exc_info=True)
 
         try:
             cur.execute(
