@@ -159,6 +159,13 @@ class SecSegmentInfoLoader(SecLoaderBase):
             fiscal_year = filing_date.year
             fiscal_period = "FY"  # Simplified: assume annual for now
 
+            # extract_segment_revenue_from_xbrl_xml reports "geographic" when a filer
+            # only tags the StatementGeographicalAxis fallback (no business-line
+            # segments) - sec_segment_info.segment_type has an index and downstream
+            # queries (load_sec_segment_metrics.py) branch on its exact value, so
+            # hardcoding "operating" here would mislabel real geographic segment data.
+            segment_type = segment_data.get('segment_type') or "operating"
+
             # Write aggregate segment metrics
             records.append({
                 "symbol": symbol,
@@ -166,7 +173,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                 "fiscal_period": fiscal_period,
                 "filing_date": filing_date,
                 "segment_count": segment_data['segment_count'],
-                "segment_type": "operating",
+                "segment_type": segment_type,
                 "segment_name": "AGGREGATE",
                 "segment_revenue": None,
                 "segment_operating_income": None,
@@ -188,7 +195,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                     "fiscal_period": fiscal_period,
                     "filing_date": filing_date,
                     "segment_count": segment_data['segment_count'],
-                    "segment_type": "operating",
+                    "segment_type": segment_type,
                     "segment_name": seg.get('name', f"Segment_{i}"),
                     "segment_revenue": seg.get('revenue'),
                     "segment_operating_income": seg.get('operating_income'),

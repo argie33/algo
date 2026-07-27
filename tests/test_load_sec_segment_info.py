@@ -68,6 +68,48 @@ def test_uses_10k_report_date_not_todays_date() -> None:
     assert record["filing_date"] != date.today()
 
 
+_XML_WITH_GEOGRAPHIC_SEGMENTS = """<?xml version="1.0"?>
+<xbrl xmlns:us-gaap="http://fasb.org/us-gaap/2024" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+  <context id="c1">
+    <entity><segment><xbrldi:explicitMember dimension="us-gaap:StatementGeographicalAxis">us-gaap:AmericasMember</xbrldi:explicitMember></segment></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <context id="c2">
+    <entity><segment><xbrldi:explicitMember dimension="us-gaap:StatementGeographicalAxis">us-gaap:EuropeMember</xbrldi:explicitMember></segment></entity>
+    <period><startDate>2025-01-01</startDate><endDate>2025-12-31</endDate></period>
+  </context>
+  <us-gaap:Revenues contextRef="c1">1000000</us-gaap:Revenues>
+  <us-gaap:Revenues contextRef="c2">500000</us-gaap:Revenues>
+</xbrl>"""
+
+
+def test_geographic_only_filer_writes_geographic_not_operating() -> None:
+    """A filer with no StatementBusinessSegmentsAxis tagging (only geographic) must
+    have segment_type='geographic' written to the DB - sec_segment_info.segment_type
+    is an indexed column with distinct meaning per migration 1157, and
+    load_sec_segment_metrics.py branches on segment_type == 'geographic' explicitly.
+    Hardcoding 'operating' regardless of the parser's actual finding silently
+    mislabeled every geographic-only filer's segment data."""
+    loader = _make_loader()
+    loader.sec_client.get_submissions.return_value = {
+        "filings": {
+            "recent": {
+                "form": ["10-K"],
+                "accessionNumber": ["0001193125-26-000111"],
+                "reportDate": ["2025-12-31"],
+                "filingDate": ["2026-02-10"],
+            }
+        }
+    }
+    loader.sec_client.get_filing_xml.return_value = _XML_WITH_GEOGRAPHIC_SEGMENTS
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 3  # 1 aggregate + 2 segments
+    for record in records:
+        assert record["segment_type"] == "geographic"
+
+
 def test_falls_back_to_filing_date_when_report_date_missing() -> None:
     loader = _make_loader()
     loader.sec_client.get_submissions.return_value = {
