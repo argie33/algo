@@ -51,6 +51,47 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+def _check_health_column_coverage(
+    total_rows: int | None,
+    pcr_rows: int | None,
+    vix_rows: int | None,
+    health_max_date: _date,
+) -> None:
+    """Validate market_health_daily's optional-column coverage for health_max_date.
+
+    total_rows == 0 halts (the whole row is missing, not just an optional column).
+    put_call_ratio/vix_level being fully null only warns - see the inline note below,
+    this used to be a hard RuntimeError (commit c6862e04a fixed a live incident where
+    a missing put_call_ratio - an optional 8pt sentiment enrichment Phase 2 already
+    skips gracefully - halted Phase 1/2/4/5/7 entirely). Extracted from run() so this
+    decision has direct unit test coverage instead of relying on live reproduction.
+    """
+    if not total_rows:
+        raise RuntimeError(f"[PHASE 1] market_health_daily has no rows for {health_max_date}")
+
+    if not pcr_rows:
+        # NOTE: put_call_ratio is OPTIONAL in Phase 2 (algo/risk/market_exposure.py,
+        # commit 6a94934d4, "Make put_call_ratio truly optional") - it's an unofficial
+        # yfinance-options-chain-derived sentiment enrichment (8pt of 100), explicitly
+        # excluded from market_exposure's required_factors and gracefully skipped when
+        # missing. This used to be a hard RuntimeError halting the entire orchestrator
+        # (Phase 1/2/4/5/7 all skip), which contradicted that same-day optionality
+        # decision and would halt real trading whenever this one non-critical field
+        # was null - which happens routinely (e.g. before the daily options-chain
+        # fetch completes). Downgraded to a warning, matching vix_rows below.
+        logger.warning(
+            f"[PHASE 1] WARNING: market_health_daily missing put_call_ratio data for {health_max_date}. "
+            "Optional sentiment enrichment (Phase 2 skips it gracefully) - not halting. "
+            "Check market_health_daily loader if this persists."
+        )
+
+    if not vix_rows:
+        logger.warning(
+            f"[PHASE 1] WARNING: market_health_daily missing VIX data for {health_max_date}. "
+            "VIX is optional if provided by other means, but check market_health_daily loader."
+        )
+
+
 def _check_failsafe_retry_result(
     failsafe_result: dict[str, Any],
     log_phase_result_fn: Callable[..., Any],
@@ -757,31 +798,7 @@ def run(  # noqa: C901
                 )
                 health_col_row = cur.fetchone()
                 total_rows, pcr_rows, vix_rows = health_col_row if health_col_row else (0, 0, 0)
-
-                if not total_rows:
-                    raise RuntimeError(f"[PHASE 1] market_health_daily has no rows for {health_max_date}")
-
-                if not pcr_rows:
-                    # NOTE: put_call_ratio is OPTIONAL in Phase 2 (algo/risk/market_exposure.py,
-                    # commit 6a94934d4, "Make put_call_ratio truly optional") - it's an unofficial
-                    # yfinance-options-chain-derived sentiment enrichment (8pt of 100), explicitly
-                    # excluded from market_exposure's required_factors and gracefully skipped when
-                    # missing. This used to be a hard RuntimeError halting the entire orchestrator
-                    # (Phase 1/2/4/5/7 all skip), which contradicted that same-day optionality
-                    # decision and would halt real trading whenever this one non-critical field
-                    # was null - which happens routinely (e.g. before the daily options-chain
-                    # fetch completes). Downgraded to a warning, matching vix_rows below.
-                    logger.warning(
-                        f"[PHASE 1] WARNING: market_health_daily missing put_call_ratio data for {health_max_date}. "
-                        "Optional sentiment enrichment (Phase 2 skips it gracefully) - not halting. "
-                        "Check market_health_daily loader if this persists."
-                    )
-
-                if not vix_rows:
-                    logger.warning(
-                        f"[PHASE 1] WARNING: market_health_daily missing VIX data for {health_max_date}. "
-                        "VIX is optional if provided by other means, but check market_health_daily loader."
-                    )
+                _check_health_column_coverage(total_rows, pcr_rows, vix_rows, health_max_date)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
                 raise RuntimeError(f"[PHASE 1] Cannot fetch market reference dates from database: {e}") from e
