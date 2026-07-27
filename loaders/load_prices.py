@@ -484,6 +484,16 @@ class PriceLoader(OptimalLoader):
                 f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
             )
 
+    @staticmethod
+    def _compute_market_close_max_attempts(max_wait_sec: float, wait_between_checks: float) -> int:
+        """Attempt cap for the market-close polling loop, derived from the time budget.
+
+        Must scale with max_wait_sec: a fixed cap would fire before the configured
+        timeout on any sufficiently long max_wait_sec, silently defeating it. The
+        floor of 60 preserves prior behavior for short/override timeouts.
+        """
+        return max(60, int(max_wait_sec / wait_between_checks) + 20)
+
     def _check_market_close_data_available(self, max_wait_sec: int | None = None) -> bool:
         """Check if SPY close data is available (market close data freshness check).
 
@@ -621,9 +631,15 @@ class PriceLoader(OptimalLoader):
         last_error_type = None
         last_error_msg = None
 
-        # CRITICAL FIX #3: Add max attempts + systematic failure detection
-        # Prevents hanging for 30 min if yfinance is down
-        max_attempts = 60  # Max 60 checks x 3s wait = 180s = 3 min even if all fail
+        # CRITICAL FIX #3: Add max attempts + systematic failure detection.
+        # The real "yfinance is down" case is caught fast by the consecutive-error
+        # circuit breaker below (max_consecutive_errors), independent of this cap - so
+        # this cap must scale with max_wait_sec, not be a fixed constant. A fixed 60
+        # (regardless of max_wait_sec) previously capped every wait to ~180s even when
+        # max_wait_sec was configured as 600s/1800s specifically to tolerate yfinance's
+        # documented 5-15 min EOD lag - the ordinary "still lagging, no errors" case
+        # always hit "max attempts reached" minutes before the intended timeout.
+        max_attempts = self._compute_market_close_max_attempts(max_wait_sec, wait_between_checks)
         consecutive_errors = 0
         max_consecutive_errors = 5  # Abort if 5 errors in a row (detects yfinance down)
 
