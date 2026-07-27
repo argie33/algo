@@ -10,6 +10,8 @@ lost all but one row before it ever reached the database.
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from loaders.load_dividend_data import DividendDataLoader
 
 COMPANY_FACTS = {
@@ -70,3 +72,29 @@ def test_true_duplicate_on_primary_key_is_still_deduped() -> None:
     # same primary key (symbol, ex_dividend_date, dividend_per_share) - must collapse
     # to one row or the DB upsert fails with "ON CONFLICT DO UPDATE... row a second time".
     assert len(records) == 1
+
+
+def test_unexpected_xbrl_unit_is_skipped_not_treated_as_per_share() -> None:
+    """A per-share concept ("...PerShareDeclared") tagged under a unit other than the
+    standard 'USD/shares' (filer XBRL error, restatement artifact) must not be silently
+    ingested as dividend_per_share - there's no downstream sanity check on the value, so
+    a plain-USD fact slipping through here would corrupt the field with no error raised."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [{"val": 0.24, "filed": "2023-01-30", "end": "2022-12-31"}],
+                        "USD": [{"val": 12000000, "filed": "2023-01-30", "end": "2022-12-31"}],
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)

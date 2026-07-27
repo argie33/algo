@@ -84,8 +84,21 @@ class DividendDataLoader(SecLoaderBase):
         if not isinstance(concept_data, dict) or "units" not in concept_data:
             return results
 
-        # XBRL facts are organized by unit (usually USD/shares)
+        # XBRL facts are organized by unit. Both concepts this method is called with
+        # ("...PerShareDeclared"/"...PerShareCashPaid") are per-share ratio concepts, whose
+        # standard US-GAAP taxonomy unit is "USD/shares" - not a plain dollar amount. SEC
+        # filers occasionally mistag facts under an unexpected unit (restatements, filer XBRL
+        # errors); blindly trusting any unit key here would silently store that filer's raw
+        # value as dividend_per_share even if it wasn't actually a per-share figure, corrupting
+        # the field with no downstream validation to catch it. Skip anything that isn't the
+        # expected per-share unit rather than guess.
         for unit, facts_list in concept_data.get("units", {}).items():
+            if unit != "USD/shares":
+                logger.warning(
+                    f"[{symbol}] {concept_name}: skipping unexpected XBRL unit '{unit}' "
+                    "(expected 'USD/shares' for a per-share concept) - not treating as dividend_per_share"
+                )
+                continue
             if not isinstance(facts_list, list):
                 continue
 
