@@ -700,7 +700,7 @@ def _build_freshness_panel(
     hlth_dict = hlth_dict if hlth_dict is not None else {}
     as_of = hlth_dict.get("as_of")
     age_s = f"  [dim]{fmt_age(as_of)}[/]" if as_of else ""
-    title = f"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim][l] return[/]"
+    title = rf"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim]\[l] return[/]"
 
     left_rows: list[Text | Table | Layout] = []
 
@@ -2893,7 +2893,7 @@ def panel_algo_health(
         rows.append(Text("⚠ No health data available - check logs for errors", style="yellow"))
     return Panel(
         Group(*rows),
-        title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]",
+        title=r"[bold yellow]ALGO HEALTH[/]  [dim]\[h] expand[/]",
         border_style="yellow",
         padding=(0, 1),
     )
@@ -2922,7 +2922,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         rows.append(Text("⚠ No data health info available - loaders may not have run yet.", style="yellow"))
         return Panel(
             Group(*rows),
-            title=f"[bold yellow]DATA FRESHNESS[/]{age_s}  [dim][l] expand[/]",
+            title=rf"[bold yellow]DATA FRESHNESS[/]{age_s}  [dim]\[l] expand[/]",
             border_style="yellow",
             padding=(0, 1),
         )
@@ -3025,7 +3025,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
 
     return Panel(
         Group(*rows),
-        title=f"[bold yellow]DATA FRESHNESS[/]{age_s}  [dim][l] expand[/]",
+        title=rf"[bold yellow]DATA FRESHNESS[/]{age_s}  [dim]\[l] expand[/]",
         border_style="yellow",
         padding=(0, 1),
     )
@@ -3182,7 +3182,7 @@ def _build_results_panel(
 
     return Panel(
         Group(*right_rows),
-        title="[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim][h] return[/]",
+        title=r"[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim]\[h] return[/]",
         border_style="yellow",
         padding=(0, 1),
     )

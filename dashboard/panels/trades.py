@@ -196,7 +196,7 @@ def panel_completed_trades(trades: Any) -> Any:
         error_msg = error_boundary.get_error_message(trades)
         return Panel(
             Text(error_msg or "Data unavailable", style="red"),
-            title="[bold cyan]COMPLETED TRADES[/]  [dim][t] expand[/]",
+            title=r"[bold cyan]COMPLETED TRADES[/]  [dim]\[t] expand[/]",
             border_style="red",
             padding=(0, 1),
         )
@@ -238,7 +238,7 @@ def panel_completed_trades(trades: Any) -> Any:
         stale_indicator = "[yellow]⚠[/] " if stale_style == "yellow" else ""
         return Panel(
             Text("no closed trades yet", style="dim"),
-            title=f"[bold cyan]{stale_indicator}COMPLETED TRADES[/]{age_s}  [dim][t] expand[/]",
+            title=rf"[bold cyan]{stale_indicator}COMPLETED TRADES[/]{age_s}  [dim]\[t] expand[/]",
             border_style="cyan" if stale_style != "yellow" else "yellow",
             padding=(0, 1),
         )
@@ -328,7 +328,7 @@ def panel_completed_trades(trades: Any) -> Any:
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
         t,
-        title=f"[bold cyan]COMPLETED TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}  [dim][t] expand[/]",
+        title=rf"[bold cyan]COMPLETED TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}  [dim]\[t] expand[/]",
         border_style="cyan",
         padding=(0, 0),
     )
@@ -340,7 +340,7 @@ def panel_trades_expanded(trades: Any) -> Any:
         error_msg = error_boundary.get_error_message(trades)
         return Panel(
             Text(error_msg or "Data unavailable", style="red"),
-            title="[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim][t] return[/]",
+            title=r"[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim]\[t] return[/]",
             border_style="red",
             padding=(0, 1),
         )
@@ -370,7 +370,7 @@ def panel_trades_expanded(trades: Any) -> Any:
         rows.append(Text("no closed trades yet", style="dim"))
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-            title="[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim][t] return[/]",
+            title=r"[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim]\[t] return[/]",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -555,7 +555,7 @@ def panel_trades_expanded(trades: Any) -> Any:
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=f"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}  [dim][t] return[/]",
+        title=rf"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}  [dim]\[t] return[/]",
         border_style="cyan",
         padding=(0, 1),
     )

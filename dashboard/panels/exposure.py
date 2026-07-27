@@ -338,7 +338,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(header, tbl),
-        title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]{age_s}  [dim][x] expand[/]",
+        title=rf"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]{age_s}  [dim]\[x] expand[/]",
         border_style="blue",
         padding=(0, 1),
     )
@@ -360,7 +360,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         error_msg = error_boundary.get_error_message(exp_f)
         return Panel(
             Text.from_markup(f"[red]Exposure data fetch failed[/]\n[dim]{error_msg}[/]"),
-            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            title=r"[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim]\[x] return[/]",
             border_style="blue",
             padding=(0, 1),
         )
@@ -370,7 +370,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         rows.append(Text.from_markup("[red]✗ Exposure data missing 'factors' field - API schema mismatch[/]"))
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            title=r"[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim]\[x] return[/]",
             border_style="blue",
             padding=(0, 1),
         )
@@ -394,7 +394,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         )
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            title=r"[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim]\[x] return[/]",
             border_style="blue",
             padding=(0, 1),
         )
@@ -404,7 +404,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         rows.append(Text.from_markup("[yellow]⚠ Market regime unavailable[/]"))
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            title=r"[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim]\[x] return[/]",
             border_style="blue",
             padding=(0, 1),
         )
@@ -414,7 +414,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         rows.append(Text.from_markup("[red]✗ Exposure factors data invalid[/]"))
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-            title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+            title=r"[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim]\[x] return[/]",
             border_style="blue",
             padding=(0, 1),
         )
@@ -685,7 +685,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=f"[bold blue]EXPOSURE SCORE - EXPANDED[/]{age_s}  [dim][x] return[/]",
+        title=rf"[bold blue]EXPOSURE SCORE - EXPANDED[/]{age_s}  [dim]\[x] return[/]",
         border_style="blue",
         padding=(0, 1),
     )

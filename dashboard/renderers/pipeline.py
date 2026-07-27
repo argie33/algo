@@ -304,7 +304,7 @@ def render_expanded_view(  # noqa: C901
                         Rule(style="dim"),
                         pos_panel,
                     ),
-                    title=f"{pos_panel.title}  [dim][p] return[/]",
+                    title=rf"{pos_panel.title}  [dim]\[p] return[/]",
                     border_style="cyan",
                     padding=(0, 1),
                 ),

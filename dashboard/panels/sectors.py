@@ -195,7 +195,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     if has_error(srank):
         return Panel(
             Group(*rows) if rows else Text("no data", style="dim"),
-            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            title=r"[bold cyan]SECTORS & INDUSTRIES[/]  [dim]\[r] expand[/]",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -212,7 +212,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         logger.debug("Sector ranking data unavailable: items list not found")
         return Panel(
             Group(*rows) if rows else Text("no data", style="dim"),
-            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            title=r"[bold cyan]SECTORS & INDUSTRIES[/]  [dim]\[r] expand[/]",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -248,7 +248,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     if has_error(irank):
         return Panel(
             Group(*rows) if rows else Text("no data", style="dim"),
-            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            title=r"[bold cyan]SECTORS & INDUSTRIES[/]  [dim]\[r] expand[/]",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -265,7 +265,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         logger.debug("Industries ranking data unavailable: items list not found")
         return Panel(
             Group(*rows) if rows else Text("no data", style="dim"),
-            title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+            title=r"[bold cyan]SECTORS & INDUSTRIES[/]  [dim]\[r] expand[/]",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -304,7 +304,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         )
     return Panel(
         Group(*rows),
-        title=f"[bold cyan]SECTORS & INDUSTRIES[/]{age_s}  [dim][r] expand[/]",
+        title=rf"[bold cyan]SECTORS & INDUSTRIES[/]{age_s}  [dim]\[r] expand[/]",
         border_style="cyan",
         padding=(0, 1),
     )
@@ -495,7 +495,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
         )
     return Panel(
         Group(*rows),
-        title=f"[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]{age_s}  [dim][r] return[/]",
+        title=rf"[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]{age_s}  [dim]\[r] return[/]",
         border_style="cyan",
         padding=(0, 1),
     )

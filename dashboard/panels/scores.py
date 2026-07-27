@@ -199,7 +199,7 @@ def panel_scores_compact(scores: Any) -> Panel:
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*rows),
-        title=f"[bold cyan]SCORES[/]{age_s}  [dim][c] expand[/]",
+        title=rf"[bold cyan]SCORES[/]{age_s}  [dim]\[c] expand[/]",
         border_style="cyan",
         padding=(0, 1),
     )

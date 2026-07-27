@@ -222,7 +222,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     timestamp_val = cb.get("timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
-    title = f"[bold blue]CIRCUIT BREAKERS[/]{age_s}{cb_stale_warning}  [dim][b] expand[/]"
+    title = rf"[bold blue]CIRCUIT BREAKERS[/]{age_s}{cb_stale_warning}  [dim]\[b] expand[/]"
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], parts)),
         title=title,
@@ -422,7 +422,7 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=f"[bold blue]CIRCUIT BREAKERS - EXPANDED[/]{age_s}  [dim][b] return[/]",
+        title=rf"[bold blue]CIRCUIT BREAKERS - EXPANDED[/]{age_s}  [dim]\[b] return[/]",
         border_style="blue",
         padding=(0, 1),
     )

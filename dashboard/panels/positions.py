@@ -340,7 +340,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         title_str = f"[bold cyan]POSITIONS ({valid_count})[/]"
     return Panel(
         content,
-        title=f"{title_str}{age_s}  [dim][p] expand[/]",
+        title=rf"{title_str}{age_s}  [dim]\[p] expand[/]",
         border_style=border,
         padding=(0, 0),
     )

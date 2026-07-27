@@ -438,7 +438,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     age_s = f"  [dim]{fmt_age(market_timestamp)}[/]" if market_timestamp is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=f"[bold blue]MARKET - EXPANDED[/]{age_s}  [dim][m] return[/]",
+        title=rf"[bold blue]MARKET - EXPANDED[/]{age_s}  [dim]\[m] return[/]",
         border_style="blue",
         padding=(0, 1),
     )
@@ -602,7 +602,7 @@ def panel_header_market(  # noqa: C901
         rows.append(Text("no market data", style="dim"))
     return Panel(
         Group(*rows),
-        title="[bold blue]MARKET[/]  [dim][m] expand[/]",
+        title=r"[bold blue]MARKET[/]  [dim]\[m] expand[/]",
         border_style="blue",
         padding=(0, 1),
     )

@@ -379,7 +379,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:
         rows.append(Text("[dim]no economic data[/]"))
     return Panel(
         Group(*rows),
-        title=f"[bold bright_magenta]ECONOMIC INPUTS → Exposure Score[/]{age_s}  [dim][e] expand[/]",
+        title=rf"[bold bright_magenta]ECONOMIC INPUTS → Exposure Score[/]{age_s}  [dim]\[e] expand[/]",
         border_style="bright_magenta",
         padding=(0, 1),
     )
@@ -563,7 +563,7 @@ def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=f"[bold bright_magenta]ECONOMIC INPUTS - EXPANDED[/]{age_s}  [dim][e] return[/]",
+        title=rf"[bold bright_magenta]ECONOMIC INPUTS - EXPANDED[/]{age_s}  [dim]\[e] return[/]",
         border_style="bright_magenta",
         padding=(0, 1),
     )

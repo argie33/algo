@@ -335,7 +335,7 @@ def panel_portfolio(
 
     return Panel(
         Group(header, tbl),
-        title="[bold green]PORTFOLIO[/]  [dim][f] expand[/]",
+        title=r"[bold green]PORTFOLIO[/]  [dim]\[f] expand[/]",
         border_style="green",
         padding=(0, 1),
     )
@@ -587,7 +587,7 @@ def panel_performance_spark(
             rows.append(Text.from_markup("  ".join(parts)))
     return Panel(
         Group(*rows),
-        title=f"[bold green]PERFORMANCE[/]{perf_age_s}{perf_stale_warning}  [dim][f] expand[/]",
+        title=rf"[bold green]PERFORMANCE[/]{perf_age_s}{perf_stale_warning}  [dim]\[f] expand[/]",
         border_style="green",
         padding=(0, 1),
     )
@@ -1110,7 +1110,7 @@ def panel_portfolio_perf_expanded(
 
     return Panel(
         Group(*rows),
-        title=f"[bold green]PORTFOLIO & PERFORMANCE - EXPANDED[/]{title_age_s}  [dim][f] return[/]",
+        title=rf"[bold green]PORTFOLIO & PERFORMANCE - EXPANDED[/]{title_age_s}  [dim]\[f] return[/]",
         border_style="green",
         padding=(0, 1),
     )

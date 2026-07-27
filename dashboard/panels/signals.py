@@ -498,7 +498,7 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None) -> Panel | None:
     title = "[bold magenta]SIGNALS[/]"
     return Panel(
         Group(*rows),
-        title=f"{title}{age_s}  [dim][s] expand[/]",
+        title=rf"{title}{age_s}  [dim]\[s] expand[/]",
         border_style="magenta",
         padding=(0, 1),
     )
