@@ -129,36 +129,69 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to update progress for {self.table_name}: {e}")
 
-    def mark_completed(self) -> None:
+    def mark_completed(
+        self,
+        execution_duration_sec: float | None = None,
+        http_status: int | None = None,
+        rate_limit_quota: str | None = None,
+    ) -> None:
         """Mark loader as completed successfully.
 
         Sets: status=COMPLETED, execution_completed=NOW, completion_pct=100, error_message=NULL,
         last_success_at=NOW, consecutive_failures=0 (see migration 1163 - execution_completed
         alone can't distinguish "last finished successfully" from "last finished at all",
         since it's also stamped on FAILED/TIMEOUT).
+
+        Args:
+            execution_duration_sec: Optional execution duration for performance tracking
+            http_status: Optional HTTP status code from API call (200=ok)
+            rate_limit_quota: Optional rate limit quota string for display
         """
         try:
             with DatabaseContext("write") as cur:
+                # Calculate throughput if we have duration and symbols
+                symbols_per_sec = None
+                if execution_duration_sec and execution_duration_sec > 0:
+                    cur.execute("SELECT symbols_loaded FROM data_loader_status WHERE table_name = %s",
+                               (self.table_name,))
+                    result = cur.fetchone()
+                    if result and result[0]:
+                        symbols_per_sec = result[0] / execution_duration_sec
+
                 cur.execute(
                     """
                     UPDATE data_loader_status
                     SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
                         error_message = NULL, last_updated = NOW(),
-                        last_success_at = NOW(), consecutive_failures = 0
+                        last_success_at = NOW(), consecutive_failures = 0,
+                        execution_duration_sec = %s, http_status_code = %s,
+                        rate_limit_quota = %s, symbols_per_second = %s
                     WHERE table_name = %s
                     """,
-                    (LoaderStatus.COMPLETED.value, self.table_name),
+                    (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
+                     rate_limit_quota, symbols_per_sec, self.table_name),
                 )
-            logger.info(f"[STATUS] {self.table_name}: COMPLETED")
+                # Archive to history table for failure pattern analysis
+                self._archive_to_history(cur, LoaderStatus.COMPLETED.value)
+
+            logger.info(f"[STATUS] {self.table_name}: COMPLETED ({execution_duration_sec:.1f}s)" if execution_duration_sec else f"[STATUS] {self.table_name}: COMPLETED")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as COMPLETED: {e}")
 
-    def mark_failed(self, error_message: str, completion_pct: float | None = None) -> None:
+    def mark_failed(
+        self,
+        error_message: str,
+        completion_pct: float | None = None,
+        http_status: int | None = None,
+        retry_count: int | None = None,
+    ) -> None:
         """Mark loader as failed with error reason.
 
         Args:
             error_message: Description of what went wrong (max 1000 chars)
             completion_pct: Optional percentage completed before failure
+            http_status: Optional HTTP status code from API call (429=rate limit, 401=auth, 503=service down)
+            retry_count: Optional number of retries performed before failure
         """
         # Truncate message to 1000 chars to prevent DB column overflow
         msg = error_message[:1000]
@@ -171,30 +204,36 @@ class LoaderStatusManager:
                         UPDATE data_loader_status
                         SET status = %s, execution_completed = NOW(), completion_pct = %s,
                             error_message = %s, last_updated = NOW(),
-                            consecutive_failures = consecutive_failures + 1
+                            consecutive_failures = consecutive_failures + 1,
+                            http_status_code = %s, retry_count = %s
                         WHERE table_name = %s
                         """,
-                        (LoaderStatus.FAILED.value, completion_pct, msg, self.table_name),
+                        (LoaderStatus.FAILED.value, completion_pct, msg, http_status, retry_count, self.table_name),
                     )
                 else:
                     cur.execute(
                         """
                         UPDATE data_loader_status
                         SET status = %s, execution_completed = NOW(), error_message = %s,
-                            last_updated = NOW(), consecutive_failures = consecutive_failures + 1
+                            last_updated = NOW(), consecutive_failures = consecutive_failures + 1,
+                            http_status_code = %s, retry_count = %s
                         WHERE table_name = %s
                         """,
-                        (LoaderStatus.FAILED.value, msg, self.table_name),
+                        (LoaderStatus.FAILED.value, msg, http_status, retry_count, self.table_name),
                     )
+                # Archive to history table for failure pattern analysis
+                self._archive_to_history(cur, LoaderStatus.FAILED.value, http_status)
+
             logger.error(f"[STATUS] {self.table_name}: FAILED - {msg[:100]}")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as FAILED: {e}")
 
-    def mark_timeout(self, runtime_seconds: float) -> None:
+    def mark_timeout(self, runtime_seconds: float, http_status: int | None = None) -> None:
         """Mark loader as timed out.
 
         Args:
             runtime_seconds: How long the loader ran before timing out
+            http_status: Optional HTTP status code if the timeout was from an API call
         """
         msg = f"Timeout after {runtime_seconds:.0f} seconds"
         try:
@@ -203,14 +242,67 @@ class LoaderStatusManager:
                     """
                     UPDATE data_loader_status
                     SET status = %s, execution_completed = NOW(), error_message = %s, last_updated = NOW(),
-                        consecutive_failures = consecutive_failures + 1
+                        consecutive_failures = consecutive_failures + 1,
+                        execution_duration_sec = %s, http_status_code = %s
                     WHERE table_name = %s
                     """,
-                    (LoaderStatus.TIMEOUT.value, msg, self.table_name),
+                    (LoaderStatus.TIMEOUT.value, msg, runtime_seconds, http_status, self.table_name),
                 )
+                # Archive to history table for failure pattern analysis
+                self._archive_to_history(cur, LoaderStatus.TIMEOUT.value, http_status)
+
             logger.error(f"[STATUS] {self.table_name}: TIMEOUT - {msg}")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as TIMEOUT: {e}")
+
+    def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> None:
+        """Archive current status to history table for pattern analysis.
+
+        Args:
+            cur: Database cursor
+            status: Final status (COMPLETED, FAILED, TIMEOUT)
+            http_status: Optional HTTP status code
+        """
+        try:
+            # Fetch current status values
+            cur.execute(
+                """
+                SELECT execution_started, execution_completed, error_message, row_count,
+                       completion_pct, symbols_loaded, symbol_count
+                FROM data_loader_status
+                WHERE table_name = %s
+                """,
+                (self.table_name,),
+            )
+            result = cur.fetchone()
+            if result:
+                exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count = result
+                cur.execute(
+                    """
+                    INSERT INTO data_loader_status_history
+                    (table_name, status, execution_started, execution_completed, error_message,
+                     http_status_code, row_count, completion_pct, symbols_loaded, symbol_count)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (self.table_name, status, exec_started, exec_completed, error_msg,
+                     http_status, row_count, completion_pct, symbols_loaded, symbol_count),
+                )
+                # Clean up old history (keep only last 100 runs per table)
+                cur.execute(
+                    """
+                    DELETE FROM data_loader_status_history
+                    WHERE table_name = %s
+                    AND id NOT IN (
+                        SELECT id FROM data_loader_status_history
+                        WHERE table_name = %s
+                        ORDER BY execution_completed DESC NULLS LAST
+                        LIMIT 100
+                    )
+                    """,
+                    (self.table_name, self.table_name),
+                )
+        except Exception as e:
+            logger.debug(f"[STATUS_MANAGER] Failed to archive history for {self.table_name}: {e}")
 
     def get_status(self) -> dict[str, Any] | None:
         """Fetch current status from database.
