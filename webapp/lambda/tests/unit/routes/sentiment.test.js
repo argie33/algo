@@ -27,7 +27,7 @@ describe("Sentiment Routes - Unit Tests", () => {
     });
 
     // Add response formatter middleware
-    const responseFormatter = require("../../../middleware/responseFormatter");
+    const responseFormatter = require("../../../middleware/responseNormalizer");
     app.use(responseFormatter);
     // Load the sentiment route
     app.use("/sentiment", sentimentRoutes);

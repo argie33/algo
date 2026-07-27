@@ -26,7 +26,7 @@ describe("Scores Routes Unit Tests", () => {
     });
 
     // Add response formatter middleware
-    const responseFormatter = require("../../../middleware/responseFormatter");
+    const responseFormatter = require("../../../middleware/responseNormalizer");
     app.use(responseFormatter);
     // Load the route module
     app.use("/scores", scoresRouter);

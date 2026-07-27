@@ -12,16 +12,16 @@ const request = require("supertest");
 const express = require("express");
 
 // Mock database
-jest.mock("../../../utils/database", () => ({
+jest.mock("../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
   initializeDatabase: jest.fn(),
   closeDatabase: jest.fn(),
 }));
 
-const { query } = require("../../../utils/database");
+const { query } = require("../../utils/database");
 
 // Mock auth middleware
-jest.mock("../../../middleware/auth", () => ({
+jest.mock("../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
     // Use a realistic Cognito-like UUID string
     req.user = {
@@ -37,8 +37,8 @@ jest.mock("../../../middleware/auth", () => ({
 }));
 
 // Import the routes
-const manualTradesRoutes = require("../../../routes/manual-trades");
-const tradesRoutes = require("../../../routes/trades");
+const manualTradesRoutes = require("../../routes/manual-trades");
+const tradesRoutes = require("../../routes/trades");
 
 describe("Issue #4: User ID Type Consistency", () => {
   let app;

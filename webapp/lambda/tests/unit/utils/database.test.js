@@ -28,20 +28,6 @@ jest.mock("@aws-sdk/client-secrets-manager", () => ({
   SecretsManagerClient: jest.fn(),
   GetSecretValueCommand: jest.fn(),
 }));
-// Mock schema validator with loader table names
-jest.mock("../../../utils/schemaValidator", () => ({
-  generateCreateTableSQL: jest.fn(() => "CREATE TABLE test (id INTEGER)"),
-  listTables: jest.fn(() => [
-    "stock_symbols",
-    "etf_symbols",
-    "price_daily",
-    "etf_price_daily",
-    "key_metrics",
-    "company_profile",
-    "annual_balance_sheet",
-    "last_updated",
-  ]),
-}));
 // Mock logger
 jest.mock("../../../utils/logger", () => ({
   error: jest.fn(),

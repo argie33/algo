@@ -26,7 +26,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     });
 
     // Add response formatter middleware
-    const responseFormatter = require("../../../middleware/responseFormatter");
+    const responseFormatter = require("../../../middleware/responseNormalizer");
     app.use(responseFormatter);
 
     // Load manual trades routes
@@ -80,7 +80,7 @@ describe("Manual Trades Routes Unit Tests", () => {
       const appNoAuth = express();
       appNoAuth.use(express.json());
 
-      const responseFormatter = require("../../../middleware/responseFormatter");
+      const responseFormatter = require("../../../middleware/responseNormalizer");
       appNoAuth.use(responseFormatter);
 
       const manualTradesRouter = require("../../../routes/manual-trades")(
