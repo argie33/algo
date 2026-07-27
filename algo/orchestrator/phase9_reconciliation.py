@@ -715,6 +715,18 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
 
 
 def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
+    # CRITICAL FIX: unlike its three sibling functions above (_validate_pnl_step,
+    # _compute_performance_metrics, _compute_risk_metrics), metrics_status/metrics_summary were
+    # only ever assigned inside the try body's success/no-trades branches, not pre-initialized
+    # before the try. A psycopg2.DatabaseError/OperationalError raised before either branch runs
+    # (e.g. during the SELECTs or the INSERT) hits the except clause, which raises a RuntimeError
+    # with the intended "[PHASE 9 CRITICAL] Failed to persist metrics..." message - but the
+    # finally block below then references the still-unassigned locals, raising UnboundLocalError
+    # from inside finally, which replaces that RuntimeError as the exception actually propagated.
+    # A real DB failure here reported as a confusing Python internals crash instead of the
+    # intended diagnostic message.
+    metrics_status = "warn"
+    metrics_summary = "N/A"
     try:
         row_data = None
         with DatabaseContext("read") as cur:
