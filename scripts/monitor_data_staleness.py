@@ -127,7 +127,17 @@ THRESHOLDS = {
         "fresh": 1440,
         "stale": 5040,
         "critical": 10080,
-    }
+    },
+    "buy_sell_daily": {
+        # Same once-per-trading-day cadence as algo_signals - and the same table
+        # whose staleness triggers a live "[PHASE 7 CRITICAL HALT]" in the
+        # orchestrator (see algo/orchestrator/phase7_signal_generation.py), yet it
+        # was never added here, so the one dedicated staleness tool operators are
+        # told to run (CLAUDE.md) would never have caught it going stale.
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
+    },
 }
 
 
@@ -168,6 +178,7 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "industry_ranking": "updated_at",
                 "sector_rotation_signal": "created_at",
                 "trend_template_data": "created_at",
+                "buy_sell_daily": "updated_at",
             }
 
             if table_name not in timestamp_cols:
@@ -263,6 +274,7 @@ def check_all_tables() -> dict:
                     "growth_metrics",
                     "quality_metrics",
                     "value_metrics",
+                    "buy_sell_daily",
                     # stock_scores/algo_trades/algo_positions share the identical once-
                     # per-trading-day cadence as the tables above (stock_scores via the
                     # signals pipeline; algo_trades/algo_positions only change when an

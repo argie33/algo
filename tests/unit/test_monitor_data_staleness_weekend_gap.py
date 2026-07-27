@@ -72,3 +72,28 @@ class TestWeekendGapCoversAllOnceDailyTables:
             results = mds.check_all_tables()
 
         assert results["stock_scores"]["level"] == "critical"
+
+    def test_buy_sell_daily_is_monitored_and_gets_weekend_gap_relaxation(self):
+        """buy_sell_daily was missing from THRESHOLDS entirely - the one table
+        whose staleness triggers a live "[PHASE 7 CRITICAL HALT]" in the
+        orchestrator (algo/orchestrator/phase7_signal_generation.py) was invisible
+        to the dedicated staleness tool. Same once-per-trading-day cadence as
+        algo_signals: a ~2.2-day-old Friday row on a Sunday check must read 'ok'.
+        """
+        def fake_age(table_name):
+            return 2.2 * 1440 if table_name == "buy_sell_daily" else 60
+
+        sunday = date(2026, 7, 26)
+        assert sunday.weekday() == 6
+
+        with (
+            patch.object(mds, "date") as mock_date,
+            patch.object(mds, "get_table_age_minutes", side_effect=fake_age),
+        ):
+            mock_date.today.return_value = sunday
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+
+            results = mds.check_all_tables()
+
+        assert "buy_sell_daily" in results
+        assert results["buy_sell_daily"]["level"] == "ok"
