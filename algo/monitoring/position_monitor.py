@@ -36,6 +36,7 @@ from psycopg2.extensions import cursor as PsycopgCursor
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials, get_credential_manager
 from utils.db import DatabaseContext
+from utils.trading import TradeStatus
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -353,7 +354,14 @@ class PositionMonitor:
                     f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
                 ) from conc_e
 
-            cur.execute("""
+            # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
+            # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
+            # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
+            # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
+            open_statuses = TradeStatus.all_open()
+            status_placeholders = ", ".join(["%s"] * len(open_statuses))
+            cur.execute(
+                f"""
                 SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
                        t.target_1_price, t.target_2_price, t.target_3_price,
                        t.trade_date, t.signal_date,
@@ -361,9 +369,11 @@ class PositionMonitor:
                        p.current_stop_price, p.current_price
                 FROM algo_trades t
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
+                WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
                   AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
-                """)
+                """,
+                tuple(open_statuses),
+            )
             positions = cur.fetchall()
 
             logger.info(f"\n{'=' * 70}")

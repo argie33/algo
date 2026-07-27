@@ -11,6 +11,7 @@ import psycopg2
 
 from utils.db import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -209,8 +210,16 @@ class ExposurePolicy:
             eval_date = datetime.now(EASTERN_TZ).date()
 
         try:
+            # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
+            # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
+            # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
+            # Without this, exposure-tier stop-tightening/partial-exit/force-exit recommendations
+            # would never be generated for real live positions.
+            open_statuses = TradeStatus.all_open()
+            status_placeholders = ", ".join(["%s"] * len(open_statuses))
             with DatabaseContext("read") as cur:
-                cur.execute("""
+                cur.execute(
+                    f"""
                     SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
                            t.target_1_price, t.target_2_price, t.target_3_price,
                            t.trade_date,
@@ -220,8 +229,10 @@ class ExposurePolicy:
                     FROM algo_positions p
                     CROSS JOIN LATERAL UNNEST(p.trade_ids_arr) AS tid(id)
                     JOIN algo_trades t ON t.trade_id = tid.id
-                    WHERE t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0
-                    """)
+                    WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
+                    """,
+                    tuple(open_statuses),
+                )
                 positions = cur.fetchall()
                 actions = []
                 for row in positions:

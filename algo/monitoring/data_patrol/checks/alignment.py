@@ -8,6 +8,7 @@ import psycopg2
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.db import assert_safe_table
+from utils.trading import TradeStatus
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
@@ -214,18 +215,27 @@ class AlignmentChecker(BaseCheck):
         """Every filled trade must have price history on/after fill date."""
         try:
             interval_60d = get_interval_sql("60d")
-            cur.execute(f"""
+            # CRITICAL FIX: status IN ('open','pending') never matches a live (execution_mode=auto)
+            # filled order, which writes status='filled'/'partially_filled' literally - see
+            # algo/trading/exit_engine.py's identical fix. Use TradeStatus.all_open() so this check
+            # actually covers live trades, not just paper/review-mode ones.
+            open_statuses = TradeStatus.all_open()
+            status_placeholders = ", ".join(["%s"] * len(open_statuses))
+            cur.execute(
+                f"""
                 SELECT t.trade_id, t.symbol, t.created_at::date as fill_date, COUNT(p.date) as price_count
                 FROM algo_trades t
                 LEFT JOIN price_daily p
                     ON t.symbol = p.symbol
                    AND p.date >= t.created_at::date
                    AND p.date <= CURRENT_DATE
-                WHERE t.status IN ('open', 'pending')
+                WHERE t.status IN ({status_placeholders})
                   AND t.created_at >= CURRENT_DATE - {interval_60d}
                 GROUP BY t.trade_id, t.symbol, fill_date
                 HAVING COUNT(p.date) = 0
-            """)
+            """,
+                tuple(open_statuses),
+            )
             orphaned = cur.fetchall()
 
             if orphaned:
