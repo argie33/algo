@@ -62,7 +62,9 @@ from rich.text import Text
 from dashboard.data_validation import safe_float
 
 from ..error_boundary import has_error
+from ..formatters import fmt_age
 from ..utilities import (
+    ET,
     G,
     R,
     Y,
@@ -239,17 +241,22 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:
         return _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
 
     # Data freshness check
+    timestamp_val = eco.get("timestamp") if isinstance(eco, dict) else None
     stale_warning = ""
-    if isinstance(eco, dict):
-        age_hours = eco.get("age_hours")
-        if age_hours is not None:
-            try:
-                ah_f = safe_float(age_hours)
-                if ah_f is not None and ah_f > 24:  # Stale if older than 24 hours
-                    stale_warning = f" [yellow]⚠ Data {ah_f:.0f}h old[/]"
-                    logger.warning(f"[ECONOMIC] Economic data stale ({ah_f:.0f}h)")
-            except (ValueError, TypeError):
-                pass
+    if timestamp_val is not None:
+        try:
+            from datetime import datetime as _datetime
+
+            ts = timestamp_val if isinstance(timestamp_val, _datetime) else _datetime.fromisoformat(str(timestamp_val))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=ET)
+            ah_f = (_datetime.now(ET) - ts).total_seconds() / 3600
+            if ah_f > 24:  # Stale if older than 24 hours
+                stale_warning = f" [yellow]⚠ Data {ah_f:.0f}h old[/]"
+                logger.warning(f"[ECONOMIC] Economic data stale ({ah_f:.0f}h)")
+        except (ValueError, TypeError):
+            pass
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
 
     rows: list[Any] = []
     if stale_warning:
@@ -372,7 +379,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:
         rows.append(Text("[dim]no economic data[/]"))
     return Panel(
         Group(*rows),
-        title="[bold bright_magenta]ECONOMIC INPUTS → Exposure Score[/]  [dim][e] expand[/]",
+        title=f"[bold bright_magenta]ECONOMIC INPUTS → Exposure Score[/]{age_s}  [dim][e] expand[/]",
         border_style="bright_magenta",
         padding=(0, 1),
     )
@@ -552,9 +559,11 @@ def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:
     if not rows:
         logger.debug("Economic expanded view: all indicators unavailable - displaying empty state")
         rows.append(Text("[dim]no economic data[/]"))
+    timestamp_val = eco.get("timestamp") if isinstance(eco, dict) else None
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title="[bold bright_magenta]ECONOMIC INPUTS - EXPANDED[/]  [dim][e] return[/]",
+        title=f"[bold bright_magenta]ECONOMIC INPUTS - EXPANDED[/]{age_s}  [dim][e] return[/]",
         border_style="bright_magenta",
         padding=(0, 1),
     )

@@ -65,6 +65,7 @@ from ..data_validation import safe_float, safe_int
 from ..error_boundary import has_error
 from ..formatters import (
     exp_bar,
+    fmt_age,
     next_run_str,
     sign,
 )
@@ -122,6 +123,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
 
     stale_warning = ""
     market_timestamp = mkt.get("timestamp")
+    age_s = f"  [dim]{fmt_age(market_timestamp)}[/]" if market_timestamp is not None else ""
     if market_timestamp:
         try:
             if isinstance(market_timestamp, str):
@@ -281,7 +283,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
             lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
 
     txt = Text.from_markup("\n".join(lines))
-    title = f"[bold blue]MARKET[/]{stale_warning}"
+    title = f"[bold blue]MARKET[/]{age_s}{stale_warning}"
     return Panel(txt, title=title, border_style="blue", padding=(0, 1))
 
 
@@ -432,9 +434,11 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     halt_s = "  |  ".join(str(h)[:35] for h in halts[:3]) if halts else "none"
     rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
 
+    market_timestamp = mkt.get("timestamp")
+    age_s = f"  [dim]{fmt_age(market_timestamp)}[/]" if market_timestamp is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title="[bold blue]MARKET - EXPANDED[/]  [dim][m] return[/]",
+        title=f"[bold blue]MARKET - EXPANDED[/]{age_s}  [dim][m] return[/]",
         border_style="blue",
         padding=(0, 1),
     )

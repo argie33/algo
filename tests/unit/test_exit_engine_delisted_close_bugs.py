@@ -86,7 +86,7 @@ def _run_with_fetch_recent_prices(mock_config, **fetch_kwargs):
             patch.object(engine, "_fetch_market_dist_days", return_value=set()),
             patch.object(engine, "_fetch_recent_prices", **fetch_kwargs),
         ):
-            exits_executed, trade_errors = engine.check_and_execute_exits(current_date)
+            exits_executed, _stop_raises_executed, trade_errors = engine.check_and_execute_exits(current_date)
 
     return mock_cur, exits_executed, trade_errors
 

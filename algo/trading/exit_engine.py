@@ -459,16 +459,25 @@ class ExitEngine:
                 f"Cannot initialize exit engine without these values."
             )
 
-    def check_and_execute_exits(self, current_date: _date | None = None) -> tuple[int, int]:
+    def check_and_execute_exits(self, current_date: _date | None = None) -> tuple[int, int, int]:
         """Evaluate all open positions for exit/stop-raise conditions.
 
         Returns:
-            (exits_executed, trade_errors) - trade_errors counts per-trade exceptions
-            caught and swallowed below (savepoint rolled back, position left for the
-            next run to re-evaluate). Callers MUST surface this, not just exits_executed:
-            a trade that errors here got no exit/stop check at all this run, which is a
-            real gap in position risk coverage even though it isn't visible as an
-            exception (see phase6_exit_execution.py caller).
+            (exits_executed, stop_raises_executed, trade_errors) - exits_executed only
+            counts positions actually closed or partially closed (fraction > 0, plus the
+            delisted/no-price-data forced closes below); a stop-raise-only outcome
+            (fraction == 0 - no shares sold, just a tighter stop) is counted separately
+            in stop_raises_executed. Previously both were folded into a single count, so
+            phase6_exit_execution.py's summary line ("N exits, M stop-raises") could read
+            e.g. "16 exits, 0 stop-raises" when in fact 0 positions closed and all 16 were
+            stop-raise-only - confirmed live 2026-07-27 (all 16 pre-existing positions
+            were still open and at their original quantity after a run reporting 16
+            "exits"). trade_errors counts per-trade exceptions caught and swallowed below
+            (savepoint rolled back, position left for the next run to re-evaluate).
+            Callers MUST surface this, not just exits_executed: a trade that errors here
+            got no exit/stop check at all this run, which is a real gap in position risk
+            coverage even though it isn't visible as an exception (see
+            phase6_exit_execution.py caller).
         """
 
         if current_date is None:
@@ -519,13 +528,14 @@ class ExitEngine:
                 if not trades:
                     logger.info("No open positions.\n")
 
-                    return 0, 0
+                    return 0, 0, 0
 
                 # Cache market distribution-day status once for the run
 
                 dist_days_today = self._fetch_market_dist_days(cur, current_date)
 
                 exits_executed = 0
+                stop_raises_executed = 0
                 trade_errors = 0
 
                 for _idx, row in enumerate(trades):
@@ -797,7 +807,7 @@ class ExitEngine:
 
                         if fraction == 0 and success:
                             logger.info(f"      -> Stop raised to ${new_stop:.2f}")
-                            exits_executed += 1
+                            stop_raises_executed += 1
                         elif success:
                             exits_executed += 1
                             logger.info(f"      -> {message}")
@@ -818,12 +828,12 @@ class ExitEngine:
 
                 logger.info(
                     f"Exits executed: {exits_executed}/{len(trades)} positions "
-                    f"({trade_errors} errors)"
+                    f"({stop_raises_executed} stop-raises, {trade_errors} errors)"
                 )
 
                 logger.info(f"{'=' * 70}\n")
 
-                return exits_executed, trade_errors
+                return exits_executed, stop_raises_executed, trade_errors
 
             except (ValueError, RuntimeError) as e:
                 logger.error(f"Exit engine error (configuration or data): {type(e).__name__}: {e}")

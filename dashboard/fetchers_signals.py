@@ -423,6 +423,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
             "universe_total": universe_total,
             "avg_composite": avg_composite,
             "grades": grades,
+            "timestamp": datetime.now(ET),
         }
     except Exception as e:
         error_msg = format_fetcher_error("scores", e)

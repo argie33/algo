@@ -40,6 +40,7 @@ from rich.text import Text
 
 from dashboard.data_validation import safe_float
 
+from ..formatters import fmt_age
 from ..utilities import CY, G, R, Y
 from ._helpers import _composite_score_color, _error_panel, _score_cell
 from .data_extractors import safe_get_dict, safe_get_field, safe_get_list
@@ -194,9 +195,11 @@ def panel_scores_compact(scores: Any) -> Panel:
         rows.append(summary)
     rows.extend(_build_scores_table(top_scores, limit=15))
 
+    timestamp_val = safe_get_dict(scores).get("timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*rows),
-        title="[bold cyan]SCORES[/]  [dim][c] expand[/]",
+        title=f"[bold cyan]SCORES[/]{age_s}  [dim][c] expand[/]",
         border_style="cyan",
         padding=(0, 1),
     )
@@ -236,9 +239,11 @@ def panel_scores_expanded(scores: Any) -> Panel:
     else:
         rows.append(Text.from_markup("[yellow]No score data - check Data Health[/]"))
 
+    timestamp_val = safe_get_dict(scores).get("timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*rows),
-        title="[bold cyan]SCORES - EXPANDED[/]",
+        title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}",
         border_style="cyan",
         padding=(0, 1),
     )

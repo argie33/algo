@@ -60,7 +60,7 @@ from rich.text import Text
 from dashboard.data_validation import safe_float
 
 from ..error_boundary import has_error
-from ..formatters import sign
+from ..formatters import fmt_age, sign
 from ..utilities import (
     CY,
     G,
@@ -103,6 +103,9 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     err = _error_panel("portfolio", port, "SECTORS")
     if err is not None:
         return err
+
+    srank_timestamp = srank.get("timestamp") if isinstance(srank, dict) else None
+    age_s = f"  [dim]{fmt_age(srank_timestamp)}[/]" if srank_timestamp is not None else ""
 
     # Data freshness check
     stale_indicators = []
@@ -295,13 +298,13 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
     if not rows:
         return Panel(
             Text("no data", style="dim"),
-            title="[bold]SECTORS & INDUSTRIES[/]",
+            title=f"[bold]SECTORS & INDUSTRIES[/]{age_s}",
             border_style="cyan",
             padding=(0, 1),
         )
     return Panel(
         Group(*rows),
-        title="[bold cyan]SECTORS & INDUSTRIES[/]  [dim][r] expand[/]",
+        title=f"[bold cyan]SECTORS & INDUSTRIES[/]{age_s}  [dim][r] expand[/]",
         border_style="cyan",
         padding=(0, 1),
     )
@@ -481,16 +484,18 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             rank_str = str(safe_get_field(r, "current_rank", ""))
             rows.append(Text.from_markup(f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"))
 
+    srank_timestamp = srank.get("timestamp") if isinstance(srank, dict) else None
+    age_s = f"  [dim]{fmt_age(srank_timestamp)}[/]" if srank_timestamp is not None else ""
     if not rows:
         return Panel(
             Text("no data", style="dim"),
-            title="[bold]SECTORS[/]",
+            title=f"[bold]SECTORS[/]{age_s}",
             border_style="cyan",
             padding=(0, 1),
         )
     return Panel(
         Group(*rows),
-        title="[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]  [dim][r] return[/]",
+        title=f"[bold cyan]SECTORS & INDUSTRIES - EXPANDED[/]{age_s}  [dim][r] return[/]",
         border_style="cyan",
         padding=(0, 1),
     )

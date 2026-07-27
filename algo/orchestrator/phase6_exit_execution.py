@@ -404,8 +404,15 @@ def run(
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
         if not dry_run:
             engine = ExitEngine(config)
-            engine_exits, engine_errors = engine.check_and_execute_exits(run_date)
+            engine_exits, engine_stop_raises, engine_errors = engine.check_and_execute_exits(run_date)
             exit_count += engine_exits
+            # CRITICAL FIX: engine_exits used to also include the engine's own internal
+            # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
+            # exit_count while this phase's separate `stop_raises` counter (from the
+            # Phase-3-recommendation path above) stayed unrelated - so this summary line
+            # could read "16 exits, 0 stop-raises" when 0 positions actually closed and
+            # all 16 were stop-raises. Now added to the same counter its name promises.
+            stop_raises += engine_stop_raises
             # CRITICAL FIX: check_and_execute_exits() catches per-trade exceptions
             # internally (logs "Exit check failed for X" and moves on to the next
             # position) so a real failure never raised past this call - it just

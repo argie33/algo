@@ -62,6 +62,7 @@ from rich.text import Text
 
 from ..data_validation import StrictValidationError, safe_float, safe_int
 from ..formatters import (
+    fmt_age,
     hbar,
 )
 from ..utilities import (
@@ -219,7 +220,9 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
             tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
-    title = f"[bold blue]CIRCUIT BREAKERS[/]{cb_stale_warning}  [dim][b] expand[/]"
+    timestamp_val = cb.get("timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    title = f"[bold blue]CIRCUIT BREAKERS[/]{age_s}{cb_stale_warning}  [dim][b] expand[/]"
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], parts)),
         title=title,
@@ -415,9 +418,11 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                 )
             )
 
+    timestamp_val = cb.get("timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]  [dim][b] return[/]",
+        title=f"[bold blue]CIRCUIT BREAKERS - EXPANDED[/]{age_s}  [dim][b] return[/]",
         border_style="blue",
         padding=(0, 1),
     )

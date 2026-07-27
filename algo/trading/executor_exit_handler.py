@@ -644,7 +644,21 @@ class ExitHandler:
         execution_mode = self.context.execution_mode
         actual_fill_price = None
         exit_order_result = {"success": False, "message": "No order sent"}
-        is_estimated_price = True
+        # CRITICAL FIX: only "auto" mode has genuine fill-price uncertainty (a submitted
+        # order hasn't been confirmed by the broker yet - see is_estimated_price=False
+        # explicitly set below once a fill is confirmed, or the early-return with
+        # profit_loss_dollars=None if the order fails). Paper/review mode never submits
+        # a real order at all - the `exit_price` this function was called with (the exit
+        # engine's live quote at evaluation time) IS the final, deterministic simulated
+        # fill price, not a pending estimate. Previously this was unconditionally True,
+        # so every paper-mode exit permanently recorded profit_loss_dollars=NULL (nothing
+        # ever reconciles a paper "estimate" into a confirmed price - that mechanism only
+        # exists for auto mode's real broker fill). Live-reproduced 2026-07-27: 9 stop-loss
+        # exits in paper mode all recorded NULL P&L, then reconciliation.py's realized-P&L
+        # query found closed_count=9 but SUM(profit_loss_dollars) NULL and raised
+        # "data corruption detected", permanently halting all further trading the moment
+        # any paper position closed.
+        is_estimated_price = execution_mode == "auto"
 
         if execution_mode == "auto":
             exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit)
@@ -719,25 +733,29 @@ class ExitHandler:
                     "message": f"Exit order failed: {error_message}",
                 }
 
-        # Determine final exit price with explicit fail-fast validation
-        if execution_mode == "auto" and not is_estimated_price:
-            # In auto mode with actual fill: must use actual price, never fallback
+        # Determine final exit price with explicit fail-fast validation.
+        #
+        # CRITICAL FIX: this used to branch on `is_estimated_price` (now False for both
+        # paper/review AND a confirmed auto-mode fill - see the field's new definition
+        # above), which left paper/review mode matching neither branch and raising the
+        # "should never happen" RuntimeError below on every single exit. Live-reproduced
+        # 2026-07-27 immediately after the is_estimated_price fix. The actual question
+        # here is "did we submit a real order," which is exactly what execution_mode
+        # already answers - so branch on that directly instead.
+        if execution_mode == "auto":
+            # Auto mode only reaches here after a confirmed fill (an order failure
+            # returns early above) - must use the actual price, never fall back.
             if actual_fill_price is None:
                 raise DataUnavailableError(
                     f"[CRITICAL] Auto mode executed order but actual_fill_price is None for {symbol}. "
                     f"Logic error: execution succeeded but fill price unavailable. Cannot record exit."
                 )
             final_exit_price = actual_fill_price
-        elif is_estimated_price:
-            # Estimated price (paper/review mode or order failed) - use provided exit_price
-            final_exit_price = exit_price
         else:
-            # Should never reach here if logic is correct
-            raise RuntimeError(
-                f"[CRITICAL] Inconsistent exit state for {symbol}: "
-                f"is_estimated_price={is_estimated_price} but no actual fill price available. "
-                f"Cannot determine which price to use for P&L calculation."
-            )
+            # Paper/review mode - no real order was submitted; the exit engine's live
+            # quote at evaluation time (exit_price) is the final, deterministic simulated
+            # fill price.
+            final_exit_price = exit_price
 
         # Validate prices - fail-fast instead of returning error dict
         if final_exit_price <= 0:

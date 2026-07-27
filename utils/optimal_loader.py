@@ -439,6 +439,8 @@ class OptimalLoader:
             logger.info(f"[{self.table_name}] LOCAL_MODE enabled - using file-based locks")
             lock_manager = None
 
+        from algo.exceptions import LockAcquisitionError
+
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
@@ -484,7 +486,6 @@ class OptimalLoader:
                     f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
                     f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."
                 )
-                from algo.exceptions import LockAcquisitionError
                 raise LockAcquisitionError(
                     lock_key=lock_table,
                     reason=f"DynamoDB lock manager unavailable: {ddb_err}",
@@ -502,7 +503,6 @@ class OptimalLoader:
                         f"[{self.table_name}] DynamoDB lock unavailable (permission denied). "
                         f"Cannot proceed with idempotency guarantee. Fix AWS credentials or DynamoDB access."
                     )
-                    from algo.exceptions import LockAcquisitionError
                     raise LockAcquisitionError(
                         lock_key=self.table_name,
                         reason="DynamoDB lock manager unavailable (permission/access error)",
@@ -528,7 +528,6 @@ class OptimalLoader:
                     else:
                         # Final failure after retries - fail fast instead of silently skipping
                         # Critical loaders must not silently degrade (violates governance)
-                        from algo.exceptions import LockAcquisitionError
                         msg = (
                             f"[{self.table_name}] Failed to acquire lock after {max_retries} retries. "
                             f"Another process is holding the lock. Check for stale locks or concurrent runs. "
@@ -540,10 +539,13 @@ class OptimalLoader:
                             reason="Lock acquisition timeout after retries",
                             context={"table_name": self.table_name, "max_retries": max_retries}
                         )
+        except LockAcquisitionError:
+            # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
+            # Re-wrapping via the generic handler below would double the message
+            # ("Failed to acquire lock for X: Failed to acquire lock for X: ...").
+            raise
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] Lock initialization failed: {_lock_err}")
-            from algo.exceptions import LockAcquisitionError
-
             raise LockAcquisitionError(
                 lock_key=self.table_name, reason=str(_lock_err), context={"table_name": self.table_name}
             ) from _lock_err
@@ -659,6 +661,8 @@ class OptimalLoader:
         # returns DynamoDBLockManager or the RDS-backed fallback added in Session 290
         # (utils/db/rds_lock.py, shared/atomic like DynamoDB - not a local file lock).
         lock_manager: DynamoDBLockManager | RDSLockManager | None = None
+        from algo.exceptions import LockAcquisitionError
+
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
@@ -702,7 +706,6 @@ class OptimalLoader:
                     f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
                     f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."
                 )
-                from algo.exceptions import LockAcquisitionError
                 raise LockAcquisitionError(
                     lock_key=lock_table,
                     reason=f"DynamoDB lock manager unavailable: {ddb_err}",
@@ -720,7 +723,6 @@ class OptimalLoader:
                         f"[{self.table_name}] DynamoDB lock unavailable (permission denied). "
                         f"Cannot proceed with idempotency guarantee. Fix AWS credentials or DynamoDB access."
                     )
-                    from algo.exceptions import LockAcquisitionError
                     raise LockAcquisitionError(
                         lock_key=self.table_name,
                         reason="DynamoDB lock manager unavailable (permission/access error)",
@@ -745,10 +747,13 @@ class OptimalLoader:
                         # Final failure after retries
                         logger.error(f"[{self.table_name}] Failed to acquire lock (global load) after {max_retries} retries. Skipping.")
                         return 0
+        except LockAcquisitionError:
+            # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
+            # Re-wrapping via the generic handler below would double the message
+            # ("Failed to acquire lock for X: Failed to acquire lock for X: ...").
+            raise
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] Lock initialization failed: {_lock_err}")
-            from algo.exceptions import LockAcquisitionError
-
             raise LockAcquisitionError(
                 lock_key=self.table_name, reason=str(_lock_err), context={"table_name": self.table_name}
             ) from _lock_err

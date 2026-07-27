@@ -2,13 +2,16 @@
 
 import logging
 import threading
+from datetime import datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from utils.validation.framework import StrictValidationError, safe_float, safe_int
 
 from .api_data_layer import api_call
 from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue
 
+ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
@@ -228,6 +231,7 @@ def fetch_market(c: None) -> dict[str, Any]:
             "nh": nh_val,
             "nl": nl_val,
             "bmom": bmom_val,
+            "timestamp": datetime.now(ET),
         }
 
         # Add spy_chg only if available
@@ -400,6 +404,7 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         result: dict[str, Any] = {
             "exposure_pct": exposure_pct,
             "raw_score": raw_score,
+            "timestamp": datetime.now(ET),
         }
 
         if not regime_unavailable:
@@ -544,7 +549,7 @@ def fetch_sector_ranking(c: None) -> dict[str, Any]:
             record_data_quality_issue("srank", "validation", "no_items")
             return FetcherValidator.build_error_response(error_msg)
 
-        return {"items": items}
+        return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = format_fetcher_error("srank", e)
         logger.error(error_msg)

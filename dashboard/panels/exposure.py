@@ -65,7 +65,7 @@ from rich.text import Text
 from dashboard.data_validation import StrictValidationError, safe_float
 
 from ..formatter_strategies import TierFormatter
-from ..formatters import mini_bar
+from ..formatters import fmt_age, mini_bar
 from ..utilities import TIER_COLOR, G, R, Y
 from ._helpers import _error_panel
 
@@ -334,9 +334,11 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         header = Text.from_markup(
             f"[dim]Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar} [dim]↳ allocation[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:24]}[/]"
         )
+    timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(header, tbl),
-        title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]  [dim][x] expand[/]",
+        title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]{age_s}  [dim][x] expand[/]",
         border_style="blue",
         padding=(0, 1),
     )
@@ -679,9 +681,11 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             logger.debug("[EXPOSURE_EXPANDED_ADJ] economic_overlay present but pts field missing")
             rows.append(Text.from_markup("  [dim]Economic Overlay:[/] [red]✗ pts calculation failed[/]"))
 
+    timestamp_val = exp_f.get("timestamp") if isinstance(exp_f, dict) else None
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
+        title=f"[bold blue]EXPOSURE SCORE - EXPANDED[/]{age_s}  [dim][x] return[/]",
         border_style="blue",
         padding=(0, 1),
     )

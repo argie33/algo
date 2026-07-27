@@ -91,11 +91,10 @@ def get_run_details(run_id: str) -> dict[str, Any]:
                 logger.warning(f"Orchestrator run {run_id} not found in execution log")
                 return {"data_unavailable": True, "reason": "run_not_found", "requested_run_id": run_id}
 
-            phase_results: list[Any] = []
-            try:
-                phase_results = json.loads(row[5]) if row[5] is not None else []
-            except json.JSONDecodeError:
-                logger.warning(f"Could not parse phase_results for {run_id}")
+            # phase_results is a JSONB column - psycopg2 already deserializes it to a
+            # Python list/dict, so json.loads() here raised TypeError (not caught by
+            # the JSONDecodeError handler) on every real row and crashed this function.
+            phase_results: list[Any] = row[5] if row[5] is not None else []
 
             return {
                 "run_id": row[0],

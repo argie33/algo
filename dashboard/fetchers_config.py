@@ -2,13 +2,16 @@
 
 import logging
 import threading
+from datetime import datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from utils.validation.framework import safe_bool
 
 from .api_data_layer import api_call
 from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue
 
+ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
@@ -524,6 +527,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
             "any_triggered": any_triggered,
             "triggered_count": triggered_count,
             "data_freshness": result.get("data_freshness"),
+            "timestamp": datetime.now(ET),
         }
     except Exception as e:
         error_msg = format_fetcher_error("cb", e)

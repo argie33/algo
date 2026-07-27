@@ -1596,6 +1596,14 @@ def run(
                         message = trade_result["message"]
                         status = trade_result["status"]
                         logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
+                        # Persist the failure reason - previously this only went to logger.error(),
+                        # which is lost once the process exits. Skipped/rejected signals were already
+                        # audited via _log_signal_rejection() below in this same function; actual
+                        # broker-execution failures were the one path with no queryable audit trail,
+                        # making them undiagnosable in production without live log access.
+                        _log_signal_rejection(
+                            symbol, "execution_failed", f"{message} (status={status})", run_date, entry_price, risk_pct
+                        )
 
                         failed_count += 1
 
@@ -1604,6 +1612,7 @@ def run(
                         f"[PHASE 8] {symbol}: execution error: {exec_err}",
                         exc_info=True,
                     )
+                    _log_signal_rejection(symbol, "execution_error", str(exec_err), run_date, entry_price, risk_pct)
 
                     failed_count += 1
 
@@ -1623,6 +1632,12 @@ def run(
             logger.error(
                 f"[PHASE 8] Error processing {signal['symbol']}: {e}",
                 exc_info=True,
+            )
+            # Use signal.get(...) rather than the local entry_price/risk_pct vars - this
+            # handler covers the whole per-symbol block, including the part before those
+            # locals are computed, so they aren't guaranteed to be assigned yet.
+            _log_signal_rejection(
+                signal["symbol"], "processing_error", str(e), run_date, signal.get("entry_price")
             )
 
             failed_count += 1

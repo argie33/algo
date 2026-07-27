@@ -2036,7 +2036,14 @@ class Orchestrator:
         logger.info(f"#   FINAL REPORT - {self.run_id}")
         logger.info(f"{'#' * 70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
-            status_flag = self._STATUS_FLAGS.get(info["status"], "[?]   ")
+            # Phase 6's dry-run stub reuses status="degraded" (see the any_degraded exclusion
+            # below for why the aggregation logic already treats this as benign) - display it
+            # with the same [SKIP] flag as a real skip instead of [DEGRAD], which reads as a
+            # genuine per-item exit-execution problem to anyone scanning this report by eye.
+            display_status = info["status"]
+            if display_status == "degraded" and "DRY-RUN" in (info.get("summary") or ""):
+                display_status = "skipped"
+            status_flag = self._STATUS_FLAGS.get(display_status, "[?]   ")
             logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} - {info['summary']}")
         logger.info(f"{'#' * 70}\n")
 

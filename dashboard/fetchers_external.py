@@ -1,7 +1,9 @@
 """Fetcher functions for external and enrichment data sources."""
 
 import logging
+from datetime import datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from utils.validation.framework import safe_float
 
@@ -9,6 +11,7 @@ from .api_data_layer import api_call
 from .fetchers_common import format_fetcher_error, get_endpoint_path, record_data_quality_issue
 from .utilities import CY, G, R, Y
 
+ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
@@ -197,6 +200,7 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
             "dxy": dxy,
             "mortgage": mortgage,
             "umcsent": umcsent,
+            "timestamp": datetime.now(ET),
         }
     except Exception as e:
         from dashboard.fetcher_validator import FetcherValidator

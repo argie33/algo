@@ -657,7 +657,9 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
     else:
         rows.append(Text.from_markup(f"[{Y}]No active buy signals[/]"))
 
-    title = "[bold magenta]SIGNALS - EXPANDED[/]"
+    timestamp_val = safe_get_field(overview, "timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    title = f"[bold magenta]SIGNALS - EXPANDED[/]{age_s}"
     return Panel(
         Group(*rows),
         title=title,

@@ -101,3 +101,37 @@ class TestFinalReportBlockedDryRunCombo:
         phases[5] = {"name": "exposure_policy", "status": "blocked", "summary": "unexpected block"}
         result = _run_final_report(phases)
         assert result["success"] is False
+
+    def test_dry_run_stub_console_flag_reads_skip_not_degrad(self, caplog):
+        """The overall success=True fix above only covers the aggregated run outcome -
+        the per-phase line printed to the console still read '[DEGRAD] Phase 6:
+        exit_execution' for the exact same benign dry-run stub, which looks like a real
+        exit-execution failure to anyone scanning the report by eye (confirmed live: this
+        is what triggered a false alarm reading a real dry-run log). It must display the
+        same [SKIP] flag used for other intentional non-executions, not [DEGRAD]."""
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            _run_final_report(HEALTHY_DRY_RUN_PHASES)
+        phase_6_lines = [r.message for r in caplog.records if "Phase 6:" in r.message]
+        assert len(phase_6_lines) == 1
+        assert "[SKIP]" in phase_6_lines[0]
+        assert "[DEGRAD]" not in phase_6_lines[0]
+
+    def test_genuine_exit_execution_errors_still_display_degrad_flag(self, caplog):
+        """Sanity check mirroring test_genuine_exit_execution_errors_still_report_failure:
+        the console-flag fix must not blanket-hide a real Phase 6 problem either - only
+        the literal 'DRY-RUN' stub summary gets remapped to [SKIP]."""
+        import logging
+
+        phases = dict(HEALTHY_DRY_RUN_PHASES)
+        phases[6] = {
+            "name": "exit_execution",
+            "status": "degraded",
+            "summary": "3 exit orders failed: insufficient buying power",
+        }
+        with caplog.at_level(logging.INFO):
+            _run_final_report(phases)
+        phase_6_lines = [r.message for r in caplog.records if "Phase 6:" in r.message]
+        assert len(phase_6_lines) == 1
+        assert "[DEGRAD]" in phase_6_lines[0]
