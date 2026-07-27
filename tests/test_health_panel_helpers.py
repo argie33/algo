@@ -76,6 +76,15 @@ class TestFormatPhaseBadge:
         assert color == G
         assert icon == "✓"
 
+    def test_blocked_status_returns_yellow_not_red(self):
+        """A safety guard (e.g. Phase 8's market-hours guard) correctly blocking execution
+        is a successful outcome (see PhaseResult.ok) - it must never render as a red error
+        badge, which previously happened because "blocked" matched none of the recognized
+        status buckets and fell through to the red-X default."""
+        color, icon = _format_phase_badge("blocked")
+        assert color == Y
+        assert icon != "✗"
+
 
 class TestFormatExecHistorySummary:
     """Test execution history summary formatting."""

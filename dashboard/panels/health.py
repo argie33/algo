@@ -11,8 +11,14 @@ logger = logging.getLogger(__name__)
 # "skipped" (skip_if_halted=YES phases that never ran because an earlier phase halted)
 # is intentionally separate from a genuine halt/warn/degraded - see SKIPPED_STATES below
 # and its longer explanation next to the module-level HALTED_STATES constant.
+# "blocked" (a safety guard - e.g. Phase 8's market-hours/stale-signal/pending-order guards -
+# correctly preventing execution; see PhaseResult.ok in algo/orchestrator/phase_result.py,
+# which treats it as a successful outcome) belongs here too: every one of these status
+# buckets defaults anything unrecognized to a red ERROR badge, so before this fix a
+# perfectly healthy guard block rendered identically to a genuine phase crash on the
+# dashboard - exactly the false alarm this system can't afford once real money is on the line.
 PHASE_SUCCESS_STATES = ("success", "completed", "ok")
-PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded")
+PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "blocked")
 PHASE_SKIPPED_STATES = ("skipped",)
 
 
@@ -157,7 +163,11 @@ SUCCESS_STATES = ("success", "completed", "ok")
 # genuinely halted and the rest were skipped as a downstream consequence - the
 # orchestrator itself already emits a distinct status="skipped" (see
 # algo/orchestrator/phase_executor.py), the dashboard just wasn't using the distinction.
-HALTED_STATES = ("halt", "halted", "warn", "degraded")
+# "blocked" (a safety guard correctly stopped execution, e.g. Phase 8's market-hours guard -
+# see PhaseResult.ok) belongs in this cautionary bucket too, not ERROR_STATES: every call
+# site below defaults unrecognized statuses to a red ERROR badge, so a guard working exactly
+# as designed used to render identically to a genuine phase crash.
+HALTED_STATES = ("halt", "halted", "warn", "degraded", "blocked")
 SKIPPED_STATES = ("skipped",)
 ERROR_STATES = ("error", "failed")
 
@@ -291,7 +301,7 @@ def _build_phase_execution_panel(
 
     # Track phase statistics
     executed = sum(1 for p in phase_status_map.values() if p["status"] in ("success", "completed", "ok"))
-    halted = sum(1 for p in phase_status_map.values() if p["status"] in ("halt", "halted", "warn", "degraded"))
+    halted = sum(1 for p in phase_status_map.values() if p["status"] in HALTED_STATES)
     skipped = sum(1 for p in phase_status_map.values() if p["status"] == "skipped")
     errored = sum(1 for p in phase_status_map.values() if p["status"] in ("error", "failed"))
     not_run = 9 - len(phase_status_map)
@@ -308,6 +318,15 @@ def _build_phase_execution_panel(
             status_icon = "[bold green]✓[/]"
             status_text = "COMPLETED"
             base_color = G
+        elif status_str == "blocked":
+            # Distinct from HALTED: a safety guard (e.g. Phase 8's market-hours/stale-signal/
+            # pending-order guards) correctly prevented execution - PhaseResult.ok treats this
+            # as a successful outcome, not a failure. Labeling it "HALTED" would read as an
+            # incident every time the guard does its job correctly (which, for Phase 8 outside
+            # market hours, is every run).
+            status_icon = "[bold yellow]■[/]"
+            status_text = "BLOCKED (guard)"
+            base_color = Y
         elif status_str in ("halt", "halted", "warn", "degraded"):
             status_icon = "[bold yellow]~[/]"
             status_text = "HALTED"
