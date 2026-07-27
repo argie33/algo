@@ -77,6 +77,24 @@ _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavail
 _SIGNAL_COUNT_ANOMALY_THRESHOLD = 50  # Minimum signals for a day to be considered normal (historical median 400-800)
 
 
+def _buysell_lookback_start_date(run_date: _date) -> _date:
+    """Earliest date to include when querying buy_sell_daily BUY signals.
+
+    Trading-day-aware equivalent of "yesterday": the most recent trading day
+    strictly before run_date. A flat `run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)`
+    calendar subtraction misses the prior trading day's signals whenever run_date
+    follows a weekend or holiday - e.g. a Monday's -1 day lands on Sunday, excluding
+    Friday's real EOD-generated BUY signals entirely. Confirmed live 2026-07-27: a
+    Monday morning dry run found 0 candidates via the calendar-day window despite 301
+    real BUY signals sitting in buy_sell_daily for the prior trading day (2026-07-24),
+    all outside the [Sunday, Monday] range the old calculation produced.
+    """
+    from algo.infrastructure import MarketCalendar
+
+    prev_trading_day = MarketCalendar.get_previous_trading_day(run_date - timedelta(days=1))
+    return prev_trading_day or run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
+
+
 def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
     """Risk score (0-100, 100 = very low risk) based on ATR volatility relative to price.
 
@@ -213,7 +231,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
     try:
         with DatabaseContext("read") as cur:
             lookback_date = (
-                run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS) if signal_source == "buysell_breakout" else None
+                _buysell_lookback_start_date(run_date) if signal_source == "buysell_breakout" else None
             )
 
             # Check stock_scores coverage (not swing_trader_scores)
@@ -314,13 +332,13 @@ def _get_candidates_from_buysell(
     that was above SMA_50) AND a high composite_score. The breakout confirms the entry timing;
     composite_score ranks quality.
 
-    Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days - covers the prior EOD pipeline's
+    Lookback: the prior trading day (weekend/holiday-aware) - covers the prior EOD pipeline's
     signals for morning/afternoon orchestrator runs, plus today's signals for the 5:30 PM run.
 
     SWING SCORE MIGRATION: Removed swing_trader_scores LEFT JOIN (was fetched but never used).
     All signal ranking now uses composite_score only.
     """
-    lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
+    lookback_date = _buysell_lookback_start_date(run_date)
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SET LOCAL statement_timeout = '15000ms'")
@@ -1260,7 +1278,7 @@ def run(  # noqa: C901
 
         if not raw_candidates:
             msg = (
-                f"[PHASE 7] No BUY signals found in lookback window ({_BUYSELL_LOOKBACK_DAYS}-day window, "
+                f"[PHASE 7] No BUY signals found in lookback window (prior trading day through {run_date}, "
                 f"min_composite_score={min_composite_score}). Possible causes: (1) buy_sell_daily has no recent signals "
                 f"(EOD pipeline may not have run yet), (2) all signals below min_score threshold, "
                 f"(3) market regime prevents entries. Check market_exposure_daily for regime/halt_entries."
