@@ -5,9 +5,10 @@ Guards against re-introducing an unscoped DELETE that wipes an economic series'
 entire history instead of just the date range being refreshed.
 """
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
-from loaders.load_economic_data import store_economic_data
+from loaders.load_economic_data import mark_unavailable, store_economic_data
 
 
 def test_delete_is_scoped_to_fetched_date_range_not_whole_series():
@@ -46,3 +47,28 @@ def test_empty_records_does_not_touch_database():
 
     assert inserted == 0
     mock_db_context.assert_not_called()
+
+
+def test_mark_unavailable_upserts_instead_of_bare_insert():
+    """economic_data has a UNIQUE(series_id, date) constraint. A same-day retry after
+    an earlier failure (or an earlier real fetch) must not raise a swallowed
+    duplicate-key error - it must use ON CONFLICT, and must only ever overwrite a row
+    that is ALREADY a data_unavailable marker, never real data fetched earlier the
+    same day."""
+    mock_cur = MagicMock()
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__.return_value = mock_cur
+
+    with patch("loaders.load_economic_data.DatabaseContext", return_value=mock_ctx):
+        mark_unavailable("T10Y2Y", "fred_api_timeout")
+
+    insert_calls = [c for c in mock_cur.execute.call_args_list if "INSERT" in c.args[0]]
+    assert len(insert_calls) == 1
+    sql, params = insert_calls[0].args
+
+    assert "ON CONFLICT" in sql
+    assert "(series_id, date)" in sql
+    # Must gate the overwrite on the existing row already being a marker - real data
+    # fetched earlier the same day must never be clobbered by a later failed retry.
+    assert "data_unavailable = TRUE" in sql
+    assert params == ("T10Y2Y", date.today(), None, True, "fred_api_timeout")

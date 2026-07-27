@@ -241,9 +241,21 @@ def mark_unavailable(series_id: str, reason: str) -> None:
     """
     try:
         with DatabaseContext("write") as cur:
+            # economic_data has a UNIQUE(series_id, date) constraint. A bare INSERT
+            # here raised (and silently swallowed, below) a duplicate-key error on any
+            # same-day retry - e.g. a transient FRED outage on a second run the same
+            # day after an earlier successful fetch already stored real data for
+            # today, or after an earlier failed run already stored a marker. The
+            # WHERE clause on DO UPDATE only lets a retry touch a row that is ALREADY
+            # a marker (data_unavailable=TRUE), so a later transient failure can never
+            # clobber real data fetched earlier the same day, while repeat genuine
+            # failures still get their reason refreshed instead of erroring out.
             cur.execute(
                 """INSERT INTO economic_data (series_id, date, value, data_unavailable, reason)
-                   VALUES (%s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (series_id, date) DO UPDATE SET
+                       reason = EXCLUDED.reason
+                   WHERE economic_data.data_unavailable = TRUE""",
                 (series_id, date.today(), None, True, reason),
             )
     except Exception as e:
