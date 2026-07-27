@@ -70,3 +70,27 @@ def test_no_correction_when_broker_and_db_quantities_already_match():
 
     assert result["mismatches"] == 0
     assert not any("UPDATE algo_trades" in c.args[0] for c in cur.execute.call_args_list)
+
+
+def test_lookup_query_covers_pending_and_paper_pending_statuses():
+    """CRITICAL FIX regression: the DB lookup previously hardcoded
+    ('open','filled','partially_filled','active'), omitting 'pending'/'paper_pending' - the
+    exact two statuses a trade sits in when "Alpaca fills part of an order and then network
+    fails before we can sync" (this function's own docstring). A trade stuck at 'pending' in
+    our DB while Alpaca's closed-orders feed already shows it filled must still be found."""
+    from utils.trading import TradeStatus
+
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = [
+        {"symbol": "AAPL", "filled_qty": "60", "status": "filled"}
+    ]
+    cur = MagicMock()
+    cur.fetchone.return_value = ("trade-123", 100, "pending")
+
+    reconciliation.check_partial_fills(cur)
+
+    lookup_calls = [c for c in cur.execute.call_args_list if "SELECT trade_id" in c.args[0]]
+    assert lookup_calls, "expected a SELECT trade_id lookup against algo_trades"
+    sql_text, params = lookup_calls[0].args
+    for status in TradeStatus.all_open():
+        assert status in params, f"expected {status!r} among lookup query params, got {params!r}"

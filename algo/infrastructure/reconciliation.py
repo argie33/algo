@@ -19,6 +19,7 @@ from algo.infrastructure.broker_adapter import BrokerAdapter
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
 from utils.db import DatabaseContext
+from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -1990,14 +1991,24 @@ class DailyReconciliation:
                     continue
 
                 # Find corresponding trade in our DB
+                #
+                # CRITICAL FIX: this hardcoded list omitted 'pending'/'paper_pending' - exactly
+                # the two statuses a trade sits in when "Alpaca fills part of an order and then
+                # network fails before we can sync" (this function's own docstring), i.e. the
+                # precise desync this check exists to catch. A trade stuck at 'pending' in our
+                # DB while Alpaca's own closed-orders feed already shows it filled would never
+                # match this WHERE clause, so the mismatch would go undetected. Use
+                # TradeStatus.all_open() so every live status is covered.
+                open_trade_statuses = TradeStatus.all_open()
+                status_placeholders = ", ".join(["%s"] * len(open_trade_statuses))
                 cur.execute(
-                    """
+                    f"""
                     SELECT trade_id, entry_quantity, status
                     FROM algo_trades
-                    WHERE symbol = %s AND status IN ('open', 'filled', 'partially_filled', 'active')
+                    WHERE symbol = %s AND status IN ({status_placeholders})
                     ORDER BY trade_date DESC LIMIT 1
                 """,
-                    (symbol,),
+                    (symbol, *open_trade_statuses),
                 )
 
                 db_row = cur.fetchone()
