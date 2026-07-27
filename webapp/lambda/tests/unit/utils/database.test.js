@@ -120,8 +120,11 @@ describe("Database Utilities - Unit Tests", () => {
       delete process.env.DB_SECRET_ARN;
       // Close any existing connections to ensure uninitialized state
       await closeDatabase();
+      // With no DB_HOST/DB_SECRET_ARN, getDbConfig() fails fast with a specific
+      // "no configuration" error rather than the generic "connection failed" one -
+      // see utils/database.js's getDbConfig.
       await expect(query("SELECT 1")).rejects.toThrow(
-        "Database connection failed"
+        "No database configuration found"
       );
     });
     test("should handle connection errors gracefully", async () => {
@@ -261,8 +264,10 @@ describe("Database Utilities - Unit Tests", () => {
       process.env.DB_NAME = "test";
       await initializeDatabase();
       mockPool.query.mockRejectedValue(new Error("connection timeout"));
-      const result = await query("SELECT 1");
-      expect(result).toBeNull();
+      // query() deliberately always throws on error rather than swallowing it into a
+      // null return - "Always throw errors to expose issues instead of silently
+      // returning null" per utils/database.js's own comment.
+      await expect(query("SELECT 1")).rejects.toThrow("connection timeout");
     });
     test("should handle unexpected error formats", async () => {
       process.env.DB_HOST = "localhost";
@@ -271,8 +276,9 @@ describe("Database Utilities - Unit Tests", () => {
       process.env.DB_NAME = "test";
       await initializeDatabase();
       mockPool.query.mockRejectedValue({ message: "connection timeout" });
-      const result = await query("SELECT 1");
-      expect(result).toBeNull();
+      await expect(query("SELECT 1")).rejects.toMatchObject({
+        message: "connection timeout",
+      });
     });
     test("should handle query logging for slow queries", async () => {
       process.env.DB_HOST = "localhost";
