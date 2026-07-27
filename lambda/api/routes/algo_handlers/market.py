@@ -289,8 +289,16 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         }
 
         try:
+            # error_message/execution_started/execution_completed/completion_pct/symbols_loaded/
+            # symbol_count are written by every loader via LoaderStatusManager (utils/loaders/status_manager.py)
+            # but were previously never selected here, so a loader that failed with a real error
+            # (auth failure, rate limit, timeout) showed up on the dashboard as bare "STALE" with no
+            # way to tell why without reading raw logs. Select them so the freshness panel can surface
+            # the actual failure reason and in-progress load state, not just an age/row-count guess.
             cur.execute("""
-                    SELECT table_name, row_count, last_updated, stale_threshold_days
+                    SELECT table_name, row_count, last_updated, stale_threshold_days,
+                           error_message, execution_started, execution_completed,
+                           completion_pct, symbols_loaded, symbol_count
                     FROM data_loader_status
                     ORDER BY table_name
                 """)
@@ -575,6 +583,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             summary[status] = current_count + 1
             if status in ("stale", "empty") and row["table_name"] in critical_tables:
                 critical_stale.append(row["table_name"])
+            # Only loader_rows entries carry these (populated by LoaderStatusManager); algo_rows
+            # (orchestrator-written tables like algo_positions) don't have a loader run to report on.
+            exec_started = row.get("execution_started")
+            exec_completed = row.get("execution_completed")
+            completion_pct = row.get("completion_pct")
             sources.append(
                 {
                     "name": row["table_name"],
@@ -583,6 +596,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "last_updated": last_updated.isoformat() if last_updated else None,
                     "age_hours": round(age_h, 1) if age_h is not None else None,
                     "row_count": row_count,
+                    "loader_error": row.get("error_message"),
+                    "execution_started": exec_started.isoformat() if exec_started else None,
+                    "execution_completed": exec_completed.isoformat() if exec_completed else None,
+                    "completion_pct": float(completion_pct) if completion_pct is not None else None,
+                    "symbols_loaded": row.get("symbols_loaded"),
+                    "symbol_count": row.get("symbol_count"),
                 }
             )
 

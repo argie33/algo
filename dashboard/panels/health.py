@@ -846,6 +846,34 @@ def _build_freshness_panel(
         # Single column layout
         left_rows.append(left_tbl)
 
+    # Loader run diagnostics: why a table is stale/empty (real error) and which loaders are
+    # mid-run right now. This data is written by every loader (LoaderStatusManager) but a
+    # bare "STALE"/"EMPTY" badge above gives no way to tell "loader never ran" from "loader
+    # is failing every day with an auth/rate-limit error" without reading raw logs.
+    loader_errors = [
+        (r.get("tbl") or "unknown", r.get("loader_error"))
+        for r in sorted_items
+        if r.get("st") != "ok" and r.get("loader_error")
+    ]
+    if loader_errors:
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
+        for tbl_name, err in loader_errors[:8]:
+            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{str(err)[:90]}[/]"))
+        if len(loader_errors) > 8:
+            left_rows.append(Text.from_markup(f"  [dim]...and {len(loader_errors) - 8} more[/]"))
+
+    in_progress = [r for r in sorted_items if r.get("execution_started") and not r.get("execution_completed")]
+    if in_progress:
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold {Y}]Loading now:[/]"))
+        for r in in_progress[:8]:
+            pct = r.get("completion_pct")
+            pct_s = f"{float(pct):.0f}%" if pct is not None else "?"
+            sl, sc = r.get("symbols_loaded"), r.get("symbol_count")
+            cnt_s = f" ({sl}/{sc} symbols)" if sl is not None and sc is not None else ""
+            left_rows.append(Text.from_markup(f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s}"))
+
     return Panel(
         Group(*left_rows),
         title=title,
@@ -2815,6 +2843,16 @@ def panel_algo_health(
             phase_panel = _build_phase_execution_panel(execution_health, run)
             if phase_panel:
                 rows.append(phase_panel)
+
+    # ── D2: Portfolio risk snapshot ───────────────────────────────────────────
+    # `risk` was already fetched and passed into this panel but never read - the
+    # compact ALGO HEALTH view showed no VaR/CVaR/beta/concentration info even
+    # though it's computed and only surfaced in the expanded view. Reuse the same
+    # formatter so both views stay consistent.
+    risk_line = _extract_orch_risk_metrics_string(risk).strip()
+    if risk_line:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(risk_line))
 
     # ── E: Notifications (compact) ────────────────────────────────────────────
     valid_notifs_raw = safe_get_list(notifs)

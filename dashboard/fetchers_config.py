@@ -371,6 +371,19 @@ def fetch_health(c: None) -> dict[str, Any]:
             if row_count is None:
                 logger.debug(f"Data freshness missing row_count for {name} - optional enrichment unavailable")
 
+            # Loader run diagnostics: written by LoaderStatusManager on every loader run but
+            # previously dropped before reaching the dashboard, so a STALE/EMPTY table gave no
+            # clue whether the loader is failing (and why) or just hasn't run yet.
+            loader_error = s.get("loader_error")
+            if loader_error is None:
+                logger.debug(f"Data freshness missing loader_error for {name} - optional enrichment unavailable")
+
+            execution_started = s.get("execution_started")
+            execution_completed = s.get("execution_completed")
+            completion_pct = s.get("completion_pct")
+            symbols_loaded = s.get("symbols_loaded")
+            symbol_count = s.get("symbol_count")
+
             sources.append(
                 {
                     "tbl": name,
@@ -386,6 +399,12 @@ def fetch_health(c: None) -> dict[str, Any]:
                     # Mark optional fields as unavailable if missing
                     "last_updated_available": last_updated is not None,
                     "row_count_available": row_count is not None,
+                    "loader_error": loader_error,
+                    "execution_started": execution_started,
+                    "execution_completed": execution_completed,
+                    "completion_pct": completion_pct,
+                    "symbols_loaded": symbols_loaded,
+                    "symbol_count": symbol_count,
                 }
             )
         summary = inner.get("summary")
