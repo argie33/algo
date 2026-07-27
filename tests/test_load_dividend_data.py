@@ -74,6 +74,40 @@ def test_true_duplicate_on_primary_key_is_still_deduped() -> None:
     assert len(records) == 1
 
 
+def test_split_restated_duplicate_period_keeps_earliest_filed_value() -> None:
+    """A stock split retroactively restates historical per-share dividend values in later
+    comparative filings - confirmed live against AAPL's real companyfacts: the
+    2011-09-25..2012-09-29 period reports val=2.65 in the original 2012 10-K but val=0.38 in
+    the 2014 10-K/2015 8-K after Apple's 2014 7-for-1 split. Since dividend_per_share is part
+    of the primary key, both would otherwise survive as separate "distinct" dividends for the
+    same real-world quarter. Only the earliest-filed (as originally declared, not restated)
+    value must survive."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {
+                        "USD/shares": [
+                            {"val": 2.65, "filed": "2012-10-31", "end": "2012-09-29"},
+                            {"val": 2.65, "filed": "2013-10-30", "end": "2012-09-29"},
+                            {"val": 0.38, "filed": "2014-10-27", "end": "2012-09-29"},
+                            {"val": 0.38, "filed": "2015-01-28", "end": "2012-09-29"},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(2.65)
+    assert records[0]["declaration_date"].isoformat() == "2012-10-31"
+
+
 def test_unexpected_xbrl_unit_is_skipped_not_treated_as_per_share() -> None:
     """A per-share concept ("...PerShareDeclared") tagged under a unit other than the
     standard 'USD/shares' (filer XBRL error, restatement artifact) must not be silently

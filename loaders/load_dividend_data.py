@@ -43,8 +43,13 @@ class DividendDataLoader(SecLoaderBase):
     per ASC 505 (Equity) disclosure requirements.
 
     Returns:
-    - dividend_per_share: Declared dividend per share (from XBRL)
-    - declaration_date: Filing date when dividend was declared
+    - dividend_per_share: Declared dividend per share (from XBRL, earliest-filed value per
+      period - see _extract_dividends_from_xbrl_concept for why later filings can't be trusted)
+    - declaration_date: Filing date of the earliest XBRL fact for that dividend period. For
+      periods before the filer's XBRL mandate (~2009-2011 depending on filer size), the
+      "earliest" available fact is itself from a later filing's historical comparative table
+      (confirmed live: MSFT's FY2008 dividend first appears in XBRL in its 2010 10-K) - SEC
+      simply has no earlier machine-readable disclosure for these periods, not a loader bug.
     - ex_dividend_date: Estimated from period end date (fiscal quarter/year end)
     - payment_date: Estimated as 30-60 days after ex-dividend date (typical corporate practice)
 
@@ -84,15 +89,29 @@ class DividendDataLoader(SecLoaderBase):
         if not isinstance(concept_data, dict) or "units" not in concept_data:
             return results
 
-        # XBRL facts are organized by unit. Both concepts this method is called with
-        # ("...PerShareDeclared"/"...PerShareCashPaid") are per-share ratio concepts, whose
-        # standard US-GAAP taxonomy unit is "USD/shares" - not a plain dollar amount. SEC
-        # filers occasionally mistag facts under an unexpected unit (restatements, filer XBRL
-        # errors); blindly trusting any unit key here would silently store that filer's raw
-        # value as dividend_per_share even if it wasn't actually a per-share figure, corrupting
-        # the field with no downstream validation to catch it. Skip anything that isn't the
-        # expected per-share unit rather than guess.
+        # companyfacts repeats every historical fact once per filing that carries it in a
+        # comparative table (a 10-K's dividend footnote typically shows 2-3 fiscal years side
+        # by side) - so the SAME real-world (start, end) period can appear many times across
+        # different accessions. Worse, a later stock split retroactively restates the per-share
+        # VALUE too: confirmed live for AAPL's 2011-09-25..2012-09-29 period, which reports
+        # val=2.65 as originally filed in the 2012 10-K but val=0.38 in the 2014 10-K/2015 8-K
+        # after Apple's 2014 7-for-1 split (2.65/7 ~= 0.38). Since dividend_per_share is part of
+        # this loader's dedup/primary key, the pre-split and post-split restatements of the
+        # identical dividend don't dedupe against each other - both would land as separate,
+        # seemingly-legitimate dividends for the same quarter. Keep only the earliest-filed
+        # occurrence of each period end date: that's the fact as originally declared/
+        # disclosed, not a later split-adjusted restatement - which also fixes declaration_date
+        # (derived from `filed`) landing years after the ex-date estimate it's paired with.
+        earliest_fact_by_period: dict[str, dict[str, Any]] = {}
         for unit, facts_list in concept_data.get("units", {}).items():
+            # XBRL facts are organized by unit. Both concepts this method is called with
+            # ("...PerShareDeclared"/"...PerShareCashPaid") are per-share ratio concepts, whose
+            # standard US-GAAP taxonomy unit is "USD/shares" - not a plain dollar amount. SEC
+            # filers occasionally mistag facts under an unexpected unit (restatements, filer XBRL
+            # errors); blindly trusting any unit key here would silently store that filer's raw
+            # value as dividend_per_share even if it wasn't actually a per-share figure, corrupting
+            # the field with no downstream validation to catch it. Skip anything that isn't the
+            # expected per-share unit rather than guess.
             if unit != "USD/shares":
                 logger.warning(
                     f"[{symbol}] {concept_name}: skipping unexpected XBRL unit '{unit}' "
@@ -106,50 +125,57 @@ class DividendDataLoader(SecLoaderBase):
                 if not isinstance(fact, dict):
                     continue
 
-                try:
-                    # Extract relevant fields
-                    value = fact.get("val")
-                    if value is None or value == 0:
-                        continue  # Skip zero dividends
+                value = fact.get("val")
+                if value is None or value == 0:
+                    continue  # Skip zero dividends
 
-                    filed_str = fact.get("filed")
-                    end_str = fact.get("end")
-
-                    if not filed_str or not end_str:
-                        continue
-
-                    # Parse dates
-                    try:
-                        declaration_date = datetime.strptime(filed_str, "%Y-%m-%d").date()
-                        period_end = datetime.strptime(end_str, "%Y-%m-%d").date()
-                    except (ValueError, TypeError):
-                        continue
-
-                    # Estimate ex-date: typically within 30-60 days after period end
-                    ex_dividend_date = period_end + timedelta(days=45)
-                    payment_date = ex_dividend_date + timedelta(days=3)
-
-                    results.append(
-                        {
-                            "symbol": symbol,
-                            "declaration_date": declaration_date,
-                            "ex_dividend_date": ex_dividend_date,
-                            "record_date": None,
-                            "payment_date": payment_date,
-                            "dividend_per_share": Decimal(str(value)),
-                            "dividend_yield_pct": None,
-                            "total_dividend_amount": None,
-                            "dividend_type": "regular",
-                            "currency": "USD",
-                            "data_unavailable": False,
-                            "data_unavailable_reason": None,
-                            "source": f"SEC_XBRL_{concept_name}",
-                        }
-                    )
-
-                except (ValueError, TypeError, AttributeError) as e:
-                    logger.debug(f"[{symbol}] Error parsing XBRL fact: {e}")
+                filed_str = fact.get("filed")
+                end_str = fact.get("end")
+                if not filed_str or not end_str:
                     continue
+
+                existing = earliest_fact_by_period.get(end_str)
+                if existing is None or filed_str < existing["filed"]:
+                    earliest_fact_by_period[end_str] = fact
+
+        for fact in earliest_fact_by_period.values():
+            try:
+                value = fact["val"]
+                filed_str = fact["filed"]
+                end_str = fact["end"]
+
+                # Parse dates
+                try:
+                    declaration_date = datetime.strptime(filed_str, "%Y-%m-%d").date()
+                    period_end = datetime.strptime(end_str, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    continue
+
+                # Estimate ex-date: typically within 30-60 days after period end
+                ex_dividend_date = period_end + timedelta(days=45)
+                payment_date = ex_dividend_date + timedelta(days=3)
+
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "declaration_date": declaration_date,
+                        "ex_dividend_date": ex_dividend_date,
+                        "record_date": None,
+                        "payment_date": payment_date,
+                        "dividend_per_share": Decimal(str(value)),
+                        "dividend_yield_pct": None,
+                        "total_dividend_amount": None,
+                        "dividend_type": "regular",
+                        "currency": "USD",
+                        "data_unavailable": False,
+                        "data_unavailable_reason": None,
+                        "source": f"SEC_XBRL_{concept_name}",
+                    }
+                )
+
+            except (ValueError, TypeError, AttributeError, KeyError) as e:
+                logger.debug(f"[{symbol}] Error parsing XBRL fact: {e}")
+                continue
 
         return results
 
