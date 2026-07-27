@@ -642,7 +642,7 @@ class PositionMonitor:
             RuntimeError: If cancellation cannot be verified (fail-fast to prevent state divergence)
         """
         creds = get_alpaca_credentials()
-        base_url = get_alpaca_base_url()
+        base_url = get_alpaca_base_url(self.config.get("execution_mode"))
         alpaca_key = creds.get("key")
         alpaca_secret = creds.get("secret")
 
@@ -698,7 +698,7 @@ class PositionMonitor:
         """
         try:
             creds = get_alpaca_credentials()
-            base_url = get_alpaca_base_url()
+            base_url = get_alpaca_base_url(self.config.get("execution_mode"))
             alpaca_key = creds.get("key")
             alpaca_secret = creds.get("secret")
 
@@ -1246,7 +1246,7 @@ class PositionMonitor:
 
     def _get_alpaca_creds(self) -> tuple[str, str, str]:
         """Retrieve Alpaca credentials, raise if unavailable."""
-        alpaca_base_url = get_alpaca_base_url()
+        alpaca_base_url = get_alpaca_base_url(self.config.get("execution_mode"))
         try:
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()

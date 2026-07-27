@@ -47,7 +47,6 @@ class MarketEventHandler:
 
     def __init__(self, config: Any) -> None:
         self.config = config
-        self.alpaca_base_url = get_alpaca_base_url()
 
         # In paper mode, market event checks (halts, circuit breakers) still require Alpaca API
         # because we need real market data to validate positions and detect halts.
@@ -60,6 +59,12 @@ class MarketEventHandler:
                 "Cannot determine trading mode (live vs paper). "
                 "Set explicit execution_mode in algo_config table."
             )
+
+        # Pass execution_mode so get_alpaca_base_url() applies the same live-intent gate
+        # AutoExecutionMode uses for order submission - without it, this would trust
+        # APCA_API_BASE_URL alone and could point halt detection at the live account while
+        # order submission stays on paper (see get_alpaca_base_url()'s docstring).
+        self.alpaca_base_url = get_alpaca_base_url(execution_mode)
 
         try:
             cm = get_credential_manager()

@@ -304,7 +304,7 @@ class PositionSizer:
             try:
                 from config.api_endpoints import get_alpaca_base_url
 
-                base = get_alpaca_base_url()
+                base = get_alpaca_base_url(execution_mode)
             except (ImportError, AttributeError) as cfg_e:
                 raise ValueError(f"Alpaca config unavailable: {cfg_e}") from cfg_e
         if not key or not secret:
