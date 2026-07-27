@@ -117,22 +117,28 @@ class AlpacaResponseValidator:
         if not status:
             errors.append("Missing or empty status")
 
+        # float(), not int() - Alpaca returns qty/filled_qty as strings to preserve
+        # decimal precision (e.g. "4.87" for a fractional-share fill), and this system
+        # actively trades fractional shares. int("4.87") always raised here, poisoning
+        # `valid` (len(errors) == 0) for get_order_fill_price()'s caller even though it
+        # only reads status/filled_avg_price from this result - any fractionally-filled
+        # order made fetching its fill price fail entirely.
         if filled_qty is not None:
             try:
-                filled_qty = int(filled_qty)
+                filled_qty = float(filled_qty)
                 if filled_qty < 0:
                     errors.append(f"Filled qty must be non-negative, got {filled_qty}")
             except (ValueError, TypeError):
-                errors.append(f"Filled qty not integer: {filled_qty}")
+                errors.append(f"Filled qty not numeric: {filled_qty}")
                 filled_qty = None
 
         if qty is not None:
             try:
-                qty = int(qty)
+                qty = float(qty)
                 if qty < 0:
                     errors.append(f"Qty must be non-negative, got {qty}")
             except (ValueError, TypeError):
-                errors.append(f"Qty not integer: {qty}")
+                errors.append(f"Qty not numeric: {qty}")
                 qty = None
 
         if filled_avg_price is not None:
