@@ -796,8 +796,26 @@ class SignalQualityScoresLoader(OptimalLoader):
                 distribution_days_score = None
                 earnings_proximity_score = None
 
-                # Composite score: normalize components to 0-100 scale, then average
-                # Each component has different max value, so normalize first before combining
+                # Composite score: weighted sum of available raw component values over the
+                # sum of THEIR max values, scaled to 0-100. Each component's max value
+                # encodes its designed importance (base_quality's 50-point ceiling should
+                # dominate; vcp_pattern's 10-point ceiling should barely move the needle).
+                #
+                # GOVERNANCE-RELEVANT REGRESSION (found 2026-07-27, introduced by commit
+                # 2bd9e9433): that commit fixed a real bug (direct point-sum could exceed
+                # 100 and got lossily clamped) by normalizing each component to its OWN
+                # 0-100% first and then averaging those percentages with equal weight. That
+                # silently discarded the intended weighting entirely - institutional_ownership
+                # (max 10 raw points) ended up exactly as influential on the composite as
+                # base_quality (max 50 raw points), a 5x weighting inversion from the
+                # as-designed scale. This score is synced live into
+                # buy_sell_daily.signal_quality_score/entry_quality_score (see
+                # _sync_scores_to_buy_sell below) and had zero test coverage, so the
+                # inversion shipped silently. Fixed back to weighted-sum-over-available-maxes,
+                # which both preserves the intended per-component weighting AND avoids the
+                # original >100 clamping bug (the denominator only sums maxes for components
+                # that are actually present, so the ratio is mathematically bounded to [0, 1]
+                # without any clamp).
                 all_components = {
                     "base_quality": base_quality_score,  # max 50
                     "volume_confirmation": volume_confirmation_score,  # max 20
@@ -817,23 +835,14 @@ class SignalQualityScoresLoader(OptimalLoader):
                     "vcp_pattern": 10,
                 }
 
-                # Normalize each component to 0-100 scale
-                normalized_components = []
-                for key, value in all_components.items():
-                    if value is not None:
-                        max_val = component_maxes[key]
-                        normalized = (value / max_val * 100) if max_val > 0 else 0
-                        normalized_components.append(normalized)
-
+                available_maxes = {k: component_maxes[k] for k, v in all_components.items() if v is not None}
                 unavailable_components = {k: v for k, v in all_components.items() if v is None}
 
-                # Average the normalized components (all now on 0-100 scale)
+                total_max = sum(available_maxes.values())
                 composite_sqs = (
-                    int(sum(normalized_components) / len(normalized_components)) if normalized_components else 0
+                    int(sum(all_components[k] for k in available_maxes) / total_max * 100) if total_max > 0 else 0
                 )
-                data_completeness = min(99.99, round((len(normalized_components) / 7.0) * 100, 2))
-                # Composite score is now properly normalized to 0-100 via averaging normalized components
-                # No clamping needed since all components are pre-normalized
+                data_completeness = min(99.99, round((len(available_maxes) / 7.0) * 100, 2))
 
                 date_val = row["date"] if "date" in row.index else None
                 if date_val is not None:
