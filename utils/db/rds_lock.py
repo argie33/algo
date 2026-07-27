@@ -76,28 +76,34 @@ class RDSLockManager:
                         (lock_key,),
                     )
 
-                    # Now try to insert our lock (will fail if another non-expired lock exists)
-                    try:
-                        cur.execute(
-                            """
-                            INSERT INTO loader_execution_locks (loader_name, locked_by, locked_at, expires_at)
-                            VALUES (%s, %s, %s, %s)
-                            """,
-                            (lock_key, self.lock_id, now_utc, expires_at),
-                        )
-                        # Verify we got the lock by checking if our lock_id matches
-                        cur.execute(
-                            "SELECT locked_by FROM loader_execution_locks WHERE loader_name = %s",
-                            (lock_key,),
-                        )
-                        result = cur.fetchone()
-                        if result and result[0] == self.lock_id:
-                            self.acquired = True
-                            logger.info(f"[RDS_LOCK] Acquired lock {lock_key} on attempt {attempt}")
-                            return True
-                    except Exception as insert_error:
-                        # Insert failed - likely UNIQUE constraint violation (another lock exists)
-                        logger.debug(f"[RDS_LOCK] Lock insert failed (already held): {insert_error}")
+                    # Try to insert our lock. ON CONFLICT DO NOTHING (not a bare INSERT wrapped
+                    # in try/except) - contention on this loader_name PK is the expected,
+                    # routine outcome of this retry loop, not an error. A bare INSERT relies on
+                    # catching the resulting UniqueViolation, but DatabaseContext's cursor wrapper
+                    # unconditionally logs any DatabaseError at ERROR level (with full traceback)
+                    # before this code gets a chance to catch and downgrade it to DEBUG -
+                    # confirmed live 2026-07-27: 13 retry attempts against an already-held lock
+                    # produced 13 ERROR-level tracebacks in the orchestrator log for a completely
+                    # normal contention case. ON CONFLICT DO NOTHING never raises, so it stays
+                    # atomic (no TOCTOU race vs a plain check-then-insert) without the log noise.
+                    cur.execute(
+                        """
+                        INSERT INTO loader_execution_locks (loader_name, locked_by, locked_at, expires_at)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (loader_name) DO NOTHING
+                        """,
+                        (lock_key, self.lock_id, now_utc, expires_at),
+                    )
+                    # Verify we got the lock by checking if our lock_id matches
+                    cur.execute(
+                        "SELECT locked_by FROM loader_execution_locks WHERE loader_name = %s",
+                        (lock_key,),
+                    )
+                    result = cur.fetchone()
+                    if result and result[0] == self.lock_id:
+                        self.acquired = True
+                        logger.info(f"[RDS_LOCK] Acquired lock {lock_key} on attempt {attempt}")
+                        return True
 
                     # Someone else holds the lock
                     logger.debug(f"[RDS_LOCK] Another instance holds {lock_key} - retrying...")
