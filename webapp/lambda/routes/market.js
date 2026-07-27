@@ -2481,13 +2481,23 @@ router.get("/fear-greed", async (req, res) => {
         days = 30;
     }
 
+    // fear_greed_index is a legacy standalone table, frozen since 2026-07-09 (superseded
+    // by the fear_greed_index column on market_sentiment, which the current loader keeps
+    // live - see algo/monitoring/pipeline_health.py KNOWN_DEPRECATED_TABLES). Reading it
+    // alone served this chart's most recent ~18 days as a flat gap every single day.
+    // market_sentiment only has ~10 days of history though, so prefer it where available
+    // and fall back to the legacy table for older dates rather than dropping 14 months of
+    // history to fix the freshness gap.
     const result = await query(
       `
-      SELECT
-        date,
-        fear_greed_value
-      FROM fear_greed_index
-      WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+      SELECT date, fear_greed_value FROM (
+        SELECT date, fear_greed_index AS fear_greed_value FROM market_sentiment
+        WHERE fear_greed_index IS NOT NULL AND date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+        UNION
+        SELECT date, fear_greed_value FROM fear_greed_index
+        WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+          AND date NOT IN (SELECT date FROM market_sentiment WHERE fear_greed_index IS NOT NULL)
+      ) combined
       ORDER BY date ASC
     `,
       [days]

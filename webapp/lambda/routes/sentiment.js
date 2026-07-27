@@ -133,7 +133,17 @@ router.get("/summary", async (req, res) => {
     // Parallelize 4 sentiment data sources
     const results = await Promise.allSettled([
       query(
-        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+        // fear_greed_index is a legacy table frozen since 2026-07-09 (superseded by the
+        // fear_greed_index column on market_sentiment, which the current loader keeps live
+        // - see algo/monitoring/pipeline_health.py KNOWN_DEPRECATED_TABLES). Presenting its
+        // ORDER BY date DESC LIMIT 1 row as "current" sentiment served an 18-day-stale value
+        // as today's. Picking DESC LIMIT 1 across both sources naturally prefers whichever
+        // actually has the newer row.
+        `SELECT value, date FROM (
+          SELECT date, fear_greed_index AS value FROM market_sentiment WHERE fear_greed_index IS NOT NULL
+          UNION ALL
+          SELECT date, fear_greed_value AS value FROM fear_greed_index
+        ) combined ORDER BY date DESC LIMIT 1`
       ),
       query(
         `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
@@ -329,7 +339,17 @@ router.get("/current", async (req, res) => {
     // Parallelize 3 sentiment data sources
     const results = await Promise.allSettled([
       query(
-        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+        // fear_greed_index is a legacy table frozen since 2026-07-09 (superseded by the
+        // fear_greed_index column on market_sentiment, which the current loader keeps live
+        // - see algo/monitoring/pipeline_health.py KNOWN_DEPRECATED_TABLES). Presenting its
+        // ORDER BY date DESC LIMIT 1 row as "current" sentiment served an 18-day-stale value
+        // as today's. Picking DESC LIMIT 1 across both sources naturally prefers whichever
+        // actually has the newer row.
+        `SELECT value, date FROM (
+          SELECT date, fear_greed_index AS value FROM market_sentiment WHERE fear_greed_index IS NOT NULL
+          UNION ALL
+          SELECT date, fear_greed_value AS value FROM fear_greed_index
+        ) combined ORDER BY date DESC LIMIT 1`
       ),
       query(
         `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`

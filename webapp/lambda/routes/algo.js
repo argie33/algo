@@ -4439,8 +4439,17 @@ router.get("/sentiment", async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
+    // fear_greed_index is a legacy table frozen since 2026-07-09 (superseded by the
+    // fear_greed_index column on market_sentiment - see market.js's /fear-greed for the
+    // same fix). market_sentiment has no separate label column; DESC LIMIT 1 across both
+    // sources naturally prefers whichever actually has the newer row.
     const fgiResult = await pool.query(
-      `SELECT date, fear_greed_value, fear_greed_label FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+      `SELECT date, fear_greed_value, fear_greed_label FROM (
+        SELECT date, fear_greed_index AS fear_greed_value, NULL AS fear_greed_label
+        FROM market_sentiment WHERE fear_greed_index IS NOT NULL
+        UNION ALL
+        SELECT date, fear_greed_value, fear_greed_label FROM fear_greed_index
+      ) combined ORDER BY date DESC LIMIT 1`
     );
 
     return sendSuccess(res, {
