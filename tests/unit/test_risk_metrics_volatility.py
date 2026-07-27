@@ -100,3 +100,32 @@ class TestVolatility252dRequiresMeaningfulSample:
             result = loader._compute_stability_row("ESTABLISHED")
 
         assert result["volatility_252d"] is not None
+
+
+class TestZeroVolatilityIsPreservedNotDiscarded:
+    """A stock with an unchanged closing price for its entire lookback window (illiquid/
+    thinly-traded tickers, or a halted symbol carrying a stale last price) computes a
+    genuine volatility of exactly 0.0. `if vol_Nd else None` treats 0.0 as falsy and
+    silently discards it as "unavailable" - load_stock_scores.py._score_stability checks
+    `is not None` to decide whether to include each component, so this dropped a real,
+    meaningful "very low volatility" reading from the stability score entirely."""
+
+    def _flat_rows(self, n: int, today: date, price: float = 100.0) -> list[tuple[date, float]]:
+        return [(today - timedelta(days=i), price) for i in range(n)]
+
+    def test_flat_price_stock_reports_zero_not_none(self):
+        today = date(2026, 7, 20)
+        rows = self._flat_rows(100, today)
+        spy_rows = self._flat_rows(100, today, price=400.0)
+
+        loader = RiskMetricsLoader()
+        with patch("loaders.load_risk_metrics_daily.DatabaseContext", return_value=_db_context_mock(rows, spy_rows)):
+            result = loader._compute_stability_row("FLATLINE")
+
+        assert result["volatility_30d"] == 0.0
+        assert result["volatility_60d"] == 0.0
+        assert result["volatility_252d"] == 0.0
+        assert result["volatility_30d_unavailable_reason"] is None
+        assert result["volatility_60d_unavailable_reason"] is None
+        assert result["volatility_252d_unavailable_reason"] is None
+        assert result["data_unavailable"] is False

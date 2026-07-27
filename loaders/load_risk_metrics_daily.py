@@ -411,9 +411,17 @@ class RiskMetricsLoader(OptimalLoader):
 
             return {
                 "symbol": symbol,
-                "volatility_30d": round(vol_30d, 4) if vol_30d else None,
-                "volatility_60d": round(vol_60d, 4) if vol_60d else None,
-                "volatility_252d": round(vol_252d, 4) if vol_252d else None,
+                # `is not None` (not truthy) - a stock with an unchanged closing price for
+                # its entire lookback window (illiquid/thinly-traded tickers, or a halted
+                # symbol carrying a stale last price) genuinely computes to exactly 0.0, and
+                # `if vol_Nd` would silently discard that real reading as unavailable.
+                # load_stock_scores.py._score_stability checks `is not None` to decide
+                # whether to include each component, so a falsely-NULLed 0.0 drops out of
+                # the stability score entirely instead of correctly counting as "very low
+                # volatility."
+                "volatility_30d": round(vol_30d, 4) if vol_30d is not None else None,
+                "volatility_60d": round(vol_60d, 4) if vol_60d is not None else None,
+                "volatility_252d": round(vol_252d, 4) if vol_252d is not None else None,
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "debt_to_assets": debt_to_assets,
                 # Session 395+: Add unavailable_reason for each metric
