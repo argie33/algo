@@ -243,7 +243,7 @@ def check_dev_server() -> dict:
         try:
             import requests
 
-            resp = requests.get("http://localhost:3001/api/health", timeout=5)
+            resp = requests.get("http://127.0.0.1:3001/api/health", timeout=5)
             if resp.status_code == 200:
                 result["details"].append("Health check: OK")
             else:

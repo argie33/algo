@@ -80,7 +80,7 @@ _temp_args, _ = _args_temp.parse_known_args()
 # FORCE LOCAL MODE EARLY: If --local is passed, clear AWS credentials immediately
 # This must happen BEFORE any modules import and cache these env vars
 if _temp_args.local:
-    _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+    _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
     _os_auto.environ["LOCAL_MODE"] = "true"
     _os_auto.environ.pop("COGNITO_USERNAME", None)
     _os_auto.environ.pop("COGNITO_PASSWORD", None)
@@ -95,7 +95,7 @@ else:
     # Enable local mode if:
     # Dev server is running on localhost:3001 AND no AWS config is explicitly set
     if _is_dev_server_available() and not _has_aws_config:
-        _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+        _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
         _os_auto.environ["LOCAL_MODE"] = "true"
 
 try:
@@ -701,7 +701,7 @@ def _setup_local_api() -> str:
     helpful instructions to start it. Does NOT auto-start to avoid
     unexpected background processes.
     """
-    local_url = "http://localhost:3001"
+    local_url = "http://127.0.0.1:3001"
     if not _validate_api_url(local_url):
         logger.error(f"Invalid local API URL: {local_url}")
         sys.exit(1)

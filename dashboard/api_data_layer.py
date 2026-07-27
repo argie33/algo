@@ -121,7 +121,7 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
 
     # Priority 1: Explicit LOCAL_MODE flag
     if os.environ.get("LOCAL_MODE"):
-        _api_base_url_cache = "http://localhost:3001"
+        _api_base_url_cache = "http://127.0.0.1:3001"
         _api_base_url_source_cache = "LOCAL_MODE_EXPLICIT"
         logger.info("[API] LOCAL_MODE enabled - using local dev_server (source: LOCAL_MODE_EXPLICIT)")
         return _api_base_url_cache, _api_base_url_source_cache
@@ -137,7 +137,7 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
 
     # Priority 3: Auto-detect localhost ONLY if no AWS config is set
     if not _localhost_checked and _check_localhost_available():
-        _api_base_url_cache = "http://localhost:3001"
+        _api_base_url_cache = "http://127.0.0.1:3001"
         _api_base_url_source_cache = "AUTO_DETECT_LOCALHOST"
         _localhost_checked = True
         logger.info(
@@ -148,7 +148,7 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
     _localhost_checked = True
 
     # Priority 4: Fallback to localhost
-    _api_base_url_cache = "http://localhost:3001"
+    _api_base_url_cache = "http://127.0.0.1:3001"
     _api_base_url_source_cache = "FALLBACK_LOCALHOST"
     logger.warning(
         "[API] FALLBACK: No DASHBOARD_API_URL set and dev server not detected. "

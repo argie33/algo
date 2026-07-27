@@ -27,18 +27,6 @@ import sys
 import time
 from datetime import date, datetime, timedelta, timezone
 
-# Windows encoding fix
-if sys.platform.startswith("win"):
-    import io
-
-    try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except (AttributeError, TypeError, OSError):
-        # Non-critical: Ignore if stdout/stderr redirection fails (Windows console encoding issue)
-        # The script will continue with system default encoding
-        pass
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from algo.infrastructure.market_calendar import MarketCalendar
@@ -402,6 +390,23 @@ def watch_mode(interval: int) -> None:
 
 if __name__ == "__main__":
     import argparse
+
+    # Windows console encoding fix. Reassigning sys.stdout/sys.stderr must only happen
+    # when this script is actually run directly - doing it at module import time (as
+    # this previously did) permanently replaces pytest's own capture streams for the
+    # rest of the test process the first time anything imports this module, eventually
+    # crashing pytest's capture teardown with "ValueError: I/O operation on closed
+    # file" (confirmed live 2026-07-26 after adding a test that imports this module).
+    if sys.platform.startswith("win"):
+        import io
+
+        try:
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+        except (AttributeError, TypeError, OSError):
+            # Non-critical: Ignore if stdout/stderr redirection fails (Windows console encoding issue)
+            # The script will continue with system default encoding
+            pass
 
     parser = argparse.ArgumentParser(description="Monitor data table freshness and alert on staleness")
     parser.add_argument("--watch", type=int, help="Continuous watch mode (check every N seconds)", metavar="SECONDS")
