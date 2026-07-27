@@ -69,7 +69,7 @@ class TestPipelineHealthMonitoring:
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = (0,)  # reltuples/COUNT(*) = 0 rows
 
-        for table_name in ("sec_dividends", "sec_material_events", "analyst_sentiment_analysis"):
+        for table_name in ("sec_dividends", "sec_material_events", "analyst_sentiment_analysis", "equity_curve_daily"):
             health = monitor.check_table_health(mock_cursor, table_name, None, 7)
             assert health.status == HealthStatus.DEPRECATED, (
                 f"{table_name}: expected DEPRECATED, got {health.status}"

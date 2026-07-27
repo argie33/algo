@@ -202,6 +202,14 @@ class PipelineHealth:
             # names are leftover data_loader_status rows from an earlier design iteration.
             "sec_dividends",  # Superseded by dividend_data
             "sec_material_events",  # Superseded by current_reports_8k
+            # Confirmed live 2026-07-27: 0 rows, no INSERT/UPDATE writer anywhere in the
+            # codebase - already documented as such in scripts/audit_system_health.py
+            # ("never populated") and scripts/monitor_data_staleness.py, but never added
+            # here, so every pipeline health sweep still reported it MISSING (counting
+            # against coverage_pct/healthy_count) instead of DEPRECATED like its
+            # already-covered siblings. Real portfolio performance now comes from
+            # algo_performance_daily/algo_risk_daily (see commit 47ff447db).
+            "equity_curve_daily",
         }
     )
 
