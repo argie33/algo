@@ -65,6 +65,7 @@ from ..formatters import (
     sign,
 )
 from ..utilities import (
+    DIM,
     G,
     R,
     Y,
@@ -239,9 +240,11 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         else:
             name = company_name_val[:16]
 
-        # Determine row styling based on metrics
-        pc = G if (pnl is not None and pnl >= 0) else R
-        rc = G if (rmul is not None and rmul >= 0) else R
+        # Determine row styling based on metrics. Unavailable (None) must render as DIM,
+        # not R - a "--" placeholder colored bright_red is visually indistinguishable at a
+        # glance from a genuinely losing position, misleading a quick scan of the table.
+        pc = DIM if pnl is None else (G if pnl >= 0 else R)
+        rc = DIM if rmul is None else (G if rmul >= 0 else R)
         dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
 
         # Build table row
