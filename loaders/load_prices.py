@@ -605,7 +605,7 @@ class PriceLoader(OptimalLoader):
             logger.info("[MARKET_CLOSE] Today is not a trading day, skipping close data check")
             return True
 
-        # Check if we're within 45 minutes after market close (4:00 PM ET Â± 45 min = 3:15 PM - 4:45 PM)
+        # Check if we're within 45 minutes after market close (4:00 PM ET ± 45 min = 3:15 PM - 4:45 PM)
         now_et = datetime.now(EASTERN_TZ)
         market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
         minutes_after_close = (now_et - market_close_et).total_seconds() / 60
