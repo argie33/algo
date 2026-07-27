@@ -102,8 +102,10 @@ class TestStopLossOverridesMinHoldDays:
             dist_days_today=0,
         )
 
-        assert decision["stage"] == "hold"
-        assert "min" in decision["reason"].lower() or "hold" in decision["reason"].lower()
+        # None means "no action" - see check_and_execute_exits' `if not exit_signal:`
+        # guard. A truthy "hold" dict here (fraction=0.0, no new_stop) previously fell
+        # through into the stop-raise-only branch downstream and crashed.
+        assert decision is None
 
     def test_price_exactly_at_stop_on_entry_day_exits(self, mock_config):
         """Boundary check: cur_price == active_stop is a stop trigger (<=), even on entry day."""
