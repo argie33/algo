@@ -162,6 +162,8 @@ class DividendDataLoader(SecLoaderBase):
 
         Returns: Dividend records extracted from XBRL, or data_unavailable marker.
         """
+        now_et = datetime.now(EASTERN_TZ).date()
+
         try:
             # Get CIK for symbol
             cik = self.sec_client.symbol_to_cik(symbol)
@@ -169,12 +171,10 @@ class DividendDataLoader(SecLoaderBase):
             # Fetch companyfacts XBRL
             facts_response = self.sec_client.get_company_facts(cik)
             if not facts_response or "facts" not in facts_response:
-                now_et = datetime.now(EASTERN_TZ).date()
                 return [self._unavailable_record(symbol, now_et, "no_companyfacts")]
 
             us_gaap = facts_response.get("facts", {}).get("us-gaap", {})
             if not us_gaap:
-                now_et = datetime.now(EASTERN_TZ).date()
                 return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
 
             results = []
@@ -206,12 +206,10 @@ class DividendDataLoader(SecLoaderBase):
                 return unique_results
 
             # No dividend data found in XBRL
-            now_et = datetime.now(EASTERN_TZ).date()
             return [self._unavailable_record(symbol, now_et, "no_dividend_xbrl_concepts")]
 
         except Exception as e:
             logger.debug(f"[{symbol}] Dividend fetch error: {type(e).__name__}: {e}")
-            now_et = datetime.now(EASTERN_TZ).date()
             return [self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")]
 
 

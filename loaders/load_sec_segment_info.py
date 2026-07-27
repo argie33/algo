@@ -37,8 +37,8 @@ class SecSegmentInfoLoader(SecLoaderBase):
     companyfacts is a simplified JSON export that loses XBRL context dimension
     information needed to map revenues to specific segments. This means:
 
-    ✓ Can extract: segment count (NumberOfReportableSegments)
-    ✗ Cannot extract: per-segment revenue for concentration metrics
+    Can extract: segment count (NumberOfReportableSegments)
+    Cannot extract: per-segment revenue for concentration metrics
 
     Why: XBRL XML uses contextRef attributes to associate facts with dimensional
     values. The companyfacts JSON flattens this away.
