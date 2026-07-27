@@ -155,6 +155,60 @@ class TestPipelineHealthMonitoring:
         assert last_updated_by_table["aaii_sentiment"] == stale_date
         assert last_updated_by_table["price_daily"] != last_updated_by_table["aaii_sentiment"]
 
+    def test_log_health_check_uses_fresh_error_message_not_stale_preserved_one(self):
+        """FIX (2026-07-27): log_health_check() used to preserve the row's PREVIOUSLY stored
+        error_message for any status other than ERROR/HEALTHY, even when check_table_health()
+        computed its own fresh, correct message this run (e.g. DEPRECATED's "Table
+        intentionally frozen ... KNOWN_DEPRECATED_TABLES", or MISSING's "Table is empty").
+        Confirmed live: sec_dividends/sec_material_events/analyst_sentiment_analysis kept
+        showing "Unknown table X (not in whitelist)" in data_loader_status for hours after
+        that whitelist gap was fixed (commit 349ccef9b) and check_table_health started
+        correctly classifying them DEPRECATED with a fresh, accurate message - because this
+        write path never let the fresh message through, only the stale pre-fix one already
+        sitting in the DB. A table with no fresh message of its own (STALE/VERY_STALE, and
+        DEPRECATED-with-real-data) must still fall back to the preserved historic message.
+        """
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth, PipelineStatus, TableHealth
+
+        status = PipelineStatus(
+            tables={
+                "sec_dividends": TableHealth(
+                    table_name="sec_dividends",
+                    status=HealthStatus.DEPRECATED,
+                    row_count=0,
+                    error_message="Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES",
+                ),
+                "aaii_sentiment": TableHealth(
+                    table_name="aaii_sentiment",
+                    status=HealthStatus.STALE,
+                    row_count=50,
+                    latest_date=_date(2026, 7, 10),
+                    error_message=None,
+                ),
+            }
+        )
+
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = [
+            ("sec_dividends", "Unknown table 'sec_dividends' (not in whitelist)"),
+            ("aaii_sentiment", "loader timed out connecting to source API"),
+        ]
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            monitor = PipelineHealth()
+            monitor.log_health_check(status)
+
+        insert_values = mock_cur.executemany.call_args[0][1]
+        error_msg_by_table = {row[0]: row[5] for row in insert_values}
+
+        assert error_msg_by_table["sec_dividends"] == (
+            "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+        ), "DEPRECATED with a fresh message must use it, not the stale preserved 'not in whitelist' text"
+        assert error_msg_by_table["aaii_sentiment"] == "loader timed out connecting to source API", (
+            "STALE with no fresh message of its own must still fall back to the preserved historic message"
+        )
+
     def test_infer_date_column_prefers_last_updated_at_over_created_at(self):
         """algo_runtime_state (RDS-fallback halt-flag state, actively upserted on every
         orchestrator run) has last_updated_at (tracks real per-row freshness) AND created_at

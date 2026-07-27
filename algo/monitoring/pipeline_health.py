@@ -547,18 +547,30 @@ class PipelineHealth:
                             table_health.row_count,
                             table_health.latest_date,
                             table_health.age_days,
-                            # If this check found ERROR, use its (fresh) error_message.
-                            # If the table is now HEALTHY, clear it - an old error sitting
-                            # next to a fresh last_updated timestamp reads as "still broken"
-                            # on the health panel even after the table has recovered.
-                            # Otherwise (STALE/VERY_STALE/MISSING but not erroring), preserve
-                            # whatever context was already recorded.
+                            # If the table is now HEALTHY, clear the error - an old error sitting
+                            # next to a fresh last_updated timestamp reads as "still broken" on
+                            # the health panel even after the table has recovered.
+                            # Otherwise, use this check's own fresh error_message whenever it set
+                            # one (ERROR always does; DEPRECATED/MISSING do for several of their
+                            # branches - e.g. check_table_health's "Table intentionally frozen"
+                            # and "Table is empty" messages). Only fall back to the previously
+                            # recorded message for branches that don't compute their own
+                            # (STALE/VERY_STALE, and DEPRECATED-with-data) - previously ANY
+                            # non-ERROR/non-HEALTHY status preserved the old message unconditionally,
+                            # so a table whose status changed from a real problem (e.g. "Unknown
+                            # table X (not in whitelist)") to DEPRECATED/MISSING with its own fresh,
+                            # correct explanation kept showing the stale wrong-cause message forever
+                            # - confirmed live 2026-07-27: sec_dividends/sec_material_events/
+                            # analyst_sentiment_analysis still showed "not in whitelist" hours after
+                            # that whitelist gap was fixed (commit 349ccef9b), because check_table_health
+                            # now correctly computes "Table intentionally frozen ... KNOWN_DEPRECATED_TABLES"
+                            # for them but this write path never let that fresh message through.
                             (
-                                table_health.error_message
-                                if table_health.status == HealthStatus.ERROR
+                                None
+                                if table_health.status == HealthStatus.HEALTHY
                                 else (
-                                    None
-                                    if table_health.status == HealthStatus.HEALTHY
+                                    table_health.error_message
+                                    if table_health.error_message is not None
                                     else existing_errors.get(table_health.table_name)
                                 )
                             ),
