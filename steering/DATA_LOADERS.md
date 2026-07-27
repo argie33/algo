@@ -448,6 +448,16 @@ git history still depends on it; removing just the scattered config references i
 churn for a table nothing reads) - flagging here so it isn't mistaken for an active gap needing
 a new loader built from scratch.
 
+**UPDATE 2026-07-27:** a later session read this gap note as an invitation and built exactly the
+"new loader from scratch" this section warns against - a full `load_economic_metrics_daily.py`
+plus a migration recreating the table, wired into `scripts/local_loader_scheduler.py` and
+`utils/db/sql_safety.py`. Reverted before commit: two of its three computed fields (CPI YoY,
+10Y-2Y yield slope) are already live elsewhere (`lambda/api/routes/economic.py` computes CPI YoY
+on the fly from `economic_data`; `market_health_daily.yield_curve_slope` is populated by
+`loaders/load_market_status_daily.py` from the same FRED series) and the third (SPY daily %
+change) had zero consumers. Same root problem as before: no dashboard/API code queries this
+table. Do not rebuild this loader again without first shipping the consumer that would read it.
+
 ---
 
 ## Pipelines (Step Functions, EventBridge Scheduler, America/New_York)
