@@ -174,13 +174,20 @@ class CurrentReports8KLoader(SecLoaderBase):
                 if filing_date < (since or date(1990, 1, 1)):
                     continue  # Skip filings before watermark
 
-                accession_number = accessions[i] if i < len(accessions) else ""
-                accession_number = accession_number.replace("-", "")
+                accession_number_raw = accessions[i] if i < len(accessions) else ""
+                accession_number = accession_number_raw.replace("-", "")
 
                 try:
-                    # Extract filing text (plaintext version of 8-K filing)
+                    # get_filing_plaintext() builds the SEC archive URL's directory
+                    # segment from a dash-stripped accession number but the .txt
+                    # filename itself from the DASHED form (SEC's own convention,
+                    # e.g. .../000032019326000011/0000320193-26-000011.txt) - passing
+                    # the already-dash-stripped accession_number here 404s on every
+                    # filing (confirmed live against SEC EDGAR), which silently broke
+                    # item extraction for the entire life of this loader. Must pass
+                    # the raw dashed value the SEC submissions API actually returned.
                     filing_text = self.sec_client.get_filing_plaintext(
-                        cik, accession_number
+                        cik, accession_number_raw
                     )
                     items = self._extract_8k_items(filing_text)
 

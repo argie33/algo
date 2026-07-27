@@ -61,3 +61,21 @@ def test_successful_parse_is_not_flagged_unavailable() -> None:
     assert record["data_unavailable_reason"] is None
     assert record["item_5_02"] is True
     assert record["item_1_01"] is False
+
+
+def test_get_filing_plaintext_called_with_dashed_accession_number() -> None:
+    """get_filing_plaintext() needs the SEC submissions API's raw dashed accession
+    number (e.g. "0001193125-26-000111") to build the archive .txt filename - SEC's
+    convention dashes the filename but not the containing directory. Passing the
+    dash-stripped form (used for the DB primary key) as the fetch argument builds a
+    URL that 404s on every real filing (confirmed live against SEC EDGAR before this
+    fix), silently defeating item extraction for the loader's entire life.
+    """
+    loader = _make_loader()
+    loader.sec_client.get_filing_plaintext.return_value = "Item 5.02 Departure of Directors..."
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    loader.sec_client.get_filing_plaintext.assert_called_once_with("0000320193", "0001193125-26-000111")
+    # The DB primary key column must still stay dash-stripped (existing convention).
+    assert records[0]["accession_number"] == "000119312526000111"
