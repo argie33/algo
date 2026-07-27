@@ -170,6 +170,17 @@ _CROSS_TAB_RECONCILIATION_TOLERANCE = 0.03
 _OPERATING_INCOME_CONCEPT_LOCAL_NAMES = ("OperatingIncomeLoss",)
 _ASSETS_CONCEPT_LOCAL_NAMES = ("Assets",)
 
+# ASU 2023-07 requires every filer, even ones with a single reportable segment,
+# to disclose the count via one of these concepts. Confirmed live: Gilead,
+# Regeneron, United Airlines Holdings, and Realty Income all tag
+# NumberOfReportableSegments/NumberOfOperatingSegments=1 as a plain
+# (non-dimensioned) fact, with zero or incomplete segment-dimensioned revenue
+# facts anywhere in the filing (a single segment's revenue is just the
+# consolidated total, so filers don't bother re-tagging it per-segment). Used
+# by _extract_single_segment_revenue as the last fallback before declaring
+# data_unavailable.
+_SEGMENT_COUNT_CONCEPT_LOCAL_NAMES = ("NumberOfReportableSegments", "NumberOfOperatingSegments")
+
 
 def _local_name(tag: str) -> str:
     """Strip the Clark-notation namespace from an ElementTree tag."""
@@ -534,6 +545,7 @@ class XBRLSegmentParser:
 
         # (segment_member, other_axes_combo, end_date, duration_days, revenue)
         candidates: list[tuple[str, frozenset[str], str, int, float]] = []
+        matched_concept: str | None = None
         for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
             for elem in root.iter():
                 if _local_name(elem.tag) != concept:
@@ -569,6 +581,7 @@ class XBRLSegmentParser:
                         duration_days = 0
                 candidates.append((dims[axis_to_use], frozenset(other_dims.keys()), end_str, duration_days, revenue))
             if candidates:
+                matched_concept = concept
                 break
 
         if not candidates:
@@ -585,9 +598,27 @@ class XBRLSegmentParser:
             combo_segments[member] = combo_segments.get(member, 0.0) + revenue_value
 
         # Reconciliation ground truth: the filer's own plain, non-dimensioned
-        # consolidated revenue fact for the identical period.
+        # consolidated revenue fact for the identical period. Try the SAME
+        # concept that produced the segment-level candidates first - comparing
+        # like-for-like (e.g. summed segment PremiumsEarnedNet against the
+        # filer's own plain PremiumsEarnedNet total) rather than against
+        # whichever concept happens to be earliest in the general preference
+        # order. Confirmed live this matters: Progressive's (PGR) 3 segments
+        # sum to its own plain PremiumsEarnedNet total ($81.661B) almost
+        # exactly, but always fail reconciliation against plain "Revenues"
+        # ($87.671B, ~6.9% higher) because Revenues also includes net
+        # investment income and realized gains - real dollars, but not
+        # segment-allocated, so segment premium revenue structurally can never
+        # foot to total company revenue for an insurer with a large investment
+        # portfolio (unlike AIG's ~0.3% residual, where investment income is
+        # proportionally small). Falls back to the full preference-order scan
+        # if the matched concept itself has no plain fact.
+        concept_search_order = list(_REVENUE_CONCEPT_LOCAL_NAMES)
+        if matched_concept is not None:
+            concept_search_order = [matched_concept] + [c for c in concept_search_order if c != matched_concept]
+
         anchor: float | None = None
-        for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+        for concept in concept_search_order:
             for elem in root.iter():
                 if _local_name(elem.tag) != concept:
                     continue
@@ -640,6 +671,135 @@ class XBRLSegmentParser:
         return best_segments, max_end, max_duration
 
     @staticmethod
+    def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str, float, str, int] | None:
+        """Fallback for filers that disclose exactly one reportable segment.
+
+        A single-segment filer's segment revenue is trivially its consolidated
+        total - ASU 2023-07 still requires tagging NumberOfReportableSegments/
+        NumberOfOperatingSegments even then, but filers routinely skip
+        re-tagging revenue under the segment axis at all (or, per Realty
+        Income's FY2025 10-K, tag only per-segment EXPENSE items like
+        DirectCostsOfLeasedAndRentedPropertyOrEquipment under
+        StatementBusinessSegmentsAxis=ReportableSegmentMember, never revenue) -
+        the primary and cross-tab paths both correctly find nothing to extract.
+        Confirmed live this is a real, common pattern, not an edge case: Gilead
+        Sciences, Regeneron, United Airlines Holdings, and Realty Income all
+        tag their segment count as exactly 1 with zero/incomplete
+        segment-dimensioned revenue anywhere in the filing.
+
+        Only returns a value when the count concept says exactly 1 for the
+        latest fiscal year - if a filer reports >1 segments through this
+        concept but this parser still couldn't extract per-segment revenue
+        (a real multi-segment gap), this correctly returns None so the caller
+        stays honest with data_unavailable rather than fabricating a
+        single-segment result for a company that isn't one.
+
+        Returns (concept_name, revenue, end_date, duration_days) for the
+        matched consolidated revenue fact, or None if no plain segment-count
+        fact says exactly 1, or no plain consolidated revenue fact exists for
+        that same period.
+        """
+        contexts: dict[str, tuple[bool, str | None, str | None]] = {}
+        for ctx in root.iter():
+            if _local_name(ctx.tag) != "context":
+                continue
+            ctx_id = ctx.get("id")
+            if not ctx_id:
+                continue
+            has_dims = False
+            start_str = end_str = None
+            for child in ctx.iter():
+                loc = _local_name(child.tag)
+                if loc == "explicitMember":
+                    has_dims = True
+                elif loc == "startDate":
+                    start_str = (child.text or "").strip() or None
+                elif loc == "endDate":
+                    end_str = (child.text or "").strip() or None
+                elif loc == "instant":
+                    end_str = (child.text or "").strip() or None
+            contexts[ctx_id] = (has_dims, start_str, end_str)
+
+        count_by_end: dict[str, int] = {}
+        for concept in _SEGMENT_COUNT_CONCEPT_LOCAL_NAMES:
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept:
+                    continue
+                info = contexts.get(elem.get("contextRef", ""))
+                if not info:
+                    continue
+                has_dims, _start, end_str = info
+                if has_dims or not end_str or elem.text is None:
+                    continue
+                try:
+                    count_by_end[end_str] = int(elem.text.strip())
+                except ValueError:
+                    continue
+            if count_by_end:
+                break
+
+        if not count_by_end:
+            return None
+        max_end = max(count_by_end)
+        if count_by_end[max_end] != 1:
+            return None
+
+        for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept:
+                    continue
+                info = contexts.get(elem.get("contextRef", ""))
+                if not info:
+                    continue
+                has_dims, start_str, end_str = info
+                if has_dims or end_str != max_end or elem.text is None:
+                    continue
+                try:
+                    revenue = float(elem.text.strip())
+                except ValueError:
+                    continue
+                duration_days = 0
+                if start_str:
+                    try:
+                        duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                    except ValueError:
+                        duration_days = 0
+                logger.info(
+                    f"[{symbol}] Single reportable segment (count=1) - using consolidated "
+                    f"{concept} as the sole segment's revenue."
+                )
+                return concept, revenue, end_str, duration_days
+        return None
+
+    @staticmethod
+    def _single_segment_result(
+        name: str,
+        segment_id: str,
+        segment_type: str,
+        revenue: float,
+        operating_income: float | None,
+        assets: float | None,
+    ) -> dict[str, Any]:
+        """Build the standard success-shaped dict for the single-reportable-segment fallback."""
+        return {
+            "segment_count": 1,
+            "largest_segment_revenue_pct": 100.0,
+            "revenue_concentration_hhi": 10000.0,
+            "segments": [
+                {
+                    "segment_id": segment_id,
+                    "name": name,
+                    "revenue": revenue,
+                    "operating_income": operating_income,
+                    "assets": assets,
+                }
+            ],
+            "segment_type": segment_type,
+            "data_available": True,
+            "reason": None,
+        }
+
+    @staticmethod
     def extract_segment_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Extract per-segment revenue from a raw XBRL instance document.
 
@@ -668,6 +828,17 @@ class XBRLSegmentParser:
 
         context_segment = XBRLSegmentParser._index_segment_contexts(root)
         if not context_segment:
+            single = XBRLSegmentParser._extract_single_segment_revenue(root, symbol)
+            if single is not None:
+                _concept, revenue, _end, _duration = single
+                return XBRLSegmentParser._single_segment_result(
+                    name="Consolidated (Single Reportable Segment)",
+                    segment_id="single_reportable_segment",
+                    segment_type="operating",
+                    revenue=revenue,
+                    operating_income=None,
+                    assets=None,
+                )
             return {
                 "segment_count": None,
                 "largest_segment_revenue_pct": None,
@@ -716,6 +887,38 @@ class XBRLSegmentParser:
         if not candidate_facts:
             cross_tab = XBRLSegmentParser._extract_cross_tab_segment_revenue(root, symbol, axis_to_use)
             if cross_tab is None:
+                single = XBRLSegmentParser._extract_single_segment_revenue(root, symbol)
+                if single is not None:
+                    _concept, revenue, single_end, single_duration = single
+                    # Realty Income's FY2025 10-K tags the single segment's
+                    # own member (ReportableSegmentMember) on cost-item facts
+                    # even though it never tags revenue under that axis - use
+                    # the real member name/operating-income/assets if the
+                    # filing happens to disclose them, honest None otherwise.
+                    distinct_members = {(a, m) for a, m, _e, _s, _b in context_segment.values() if a == axis_to_use}
+                    member_key = next(iter(distinct_members))[1] if len(distinct_members) == 1 else None
+                    name = (
+                        XBRLSegmentParser._prettify_segment_name(member_key)
+                        if member_key
+                        else "Consolidated (Single Reportable Segment)"
+                    )
+                    operating_income = assets = None
+                    if member_key:
+                        operating_income = XBRLSegmentParser._extract_segment_member_values(
+                            root, context_segment, axis_to_use, _OPERATING_INCOME_CONCEPT_LOCAL_NAMES,
+                            single_end, single_duration,
+                        ).get(member_key)
+                        assets = XBRLSegmentParser._extract_segment_member_values(
+                            root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, single_end, None
+                        ).get(member_key)
+                    return XBRLSegmentParser._single_segment_result(
+                        name=name,
+                        segment_id=member_key or "single_reportable_segment",
+                        segment_type="operating" if axis_to_use == _BUSINESS_SEGMENT_AXIS else "geographic",
+                        revenue=revenue,
+                        operating_income=operating_income,
+                        assets=assets,
+                    )
                 return {
                     "segment_count": None,
                     "largest_segment_revenue_pct": None,

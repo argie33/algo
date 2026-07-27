@@ -939,6 +939,142 @@ class TestCrossTabSegmentRevenueFallback:
         assert result["data_available"] is False
         assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
 
+    def test_cross_tab_reconciles_against_same_concept_anchor_not_a_broader_total(self) -> None:
+        """Real bug found live against Progressive's (PGR) FY2025 10-K: segment
+        revenue is tagged as PremiumsEarnedNet, cross-tabbed with
+        ProductOrServiceAxis=UnderwritingOperationsMember. PGR ALSO tags a plain
+        (non-dimensioned) Revenues fact for TOTAL company revenue - which includes
+        ~6.9% of net investment income/realized gains that are never segment-
+        allocated - alongside its own plain PremiumsEarnedNet fact that the 3
+        segments sum to exactly. Reconciling against "Revenues" (the wrong,
+        broader anchor) fails tolerance and wrongly reports data_unavailable;
+        reconciling against the SAME concept that produced the segment candidates
+        (PremiumsEarnedNet) succeeds, because it's the correct like-for-like
+        comparison."""
+        contexts = (
+            _context("u1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("ProductOrServiceAxis", "UnderwritingOperationsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "BetaMember"), ("ProductOrServiceAxis", "UnderwritingOperationsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("premium_anchor", "2025-01-01", "2025-12-31")
+            + _plain_context("revenue_anchor", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:PremiumsEarnedNet contextRef="c1">70000000</us-gaap:PremiumsEarnedNet>
+        <us-gaap:PremiumsEarnedNet contextRef="c2">10000000</us-gaap:PremiumsEarnedNet>
+        <us-gaap:PremiumsEarnedNet contextRef="premium_anchor">80000000</us-gaap:PremiumsEarnedNet>
+        <us-gaap:Revenues contextRef="revenue_anchor">86000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 70_000_000.0, "BetaMember": 10_000_000.0}
+
+
+class TestSingleReportableSegmentFallback:
+    """Real gap found live: Gilead Sciences, Regeneron, United Airlines Holdings,
+    and Realty Income all disclose exactly one reportable segment via the
+    ASU 2023-07-mandated NumberOfReportableSegments/NumberOfOperatingSegments=1
+    tag, but never (or only partially, for non-revenue line items) tag revenue
+    under the segment axis at all - a single segment's revenue is trivially the
+    consolidated total, so filers routinely skip re-tagging it. Both the primary
+    and cross-tab paths correctly find nothing; this fallback uses the filer's
+    own disclosed count + consolidated revenue instead of reporting
+    data_unavailable for a real, common, non-buggy filing shape.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_no_segment_axis_at_all_falls_back_to_consolidated_revenue(self) -> None:
+        """Matches GILD/REGN/UAL's real shape: zero segment-dimensioned contexts
+        anywhere in the filing (context_segment is empty), but a plain
+        NumberOfReportableSegments=1 fact and a plain consolidated revenue fact
+        both exist."""
+        contexts = _plain_context("count1", "2025-01-01", "2025-12-31") + _plain_context(
+            "rev1", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <us-gaap:NumberOfReportableSegments contextRef="count1">1</us-gaap:NumberOfReportableSegments>
+        <us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax contextRef="rev1">29000000000</us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        assert result["segment_count"] == 1
+        assert result["largest_segment_revenue_pct"] == 100.0
+        assert result["revenue_concentration_hhi"] == 10000.0
+        assert result["segments"][0]["revenue"] == 29_000_000_000.0
+
+    def test_segment_axis_present_only_for_non_revenue_facts_falls_back(self) -> None:
+        """Matches Realty Income's (O) real shape: a single-dimension segment
+        context DOES exist (keeping context_segment non-empty and axis_to_use
+        resolvable), but it's only ever used for expense-line facts, never
+        revenue - so the primary path's candidate_facts search comes up empty
+        and the cross-tab fallback also finds nothing to reconcile. Falls back
+        to the disclosed segment count + consolidated revenue, using the real
+        segment member name it found for other facts."""
+        contexts = (
+            _context("u1", "StatementBusinessSegmentsAxis", "ReportableSegmentMember", "2025-01-01", "2025-12-31")
+            + _plain_context("count1", "2025-01-01", "2025-12-31")
+            + _plain_context("rev1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:GeneralAndAdministrativeExpense contextRef="u1">171000000</us-gaap:GeneralAndAdministrativeExpense>
+        <us-gaap:NumberOfReportableSegments contextRef="count1">1</us-gaap:NumberOfReportableSegments>
+        <us-gaap:Revenues contextRef="rev1">5749000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 1
+        assert result["segments"][0]["segment_id"] == "ReportableSegmentMember"
+        assert result["segments"][0]["revenue"] == 5_749_000_000.0
+
+    def test_multi_segment_count_does_not_trigger_fallback(self) -> None:
+        """If the count concept says >1, this must NOT fabricate a single-segment
+        result even when per-segment revenue extraction otherwise fails - that
+        would be a real multi-segment gap, not this fallback's case to handle.
+        Stays honest with data_unavailable."""
+        contexts = _plain_context("count1", "2025-01-01", "2025-12-31") + _plain_context(
+            "rev1", "2025-01-01", "2025-12-31"
+        )
+        facts = """
+        <us-gaap:NumberOfReportableSegments contextRef="count1">3</us-gaap:NumberOfReportableSegments>
+        <us-gaap:Revenues contextRef="rev1">29000000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_dimension_contexts_in_xbrl_xml"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
