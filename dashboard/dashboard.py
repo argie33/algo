@@ -362,65 +362,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     render_state = _RenderState(compact, data_source)
     controller = WatchModeController()
 
-    def load_data() -> None:
-        """Load data with 20-second timeout."""
-        try:
-            state.loading = True
-            state.error = None
-            t0 = time.monotonic()
-
-            result: list[Any] = [None]
-            error: list[Exception | None] = [None]
-
-            def load_with_timeout() -> None:
-                try:
-                    result[0] = load_all()
-                except Exception as e:
-                    error[0] = e
-
-            load_thread = threading.Thread(target=load_with_timeout, daemon=True)
-            load_thread.start()
-            load_thread.join(timeout=20.0)
-
-            # CRITICAL FIX: Always set state.result, even on error
-            # FAIL-FAST: Never render trading UI with missing data (GOVERNANCE: no silent fallbacks)
-            if error[0]:
-                # Error occurred - mark data as unavailable with reason
-                error_msg = f"{type(error[0]).__name__}: {str(error[0])[:100]}"
-                state.result = {
-                    "_data_unavailable": True,
-                    "_dashboard_critical": True,
-                    "reason": f"Data load failed: {error_msg}",
-                }
-                state.error = error_msg
-            elif result[0] is not None:
-                # Success - data loaded
-                state.result = result[0]
-            else:
-                # Timeout - mark data as unavailable instead of rendering with empty dict
-                state.result = {
-                    "_data_unavailable": True,
-                    "_dashboard_critical": True,
-                    "reason": "Data load timeout (exceeded 20 seconds) - API or database may be unresponsive",
-                }
-                state.error = "Data load timeout (20s)"
-
-            state.elapsed = time.monotonic() - t0
-            state.last_load = time.monotonic()
-            state.loading = False
-        except Exception as e:
-            # Catch-all for any unexpected exceptions
-            # FAIL-FAST: Mark data as unavailable, do NOT render with empty dict (GOVERNANCE)
-            logger.error(f"Data load error: {type(e).__name__}: {e}", exc_info=True)
-            error_msg = f"{type(e).__name__}: {str(e)[:100]}"
-            state.result = {
-                "_data_unavailable": True,
-                "_dashboard_critical": True,
-                "reason": f"Critical error during data load: {error_msg}",
-            }
-            state.loading = False
-            state.error = error_msg
-
     # Start background data loading immediately (don't wait for preload to complete)
     # This allows the dashboard to show a loading indicator immediately instead of appearing hung
     state.loading = True
@@ -453,8 +394,8 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     # A non-daemon thread here would block process exit for as long as load_all() takes
     # internally (up to its own ~60-300s timeouts) even after that log line, leaving the
     # user staring at a cleared screen with no indication anything is still happening.
-    load_data_thread = threading.Thread(target=preload_data, daemon=True)
-    load_data_thread.start()
+    preload_thread = threading.Thread(target=preload_data, daemon=True)
+    preload_thread.start()
 
     # Warm up the render pipeline to avoid 2+ second delay on first render
     def warmup_render() -> None:
@@ -540,7 +481,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         except KeyboardInterrupt:
             pass
 
-    load_data_thread.join(timeout=5)
+    preload_thread.join(timeout=5)
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
