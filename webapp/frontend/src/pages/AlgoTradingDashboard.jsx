@@ -127,8 +127,14 @@ function toPhaseSet(val) {
   );
 }
 
-function PhaseChips({ phasesCompleted, phasesHalted, phasesErrored }) {
-  const phases = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
+export function PhaseChips({ phasesCompleted, phasesHalted, phasesErrored }) {
+  // All 9 orchestrator phases (see algo/orchestration/orchestrator.py) - P8 (entry_execution,
+  // the phase that actually places real orders) and P9 (reconciliation) were missing here,
+  // so an operator watching this run-history panel before trading real money had no visual
+  // indication of whether the highest-stakes phases even ran, let alone their status. The
+  // backend already tracks all 9 in phases_completed/phases_halted/phases_errored - this was
+  // a frontend-only display gap, not a missing backend field.
+  const phases = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9"];
   const halted = toPhaseSet(phasesHalted);
   const errored = toPhaseSet(phasesErrored);
   const completed = toPhaseSet(phasesCompleted);
