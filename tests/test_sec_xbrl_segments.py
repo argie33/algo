@@ -481,5 +481,222 @@ class TestExtractSegmentRevenueFromXbrlXml:
         assert result["segments"][0]["revenue"] == 100_000_000.0
 
 
+def _plain_context(ctx_id: str, start: str, end: str) -> str:
+    """A non-dimensioned context - the consolidated (not segment-level) figure."""
+    return f"""
+    <context id="{ctx_id}">
+        <entity>
+            <identifier scheme="http://www.sec.gov/CIK">0000034088</identifier>
+        </entity>
+        <period>
+            <startDate>{start}</startDate>
+            <endDate>{end}</endDate>
+        </period>
+    </context>
+    """
+
+
+class TestCrossTabSegmentRevenueFallback:
+    """Real bug found live against Exxon Mobil's FY2023-2025 10-K instances (CIK
+    34088): XOM tags EVERY segment revenue fact with an additional axis alongside
+    the segment axis (geography, product type) - no plain single-dimension segment-
+    total context exists anywhere in the filing for any revenue concept, so the
+    primary extraction path (single-dimension-or-OperatingSegmentsMember-paired
+    contexts only) always found zero facts and reported data_unavailable, even
+    though real segment revenue is fully present in the XML.
+    """
+
+    def _xml(self, contexts: str, facts: str) -> str:
+        return f"""<?xml version="1.0"?>
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31"
+      xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+    {contexts}
+    {facts}
+</xbrl>
+"""
+
+    def test_reconciled_cross_tab_sum_used_when_no_single_dimension_context(self) -> None:
+        """Matches XOM's real shape: a structural single-dimension context exists
+        (used only for an unrelated concept, e.g. an impairment footnote - keeps
+        _index_segment_contexts non-empty so axis_to_use resolves), but every
+        revenue fact is cross-tabbed with a geography axis. Summing revenue across
+        both geography members per segment reproduces the plain consolidated
+        revenue fact for the identical period, so the fallback must be trusted."""
+        contexts = (
+            _context("u1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "US")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "NonUsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c3",
+                [("StatementBusinessSegmentsAxis", "BetaMember"), ("StatementGeographicalAxis", "US")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c4",
+                [("StatementBusinessSegmentsAxis", "BetaMember"), ("StatementGeographicalAxis", "NonUsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("anchor1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:ImpairmentOfLongLivedAssetsHeldForUse contextRef="u1">1000000</us-gaap:ImpairmentOfLongLivedAssetsHeldForUse>
+        <us-gaap:Revenues contextRef="c1">60000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">40000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c3">30000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c4">20000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="anchor1">150000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["reason"] is None
+        assert result["segment_count"] == 2
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 100_000_000.0, "BetaMember": 50_000_000.0}
+
+    def test_cross_tab_fallback_excludes_intersegment_elimination_from_sum(self) -> None:
+        """The same shape as above, but each segment ALSO tags a large
+        ConsolidationItemsAxis=IntersegmentEliminationMember-paired fact (confirmed
+        live: XOM tags real "intersegment sales elimination" facts this way,
+        alongside the same geography axis used for real revenue breakdown facts).
+        This is a reconciling adjustment, not part of the segment's own reportable
+        revenue - summing it in would corrupt the total and desync it from the
+        consolidated anchor, so the reconciliation must reject any candidate that
+        includes it and instead find the clean geography-only breakdown."""
+        contexts = (
+            _context("u1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "US")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "NonUsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "e1",
+                [
+                    ("StatementBusinessSegmentsAxis", "AlphaMember"),
+                    ("ConsolidationItemsAxis", "IntersegmentEliminationMember"),
+                ],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("anchor1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">60000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">40000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="e1">-999999999</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="anchor1">100000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 100_000_000.0}
+
+    def test_cross_tab_fallback_picks_axis_combo_that_reconciles_over_one_that_doesnt(self) -> None:
+        """A filer can tag more than one complete-looking breakdown of the same
+        segment revenue (confirmed live: XOM ALSO tags a plain geography-only total
+        that is NOT the real reportable total - gross of intersegment sales rather
+        than net, overstating by ~36%). Picking the wrong one silently produces a
+        plausible but wrong number - exactly the JNJ/KO double-counting bug class
+        this parser already had to fix twice. The candidate whose grand total
+        actually reconciles against the consolidated anchor must be preferred over
+        one that doesn't, regardless of which was encountered first."""
+        contexts = (
+            _context("u1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            # Wrong combo: ProductAxis breakdown that does NOT sum to the real total.
+            + _multi_dim_context(
+                "w1",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("ProductOrServiceAxis", "GrossSalesMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            # Correct combo: geography breakdown that DOES sum to the real total.
+            + _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "US")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "NonUsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("anchor1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="w1">999000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c1">60000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">40000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="anchor1">100000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        revenues = {s["segment_id"]: s["revenue"] for s in result["segments"]}
+        assert revenues == {"AlphaMember": 100_000_000.0}
+
+    def test_cross_tab_fallback_fails_closed_when_no_candidate_reconciles(self) -> None:
+        """If no candidate axis-combo's grand total is within tolerance of the
+        consolidated anchor, this must report data_unavailable rather than guess -
+        per GOVERNANCE's fail-fast principle, an honest "we don't know" beats a
+        silently wrong number."""
+        contexts = (
+            _context("u1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
+            + _multi_dim_context(
+                "c1",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "US")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _multi_dim_context(
+                "c2",
+                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("StatementGeographicalAxis", "NonUsMember")],
+                "2025-01-01",
+                "2025-12-31",
+            )
+            + _plain_context("anchor1", "2025-01-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">60000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">40000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="anchor1">999000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is False
+        assert result["reason"] == "no_segment_revenue_in_xbrl_xml"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

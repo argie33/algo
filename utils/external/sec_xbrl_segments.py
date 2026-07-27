@@ -92,6 +92,25 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     "RevenuesNetOfInterestExpense",
 )
 
+# Standard us-gaap ConsolidationItemsAxis members marking a reconciling/adjustment
+# line rather than a real component of a segment's own reportable revenue - used by
+# the cross-tab reconciliation fallback (see _extract_cross_tab_segment_revenue) to
+# exclude these from the sum. Confirmed live against Exxon Mobil's FY2023-2025 10-Ks:
+# "intersegment sales elimination" facts are tagged under
+# ConsolidationItemsAxis=IntersegmentEliminationMember alongside the same geography
+# axis used for real revenue breakdown facts - summing them in would silently corrupt
+# the total.
+_NON_ADDITIVE_CONSOLIDATION_MEMBERS = ("IntersegmentEliminationMember", "MaterialReconcilingItemsMember")
+
+# Tolerance for validating a cross-tab reconciled segment-revenue candidate against
+# the filer's own plain (non-dimensioned) consolidated revenue fact for the same
+# period. 3% comfortably covers a small unallocated "Corporate/Financing" residual
+# (confirmed live: Exxon's reconciliation lands within 0.3-0.5% every year) while
+# still rejecting a wrong-axis-combo candidate, which is typically off by double
+# digits or more (e.g. XOM's plain geography-only total, gross of intersegment
+# sales, overstates the real total by ~36%).
+_CROSS_TAB_RECONCILIATION_TOLERANCE = 0.03
+
 # ASC 280 also requires segment operating income and assets "if regularly
 # provided to the CODM" - unlike revenue, not every filer discloses these by
 # segment (verified live: MSFT and AAPL tag OperatingIncomeLoss per segment but
@@ -386,6 +405,176 @@ class XBRLSegmentParser:
         return values
 
     @staticmethod
+    def _extract_cross_tab_segment_revenue(  # noqa: C901
+        root: ET.Element, symbol: str, axis_to_use: str
+    ) -> tuple[dict[str, float], str, int] | None:
+        """Fallback for filers that tag EVERY segment revenue fact with an additional
+        axis alongside the segment axis - no plain single-dimension (or
+        OperatingSegmentsMember-paired) segment-total context exists anywhere in the
+        filing for any revenue concept, so the primary path in
+        extract_segment_revenue_from_xbrl_xml finds nothing.
+
+        Confirmed live against Exxon Mobil's real FY2023/2024/2025 10-K instance
+        documents (CIK 34088): segment revenue is tagged three ways per (segment,
+        geography) pair - "sales and other operating revenue", "income from equity
+        affiliates", and "other revenue" (all ProductOrServiceAxis members, paired
+        with StatementGeographicalAxis=US/NonUs) - plus a separate "intersegment sales
+        elimination" line tagged via
+        ConsolidationItemsAxis=IntersegmentEliminationMember alongside the same
+        geography axis. The eliminations line is a reconciling adjustment, not a
+        component of the segment's own reportable revenue (same ASC 280 convention
+        already applied to the plain "Corporate and Eliminations" sign-based exclusion
+        in the caller) - excluding it and summing the three ProductOrServiceAxis
+        members across both geography members reproduces Exxon's real consolidated
+        revenue to within 0.3-0.5% for all three years.
+
+        XOM also tags a SEPARATE, plain (segment + geography only, no product-type
+        axis) breakdown that is NOT the same figure - it's gross of intersegment
+        sales rather than net, overstating the real total by ~36%. A filer can tag
+        more than one complete-looking breakdown of the same segment revenue, and
+        picking the wrong one silently produces a plausible but wrong number - exactly
+        the JNJ/KO double-counting bug this parser already had to fix twice (see
+        [[sec_xbrl_companyfacts_limitation]]). Rather than guess which axis
+        combination is "the" real segment total by member-name pattern matching,
+        every candidate combination found in the filing is reconciled against the
+        filer's own plain (non-dimensioned) consolidated revenue fact for the
+        identical period and only accepted if within
+        _CROSS_TAB_RECONCILIATION_TOLERANCE - otherwise this returns None and the
+        caller reports data_unavailable, the correct, honest outcome per
+        GOVERNANCE's fail-fast principle when no candidate can be trusted.
+
+        Returns (member -> revenue, target_end_date, target_duration_days) for the
+        best-reconciled candidate, or None if no candidate reconciles.
+        """
+        all_contexts: dict[str, tuple[dict[str, str], str | None, str | None]] = {}
+        for ctx in root.iter():
+            if _local_name(ctx.tag) != "context":
+                continue
+            ctx_id = ctx.get("id")
+            if not ctx_id:
+                continue
+            dims: dict[str, str] = {}
+            start_str = end_str = None
+            for child in ctx.iter():
+                loc = _local_name(child.tag)
+                if loc == "explicitMember":
+                    dims[_qname_local(child.get("dimension"))] = _qname_local(child.text)
+                elif loc == "startDate":
+                    start_str = (child.text or "").strip() or None
+                elif loc == "endDate":
+                    end_str = (child.text or "").strip() or None
+                elif loc == "instant":
+                    end_str = (child.text or "").strip() or None
+            all_contexts[ctx_id] = (dims, start_str, end_str)
+
+        # (segment_member, other_axes_combo, end_date, duration_days, revenue)
+        candidates: list[tuple[str, frozenset[str], str, int, float]] = []
+        for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept:
+                    continue
+                info = all_contexts.get(elem.get("contextRef", ""))
+                if not info:
+                    continue
+                dims, start_str, end_str = info
+                if axis_to_use not in dims or not end_str:
+                    continue
+
+                other_dims = {k: v for k, v in dims.items() if k != axis_to_use}
+                consol_member = other_dims.get(_CONSOLIDATION_ITEMS_AXIS)
+                if consol_member == _OPERATING_SEGMENTS_MEMBER:
+                    other_dims.pop(_CONSOLIDATION_ITEMS_AXIS)
+                elif consol_member in _NON_ADDITIVE_CONSOLIDATION_MEMBERS:
+                    continue
+                if not other_dims:
+                    continue  # single-dimension after stripping boilerplate - primary path already tried this
+
+                value = elem.text
+                if value is None:
+                    continue
+                try:
+                    revenue = float(value.strip())
+                except ValueError:
+                    continue
+                duration_days = 0
+                if start_str:
+                    try:
+                        duration_days = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                    except ValueError:
+                        duration_days = 0
+                candidates.append((dims[axis_to_use], frozenset(other_dims.keys()), end_str, duration_days, revenue))
+            if candidates:
+                break
+
+        if not candidates:
+            return None
+
+        max_end = max(c[2] for c in candidates)
+        same_end = [c for c in candidates if c[2] == max_end]
+        max_duration = max(c[3] for c in same_end)
+        period_candidates = [c for c in same_end if c[3] == max_duration]
+
+        by_combo: dict[frozenset[str], dict[str, float]] = {}
+        for member, other_axes, _end, _duration, revenue_value in period_candidates:
+            combo_segments = by_combo.setdefault(other_axes, {})
+            combo_segments[member] = combo_segments.get(member, 0.0) + revenue_value
+
+        # Reconciliation ground truth: the filer's own plain, non-dimensioned
+        # consolidated revenue fact for the identical period.
+        anchor: float | None = None
+        for concept in _REVENUE_CONCEPT_LOCAL_NAMES:
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept:
+                    continue
+                info = all_contexts.get(elem.get("contextRef", ""))
+                if not info:
+                    continue
+                dims, start_str, end_str = info
+                if dims or end_str != max_end:
+                    continue
+                if start_str:
+                    try:
+                        d = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                    except ValueError:
+                        continue
+                    if d != max_duration:
+                        continue
+                value = elem.text
+                if value is None:
+                    continue
+                try:
+                    anchor = float(value.strip())
+                except ValueError:
+                    continue
+                break
+            if anchor is not None:
+                break
+
+        if anchor is None or anchor == 0:
+            logger.info(f"[{symbol}] Cross-tab segment revenue found candidates but no consolidated anchor to reconcile against - not trusting any candidate.")
+            return None
+
+        best_combo: frozenset[str] | None = None
+        best_segments: dict[str, float] | None = None
+        best_error: float | None = None
+        for combo, combo_segments in by_combo.items():
+            total = sum(combo_segments.values())
+            error = abs(total - anchor) / abs(anchor)
+            if best_error is None or error < best_error:
+                best_error, best_combo, best_segments = error, combo, combo_segments
+
+        if best_error is None or best_error > _CROSS_TAB_RECONCILIATION_TOLERANCE or best_segments is None:
+            logger.info(
+                f"[{symbol}] Cross-tab segment revenue reconciliation failed: best candidate "
+                f"(axes={sorted(best_combo) if best_combo else None}) off by "
+                f"{best_error * 100 if best_error is not None else float('nan'):.1f}% vs consolidated "
+                f"revenue {anchor:,.0f} - not trusting any candidate."
+            )
+            return None
+
+        return best_segments, max_end, max_duration
+
+    @staticmethod
     def extract_segment_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Extract per-segment revenue from a raw XBRL instance document.
 
@@ -459,46 +648,51 @@ class XBRLSegmentParser:
                 break
 
         if not candidate_facts:
-            return {
-                "segment_count": None,
-                "largest_segment_revenue_pct": None,
-                "revenue_concentration_hhi": None,
-                "segments": [],
-                "segment_type": None,
-                "data_available": False,
-                "reason": "no_segment_revenue_in_xbrl_xml",
-            }
-        logger.debug(f"[{symbol}] Segment revenue matched via {matched_concept} on {axis_to_use}")
+            cross_tab = XBRLSegmentParser._extract_cross_tab_segment_revenue(root, symbol, axis_to_use)
+            if cross_tab is None:
+                return {
+                    "segment_count": None,
+                    "largest_segment_revenue_pct": None,
+                    "revenue_concentration_hhi": None,
+                    "segments": [],
+                    "segment_type": None,
+                    "data_available": False,
+                    "reason": "no_segment_revenue_in_xbrl_xml",
+                }
+            segments, max_end, max_duration = cross_tab
+            logger.debug(f"[{symbol}] Segment revenue matched via cross-tab reconciliation on {axis_to_use}")
+        else:
+            logger.debug(f"[{symbol}] Segment revenue matched via {matched_concept} on {axis_to_use}")
 
-        # A 10-K instance carries multiple fiscal years side by side for
-        # comparison tables - keep only the most recent period (max end date;
-        # among ties, the longest duration, to prefer an annual figure over a
-        # stray quarterly context sharing the fiscal year-end date).
-        max_end = max(f[1] for f in candidate_facts)
-        same_end = [f for f in candidate_facts if f[1] == max_end]
-        max_duration = max(f[2] for f in same_end)
-        latest_facts = [f for f in same_end if f[2] == max_duration]
+            # A 10-K instance carries multiple fiscal years side by side for
+            # comparison tables - keep only the most recent period (max end date;
+            # among ties, the longest duration, to prefer an annual figure over a
+            # stray quarterly context sharing the fiscal year-end date).
+            max_end = max(f[1] for f in candidate_facts)
+            same_end = [f for f in candidate_facts if f[1] == max_end]
+            max_duration = max(f[2] for f in same_end)
+            latest_facts = [f for f in same_end if f[2] == max_duration]
 
-        # A filer can tag the same segment's revenue via more than one qualifying
-        # context for the same period - e.g. a plain single-axis context AND a
-        # ConsolidationItemsAxis=OperatingSegmentsMember-paired one (confirmed
-        # live: JNJ's FY2025 10-K tags Innovative Medicine revenue both ways,
-        # both contexts carrying the identical value). These are redundant
-        # taggings of ONE real fact, not two additive ones - summing them would
-        # silently double the segment's revenue. Keep one value per member; if
-        # duplicate taggings materially disagree (not just the same fact twice),
-        # that's a real anomaly worth surfacing rather than silently summing or
-        # silently discarding.
-        segments: dict[str, float] = {}
-        for member, _end, _duration, revenue in latest_facts:
-            if member in segments and abs(segments[member] - revenue) > max(1.0, abs(segments[member]) * 0.001):
-                logger.warning(
-                    f"[{symbol}] Segment '{member}' tagged with disagreeing revenue values "
-                    f"across contexts ({segments[member]} vs {revenue}) for the same period - "
-                    "keeping the first value seen."
-                )
-                continue
-            segments[member] = revenue
+            # A filer can tag the same segment's revenue via more than one qualifying
+            # context for the same period - e.g. a plain single-axis context AND a
+            # ConsolidationItemsAxis=OperatingSegmentsMember-paired one (confirmed
+            # live: JNJ's FY2025 10-K tags Innovative Medicine revenue both ways,
+            # both contexts carrying the identical value). These are redundant
+            # taggings of ONE real fact, not two additive ones - summing them would
+            # silently double the segment's revenue. Keep one value per member; if
+            # duplicate taggings materially disagree (not just the same fact twice),
+            # that's a real anomaly worth surfacing rather than silently summing or
+            # silently discarding.
+            segments = {}
+            for member, _end, _duration, revenue in latest_facts:
+                if member in segments and abs(segments[member] - revenue) > max(1.0, abs(segments[member]) * 0.001):
+                    logger.warning(
+                        f"[{symbol}] Segment '{member}' tagged with disagreeing revenue values "
+                        f"across contexts ({segments[member]} vs {revenue}) for the same period - "
+                        "keeping the first value seen."
+                    )
+                    continue
+                segments[member] = revenue
 
         # Many filers tag a non-operating "Corporate and Eliminations" (or similarly
         # named) reconciling line under the same segment axis so segment totals foot
