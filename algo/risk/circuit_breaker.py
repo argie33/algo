@@ -501,15 +501,30 @@ class CircuitBreaker:
         # final tiebreak (not the primary one) since exit_time is frequently NULL on this table
         # (several close paths didn't set it until this same fix round) and ORDER BY must stay
         # fully deterministic even when it is.
+        # CRITICAL FIX: this query had no exclusion for non-representative closes, unlike
+        # _check_win_rate_floor's identical "most recent N closed trades" query just below
+        # (which already excludes reconciliation/force-close/delisted exit reasons as not
+        # reflecting real strategy performance). Confirmed live 2026-07-27: a since-fixed
+        # exit_engine bug (check_distribution() raising the stop to breakeven even when
+        # price hadn't reached breakeven yet, then immediately reading the same price as
+        # "below the new stop") force-closed 9 positions in one pass at prices nowhere near
+        # their real, much-wider stop_loss_price - a code-bug artifact, not a real losing
+        # streak - yet this check counted all 9 toward the halt with no way to exclude them.
+        # DATA-QC is the short marker this session appended to those 9 trades'
+        # exit_reason after verifying the root-cause fix (commits c6d399ba4, 5f1e8f8e1).
         cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
               AND trade_id NOT LIKE 'EXT-%%'
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
             ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
             LIMIT 10
             """,
-            (TradeStatus.CLOSED.value,),
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"),
         )
         rows = cur.fetchall()
         if not rows:
@@ -570,6 +585,7 @@ class CircuitBreaker:
                       AND exit_reason NOT LIKE %s
                       AND exit_reason NOT LIKE %s
                       AND exit_reason NOT LIKE %s
+                      AND exit_reason NOT LIKE %s
                     -- CRITICAL FIX: exit_time is frequently NULL on this table (several close
                     -- paths didn't set it until this same fix round - see
                     -- _check_consecutive_losses's comment above), so NULLS LAST alone left ties
@@ -587,7 +603,7 @@ class CircuitBreaker:
                   AND quantity > 0
             ) all_trades
             """,
-            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%"),
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"),
         )
         row = cur.fetchone()
         if row is None:

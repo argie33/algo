@@ -347,6 +347,28 @@ class TestConsecutiveLossesOrdering:
         assert "ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC" in executed_sql
         assert "ORDER BY exit_date DESC, id DESC" not in executed_sql
 
+    def test_excludes_non_representative_closes_matching_win_rate_floor_convention(self, mock_config):
+        """CRITICAL FIX regression: this query previously had NO exclusion for
+        reconciliation/force-close/delisted/DATA-QC exit reasons, unlike
+        _check_win_rate_floor's identical "most recent N closed trades" query just above,
+        which already excludes them as not reflecting real strategy performance. Confirmed
+        live 2026-07-27: a since-fixed exit_engine bug (check_distribution() raising the
+        stop to breakeven before price ever reached breakeven) force-closed 9 positions at
+        prices nowhere near their real stop_loss_price in one pass - a code-bug artifact,
+        not a real losing streak - and this check had no way to exclude them from the halt.
+        """
+        cb = CircuitBreaker(config=mock_config)
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = []
+        cb._check_consecutive_losses(current_date=None, cur=mock_cur)
+        executed_sql = mock_cur.execute.call_args_list[0][0][0]
+        params = mock_cur.execute.call_args_list[0][0][1]
+        assert "exit_reason NOT LIKE" in executed_sql
+        assert "%reconciliation%" in params
+        assert "%force%close%" in params
+        assert "%delisted%" in params
+        assert "%DATA-QC%" in params
+
 
 class TestCircuitBreakerTotalRisk:
     """_check_total_risk's algo_trades JOIN can silently drop open positions whose
