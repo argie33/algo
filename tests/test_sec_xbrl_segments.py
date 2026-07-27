@@ -98,6 +98,22 @@ def _context(ctx_id: str, axis_local: str, member_local: str, start: str, end: s
     """
 
 
+def _instant_context(ctx_id: str, axis_local: str, member_local: str, instant: str) -> str:
+    return f"""
+    <context id="{ctx_id}">
+        <entity>
+            <identifier scheme="http://www.sec.gov/CIK">0000789019</identifier>
+            <segment>
+                <xbrldi:explicitMember dimension="us-gaap:{axis_local}">aapl:{member_local}</xbrldi:explicitMember>
+            </segment>
+        </entity>
+        <period>
+            <instant>{instant}</instant>
+        </period>
+    </context>
+    """
+
+
 class TestExtractSegmentRevenueFromXbrlXml:
     """extract_segment_revenue_from_xbrl_xml() reads the real XBRL dimensional
     model (context -> explicitMember -> segment axis/member), matching how SEC
@@ -212,6 +228,75 @@ class TestExtractSegmentRevenueFromXbrlXml:
 
         assert result["data_available"] is False
         assert "xml_parse_error" in result["reason"]
+
+    def test_operating_income_and_assets_populated_when_disclosed(self) -> None:
+        """Real filer shape (verified live against Amazon's FY2025 10-K instance):
+        OperatingIncomeLoss is a duration concept matching revenue's period exactly,
+        Assets is an instant (balance-sheet) concept as of the period end date. A
+        segment operating LOSS (negative value) must still be kept, not treated like
+        a revenue elimination line."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "NorthAmericaSegmentMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "InternationalSegmentMember", "2025-01-01", "2025-12-31")
+            + _instant_context("c3", "StatementBusinessSegmentsAxis", "NorthAmericaSegmentMember", "2025-12-31")
+            + _instant_context("c4", "StatementBusinessSegmentsAxis", "InternationalSegmentMember", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">400000000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">150000000000</us-gaap:Revenues>
+        <us-gaap:OperatingIncomeLoss contextRef="c1">29619000000</us-gaap:OperatingIncomeLoss>
+        <us-gaap:OperatingIncomeLoss contextRef="c2">-2656000000</us-gaap:OperatingIncomeLoss>
+        <us-gaap:Assets contextRef="c3">235652000000</us-gaap:Assets>
+        <us-gaap:Assets contextRef="c4">81984000000</us-gaap:Assets>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        by_id = {s["segment_id"]: s for s in result["segments"]}
+        assert by_id["NorthAmericaSegmentMember"]["operating_income"] == 29619000000.0
+        assert by_id["NorthAmericaSegmentMember"]["assets"] == 235652000000.0
+        # Legitimate operating loss - must not be dropped like a revenue elimination.
+        assert by_id["InternationalSegmentMember"]["operating_income"] == -2656000000.0
+        assert by_id["InternationalSegmentMember"]["assets"] == 81984000000.0
+
+    def test_operating_income_and_assets_none_when_not_disclosed(self) -> None:
+        """Real filer shape (verified live against MSFT/AAPL FY2025 10-K instances):
+        many filers tag OperatingIncomeLoss per segment but never Assets - honest
+        None, not a fabricated 0, distinguishes "not disclosed" from "disclosed as
+        zero"."""
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31"
+        )
+        facts = """<us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>"""
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        segment = result["segments"][0]
+        assert segment["operating_income"] is None
+        assert segment["assets"] is None
+
+    def test_operating_income_from_wrong_duration_period_not_matched(self) -> None:
+        """A quarterly OperatingIncomeLoss fact sharing the annual revenue fact's
+        end date (e.g. Q4 ending on the same fiscal year-end) must not leak in next
+        to an annual revenue total - they measure different-length periods."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-10-01", "2025-12-31")
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">400000000</us-gaap:Revenues>
+        <us-gaap:OperatingIncomeLoss contextRef="c2">50000000</us-gaap:OperatingIncomeLoss>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segments"][0]["operating_income"] is None
 
 
 if __name__ == "__main__":

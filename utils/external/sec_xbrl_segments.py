@@ -68,6 +68,15 @@ _REVENUE_CONCEPT_LOCAL_NAMES = (
     "SalesRevenueNet",
 )
 
+# ASC 280 also requires segment operating income and assets "if regularly
+# provided to the CODM" - unlike revenue, not every filer discloses these by
+# segment (verified live: MSFT and AAPL tag OperatingIncomeLoss per segment but
+# never Assets; AMZN tags both). OperatingIncomeLoss is a duration concept like
+# revenue (matched on the same end date + duration); Assets is an instant
+# (balance-sheet) concept, so it only has an end date, no duration.
+_OPERATING_INCOME_CONCEPT_LOCAL_NAMES = ("OperatingIncomeLoss",)
+_ASSETS_CONCEPT_LOCAL_NAMES = ("Assets",)
+
 
 def _local_name(tag: str) -> str:
     """Strip the Clark-notation namespace from an ElementTree tag."""
@@ -264,6 +273,67 @@ class XBRLSegmentParser:
         return context_segment
 
     @staticmethod
+    def _extract_segment_member_values(
+        root: ET.Element,
+        context_segment: dict[str, tuple[str, str, str, str | None]],
+        axis_to_use: str,
+        concept_local_names: tuple[str, ...],
+        target_end: str,
+        match_duration_days: int | None,
+    ) -> dict[str, float]:
+        """Extract member -> value for a concept, restricted to the same fiscal
+        period already selected for segment revenue (target_end, and for
+        duration concepts, match_duration_days).
+
+        match_duration_days=None means an instant (balance-sheet) concept
+        (e.g. Assets) - matched on end date alone, since instant contexts have
+        no startDate. A duration concept (e.g. OperatingIncomeLoss) must also
+        match the same period length as the revenue figure it's paired with, so
+        a stray quarterly fact sharing the fiscal year-end date can't leak in
+        next to an annual revenue total.
+
+        Unlike revenue, values are NOT filtered by sign - a segment can have a
+        real, legitimate operating loss (confirmed live: Amazon's International
+        segment reported a -$2.66B OperatingIncomeLoss in FY2023).
+        """
+        values: dict[str, float] = {}
+        for concept in concept_local_names:
+            found = False
+            for elem in root.iter():
+                if _local_name(elem.tag) != concept:
+                    continue
+                info = context_segment.get(elem.get("contextRef", ""))
+                if not info or info[0] != axis_to_use:
+                    continue
+                _axis, member, end_str, start_str = info
+                if end_str != target_end:
+                    continue
+                if match_duration_days is not None:
+                    if not start_str:
+                        continue
+                    try:
+                        duration = (date.fromisoformat(end_str) - date.fromisoformat(start_str)).days
+                    except ValueError:
+                        continue
+                    if duration != match_duration_days:
+                        continue
+                elif start_str:
+                    # An instant concept (no startDate expected) matched a
+                    # duration context - not the balance-sheet fact we want.
+                    continue
+                value = elem.text
+                if value is None:
+                    continue
+                try:
+                    values[member] = values.get(member, 0.0) + float(value.strip())
+                except ValueError:
+                    continue
+                found = True
+            if found:
+                break
+        return values
+
+    @staticmethod
     def extract_segment_revenue_from_xbrl_xml(xml_content: str, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Extract per-segment revenue from a raw XBRL instance document.
 
@@ -384,14 +454,21 @@ class XBRLSegmentParser:
                 "reason": "zero_total_segment_revenue",
             }
 
+        operating_income_by_member = XBRLSegmentParser._extract_segment_member_values(
+            root, context_segment, axis_to_use, _OPERATING_INCOME_CONCEPT_LOCAL_NAMES, max_end, max_duration
+        )
+        assets_by_member = XBRLSegmentParser._extract_segment_member_values(
+            root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, max_end, None
+        )
+
         segment_list = sorted(
             (
                 {
                     "segment_id": member,
                     "name": XBRLSegmentParser._prettify_segment_name(member),
                     "revenue": revenue,
-                    "operating_income": None,
-                    "assets": None,
+                    "operating_income": operating_income_by_member.get(member),
+                    "assets": assets_by_member.get(member),
                 }
                 for member, revenue in reportable_segments.items()
             ),
