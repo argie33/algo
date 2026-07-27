@@ -2,7 +2,7 @@
 """Circuit breaker to halt trading when signals are stale (ROOT CAUSE #4 fix)."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import psycopg2
@@ -16,13 +16,14 @@ logger = logging.getLogger(__name__)
 class StaleSignalCircuitBreaker:
     """Prevent trading when signals are based on stale price data.
 
-    Threshold varies by day:
-    - Weekdays: Price data must be <24 hours old (same-day or previous day)
-    - Weekends: Price data must be from latest trading day (Fri-Sat/Sun is OK)
+    Threshold: price_daily's latest date must be no older than the most recent trading
+    day strictly before today - i.e. up to one trading day of lag is normal (the EOD
+    loader publishes day D's close sometime after D's market close, so the freshest data
+    available before D+1's own close is D's). This is trading-day-aware, not a flat
+    calendar-day count: it correctly tolerates a 3-calendar-day gap on a Monday (Friday's
+    close) or a longer gap after a holiday, the same way Phase 1 (price_daily) and
+    Phase 7 (buy_sell_daily lookback) already do.
     """
-
-    WEEKDAY_STALE_THRESHOLD_HOURS = 24  # During trading week
-    WEEKEND_STALE_THRESHOLD_HOURS = 72  # During weekends (Fri EOD acceptable Sat/Sun)
 
     @staticmethod
     def check_signal_freshness() -> tuple[bool, str]:
@@ -59,28 +60,25 @@ class StaleSignalCircuitBreaker:
                     logger.critical(f"CIRCUIT BREAKER OPEN: {msg}")
                     return False, msg
 
-                # Check if price data itself is too old (varies by day of week)
+                # Check if price data itself is too old, relative to the actual previous
+                # trading day (not a flat weekday/weekend calendar-day count - see class
+                # docstring). CRITICAL FIX (2026-07-27): the old flat threshold (1 calendar
+                # day on weekdays) fired on every Monday and every post-holiday trading day,
+                # since Friday's close is always >=3 calendar days old by Monday even though
+                # it's the correct, most-recent-available data. Reproduced live: real
+                # wall-clock Monday 2026-07-27, real price_daily MAX=2026-07-24 (Friday),
+                # would have blocked every Phase 8 entry all session.
                 from algo.infrastructure import MarketCalendar
 
                 now_et = datetime.now(timezone.utc).astimezone(EASTERN_TZ).date()
-                days_old = (now_et - latest_price_date).days
+                expected_min_price_date = MarketCalendar.get_previous_trading_day(now_et - timedelta(days=1))
 
-                # Determine threshold based on whether today is a trading day
-                is_trading_today = MarketCalendar.is_trading_day(now_et)
-                # WEEKDAY/WEEKEND_STALE_THRESHOLD_HOURS (24 / 72) express calendar-day
-                # granularity, not literal hours - price_daily only has one row per date. This
-                # used to multiply the day-diff back out to "hours" (days_old * 24) and compare
-                # with >=, so exactly 1-day-old data (yesterday's close - the normal state for
-                # most of every trading day before the 4:05 PM EOD load) computed 24 >= 24 =
-                # True and incorrectly opened the circuit breaker. Compare in whole days instead.
-                max_days_old = (
-                    StaleSignalCircuitBreaker.WEEKDAY_STALE_THRESHOLD_HOURS
-                    if is_trading_today
-                    else StaleSignalCircuitBreaker.WEEKEND_STALE_THRESHOLD_HOURS
-                ) // 24
-
-                if days_old > max_days_old:
-                    msg = f"Price data {days_old}d old (exceeds {max_days_old}d threshold)"
+                if expected_min_price_date and latest_price_date < expected_min_price_date:
+                    days_old = (now_et - latest_price_date).days
+                    msg = (
+                        f"Price data {days_old}d old (latest: {latest_price_date}, "
+                        f"expected at least {expected_min_price_date})"
+                    )
                     logger.warning(f"CIRCUIT BREAKER OPEN: {msg}")
                     return False, msg
 
