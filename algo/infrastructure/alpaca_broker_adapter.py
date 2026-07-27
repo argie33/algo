@@ -275,19 +275,21 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             # Paper trading without Alpaca credentials - use database state only
             # CRITICAL: Must explicitly check alpaca_paper_trading config (NO FALLBACK TO LIVE TRADING)
-            if not isinstance(self.config, dict):
-                raise ValueError(
-                    "[CONFIG_ERROR] alpaca_paper_trading configuration missing. Must explicitly set paper_trading flag."
-                )
-
-            if "alpaca_paper_trading" not in self.config:
+            # CRITICAL FIX: previously gated on `isinstance(self.config, dict)` then `"key" not
+            # in self.config` - both always wrong for the real AlgoConfig instance used in
+            # production (isinstance is always False for it, so this raised unconditionally
+            # regardless of whether alpaca_paper_trading was actually configured; separately,
+            # AlgoConfig.__contains__ only reflects DB-loaded rows, not AlgoConfig.DEFAULTS).
+            # Same bug class already fixed in alpaca_sync_manager.py's __init__ - use .get(),
+            # which works correctly for both a plain dict and AlgoConfig.
+            is_paper_trading = self.config.get("alpaca_paper_trading")
+            if is_paper_trading is None:
                 raise ValueError(
                     "[CONFIG_ERROR] alpaca_paper_trading key missing from configuration. "
                     "CRITICAL: Must explicitly set alpaca_paper_trading=True or False. "
                     "Refusing to default to False (would enable live trading)."
                 )
 
-            is_paper_trading = self.config["alpaca_paper_trading"]
             if not isinstance(is_paper_trading, bool):
                 type_name = type(is_paper_trading).__name__
                 raise ValueError(f"[CONFIG_ERROR] alpaca_paper_trading must be bool, got {type_name}")
