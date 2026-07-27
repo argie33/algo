@@ -831,50 +831,50 @@ class Orchestrator:
                 now_utc = datetime.now(timezone.utc)
                 now_et = now_utc.astimezone(EASTERN_TZ)
 
-                # CRITICAL FIX: Staleness threshold is context-aware (not a fixed 4-hour window)
-                # - During market hours (9:30 AM - 4 PM ET): loaders stale if ran before market open
-                # - After market close (4 PM - 9:30 AM ET): loaders stale if didn't run in yesterday's EOD pipeline
-                # This prevents false "all loaders stale" alerts for overnight batch jobs
-                if 9 <= now_et.hour < 16:  # During market hours 9:30 AM - 3:59 PM ET
-                    # Require fresh data from today's morning pipeline or intraday updates
-                    # Morning loaders run at 2:15 AM, technical at 2:55 AM, metrics at 4:20 PM (yesterday)
-                    # So require within ~13 hours for this use case
-                    stale_threshold = now_utc - timedelta(hours=13)
-                else:
-                    # After market close / before market open: require data from the most recent
-                    # trading day's EOD pipeline (4-5:30 PM ET on that day).
-                    # FIX (2026-07-27): a flat 36h cutoff cannot span a Friday->Monday weekend
-                    # (~63h) or a day-after-holiday gap - it would flag every critical loader as
-                    # "stale" on every single Monday/post-holiday premarket run, and since this
-                    # check requires ALL loaders to be non-stale to avoid the "SYSTEMIC ALERT ...
-                    # CRITICAL HALT" escalation below, that's the normal (not edge-case) state in
-                    # production where all loaders share one schedule - a real false alarm that
-                    # would page/alert every Monday. Same weekend-gap bug class already fixed for
-                    # Phase 1 freshness, Phase 7's BUY-signal lookback, and Phase 8's stale-signal
-                    # circuit breaker - anchor to the actual previous trading day instead of a
-                    # flat calendar-hours window.
-                    #
-                    # get_previous_trading_day() returns from_date itself when from_date is
-                    # already a trading day (it walks backward only while from_date is NOT a
-                    # trading day) - so premarket must ask about "yesterday" to correctly land on
-                    # the last completed trading day (e.g. Friday from a Monday premarket run),
-                    # while postmarket correctly wants *today* (the orchestrator only runs on
-                    # trading days, confirmed by the preflight market-calendar check).
-                    from algo.infrastructure import MarketCalendar
+                # CRITICAL FIX: Staleness threshold anchors to the most recently completed
+                # trading day's close (midnight ET), not a flat hours-ago window - both during
+                # market hours (today hasn't closed yet) and before market open want
+                # *yesterday's* close as the fresh reference; only after today's own close
+                # (16:00 ET) does *today* become the reference.
+                #
+                # FIX (2026-07-27): this used to be two different computations - a flat 13-hour
+                # window during market hours (9 AM-4 PM), and a flat 36-hour window otherwise
+                # (that 36h version was already fixed to be trading-day-anchored earlier the same
+                # day for the weekend-gap case). Both flat versions shared the same broken
+                # assumption: that `last_updated` is a precise per-run completion timestamp. It
+                # isn't - pipeline_health.py's log_health_check() deliberately writes
+                # last_updated = latest_date (the loaded row's own business date, at midnight ET,
+                # not "when this health check ran" - see that function's docstring) for nearly
+                # every tracked table. Measured from a midnight-anchored last_updated, a flat 13h
+                # window breaches on literally EVERY trading morning (yesterday's close is always
+                # >13h before "now" during market hours), not just after a weekend/holiday gap.
+                # Live-reproduced 2026-07-27: a Monday 09:07 AM ET dry run (inside the old 9
+                # AM-4 PM branch) flagged price_daily/etf_price_daily/technical_data_daily/etc.
+                # all STALE despite Friday's close being the correct, most-recent-available data.
+                # Reusing the trading-day-anchored logic for both branches removes the flat-hours
+                # assumption entirely instead of just widening it further.
+                #
+                # get_previous_trading_day() returns from_date itself when from_date is already a
+                # trading day (it walks backward only while from_date is NOT a trading day) - so
+                # both "during market hours" and "before market open" must ask about "yesterday"
+                # to correctly land on the last completed trading day (e.g. Friday from a Monday
+                # run), while "after close" correctly wants *today* (the orchestrator only runs
+                # on trading days, confirmed by the preflight market-calendar check).
+                from algo.infrastructure import MarketCalendar
 
-                    reference_day = now_et.date() if now_et.hour >= 16 else now_et.date() - timedelta(days=1)
-                    prev_trading_day = MarketCalendar.get_previous_trading_day(reference_day)
-                    if prev_trading_day is not None:
-                        # Floor at the START of the reference trading day (midnight ET), not its
-                        # EOD completion deadline - is_stale is "last_updated < stale_threshold",
-                        # so the threshold must be a lower bound a real completed run's timestamp
-                        # will land AFTER, not a deadline a real timestamp could still land before.
-                        reference_day_start_et = datetime.combine(prev_trading_day, dt_time(0, 0)).replace(
-                            tzinfo=EASTERN_TZ
-                        )
-                        stale_threshold = reference_day_start_et.astimezone(timezone.utc)
-                    else:
-                        stale_threshold = now_utc - timedelta(hours=36)
+                reference_day = now_et.date() if now_et.hour >= 16 else now_et.date() - timedelta(days=1)
+                prev_trading_day = MarketCalendar.get_previous_trading_day(reference_day)
+                if prev_trading_day is not None:
+                    # Floor at the START of the reference trading day (midnight ET), not its
+                    # EOD completion deadline - is_stale is "last_updated < stale_threshold",
+                    # so the threshold must be a lower bound a real completed run's timestamp
+                    # will land AFTER, not a deadline a real timestamp could still land before.
+                    reference_day_start_et = datetime.combine(prev_trading_day, dt_time(0, 0)).replace(
+                        tzinfo=EASTERN_TZ
+                    )
+                    stale_threshold = reference_day_start_et.astimezone(timezone.utc)
+                else:
+                    stale_threshold = now_utc - timedelta(hours=36)
 
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
