@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from datetime import date as _date
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -441,7 +441,15 @@ class TradeValidator:
                 # Enforce minimum days between stop-out and re-entry (using validated instance variable)
                 if exit_date:
                     exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
-                    days_since_exit = (datetime.now(timezone.utc).date() - exit_d).days
+                    # CRITICAL FIX: this compared exit_d (an ET trading date - see signal_date/
+                    # entry_date defaults above, both datetime.now(EASTERN_TZ).date(), the
+                    # convention this whole file uses) against a UTC calendar date. Between
+                    # ~7pm-midnight ET, UTC's date has already rolled to the next day while the
+                    # ET trading date hasn't, so days_since_exit read one day too HIGH - an
+                    # evening/afterhours run could let a re-entry through one day earlier than
+                    # min_days_before_reentry_same_symbol actually requires. Use the same
+                    # EASTERN_TZ convention as the rest of this file for internal consistency.
+                    days_since_exit = (datetime.now(EASTERN_TZ).date() - exit_d).days
                     if days_since_exit < self.min_days_before_reentry_same_symbol:
                         return (
                             False,
