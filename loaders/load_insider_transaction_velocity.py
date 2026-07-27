@@ -47,10 +47,18 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
         measurement_date = since or datetime.now(EASTERN_TZ).date()
 
         try:
-            # Don't wait for download on first call - let it happen in background
-            # On subsequent runs, data will be cached and available
-            wait_for_it = False  # Set to True to block until Form345 data is ready
-            metrics = self._aggregator.get_velocity_metrics(symbol, measurement_date, wait_for_download=wait_for_it)
+            # BUGFIX 2026-07-27: was hardcoded False under the assumption a later
+            # run would find the download "cached" - but CachedForm345Aggregator only
+            # caches in-memory for the life of one process (its CACHE_DIR constant is
+            # declared but never written/read anywhere), so every scheduled run starts
+            # a fresh 2-5 min background download and any symbol processed before it
+            # finishes got data_unavailable="Form345_download_in_progress" forever.
+            # Confirmed live: insider_transaction_velocity had never once stored a real
+            # row across this loader's whole life. wait_for_download=True blocks only
+            # the first symbol in a run (up to timeout_seconds); _build_complete is
+            # already set for every symbol after that, so this costs nothing beyond
+            # the one download this loader always needed to do anyway.
+            metrics = self._aggregator.get_velocity_metrics(symbol, measurement_date, wait_for_download=True)
         except (TimeoutError, Exception) as e:
             # SEC bulk data downloads can be slow; fail gracefully
             logger.debug(f"[{symbol}] Insider velocity fetch error: {type(e).__name__}: {e}")
