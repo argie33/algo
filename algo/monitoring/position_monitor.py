@@ -1222,7 +1222,7 @@ class PositionMonitor:
         with ctx as cur:
             cur.execute("""
                 SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
-                       ap.avg_entry_price AS entry_price
+                       ap.avg_entry_price AS entry_price, ap.trade_ids_arr
                 FROM algo_positions ap
                 WHERE ap.status = 'open'
             """)
@@ -1230,10 +1230,12 @@ class PositionMonitor:
 
             alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
 
-            for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
+            for pos_id, symbol, db_qty, db_stop, _entry_price, trade_ids_arr in positions:
                 try:
                     alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
-                    self._handle_qty_variance(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
+                    self._handle_qty_variance(
+                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments
+                    )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
                         f"Corporate action detection failed for {symbol}: Database error during qty variance handling. "
@@ -1301,6 +1303,7 @@ class PositionMonitor:
         db_qty: int,
         db_stop: float,
         alpaca_qty: int,
+        trade_ids_arr: list[int] | None,
         adjustments: list[dict[str, Any]],
     ) -> None:
         """Handle quantity changes between DB and Alpaca."""
@@ -1332,7 +1335,7 @@ class PositionMonitor:
         if qty_change_pct <= 20:
             return
 
-        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
+        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments)
 
     def _apply_split_adjustment(
         self,
@@ -1342,9 +1345,27 @@ class PositionMonitor:
         db_qty: int,
         db_stop: float,
         alpaca_qty: int,
+        trade_ids_arr: list[int] | None,
         adjustments: list[dict[str, Any]],
     ) -> None:
-        """Apply stock split adjustment to both quantity and stop loss.
+        """Apply stock split adjustment to quantity, stop loss, and every other
+        price-scale field that a split invalidates.
+
+        CRITICAL (2026-07-27): this used to update ONLY algo_positions.quantity and
+        current_stop_price. But the exit engine's R-multiple math (risk_per_share =
+        entry_price - init_stop, r_multiple = (cur_price - entry_price) / risk_per_share)
+        and every T1/T2/T3 profit-target comparison read entry_price/stop_loss_price/
+        target_N_price from algo_trades (see position_monitor._evaluate_position's join),
+        not algo_positions - and those were never adjusted. After a real split, cur_price
+        reflects the new post-split scale while entry_price/targets stayed at the old
+        pre-split scale, so r_multiple and every T1/T2/T3 check silently computed against
+        mismatched price scales for the rest of the position's life: profit targets could
+        become effectively unreachable (stale targets far above the rescaled price) or
+        R-multiple-gated exits (first-red-day 2.5R+, climax-exhaustion 5R+) could fire on
+        garbage ratios. Also corrupts unrealized_pnl_pct reporting (uses entry_price the
+        same way). Fixed by scaling every price-scale column - on both algo_trades (the
+        actual source the exit engine reads) and algo_positions (cache/display columns) -
+        by the same split_ratio used for the stop, not just current_stop_price.
 
         Raises:
             RuntimeError: If stop_loss is missing when stock split detected. Missing
@@ -1375,10 +1396,44 @@ class PositionMonitor:
 
         new_stop_dec = (Decimal(str(db_stop)) / split_ratio_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         new_stop = float(new_stop_dec)
+        ratio_f = float(split_ratio_dec)
         cur.execute(
-            "UPDATE algo_positions SET quantity = %s, current_stop_price = %s WHERE position_id = %s",
-            (alpaca_qty, new_stop, pos_id),
+            """
+            UPDATE algo_positions
+            SET quantity = %s,
+                current_stop_price = %s,
+                entry_price = ROUND(entry_price / %s, 2),
+                avg_entry_price = ROUND(avg_entry_price / %s, 2),
+                stop_loss_price = ROUND(stop_loss_price / %s, 2),
+                target_1_price = ROUND(target_1_price / %s, 2),
+                target_2_price = ROUND(target_2_price / %s, 2),
+                target_3_price = ROUND(target_3_price / %s, 2),
+                initial_risk_per_share = ROUND(initial_risk_per_share / %s, 4)
+            WHERE position_id = %s
+            """,
+            (alpaca_qty, new_stop, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, pos_id),
         )
+
+        if trade_ids_arr:
+            cur.execute(
+                """
+                UPDATE algo_trades
+                SET entry_price = ROUND(entry_price / %s, 2),
+                    stop_loss_price = ROUND(stop_loss_price / %s, 2),
+                    target_1_price = ROUND(target_1_price / %s, 2),
+                    target_2_price = ROUND(target_2_price / %s, 2),
+                    target_3_price = ROUND(target_3_price / %s, 2)
+                WHERE trade_id = ANY(%s)
+                """,
+                (ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, list(trade_ids_arr)),
+            )
+        else:
+            logger.warning(
+                f"[POSITION_MONITOR] Split detected for {symbol} (position_id={pos_id}) but "
+                f"trade_ids_arr is empty/NULL - algo_trades entry_price/stop_loss_price/target_N_price "
+                f"were NOT rescaled. R-multiple and profit-target checks for this position's "
+                f"underlying trade(s) will use stale pre-split prices until manually corrected."
+            )
 
         cur.execute(
             "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
