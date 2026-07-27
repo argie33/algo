@@ -59,6 +59,22 @@ These loaders have been consolidated, replaced, or are no longer used in the act
 **Data Impact**: Deprecated table outputs (company_profile, analyst_sentiment, etc.) no longer updated  
 **Status**: DEPRECATED - removed from terraform config, no longer runs
 
+### analyst_sentiment_analysis / analyst_upgrade_downgrade tables (no loader file - never had one post-migration)
+**Reason**: Both were populated by load_yfinance_derived_metrics.py (above) and went permanently
+empty when it was retired. Unlike the other yfinance-era tables, these have **no SEC/Alpaca/
+FRED/FINRA equivalent** - analyst ratings/upgrades/downgrades are third-party opinion data
+that isn't published in SEC filings or any of this project's other official free sources, so
+there is nothing to migrate them to (confirmed 2026-07-27: 0 rows, no writer anywhere in the
+codebase, no candidate replacement table exists in the schema).
+**Replaced By**: Nothing - this data category has no free/official source under this
+project's data-sourcing policy (see "Migration References" above).
+**Data Impact**: `/api/sentiment/data` and `/api/sentiment/summary`'s `analyst` field
+correctly report unavailable/null (verified 2026-07-27, not silently zeroed) rather than
+serving fake data - this is the honest terminal state for this feature, not a bug to fix
+with a data-source swap. Reviving it would mean building a new paid/scraped analyst-ratings
+pipeline, a product decision, not a loader fix.
+**Status**: DEPRECATED - already in algo/monitoring/pipeline_health.py KNOWN_DEPRECATED_TABLES
+
 ## Migration References
 
 All deprecated functionality has been replaced with 100% real data sources:
