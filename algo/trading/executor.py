@@ -33,7 +33,6 @@ from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
 from algo.trading.executor_strategies import create_execution_mode_strategy
 from algo.trading.handler_context import HandlerContext
-from algo.trading.notification_dispatcher import NotificationDispatcher
 from algo.trading.order_manager import OrderManager
 from algo.trading.position_tracker import PositionTracker
 from algo.trading.trade_context import TradeContext
@@ -194,9 +193,6 @@ class TradeExecutor:
         # Initialize position tracker specialist for all position DB operations
         self.position_tracker = PositionTracker(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
 
-        # Initialize notification dispatcher for trade notifications and TCA recording
-        self.notification_dispatcher = NotificationDispatcher(config, self.tca)
-
         # Create handler context with dependencies (decouples handlers from direct executor access)
         handler_context = HandlerContext(
             config=config,
@@ -349,10 +345,31 @@ class TradeExecutor:
         target_1_price: Decimal | None,
         execution_mode: str,
         idempotency_key: str,
-    ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
+    ) -> tuple[bool, str, str, str, Decimal | None, str | None, dict[str, Any] | None]:
         """Submit order via Alpaca or create placeholder for paper/review mode.
 
-        Returns: (success, alpaca_order_id, order_status, error_message, executed_price, rejection_reason)
+        Returns: (success, alpaca_order_id, order_status, error_message, executed_price,
+        rejection_reason, order_result) - order_result is the raw OrderManager response dict
+        (carries "legs"/"order_class" for bracket-leg validation) on a successful auto-mode
+        submission, None otherwise (paper/dry/review never call the broker; failure/exception
+        paths have no bracket to validate).
+
+        CRITICAL FIX: this used to stash the raw response as self._last_order_result and the
+        send timestamp as self._order_send_time, expecting executor_entry_handler.py's
+        EntryHandler to read them back via self.context._last_order_result/._order_send_time.
+        But self here is TradeExecutor (this method is passed into HandlerContext as a bound
+        method - see executor.py's HandlerContext construction - so `self` inside it stays
+        bound to TradeExecutor no matter how it's invoked), while `self.context` in
+        EntryHandler is a separate HandlerContext instance that never received either
+        attribute. Confirmed live 2026-07-27: in execution_mode="auto" (the only mode that
+        reaches this branch and the system's actual live-trading mode), every successful order
+        submission hit an AttributeError on the very next line of entry processing - after Alpaca
+        had already accepted a real order with real money - which rolled back the same DB
+        transaction that would have recorded the trade/position, leaving a live, unrecorded
+        position invisible to every downstream stop-loss/exit/circuit-breaker check. This
+        codebase's paper-only local dev environment never exercises execution_mode="auto", which
+        is why this was never caught. Returning the value explicitly instead of stashing it on
+        an object the caller doesn't actually read from removes the whole cross-object footgun.
         """
         if execution_mode in ("paper", "dry"):
             logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
@@ -364,6 +381,7 @@ class TradeExecutor:
                 "",
                 entry_price,
                 None,
+                None,
             )
 
         if execution_mode == "review":
@@ -374,6 +392,7 @@ class TradeExecutor:
                 "pending",
                 "",
                 entry_price,
+                None,
                 None,
             )
 
@@ -421,6 +440,7 @@ class TradeExecutor:
                     error_msg,
                     None,
                     order_result.get("rejection_reason"),
+                    None,
                 )
 
             # Extract order details - all required when success=True
@@ -459,6 +479,7 @@ class TradeExecutor:
                 "",
                 Decimal(str(executed_price)),
                 None,
+                order_result,
             )
 
         except OrderExecutionError as e:
@@ -469,6 +490,7 @@ class TradeExecutor:
                 trade_id,
                 "",
                 f"Order submission error: {str(e)[:100]}",
+                None,
                 None,
                 None,
             )
@@ -482,6 +504,7 @@ class TradeExecutor:
                 f"API error (may retry): {str(e)[:100]}",
                 None,
                 None,
+                None,
             )
         except Exception as e:
             # Unexpected error - log fully for debugging
@@ -491,6 +514,7 @@ class TradeExecutor:
                 trade_id,
                 "",
                 f"Unexpected error: {str(e)[:100]}",
+                None,
                 None,
                 None,
             )

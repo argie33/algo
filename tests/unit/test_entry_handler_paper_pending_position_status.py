@@ -64,6 +64,7 @@ def test_paper_pending_trade_creates_position_with_open_status_not_paper_open():
         context=_make_trade_context(),
         rejection_reason="Paper mode - Alpaca unavailable: connection timeout",
         idempotency_key="idem-test-1",
+        order_send_time=None,
     )
 
     position_insert_calls = [

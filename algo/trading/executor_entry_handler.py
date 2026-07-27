@@ -246,7 +246,7 @@ class EntryHandler:
             execution_mode = self.context.execution_mode
 
             # PHASE 2: Submit
-            order_ok, order_error, order_status, alpaca_order_id, executed_price, rejection_reason = (
+            order_ok, order_error, order_status, alpaca_order_id, executed_price, rejection_reason, order_send_time = (
                 self._submit_entry_phase(
                     cur,
                     symbol,
@@ -335,6 +335,7 @@ class EntryHandler:
                 context,
                 rejection_reason,
                 idempotency_key,
+                order_send_time,
             )
 
             if final_order_status in ("invalid", "unknown"):
@@ -546,11 +547,20 @@ class EntryHandler:
         order_status: str,
         shares_requested: Decimal,
         shares_filled: Decimal,
+        order_send_time: float | None,
     ) -> None:
         """Record trade cost analysis (execution quality)."""
         try:
-            # _order_send_time is set by the order submission logic
-            execution_latency_ms = int((time.time() - self.context._order_send_time) * 1000)  # type: ignore[attr-defined]
+            # CRITICAL FIX: order_send_time used to be read as self.context._order_send_time -
+            # self.context is a HandlerContext instance, but _order_send_time was only ever set
+            # on the TradeExecutor instance (inside _submit_and_validate_order, a bound method
+            # callback that keeps its original `self` regardless of how HandlerContext invokes
+            # it). That read always raised AttributeError in execution_mode="auto" - see
+            # _submit_and_validate_order's docstring in executor.py for the full live-reproduced
+            # failure. Now passed explicitly from the caller instead of relying on shared state.
+            if order_send_time is None:
+                raise ValueError(f"[TCA CRITICAL] {symbol}: order_send_time not provided for auto-mode fill")
+            execution_latency_ms = int((time.time() - order_send_time) * 1000)
             if execution_latency_ms < 0:
                 raise ValueError(f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms")
 
@@ -635,9 +645,22 @@ class EntryHandler:
         target_1_price: Decimal | None,
         execution_mode: str,
         idempotency_key: str,
-    ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
-        """PHASE 2: Submit order and validate result."""
-        order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
+    ) -> tuple[bool, str, str, str, Decimal | None, str | None, float | None]:
+        """PHASE 2: Submit order and validate result.
+
+        Returns the same 6 fields as before plus order_send_time (None for paper/dry/review,
+        which never actually send to a broker) so the caller can pass it through to TCA latency
+        recording without either side needing to share hidden state via self.context.
+        """
+        # CRITICAL FIX: was captured inside TradeExecutor._submit_and_validate_order as
+        # self._order_send_time, then read back here as self.context._order_send_time -
+        # self.context is a different object (HandlerContext) than the TradeExecutor instance
+        # the bound-method callback actually sets attributes on, so that read always raised
+        # AttributeError in execution_mode="auto" (see _submit_and_validate_order's docstring
+        # for the full live-reproduced failure). Capturing it locally here and threading it
+        # through the return value removes the cross-object dependency entirely.
+        order_send_time = time.time()
+        order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason, order_result = (
             self.context._submit_and_validate_order(
                 symbol,
                 trade_id,
@@ -651,12 +674,10 @@ class EntryHandler:
         )
 
         if not order_ok:
-            return False, order_error, "", "", None, rejection_reason
+            return False, order_error, "", "", None, rejection_reason, order_send_time
 
         # Verify bracket orders in auto mode
         if execution_mode == "auto":
-            # _last_order_result is set by order submission logic
-            order_result = self.context._last_order_result  # type: ignore[attr-defined]
             if order_result is None:
                 return (
                     False,
@@ -665,6 +686,7 @@ class EntryHandler:
                     "",
                     None,
                     rejection_reason,
+                    order_send_time,
                 )
             legs = order_result.get("legs")
             if legs is None:
@@ -697,6 +719,7 @@ class EntryHandler:
                     "",
                     None,
                     rejection_reason,
+                    order_send_time,
                 )
 
             # CRITICAL FIX: Wait for order to actually fill before writing to DB
@@ -720,7 +743,7 @@ class EntryHandler:
                     requests.Timeout,
                 ) as e:
                     logger.warning(f"Failed to cancel failed order {alpaca_order_id}: {e}")
-                return (False, fill_error, "", "", None, None)
+                return (False, fill_error, "", "", None, None, order_send_time)
 
             # Order filled - use actual fill price from broker
             if confirmed_fill_price is not None:
@@ -750,9 +773,10 @@ class EntryHandler:
                     "",
                     None,
                     rejection_reason,
+                    order_send_time,
                 )
 
-        return True, "", order_status, alpaca_order_id, executed_price, rejection_reason
+        return True, "", order_status, alpaca_order_id, executed_price, rejection_reason, order_send_time
 
     def _record_entry_phase(
         self,
@@ -771,6 +795,7 @@ class EntryHandler:
         context: TradeContext,
         rejection_reason: str | None,
         idempotency_key: str,
+        order_send_time: float | None,
     ) -> str:
         """PHASE 3: Insert trade record, position record, record TCA."""
         if executed_price is None:
@@ -1021,7 +1046,9 @@ class EntryHandler:
 
         # Record TCA (execution quality) for fills in auto mode
         if self.context.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
-            self._record_tca(trade_id, symbol, entry_price, executed_price, order_status, shares, actual_shares)
+            self._record_tca(
+                trade_id, symbol, entry_price, executed_price, order_status, shares, actual_shares, order_send_time
+            )
 
         return order_status
 
