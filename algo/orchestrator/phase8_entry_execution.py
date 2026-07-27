@@ -103,6 +103,16 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
         raise RuntimeError(f"Risk calculation failed: {e}") from e
 
 
+# algo_signal_rejections.rejection_reason is VARCHAR(200). Callers pass through full
+# exception messages (some wrapped/re-wrapped across several layers - confirmed live
+# 2026-07-27 at 320 chars for a single wrapped ValueError), so truncate defensively rather
+# than let a StringDataRightTruncation from the audit INSERT itself crash the entire
+# orchestrator run for every remaining symbol. The full untruncated message is always
+# captured first via logger.error/logger.info at the call site, so nothing is lost from
+# the operational logs - only the DB audit row is shortened.
+_REJECTION_REASON_MAX_LEN = 200
+
+
 def _log_signal_rejection(
     symbol: str,
     rejection_stage: str,
@@ -112,6 +122,8 @@ def _log_signal_rejection(
     risk_pct: float | None = None,
 ) -> None:
     """Log signal rejection to audit table."""
+    if len(rejection_reason) > _REJECTION_REASON_MAX_LEN:
+        rejection_reason = rejection_reason[: _REJECTION_REASON_MAX_LEN - 3] + "..."
     try:
         with DatabaseContext("write") as cur:
             cur.execute(

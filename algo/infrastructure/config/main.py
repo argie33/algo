@@ -562,6 +562,12 @@ class AlgoConfig:
             "Days to wait before re-entering symbol",
             "Position Monitoring",
         ),
+        "reentry_cooldown_minutes": (
+            "30",
+            "int",
+            "Minutes to wait after close before re-entering same symbol (flip-flop prevention)",
+            "Position Monitoring",
+        ),
         # Economic Calendar
         "halt_entries_before_major_release_minutes": (
             "60",

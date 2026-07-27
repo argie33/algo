@@ -33,6 +33,28 @@ def test_execution_failed_is_persisted_to_signal_rejections_audit_table():
     assert params == (date(2026, 7, 27), "KEX", "execution_failed", "Order rejected (status=rejected)", 149.15, 1.5)
 
 
+def test_long_rejection_reason_truncated_not_crashed():
+    """CRITICAL FIX regression: algo_signal_rejections.rejection_reason is VARCHAR(200).
+    Confirmed live 2026-07-27: a wrapped/re-wrapped pre-trade ValueError (a missing-config
+    message re-raised through two layers) reached 320 chars, and the INSERT itself failed
+    with StringDataRightTruncation - which the except block then re-raised as a fresh
+    RuntimeError, crashing Phase 8 for every remaining symbol over an audit-logging
+    formatting issue, not a real trading problem. Must truncate defensively instead."""
+    mock_cur = MagicMock()
+    long_reason = "X" * 250
+
+    with patch("algo.orchestrator.phase8_entry_execution.DatabaseContext") as mock_ctx:
+        mock_ctx.return_value.__enter__.return_value = mock_cur
+
+        _log_signal_rejection("OHI", "processing_error", long_reason, date(2026, 7, 27))
+
+    mock_cur.execute.assert_called_once()
+    _, params = mock_cur.execute.call_args[0]
+    persisted_reason = params[3]
+    assert len(persisted_reason) == 200
+    assert persisted_reason.endswith("...")
+
+
 def test_audit_failure_itself_raises_rather_than_silently_dropping():
     """If the audit insert itself fails, the caller must find out (raise), not swallow it -
     a silently-failing audit trail is worse than no audit trail (false confidence)."""

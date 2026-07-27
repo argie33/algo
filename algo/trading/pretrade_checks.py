@@ -188,10 +188,17 @@ class PreTradeChecks:
 
                     # CRITICAL: reentry_cooldown_minutes must be explicitly configured
                     # This prevents flip-flop trading (re-entering position immediately after close)
-                    if isinstance(self.config, dict):
-                        reentry_cooldown_minutes = self.config.get("reentry_cooldown_minutes")
-                    else:
-                        reentry_cooldown_minutes = getattr(self.config, "reentry_cooldown_minutes", None)
+                    # CRITICAL FIX: previously branched on isinstance(self.config, dict) and used
+                    # getattr(self.config, "reentry_cooldown_minutes", None) for the non-dict
+                    # (real AlgoConfig) case - but AlgoConfig has no such attribute (it stores
+                    # values in self._config, exposed via __getitem__/.get(), not per-key Python
+                    # attributes), so getattr() always silently returned None regardless of what
+                    # was actually configured. Confirmed live 2026-07-27: this made the check
+                    # permanently, universally broken (always "config missing") for every real
+                    # orchestrator run, not just a missing-seed issue - every other self.config
+                    # access in this file already uses subscript/.get() access, which works
+                    # correctly for both a plain dict and AlgoConfig.
+                    reentry_cooldown_minutes = self.config.get("reentry_cooldown_minutes")
 
                     if reentry_cooldown_minutes is None:
                         raise ValueError(

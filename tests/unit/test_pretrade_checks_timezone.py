@@ -165,3 +165,74 @@ class TestReentryCooldownUsesRealSessionTimezone:
         )
 
         assert passed is True, f"a position closed 2 hours ago must clear a 30-minute cooldown, got {reason!r}"
+
+
+class _AlgoConfigLike:
+    """Minimal stand-in for the real AlgoConfig: config values live in an internal dict,
+    exposed via .get()/__getitem__ - NOT as direct Python attributes. This is the shape
+    that exposed the getattr() bug below, which every other test in this file (using a
+    plain dict) could never catch, since dict.get() already worked correctly."""
+
+    def __init__(self, values):
+        self._values = values
+
+    def get(self, key, default=None):
+        return self._values.get(key, default)
+
+    def __getitem__(self, key):
+        return self._values[key]
+
+
+class TestReentryCooldownWorksAgainstRealConfigObjectNotJustPlainDict:
+    """CRITICAL FIX regression: the reentry-cooldown check branched on
+    isinstance(self.config, dict) and used getattr(self.config, "reentry_cooldown_minutes",
+    None) for the non-dict case - but the real AlgoConfig class stores values in
+    self._config, never as literal Python attributes, so getattr() always silently
+    returned None regardless of what was actually configured in the algo_config table.
+    Confirmed live 2026-07-27: a real orchestrator run crashed Phase 8 with "config
+    missing" even after the value was correctly seeded in the database, because
+    PreTradeChecks receives a real AlgoConfig instance in production, not a plain dict -
+    every existing test in this file used a plain dict and could never have caught this.
+    """
+
+    def test_cooldown_resolves_from_a_non_dict_config_object(self):
+        config = _AlgoConfigLike(
+            {
+                "max_position_size_pct": 10,
+                "reentry_cooldown_minutes": 30,
+                "min_order_size_dollars": 100,
+                "max_positions_per_sector": 5,
+                "max_positions_per_industry": 3,
+            }
+        )
+        checks = PreTradeChecks(config=config)
+        closed_at_naive = datetime.now(ZoneInfo("America/Chicago")).replace(tzinfo=None) - timedelta(minutes=1)
+
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [
+            None,
+            None,
+            (1, closed_at_naive),
+            ["America/Chicago"],
+        ]
+        mock_db_context = MagicMock()
+        mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
+        mock_db_context.__exit__ = MagicMock(return_value=False)
+
+        with patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context):
+            passed, reason = checks.run_all(
+                symbol="AAPL",
+                position_value=1000.0,
+                portfolio_value=100000.0,
+                side="SELL",
+                eval_date=None,
+            )
+
+        assert passed is False, (
+            f"a non-dict config object with reentry_cooldown_minutes=30 must still enforce the "
+            f"cooldown for a position closed 1 minute ago, got passed={passed} reason={reason!r}"
+        )
+        assert reason is not None and "cooldown" in reason.lower(), (
+            f"expected a cooldown rejection reason, got {reason!r} - if this says 'config missing' "
+            f"the getattr() bug against a real (non-dict) config object has regressed"
+        )
