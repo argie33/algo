@@ -2999,7 +2999,13 @@ router.get("/circuit-breakers", async (req, res) => {
       cfg[r.key] = parseFloat(r.value);
     });
     const thresh = {
-      drawdown: cfg.halt_drawdown_pct ?? 20,
+      // halt_drawdown_pct is stored negative in algo_config (e.g. -10 = halt at 10%
+      // down, same convention algo/risk/circuit_breaker.py and
+      // loaders/compute_circuit_breakers.py both use). Without Math.abs() here,
+      // "current_drawdown_pct >= thresh.drawdown" became "positive >= -10", which is
+      // always true - this breaker was permanently stuck reporting triggered=true
+      // regardless of actual portfolio drawdown.
+      drawdown: Math.abs(cfg.halt_drawdown_pct ?? 20),
       daily_loss: cfg.max_daily_loss_pct ?? 2,
       consecutive_losses: cfg.max_consecutive_losses ?? 3,
       total_risk: cfg.max_total_risk_pct ?? 4,
