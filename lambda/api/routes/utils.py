@@ -17,6 +17,7 @@ import psycopg2
 import psycopg2.errors
 import setup_imports  # noqa: F401
 from exceptions import (
+    APIException,
     BadRequest,
     Conflict,
     Forbidden,
@@ -265,6 +266,17 @@ def raise_db_error(error: Exception, context: str = "database operation") -> NoR
         APIException: Appropriate exception type with status code
     """
     from utils.error_handlers import classify_exception, log_sanitizer
+
+    # Already a well-formed API error (e.g. raised via raise_api_error() from inside the
+    # same try block this was caught in) - re-raise as-is instead of collapsing every
+    # non-504 status to a generic 503. This was previously unconditional: a deliberate
+    # 400/403/404/409 raised anywhere inside a handler wrapped in a broad `except
+    # Exception: raise_db_error(...)` always came back to the client as 503
+    # ServiceUnavailable, discarding the real status code and message.
+    if isinstance(error, APIException):
+        with log_sanitizer(f"database error: {context}") as safe_log:
+            safe_log.error(error)
+        raise error
 
     # Use centralized classification to determine status code and error type
     try:
@@ -919,9 +931,19 @@ def handle_db_error(
     """
     from utils.error_handlers import classify_exception, log_sanitizer
 
-    # Use centralized classification (handles both psycopg2 and custom exceptions)
-    # If classification fails, raise to alert ops - don't fall back to generic status
-    status_code, error_type, message = classify_exception(error)
+    # A raise_api_error()/APIException instance (BadRequest, Forbidden, NotFound, etc.)
+    # already carries the correct status_code/error_type/message. Route handlers often
+    # raise these from inside their own try block (e.g. a validation failure detected
+    # mid-query), so this function must preserve them rather than reclassifying via
+    # classify_exception - that helper only knows utils.exceptions.core.BaseAPIError and
+    # psycopg2 errors, a different hierarchy from lambda/api/exceptions.py's APIException,
+    # so every deliberate 400/403/404/409 was silently collapsing to a generic 500.
+    if isinstance(error, APIException):
+        status_code, error_type, message = error.status_code, error.error_type, error.message
+    else:
+        # Use centralized classification (handles both psycopg2 and custom exceptions)
+        # If classification fails, raise to alert ops - don't fall back to generic status
+        status_code, error_type, message = classify_exception(error)
 
     # Log with sanitization to prevent PII/SQL leakage
     with log_sanitizer(f"database error: {context}") as safe_log:

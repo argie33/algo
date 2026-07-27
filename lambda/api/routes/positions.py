@@ -71,19 +71,33 @@ def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
     position_id = req.position_id
 
     try:
-        req.validate_stop_loss_vs_entry()
-        req.validate_targets_vs_entry()
-        req.validate_targets_ordered()
-    except ValueError as e:
-        raise_api_error(400, "bad_request", str(e))
-
-    try:
-        cur.execute("SELECT id, symbol FROM algo_positions WHERE id = %s", (position_id,))
+        cur.execute("SELECT id, symbol, entry_price FROM algo_positions WHERE id = %s", (position_id,))
         position = cur.fetchone()
         if not position:
             raise_api_error(404, "not_found", f"Position {position_id} not found")
 
         symbol = position["symbol"] if hasattr(position, "__getitem__") else position[1]
+        db_entry_price = position["entry_price"] if hasattr(position, "__getitem__") else position[2]
+
+        # SECURITY/DATA-INTEGRITY FIX: the cross-field validators below silently no-op
+        # when entry_price/position_type are None, and both were previously optional
+        # client-supplied fields never cross-checked against the real position. That let
+        # a caller omit them (or the frontend simply never send them) and push a stop
+        # loss above entry or a target below entry with zero server-side guardrail,
+        # despite the DB already holding the real entry_price right here. This is a
+        # long-only algo (only buy_signal_generator.py exists, no short-entry path), so
+        # position_type is always "buy" for real positions - override any client-supplied
+        # entry_price/position_type with the authoritative DB value before validating.
+        if db_entry_price is not None:
+            req.entry_price = float(db_entry_price)
+        req.position_type = "buy"
+
+        try:
+            req.validate_stop_loss_vs_entry()
+            req.validate_targets_vs_entry()
+            req.validate_targets_ordered()
+        except ValueError as e:
+            raise_api_error(400, "bad_request", str(e))
 
         update_fields: list[str] = []
         update_args: list[Any] = []
