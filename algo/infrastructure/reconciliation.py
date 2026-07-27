@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
@@ -1887,7 +1888,23 @@ class DailyReconciliation:
                 # No exit_time recorded - can't compute age, but flag it as data quality issue
                 age = critical_threshold + timedelta(seconds=1)
             else:
-                exit_time_utc = exit_time if exit_time.tzinfo else exit_time.replace(tzinfo=timezone.utc)
+                # algo_trades.exit_time is a `timestamp without time zone` column written via
+                # SQL CURRENT_TIMESTAMP, so a naive value here is in the DB session's local
+                # wall-clock timezone (utils/bulk_insert_manager.py's documented convention),
+                # not UTC - confirmed live this session's actual `SHOW timezone` is
+                # America/Chicago, 5+ hours off UTC. Mislabeling it as UTC via
+                # .replace(tzinfo=timezone.utc) silently inflated age by that offset, which
+                # exceeds the 2h stale_threshold below on its own - every unreconciled exit
+                # price would falsely alert as stale regardless of true age. Same bug class
+                # already fixed in algo/risk/market_exposure.py's cache-age check,
+                # algo/trading/pretrade_checks.py's re-entry cooldown, and
+                # algo/monitoring/position_monitor.py's stale-order check.
+                if exit_time.tzinfo:
+                    exit_time_utc = exit_time
+                else:
+                    cur.execute("SHOW timezone")
+                    naive_tz = ZoneInfo(cur.fetchone()[0])
+                    exit_time_utc = exit_time.replace(tzinfo=naive_tz)
                 age = now - exit_time_utc
             if age >= stale_threshold:
                 stale_trades.append(
