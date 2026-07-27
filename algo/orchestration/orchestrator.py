@@ -904,10 +904,22 @@ class Orchestrator:
                     # fires trains operators to ignore it (alert fatigue), which defeats the
                     # point of the check. Give these two known non-daily-cadence tables their
                     # own wider floor instead of the daily one.
+                    # FIX (2026-07-27): earnings_calendar is forward-looking calendar data (next
+                    # scheduled earnings dates), not a daily price/technical series - new rows
+                    # only land when a company announces or updates a date, so multi-day gaps
+                    # between refreshes are normal, not a sign of a broken loader.
+                    # algo/monitoring/pipeline_health.py already treats it this way explicitly
+                    # (CRITICAL_TABLES["earnings_calendar"]["sla_days"] = 30, vs. 1 day for
+                    # price_daily) - this check had no matching override, so it kept flagging
+                    # earnings_calendar STALE using the same daily-trading-day threshold as
+                    # price_daily. Live-reproduced 2026-07-27: flagged STALE at 105.2h old (~4.4
+                    # days) even after the market-hours fix above, well inside its real 30-day SLA.
                     if table_name in ("price_weekly", "etf_price_weekly"):
                         table_stale_threshold = now_utc - timedelta(days=10)
                     elif table_name in ("price_monthly", "etf_price_monthly"):
                         table_stale_threshold = now_utc - timedelta(days=40)
+                    elif table_name == "earnings_calendar":
+                        table_stale_threshold = now_utc - timedelta(days=30)
                     else:
                         table_stale_threshold = stale_threshold
                     is_stale = last_updated_utc < table_stale_threshold

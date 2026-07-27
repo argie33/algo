@@ -140,3 +140,94 @@ class TestLoaderHealthNonDailyCadence:
 
         stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
         assert stale_warnings, "a genuinely stale (56-day-old) weekly loader run must still be flagged"
+
+    def test_earnings_calendar_a_few_days_old_is_not_stale(self):
+        """earnings_calendar is forward-looking calendar data (see
+        pipeline_health.py CRITICAL_TABLES sla_days=30) - a several-day gap since the last new
+        announcement is normal, not a broken loader. Live-reproduced 2026-07-27: flagged STALE
+        at 105.2h (~4.4 days) old under the daily-trading-day threshold."""
+        recent_earnings = datetime(2026, 7, 23, 0, 0, 0)  # ~4.4 days before the check below
+        monday_market_hours_utc = datetime(2026, 7, 27, 13, 7, tzinfo=timezone.utc)  # 09:07 ET
+
+        with patch("logging.Logger.warning") as mock_warn:
+            _run_check(
+                rows=[("earnings_calendar", "completed", recent_earnings, 100.0, 5000, 5000)],
+                fake_utc_now=monday_market_hours_utc,
+            )
+
+        stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
+        assert not stale_warnings, f"a ~4.4-day-old earnings_calendar run must not be flagged stale: {stale_warnings}"
+
+    def test_genuinely_stale_earnings_calendar_still_flagged(self):
+        very_old_earnings = datetime(2026, 5, 1, 0, 0, 0)  # ~87 days stale - real gap
+        monday_market_hours_utc = datetime(2026, 7, 27, 13, 7, tzinfo=timezone.utc)
+
+        with patch("logging.Logger.warning") as mock_warn:
+            _run_check(
+                rows=[("earnings_calendar", "completed", very_old_earnings, 100.0, 5000, 5000)],
+                fake_utc_now=monday_market_hours_utc,
+            )
+
+        stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
+        assert stale_warnings, "a genuinely stale (87-day-old) earnings_calendar run must still be flagged"
+
+
+class TestLoaderHealthMarketHoursFlatWindow:
+    """Regression test for a second, related 2026-07-27 fix: the "during market hours"
+    (9 AM-4 PM ET) branch used a flat 13-hour threshold, separate from the trading-day-anchored
+    logic above. That flat window assumed `last_updated` is a precise per-run completion
+    timestamp - true when originally written, but pipeline_health.py's log_health_check() now
+    deliberately writes last_updated = latest_date (the loaded row's own business date, at
+    midnight ET) for nearly every tracked table. Measured from a midnight-anchored
+    last_updated, a flat 13h window breaches on literally EVERY trading morning (yesterday's
+    close is always >13h before "now" during market hours), not just after a weekend gap.
+
+    Live-reproduced 2026-07-27: a real Monday 09:07 AM ET dry run (inside the old 9 AM-4 PM
+    branch) flagged price_daily/etf_price_daily/technical_data_daily all STALE at "81.1h ago"
+    despite Friday's close (stored as last_updated=2026-07-24 00:00:00, confirmed live via
+    direct DB query) being the correct, most-recent-available data.
+    """
+
+    def test_fridays_close_not_stale_monday_market_hours(self):
+        """The exact live-reproduced bug: Friday's close, during Monday market hours."""
+        friday_close_midnight = datetime(2026, 7, 24, 0, 0, 0)  # matches real DB convention
+        monday_market_hours_utc = datetime(2026, 7, 27, 13, 7, tzinfo=timezone.utc)  # 09:07 ET
+
+        with patch("logging.Logger.warning") as mock_warn:
+            _run_check(
+                rows=[("price_daily", "completed", friday_close_midnight, 100.0, 5000, 5000)],
+                fake_utc_now=monday_market_hours_utc,
+            )
+
+        stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
+        assert not stale_warnings, f"Friday's close must not be flagged stale during Monday market hours: {stale_warnings}"
+
+    def test_yesterdays_close_not_stale_normal_tuesday_market_hours(self):
+        """The broader bug: even a completely normal (non-weekend) trading morning breaches
+        the old flat 13h window, since yesterday's midnight-anchored close is always >13h
+        before a market-hours "now"."""
+        monday_close_midnight = datetime(2026, 7, 27, 0, 0, 0)
+        tuesday_market_hours_utc = datetime(2026, 7, 28, 13, 7, tzinfo=timezone.utc)  # 09:07 ET Tue
+
+        with patch("logging.Logger.warning") as mock_warn:
+            _run_check(
+                rows=[("price_daily", "completed", monday_close_midnight, 100.0, 5000, 5000)],
+                fake_utc_now=tuesday_market_hours_utc,
+            )
+
+        stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
+        assert not stale_warnings, f"yesterday's close must not be flagged stale on a normal trading morning: {stale_warnings}"
+
+    def test_genuinely_stale_data_still_flagged_during_market_hours(self):
+        """Sanity check: the fix must not silently disable the check during market hours."""
+        stale_naive = datetime(2026, 7, 17, 0, 0, 0)  # the Friday before - a full extra week stale
+        monday_market_hours_utc = datetime(2026, 7, 27, 13, 7, tzinfo=timezone.utc)  # 09:07 ET
+
+        with patch("logging.Logger.warning") as mock_warn:
+            _run_check(
+                rows=[("price_daily", "completed", stale_naive, 100.0, 5000, 5000)],
+                fake_utc_now=monday_market_hours_utc,
+            )
+
+        stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
+        assert stale_warnings, "data from a full week ago must still be flagged stale during market hours"
