@@ -361,10 +361,21 @@ class XBRLSegmentParser:
         for member, _end, _duration, revenue in latest_facts:
             segments[member] = segments.get(member, 0.0) + revenue
 
-        total_revenue = sum(segments.values())
-        if not segments or total_revenue == 0:
+        # Many filers tag a non-operating "Corporate and Eliminations" (or similarly
+        # named) reconciling line under the same segment axis so segment totals foot
+        # to the consolidated total - by ASC 280 convention that's an intercompany
+        # elimination/unallocated-corporate line, not a real reportable operating
+        # segment, and it's the only case revenue under this axis is ever negative.
+        # Excluding negative entries (rather than matching on member name, which SEC
+        # does not standardize) keeps HHI/largest_segment_revenue_pct meaningful -
+        # without this, an elimination line can push total_revenue below any single
+        # real segment's revenue, producing an impossible >100% largest_pct.
+        reportable_segments = {member: revenue for member, revenue in segments.items() if revenue >= 0}
+
+        total_revenue = sum(reportable_segments.values())
+        if not reportable_segments or total_revenue == 0:
             return {
-                "segment_count": len(segments) or None,
+                "segment_count": len(reportable_segments) or None,
                 "largest_segment_revenue_pct": None,
                 "revenue_concentration_hhi": None,
                 "segments": [],
@@ -382,7 +393,7 @@ class XBRLSegmentParser:
                     "operating_income": None,
                     "assets": None,
                 }
-                for member, revenue in segments.items()
+                for member, revenue in reportable_segments.items()
             ),
             key=lambda s: s["revenue"],
             reverse=True,

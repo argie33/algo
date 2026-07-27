@@ -162,6 +162,36 @@ class TestExtractSegmentRevenueFromXbrlXml:
         assert result["segment_type"] == "geographic"
         assert result["segment_count"] == 2
 
+    def test_negative_eliminations_segment_excluded_from_concentration_math(self) -> None:
+        """A "Corporate and Eliminations" reconciling line (negative revenue, tagged
+        under the same axis so segment totals foot to the consolidated total) is not a
+        real reportable operating segment. Pre-fix, including it in total_revenue could
+        push the total below a real segment's own revenue, producing an impossible
+        largest_segment_revenue_pct > 100%."""
+        contexts = (
+            _context("c1", "StatementBusinessSegmentsAxis", "WidgetsSegmentMember", "2024-01-01", "2024-12-31")
+            + _context("c2", "StatementBusinessSegmentsAxis", "GadgetsSegmentMember", "2024-01-01", "2024-12-31")
+            + _context(
+                "c3", "StatementBusinessSegmentsAxis", "CorporateAndEliminationsMember", "2024-01-01", "2024-12-31"
+            )
+        )
+        facts = """
+        <us-gaap:Revenues contextRef="c1">200000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c2">50000000</us-gaap:Revenues>
+        <us-gaap:Revenues contextRef="c3">-60000000</us-gaap:Revenues>
+        """
+        xml_content = self._xml(contexts, facts)
+
+        result = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, "TEST")
+
+        assert result["data_available"] is True
+        assert result["segment_count"] == 2
+        segment_ids = {s["segment_id"] for s in result["segments"]}
+        assert "CorporateAndEliminationsMember" not in segment_ids
+        assert result["largest_segment_revenue_pct"] <= 100.0
+        total = 200_000_000 + 50_000_000
+        assert result["largest_segment_revenue_pct"] == pytest.approx(200_000_000 / total * 100, abs=0.01)
+
     def test_no_segment_dimensioned_contexts(self) -> None:
         xml_content = """<?xml version="1.0"?>
 <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:us-gaap="http://xbrl.us/us-gaap/2023-01-31">
