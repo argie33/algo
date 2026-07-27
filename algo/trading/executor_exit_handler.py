@@ -959,7 +959,16 @@ class ExitHandler:
                 raise DatabaseError(
                     f"Position consistency error: full exit executed but position status is '{final_status}' (expected 'closed')"
                 )
-            if not full_exit and (final_status != "open" or final_qty != new_qty):
+            # CRITICAL FIX: comparing the DB's Decimal directly against the Python float
+            # `new_qty` false-positived on exact matches - a binary float can't represent
+            # values like 4.87 exactly, so Decimal('4.8700') != 4.87 evaluates True even
+            # though they're the same number. Live-reproduced 2026-07-27: 3 correct
+            # partial exits raised "expected 4.87 shares... got 4.8700 shares" and were
+            # counted as failures. Route both sides through Decimal(str(...)) - the string
+            # form matches on decimal value, not binary float representation.
+            if not full_exit and (
+                final_status != "open" or Decimal(str(final_qty)) != Decimal(str(new_qty))
+            ):
                 raise DatabaseError(
                     f"Position consistency error: partial exit expected {new_qty} shares and 'open' status, "
                     f"got {final_qty} shares and '{final_status}'. "

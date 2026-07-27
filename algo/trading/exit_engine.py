@@ -412,13 +412,26 @@ class PositionContext:
 
             max_dd = int(max_dd_val)
             if self.dist_days_today > max_dd:
+                # Unlike every other breakeven-raise trigger in this file (T1/T2 target hit,
+                # first_red_day, climax_exhaustion), this one has no profitability gate - it's
+                # a market-wide condition, not a per-position price level. Raising the stop to
+                # entry_price when cur_price is still BELOW entry_price puts the stop above the
+                # current price, guaranteeing an immediate full stop-out on the very next
+                # evaluation (even at the same price) instead of a genuine breakeven protection.
+                # Confirmed live 2026-07-27: 9 fresh positions all still slightly red got their
+                # stop raised to breakeven here, then were fully stopped out moments later at the
+                # same price, turning a 50% risk-reduction into a full loss across the whole
+                # portfolio simultaneously and tripping the consecutive-losses circuit breaker.
+                at_or_above_breakeven = self.cur_price >= self.entry_price
+                new_stop = max(self.active_stop, self.entry_price) if at_or_above_breakeven else self.active_stop
+                stop_desc = "stop raised to breakeven" if at_or_above_breakeven else "stop left unchanged (position not yet at breakeven)"
                 return (
                     True,
                     {
                         "stage": "distribution",
                         "fraction": 0.5,
-                        "new_stop": max(self.active_stop, self.entry_price),
-                        "reason": f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50%, stop raised to breakeven",
+                        "new_stop": new_stop,
+                        "reason": f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50%, {stop_desc}",
                     },
                 )
         return False, None
