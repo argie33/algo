@@ -1389,6 +1389,17 @@ class DailyReconciliation:
 
             return {
                 "success": True,
+                # CRITICAL FIX: phase4_reconciliation.py::run() unconditionally requires a
+                # "reason" key on this dict (raises RuntimeError if absent) - this broker-
+                # connected path (only reached when execution_mode == "auto", real trading)
+                # never set one, unlike the self.broker is None DB-fallback path above which
+                # does. Every paper-mode test run takes that fallback path instead (broker is
+                # forced None for any execution_mode != "auto"), so this was completely
+                # invisible until the moment execution_mode switches to "auto" - at which
+                # point Phase 4 would crash with "reason field missing" on its very first
+                # successful reconciliation, every time, since this is the normal success
+                # return, not an edge case.
+                "reason": "Reconciliation completed successfully",
                 "portfolio_value": float(total_equity_dec),
                 "positions": len(positions),
                 "unrealized_pnl": float(unrealized_pnl),
@@ -1407,7 +1418,11 @@ class DailyReconciliation:
             NotImplementedError,
         ) as e:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+            # Same missing-"reason" gap as the success path above - this exception handler's
+            # own error dict was masking real broker-reconciliation failures behind a generic
+            # "reason field missing" RuntimeError from phase4_reconciliation.py instead of the
+            # actual error captured here.
+            return {"success": False, "error": str(e), "reason": str(e)}
 
     def reconcile_exit_fills(self, cur: PsycopgCursor[Any], reconcile_date: _date_type | None) -> dict[str, Any]:
         """Update DB trade exit prices with actual Alpaca fill prices.
