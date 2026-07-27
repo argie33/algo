@@ -211,10 +211,17 @@ def run(  # noqa: C901
                 detail = result["final_verification_detail"]
                 summary += f" (WARNING: final verification failed - {detail})"
                 logger.warning(f"[PHASE 4] Portfolio snapshot final verification failed: {detail}")
+            # CRITICAL FIX: status was hardcoded "success"/"ok" below even when
+            # final_verification_failed=True - directly contradicting the comment above this
+            # block ("must not be silently absorbed into an unqualified success"). "degraded"
+            # is a safe choice here: PhaseResult.ok treats it as success for dependency
+            # purposes (Phase 5+ still proceed normally), it's just no longer indistinguishable
+            # from a clean run in phase status/dashboard views.
+            phase_status = "degraded" if result.get("final_verification_failed") else "success"
             log_phase_result_fn(
                 4,
                 "reconciliation",
-                "success",
+                phase_status,
                 summary,
             )
             # sync_count/avg_match_pct/errors_found: the health dashboard
@@ -225,7 +232,14 @@ def run(  # noqa: C901
             result["avg_match_pct"] = match_pct
             result["errors_found"] = mismatches_count
             validate_phase_data(4, result)
-            return PhaseResult(4, "reconciliation", "ok", result, False, None)
+            return PhaseResult(
+                4,
+                "reconciliation",
+                "degraded" if result.get("final_verification_failed") else "ok",
+                result,
+                False,
+                None,
+            )
         else:
             # Reconciliation failed - return error status with appropriate logging
             if "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
