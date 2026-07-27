@@ -1006,6 +1006,8 @@ def main() -> int:  # noqa: C901
         return 1
 
     # ISSUE #7: Validate dependency - technical_data_daily must be fresh and have good coverage
+    # FIX: Define today_et outside try block so it's available for enrichment module (line 1119)
+    today_et = datetime.now(EASTERN_TZ).date()
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SELECT MAX(date) FROM technical_data_daily")
@@ -1017,8 +1019,6 @@ def main() -> int:  # noqa: C901
             tech_data_date = result[0]
             if not isinstance(tech_data_date, date):
                 tech_data_date = date.fromisoformat(str(tech_data_date))
-            # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-            today_et = datetime.now(EASTERN_TZ).date()
             tech_data_age = (today_et - tech_data_date).days
 
             # Compare against last trading day, not calendar days.
@@ -1093,7 +1093,7 @@ def main() -> int:  # noqa: C901
                 return 1
 
             logger.info(
-                f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{denominator} price-covered "
+                f"[DEPENDENCY] technical_data_daily: {tech_symbol_count}/{denominator} price-covered "
                 f"symbols ({coverage_pct}%), age {tech_data_age}d"
             )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as dep_err:
@@ -1119,7 +1119,7 @@ def main() -> int:  # noqa: C901
                     since=today_et - timedelta(days=3), symbols=None, min_success_rate=0.95
                 )
                 logger.info(
-                    f"[LOADER] ✓ Technical enrichment complete: {enrich_result['updated']} updated, "
+                    f"[LOADER] Technical enrichment complete: {enrich_result['updated']} updated, "
                     f"{enrich_result['checked']} checked, {enrich_result['nulls_remaining']} nulls remaining"
                 )
             except RuntimeError as e:

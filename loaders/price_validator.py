@@ -146,7 +146,7 @@ class PriceValidator:
                         f"[SCHEMA_VALIDATION] Table {self.table_name} missing required column {col_name}. "
                         "Cannot load prices without proper schema."
                     )
-            logger.debug(f"[SCHEMA_VALIDATION] ✓ Schema validation passed for {self.table_name}")
+            logger.debug(f"[SCHEMA_VALIDATION] Schema validation passed for {self.table_name}")
             return True
         except psycopg2.Error as e:
             logger.error(f"[SCHEMA_VALIDATION] Schema validation failed: {e}")
@@ -228,7 +228,7 @@ class PriceValidator:
         try:
             is_trading = MarketCalendar.is_trading_day(today)
             if is_trading:
-                logger.debug("[MARKET_CLOSE] ✓ Market close data available")
+                logger.debug("[MARKET_CLOSE] Market close data available")
                 return True
             return False
         except (ValueError, AttributeError, TypeError) as e:

@@ -229,10 +229,10 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 )
 
                 if result.returncode == 0:
-                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] ✓ {table_name} refreshed successfully")
+                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
                     results["recovered"].append(table_name)
                 else:
-                    logger.error(f"[PHASE 1 FAILSAFE LOCAL] ✗ {table_name} refresh failed: {result.stderr}")
+                    logger.error(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh failed: {result.stderr}")
                     results["still_failing"].append(table_name)
                     if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                         results["halt_required"] = True
