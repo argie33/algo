@@ -41,18 +41,18 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
-        # BUGFIX 2026-07-27: was 300s (5 min). A live 12-quarter download measured
-        # ~900s (15 min) end to end - matching this loader's own SLA_THRESHOLDS
-        # entry in utils/loaders/sla_monitor.py ((15, 30, 60) min expected/warn/
-        # critical), which already anticipated this. With the wait_for_download=True
-        # fix (this same commit-era change) still using the old 300s timeout, every
-        # symbol queued before the download's real ~900s completion timed out with
-        # Form345_download_timeout instead of waiting the extra ~10 min - confirmed
-        # live: a 3-symbol backfill run left the first two (AAPL, MSFT) timed out and
-        # only the third (GOOGL, queued after the download organically finished) got
-        # real data. 900s leaves a 300s buffer under this loader's 1200s ECS task
-        # timeout (terraform/modules/loaders/main.tf) for the rest of a run's symbols.
-        self._aggregator = CachedForm345Aggregator(lookback_quarters=12, timeout_seconds=900)
+        # BUGFIX 2026-07-27: was 300s, then 900s - both still too short. Two live
+        # 12-quarter downloads measured ~900s and ~1013s end to end (real-world
+        # variance, not a fixed cost) - the first bump to 900s still left the first
+        # symbol queued each run (e.g. AAPL) timed out with Form345_download_timeout
+        # on the slower of the two runs. There's no benefit to giving up early here:
+        # every symbol in this process shares the same download, so a timed-out
+        # symbol doesn't unblock anything else - it just guarantees lost data. The
+        # only real ceiling is this loader's 1200s ECS task timeout (terraform/
+        # modules/loaders/main.tf) - waiting right up to that (minus a small buffer
+        # for the first symbol's own fetch+write once the download completes) is
+        # strictly better than giving up sooner.
+        self._aggregator = CachedForm345Aggregator(lookback_quarters=12, timeout_seconds=1080)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         measurement_date = since or datetime.now(EASTERN_TZ).date()
