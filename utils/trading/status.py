@@ -17,13 +17,29 @@ class TradeStatus(Enum):
     FILLED = "filled"  # Order filled, position active
     PARTIAL = "partially_filled"  # Some shares filled, rest pending
     ACTIVE = "active"  # Alternate term for open position
+    PAPER_PENDING = "paper_pending"  # Paper mode trade recorded while Alpaca was unreachable
     CANCELLED = "cancelled"  # Order cancelled
     CLOSED = "closed"  # Position fully exited
     ORPHANED = "orphaned"  # Position exists in DB but not in Alpaca (error state)
 
     @classmethod
     def all_open(cls) -> tuple[str, ...]:
-        return (cls.OPEN.value, cls.FILLED.value, cls.ACTIVE.value, cls.PARTIAL.value)
+        # CRITICAL: must cover every status a real order can be inserted with (see
+        # algo/trading/executor_entry_handler.py's _record_entry_phase). This classmethod
+        # already covered FILLED/PARTIAL/ACTIVE correctly - the real bug was that its
+        # highest-stakes caller, exit_engine.py's core exit-candidate query, never called
+        # this method at all and instead hand-rolled `TradeStatus.OPEN.value,
+        # TradeStatus.PENDING.value` inline (missing FILLED/PARTIAL entirely). Added
+        # PENDING/PAPER_PENDING here too so this tuple is the actual complete set once
+        # callers are switched to use it instead of re-deriving their own subset.
+        return (
+            cls.OPEN.value,
+            cls.FILLED.value,
+            cls.PARTIAL.value,
+            cls.ACTIVE.value,
+            cls.PENDING.value,
+            cls.PAPER_PENDING.value,
+        )
 
     @classmethod
     def all_closed(cls) -> tuple[str, ...]:

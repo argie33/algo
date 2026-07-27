@@ -244,16 +244,19 @@ class TradeValidator:
 
     def check_duplicate_position(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
         # CRITICAL FIX: Check algo_trades not algo_positions. The database constraint
-        # algo_trades_symbol_open_positions_idx prevents duplicate OPEN trades at algo_trades level.
-        # Checking algo_positions only catches manually-tracked positions but misses entries
-        # that have already been inserted into algo_trades with status='open'.
+        # algo_trades_symbol_live_status_idx (migration 1158) prevents duplicate live trades
+        # at algo_trades level. Checking algo_positions only catches manually-tracked positions
+        # but misses entries already inserted into algo_trades. Must use TradeStatus.all_open()
+        # (not just status='open') - a live (execution_mode=auto) filled order writes
+        # status='filled'/'partially_filled' literally, never 'open'.
+        open_statuses = TradeStatus.all_open()
         cur.execute(
-            """
+            f"""
             SELECT trade_id FROM algo_trades
-            WHERE symbol = %s AND status = %s
+            WHERE symbol = %s AND status IN ({", ".join(["%s"] * len(open_statuses))})
             LIMIT 1
             """,
-            (symbol, "open"),
+            (symbol, *open_statuses),
         )
         if cur.fetchone():
             return (
@@ -294,13 +297,17 @@ class TradeValidator:
         return False, None, None
 
     def check_open_position_in_symbol(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
-        # CRITICAL FIX: Must check algo_trades for open status, not algo_positions.
-        # The constraint algo_trades_symbol_open_positions_idx enforces at the algo_trades level.
-        # Checking algo_positions only catches manually-tracked positions but misses entries
-        # in algo_trades that have status='open' (the source of the constraint violation).
+        # CRITICAL FIX: Must check algo_trades for live status, not algo_positions.
+        # The constraint algo_trades_symbol_live_status_idx (migration 1158) enforces at the
+        # algo_trades level. Checking algo_positions only catches manually-tracked positions
+        # but misses entries in algo_trades with any non-terminal status - not just 'open':
+        # a live (execution_mode=auto) filled order writes status='filled'/'partially_filled'
+        # literally, so a status='open'-only check here would miss it entirely.
+        open_statuses = TradeStatus.all_open()
         cur.execute(
-            "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status = %s LIMIT 1",
-            (symbol, "open"),
+            f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
+            f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
+            (symbol, *open_statuses),
         )
         if cur.fetchone():
             return True, f"Already have open position in {symbol} (existing trade in progress)"
@@ -314,11 +321,13 @@ class TradeValidator:
         entry_price: Decimal,
         stop_loss_price: Decimal,
     ) -> tuple[bool, str | None, str | None]:
-        """Check if same signal already exists as OPEN or PENDING trade.
+        """Check if same signal already exists as a live (non-terminal) trade.
 
-        CRITICAL FIX: The database constraint algo_trades_symbol_open_positions_idx
-        only allows ONE open trade per symbol (regardless of signal_date).
-        This check MUST reject ANY open trade for the symbol, not just same-date duplicates.
+        CRITICAL FIX: The database constraint algo_trades_symbol_live_status_idx
+        (migration 1158) only allows ONE live trade per symbol (regardless of signal_date).
+        This check MUST reject ANY live trade for the symbol, not just same-date duplicates -
+        and must use TradeStatus.all_open(), not just OPEN/PENDING, since a live
+        (execution_mode=auto) filled order writes status='filled'/'partially_filled' literally.
 
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
@@ -330,15 +339,16 @@ class TradeValidator:
                 f"Cannot match trades without valid signal date - this is a data integrity requirement."
             )
 
-        # Check for ANY open/pending trade with this symbol (database constraint enforces 1 max)
+        # Check for ANY live trade with this symbol (database constraint enforces 1 max)
+        open_statuses = TradeStatus.all_open()
         cur.execute(
-            """
+            f"""
             SELECT trade_id, signal_date FROM algo_trades
             WHERE symbol = %s
-              AND status IN (%s, %s)
+              AND status IN ({", ".join(["%s"] * len(open_statuses))})
             LIMIT 1
             """,
-            (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
+            (symbol, *open_statuses),
         )
         result = cur.fetchone()
         if result:

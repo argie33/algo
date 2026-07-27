@@ -41,6 +41,7 @@ from algo.trading.pretrade_checks import PreTradeChecks
 from utils.db.context import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
+from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +89,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 raise RuntimeError("Portfolio value unavailable - cannot calculate risk")
 
             portfolio_value = float(pf_row[0])
-            # Explicit type conversion to prevent Decimal/float arithmetic errors
-            is_decimal_or_int = isinstance(total_risk_dollars, (Decimal, int))
-            total_risk_dollars_f = float(total_risk_dollars) if is_decimal_or_int else total_risk_dollars
-            is_pf_decimal_or_int = isinstance(portfolio_value, (Decimal, int))
-            portfolio_value_f = float(portfolio_value) if is_pf_decimal_or_int else portfolio_value
-            current_risk_pct = (total_risk_dollars_f / portfolio_value_f * 100.0) if portfolio_value_f > 0 else 0.0
+            current_risk_pct = (total_risk_dollars / portfolio_value * 100.0) if portfolio_value > 0 else 0.0
             available_risk_pct = max_risk_limit_pct - current_risk_pct
 
             logger.info(
@@ -338,93 +334,41 @@ def _batch_fetch_technical_data(
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
-                f"""
-
-                WITH latest_prices AS (
-
+                f"""WITH latest_prices AS (
                     SELECT DISTINCT ON (symbol) symbol, close
-
                     FROM price_daily
-
                     WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-
                     ORDER BY symbol, date DESC
-
                 ),
-
                 sma_50_data AS (
-
                     SELECT symbol, AVG(close) AS sma_50
-
                     FROM (
-
                         SELECT symbol, close,
-
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-
                         FROM price_daily
-
                         WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-
                     ) t
-
                     WHERE rn <= 50
-
                     GROUP BY symbol
-
                 ),
-
                 atr_data AS (
-
                     SELECT symbol, AVG(tr) AS atr
-
                     FROM (
-
-                        SELECT
-
-                            symbol,
-
-                            GREATEST(
-
-                                high - low,
-
-                                ABS(high - LAG(close) OVER (PARTITION BY symbol ORDER BY date)),
-
-                                ABS(low - LAG(close) OVER (PARTITION BY symbol ORDER BY date))
-
-                            ) AS tr,
-
-                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-
+                        SELECT symbol,
+                               GREATEST(high - low,
+                                       ABS(high - LAG(close) OVER (PARTITION BY symbol ORDER BY date)),
+                                       ABS(low - LAG(close) OVER (PARTITION BY symbol ORDER BY date))) AS tr,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
                         FROM price_daily
-
                         WHERE symbol IN ({symbol_placeholders}) AND date <= %s
-
                     ) t
-
                     WHERE tr IS NOT NULL AND rn <= %s
-
                     GROUP BY symbol
-
                 )
-
-                SELECT
-
-                    lp.symbol,
-
-                    atr.atr,
-
-                    sma.sma_50,
-
-                    lp.close
-
+                SELECT lp.symbol, atr.atr, sma.sma_50, lp.close
                 FROM latest_prices lp
-
                 INNER JOIN sma_50_data sma ON sma.symbol = lp.symbol
-
-                INNER JOIN atr_data atr ON atr.symbol = lp.symbol
-
-                """,
+                INNER JOIN atr_data atr ON atr.symbol = lp.symbol""",
                 [
                     *symbols_needing_fetch,
                     run_date,
@@ -1199,11 +1143,6 @@ def run(
 
         precomputed_count += 1
 
-    logger.info(
-        f"[PHASE 8] Technical data: {precomputed_count}/{len(symbols_with_precomputed)} symbols validated. "
-        f"Merged from Phase 7 precomputed + batch fetch."
-    )
-
     for signal in qualified_trades:
         try:
             symbol = signal.get("symbol")
@@ -1275,23 +1214,17 @@ def run(
             sma_50 = float(sma_50)
 
             # VALIDATION: Technical indicators must be positive (sanity check for data corruption)
-            if entry_price <= 0:
+            if entry_price <= 0 or atr < 0 or sma_50 <= 0:
+                errors = []
+                if entry_price <= 0:
+                    errors.append(f"entry_price={entry_price}")
+                if atr < 0:
+                    errors.append(f"ATR={atr}")
+                if sma_50 <= 0:
+                    errors.append(f"SMA_50={sma_50}")
                 raise RuntimeError(
-                    f"[PHASE 8] {symbol}: entry_price={entry_price} is non-positive. "
-                    "This indicates corrupted price data in technical_data_daily table. "
+                    f"[PHASE 8] {symbol}: Corrupted technical data ({', '.join(errors)}). "
                     "Cannot proceed with trade execution."
-                )
-
-            if atr < 0:
-                raise RuntimeError(
-                    f"[PHASE 8] {symbol}: ATR={atr} is negative. "
-                    "ATR cannot be negative. This indicates corrupted volatility data in technical_data_daily table."
-                )
-
-            if sma_50 <= 0:
-                raise RuntimeError(
-                    f"[PHASE 8] {symbol}: SMA_50={sma_50} is non-positive. "
-                    "50-day moving average is corrupted. Cannot calculate valid stop loss levels."
                 )
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
@@ -1485,11 +1418,12 @@ def run(
             # with low concurrency.
             # TODO: Make atomic by wrapping duplicate-check-and-insert in advisory lock (requires refactor)
             try:
+                open_statuses = TradeStatus.all_open()
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        "SELECT trade_id FROM algo_trades WHERE symbol = %s "
-                        "AND status IN ('open', 'filled', 'partially_filled', 'paper_pending', 'pending') LIMIT 1",
-                        (symbol,),
+                        f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
+                        f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
+                        (symbol, *open_statuses),
                     )
                     if cur.fetchone():
                         msg = f"[PHASE 8 DUPLICATE GATE] {symbol} already has open/pending position. Blocking entry."

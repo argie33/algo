@@ -12,6 +12,7 @@ import psycopg2
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.trading import TradeStatus
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -132,10 +133,11 @@ class PreTradeChecks:
                 # fill - see phase8_entry_execution.py's duplicate-gate comment) prevents duplicate
                 # non-terminal trades per symbol at the algo_trades table level. Must check here to
                 # prevent validation passing when algo_positions and algo_trades are out of sync.
+                open_statuses = TradeStatus.all_open()
                 cur.execute(
-                    "SELECT trade_id FROM algo_trades WHERE symbol = %s "
-                    "AND status IN ('open', 'filled', 'partially_filled', 'paper_pending', 'pending') LIMIT 1",
-                    (symbol,),
+                    f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
+                    f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
+                    (symbol, *open_statuses),
                 )
                 if cur.fetchone():
                     return (False, f"Already have open/pending trade for {symbol} in algo_trades")

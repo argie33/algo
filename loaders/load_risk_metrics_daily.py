@@ -365,7 +365,19 @@ class RiskMetricsLoader(OptimalLoader):
             # Calculate volatilities
             vol_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
             vol_60d = self._calculate_volatility(returns[-60:]) if len(returns) >= 60 else None
-            vol_252d = self._calculate_volatility(returns) if len(returns) >= 2 else None
+            # BUG FIX (2026-07-27): vol_252d previously required only len(returns) >= 2 -
+            # that floor came from _calculate_volatility's own divide-by-zero guard
+            # (Bessel's correction needs len-1 >= 1), not a real "is this a meaningful
+            # 252-day estimate" check. load_stock_scores.py._score_stability treats
+            # volatility_252d as "12-month annualized volatility" and gives it 0.40 weight -
+            # the single highest weight of any stability sub-component (more than
+            # volatility_60d's 0.20 or volatility_30d's 0.15) - so a stock with e.g. 3-10
+            # days of price history got a "252-day" figure computed from 2-9 daily returns,
+            # confidently reported (data_unavailable=False) and given the most influence
+            # over its stability score. Require the same floor volatility_60d already
+            # enforces: vol_252d should never rest on a thinner sample than the mid-window
+            # measure it's supposed to be a more-robust superset of.
+            vol_252d = self._calculate_volatility(returns) if len(returns) >= 60 else None
             beta: float | dict[str, Any] | None = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Build unavailability reasons for any missing components
@@ -374,8 +386,8 @@ class RiskMetricsLoader(OptimalLoader):
                 unavailability_reasons.append(f"vol_30d: insufficient_returns ({len(returns)}/30 required)")
             if vol_60d is None and len(returns) < 60:
                 unavailability_reasons.append(f"vol_60d: insufficient_returns ({len(returns)}/60 required)")
-            if vol_252d is None and len(returns) < 2:
-                unavailability_reasons.append(f"vol_252d: insufficient_returns ({len(returns)}/2 required)")
+            if vol_252d is None and len(returns) < 60:
+                unavailability_reasons.append(f"vol_252d: insufficient_returns ({len(returns)}/60 required)")
             if isinstance(beta, dict) and beta.get("data_unavailable"):
                 unavailability_reasons.append(f"beta: {beta.get('reason', 'unknown')}")
                 beta = None

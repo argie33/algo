@@ -489,33 +489,29 @@ class ExitEngine:
 
                 logger.info(f"{'=' * 70}\n")
 
+                # CRITICAL FIX: This WHERE clause previously hardcoded
+                # `t.status IN ('open', 'pending')` instead of calling TradeStatus.all_open().
+                # A real live (execution_mode=auto) filled order writes algo_trades.status =
+                # 'filled' or 'partially_filled' literally (see executor_entry_handler.py) -
+                # never 'open'/'pending', those are paper-mode/review-mode-only values. That
+                # meant this, the core exit-candidate query for the whole exit engine, would
+                # never select a live-filled position for stop-loss/target/time-based exit
+                # evaluation - the position would sit with no automated exit coverage
+                # indefinitely. Invisible in every prior run because every trade so far has
+                # been paper mode (status='open'). Now selects every non-terminal status.
+                open_trade_statuses = TradeStatus.all_open()
+                status_placeholders = ", ".join(["%s"] * len(open_trade_statuses))
                 cur.execute(
-                    """
-
-                    SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-
-                           t.target_1_price, t.target_2_price, t.target_3_price,
-
-                           t.trade_date,
-
-                           p.position_id, p.quantity, p.target_levels_hit,
-
-                           p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time
-
-                    FROM algo_trades t
-
-                    JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-
-                    WHERE t.status IN (%s, %s) AND p.status = %s AND p.quantity > 0
-
-                    ORDER BY t.trade_date ASC
-
-                    """,
-                    (
-                        TradeStatus.OPEN.value,
-                        TradeStatus.PENDING.value,
-                        PositionStatus.OPEN.value,
-                    ),
+                    f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                              t.target_1_price, t.target_2_price, t.target_3_price,
+                              t.trade_date,
+                              p.position_id, p.quantity, p.target_levels_hit,
+                              p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time
+                       FROM algo_trades t
+                       JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                       WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
+                       ORDER BY t.trade_date ASC""",
+                    (*open_trade_statuses, PositionStatus.OPEN.value),
                 )
 
                 trades = cur.fetchall()
@@ -1143,23 +1139,13 @@ class ExitEngine:
 
     def _is_pulling_back(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
-
-
-
         Real pullbacks show clear consolidation, not just a 0.5% afternoon dip.
-
-        This prevents hair-trigger exits on winners."""
-
+        This prevents hair-trigger exits on winners.
+        """
         cur.execute(
-            """
-
-            SELECT close, high FROM price_daily
-
-            WHERE symbol = %s AND date <= %s
-
-            ORDER BY date DESC LIMIT 6
-
-            """,
+            """SELECT close, high FROM price_daily
+               WHERE symbol = %s AND date <= %s
+               ORDER BY date DESC LIMIT 6""",
             (symbol, current_date),
         )
 
@@ -1403,7 +1389,8 @@ class ExitEngine:
 
             mult = float(mult_val)
 
-            return round(hh - (mult * atr), 2)
+            stop_value = Decimal(str(hh)) - (Decimal(str(mult)) * Decimal(str(atr)))
+            return float(stop_value.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
 
     def _get_td_state(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection).
