@@ -33,6 +33,7 @@ Halts trading when any of these fire:
   CB6. MARKET STAGE BREAK  market_stage = 4 (downtrend)
   CB7. WEEKLY LOSS         >= max_weekly_loss_pct (default 5%)
   CB8. DATA STALENESS      latest data > N days old
+  CB9. SECTOR DRAWDOWN     <= sector_drawdown_halt_pct (default -12%, cost-basis weighted)
 
 Each check returns (halted, reason). The orchestrator runs all checks before
 new entries - any halt blocks new positions but does NOT auto-exit existing
@@ -55,6 +56,7 @@ CHECK_LABELS = {
     "market_stage": "Market Stage Break",
     "weekly_loss": "Weekly Loss Limit Exceeded",
     "sector_concentration": "Sector Concentration Warning",
+    "sector_drawdown": "Sector Drawdown Halt",
     "intraday_market_health": "Market Instability (Prior-Day Drop)",
     "win_rate_floor": "Win Rate Floor Breached",
     "daily_profit_cap": "Daily Profit Target Reached",
@@ -110,6 +112,7 @@ class CircuitBreaker:
         "market_stage",
         "weekly_loss",
         "sector_concentration",
+        "sector_drawdown",
         "intraday_market_health",
         "win_rate_floor",
         "daily_profit_cap",
@@ -133,6 +136,7 @@ class CircuitBreaker:
             "market_stage": self._check_market_stage,
             "weekly_loss": self._check_weekly_loss,
             "sector_concentration": self._check_sector_concentration,
+            "sector_drawdown": self._check_sector_drawdown,
             "intraday_market_health": self._check_intraday_market_health,
             "win_rate_floor": self._check_win_rate_floor,
             "daily_profit_cap": self._check_daily_profit_cap,
@@ -1243,6 +1247,88 @@ class CircuitBreaker:
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Sector concentration check failed: {e}") from e
+
+    def _check_sector_drawdown(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """Halt if any sector's cost-basis-weighted unrealized P&L drops to/below
+        sector_drawdown_halt_pct.
+
+        CRITICAL: sector_drawdown_halt_pct has been a seeded, validated, admin-editable
+        config value since migration 005 - documented in
+        algo/infrastructure/config/circuit_breaker_config.py's own module docstring as one
+        of this codebase's 8 core circuit-breaker categories, alongside daily_loss,
+        weekly_loss, consecutive_losses, win_rate, total_risk, profit_cap, and
+        data_staleness (all of which DO have real _check_* methods here) - but unlike
+        those 7 siblings, nothing ever read this value to actually halt trading. It looked
+        like active protection and wasn't. This check closes that gap.
+
+        Distinct from _check_sector_concentration (position-COUNT cap, advisory only,
+        enforced per-trade in Phase 6): this is a P&L-based portfolio-wide halt, same
+        severity tier as _check_drawdown/_check_daily_loss/_check_weekly_loss.
+
+        Weighted by cost basis (SUM(unrealized_pnl) / SUM(entry_price * quantity) per
+        sector), not a simple average of each position's unrealized_pnl_pct - an
+        unweighted average would let a $500 position and a $50,000 position in the same
+        sector count equally, masking the actual dollar-weighted sector exposure.
+
+        sector_drawdown_halt_pct is stored negative (e.g. -12.0 = halt at 12% down),
+        same convention as halt_drawdown_pct/max_daily_loss_pct/max_weekly_loss_pct -
+        compared directly with <=, no abs() needed (see _check_daily_loss for the same
+        pattern).
+        """
+        cur.execute("""
+            -- Same NULL-sector fail-closed handling as _check_sector_concentration.
+            SELECT cp.sector, ap.unrealized_pnl, ap.entry_price, ap.quantity
+            FROM algo_positions ap
+            LEFT JOIN company_profile cp ON cp.symbol = ap.symbol
+            WHERE ap.status = 'open'
+            """)
+        rows = cur.fetchall()
+        if not rows:
+            return {"halted": False, "reason": "No open positions"}
+
+        sector_pnl: dict[str, float] = {}
+        sector_basis: dict[str, float] = {}
+        for row in rows:
+            if not row or len(row) < 4:
+                raise RuntimeError(f"Sector drawdown check: invalid row structure {row}")
+            sector, unrealized_pnl, entry_price, quantity = row[0], row[1], row[2], row[3]
+            if not sector:
+                raise RuntimeError("Sector drawdown check: row has None/empty sector")
+            if unrealized_pnl is None or entry_price is None or quantity is None:
+                raise RuntimeError(
+                    f"Sector drawdown check: position missing P&L/cost-basis data (sector={sector})"
+                )
+            cost_basis = float(entry_price) * float(quantity)
+            if cost_basis <= 0:
+                raise RuntimeError(f"Sector drawdown check: invalid cost basis for sector {sector}")
+            sector_pnl[sector] = sector_pnl.get(sector, 0.0) + float(unrealized_pnl)
+            sector_basis[sector] = sector_basis.get(sector, 0.0) + cost_basis
+
+        sector_returns = {s: sector_pnl[s] / sector_basis[s] * 100 for s in sector_pnl}
+        worst_sector = min(sector_returns, key=lambda s: sector_returns[s])
+        worst_pct = sector_returns[worst_sector]
+
+        halt_val = self._get_required_config("sector_drawdown_halt_pct", "in sector drawdown check")
+        threshold = _float(halt_val, None, context="sector_drawdown_halt_pct")
+        if threshold >= 0:
+            logger.critical(f"CRITICAL: sector_drawdown_halt_pct must be negative, got {threshold}")
+            return {
+                "halted": True,
+                "reason": f"CRITICAL: sector_drawdown_halt_pct misconfigured (must be negative, got {threshold})",
+            }
+
+        halted = worst_pct <= threshold
+        return {
+            "halted": halted,
+            "reason": (
+                f"{worst_sector} sector at {worst_pct:.2f}% <= {threshold:.1f}%"
+                if halted
+                else f"Worst sector ({worst_sector}) at {worst_pct:.2f}%"
+            ),
+            "value": round(worst_pct, 2),
+            "threshold": threshold,
+            "sector": worst_sector,
+        }
 
     def _check_daily_profit_cap(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries.
