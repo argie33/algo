@@ -263,12 +263,27 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
 
 
 def _compute_consecutive_losses(cur: Any) -> int:
-    cur.execute("""
+    # Mirrors algo/risk/circuit_breaker.py's _check_consecutive_losses (the live trading
+    # gate) - same exclusions (reconciliation/force-close/delisted/DATA-QC closes aren't
+    # real strategy losses) and same exit_time-based tiebreak (exit_date DESC alone is not
+    # deterministic when 2+ trades close same day). Without this, this reporting table
+    # disagreed with the live gate it's supposed to be reflecting on the dashboard -
+    # confirmed live 2026-07-27: this query kept reporting the live gate's already-fixed,
+    # already-excluded bug-induced closes as real losses for the rest of the day.
+    cur.execute(
+        """
         SELECT profit_loss_pct FROM algo_trades
         WHERE status = 'closed' AND exit_date IS NOT NULL
-        ORDER BY exit_date DESC, trade_id DESC
+          AND trade_id NOT LIKE 'EXT-%%'
+          AND exit_reason NOT LIKE %s
+          AND exit_reason NOT LIKE %s
+          AND exit_reason NOT LIKE %s
+          AND exit_reason NOT LIKE %s
+        ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
         LIMIT 10
-    """)
+        """,
+        ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"),
+    )
     rows = cur.fetchall()
     if not rows:
         logger.info(
@@ -555,7 +570,8 @@ def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any
                 spy_prior_day_change_pct = EXCLUDED.spy_prior_day_change_pct,
                 win_rate_last_30_pct = EXCLUDED.win_rate_last_30_pct,
                 triggered_count = EXCLUDED.triggered_count,
-                any_triggered = EXCLUDED.any_triggered
+                any_triggered = EXCLUDED.any_triggered,
+                updated_at = CURRENT_TIMESTAMP
         """,
             (
                 today,
