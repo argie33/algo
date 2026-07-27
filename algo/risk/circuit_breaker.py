@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 """
 Circuit Breakers - Kill-switch risk halts (institutional safety layer)
 
+NOTE: this is the live pretrade halt gate. loaders/compute_circuit_breakers.py
+computes a SEPARATE dashboard/reporting table (circuit_breaker_status) with its
+own, differently-numbered CB1-CB9 scheme - they only agree on CB1/CB2/CB3/CB6.
+Do not assume a "CBn" reference from one file means the same check in the other.
+
 Halts trading when any of these fire:
   CB1. PORTFOLIO DRAWDOWN  >= halt_drawdown_pct (default 20%)
   CB2. DAILY LOSS          >= max_daily_loss_pct (default 2%)

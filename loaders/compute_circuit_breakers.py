@@ -2,6 +2,14 @@
 Compute circuit breaker metrics and store in circuit_breaker_status table.
 Runs daily at 4:30 PM ET (before Phase 7 reconciliation) via EventBridge scheduled task.
 
+NOTE: the CB1-CB9 numbering below is LOCAL to this reporting/dashboard loader and
+is NOT the same scheme as algo/risk/circuit_breaker.py's live pretrade halt gate -
+the two only agree on CB1/CB2/CB3/CB6 (drawdown/daily loss/consecutive losses/market
+stage). CB4/CB5/CB7/CB8/CB9 name different checks in each file (e.g. this loader's
+CB9 is win rate; the live gate's CB9 is sector drawdown). Do not assume a "CBn
+triggered" reference means the same thing in both files - check which module it
+came from.
+
 Metrics computed:
 - CB1: Portfolio drawdown from peak
 - CB2: Daily loss %
