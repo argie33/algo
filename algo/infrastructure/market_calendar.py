@@ -92,7 +92,14 @@ class MarketCalendar:
         Cached to prevent N+1 lookups when processing many dates.
         """
         if not check_date:
-            check_date = _date.today()
+            # Eastern Time, not system-local date.today() - confirmed live, real no-argument
+            # callers exist (dashboard/fetchers_portfolio.py, dashboard/panels/portfolio.py),
+            # unlike most other date.today() defaults audited this session that turned out to
+            # be dead code. A server not running in America/New_York (e.g. UTC in production)
+            # could answer "is today a trading day?" against the wrong calendar day near the
+            # midnight-ET boundary. Same fix as every other eval_date default in this codebase
+            # (2026-07-21 audit).
+            check_date = datetime.now(_ET).date()
 
         return MarketCalendar._is_trading_day_cached(check_date)
 
@@ -132,7 +139,8 @@ class MarketCalendar:
     @staticmethod
     def is_early_close(check_date: _date | None = None) -> bool:
         if not check_date:
-            check_date = _date.today()
+            # Eastern Time, not system-local date.today() - see is_trading_day's identical fix.
+            check_date = datetime.now(_ET).date()
 
         return check_date in EARLY_CLOSES
 
@@ -237,7 +245,11 @@ class MarketCalendar:
     @staticmethod
     def get_next_trading_day(from_date: _date | None = None) -> _date | None:
         if not from_date:
-            from_date = _date.today()
+            # Eastern Time, not system-local date.today() - see is_trading_day's fix. No
+            # confirmed live no-argument caller for this one today, but fixed defensively
+            # to the same convention rather than leave a known-bad pattern for a future
+            # caller to inherit.
+            from_date = datetime.now(_ET).date()
 
         next_date = from_date
         max_iterations = 10  # prevent infinite loop
@@ -260,7 +272,8 @@ class MarketCalendar:
             Previous trading day, or None if none found in last 10 calendar days
         """
         if not from_date:
-            from_date = _date.today()
+            # Eastern Time, not system-local date.today() - see is_trading_day's fix.
+            from_date = datetime.now(_ET).date()
 
         prev_date = from_date
         max_iterations = 10  # prevent infinite loop
