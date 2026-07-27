@@ -137,13 +137,20 @@ describe("ScoresDashboard Page", () => {
     });
   });
 
-  it("displays table headers for score factors", async () => {
+  it("displays company name and factor scores for each ranked row", async () => {
     renderScoresDashboard();
     await waitFor(() => {
-      // RankingsTab (default) shows Symbol, Company, Score, Growth, Quality, Momentum
-      expect(screen.getByText("Symbol")).toBeInTheDocument();
-      expect(screen.getByText("Company")).toBeInTheDocument();
-      expect(screen.getByText("Score")).toBeInTheDocument();
+      // RankingsTab (default, useState("rankings")) was refactored from a <table> with
+      // header cells into an expandable card/row list (chevron toggle + StockScoreAccordion
+      // detail on click) - there is no header row at all anymore ("Symbol"/"Company"/"Score"
+      // never appear as standalone text, only as data values), so this test previously
+      // asserted a DOM structure that no longer exists in any tab. Assert the real per-row
+      // content instead: company name and the growth/quality/momentum sub-scores rendered
+      // next to each symbol.
+      expect(screen.getByText("Apple Inc.")).toBeInTheDocument();
+      expect(screen.getByText("Microsoft Corporation")).toBeInTheDocument();
+      // AAPL's growth_score (82.1) rendered to 1 decimal place next to its row.
+      expect(screen.getByText("82.1")).toBeInTheDocument();
     });
   });
 
