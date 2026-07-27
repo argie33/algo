@@ -107,6 +107,7 @@ router.get("/covered-calls", async (req, res) => {
     return sendPaginated(res, opportunities, {
       page: pageNum,
       limit: limitNum,
+      offset,
       total,
       totalPages,
       hasNext: pageNum < totalPages,

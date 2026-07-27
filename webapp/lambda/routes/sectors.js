@@ -159,6 +159,7 @@ router.get("/", async (req, res) => {
     return sendPaginated(res, sectors, {
       page: pageNum,
       limit: limitNum,
+      offset,
       total,
       totalPages,
       hasNext: pageNum < totalPages,
@@ -315,52 +316,6 @@ router.get("/:sector/trend", async (req, res) => {
 // ============================================
 // WILDCARD ROUTES - Must come AFTER specific routes!
 // ============================================
-
-// GET /:sector/trend - Get sector trend data
-router.get("/:sector/trend", async (req, res) => {
-  try {
-    const { sector } = req.params;
-    if (!sector || sector.length === 0) {
-      return sendError(res, "Sector name required", 400);
-    }
-
-    // Query using LOWER to allow case-insensitive lookup
-    const result = await query(
-      `
-      SELECT
-        sector,
-        date,
-        avgprice
-      FROM sector_performance
-      WHERE LOWER(sector) = LOWER($1)
-      ORDER BY date DESC
-      LIMIT 100
-    `,
-      [sector]
-    );
-    validateQueryResult(result, { requireRows: false });
-
-    if (result.length === 0) {
-      return sendError(res, `No price data for sector: ${sector}`, 404);
-    }
-
-    // Convert to required format with trendData wrapper
-    const trendData = result.map((row) => ({
-      date: row.date,
-      avgPrice: parseFloat(row.avgprice),
-      dailyStrengthScore: 0, // Placeholder; can compute from price momentum if needed
-    }));
-
-    return sendSuccess(res, { sector, trendData }, 200);
-  } catch (error) {
-    console.error("Error fetching sector trend:", error);
-    return sendError(
-      res,
-      "Failed to fetch sector trend: " + error.message,
-      500
-    );
-  }
-});
 
 // GET /:sector - Get specific sector details
 // MUST be last so more specific routes like /trends-batch and /:sector/trend match first
