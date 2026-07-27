@@ -871,6 +871,13 @@ def _record_closed_positions_exits(
                                     symbol,
                                 ),
                             )
+                            if write_cursor.rowcount == 0:
+                                raise RuntimeError(
+                                    f"CRITICAL: algo_trades exit update failed for {symbol}. "
+                                    f"Expected to update 1 open trade (exit_date IS NULL) but 0 rows affected. "
+                                    f"Trade may already be closed or missing entirely. "
+                                    f"This indicates a data integrity issue that must be resolved before continuing reconciliation."
+                                )
                             write_cursor.execute(
                                 """
                                 UPDATE algo_positions

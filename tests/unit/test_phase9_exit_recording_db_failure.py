@@ -64,3 +64,49 @@ def test_db_error_recording_exit_raises_instead_of_silently_continuing():
     # A human must be alerted - this can't just vanish into the logs, since the symbol
     # will never be re-selected by this function again after today.
     assert mock_notify.called, "notify() must be called so a human can fix the audit gap manually"
+
+
+def test_algo_trades_zero_rowcount_raises_before_touching_positions():
+    """cursor.rowcount reflects only the most recently executed statement. If the
+    algo_trades UPDATE's subquery (WHERE symbol=%s AND exit_date IS NULL) matches
+    nothing, that UPDATE silently affects 0 rows - no exception - and the *next*
+    execute() call (the unconditional algo_positions UPDATE on WHERE symbol=%s)
+    overwrites rowcount with its own non-zero result. Without a dedicated check right
+    after the algo_trades UPDATE, this 0-row failure is invisible: algo_positions is
+    still marked closed, exits_recorded still increments, and algo_trades.exit_date is
+    never set - the same permanent, un-retryable audit-trail gap this function's other
+    checks exist to prevent."""
+    closed_row = ("AAPL", 150.0, 160.0, 10)
+    read_cur = _make_read_cursor([closed_row])
+
+    write_cur = MagicMock()
+    positions_update_reached = []
+
+    def execute_side_effect(sql, params=None):
+        if "UPDATE algo_trades" in sql and "exit_date" in sql:
+            write_cur.rowcount = 0  # no matching open trade for this symbol
+        elif "UPDATE algo_positions" in sql:
+            positions_update_reached.append(True)
+            write_cur.rowcount = 1
+        return None
+
+    write_cur.execute.side_effect = execute_side_effect
+
+    def fake_log(*args, **kwargs):
+        pass
+
+    with (
+        patch("algo.orchestrator.phase9_reconciliation.DatabaseContext") as mock_ctx,
+        patch("algo.orchestrator.phase9_reconciliation.acquire_advisory_lock"),
+        patch("algo.orchestrator.phase9_reconciliation.release_advisory_lock"),
+    ):
+        mock_ctx.return_value.__enter__.side_effect = [read_cur, write_cur]
+        mock_ctx.return_value.__exit__.return_value = False
+
+        with pytest.raises(RuntimeError, match="AAPL"):
+            _record_closed_positions_exits(run_date=None, log_phase_result_fn=fake_log)
+
+    assert not positions_update_reached, (
+        "algo_positions must not be marked closed when the algo_trades exit "
+        "write silently affected 0 rows - that would hide the audit gap entirely"
+    )
