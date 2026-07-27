@@ -1789,34 +1789,48 @@ router.get("/swing-scores", async (req, res) => {
         sector: { type: "string", required: false },
         industry: { type: "string", required: false },
       }).map((r) => {
-        const score = r.composite_score || 0;
+        // GOVERNANCE: missing composite_score must never present as a real
+        // grade/gate result - defaulting to 0 would show a stock with no
+        // score data as if it had been evaluated and failed.
+        const score =
+          r.composite_score === null || r.composite_score === undefined
+            ? null
+            : r.composite_score;
+        const round = (v) => (v === null || v === undefined ? null : Math.round(v));
         return {
           symbol: r.symbol,
           date: r.updated_at || new Date().toISOString().split("T")[0],
           composite_score: score,
           score: score,
           grade:
-            score >= 85
-              ? "A+"
-              : score >= 75
-                ? "A"
-                : score >= 60
-                  ? "B"
-                  : score >= 45
-                    ? "C"
-                    : score >= 30
-                      ? "D"
-                      : "F",
-          pass_gates: score >= 60,
-          fail_reason: score < 60 ? "composite_score < 60" : null,
+            score === null
+              ? null
+              : score >= 85
+                ? "A+"
+                : score >= 75
+                  ? "A"
+                  : score >= 60
+                    ? "B"
+                    : score >= 45
+                      ? "C"
+                      : score >= 30
+                        ? "D"
+                        : "F",
+          pass_gates: score === null ? false : score >= 60,
+          fail_reason:
+            score === null
+              ? "composite_score_unavailable"
+              : score < 60
+                ? "composite_score < 60"
+                : null,
           components: {
-            setup: Math.round(r.positioning_score || 0),
-            trend: Math.round(r.momentum_score || 0),
-            momentum: Math.round(r.momentum_score || 0),
-            volume: Math.round(r.growth_score || 0),
-            fundamentals: Math.round(r.quality_score || 0),
-            sector: Math.round(r.value_score || 0),
-            multi_tf: Math.round(r.stability_score || 0),
+            setup: round(r.positioning_score),
+            trend: round(r.momentum_score),
+            momentum: round(r.momentum_score),
+            volume: round(r.growth_score),
+            fundamentals: round(r.quality_score),
+            sector: round(r.value_score),
+            multi_tf: round(r.stability_score),
           },
           company_name: r.short_name,
           sector: r.sector,
