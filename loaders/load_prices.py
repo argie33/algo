@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # Solution: Use shorter timeout for production to fail fast if there's an issue
 import socket
 
-if os.getenv("ENVIRONMENT") == "dev" and os.getenv("AWS_REGION"):
+if os.getenv("AWS_REGION") and os.getenv("ENVIRONMENT") != "dev":
     # Production ECS environment detected: reduce timeout to 15s
     # This allows loader to start+initialize within 30s grace period
     socket.setdefaulttimeout(15)
@@ -255,7 +255,7 @@ class PriceLoader(OptimalLoader):
                 if not is_valid:
                     error_msg = "\n".join(errors)
                     logger.error(
-                        f"[SCHEMA] Œ Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
+                        f"[SCHEMA]  Schema validation FAILED for {self.table_name}:\n{error_msg}\n"
                         "This will cause data loading to fail. "
                         "Verify table schema matches expected definition."
                     )
@@ -328,13 +328,14 @@ class PriceLoader(OptimalLoader):
 
             if constraint_exists or index_exists:
                 logger.info(
-                    "[CONSTRAINT]  Unique constraint/index found on {self.table_name}(%s)",
+                    "[CONSTRAINT] Unique constraint/index found on %s(%s)",
+                    self.table_name,
                     pk_cols,
                 )
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
                 error_msg = (
-                    f"[CONSTRAINT] Œ CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
+                    f"[CONSTRAINT]  CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
                     f"This allows duplicate rows to be inserted, corrupting the dataset. "
                     f"Root cause analysis: https://github.com/yourorg/algo/blob/main/steering/duplicate_rows_root_cause_analysis.md. "
                     f"Create constraint with: ALTER TABLE {self.table_name} ADD CONSTRAINT "
@@ -637,7 +638,8 @@ class PriceLoader(OptimalLoader):
                 if data_available:
                     elapsed = time.time() - start_time
                     logger.info(
-                        "[MARKET_CLOSE] Data available after {elapsed:.1f}s (attempt %s)",
+                        "[MARKET_CLOSE] Data available after %.1fs (attempt %s)",
+                        elapsed,
                         attempt,
                     )
                     # Emit success metric
@@ -684,17 +686,17 @@ class PriceLoader(OptimalLoader):
                         f"Check yfinance status and network connectivity."
                     ) from e
 
-                log_level = "warning" if is_rate_limit else ("warning" if is_timeout else "debug")
-                logger.log(
-                    (
-                        getattr(logging, log_level.upper())
-                        if log_level in ["debug", "warning", "error"]
-                        else logging.DEBUG
-                    ),
-                    f"[MARKET_CLOSE] Attempt {attempt}/{max_attempts}: {last_error_type} "
-                    + ("(rate limit)" if is_rate_limit else "(timeout)" if is_timeout else "(other)")
-                    + f" - {last_error_msg} [{consecutive_errors}/{max_consecutive_errors} consecutive]",
-                )
+                if is_rate_limit or is_timeout:
+                    logger.warning(
+                        f"[MARKET_CLOSE] Attempt {attempt}/{max_attempts}: {last_error_type} "
+                        + ("(rate limit)" if is_rate_limit else "(timeout)")
+                        + f" - {last_error_msg} [{consecutive_errors}/{max_consecutive_errors} consecutive]"
+                    )
+                else:
+                    logger.debug(
+                        f"[MARKET_CLOSE] Attempt {attempt}/{max_attempts}: {last_error_type} (other) "
+                        f"- {last_error_msg} [{consecutive_errors}/{max_consecutive_errors} consecutive]"
+                    )
 
             # Check time remaining and wait before next attempt
             elapsed = time.time() - start_time
@@ -740,7 +742,7 @@ class PriceLoader(OptimalLoader):
                 f"ALERT: Market close data unavailable {self._market_close_timeout_count} times in 24h. "
                 "Possible yfinance API degradation. Check status page and consider switching data provider."
             )
-            logger.critical("[{self._correlation_id}] %s", alert_msg)
+            logger.critical("[%s] %s", self._correlation_id, alert_msg)
             try:
                 from algo.reporting import AlertManager
 
@@ -802,7 +804,7 @@ class PriceLoader(OptimalLoader):
             "Check yfinance API status and RDS connection pool health. "
             f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
         )
-        logger.error("[{self._correlation_id}] [MARKET_CLOSE] ✓ %s", error_msg)
+        logger.error("[%s] [MARKET_CLOSE] %s", self._correlation_id, error_msg)
         raise RuntimeError(error_msg)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> Any:
@@ -2183,7 +2185,7 @@ class PriceLoader(OptimalLoader):
                 self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)
                 continue
 
-            logger.debug("[{self.table_name}] {symbol}: Fetched %s rows from batch", len(rows))
+            logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")
             self._stats["rows_fetched"] += len(rows)
 
             # Persist which upstream API actually served each row (migration 1135).
@@ -2361,17 +2363,17 @@ def _invalidate_phase1_cache() -> None:
                 "InvalidSignatureException",
             ):
                 logger.warning(
-                    "[CACHE INVALIDATION]  DynamoDB unusable (%s): No DynamoDB write access. "
+                    "[CACHE INVALIDATION] DynamoDB unusable (%s): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run).",
                     error_dict.get("Code"),
                 )
                 return
             logger.error(
-                f"[CACHE INVALIDATION] ✓ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
+                f"[CACHE INVALIDATION] DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
             )
         except Exception as delete_err:
             logger.error(
-                f"[CACHE INVALIDATION] ✓ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
+                f"[CACHE INVALIDATION] DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
             )
 
         # Step 2: If delete failed, try to poison the cache so Phase 1 knows not to use it
@@ -2387,7 +2389,7 @@ def _invalidate_phase1_cache() -> None:
                 },
             )
             logger.warning(
-                "[CACHE INVALIDATION]  POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data"
+                "[CACHE INVALIDATION] POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data"
             )
             return
         except ClientError as poison_err:
@@ -2402,18 +2404,20 @@ def _invalidate_phase1_cache() -> None:
                 "InvalidSignatureException",
             ):
                 logger.warning(
-                    "[CACHE INVALIDATION]  DynamoDB unusable (%s): No DynamoDB write access. "
+                    "[CACHE INVALIDATION] DynamoDB unusable (%s): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run).",
                     error_dict.get("Code"),
                 )
                 return
             logger.error(
-                "[CACHE INVALIDATION] ✓ POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
+                "[CACHE INVALIDATION] POISONING ALSO FAILED: %s: %s",
+                type(poison_err).__name__,
                 poison_err,
             )
         except (ValueError, ZeroDivisionError, TypeError) as poison_err:
             logger.error(
-                "[CACHE INVALIDATION] ✓ POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
+                "[CACHE INVALIDATION] POISONING ALSO FAILED: %s: %s",
+                type(poison_err).__name__,
                 poison_err,
             )
 
@@ -2422,7 +2426,7 @@ def _invalidate_phase1_cache() -> None:
 
     # Step 3: Both deletion AND poisoning failed - CRITICAL: MUST HALT
     logger.critical(
-        "[CACHE INVALIDATION] ✓✓ CRITICAL FAILURE: Could not delete OR poison cache. "
+        "[CACHE INVALIDATION] CRITICAL FAILURE: Could not delete OR poison cache. "
         "Phase 1 will potentially use stale data. HALTING LOADER IMMEDIATELY."
     )
     raise RuntimeError(
@@ -2653,11 +2657,11 @@ def main() -> int:
     valid_classes = {"stock", "etf"}
     for i in intervals:
         if i not in valid_intervals:
-            logger.error("Invalid interval: {i}. Must be one of: %s", valid_intervals)
+            logger.error("Invalid interval: %s. Must be one of: %s", i, valid_intervals)
             return 1
     for a in asset_classes:
         if a not in valid_classes:
-            logger.error("Invalid asset class: {a}. Must be one of: %s", valid_classes)
+            logger.error("Invalid asset class: %s. Must be one of: %s", a, valid_classes)
             return 1
 
     # Row-based lock: only one price loader instance at a time.
@@ -2947,7 +2951,7 @@ def main() -> int:
                         with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
                             stats = loader.run(run_symbols, parallelism=parallelism)
 
-                        logger.info("[MAIN] Completed {asset_class}/{interval}: %s", stats)
+                        logger.info("[MAIN] Completed %s/%s: %s", asset_class, interval, stats)
                         # Validate stats dict has required keys
                         for required_key in [
                             "symbols_processed",
