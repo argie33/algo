@@ -68,13 +68,18 @@ function cacheMiddleware(ttlSeconds = 300, keyGenerator = null) {
       return next();
     }
 
-    // Generate cache key from request URL and important query params
+    // Generate cache key from request URL and important query params.
+    // MUST scope by authenticated user: routes mounted behind authenticateToken
+    // (e.g. /api/trades) return per-user data filtered by req.user.sub - without
+    // this, one user's cached response would be served to a different user
+    // hitting the same URL+query within the TTL window.
     const defaultKeyGenerator = () => {
       const baseUrl = req.originalUrl.split("?")[0];
       const params = new URLSearchParams(req.query);
       // Sort params for consistent key generation
       params.sort();
-      return `${baseUrl}?${params.toString()}`;
+      const userScope = req.user?.sub ? `user:${req.user.sub}` : "anon";
+      return `${userScope}:${baseUrl}?${params.toString()}`;
     };
 
     const cacheKey = keyGenerator ? keyGenerator(req) : defaultKeyGenerator();

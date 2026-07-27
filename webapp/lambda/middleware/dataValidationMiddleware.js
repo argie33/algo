@@ -64,56 +64,7 @@ const inputSchemas = {
   },
 };
 
-/**
- * Wraps res.json() to validate response data before sending
- */
-function createValidatingResponseHandler(req, res, dataSchema) {
-  const originalJson = res.json.bind(res);
-
-  res.json = function (data) {
-    // If there's a schema, validate the response
-    if (dataSchema && data && data.success) {
-      // Validate items array
-      if (Array.isArray(data.items)) {
-        const validation = validateObject(data.items[0] || {}, dataSchema);
-        if (!validation.valid) {
-          console.warn(
-            `Response validation failed for ${req.path}:`,
-            validation.errors
-          );
-        }
-      }
-      // Validate single object response
-      else if (data.data && !Array.isArray(data.data)) {
-        const validation = validateObject(data.data, dataSchema);
-        if (!validation.valid) {
-          console.warn(
-            `Response validation failed for ${req.path}:`,
-            validation.errors
-          );
-        }
-      }
-    }
-
-    return originalJson(data);
-  };
-
-  return res;
-}
-
-/**
- * Creates middleware for response validation (deprecated - kept for backwards compatibility)
- */
-function createValidationMiddleware(dataSchema) {
-  return (req, res, next) => {
-    createValidatingResponseHandler(req, res, dataSchema);
-    next();
-  };
-}
-
 module.exports = {
   createInputValidationMiddleware,
-  createValidatingResponseHandler,
-  createValidationMiddleware,
   inputSchemas,
 };
