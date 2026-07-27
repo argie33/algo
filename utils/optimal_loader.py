@@ -513,11 +513,20 @@ class OptimalLoader:
                     # CRITICAL FIX (Session 351): Afternoon loaders blocked by stale morning locks
                     # now retry instead of skipping silently. This was the root cause of
                     # missing EOD signals when morning loader crashed without releasing lock.
+                    # WIDENED (2026-07-27): 3 retries capped at 30s (~60s total budget) was too thin
+                    # against signal_quality_scores specifically - phase7_signal_generation.py calls
+                    # this same lock path and a lock-acquisition failure there halts the ENTIRE
+                    # trading session (no entries, not just a skipped loader). The competing lock
+                    # holder is often the scheduled signal_quality_scores ECS task, which the
+                    # comment in phase7_signal_generation.py documents can take 5-35 minutes - far
+                    # longer than the old ~60s budget could ever wait out. 6 retries capped at 60s
+                    # gives ~3.5 min of tolerance (still bounded, still fails loud after) instead of
+                    # trading a full session's entries away over a transient scheduling overlap.
                     logger.warning(f"[{self.table_name}] Another instance already running, retrying with backoff...")
                     import random
-                    max_retries = 3
+                    max_retries = 6
                     for retry_attempt in range(1, max_retries + 1):
-                        base_wait = min(30, 2 ** (retry_attempt - 1) * 5)
+                        base_wait = min(60, 2 ** (retry_attempt - 1) * 5)
                         jitter = random.uniform(0.9, 1.1)
                         wait_time = base_wait * jitter
                         logger.info(f"[{self.table_name}] Retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s before next lock attempt")
@@ -731,11 +740,13 @@ class OptimalLoader:
                 else:
                     # Lock timeout - another instance running, RETRY with exponential backoff
                     # CRITICAL FIX (Session 351): Same retry logic as run() method
+                    # WIDENED (2026-07-27): same reasoning as run()'s retry block above - keep the
+                    # two budgets in sync so global-load callers get the same ~3.5 min tolerance.
                     logger.warning(f"[{self.table_name}] Another instance already running (global load), retrying with backoff...")
                     import random
-                    max_retries = 3
+                    max_retries = 6
                     for retry_attempt in range(1, max_retries + 1):
-                        base_wait = min(30, 2 ** (retry_attempt - 1) * 5)
+                        base_wait = min(60, 2 ** (retry_attempt - 1) * 5)
                         jitter = random.uniform(0.9, 1.1)
                         wait_time = base_wait * jitter
                         logger.info(f"[{self.table_name}] Global load retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s")
