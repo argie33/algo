@@ -7,6 +7,7 @@ import sys
 import time
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
 
@@ -840,9 +841,40 @@ class Orchestrator:
                     # So require within ~13 hours for this use case
                     stale_threshold = now_utc - timedelta(hours=13)
                 else:
-                    # After market close: require data from yesterday's EOD pipeline (4-5:30 PM ET)
-                    # If it's before market open (9:30 AM), require yesterday's data (ran 16+ hours ago)
-                    stale_threshold = now_utc - timedelta(hours=36)
+                    # After market close / before market open: require data from the most recent
+                    # trading day's EOD pipeline (4-5:30 PM ET on that day).
+                    # FIX (2026-07-27): a flat 36h cutoff cannot span a Friday->Monday weekend
+                    # (~63h) or a day-after-holiday gap - it would flag every critical loader as
+                    # "stale" on every single Monday/post-holiday premarket run, and since this
+                    # check requires ALL loaders to be non-stale to avoid the "SYSTEMIC ALERT ...
+                    # CRITICAL HALT" escalation below, that's the normal (not edge-case) state in
+                    # production where all loaders share one schedule - a real false alarm that
+                    # would page/alert every Monday. Same weekend-gap bug class already fixed for
+                    # Phase 1 freshness, Phase 7's BUY-signal lookback, and Phase 8's stale-signal
+                    # circuit breaker - anchor to the actual previous trading day instead of a
+                    # flat calendar-hours window.
+                    #
+                    # get_previous_trading_day() returns from_date itself when from_date is
+                    # already a trading day (it walks backward only while from_date is NOT a
+                    # trading day) - so premarket must ask about "yesterday" to correctly land on
+                    # the last completed trading day (e.g. Friday from a Monday premarket run),
+                    # while postmarket correctly wants *today* (the orchestrator only runs on
+                    # trading days, confirmed by the preflight market-calendar check).
+                    from algo.infrastructure import MarketCalendar
+
+                    reference_day = now_et.date() if now_et.hour >= 16 else now_et.date() - timedelta(days=1)
+                    prev_trading_day = MarketCalendar.get_previous_trading_day(reference_day)
+                    if prev_trading_day is not None:
+                        # Floor at the START of the reference trading day (midnight ET), not its
+                        # EOD completion deadline - is_stale is "last_updated < stale_threshold",
+                        # so the threshold must be a lower bound a real completed run's timestamp
+                        # will land AFTER, not a deadline a real timestamp could still land before.
+                        reference_day_start_et = datetime.combine(prev_trading_day, dt_time(0, 0)).replace(
+                            tzinfo=EASTERN_TZ
+                        )
+                        stale_threshold = reference_day_start_et.astimezone(timezone.utc)
+                    else:
+                        stale_threshold = now_utc - timedelta(hours=36)
 
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
@@ -864,7 +896,21 @@ class Orchestrator:
                             "Loader status unknown, must fail-fast instead of assuming fresh."
                         )
 
-                    is_stale = last_updated_utc < stale_threshold
+                    # FIX (2026-07-27): price_weekly/price_monthly (and their ETF counterparts)
+                    # are, by their own name/cadence, only expected to update roughly once a
+                    # week or once a month - the daily-trading-day-anchored stale_threshold
+                    # above would flag them "STALE" in literally every health check, forever,
+                    # on their best day right after a successful run. A warning that always
+                    # fires trains operators to ignore it (alert fatigue), which defeats the
+                    # point of the check. Give these two known non-daily-cadence tables their
+                    # own wider floor instead of the daily one.
+                    if table_name in ("price_weekly", "etf_price_weekly"):
+                        table_stale_threshold = now_utc - timedelta(days=10)
+                    elif table_name in ("price_monthly", "etf_price_monthly"):
+                        table_stale_threshold = now_utc - timedelta(days=40)
+                    else:
+                        table_stale_threshold = stale_threshold
+                    is_stale = last_updated_utc < table_stale_threshold
 
                     # CRITICAL: completion_pct is None only if database query failed or loader hasn't reported yet
                     # Treat None as incomplete (fail-safe) - don't silently use 0 (which looks like successful 0% load)
