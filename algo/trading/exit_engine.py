@@ -621,18 +621,49 @@ class ExitEngine:
                                 # Using entry_price masks the actual exit value and produces false P&L
                                 # (e.g., position that sold at $5 will show as break-even if bought at $100)
                                 # Mark position as requiring manual exit price determination
+                                #
+                                # CRITICAL FIX: this close-out UPDATE previously hardcoded
+                                # `status = 'open'`, but the SELECT above that surfaces exit
+                                # candidates was widened to TradeStatus.all_open() (covers live
+                                # 'filled'/'partially_filled' trades too - see the fix at the top of
+                                # this method). A live trade selected with status='filled' would
+                                # never match this UPDATE's WHERE clause, so it would silently stay
+                                # 'filled' forever - counted in exits_executed but never actually
+                                # closed. Use the same status set on both tables so a trade this
+                                # method selects is always one it can also close.
+                                # SEPARATE BUG, fixed alongside the status widening above:
+                                # PostgreSQL does not support ORDER BY/LIMIT directly on an UPDATE
+                                # statement (that's a MySQL/SQLite extension) - this raised a bare
+                                # `psycopg2.errors.SyntaxError: syntax error at or near "ORDER"`
+                                # every time this branch was reached (confirmed live against this
+                                # DB), meaning a delisted/unavailable symbol crashed the exit loop
+                                # instead of being gracefully marked for manual review. Rewritten to
+                                # target the most-recent matching trade_id via a subquery.
+                                open_trade_statuses_close = TradeStatus.all_open()
+                                trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
                                 cur.execute(
-                                    """UPDATE algo_trades SET status = 'closed', exit_date = %s,
+                                    f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                       WHERE symbol = %s AND status = 'open'
-                                       ORDER BY trade_date DESC LIMIT 1""",
-                                    (current_date, None, "delisted_or_unavailable|price_data_missing", symbol),
+                                       WHERE trade_id = (
+                                           SELECT trade_id FROM algo_trades
+                                           WHERE symbol = %s AND status IN ({trade_status_placeholders})
+                                           ORDER BY trade_date DESC LIMIT 1
+                                       )""",
+                                    (
+                                        current_date,
+                                        None,
+                                        "delisted_or_unavailable|price_data_missing",
+                                        symbol,
+                                        *open_trade_statuses_close,
+                                    ),
                                 )
+                                open_position_statuses_close = PositionStatus.all_active()
+                                position_status_placeholders = ", ".join(["%s"] * len(open_position_statuses_close))
                                 cur.execute(
-                                    """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                                    f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        updated_at = CURRENT_TIMESTAMP
-                                       WHERE symbol = %s AND status = 'open'""",
-                                    (symbol,),
+                                       WHERE symbol = %s AND status IN ({position_status_placeholders})""",
+                                    (symbol, *open_position_statuses_close),
                                 )
                                 exits_executed += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
@@ -649,18 +680,30 @@ class ExitEngine:
                             # This fallback masks actual exit prices and produces completely wrong P&L
                             # Set exit_price to NULL and mark as requiring manual price determination
                             exit_price = None
+                            # Same two bugs as the delisted/unavailable branch above: hardcoded
+                            # status = 'open' never matches a live filled/partially_filled trade
+                            # (silently leaves it open forever), and PostgreSQL doesn't support
+                            # ORDER BY/LIMIT on a bare UPDATE (guaranteed SyntaxError, confirmed
+                            # live) - fixed the same way, via TradeStatus.all_open() and a subquery.
+                            open_trade_statuses_close2 = TradeStatus.all_open()
+                            trade_status_placeholders2 = ", ".join(["%s"] * len(open_trade_statuses_close2))
                             cur.execute(
-                                """UPDATE algo_trades SET status = 'closed', exit_date = %s,
+                                f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                    exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                   WHERE symbol = %s AND status = 'open'
-                                   ORDER BY trade_date DESC LIMIT 1""",
-                                (current_date, exit_price, "no_price_data", symbol),
+                                   WHERE trade_id = (
+                                       SELECT trade_id FROM algo_trades
+                                       WHERE symbol = %s AND status IN ({trade_status_placeholders2})
+                                       ORDER BY trade_date DESC LIMIT 1
+                                   )""",
+                                (current_date, exit_price, "no_price_data", symbol, *open_trade_statuses_close2),
                             )
+                            open_position_statuses_close2 = PositionStatus.all_active()
+                            position_status_placeholders2 = ", ".join(["%s"] * len(open_position_statuses_close2))
                             cur.execute(
-                                """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                                f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                    updated_at = CURRENT_TIMESTAMP
-                                   WHERE symbol = %s AND status = 'open'""",
-                                (symbol,),
+                                   WHERE symbol = %s AND status IN ({position_status_placeholders2})""",
+                                (symbol, *open_position_statuses_close2),
                             )
                             exits_executed += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
