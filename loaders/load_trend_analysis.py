@@ -92,6 +92,58 @@ def _update_loader_status(status: str, error_message: str | None = None, symbol_
                 "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_completed=NOW(), error_message=%s WHERE table_name=%s",
                 (db_status, error_message, _TABLE),
             )
+            # Archive to history for failure-pattern analysis (dashboard's DATA FRESHNESS panel
+            # - see dashboard/freshness_enhancements.py's enrich_health_item_with_failure_pattern).
+            # This standalone loader writes data_loader_status directly instead of going through
+            # utils/loaders/status_manager.py's StatusManager, the same gap utils/optimal_loader.py's
+            # _update_final_status and loaders/load_prices.py's PriceLoader had (both fixed
+            # 2026-07-27) - trend_template_data (read directly by Phase 1's freshness check) had 0
+            # history rows for the same reason. SAVEPOINT-protected: runs after the real UPDATE
+            # above in the same transaction, so an uncaught error here must not abort that write.
+            try:
+                cur.execute("SAVEPOINT archive_trend_history")
+                cur.execute(
+                    "SELECT execution_started, execution_completed, row_count, completion_pct, "
+                    "symbols_loaded, symbol_count FROM data_loader_status WHERE table_name = %s",
+                    (_TABLE,),
+                )
+                row = cur.fetchone()
+                if row:
+                    exec_started, exec_completed, row_count, completion_pct, symbols_loaded, sym_count = row
+                    cur.execute(
+                        "INSERT INTO data_loader_status_history "
+                        "(table_name, status, execution_started, execution_completed, error_message, "
+                        "row_count, completion_pct, symbols_loaded, symbol_count) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            _TABLE,
+                            db_status,
+                            exec_started,
+                            exec_completed,
+                            error_message,
+                            row_count,
+                            completion_pct,
+                            symbols_loaded,
+                            sym_count,
+                        ),
+                    )
+                    # Keep only the last 100 runs per table (matches StatusManager's own
+                    # retention policy in utils/loaders/status_manager.py)
+                    cur.execute(
+                        "DELETE FROM data_loader_status_history "
+                        "WHERE table_name = %s AND id NOT IN ("
+                        "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                        "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                        ")",
+                        (_TABLE, _TABLE),
+                    )
+                cur.execute("RELEASE SAVEPOINT archive_trend_history")
+            except Exception as archive_err:
+                logger.debug(f"[TREND_ANALYSIS] Failed to archive loader history: {archive_err}")
+                try:
+                    cur.execute("ROLLBACK TO SAVEPOINT archive_trend_history")
+                except Exception as savepoint_err:
+                    logger.debug(f"[TREND_ANALYSIS] Failed to rollback to savepoint: {savepoint_err}")
 
 
 def _fetch_latest_dates(cur: psycopg2.extensions.cursor) -> list[date]:
