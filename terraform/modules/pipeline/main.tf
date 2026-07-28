@@ -2234,7 +2234,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogInsiderHoldingsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "PositioningMetrics"
+        # FIX 2026-07-28: same structurally-unreachable-state bug already documented
+        # elsewhere in this file (SecCashFlowMetrics/SecSegmentInfo) - was
+        # "PositioningMetrics", skipping InsiderTransactionVelocity entirely on the
+        # success path even though only this state's OWN failure handler
+        # (LogInsiderHoldingsFailure.Next below) pointed at it. Net effect:
+        # InsiderTransactionVelocity only ran when InsiderHoldingsSec itself FAILED -
+        # practically unreachable on any normal run.
+        Next = "InsiderTransactionVelocity"
       }
 
       LogInsiderHoldingsFailure = {
@@ -2285,7 +2292,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogInsiderTransactionVelocityFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "PositioningMetrics"
+        Next = "CurrentReports8k"
       }
 
       LogInsiderTransactionVelocityFailure = {
@@ -2293,6 +2300,109 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "insider_transaction_velocity"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "CurrentReports8k"
+          ResultPath  = "$.logError"
+        }]
+        Next = "CurrentReports8k"
+      }
+
+      # ── SEC Form 8-K material events (Session 444: XBRL expansion) ──
+      # FIX 2026-07-28: registered in terraform/modules/loaders/main.tf's task-def catalog
+      # and critical_loaders since Session 444, and present in scripts/local_loader_scheduler.py,
+      # but had ZERO Step Functions wiring anywhere in this file - never ran automatically in
+      # production. Same "Class 3: registered but never wired in at all" bug already found and
+      # fixed for company_info_sec/earnings_calendar_sec/short_interest_finra/sec_cash_flow_metrics.
+      CurrentReports8k = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["current_reports_8k"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogCurrentReports8kFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "DividendData"
+      }
+
+      LogCurrentReports8kFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "current_reports_8k"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "DividendData"
+          ResultPath  = "$.logError"
+        }]
+        Next = "DividendData"
+      }
+
+      # ── Dividend ex-dates/amounts, position management (Session 444: XBRL expansion) ──
+      # FIX 2026-07-28: same never-wired-at-all gap as CurrentReports8k above - registered in
+      # the task-def catalog and critical_loaders, never had a Step Functions state.
+      DividendData = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["dividend_data"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogDividendDataFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "PositioningMetrics"
+      }
+
+      LogDividendDataFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "dividend_data"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
