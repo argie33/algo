@@ -89,7 +89,10 @@ LOADERS = {
             "load_market_constituents.py",  # Universe (stock_symbols/etf_symbols) - must run first; see algo/orchestrator/phase1_data_freshness.py
             "load_financial_statements.py",
             "load_sec_valuations.py",
-            "load_sec_cash_flow_metrics.py",  # Working capital/CapEx/FCF computed from Phase 2 SEC statement tables (needs load_financial_statements.py first)
+            # load_sec_cash_flow_metrics.py REMOVED 2026-07-27: its 3 fields exactly duplicate
+            # quality_metrics formulas already computed by load_value_quality_growth_metrics.py
+            # below (see steering/DATA_LOADERS.md GAP note) - zero incremental signal for real
+            # SEC API cost.
             "load_institutional_holdings_13f.py",  # Phase 2: SEC 13F institutional ownership (replaces ~20% yfinance)
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
             "load_current_reports_8k.py",  # NEW: SEC Form 8-K material events (catalysts, M&A, leadership changes)

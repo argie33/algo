@@ -1563,7 +1563,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         # FIX 2026-07-20: was "QualityMetrics", a state renamed to ValueQualityGrowthMetrics by
         # commit 0eb93ea27 (Phase 3 consolidation) without updating this transition - a
         # dangling Next reference AWS Step Functions rejects at deploy time.
-        Next = "SecCashFlowMetrics"
+        # REMOVED 2026-07-27: SecCashFlowMetrics (and its failure handler) removed from this
+        # chain - audit found its 3 fields exactly duplicate quality_metrics formulas already
+        # computed/scored/displayed elsewhere, real SEC API cost for zero incremental signal.
+        # See steering/DATA_LOADERS.md's GAP note. Table left in place, just unscheduled.
+        Next = "SecSegmentInfo"
       }
 
       LogSecValuationsFailure = {
@@ -1571,78 +1575,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "sec_valuations"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "SecCashFlowMetrics"
-          ResultPath  = "$.logError"
-        }]
-        Next = "SecCashFlowMetrics"
-      }
-
-      # ── RESTORED 2026-07-20: Cash Flow Health Metrics (working capital/CapEx/FCF) ──
-      # `sec_cash_flow_metrics` has been registered "critical" in the ECS task-def catalog
-      # (terraform/modules/loaders/main.tf) since Session 274 but was never wired into any
-      # Step Functions pipeline - infrastructure was scaffolded but the actual pipeline
-      # integration was never finished (confirmed via grep: zero references anywhere in this
-      # file before this fix). Reads from annual/quarterly_cash_flow, populated by
-      # FinancialDataLoaders above. Non-critical: fails open like its siblings.
-      SecCashFlowMetrics = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["sec_cash_flow_metrics"]
-          NetworkConfiguration = local.network_config
-          Overrides = {
-            ContainerOverrides = [{
-              Name = "algo-sec_cash_flow_metrics"
-              Environment = [
-                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
-              ]
-            }]
-          }
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 0
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogSecCashFlowMetricsFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        # FIX 2026-07-27: was "ValueQualityGrowthMetrics", skipping SecSegmentInfo/SecSegmentMetrics
-        # entirely on the (common) success path - only this state's OWN failure handler
-        # (LogSecCashFlowMetricsFailure, below) pointed at SecSegmentInfo. Since SecCashFlowMetrics
-        # normally succeeds, SecSegmentInfo/SecSegmentMetrics were structurally reachable only when
-        # cash-flow metrics FAILED - the same "orphaned/unreachable state" bug class as the
-        # InstitutionalHoldings13F fix elsewhere in this file, just inverted (reachable via failure,
-        # not unreachable entirely). This is the real explanation for sec_segment_metrics having only
-        # 5 backfilled rows locally despite being "wired into the pipeline" - it was never actually
-        # exercised via this success path in production.
-        Next = "SecSegmentInfo"
-      }
-
-      LogSecCashFlowMetricsFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "sec_cash_flow_metrics"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }

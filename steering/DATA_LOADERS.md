@@ -243,7 +243,7 @@ unreachable in production. Fixed both `Next` values to chain forward on success
 validate` clean. Same caveat as the original Class 2/3 fixes in this file: no AWS credentials in
 this environment to verify via a real `terraform apply` - only structurally/locally validated.
 
-## GAP (documented, not fixed) 2026-07-27: sec_cash_flow_metrics duplicates quality_metrics, adds no real signal
+## FIXED 2026-07-27: sec_cash_flow_metrics removed from scheduling (duplicated quality_metrics, added no real signal)
 
 Same audit found a second table in the same situation - `sec_cash_flow_metrics`
 (`working_capital`, `free_cash_flow`, `operating_cash_flow`, `cash_conversion_rate`) also has
@@ -265,13 +265,21 @@ displayed elsewhere -
   input would be a real modeling mistake (not comparable across mega-cap vs. small-cap
   companies without normalization) - the "right" fix here is not to force it in.
 
-Net effect: this loader runs, writes real rows, costs real SEC EDGAR API calls, and produces
-zero incremental information over what already exists. Not touched in this pass - it's wired
-into production Step Functions (`terraform/modules/pipeline/main.tf`), `loader_registry.py`,
-and `scripts/local_loader_scheduler.py`, and this environment has no working AWS credentials to
-verify a `terraform apply` removing it (same constraint noted elsewhere in this doc). Flagging
-as a real "no longer needed" candidate for a deliberate removal pass (stop scheduling it, then
-decide whether to drop the table) rather than doing that removal silently here.
+Net effect: this loader ran, wrote real rows, cost real SEC EDGAR API calls, and produced zero
+incremental information over what already exists.
+
+**Fixed (2026-07-27, deliberate removal pass, confirmed with the user first):** removed from
+scheduling everywhere - `terraform/modules/pipeline/main.tf` (deleted the `SecCashFlowMetrics`/
+`LogSecCashFlowMetricsFailure` states, `SecValuations` now transitions directly to
+`SecSegmentInfo`), `terraform/modules/loaders/main.tf` (task-def catalog, resource sizing,
+`critical_loaders`), `loaders/loader_registry.py`, `scripts/local_loader_scheduler.py`,
+`lambda/trigger-loaders/lambda_function.py`'s trigger allowlist, and
+`scripts/verify_loaders_health.py` (would otherwise false-alarm the now-frozen table as
+perpetually stale). `terraform validate` clean. Deliberately NOT touched: the
+`sec_cash_flow_metrics` table itself, its migration (1131), and its `utils/db/sql_safety.py`
+query-allowlist entry - existing rows are harmless and still queryable, only the ongoing
+scheduling/API cost was the problem. No AWS credentials in this environment to verify via a real
+`terraform apply` (same constraint noted elsewhere in this doc).
 
 ---
 

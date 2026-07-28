@@ -101,12 +101,10 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 1000,
         "critical": False,
     },
-    "load_sec_cash_flow_metrics.py": {
-        "output_table": "sec_cash_flow_metrics",
-        "date_column": "updated_at",
-        "min_rows": 1000,
-        "critical": False,
-    },
+    # load_sec_cash_flow_metrics.py REMOVED 2026-07-27 (no longer scheduled - see
+    # steering/DATA_LOADERS.md GAP note): leaving a "date_column": "updated_at" health entry for
+    # a loader that no longer runs would just false-alarm this table as perpetually stale, the
+    # exact drift-bug class this file exists to catch (see loader_registry.py's docstring).
     "load_institutional_holdings_13f.py": {
         "output_table": "institutional_holdings_13f",
         "date_column": "updated_at",

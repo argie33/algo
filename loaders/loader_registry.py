@@ -66,7 +66,8 @@ LOADER_TABLES: dict[str, list[str]] = {
         "quarterly_cash_flow",
     ],
     "load_sec_valuations.py": ["sec_valuations"],
-    "load_sec_cash_flow_metrics.py": ["sec_cash_flow_metrics"],
+    # load_sec_cash_flow_metrics.py REMOVED 2026-07-27: duplicated quality_metrics formulas
+    # exactly, zero incremental signal for real SEC API cost - see steering/DATA_LOADERS.md.
     "load_institutional_holdings_13f.py": ["institutional_holdings_13f"],
     "load_insider_holdings_sec.py": ["insider_holdings_sec"],
     "load_positioning_metrics.py": ["positioning_metrics"],

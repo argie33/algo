@@ -59,7 +59,10 @@ VALID_LOADER_NAMES = frozenset(
         "earnings_calendar_sec",
         "institutional_holdings_13f",
         "insider_holdings_sec",
-        "sec_cash_flow_metrics",
+        # DEPRECATED (2026-07-27): sec_cash_flow_metrics removed - duplicated quality_metrics
+        # formulas exactly, zero incremental signal for real SEC API cost. Terraform no longer
+        # provisions this task definition.
+        # "sec_cash_flow_metrics",
         "sec_segment_metrics",
     }
 )

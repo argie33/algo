@@ -411,8 +411,12 @@ locals {
     "insider_holdings_sec" = "load_insider_holdings_sec.py"
     "insider_transaction_velocity" = "load_insider_transaction_velocity.py"
 
-    # SEC cash flow & segment metrics (Session 445: XBRL segment disclosure extraction)
-    "sec_cash_flow_metrics" = "load_sec_cash_flow_metrics.py"
+    # SEC segment metrics (Session 445: XBRL segment disclosure extraction)
+    # sec_cash_flow_metrics REMOVED 2026-07-27: audit found its 3 fields (free_cash_flow,
+    # operating_cash_flow, cash_conversion_rate, working_capital) exactly duplicate formulas
+    # already computed by load_value_quality_growth_metrics.py into quality_metrics and already
+    # scored/displayed - see steering/DATA_LOADERS.md's GAP note. Table + migration left in
+    # place (existing rows are harmless), just no longer scheduled.
     "sec_segment_info" = "load_sec_segment_info.py"  # XBRL ASC 280 segment disclosure parser (source for segment_metrics)
     "sec_segment_metrics" = "load_sec_segment_metrics.py"
 
@@ -551,13 +555,12 @@ locals {
     "insider_transaction_velocity" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
 
     # ============================================================
-    # NEW: SEC-Derived Cash Flow & Segment Metrics (Session 274+)
+    # NEW: SEC-Derived Segment Metrics (Session 274+)
     # ============================================================
-    # Working capital, capex, free cash flow from SEC financial statements
     # Segment revenue/income concentration for diversification scoring
     # Lightweight: DB joins + arithmetic calculations (actual ~50MB each)
-    "sec_cash_flow_metrics" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
-    "sec_segment_metrics"   = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
+    # (sec_cash_flow_metrics removed 2026-07-27 - see all_loaders map comment above)
+    "sec_segment_metrics" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
 
     # Core Stock Scoring & Risk Metrics (ACTIVE)
     # Stock scores: 6-factor composite (quality/growth/value/momentum/positioning/stability)
@@ -631,7 +634,6 @@ locals {
     "institutional_holdings_13f",
     "insider_holdings_sec",
     "insider_transaction_velocity",
-    "sec_cash_flow_metrics",
     "sec_segment_info",
     "sec_segment_metrics",
 
