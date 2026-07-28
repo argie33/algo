@@ -807,12 +807,15 @@ class Orchestrator:
                         cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
                         # Find critical loaders that are still running (incomplete)
+                        # Threshold: 85% instead of 90% because yfinance failures cause ~10% of symbols
+                        # to be unavailable; loaders naturally plateau around 89-90% and waiting longer
+                        # than 300s for marginal improvements is wasteful and delays trading operations
                         cur.execute(
                             """
                             SELECT table_name, status, completion_pct, symbols_loaded, symbol_count
                             FROM data_loader_status
                             WHERE table_name = ANY(%s)
-                            AND (status = 'running' OR completion_pct < 90.0)
+                            AND (status = 'running' OR completion_pct < 85.0)
                             ORDER BY completion_pct ASC
                             """,
                             (list(critical_loaders),),
@@ -820,7 +823,7 @@ class Orchestrator:
 
                         incomplete_loaders = cur.fetchall()
                         if not incomplete_loaders:
-                            logger.info("[PROACTIVE WAIT] All critical loaders are at 90%+ completion")
+                            logger.info("[PROACTIVE WAIT] All critical loaders are at 85%+ completion")
                             return True
 
                         # Still running - log progress and wait
