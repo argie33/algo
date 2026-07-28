@@ -1207,8 +1207,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              fcf_to_net_income_unavailable_reason, ocf_to_net_income_unavailable_reason, payout_ratio_unavailable_reason,
              free_cash_flow_unavailable_reason, operating_cash_flow_unavailable_reason, total_debt_unavailable_reason,
              total_cash_unavailable_reason, cash_per_share_unavailable_reason, earnings_growth_yoy_unavailable_reason,
-             revenue_growth_yoy_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             revenue_growth_yoy_unavailable_reason, net_income_growth_yoy_unavailable_reason, operating_income_growth_yoy_unavailable_reason,
+             gross_margin_trend_unavailable_reason, operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason,
+             roe_trend_unavailable_reason, sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason,
+             fcf_growth_yoy_unavailable_reason, ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -1359,6 +1362,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("cash_per_share_unavailable_reason"),
                 row.get("earnings_growth_yoy_unavailable_reason"),
                 row.get("revenue_growth_yoy_unavailable_reason"),
+                None,  # net_income_growth_yoy_unavailable_reason
+                None,  # operating_income_growth_yoy_unavailable_reason
+                None,  # gross_margin_trend_unavailable_reason
+                None,  # operating_margin_trend_unavailable_reason
+                None,  # net_margin_trend_unavailable_reason
+                None,  # roe_trend_unavailable_reason
+                None,  # sustainable_growth_rate_unavailable_reason
+                None,  # quarterly_growth_momentum_unavailable_reason
+                None,  # fcf_growth_yoy_unavailable_reason
+                None,  # ocf_growth_yoy_unavailable_reason
+                None,  # asset_growth_yoy_unavailable_reason
             ),
         )
 
