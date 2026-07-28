@@ -3345,17 +3345,35 @@ def _build_algo_metrics_table(metrics: list[Any]) -> Table | None:
         act = m.get("total_actions")
         sig = m.get("avg_signal_score")
 
-        ent_s = f"{ent}" if ent is not None else "-"
-        ext_s = f"{ext}" if ext is not None else "-"
-        act_s = f"{act}" if act is not None else "-"
-        sig_s = f"{sig:.1f}" if sig is not None and isinstance(sig, (int, float)) else "-"
+        # Safe conversion with type checking
+        try:
+            ent_val = int(ent) if ent is not None and isinstance(ent, (int, float, str)) else None
+        except (ValueError, TypeError):
+            ent_val = None
+        try:
+            ext_val = int(ext) if ext is not None and isinstance(ext, (int, float, str)) else None
+        except (ValueError, TypeError):
+            ext_val = None
+        try:
+            act_val = int(act) if act is not None and isinstance(act, (int, float, str)) else None
+        except (ValueError, TypeError):
+            act_val = None
+        try:
+            sig_val = float(sig) if sig is not None and isinstance(sig, (int, float, str)) else None
+        except (ValueError, TypeError):
+            sig_val = None
+
+        ent_s = f"{ent_val}" if ent_val is not None else "-"
+        ext_s = f"{ext_val}" if ext_val is not None else "-"
+        act_s = f"{act_val}" if act_val is not None else "-"
+        sig_s = f"{sig_val:.1f}" if sig_val is not None else "-"
 
         tbl.add_row(
             Text(str(dt)[:10], style="dim"),
-            Text(ent_s, style=G if ent and ent > 0 else DIM),
-            Text(ext_s, style=Y if ext and ext > 0 else DIM),
-            Text(act_s, style=CY if act and act > 0 else DIM),
-            Text(sig_s, style=G if sig and sig > 0.5 else (Y if sig and sig > 0.3 else DIM)),
+            Text(ent_s, style=G if ent_val and ent_val > 0 else DIM),
+            Text(ext_s, style=Y if ext_val and ext_val > 0 else DIM),
+            Text(act_s, style=CY if act_val and act_val > 0 else DIM),
+            Text(sig_s, style=G if sig_val and sig_val > 0.5 else (Y if sig_val and sig_val > 0.3 else DIM)),
         )
 
     return tbl
