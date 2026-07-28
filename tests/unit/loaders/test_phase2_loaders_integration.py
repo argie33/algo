@@ -142,6 +142,49 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
                             self.assertIsNotNone(result[0][key])
 
 
+    def test_institutional_loader_writes_fresh_marker_for_unresolved_active_symbols(self):
+        """FIXED 2026-07-28: _calculate_and_cache_ownership() used to only return records
+        for tickers that resolved via the OpenFIGI crosswalk AND had a usable
+        shares_outstanding - every other active symbol was simply absent from the
+        returned list, so load_global()'s bulk_insert() never touched its existing row.
+        Live-confirmed this left 3,940 rows frozen on a reason string
+        ("cusip_ticker_crosswalk_not_implemented") that predates the OpenFIGI fix and no
+        longer exists in this file, because nothing ever revisited them. Every active
+        symbol must now get an explicit, current record every run.
+        """
+        loader = InstitutionalHoldings13FLoader()
+
+        with patch(
+            "loaders.load_institutional_holdings_13f.get_active_symbols",
+            return_value=["AAPL", "ZZZZ", "NOSHARES"],
+        ), patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx:
+            mock_cursor = MagicMock()
+
+            def fetchone_side_effect():
+                return {"AAPL": (1_000_000,), "NOSHARES": (None,)}.get(
+                    mock_cursor.execute.call_args[0][1][0], None
+                )
+
+            mock_cursor.fetchone.side_effect = fetchone_side_effect
+            mock_db_ctx.return_value.__enter__.return_value = mock_cursor
+
+            # Only AAPL resolved via the crosswalk this run; ZZZZ never resolved at all,
+            # NOSHARES resolved but has no usable shares_outstanding.
+            records = loader._calculate_and_cache_ownership({"AAPL": 500_000, "NOSHARES": 100}, date(2026, 6, 30))
+
+        by_symbol = {r["symbol"]: r for r in records}
+        self.assertEqual(set(by_symbol), {"AAPL", "ZZZZ", "NOSHARES"})
+
+        self.assertFalse(by_symbol["AAPL"]["data_unavailable"])
+        self.assertEqual(by_symbol["AAPL"]["institutional_ownership_pct"], 50.0)
+
+        self.assertTrue(by_symbol["NOSHARES"]["data_unavailable"])
+        self.assertEqual(by_symbol["NOSHARES"]["reason"], "shares_outstanding_unavailable")
+
+        self.assertTrue(by_symbol["ZZZZ"]["data_unavailable"])
+        self.assertEqual(by_symbol["ZZZZ"]["reason"], "no_resolved_13f_holdings")
+
+
 class TestPhase2DataQuality(unittest.TestCase):
     """Test data quality and governance compliance."""
 

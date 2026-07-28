@@ -469,10 +469,26 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         """Calculate institutional ownership % for each ticker.
 
         Uses shares_outstanding from company_info_sec table.
+
+        FIXED 2026-07-28 (live-confirmed staleness): this used to only return records
+        for tickers that both resolved via the OpenFIGI crosswalk AND had a usable
+        shares_outstanding - every other active symbol was simply absent from the
+        returned list, so load_global()'s bulk_insert() never touched its existing DB
+        row. Since the crosswalk resolves a growing subset each run, "absent this run"
+        silently meant "keep whatever row is already there" - live-confirmed 3,940 of
+        5,403 rows were still frozen on the literal string
+        "cusip_ticker_crosswalk_not_implemented", a reason that predates the OpenFIGI
+        fix and no longer exists anywhere in this file, because nothing ever revisited
+        them after real crosswalk resolution began. Now every active symbol gets an
+        explicit, current record every run - either real ownership or an honest,
+        up-to-date data_unavailable marker - matching the same "always upsert the
+        unavailable marker" governance already applied elsewhere in this codebase
+        (see steering/DATA_LOADERS.md).
         """
         logger.info("[13F] Calculating institutional ownership percentages...")
         records = []
         now_et = datetime.now(EASTERN_TZ)
+        resolved_tickers: set[str] = set()
 
         with DatabaseContext("read") as cur:
             for ticker, inst_shares in holdings_by_ticker.items():
@@ -503,14 +519,43 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                                 "updated_at": now_et,
                             }
                         )
+                        resolved_tickers.add(ticker)
                         logger.debug(f"[13F] {ticker}: {inst_shares:,.0f} / {shares_os:,.0f} = {pct:.1f}%")
                     else:
-                        logger.debug(f"[13F] {ticker}: skipped (shares_outstanding unavailable)")
+                        records.append(
+                            self._unavailable_record(ticker, now_et, "shares_outstanding_unavailable")
+                        )
+                        resolved_tickers.add(ticker)
+                        logger.debug(f"[13F] {ticker}: shares_outstanding unavailable")
                 except Exception as e:
                     logger.debug(f"[13F] {ticker}: error - {e}")
 
-        logger.info(f"[13F] Calculated ownership % for {len(records)} tickers")
+            active_symbols = set(get_active_symbols(exclude_etfs=True))
+            for symbol in active_symbols - resolved_tickers:
+                records.append(
+                    self._unavailable_record(symbol, now_et, "no_resolved_13f_holdings")
+                )
+
+        logger.info(
+            f"[13F] Calculated ownership % for {len(resolved_tickers)} tickers; "
+            f"wrote fresh data_unavailable markers for {len(records) - len(resolved_tickers)} others"
+        )
         return records
+
+    @staticmethod
+    def _unavailable_record(symbol: str, now_et: datetime, reason: str) -> dict[str, Any]:
+        return {
+            "symbol": symbol,
+            "filing_date": now_et.date(),
+            "institutional_ownership_pct": None,
+            "number_of_institutional_holders": None,
+            "data_unavailable": True,
+            "reason": reason,
+            "sec_filing_url": None,
+            "most_recent_filing_date": None,
+            "data_source": "none",
+            "updated_at": now_et,
+        }
 
 
 def main() -> int:
