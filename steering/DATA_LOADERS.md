@@ -4,6 +4,30 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: current_reports_8k + dividend_data never wired into Step Functions; InsiderTransactionVelocity unreachable on success
+
+4th+ occurrence of the recurring Class 1/2/3 wiring-drift bug class documented throughout
+this file. `current_reports_8k` and `dividend_data` (both Session 444 "XBRL expansion"
+loaders) were registered in `terraform/modules/loaders/main.tf`'s task-def catalog and
+`critical_loaders`, and in `scripts/local_loader_scheduler.py`, but had **zero** Step
+Functions states in `terraform/modules/pipeline/main.tf` - never ran automatically in
+production. Separately, `InsiderHoldingsSec`'s success-path `Next` skipped straight to
+`PositioningMetrics`, bypassing `InsiderTransactionVelocity` entirely - only its own
+failure handler pointed at it, so it only ran when `InsiderHoldingsSec` itself failed.
+
+**Fixed:** added `CurrentReports8k`/`DividendData` states
+(`InsiderTransactionVelocity -> CurrentReports8k -> DividendData -> PositioningMetrics`;
+neither table is a dependency for any other loader in this chain, confirmed via grep, so
+insertion order is flexible) and corrected `InsiderHoldingsSec.Next` to
+`InsiderTransactionVelocity`. Verified via a scripted reachability scan (no dangling
+`Next` targets, no orphaned states) and `terraform validate` (clean, same no-AWS-creds
+caveat as every other terraform fix in this file). Added
+`tests/unit/test_pipeline_state_machine_reachability.py` as a permanent regression test
+for this bug class going forward - confirmed it fails against the pre-fix file via git
+stash.
+
+---
+
 ## Loading Architecture (updated 2026-07-19, Session 275)
 
 Design principles (the "panel data" model — bulk everything, fetch once, write incrementally):
