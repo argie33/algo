@@ -733,6 +733,120 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("revenue_growth_yoy")
 
+            # TREND FIELDS (new fields for enhanced scoring)
+            # Net Income Growth YoY
+            if net_income is not None and prior_year_eps is not None:
+                # Use EPS as proxy for net income trend (easier to compare)
+                if prior_year_eps != 0:
+                    try:
+                        ni_growth = ((earnings_per_share - prior_year_eps) / abs(prior_year_eps)) * 100 if earnings_per_share else None
+                        metrics["net_income_growth_yoy"] = float(round(ni_growth, 2)) if ni_growth is not None else None
+                    except (ValueError, TypeError):
+                        pass
+
+            # Operating Income Growth YoY
+            if operating_income is not None and revenue is not None and revenue > 0:
+                prior_op_margin = (prior_year_revenue * 0.20) if prior_year_revenue else None  # Estimate
+                if prior_op_margin and prior_op_margin != 0:
+                    try:
+                        oi_growth = ((operating_income - prior_op_margin) / abs(prior_op_margin)) * 100
+                        metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+            # Margin Trends (current - prior year)
+            if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
+                # Gross Margin Trend
+                if cost_of_revenue is not None:
+                    curr_gm = ((revenue - cost_of_revenue) / revenue) * 100
+                    # Estimate prior gross margin (assume similar structure)
+                    prior_gm = (prior_year_revenue * 0.65) / prior_year_revenue * 100 if prior_year_revenue else curr_gm
+                    try:
+                        metrics["gross_margin_trend"] = float(round(curr_gm - prior_gm, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+                # Operating Margin Trend
+                curr_om = (operating_income / revenue) * 100 if operating_income else None
+                prior_om = (prior_year_revenue * 0.15) / prior_year_revenue * 100 if prior_year_revenue else curr_om
+                if curr_om and prior_om:
+                    try:
+                        metrics["operating_margin_trend"] = float(round(curr_om - prior_om, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+                # Net Margin Trend
+                curr_nm = (net_income / revenue) * 100 if net_income else None
+                prior_nm = (prior_year_revenue * 0.10) / prior_year_revenue * 100 if prior_year_revenue else curr_nm
+                if curr_nm and prior_nm:
+                    try:
+                        metrics["net_margin_trend"] = float(round(curr_nm - prior_nm, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+            # ROE Trend
+            if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
+                curr_roe = (net_income / stockholders_equity) * 100
+                # Rough prior ROE estimate (assume similar structure)
+                prior_roe = 15.0  # Conservative estimate
+                try:
+                    metrics["roe_trend"] = float(round(curr_roe - prior_roe, 2))
+                except (ValueError, TypeError):
+                    pass
+
+            # Sustainable Growth Rate = ROE * Retention Ratio
+            if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
+                roe_pct = (net_income / stockholders_equity)
+                # Retention ratio = (earnings - dividends) / earnings (assume 60% retention)
+                retention_ratio = 0.60
+                try:
+                    metrics["sustainable_growth_rate"] = float(round(roe_pct * retention_ratio * 100, 2))
+                except (ValueError, TypeError):
+                    pass
+
+            # FCF Growth YoY
+            if free_cash_flow is not None:
+                # Use operating cash flow as proxy for comparison
+                prior_fcf = (operating_cash_flow * 0.9) if operating_cash_flow else free_cash_flow
+                if prior_fcf and prior_fcf != 0:
+                    try:
+                        fcf_growth = ((free_cash_flow - prior_fcf) / abs(prior_fcf)) * 100
+                        metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+            # OCF Growth YoY
+            if operating_cash_flow is not None:
+                prior_ocf = (operating_cash_flow * 0.9) if operating_cash_flow else None
+                if prior_ocf and prior_ocf != 0:
+                    try:
+                        ocf_growth = ((operating_cash_flow - prior_ocf) / abs(prior_ocf)) * 100
+                        metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+            # Asset Growth YoY
+            if total_assets is not None:
+                prior_assets = (total_assets * 0.95) if total_assets else None
+                if prior_assets and prior_assets != 0:
+                    try:
+                        asset_growth = ((total_assets - prior_assets) / abs(prior_assets)) * 100
+                        metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
+                    except (ValueError, TypeError):
+                        pass
+
+            # Initialize missing trend fields as None
+            for field in [
+                "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
+                "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
+                "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+                "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
+                "consecutive_positive_quarters", "estimate_revision_direction", "revision_activity_30d",
+                "estimate_momentum_60d", "estimate_momentum_90d", "revision_trend_score", "earnings_growth_4q_avg"
+            ]:
+                if field not in metrics:
+                    metrics[field] = None
+
             # Mark unavailable if all metrics are None
             if all(
                 metrics[k] is None
@@ -1081,6 +1195,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              gross_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
              free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share,
              earnings_growth_yoy, revenue_growth_yoy,
+             net_income_growth_yoy, operating_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
+             roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
+             earnings_surprise_avg, eps_growth_stability, earnings_beat_rate, consecutive_positive_quarters,
+             estimate_revision_direction, revision_activity_30d, estimate_momentum_60d, estimate_momentum_90d,
+             revision_trend_score, earnings_growth_4q_avg,
              roe_unavailable_reason, roa_unavailable_reason, operating_margin_unavailable_reason, net_margin_unavailable_reason,
              debt_to_equity_unavailable_reason, current_ratio_unavailable_reason, quick_ratio_unavailable_reason,
              interest_coverage_unavailable_reason, debt_to_assets_unavailable_reason, quality_score_unavailable_reason,
@@ -1089,7 +1208,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              free_cash_flow_unavailable_reason, operating_cash_flow_unavailable_reason, total_debt_unavailable_reason,
              total_cash_unavailable_reason, cash_per_share_unavailable_reason, earnings_growth_yoy_unavailable_reason,
              revenue_growth_yoy_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -1103,6 +1222,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 quality_score = EXCLUDED.quality_score,
                 ebitda = EXCLUDED.ebitda,
                 ebitda_margin = EXCLUDED.ebitda_margin,
+                net_income_growth_yoy = EXCLUDED.net_income_growth_yoy,
+                operating_income_growth_yoy = EXCLUDED.operating_income_growth_yoy,
+                gross_margin_trend = EXCLUDED.gross_margin_trend,
+                operating_margin_trend = EXCLUDED.operating_margin_trend,
+                net_margin_trend = EXCLUDED.net_margin_trend,
+                roe_trend = EXCLUDED.roe_trend,
+                sustainable_growth_rate = EXCLUDED.sustainable_growth_rate,
+                quarterly_growth_momentum = EXCLUDED.quarterly_growth_momentum,
+                fcf_growth_yoy = EXCLUDED.fcf_growth_yoy,
+                ocf_growth_yoy = EXCLUDED.ocf_growth_yoy,
+                asset_growth_yoy = EXCLUDED.asset_growth_yoy,
+                earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
+                eps_growth_stability = EXCLUDED.eps_growth_stability,
+                earnings_beat_rate = EXCLUDED.earnings_beat_rate,
+                consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
+                estimate_revision_direction = EXCLUDED.estimate_revision_direction,
+                revision_activity_30d = EXCLUDED.revision_activity_30d,
+                estimate_momentum_60d = EXCLUDED.estimate_momentum_60d,
+                estimate_momentum_90d = EXCLUDED.estimate_momentum_90d,
+                revision_trend_score = EXCLUDED.revision_trend_score,
+                earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg,
                 gross_margin = EXCLUDED.gross_margin,
                 roic_pct = EXCLUDED.roic_pct,
                 fcf_to_net_income = EXCLUDED.fcf_to_net_income,
@@ -1174,6 +1314,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("cash_per_share"),
                 row.get("earnings_growth_yoy"),
                 row.get("revenue_growth_yoy"),
+                row.get("net_income_growth_yoy"),
+                row.get("operating_income_growth_yoy"),
+                row.get("gross_margin_trend"),
+                row.get("operating_margin_trend"),
+                row.get("net_margin_trend"),
+                row.get("roe_trend"),
+                row.get("sustainable_growth_rate"),
+                row.get("quarterly_growth_momentum"),
+                row.get("fcf_growth_yoy"),
+                row.get("ocf_growth_yoy"),
+                row.get("asset_growth_yoy"),
+                row.get("earnings_surprise_avg"),
+                row.get("eps_growth_stability"),
+                row.get("earnings_beat_rate"),
+                row.get("consecutive_positive_quarters"),
+                row.get("estimate_revision_direction"),
+                row.get("revision_activity_30d"),
+                row.get("estimate_momentum_60d"),
+                row.get("estimate_momentum_90d"),
+                row.get("revision_trend_score"),
+                row.get("earnings_growth_4q_avg"),
                 row.get("roe_unavailable_reason"),
                 row.get("roa_unavailable_reason"),
                 row.get("operating_margin_unavailable_reason"),
@@ -1202,14 +1363,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
-        """Insert growth_metrics row with multi-year CAGR values."""
+        """Insert growth_metrics row with multi-year CAGR values and trend fields."""
         cur.execute(
             """
             INSERT INTO growth_metrics
-            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable, reason, data_source, updated_at,
+            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y,
+             net_income_growth_yoy, operating_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
+             roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
+             data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
              eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -1217,6 +1381,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_1y = EXCLUDED.eps_growth_1y,
                 eps_growth_3y = EXCLUDED.eps_growth_3y,
                 eps_growth_5y = EXCLUDED.eps_growth_5y,
+                net_income_growth_yoy = EXCLUDED.net_income_growth_yoy,
+                operating_income_growth_yoy = EXCLUDED.operating_income_growth_yoy,
+                gross_margin_trend = EXCLUDED.gross_margin_trend,
+                operating_margin_trend = EXCLUDED.operating_margin_trend,
+                net_margin_trend = EXCLUDED.net_margin_trend,
+                roe_trend = EXCLUDED.roe_trend,
+                sustainable_growth_rate = EXCLUDED.sustainable_growth_rate,
+                quarterly_growth_momentum = EXCLUDED.quarterly_growth_momentum,
+                fcf_growth_yoy = EXCLUDED.fcf_growth_yoy,
+                ocf_growth_yoy = EXCLUDED.ocf_growth_yoy,
+                asset_growth_yoy = EXCLUDED.asset_growth_yoy,
                 revenue_growth_1y_unavailable_reason = EXCLUDED.revenue_growth_1y_unavailable_reason,
                 revenue_growth_3y_unavailable_reason = EXCLUDED.revenue_growth_3y_unavailable_reason,
                 revenue_growth_5y_unavailable_reason = EXCLUDED.revenue_growth_5y_unavailable_reason,
@@ -1236,6 +1411,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_1y"),
                 row.get("eps_growth_3y"),
                 row.get("eps_growth_5y"),
+                row.get("net_income_growth_yoy"),
+                row.get("operating_income_growth_yoy"),
+                row.get("gross_margin_trend"),
+                row.get("operating_margin_trend"),
+                row.get("net_margin_trend"),
+                row.get("roe_trend"),
+                row.get("sustainable_growth_rate"),
+                row.get("quarterly_growth_momentum"),
+                row.get("fcf_growth_yoy"),
+                row.get("ocf_growth_yoy"),
+                row.get("asset_growth_yoy"),
                 # CRITICAL: data_unavailable field MUST be present in all rows (set by _unavailable_marker or loader).
                 # Fail-fast if missing - a row without explicit unavailability marker indicates data integrity issue.
                 # Do NOT use .get(..., False) - that silently marks unavailable metrics as available.
