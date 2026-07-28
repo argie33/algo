@@ -1788,8 +1788,21 @@ class PriceLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 table_safe = assert_safe_table(self.table_name)
+                # BUG FOUND 2026-07-28: MAX(date) over the whole table (including index tickers
+                # like ^VIX, part of DEFAULT_ESSENTIAL_STOCKS in utils/market_symbols_config.py)
+                # can advance ahead of every real equity symbol - live-reproduced pre-market:
+                # ^VIX got a 2026-07-28 row while all 5471 real symbols still topped out at
+                # 2026-07-27 (yesterday's close, correctly - the trading day hadn't closed yet).
+                # completion_pct then compared "symbols with valid close on 2026-07-28" against
+                # the full expected universe, found ~0 (correctly - no equity has today's close
+                # yet), and marked the run FAILED even though every real symbol loaded correctly.
+                # Exclude '^'-prefixed index tickers (standard Yahoo Finance convention, matches
+                # the same exclusion lambda/api/routes/market.py already applies) so latest_date
+                # reflects the real equity universe this completion check is actually judging.
                 cur.execute(
-                    psycopg2.sql.SQL("SELECT COUNT(*), MAX(date) FROM {}").format(psycopg2.sql.Identifier(table_safe))
+                    psycopg2.sql.SQL("SELECT COUNT(*), MAX(date) FROM {} WHERE symbol NOT LIKE '^%%'").format(
+                        psycopg2.sql.Identifier(table_safe)
+                    )
                 )
                 result = cur.fetchone()
                 if result is None:

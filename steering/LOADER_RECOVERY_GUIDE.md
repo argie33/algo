@@ -301,6 +301,14 @@ Verified live 2026-07-20: this recovered 507/497 requested symbols (coverage 497
 of 5466 active), leaving only the genuine ~104-symbol residual (tickers with `last_price_date`
 = NULL - never had any price history, a normal small gap, not a crash artifact).
 
+**UPDATE 2026-07-28: the "monitor_data_staleness.py is blind to this" half of the gap is now
+fixed.** Added `get_price_symbol_coverage()`, which mirrors Phase 1's own active-symbol-scoped
+`price_daily` query and cross-checks it against the same `phase1_min_coverage_pct`/
+`phase1_min_symbol_count` thresholds, surfacing a `price_daily_symbol_coverage` CRITICAL entry
+in the report whenever a subset of symbols is silently stuck - the manual diagnose/fix steps
+above remain the correct recovery path, but operators no longer need to stumble onto the
+problem by noticing a Phase 1 halt first.
+
 ---
 
 ## Monitoring Setup (Prevent Future Issues)

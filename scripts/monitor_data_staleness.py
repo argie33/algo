@@ -262,6 +262,57 @@ def get_loader_failed(table_name: str) -> bool:
         return False
 
 
+def get_price_symbol_coverage() -> tuple[int, int, float] | None:
+    """Return (symbols_loaded, total_active_symbols, coverage_pct) for the most recent
+    trading day's price_daily rows, scoped to symbols currently active in stock_symbols -
+    or None if the query fails.
+
+    check_all_tables()'s age-based check only looks at MAX(updated_at) across the *whole*
+    table - if 90%+ of symbols got today's row, the table reads FRESH even while a
+    meaningful chunk of individual symbols have been silently stuck for days (a run that
+    crashes mid-batch leaves whichever symbols hadn't been processed yet frozen at their
+    last successful date, with no per-symbol alert; see
+    steering/LOADER_RECOVERY_GUIDE.md, gap found 2026-07-20 - 497 active symbols stuck 3+
+    trading days behind after exactly this kind of crash, invisible to this script the
+    whole time). Phase 1 already fails-closed on this for trading itself (see
+    algo/orchestrator/phase1_data_freshness.py) but that only halts the orchestrator - the
+    diagnostic tools operators run *before* trading hours to sanity-check data were blind
+    to it. Mirrors Phase 1's own query (same active-symbol scoping, same non-NULL
+    open/close requirement) so the two report the same number.
+    """
+    try:
+        today = date.today()
+        last_trading_day = today if MarketCalendar.is_trading_day(today) else None
+        if last_trading_day is None:
+            d = today - timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(d):
+                    last_trading_day = d
+                    break
+                d -= timedelta(days=1)
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """SELECT COUNT(DISTINCT pd.symbol)
+                   FROM price_daily pd
+                   JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
+                   WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
+                (last_trading_day,),
+            )
+            row = cur.fetchone()
+            symbols_loaded = row[0] if row and row[0] is not None else 0
+
+            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
+            row = cur.fetchone()
+            total_active = row[0] if row and row[0] is not None else 0
+
+        coverage_pct = (symbols_loaded / max(total_active, 1)) * 100
+        return symbols_loaded, total_active, coverage_pct
+    except Exception as e:
+        logger.error(f"Error checking price_daily symbol coverage: {e}")
+        return None
+
+
 def check_all_tables() -> dict:
     results = {}
     today = date.today()
@@ -367,6 +418,34 @@ def check_all_tables() -> dict:
             "status": status,
             "level": level,
             "age_minutes": age,
+        }
+
+    # Table-wide age can't see a partial-batch crash that leaves a subset of symbols
+    # stuck for days - cross-check per-symbol coverage the same way Phase 1 does.
+    coverage = get_price_symbol_coverage()
+    if coverage is not None:
+        symbols_loaded, total_active, coverage_pct = coverage
+        try:
+            from algo.infrastructure.config.main import get_config
+
+            config = get_config()
+            min_coverage_pct = config["phase1_min_coverage_pct"]
+            min_symbol_count = config["phase1_min_symbol_count"]
+        except Exception as e:
+            logger.warning(f"Could not load phase1 coverage thresholds, using defaults: {e}")
+            min_coverage_pct, min_symbol_count = 75, 5000
+
+        if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
+            status = f"🔴 SYMBOL COVERAGE INSUFFICIENT ({symbols_loaded}/{total_active} = {coverage_pct:.1f}%)"
+            level = "critical"
+        else:
+            status = f"✅ {symbols_loaded}/{total_active} symbols ({coverage_pct:.1f}%)"
+            level = "ok"
+
+        results["price_daily_symbol_coverage"] = {
+            "status": status,
+            "level": level,
+            "age_minutes": None,
         }
 
     return results
