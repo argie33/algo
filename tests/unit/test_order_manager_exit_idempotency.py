@@ -68,7 +68,22 @@ class TestSendMarketExitIdempotency:
         assert "client_order_id" not in payload
 
 
-class TestExecutorGeneratesFreshIdPerCall:
+class TestExecutorPersistsPendingClientOrderId:
+    """Regression coverage for the crash-safe exit idempotency fix (migration 1166):
+    _send_alpaca_exit must persist its client_order_id to algo_trades.
+    pending_exit_client_order_id in its own committed transaction *before* calling
+    Alpaca, and reuse an existing pending value instead of minting a new one - so a
+    crash-recovery retry submits under the same id Alpaca already saw, instead of a
+    genuinely new duplicate order.
+    """
+
+    def _mock_no_existing_pending(self, executor):
+        """Simulate _with_cursor's DatabaseContext round-trip with no prior pending row."""
+        cur = MagicMock()
+        cur.fetchone.return_value = None
+        executor._with_cursor = MagicMock(side_effect=lambda fn, acquire_locks=False: fn(cur))
+        return cur
+
     def test_send_alpaca_exit_passes_a_client_order_id(self):
         from algo.trading.executor import TradeExecutor
 
@@ -78,18 +93,42 @@ class TestExecutorGeneratesFreshIdPerCall:
         executor = object.__new__(TradeExecutor)
         executor.order_manager = mock_order_manager
         executor.execution_mode = "auto"
+        self._mock_no_existing_pending(executor)
 
-        executor._send_alpaca_exit("TEST", 5)
+        executor._send_alpaca_exit("TEST", 5, trade_id=42)
 
         call_kwargs = mock_order_manager.send_market_exit.call_args
         args, kwargs = call_kwargs
         passed_id = kwargs.get("client_order_id") if "client_order_id" in kwargs else (args[3] if len(args) > 3 else None)
         assert passed_id, "executor must pass a non-empty client_order_id to send_market_exit"
 
-    def test_two_separate_calls_get_different_ids(self):
-        """Two distinct exit calls (e.g. two different trades, or the same trade on two
-        different days) must NOT share an id - that would make Alpaca reject the second,
-        legitimate exit as a duplicate of the first."""
+    def test_two_different_trades_get_different_ids(self):
+        """Two distinct exits for two different trades must NOT share an id - that would
+        make Alpaca reject the second, legitimate exit as a duplicate of the first."""
+        from algo.trading.executor import TradeExecutor
+
+        mock_order_manager = MagicMock()
+        mock_order_manager.send_market_exit.return_value = {"success": True, "order_id": "x", "filled_price": 1.0}
+
+        executor = object.__new__(TradeExecutor)
+        executor.order_manager = mock_order_manager
+        executor.execution_mode = "auto"
+        self._mock_no_existing_pending(executor)
+
+        executor._send_alpaca_exit("TEST", 5, trade_id=42)
+        executor._send_alpaca_exit("TEST", 5, trade_id=43)
+
+        id_1 = mock_order_manager.send_market_exit.call_args_list[0].args[3]
+        id_2 = mock_order_manager.send_market_exit.call_args_list[1].args[3]
+        assert id_1 != id_2
+        assert "42" in id_1 and "43" not in id_1
+        assert "43" in id_2 and "42" not in id_2
+
+    def test_crash_recovery_reuses_existing_pending_client_order_id(self):
+        """The actual bug fix: if algo_trades.pending_exit_client_order_id is already set
+        for this trade (a prior attempt crashed between Alpaca confirming the fill and the
+        exit transaction committing), the retry must reuse that exact value - not mint a
+        fresh one - so Alpaca's own idempotency dedupes the resubmission."""
         from algo.trading.executor import TradeExecutor
 
         mock_order_manager = MagicMock()
@@ -99,9 +138,14 @@ class TestExecutorGeneratesFreshIdPerCall:
         executor.order_manager = mock_order_manager
         executor.execution_mode = "auto"
 
-        executor._send_alpaca_exit("TEST", 5)
-        executor._send_alpaca_exit("TEST", 5)
+        cur = MagicMock()
+        cur.fetchone.return_value = ("exit-42-alreadypending",)
+        executor._with_cursor = MagicMock(side_effect=lambda fn, acquire_locks=False: fn(cur))
 
-        id_1 = mock_order_manager.send_market_exit.call_args_list[0].args[3]
-        id_2 = mock_order_manager.send_market_exit.call_args_list[1].args[3]
-        assert id_1 != id_2
+        executor._send_alpaca_exit("TEST", 5, trade_id=42)
+
+        passed_id = mock_order_manager.send_market_exit.call_args.args[3]
+        assert passed_id == "exit-42-alreadypending"
+        # Must not attempt to overwrite an existing pending id with a fresh one.
+        update_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
+        assert not update_calls, "must not mint/persist a new id when one is already pending"

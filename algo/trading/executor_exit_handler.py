@@ -661,7 +661,7 @@ class ExitHandler:
         is_estimated_price = execution_mode == "auto"
 
         if execution_mode == "auto":
-            exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit)
+            exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit, trade_id)
 
             # Validate result structure
             if "success" not in exit_order_result:
@@ -843,7 +843,8 @@ class ExitHandler:
                             profit_loss_dollars = NULL,
                             profit_loss_pct = NULL,
                             exit_r_multiple = NULL,
-                            trade_duration_days = CURRENT_DATE - entry_date
+                            trade_duration_days = CURRENT_DATE - entry_date,
+                            pending_exit_client_order_id = NULL
                         WHERE trade_id = %s""",
                     (
                         final_exit_price,
@@ -866,7 +867,8 @@ class ExitHandler:
                             profit_loss_dollars = %s,
                             profit_loss_pct = %s,
                             status = 'closed',
-                            trade_duration_days = CURRENT_DATE - entry_date
+                            trade_duration_days = CURRENT_DATE - entry_date,
+                            pending_exit_client_order_id = NULL
                         WHERE trade_id = %s""",
                     (
                         final_exit_price,
@@ -916,7 +918,8 @@ class ExitHandler:
                             %s,
                         partial_exit_count = partial_exit_count + 1,
                         last_partial_exit_date = CURRENT_DATE,
-                        status = 'open'
+                        status = 'open',
+                        pending_exit_client_order_id = NULL
                     WHERE trade_id = %s""",
                 (
                     f"{shares_to_exit}sh @ ${final_exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",

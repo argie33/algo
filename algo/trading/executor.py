@@ -656,15 +656,43 @@ class TradeExecutor:
         """
         return self.order_manager.wait_for_order_fill(symbol, alpaca_order_id, max_wait_seconds)
 
-    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:
-        # CRITICAL: fresh id per call, stable across send_market_exit's own internal retry
-        # loop (passed through to Alpaca as client_order_id) - protects against a timeout/
-        # connection error whose response never arrived (order may have actually reached
-        # Alpaca) causing the retry to submit a genuinely separate sell order. Must NOT be
-        # reused across separate calls to this method: unlike entries, one trade can have
-        # multiple legitimate partial exits, so a key stable forever per trade would make
-        # Alpaca reject a later, real partial exit as a duplicate of an earlier one.
-        client_order_id = f"exit-{uuid.uuid4().hex}"
+    def _send_alpaca_exit(self, symbol: str, shares: float, trade_id: int) -> dict[str, Any]:
+        # CRITICAL: id is persisted BEFORE calling Alpaca, in its own immediately-committed
+        # transaction (_with_cursor opens a fresh DatabaseContext) independent of the caller's
+        # still-open exit transaction - so it survives a crash between Alpaca confirming a fill
+        # and that transaction committing. A retry after such a crash finds this same pending
+        # value already set and reuses it instead of minting a new one, so Alpaca's own
+        # client_order_id dedup protection (already relied on for entries - see
+        # execute_trade's idempotency_key usage) covers this resubmission too, rather than
+        # executing a genuinely separate duplicate sell order. Only cleared by
+        # executor_exit_handler.py once the exit is confirmed and recorded - never on
+        # failure/timeout, since an ambiguous outcome must keep the same id available for the
+        # next retry to reuse. Stable across send_market_exit's own internal retry loop for
+        # the same reason it always was. Distinct trade_id per call is what already prevents
+        # a stable-forever key from blocking legitimate later partial exits on the same trade -
+        # each exit attempt for the same trade still gets its own persisted id once the prior
+        # one clears on success.
+        def _get_or_set_pending_id(cur: PsycopgCursor[Any]) -> str:
+            cur.execute(
+                "SELECT pending_exit_client_order_id FROM algo_trades WHERE trade_id = %s",
+                (trade_id,),
+            )
+            row = cur.fetchone()
+            existing = row[0] if row else None
+            if existing:
+                logger.warning(
+                    f"[EXIT] {symbol} trade {trade_id}: reusing pending client_order_id "
+                    f"{existing} from an unresolved prior attempt (crash recovery)."
+                )
+                return str(existing)
+            new_id = f"exit-{trade_id}-{uuid.uuid4().hex[:16]}"
+            cur.execute(
+                "UPDATE algo_trades SET pending_exit_client_order_id = %s WHERE trade_id = %s",
+                (new_id, trade_id),
+            )
+            return new_id
+
+        client_order_id = self._with_cursor(_get_or_set_pending_id)
         return self.order_manager.send_market_exit(symbol, shares, self.execution_mode, client_order_id)
 
     # ---------- Entry ----------
