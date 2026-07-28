@@ -547,9 +547,22 @@ is the same real shape this table was designed for. New `loaders/load_analyst_se
 `fetch_analyst_actions()`, sharing a `_fetch_with_circuit_breaker()` helper). Wired into the same
 `eod_pipeline` chain right after `AnalystUpgradeDowngrade` (`AaiiSentiment` ->
 `AnalystUpgradeDowngrade` -> `AnalystSentimentAnalysis` -> `MarketStatusDaily`), same fail-open
-pattern, `terraform validate` clean. Live-verified: real counts/target prices landed for
-AAPL/MSFT/TSLA/GOOGL, and the sentiment API's own `days_stale > 7` fail-fast check now passes (0
-days stale) instead of the ~60+ it had been serving as a hard failure for ~2 months.
+pattern, `terraform validate` clean. Live-verified (re-confirmed 2026-07-27, this pass): real
+counts/target prices landed for AAPL (47 analysts, target $318.81 vs $336.91 current) and MSFT
+(58 analysts, target $556.75 vs $389.10 current), and the sentiment API's own `days_stale > 7`
+fail-fast check now passes (0 days stale) instead of the ~60+ it had been serving as a hard
+failure for ~2 months. `schema.sql`'s `analyst_sentiment_analysis` CREATE TABLE had the same
+drift-from-live-schema bug as `analyst_upgrade_downgrade` above (stale `hold_count`/
+`recommendation_key`/`data_unavailable`/`reason` columns instead of the real `id` SERIAL PK,
+`neutral_count`/`target_price`/`current_price`/`upside_downside_percent`, `UNIQUE(symbol, date)`
+shape) - corrected this pass, same "only bites fresh installs" caveat since the live table
+already had the right shape.
+
+Also found both `load_analyst_upgrade_downgrade.py` and `load_analyst_sentiment_analysis.py`
+missing entirely from `loaders/loader_registry.py`'s `LOADER_TABLES` (the canonical
+loader-script -> output-table mapping several health/audit scripts read) - same "restored
+loader, forgot to register it" gap class as `load_company_profile.py` a few entries above.
+Added both this pass.
 
 ---
 

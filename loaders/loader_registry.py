@@ -94,6 +94,11 @@ LOADER_TABLES: dict[str, list[str]] = {
     # health/audit script built on LOADER_TABLES despite being flagged
     # "critical_loaders" in terraform/modules/loaders/main.tf.
     "load_company_profile.py": ["company_profile"],
+    # Restored 2026-07-27: same "missing from this registry" gap as load_company_profile.py
+    # above, for the two yfinance-backed analyst loaders restored the same day (see
+    # scripts/local_loader_scheduler.py and steering/DATA_LOADERS.md).
+    "load_analyst_upgrade_downgrade.py": ["analyst_upgrade_downgrade"],
+    "load_analyst_sentiment_analysis.py": ["analyst_sentiment_analysis"],
 }
 
 # market_exposure_daily is computed by algo/risk/market_exposure.py during

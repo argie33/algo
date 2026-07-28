@@ -426,18 +426,28 @@ CREATE TABLE IF NOT EXISTS earnings_calendar (
 CREATE INDEX IF NOT EXISTS idx_earnings_calendar_symbol ON earnings_calendar(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_calendar_date ON earnings_calendar(earnings_date DESC);
 
+-- CORRECTED 2026-07-27: same drift bug as analyst_upgrade_downgrade below - this CREATE TABLE
+-- didn't match the live schema (real table: id SERIAL PK, no hold_count/recommendation_key/
+-- data_unavailable/reason columns; has neutral_count/target_price/current_price/
+-- upside_downside_percent instead, per what utils/external/yfinance_analyst_ratings.py::
+-- fetch_analyst_sentiment() and lambda/api/routes/sentiment.py actually read/write). Live table
+-- pre-existed with this real shape and a UNIQUE(symbol, date) constraint (not a bare PK on those
+-- columns) - no migration needed since CREATE TABLE IF NOT EXISTS is already a no-op against it;
+-- this only matters for a fresh install, which would otherwise get the wrong schema.
 CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
     date DATE NOT NULL,
     analyst_count INT,
     bullish_count INT,
     bearish_count INT,
-    hold_count INT,
-    recommendation_key VARCHAR(50),
-    data_unavailable BOOLEAN DEFAULT FALSE,
-    reason VARCHAR(500),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (symbol, date)
+    neutral_count INT,
+    target_price NUMERIC(12, 2),
+    current_price NUMERIC(12, 2),
+    upside_downside_percent NUMERIC(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (symbol, date)
 );
 CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_symbol ON analyst_sentiment_analysis(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_date ON analyst_sentiment_analysis(date DESC);

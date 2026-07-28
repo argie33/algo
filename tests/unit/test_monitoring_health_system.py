@@ -59,22 +59,48 @@ class TestPipelineHealthMonitoring:
         sec_material_events - superseded by dividend_data/current_reports_8k, see
         utils/db/sql_safety.py) must report DEPRECATED, not MISSING. MISSING counts against
         is_healthy/coverage_pct forever for a table that's expected to sit frozen empty -
-        the exact false-alarm noise KNOWN_DEPRECATED_TABLES exists to prevent."""
+        the exact false-alarm noise KNOWN_DEPRECATED_TABLES exists to prevent.
+
+        analyst_sentiment_analysis is deliberately excluded from this table list: it was
+        removed from KNOWN_DEPRECATED_TABLES 2026-07-27 after a real writer was restored
+        (see loaders/load_analyst_sentiment_analysis.py), so zero rows for it now correctly
+        means MISSING (writer not running), not DEPRECATED - see
+        test_restored_writer_table_with_zero_rows_reports_missing_not_deprecated below."""
         from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth
 
         monitor = PipelineHealth()
         assert "sec_dividends" in monitor.KNOWN_DEPRECATED_TABLES
         assert "sec_material_events" in monitor.KNOWN_DEPRECATED_TABLES
+        assert "analyst_sentiment_analysis" not in monitor.KNOWN_DEPRECATED_TABLES
 
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = (0,)  # reltuples/COUNT(*) = 0 rows
 
-        for table_name in ("sec_dividends", "sec_material_events", "analyst_sentiment_analysis", "equity_curve_daily"):
+        for table_name in ("sec_dividends", "sec_material_events", "equity_curve_daily"):
             health = monitor.check_table_health(mock_cursor, table_name, None, 7)
             assert health.status == HealthStatus.DEPRECATED, (
                 f"{table_name}: expected DEPRECATED, got {health.status}"
             )
             assert health.is_healthy
+
+    def test_restored_writer_table_with_zero_rows_reports_missing_not_deprecated(self):
+        """analyst_sentiment_analysis and analyst_upgrade_downgrade were removed from
+        KNOWN_DEPRECATED_TABLES 2026-07-27 because they got real writers back (yfinance-sourced,
+        see loaders/load_analyst_sentiment_analysis.py and load_analyst_upgrade_downgrade.py).
+        Zero rows for either now must report MISSING so staleness monitoring actually catches a
+        broken/stopped writer - silently reporting DEPRECATED here would resurrect the exact
+        false-negative the earlier removal was meant to fix."""
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth
+
+        monitor = PipelineHealth()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = (0,)  # reltuples/COUNT(*) = 0 rows
+
+        for table_name in ("analyst_sentiment_analysis", "analyst_upgrade_downgrade"):
+            health = monitor.check_table_health(mock_cursor, table_name, None, 7)
+            assert health.status == HealthStatus.MISSING, (
+                f"{table_name}: expected MISSING (real writer restored), got {health.status}"
+            )
 
     def test_deprecated_tables_are_in_sql_safety_whitelist(self):
         """Every KNOWN_DEPRECATED_TABLES entry must be in sql_safety.SAFE_TABLES, or
@@ -311,6 +337,64 @@ class TestPipelineHealthMonitoring:
         monitor = PipelineHealth()
         result = monitor._infer_date_column(mock_cur, "algo_runtime_state")
         assert result == "last_updated_at"
+
+    def test_check_stuck_loaders_parses_query_rows(self):
+        """_check_stuck_loaders() must surface loaders orphaned mid-run: status=RUNNING
+        with a heartbeat frozen for >15min (see method docstring - a hard kill, e.g. OOM
+        or loader-timeout-guardian's ecs.stop_task(), bypasses the except block that
+        would normally rewrite status away from RUNNING, so the row sits stuck forever
+        with no other check catching it)."""
+        from algo.monitoring.pipeline_health import PipelineHealth
+
+        mock_cur = Mock()
+        started = datetime(2026, 7, 27, 19, 0, 1)
+        mock_cur.fetchall.return_value = [("stock_symbols", started, started, 132.5)]
+
+        monitor = PipelineHealth()
+        stuck = monitor._check_stuck_loaders(mock_cur)
+
+        assert len(stuck) == 1
+        assert stuck[0]["table_name"] == "stock_symbols"
+        assert stuck[0]["execution_started"] == started
+        assert stuck[0]["stale_minutes"] == 132.5
+
+    def test_get_pipeline_status_flags_orphaned_running_loader_as_critical(self):
+        """Integration path: a critical table (stock_symbols) whose underlying data still
+        looks fresh by age, but whose most recent loader run crashed mid-flight and left
+        status=RUNNING with a dead heartbeat, must not be silently reported HEALTHY -
+        check_table_health() alone can't see this since it only reads the target table's
+        own row age, never data_loader_status.status."""
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth
+
+        monitor = PipelineHealth()
+        started = datetime(2026, 7, 27, 19, 0, 1)
+
+        def fetchall_side_effect():
+            sql = mock_cur.execute.call_args[0][0]
+            if "WHERE status = 'RUNNING'" in sql:
+                return [("stock_symbols", started, started, 132.5)]
+            return []
+
+        mock_cur = Mock()
+        mock_cur.fetchall = Mock(side_effect=fetchall_side_effect)
+        # Every other query in the flow (row counts, date lookups, secondary table list)
+        # gets a harmless empty/zero result via fetchone; only the stuck-loader query
+        # cares about fetchall.
+        mock_cur.fetchone.return_value = (0,)
+
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            status = monitor.get_pipeline_status()
+
+        assert "stock_symbols" in status.tables
+        assert status.tables["stock_symbols"].status == HealthStatus.ERROR
+        assert "stuck in RUNNING" in (status.tables["stock_symbols"].error_message or "")
+        assert any("stock_symbols" in a for a in status.critical_alerts), (
+            "stock_symbols is a critical table - an orphaned RUNNING loader on it must raise "
+            "a critical_alert, not just a warning"
+        )
+        assert status.is_healthy is False
 
 
 class TestConnectionMonitoring:

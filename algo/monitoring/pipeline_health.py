@@ -192,8 +192,15 @@ class PipelineHealth:
             "buy_sell_weekly_etf",  # "Trading signals for stocks only, not ETFs").
             "buy_sell_monthly_etf",
             "seasonality_monthly_stats",  # No writer found anywhere in the codebase.
-            "analyst_upgrade_downgrade",  # No writer found anywhere in the codebase.
-            "analyst_sentiment_analysis",  # No writer found; deleted with yfinance_snapshot (Session 275)
+            # analyst_upgrade_downgrade REMOVED from this exclusion 2026-07-27: restored a real
+            # writer (load_analyst_upgrade_downgrade.py, yfinance-sourced) wired into
+            # eod_pipeline's AaiiSentiment -> AnalystUpgradeDowngrade -> MarketStatusDaily chain
+            # and scripts/local_loader_scheduler.py - staleness should now be monitored like any
+            # other real loader, not silently excluded.
+            # analyst_sentiment_analysis REMOVED from this exclusion 2026-07-27: same restoration,
+            # separate table - real writer (load_analyst_sentiment_analysis.py, yfinance-sourced)
+            # wired into eod_pipeline's AnalystUpgradeDowngrade -> AnalystSentimentAnalysis ->
+            # MarketStatusDaily chain and scripts/local_loader_scheduler.py.
             "portfolio_holdings",  # No writer found anywhere in the codebase.
             "algo_trades_archive",  # No writer found anywhere in the codebase.
             # Confirmed live 2026-07-27: both 0 rows, no INSERT/UPDATE writer anywhere in
@@ -487,6 +494,33 @@ class PipelineHealth:
                     logger.error(f"Error fetching secondary tables list: {e}")
                     # Continue anyway with just critical tables
 
+                # Third: detect loaders orphaned mid-run (see _check_stuck_loaders docstring).
+                try:
+                    for stuck in self._check_stuck_loaders(cur):
+                        table_name = stuck["table_name"]
+                        msg = (
+                            f"{table_name}: loader stuck in RUNNING status, no heartbeat "
+                            f"update in {stuck['stale_minutes'] / 60:.1f}h "
+                            f"(started {stuck['execution_started']}) "
+                            f"- likely crashed or was killed without updating status"
+                        )
+                        existing = status.tables.get(table_name)
+                        if existing is not None:
+                            existing.status = HealthStatus.ERROR
+                            existing.error_message = msg
+                            health = existing
+                        else:
+                            health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, error_message=msg)
+                            status.tables[table_name] = health
+
+                        if health.is_critical:
+                            status.critical_alerts.append(f"CRITICAL: {msg}")
+                        else:
+                            status.warnings.append(f"WARNING: {msg}")
+                except Exception as e:
+                    logger.error(f"Error checking for orphaned RUNNING loaders: {e}")
+                    # Continue anyway - this check is additive, not required for the rest
+
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Cannot check pipeline status: {e}")
             status.is_healthy = False
@@ -498,6 +532,50 @@ class PipelineHealth:
         status.is_healthy = not has_critical_issues and len(status.critical_alerts) == 0
 
         return status
+
+    def _check_stuck_loaders(self, cur: Any) -> list[dict[str, Any]]:
+        """Find loaders orphaned mid-run: status=RUNNING with a frozen heartbeat.
+
+        update_loader_status("RUNNING") is written at loader start, and a background
+        heartbeat thread (60s interval, see utils/loader_infrastructure.py
+        start_heartbeat) refreshes last_updated for as long as the process stays
+        alive - both the normal success path (_update_final_status) and the
+        exception handler rewrite status away from RUNNING before exit. Neither runs
+        on a hard kill (OOM, or ecs.stop_task() from lambda/loader-timeout-guardian,
+        which only calls ECS StopTask and never touches this table) - SIGTERM/SIGKILL
+        bypasses Python's except block entirely, so the row is left at status=RUNNING
+        with a frozen last_updated forever. Every other check in this file derives
+        health from the target table's own row age, which still looks fresh from
+        whatever the last *successful* run loaded - masking the fact that the most
+        recent attempt crashed. 15 minutes is 15x the heartbeat interval, comfortably
+        beyond any live GC/DB-hiccup pause.
+        """
+        cur.execute(
+            """
+            SELECT table_name, execution_started, last_updated,
+                   EXTRACT(EPOCH FROM (NOW() - last_updated)) / 60 AS stale_minutes
+            FROM data_loader_status
+            WHERE status = 'RUNNING'
+              AND last_updated < NOW() - INTERVAL '15 minutes'
+            """
+        )
+        results = []
+        for row in cur.fetchall():
+            if isinstance(row, dict):
+                table_name = row["table_name"]
+                execution_started = row["execution_started"]
+                stale_minutes = float(row["stale_minutes"])
+            else:
+                table_name, execution_started, _last_updated, stale_minutes = row
+                stale_minutes = float(stale_minutes)
+            results.append(
+                {
+                    "table_name": table_name,
+                    "execution_started": execution_started,
+                    "stale_minutes": stale_minutes,
+                }
+            )
+        return results
 
     def _infer_date_column(self, cur: Any, table_name: str) -> str | None:
         """Infer the date column for a table by checking column existence AND content.
