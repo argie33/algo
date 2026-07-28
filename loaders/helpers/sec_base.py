@@ -224,6 +224,39 @@ class SecEdgarStatementLoader(SecLoaderBase):
             return cli_arg
         return os.getenv("LOADER_PERIOD", "annual")
 
+    def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
+        """Build an explicit data_unavailable marker row for this loader's period.
+
+        FIXED 2026-07-28: every call site here used to hand-build this dict with only
+        `fiscal_year: 0` as its sentinel key. That's a complete key for ANNUAL loaders
+        (transform()'s dedup only requires symbol+fiscal_year there), but for QUARTERLY
+        loaders transform() also requires a non-None `fiscal_quarter` to build its dedup
+        key - a marker missing that key silently fails the `if fiscal_quarter is None:
+        skip` check, so the ENTIRE marker row vanishes before it can be written. If a
+        symbol's only row this run is one of these markers (true for any foreign private
+        issuer that files 20-F/6-K instead of 10-Q, e.g. ZIM, ZTO, ZH, ZKH), that leaves
+        transform() with zero surviving rows, which raises "CRITICAL: No valid rows
+        after transformation" - a hard failure - instead of writing the clean marker this
+        method already exists to produce. Adding a `fiscal_quarter: 0` sentinel (parallel
+        to the existing `fiscal_year: 0` one, and equally distinct from real Q1-4 values)
+        lets quarterly markers survive the same dedup path annual ones already do.
+        """
+        marker: dict[str, Any] = {
+            "symbol": symbol,
+            "fiscal_year": 0,
+            "data_unavailable": True,
+            "reason": reason,
+        }
+        if self.period != "annual":
+            # NOT "fiscal_quarter" - field_mapping's source-side key for this is
+            # "fiscal_period" (see _QUARTERLY_EXTRA in load_financial_statements.py),
+            # which the generic per-field copy loop below maps to the "fiscal_quarter"
+            # DB column. Setting "fiscal_quarter" directly here would itself hit the
+            # "sec_field not in field_mapping" skip and vanish exactly like the bug
+            # this method exists to fix.
+            marker["fiscal_period"] = 0
+        return marker
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
@@ -234,24 +267,10 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # as a hard failure here, which at scale (dozens of preferred-share symbols
             # in one run) pushed the loader's failure rate past its 15% abort threshold.
             logger.debug(f"[{self.statement_type.upper()}] {symbol}: CIK not found in SEC ticker cache.")
-            return [
-                {
-                    "symbol": symbol,
-                    "fiscal_year": 0,
-                    "data_unavailable": True,
-                    "reason": "cik_not_found",
-                }
-            ]
+            return [self._unavailable_marker(symbol, "cik_not_found")]
 
         if not cik:
-            return [
-                {
-                    "symbol": symbol,
-                    "fiscal_year": 0,
-                    "data_unavailable": True,
-                    "reason": "cik_not_found",
-                }
-            ]
+            return [self._unavailable_marker(symbol, "cik_not_found")]
 
         logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
@@ -280,12 +299,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
             # below already produces for the equivalent case.
             logger.debug(f"[{self.statement_type.upper()}] {symbol}: No SEC facts available: {e}")
             return [
-                {
-                    "symbol": symbol,
-                    "fiscal_year": 0,
-                    "data_unavailable": True,
-                    "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity",
-                }
+                self._unavailable_marker(
+                    symbol, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
+                )
             ]
 
         if not rows:
@@ -294,12 +310,9 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 f"Stock may be REIT, investment trust, or lack SEC filings."
             )
             return [
-                {
-                    "symbol": symbol,
-                    "fiscal_year": 0,
-                    "data_unavailable": True,
-                    "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity",
-                }
+                self._unavailable_marker(
+                    symbol, f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity"
+                )
             ]
 
         logger.info(

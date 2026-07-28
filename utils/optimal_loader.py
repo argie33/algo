@@ -1294,7 +1294,22 @@ class OptimalLoader:
                         "last_success_at = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NOW() "
                         "ELSE data_loader_status.last_success_at END, "
                         "consecutive_failures = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN 0 "
-                        "ELSE data_loader_status.consecutive_failures + 1 END",
+                        "ELSE data_loader_status.consecutive_failures + 1 END, "
+                        # FIXED 2026-07-28: this UPSERT never touched `reason` at all, so any
+                        # value ever written there (manually, or by a one-off diagnostic pass -
+                        # this INSERT list doesn't include it, and neither does
+                        # utils/loaders/status_manager.py's mark_completed/mark_failed) stays
+                        # frozen forever, regardless of how many times the loader succeeds
+                        # afterward. Live-confirmed: analyst_sentiment_analysis carried
+                        # reason='analyst_ratings_no_free_source' - a claim this codebase's own
+                        # history already disproved (see DATA_LOADERS.md) - through many
+                        # subsequent successful runs. industry_ranking and
+                        # sector_rotation_signal carried a similarly stale "no active loader,
+                        # marked for removal" reason despite being actively written and HEALTHY.
+                        # Clear it on a genuine COMPLETED run so it can't keep misleading anyone
+                        # reading data_loader_status as if it were live-maintained.
+                        "reason = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NULL "
+                        "ELSE data_loader_status.reason END",
                         (
                             self.table_name,
                             total_rows,
