@@ -4,6 +4,45 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: value_metrics-unavailable early-continue silently dropped quality/growth rows; dual-class dotted tickers (BRK.A) never resolved
+
+Continuation of the loader-review goal ("not trying hard enough to get the data we need").
+Two real bugs found via a live data-completeness audit (not just re-reading prior sessions'
+claims):
+
+1. **`ValueQualityGrowthMetricsLoader.run()`** computes `value_dict`/`quality_dict`/
+   `growth_dict` independently (different source queries) but had an early `continue` for a
+   `data_unavailable` value_row that skipped the quality/growth inserts entirely - not even
+   an unavailable marker was written. Live-confirmed 44 symbols with a real `value_metrics`
+   row and zero row in `quality_metrics`/`growth_metrics` at all. Same bug class the adjacent
+   "always upsert the unavailable marker" governance comment already fixed for the
+   quality/growth-specific unavailable case, one level up. Fixed; regression test confirmed
+   fail-before/pass-after via git stash.
+2. **`sec_ticker_cache.py::symbol_to_cik()`** did an exact-match lookup against SEC's
+   `company_tickers.json` with no normalization. Dual-class share tickers use a dot in this
+   codebase's own symbol universe (`BRK.A`, `TAP.A`, `WSO.B`, `MOG.B`, `UHAL.B`, ...) but
+   SEC's own file spells them with a dash (`BRK-A`, `TAP-A`, ...) - a pure punctuation miss,
+   not a real data gap. Live-confirmed 23 of 39 dotted tickers reporting
+   `value_metrics.data_unavailable="missing_sec_data"` resolve correctly once the dot is
+   swapped for a dash on lookup miss - including **BRK.A/BRK.B (Berkshire Hathaway itself)**,
+   which has no undotted ticker at all and was getting zero SEC data of any kind (valuations,
+   financial statements, company info, segment info, dividends, 8-Ks, earnings calendar - every
+   loader routes through this same shared `symbol_to_cik()`). The remaining 16 dotted tickers
+   are `.R` (rights) suffixes with no separate SEC ticker entry - correctly still
+   `data_unavailable`, not fabricated. Fixed with a dash-fallback retry on lookup miss;
+   regression test confirmed fail-before/pass-after.
+
+**Still open, not a new bug**: `institutional_holdings_13f` is currently 100% `data_unavailable`
+locally (0/5461 real rows) - the last full-universe OpenFIGI crosswalk run (started
+2026-07-27 22:13) crashed/was killed mid-run (correctly caught by the orphaned-RUNNING-loader
+detector rather than silently staying stuck), but the crosswalk cache (`sec_13f_cusip_crosswalk`)
+did grow from 140 to 260 real entries first, confirming incremental progress persists across
+crashes per the earlier `on_batch_resolved` fix. This matches the documented "slow,
+throttled, multi-run backfill" behavior above, not a regression - needs more scheduled runs
+against the full ~34k CUSIP backlog, not a code fix.
+
+---
+
 ## FIXED 2026-07-28: 3 real XBRL fields silently dropped in load_financial_statements.py
 
 Systematic pass: cross-checked every `schema_cols`/`field_mapping` entry against the real
