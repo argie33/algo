@@ -200,6 +200,20 @@ def main() -> None:
             dry_run_override = os.environ.get("ORCHESTRATOR_DRY_RUN")
             if dry_run_override is not None:
                 dry_run = dry_run_override.lower() in ("1", "true", "yes")
+                # SAFETY: an ambient ORCHESTRATOR_DRY_RUN (e.g. left set in a shell from
+                # earlier testing) silently overrides --evening's documented "always
+                # monitor-only, never places new entries" guarantee (see module docstring)
+                # with zero indication to the operator - found live 2026-07-28 when a
+                # shell with ORCHESTRATOR_DRY_RUN=false inherited from its environment
+                # caused --evening to skip the monitor-only path entirely. Surface this
+                # loudly rather than let it pass unnoticed.
+                if run_type in MONITOR_ONLY_RUN_IDENTIFIERS and not dry_run:
+                    print(
+                        f"  [WARNING] ORCHESTRATOR_DRY_RUN={dry_run_override!r} in environment "
+                        f"overrides --{run_type}'s normal monitor-only default (dry_run=True). "
+                        f"This run will NOT be dry-run despite --{run_type} - unset "
+                        f"ORCHESTRATOR_DRY_RUN if you intended a safe monitor-only exercise."
+                    )
             elif run_type in MONITOR_ONLY_RUN_IDENTIFIERS:
                 # CRITICAL FIX: previously always defaulted to dry_run=False regardless of
                 # run_type, so --evening locally submitted real (paper) orders exactly like
