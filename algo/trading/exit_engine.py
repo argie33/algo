@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date as _date
 from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
@@ -1074,12 +1075,30 @@ class ExitEngine:
 
             # Use latest quotes endpoint for real-time midpoint price
 
-            response = requests.get(
-                f"{data_url}/v2/quotes/latest",
-                params={"symbols": symbol, "feed": "sip"},
-                headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
-                timeout=get_alpaca_timeout(),
-            )
+            # RETRY (found 2026-07-28, same bug class as order_manager.py/position_monitor.py's
+            # send/cancel/qty fixes): a transient 429/503 used to fall into the generic `else`
+            # branch below and raise immediately - the highest-stakes instance of this bug class
+            # yet, since this quote feeds real-time stop-loss/exit evaluation. A retryable API
+            # blip could silently cost a real exit check for this symbol this cycle (caught and
+            # audited via algo_exit_check_errors, per migration 1169, but never actually retried).
+            max_attempts = 3
+            response = None
+            for attempt in range(max_attempts):
+                response = requests.get(
+                    f"{data_url}/v2/quotes/latest",
+                    params={"symbols": symbol, "feed": "sip"},
+                    headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
+                    timeout=get_alpaca_timeout(),
+                )
+                if response.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[EXIT_ENGINE] {symbol}: Alpaca quote API {response.status_code} - "
+                        f"transient, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                break
 
             if response.status_code == 200:
                 data = response.json()
