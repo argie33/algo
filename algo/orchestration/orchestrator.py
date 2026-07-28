@@ -302,10 +302,19 @@ class Orchestrator:
         # branch; order_manager.py's send_exit early-returns for it same as paper) - but this
         # check never accepted it, so the only way to reach it was for a caller to bypass
         # Orchestrator entirely. Added below alongside the "live" rejection.
+        #
+        # THIRD GAP, same class, found immediately after: "dry" has always been one of only 4
+        # values algo/infrastructure/config/execution_config.py's get_execution_mode() accepts
+        # (paper|dry|review|auto), and order_manager.py/executor.py both already branch on it
+        # explicitly (treated identically to "paper" - LOCAL-only order, never reaches Alpaca)
+        # - but this check never accepted it either, so a config actually set to "dry" would
+        # pass nothing here, then crash inside TradeExecutor.__init__'s
+        # create_execution_mode_strategy() call (which also never registered it, now fixed
+        # alongside this). Added below too.
         execution_mode = self.config.get("execution_mode")
-        if not execution_mode or execution_mode not in ("paper", "review", "auto"):
+        if not execution_mode or execution_mode not in ("paper", "dry", "review", "auto"):
             raise RuntimeError(
-                f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'review', or 'auto' ('auto' is "
+                f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'dry', 'review', or 'auto' ('auto' is "
                 f"the real-trading mode - 'live' is not a supported value, despite the name). "
                 f"Current value: {execution_mode!r}. Configure via algo_config table."
             )

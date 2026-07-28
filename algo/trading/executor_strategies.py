@@ -77,6 +77,33 @@ class PaperExecutionMode(ExecutionModeStrategy):
         logger.info(f"[EXECUTOR] mode=paper (sandbox) | key_set={bool(alpaca_key)} secret_set={bool(alpaca_secret)}")
 
 
+class DryExecutionMode(ExecutionModeStrategy):
+    """Dry mode: same as paper (no real Alpaca orders), distinct log label.
+
+    algo/infrastructure/config/execution_config.py's get_execution_mode() has always
+    advertised "dry" as one of only 4 valid execution_mode values (paper|dry|review|auto),
+    and order_manager.py/executor.py both already have real, working "dry" branches that
+    treat it identically to "paper" (LOCAL-only order, never reaches Alpaca) - but this
+    factory never registered a strategy for it, so any config actually set to "dry" would
+    crash here with ValueError before reaching that already-correct handling.
+    """
+
+    @property
+    def name(self) -> str:
+        return "dry"
+
+    def resolve_base_url(self, configured_url: str | None) -> str:
+        return "https://paper-api.alpaca.markets"
+
+    def resolve_paper_mode(self) -> bool:
+        return True
+
+    def validate_and_log_initialization(
+        self, alpaca_key: str | None, alpaca_secret: str | None, resolved_url: str
+    ) -> None:
+        logger.info(f"[EXECUTOR] mode=dry (no execution) | key_set={bool(alpaca_key)} secret_set={bool(alpaca_secret)}")
+
+
 class ReviewExecutionMode(ExecutionModeStrategy):
     """Review mode: Dry-run that logs trade signals without executing.
 
@@ -179,6 +206,7 @@ def create_execution_mode_strategy(mode: str) -> ExecutionModeStrategy:
     """
     strategies = {
         "paper": PaperExecutionMode(),
+        "dry": DryExecutionMode(),
         "review": ReviewExecutionMode(),
         "auto": AutoExecutionMode(),
     }

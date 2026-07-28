@@ -16,6 +16,12 @@ Same discovery, opposite direction: "review" IS a real, fully-implemented mode (
 executor.py's own `execution_mode == "review"` branch, which creates a distinct "pending"
 order for manual review) that this check had never accepted - fixed alongside the "live"
 rejection.
+
+Third gap found immediately after, same class as "review": "dry" has always been one of only
+4 values execution_config.py's get_execution_mode() accepts (paper|dry|review|auto), and
+order_manager.py/executor.py both already branch on it (identically to "paper") - but this
+check never accepted it, and executor_strategies.py's create_execution_mode_strategy() never
+registered a strategy for it either (both fixed together).
 """
 
 import pytest
@@ -33,7 +39,7 @@ def _fake_self(env_execution_mode, config_execution_mode):
 class TestExecutionModeLiveRejected:
     def test_live_config_value_rejected_at_startup(self):
         self = _fake_self("live", "live")
-        with pytest.raises(RuntimeError, match="execution_mode must be 'paper', 'review', or 'auto'"):
+        with pytest.raises(RuntimeError, match="execution_mode must be 'paper', 'dry', 'review', or 'auto'"):
             Orchestrator._validate_startup_configuration(self)
 
     def test_auto_config_value_still_accepted(self):
@@ -58,6 +64,16 @@ class TestExecutionModeLiveRejected:
         # Previously rejected even though it's a real, fully-implemented mode - see
         # executor.py's own "review" branch and order_manager.py's paper-like early return.
         self = _fake_self("review", "review")
+        try:
+            Orchestrator._validate_startup_configuration(self)
+        except RuntimeError as e:
+            assert "execution_mode must be" not in str(e)
+            assert "execution_mode mismatch" not in str(e)
+
+    def test_dry_config_value_now_accepted(self):
+        # Previously rejected even though execution_config.py has always advertised it as a
+        # valid value and order_manager.py/executor.py already branch on it like "paper".
+        self = _fake_self("dry", "dry")
         try:
             Orchestrator._validate_startup_configuration(self)
         except RuntimeError as e:
