@@ -501,7 +501,8 @@ class OptimalLoader:
                     context={"table_name": self.table_name}
                 ) from ddb_err
 
-            if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+            lock_timeout_seconds = 15  # Increased from 5s to 15s for better lock contention handling
+            if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=lock_timeout_seconds):
                 # Lock acquisition failed. Check if it's a permission issue or actual contention.
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
                     # CRITICAL (Session 282): permission error on whichever backend get_lock_manager()
@@ -531,31 +532,34 @@ class OptimalLoader:
                     # longer than the old ~60s budget could ever wait out. 6 retries capped at 60s
                     # gives ~3.5 min of tolerance (still bounded, still fails loud after) instead of
                     # trading a full session's entries away over a transient scheduling overlap.
+                    # IMPROVED (2026-07-28): Increased initial timeout from 5s to 15s and max retry from
+                    # 6 to 8 to give signal_quality_scores loader more time on contention.
                     logger.warning(f"[{self.table_name}] Another instance already running, retrying with backoff...")
                     import random
-                    max_retries = 6
+                    max_retries = 8
                     for retry_attempt in range(1, max_retries + 1):
-                        base_wait = min(60, 2 ** (retry_attempt - 1) * 5)
+                        base_wait = min(90, 2 ** (retry_attempt - 1) * 5)
                         jitter = random.uniform(0.9, 1.1)
                         wait_time = base_wait * jitter
                         logger.info(f"[{self.table_name}] Retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s before next lock attempt")
                         time.sleep(wait_time)
-                        if lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+                        if lock_manager.acquire(lock_key=self.table_name, timeout_seconds=lock_timeout_seconds):
                             logger.info(f"[{self.table_name}] Lock acquired on retry {retry_attempt}")
                             break
                     else:
                         # Final failure after retries - fail fast instead of silently skipping
                         # Critical loaders must not silently degrade (violates governance)
                         msg = (
-                            f"[{self.table_name}] Failed to acquire lock after {max_retries} retries. "
-                            f"Another process is holding the lock. Check for stale locks or concurrent runs. "
-                            f"Cannot proceed without lock - failing fast to surface infrastructure issue."
+                            f"[{self.table_name}] Failed to acquire lock after {max_retries} retries (~5 min total wait). "
+                            f"Another process is holding the lock persistently. Check for: (1) Stale locks held by crashed processes, "
+                            f"(2) Long-running loaders (signal_quality_scores can take 5-35+ min), "
+                            f"(3) Database connection issues. Cannot proceed without lock - failing fast to surface infrastructure issue."
                         )
                         logger.error(msg)
                         raise LockAcquisitionError(
                             lock_key=self.table_name,
                             reason="Lock acquisition timeout after retries",
-                            context={"table_name": self.table_name, "max_retries": max_retries}
+                            context={"table_name": self.table_name, "max_retries": max_retries, "total_wait_minutes": 5}
                         )
         except LockAcquisitionError:
             # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
