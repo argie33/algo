@@ -259,27 +259,50 @@ class OrderManager:
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return {"success": True, "message": "Paper mode, no Alpaca order to cancel"}
 
-        try:
-            resp = requests.delete(
-                f"{self.alpaca_base_url}/v2/orders/{alpaca_order_id}",
-                headers={
-                    "APCA-API-KEY-ID": self.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.alpaca_secret,
-                },
-                timeout=get_api_timeout(),
-            )
-            if resp.status_code in (200, 204):
-                return {
-                    "success": True,
-                    "message": f"Cancelled bracket order {alpaca_order_id}",
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": f"Failed to cancel: {resp.status_code}",
-                }
-        except (requests.RequestException, requests.Timeout) as e:
-            return {"success": False, "message": f"Error cancelling order: {e!s}"}
+        # RETRY (found 2026-07-28, same class as send_bracket_order's fix): a single-attempt
+        # transient 429/503 here used to be reported as a permanent cancel failure. Callers
+        # only log a warning on failure (this is cleanup for an order we've already decided
+        # not to treat as a real position, e.g. missing stop-loss leg or fill-wait timeout) -
+        # a failed cancel leaves a real resting bracket order at the broker with no matching
+        # DB record, exactly the orphaned-position class AlpacaSyncManager._sync_untracked_
+        # positions exists to catch later, but retrying here means it usually never gets that far.
+        max_attempts = 3
+        last_error = "No attempts made"
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.delete(
+                    f"{self.alpaca_base_url}/v2/orders/{alpaca_order_id}",
+                    headers={
+                        "APCA-API-KEY-ID": self.alpaca_key,
+                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                    },
+                    timeout=get_api_timeout(),
+                )
+                if resp.status_code in (200, 204):
+                    return {
+                        "success": True,
+                        "message": f"Cancelled bracket order {alpaca_order_id}",
+                    }
+
+                last_error = f"Failed to cancel: {resp.status_code}"
+                if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[CANCEL_BRACKET] {alpaca_order_id}: {last_error} - transient, "
+                        f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                return {"success": False, "message": last_error}
+            except (requests.RequestException, requests.Timeout) as e:
+                last_error = f"Error cancelling order: {e!s}"
+                logger.warning(
+                    f"[CANCEL_BRACKET] {alpaca_order_id}: {last_error} (attempt {attempt + 1}/{max_attempts})"
+                )
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+
+        return {"success": False, "message": last_error}
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
