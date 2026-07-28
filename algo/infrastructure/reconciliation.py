@@ -2085,8 +2085,7 @@ class DailyReconciliation:
                     try:
                         # strict=True: notify() otherwise swallows every delivery failure
                         # internally and just logs, which made the except clause below
-                        # (added specifically so a broken alert channel can't silently
-                        # skip operator awareness of a partial-fill correction) dead code -
+                        # non-functional for its actual purpose (see the comment there) -
                         # it could never see a psycopg2 error notify() had already caught
                         # and discarded itself.
                         notify(
@@ -2102,12 +2101,23 @@ class DailyReconciliation:
                             strict=True,
                         )
                     except Exception as e:
-                        # CRITICAL: Fail fast when alert system is down - partial fill corrections must be audited
-                        raise RuntimeError(
-                            f"[PARTIAL_FILL_ALERT CRITICAL] Failed to notify operator of fill correction "
-                            f"for {symbol}: {e}. Partial fill notification is required for audit trail. "
-                            f"Cannot proceed without operator awareness. Check notification service."
-                        ) from e
+                        # CRITICAL FIX: this used to re-raise, which propagates out of this
+                        # loop, out of the single `with DatabaseContext("write") as cur:`
+                        # block that phase4_reconciliation.py opens around the whole
+                        # check_partial_fills() call - rolling back the UPDATE just made
+                        # above (which corrects a genuinely stale DB quantity to match
+                        # Alpaca, the source of truth) AND every other symbol's correction
+                        # already applied earlier in this same loop/transaction. A flaky
+                        # alert channel would silently discard real, already-verified
+                        # data-integrity corrections instead of just failing to announce
+                        # them. Same bug class as the entry/exit notification-rollback
+                        # fixes (executor_entry_handler.py, executor_exit_handler.py) -
+                        # log-and-continue so the correction survives regardless of
+                        # whether the operator alert lands.
+                        logger.error(
+                            f"[PARTIAL_FILL_ALERT] Failed to notify operator of fill correction "
+                            f"for {symbol} (non-blocking, correction already applied): {e}"
+                        )
 
             return {
                 "checked": len(orders),

@@ -58,6 +58,30 @@ def test_partial_fill_notifies_operator_of_correction():
     assert mock_notify.call_args.kwargs["strict"] is True
 
 
+def test_notify_failure_does_not_discard_the_already_applied_correction():
+    """CRITICAL FIX regression: check_partial_fills's UPDATE runs inside the single
+    `with DatabaseContext("write") as cur:` block phase4_reconciliation.py opens around
+    the whole call. If the operator-alert notify() raises and that propagates out of
+    check_partial_fills, it rolls back the transaction - discarding a real, already-
+    verified correction (DB quantity fixed to match Alpaca, the source of truth) just
+    because the alert channel was flaky. The fix must swallow the notify failure and
+    still return the correction in its result."""
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = [
+        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled"}
+    ]
+    cur = MagicMock()
+    cur.fetchone.return_value = ("trade-123", 100, "open")
+
+    with patch("algo.infrastructure.reconciliation.notify", side_effect=RuntimeError("alert channel down")):
+        result = reconciliation.check_partial_fills(cur)
+
+    assert result["mismatches"] == 1
+    update_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
+    assert len(update_calls) == 1
+    assert update_calls[0].args[1] == (60, "trade-123")
+
+
 def test_no_correction_when_broker_and_db_quantities_already_match():
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
