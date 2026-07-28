@@ -1082,12 +1082,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              roe_unavailable_reason, roa_unavailable_reason, operating_margin_unavailable_reason, net_margin_unavailable_reason,
              debt_to_equity_unavailable_reason, current_ratio_unavailable_reason, quick_ratio_unavailable_reason,
              interest_coverage_unavailable_reason, debt_to_assets_unavailable_reason, quality_score_unavailable_reason,
-             gross_margin_unavailable_reason, ebitda_margin_unavailable_reason, roic_pct_unavailable_reason,
+             gross_margin_unavailable_reason, ebitda_unavailable_reason, ebitda_margin_unavailable_reason, roic_pct_unavailable_reason,
              fcf_to_net_income_unavailable_reason, ocf_to_net_income_unavailable_reason, payout_ratio_unavailable_reason,
              free_cash_flow_unavailable_reason, operating_cash_flow_unavailable_reason, total_debt_unavailable_reason,
              total_cash_unavailable_reason, cash_per_share_unavailable_reason, earnings_growth_yoy_unavailable_reason,
              revenue_growth_yoy_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -1124,6 +1124,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 debt_to_assets_unavailable_reason = EXCLUDED.debt_to_assets_unavailable_reason,
                 quality_score_unavailable_reason = EXCLUDED.quality_score_unavailable_reason,
                 gross_margin_unavailable_reason = EXCLUDED.gross_margin_unavailable_reason,
+                ebitda_unavailable_reason = EXCLUDED.ebitda_unavailable_reason,
                 ebitda_margin_unavailable_reason = EXCLUDED.ebitda_margin_unavailable_reason,
                 roic_pct_unavailable_reason = EXCLUDED.roic_pct_unavailable_reason,
                 fcf_to_net_income_unavailable_reason = EXCLUDED.fcf_to_net_income_unavailable_reason,
@@ -1182,6 +1183,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("debt_to_assets_unavailable_reason"),
                 row.get("quality_score_unavailable_reason"),
                 row.get("gross_margin_unavailable_reason"),
+                row.get("ebitda_unavailable_reason"),
                 row.get("ebitda_margin_unavailable_reason"),
                 row.get("roic_pct_unavailable_reason"),
                 row.get("fcf_to_net_income_unavailable_reason"),
@@ -1305,6 +1307,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "total_cash": None,
                 "cash_per_share": None,
                 "ebitda": None,
+                "ebitda_unavailable_reason": "missing_sec_data",
                 "earnings_growth_yoy": None,
                 "revenue_growth_yoy": None,
                 # Reason codes for all metrics (Session 401 fix: were NULL before)
