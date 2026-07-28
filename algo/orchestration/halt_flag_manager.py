@@ -428,6 +428,12 @@ class HaltFlagManager:
             try:
                 import boto3
 
+                # Check LOCAL_MODE first - skip DynamoDB entirely in local development
+                local_mode = os.environ.get("LOCAL_MODE", "").lower() == "true"
+                if local_mode:
+                    logger.debug("[HALT_FLAG] LOCAL_MODE enabled - skipping DynamoDB, using RDS fallback")
+                    raise ValueError("LOCAL_MODE enabled - forcing RDS fallback")
+
                 # Check if AWS credentials available - skip DynamoDB if not configured (local dev)
                 if not os.environ.get("AWS_ACCESS_KEY_ID"):
                     logger.debug("[HALT_FLAG] AWS credentials not configured - skipping DynamoDB, using RDS fallback")
@@ -819,6 +825,12 @@ class HaltFlagManager:
         for attempt in range(max_retries):
             try:
                 import boto3
+
+                # Check LOCAL_MODE first - skip DynamoDB entirely in local development
+                local_mode = os.environ.get("LOCAL_MODE", "").lower() == "true"
+                if local_mode:
+                    logger.debug("[HALT_FLAG] LOCAL_MODE enabled - skipping DynamoDB, using RDS fallback")
+                    raise ValueError("LOCAL_MODE enabled - forcing RDS fallback")
 
                 # Check if AWS credentials available - skip DynamoDB if not configured (local dev)
                 if not os.environ.get("AWS_ACCESS_KEY_ID"):
