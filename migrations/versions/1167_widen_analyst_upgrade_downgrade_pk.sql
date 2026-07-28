@@ -35,7 +35,7 @@ BEGIN
         WHERE tc.table_name = 'analyst_upgrade_downgrade'
           AND tc.constraint_type IN ('UNIQUE', 'PRIMARY KEY')
         GROUP BY tc.constraint_name
-        HAVING array_agg(kcu.column_name ORDER BY kcu.column_name) = ARRAY['action_date', 'firm', 'symbol']
+        HAVING array_agg(kcu.column_name::text ORDER BY kcu.column_name::text) = ARRAY['action_date', 'firm', 'symbol']
     ) THEN
         ALTER TABLE analyst_upgrade_downgrade
             ADD CONSTRAINT analyst_upgrade_downgrade_symbol_date_firm_key
