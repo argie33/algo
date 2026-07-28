@@ -48,7 +48,20 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
     # (yfinance rate-limit/network/parse errors) - yfinance is documented elsewhere in this
     # codebase as more fragile than SEC EDGAR (401-prone "Invalid Crumb" errors under load), so
     # allow more slack than the 2% used for the SEC-sourced loaders.
-    max_fail_rate = 15.0
+    #
+    # FIX 2026-07-28: 15.0 (85% completion floor) was copy-pasted from the SEC-sourced
+    # loaders' tolerance without checking this source's actual achievable ceiling. Live-
+    # confirmed across 2 independent full-universe runs (one solo, one concurrent with
+    # analyst_sentiment_analysis): completion consistently lands at 71.6%/71.7% - genuine
+    # yfinance HTTP 404 "No fundamentals data found" for OTC/delisted/rights-offering
+    # symbols (the same ".R"/"$"-suffixed stragglers already documented as legitimately
+    # data_unavailable elsewhere in this codebase, e.g. the 13F CUSIP crosswalk), not a
+    # rate-limit or circuit-breaker cutoff - no 429s in the run logs. Same bug class as the
+    # 2026-07-27 fix for quarterly_balance_sheet/quarterly_income_statement's 85% ceiling:
+    # a real, permanent structural ceiling was being flagged FAILED forever instead of
+    # recognized as COMPLETED. 35.0 (65% floor) sits comfortably below the observed ~72%
+    # with margin to still catch a genuine regression (e.g. yfinance itself going down).
+    max_fail_rate = 35.0
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, object]]:
         """Fetch recent analyst rating actions for this symbol.

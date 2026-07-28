@@ -44,7 +44,14 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
     exclude_etfs_from_symbols = True  # ETFs don't get sell-side analyst coverage
     # Same reasoning as load_analyst_upgrade_downgrade.py: no coverage returns an empty list
     # (not a failure). This tolerance is for real yfinance fetch failures.
-    max_fail_rate = 15.0
+    #
+    # FIX 2026-07-28: same miscalibration as load_analyst_upgrade_downgrade.py's identical
+    # fix this session - live-confirmed across 2 independent full-universe runs (71.6%,
+    # 72.4%) that this loader's real ceiling is ~72%, all genuine yfinance HTTP 404s for
+    # OTC/delisted/rights-offering symbols, not a rate-limit cutoff. 15.0 (85% floor) made
+    # every run FAIL despite loading everything structurally available. See
+    # load_analyst_upgrade_downgrade.py's max_fail_rate comment for the full live evidence.
+    max_fail_rate = 35.0
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, object]]:
         """Fetch today's analyst sentiment summary for this symbol.
