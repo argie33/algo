@@ -1603,7 +1603,7 @@ class DailyReconciliation:
                         SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
                         FROM algo_audit_log
                         WHERE action_type LIKE 'exit_%%'
-                          AND (details->>'trade_id')::bigint = %s
+                          AND (details->>'trade_id') = %s
                           AND (details->>'full_exit')::boolean = false
                         """,
                         (trade_id,),
@@ -1821,7 +1821,7 @@ class DailyReconciliation:
                        COALESCE(SUM((details->>'shares_exited')::numeric), 0)
                 FROM algo_audit_log
                 WHERE action_type LIKE 'exit_%%'
-                  AND (details->>'trade_id')::bigint = %s
+                  AND (details->>'trade_id') = %s
                   AND (details->>'full_exit')::boolean = false
                 """,
                 (trade_id,),
