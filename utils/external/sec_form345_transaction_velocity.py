@@ -47,8 +47,6 @@ class TransactionRecord:
     trans_code: str  # P = buy, S = sell, etc.
     shares: int
     trans_price: float | None
-    is_director: bool
-    is_officer: bool
     filing_date: date
 
 
@@ -238,33 +236,20 @@ class Form345TransactionVelocityAggregator:
                 if submission.empty:
                     return
 
-                # Load owner and transaction details
-                # SEC format changed - try to read with newer columns first, fall back to older format
-                owners_usecols = ["ACCESSION_NUMBER", "RPTOWNERCIK", "RPTOWNERNAME"]
-                try:
-                    # Newer format (Q2 2024+) - column names changed
-                    owners = pd.read_csv(
-                        zf.open("REPORTINGOWNER.tsv"),
-                        sep="\t",
-                        usecols=["ACCESSION_NUMBER", "RPTOWNERCIK", "RPTOWNERNAME", "ISCLERK", "ISDIRECTOR", "ISOFFICER"],
-                        dtype=str,
-                        low_memory=False,
-                    )
-                except (ValueError, KeyError):
-                    # Fallback - read without the director/clerk/officer columns
-                    # These are informational only and can be skipped
-                    logger.debug("[FORM345_VELOCITY] REPORTINGOWNER.tsv format changed - reading without director/clerk/officer columns")
-                    owners = pd.read_csv(
-                        zf.open("REPORTINGOWNER.tsv"),
-                        sep="\t",
-                        usecols=owners_usecols,
-                        dtype=str,
-                        low_memory=False,
-                    )
-                    # Add dummy columns so downstream code doesn't break
-                    owners["ISDIRECTOR"] = "FALSE"
-                    owners["ISCLERK"] = "FALSE"
-                    owners["ISOFFICER"] = "FALSE"
+                # Load owner details. RPTOWNERCIK/RPTOWNERNAME are all this aggregator
+                # consumes (see TransactionRecord below) - ISCLERK/ISDIRECTOR/ISOFFICER
+                # were previously read and stored on TransactionRecord.is_director/
+                # is_officer but never consumed by any caller (grep-confirmed dead
+                # fields); removed 2026-07-28 rather than keep a fallback path that
+                # silently defaulted a live insider's actual director/officer status to
+                # "FALSE" whenever REPORTINGOWNER.tsv's format changed.
+                owners = pd.read_csv(
+                    zf.open("REPORTINGOWNER.tsv"),
+                    sep="\t",
+                    usecols=["ACCESSION_NUMBER", "RPTOWNERCIK", "RPTOWNERNAME"],
+                    dtype=str,
+                    low_memory=False,
+                )
 
                 # Load transactions - TRANS_PRICE is optional (format changed).
                 # TRANS_SHARES is the actual quantity moved in this transaction; it is
@@ -346,8 +331,6 @@ class Form345TransactionVelocityAggregator:
 
                     insider_cik = owner_row.get("RPTOWNERCIK", "")
                     insider_name = owner_row.get("RPTOWNERNAME", "")
-                    is_director = str(owner_row.get("ISDIRECTOR", "")).upper() == "TRUE"
-                    is_officer = str(owner_row.get("ISOFFICER", "")).upper() == "TRUE"
 
                     # Create record
                     record = TransactionRecord(
@@ -358,8 +341,6 @@ class Form345TransactionVelocityAggregator:
                         trans_code=txn["TRANS_CODE"],
                         shares=shares,
                         trans_price=trans_price,
-                        is_director=is_director,
-                        is_officer=is_officer,
                         filing_date=filing_date,
                     )
 
