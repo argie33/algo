@@ -1503,9 +1503,13 @@ def run(
             # with. Migration 007's original index only covered status='open', which a live
             # (execution_mode=auto) fill never writes - it writes the broker-verified status literally
             # ('filled'/'partially_filled') - so that index never actually fired for a live trade; fixed
-            # in migration 1158. If duplicate occurs, TradeExecutor will catch constraint violation and
-            # log error. This is rare because entry decisions typically only trigger during market hours
-            # with low concurrency.
+            # in migration 1158. If a duplicate occurs, the psycopg2.Error handler on this
+            # per-symbol loop's outer except (below) catches the resulting UniqueViolation,
+            # logs it, and skips just this symbol - it does NOT silently pass (previously this
+            # comment claimed TradeExecutor itself caught it, which was never true;
+            # _insert_trade_record() deliberately raises on any DB error, and the outer except
+            # didn't list psycopg2.Error until this was corrected). This is rare because entry
+            # decisions typically only trigger during market hours with low concurrency.
             # TODO: Make atomic by wrapping duplicate-check-and-insert in advisory lock (requires refactor)
             try:
                 open_statuses = TradeStatus.all_open()
@@ -1688,11 +1692,23 @@ def run(
 
                     break
 
-        except (RuntimeError, ValueError, TypeError, AttributeError) as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError, psycopg2.Error) as e:
             logger.error(
                 f"[PHASE 8] Error processing {signal['symbol']}: {e}",
                 exc_info=True,
             )
+            # psycopg2.Error (added here): the duplicate-position pre-check above (~line 1497)
+            # is a soft, non-atomic read - algo_trades_symbol_live_status_idx (migration 1158,
+            # a UNIQUE partial index) is the real backstop against an actual duplicate write if
+            # two entry attempts for the same symbol race past that check. But the comment on
+            # that check claims "TradeExecutor will catch constraint violation and log error" -
+            # it doesn't: _insert_trade_record() deliberately raises on any DB error (see its
+            # own docstring - "MUST NOT silently fail"), and DatabaseContext's cursor wrapper
+            # (utils/db/context.py) re-raises psycopg2.DatabaseError/OperationalError as-is, not
+            # translated to any of the types this except previously listed. Without this, a real
+            # UniqueViolation (or any other psycopg2 error from execute_trade's DB writes) would
+            # propagate straight out of this per-symbol loop and abort Phase 8 for every symbol
+            # not yet evaluated that run - not just skip the one raced symbol, as documented.
             # Use signal.get(...) rather than the local entry_price/risk_pct vars - this
             # handler covers the whole per-symbol block, including the part before those
             # locals are computed, so they aren't guaranteed to be assigned yet.
