@@ -493,7 +493,7 @@ the normal `terraform plan`/`apply` + CI flow before trusting it in production.
 
 ---
 
-## FIXED 2026-07-27: analyst_upgrade_downgrade had no live writer (analyst_sentiment_analysis still does not - separate table, see below)
+## FIXED 2026-07-27: analyst_upgrade_downgrade AND analyst_sentiment_analysis had no live writer
 
 Continuation of the loader-review goal (factor-input completeness audit). `analyst_upgrade_downgrade`
 (consumed by `algo/signals/advanced_filters.py::_analyst_score()` as the "catalyst" subscore's analyst
@@ -539,10 +539,17 @@ GOOGL): real rows landed with correct schema mapping, and the incremental waterm
 fetched only new activity on a second run. Removed from `pipeline_health.py`'s no-writer staleness
 exclusion list now that a real writer exists.
 
-**`analyst_sentiment_analysis` remains a separate, still-open gap** (consumed by
-`lambda/api/routes/sentiment.py`'s `/api/sentiment/analyst/*` endpoints) - different table, not
-touched in this pass. Whether yfinance also has a usable source for this one is an open question for
-a future pass, not assumed either way.
+**`analyst_sentiment_analysis` (separate table, consumed by `lambda/api/routes/sentiment.py`'s
+`/api/sentiment/analyst/*` endpoints) - also fixed, same pass.** yfinance's `recommendations_summary`
+(strongBuy/buy/hold/sell/strongSell counts) + `analyst_price_targets` (current/mean target price)
+is the same real shape this table was designed for. New `loaders/load_analyst_sentiment_analysis.py`
++ `fetch_analyst_sentiment()` (added to `utils/external/yfinance_analyst_ratings.py` alongside
+`fetch_analyst_actions()`, sharing a `_fetch_with_circuit_breaker()` helper). Wired into the same
+`eod_pipeline` chain right after `AnalystUpgradeDowngrade` (`AaiiSentiment` ->
+`AnalystUpgradeDowngrade` -> `AnalystSentimentAnalysis` -> `MarketStatusDaily`), same fail-open
+pattern, `terraform validate` clean. Live-verified: real counts/target prices landed for
+AAPL/MSFT/TSLA/GOOGL, and the sentiment API's own `days_stale > 7` fail-fast check now passes (0
+days stale) instead of the ~60+ it had been serving as a hard failure for ~2 months.
 
 ---
 
