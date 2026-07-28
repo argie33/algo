@@ -133,37 +133,31 @@ def run(
                     logger.critical(msg)
                     raise RuntimeError(msg) from e
 
-        # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
-        if dry_run:
-            logger.info("[DRY-RUN] Phase 6: Skipping trade execution (dry-run mode)")
-            log_phase_result_fn(6, "exit_execution", "degraded", "DRY-RUN: execution skipped (no real trades)")
-            return PhaseResult(
-                6,
-                "exit_execution",
-                "degraded",
-                {},
-                False,
-                "DRY-RUN: exit execution skipped (no real trades placed)",
-            )
+        # DRY-RUN: Process counts of what WOULD happen, then skip actual execution
+        # (Don't return early - we still need to count exits for logging/dashboard visibility)
 
-        # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
-        if is_paper_mode:
-            logger.info(
-                f"[PHASE 6] Paper trading mode active (execution_mode={execution_mode_check}, "
-                f"alpaca_paper_trading={alpaca_paper_trading}). Exit orders will execute against paper account."
-            )
+        # Initialize TradeExecutor only in non-dry-run mode
+        executor = None
+        if not dry_run:
+            # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
+            if is_paper_mode:
+                logger.info(
+                    f"[PHASE 6] Paper trading mode active (execution_mode={execution_mode_check}, "
+                    f"alpaca_paper_trading={alpaca_paper_trading}). Exit orders will execute against paper account."
+                )
 
-        # Initialize TradeExecutor, FAIL-FAST if credentials missing
-        try:
-            executor = TradeExecutor(config)
-        except ValueError as e:
-            if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
-                # FAIL-FAST: Credentials required for exit execution in ALL modes.
-                # No graceful degradation - if we have open positions to manage,
-                # we MUST be able to execute exit orders. Missing credentials is a hard error.
-                raise RuntimeError(f"[PHASE 6 CRITICAL] Alpaca credentials required: {e}") from e
-            else:
-                raise
+            # Initialize TradeExecutor, FAIL-FAST if credentials missing
+            try:
+                executor = TradeExecutor(config)
+            except ValueError as e:
+                if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
+                    # FAIL-FAST: Credentials required for exit execution in ALL modes.
+                    # No graceful degradation - if we have open positions to manage,
+                    # we MUST be able to execute exit orders. Missing credentials is a hard error.
+                    raise RuntimeError(f"[PHASE 6 CRITICAL] Alpaca credentials required: {e}") from e
+                else:
+                    raise
+
         exit_count = 0
         stop_raises = 0
         errors = 0
@@ -208,22 +202,28 @@ def run(
                         errors += 1
                         continue
 
-                    result = executor.exit_trade(
-                        trade_id=action["trade_id"],
-                        exit_price=cur_price,
-                        exit_reason=action["reason"],
-                        exit_fraction=1.0,
-                        exit_stage="exposure_force_exit",
-                    )
-                    if "success" not in result or result["success"] is None:
-                        raise RuntimeError(
-                            f"Force exit result missing 'success' field. Got keys: {list(result.keys())}"
-                        )
-                    if result["success"]:
+                    # In dry-run mode, just count (don't execute)
+                    if dry_run:
                         exit_count += 1
-                        logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                        if verbose:
+                            logger.info(f"  [DRY-RUN] EXPOSURE FORCE-EXIT: {action['symbol']}")
                     else:
-                        errors += 1
+                        result = executor.exit_trade(
+                            trade_id=action["trade_id"],
+                            exit_price=cur_price,
+                            exit_reason=action["reason"],
+                            exit_fraction=1.0,
+                            exit_stage="exposure_force_exit",
+                        )
+                        if "success" not in result or result["success"] is None:
+                            raise RuntimeError(
+                                f"Force exit result missing 'success' field. Got keys: {list(result.keys())}"
+                            )
+                        if result["success"]:
+                            exit_count += 1
+                            logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                        else:
+                            errors += 1
 
                 elif action["action"] == "partial_exit":
                     # Need current price - fetch
@@ -253,56 +253,70 @@ def run(
                                     "action_type": "exposure_partial",
                                 },
                             )
-                        result = executor.exit_trade(
-                            trade_id=action["trade_id"],
-                            exit_price=cur_price,
-                            exit_reason=action["reason"],
-                            exit_fraction=float(action["exit_fraction"]),
-                            exit_stage="exposure_partial",
-                            new_stop_price=action.get("new_stop"),
-                        )
-                        if "success" not in result or result["success"] is None:
-                            raise RuntimeError(
-                                f"Partial exit result missing 'success' field. Got keys: {list(result.keys())}"
-                            )
-                        if result["success"]:
+                        # In dry-run mode, just count (don't execute)
+                        if dry_run:
                             exit_count += 1
-                            logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
+                            if verbose:
+                                logger.info(f"  [DRY-RUN] EXPOSURE PARTIAL: {action['symbol']}")
                         else:
-                            errors += 1
+                            result = executor.exit_trade(
+                                trade_id=action["trade_id"],
+                                exit_price=cur_price,
+                                exit_reason=action["reason"],
+                                exit_fraction=float(action["exit_fraction"]),
+                                exit_stage="exposure_partial",
+                                new_stop_price=action.get("new_stop"),
+                            )
+                            if "success" not in result or result["success"] is None:
+                                raise RuntimeError(
+                                    f"Partial exit result missing 'success' field. Got keys: {list(result.keys())}"
+                                )
+                            if result["success"]:
+                                exit_count += 1
+                                logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
+                            else:
+                                errors += 1
 
                 elif action["action"] == "tighten_stop":
-                    try:
-                        with DatabaseContext("write") as cur:
-                            acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
-                            try:
-                                cur.execute(
-                                    "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
-                                    (action["new_stop"], action["position_id"]),
-                                )
-                                # rowcount guards against silently counting a no-op as a success -
-                                # e.g. the position closed (a race with a concurrent exit) between
-                                # Phase 5 computing this action and Phase 6 executing it, in which
-                                # case the WHERE clause matches nothing but execute() itself doesn't
-                                # raise, so without this check stop_raises would be incremented and
-                                # "EXPOSURE TIGHTEN" logged as if the stop had actually moved.
-                                if cur.rowcount == 0:
-                                    errors += 1
-                                    logger.warning(
-                                        f"  Tighten no-op for {action['symbol']}: position "
-                                        f"{action['position_id']} not found (likely already closed)"
+                    if dry_run:
+                        # In dry-run, just log what would happen (don't write to DB)
+                        stop_raises += 1
+                        if verbose:
+                            logger.info(
+                                f"  [DRY-RUN] EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                            )
+                    else:
+                        try:
+                            with DatabaseContext("write") as cur:
+                                acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                                try:
+                                    cur.execute(
+                                        "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
+                                        (action["new_stop"], action["position_id"]),
                                     )
-                                else:
-                                    stop_raises += 1
-                                    if verbose:
-                                        logger.info(
-                                            f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                    # rowcount guards against silently counting a no-op as a success -
+                                    # e.g. the position closed (a race with a concurrent exit) between
+                                    # Phase 5 computing this action and Phase 6 executing it, in which
+                                    # case the WHERE clause matches nothing but execute() itself doesn't
+                                    # raise, so without this check stop_raises would be incremented and
+                                    # "EXPOSURE TIGHTEN" logged as if the stop had actually moved.
+                                    if cur.rowcount == 0:
+                                        errors += 1
+                                        logger.warning(
+                                            f"  Tighten no-op for {action['symbol']}: position "
+                                            f"{action['position_id']} not found (likely already closed)"
                                         )
-                            finally:
-                                release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
-                    except (RuntimeError, ValueError, TypeError) as e:
-                        errors += 1
-                        logger.error(f"  Tighten failed for {action['symbol']}: {e}")
+                                    else:
+                                        stop_raises += 1
+                                        if verbose:
+                                            logger.info(
+                                                f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                            )
+                                finally:
+                                    release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                        except (RuntimeError, ValueError, TypeError) as e:
+                            errors += 1
+                            logger.error(f"  Tighten failed for {action['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
                 if "symbol" not in action:
@@ -340,65 +354,75 @@ def run(
                     errors += 1
                     logger.error(f"  [PHASE 6] {rec['symbol']}: validation failed, no exit/stop coverage this run - {rec.get('error')}")
                     continue
-                if dry_run:
-                    if verbose:
-                        logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
-                    continue
 
                 if rec["action"] == "EARLY_EXIT":
-                    result = executor.exit_trade(
-                        trade_id=rec["trade_id"],
-                        exit_price=rec["current_price"],
-                        exit_reason=rec["action_reason"],
-                        exit_fraction=1.0,
-                        exit_stage="early_exit",
-                    )
-                    if "success" not in result or result["success"] is None:
-                        raise RuntimeError(
-                            f"Early exit result missing 'success' field. Got keys: {list(result.keys())}"
-                        )
-                    if result["success"]:
+                    if dry_run:
+                        # In dry-run, just count (don't execute)
                         exit_count += 1
                         if verbose:
-                            logger.info(f"  EARLY EXIT: {result['message']}")
+                            logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                     else:
-                        errors += 1
+                        result = executor.exit_trade(
+                            trade_id=rec["trade_id"],
+                            exit_price=rec["current_price"],
+                            exit_reason=rec["action_reason"],
+                            exit_fraction=1.0,
+                            exit_stage="early_exit",
+                        )
+                        if "success" not in result or result["success"] is None:
+                            raise RuntimeError(
+                                f"Early exit result missing 'success' field. Got keys: {list(result.keys())}"
+                            )
+                        if result["success"]:
+                            exit_count += 1
+                            if verbose:
+                                logger.info(f"  EARLY EXIT: {result['message']}")
+                        else:
+                            errors += 1
                 elif rec["action"] == "RAISE_STOP" and rec.get("new_stop_recommended") is not None:
-                    try:
-                        with DatabaseContext("write") as cur:
-                            acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
-                            try:
-                                cur.execute(
-                                    "UPDATE algo_positions SET current_stop_price = %s "
-                                    "WHERE position_id = %s AND status = %s",
-                                    (
-                                        rec["new_stop_recommended"],
-                                        rec["position_id"],
-                                        PositionStatus.OPEN.value,
-                                    ),
-                                )
-                                # rowcount guards against silently counting a no-op as a success -
-                                # e.g. the position closed between Phase 3 computing this
-                                # recommendation and Phase 6 executing it (status != 'open' by
-                                # then), in which case the WHERE clause matches nothing but
-                                # execute() itself doesn't raise.
-                                if cur.rowcount == 0:
-                                    errors += 1
-                                    logger.warning(
-                                        f"  Stop-raise no-op for {rec['symbol']}: position "
-                                        f"{rec['position_id']} not found or no longer open"
+                    if dry_run:
+                        # In dry-run, just count (don't write to DB)
+                        stop_raises += 1
+                        if verbose:
+                            logger.info(
+                                f"  [DRY-RUN] RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                            )
+                    else:
+                        try:
+                            with DatabaseContext("write") as cur:
+                                acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                                try:
+                                    cur.execute(
+                                        "UPDATE algo_positions SET current_stop_price = %s "
+                                        "WHERE position_id = %s AND status = %s",
+                                        (
+                                            rec["new_stop_recommended"],
+                                            rec["position_id"],
+                                            PositionStatus.OPEN.value,
+                                        ),
                                     )
-                                else:
-                                    stop_raises += 1
-                                    if verbose:
-                                        logger.info(
-                                            f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                    # rowcount guards against silently counting a no-op as a success -
+                                    # e.g. the position closed between Phase 3 computing this
+                                    # recommendation and Phase 6 executing it (status != 'open' by
+                                    # then), in which case the WHERE clause matches nothing but
+                                    # execute() itself doesn't raise.
+                                    if cur.rowcount == 0:
+                                        errors += 1
+                                        logger.warning(
+                                            f"  Stop-raise no-op for {rec['symbol']}: position "
+                                            f"{rec['position_id']} not found or no longer open"
                                         )
-                            finally:
-                                release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
-                    except (RuntimeError, ValueError, TypeError) as e:
-                        errors += 1
-                        logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
+                                    else:
+                                        stop_raises += 1
+                                        if verbose:
+                                            logger.info(
+                                                f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                            )
+                                finally:
+                                    release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                        except (RuntimeError, ValueError, TypeError) as e:
+                            errors += 1
+                            logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
                 if "symbol" not in rec:
@@ -415,7 +439,7 @@ def run(
                 logger.error(f"  Error on {rec['symbol']}: {e}")
 
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
-        if not dry_run:
+        if not dry_run and executor is not None:
             engine = ExitEngine(config)
             engine_exits, engine_stop_raises, engine_errors = engine.check_and_execute_exits(run_date)
             exit_count += engine_exits
@@ -435,31 +459,43 @@ def run(
             # exit evaluation (confirmed against a live run's log showing 8 logged
             # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
             errors += engine_errors
+        elif dry_run:
+            # In dry-run mode, log what the exit engine WOULD have checked
+            logger.info("[DRY-RUN] Exit engine checks (tiered targets/stops/time) would run, but execution skipped")
 
         # CRITICAL FIX: status was hardcoded "success"/"ok" below regardless of `errors`,
         # so a run where every open position failed its exit/stop check still reported
         # a clean success - operators had no signal to go look. Positions that error here
         # get no exit/stop coverage for this run (see check_and_execute_exits errors above).
-        phase_status = "degraded" if errors > 0 else "success"
-        if errors > 0:
-            # Exit-check failures mean open positions lost stop/target/time-exit coverage
-            # for this run - unlike phase2 (circuit breakers) and phase3 (position monitor),
-            # this phase previously never used the `alerts` param it's handed, so a degraded
-            # exit-execution status was visible only to something polling
-            # orchestrator_execution_log, never pushed to an operator. Per-trade detail is in
-            # algo_exit_check_errors (see exit_engine.py's check_and_execute_exits).
-            alerts.send_position_alert(
-                "PORTFOLIO",
-                "EXIT_CHECK_FAILURES",
-                f"{errors} position(s) failed exit/stop evaluation this run - "
-                f"see algo_exit_check_errors for detail",
-                {"errors": errors, "exits": exit_count, "stop_raises": stop_raises},
-            )
+
+        # DRY-RUN: Always degraded (no real execution), but include counts of what would happen
+        # LIVE: Degraded if errors, success otherwise
+        if dry_run:
+            phase_status = "degraded"
+            detail_text = f"DRY-RUN: execution skipped (no real trades) - would have: {exit_count} exits, {stop_raises} stop-raises"
+        else:
+            phase_status = "degraded" if errors > 0 else "success"
+            detail_text = f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors"
+            if errors > 0:
+                # Exit-check failures mean open positions lost stop/target/time-exit coverage
+                # for this run - unlike phase2 (circuit breakers) and phase3 (position monitor),
+                # this phase previously never used the `alerts` param it's handed, so a degraded
+                # exit-execution status was visible only to something polling
+                # orchestrator_execution_log, never pushed to an operator. Per-trade detail is in
+                # algo_exit_check_errors (see exit_engine.py's check_and_execute_exits).
+                alerts.send_position_alert(
+                    "PORTFOLIO",
+                    "EXIT_CHECK_FAILURES",
+                    f"{errors} position(s) failed exit/stop evaluation this run - "
+                    f"see algo_exit_check_errors for detail",
+                    {"errors": errors, "exits": exit_count, "stop_raises": stop_raises},
+                )
+
         log_phase_result_fn(
             6,
             "exit_execution",
             phase_status,
-            f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors",
+            detail_text,
         )
         # exits_executed/success_rate: the health dashboard (dashboard/panels/health.py,
         # Phase 6 detail row) reads these exact keys, but this dict only ever had
@@ -483,14 +519,27 @@ def run(
         from algo.orchestrator.phase_data_contract import validate_phase_data
 
         validate_phase_data(6, result_data)
-        return PhaseResult(
-            6,
-            "exit_execution",
-            "degraded" if errors > 0 else "ok",
-            result_data,
-            False,
-            f"{errors} position(s) failed exit/stop evaluation this run" if errors > 0 else None,
-        )
+
+        # DRY-RUN: Return degraded status with what-would-happen counts
+        # LIVE: Return ok/degraded based on errors
+        if dry_run:
+            return PhaseResult(
+                6,
+                "exit_execution",
+                "degraded",
+                result_data,
+                False,
+                f"DRY-RUN: {exit_count} exits and {stop_raises} stop-raises would execute",
+            )
+        else:
+            return PhaseResult(
+                6,
+                "exit_execution",
+                "degraded" if errors > 0 else "ok",
+                result_data,
+                False,
+                f"{errors} position(s) failed exit/stop evaluation this run" if errors > 0 else None,
+            )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         log_phase_result_fn(6, "exit_execution", "error", str(e))
