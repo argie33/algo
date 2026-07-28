@@ -16,17 +16,14 @@ Two drifts found live 2026-07-27:
    `--evening` locally submitted real (paper) orders exactly like `--morning`/`--afternoon`,
    silently diverging from what the real evening run actually does in production.
 
-scripts/orchestrator_scheduler.py itself was later deleted as dead code (nothing else in the
-repo ever imported it - run_local_orchestrator.py, the tool actually used per CLAUDE.md, has
-its own independent session-time handling), so the TRADING_SESSIONS-vs-terraform check drift
-#1 originally guarded against no longer applies; drift #2's coverage lives on below.
-
 This locks in that scripts/run_local_orchestrator.py's supported --{flag} run types are
 exactly the identifiers lambda_function.py classifies (no undefined/unclassified run_type can
-reach the orchestrator).
+reach the orchestrator), and that scripts/orchestrator_scheduler.py's TRADING_SESSIONS times
+match terraform's real schedule.
 """
 
 import sys
+from datetime import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +53,26 @@ def test_evening_is_monitor_only_not_live_trading():
 
 def test_morning_afternoon_preclose_are_live_trading():
     assert {"morning", "afternoon", "preclose"} <= LIVE_TRADING_RUN_IDENTIFIERS
+
+
+def test_orchestrator_scheduler_session_times_match_terraform_schedule():
+    """terraform/modules/services/2x-daily-orchestrator.tf: morning 9:30 AM, afternoon 1:00 PM,
+    preclose 3:00 PM, evening 5:30 PM ET - scripts/orchestrator_scheduler.py's TRADING_SESSIONS
+    must match exactly, not the previous 3-entry dict with evening mislabeled at 3:00 PM."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "orchestrator_scheduler", PROJECT_ROOT / "scripts" / "orchestrator_scheduler.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.TRADING_SESSIONS == {
+        "morning": time(9, 30),
+        "afternoon": time(13, 0),
+        "preclose": time(15, 0),
+        "evening": time(17, 30),
+    }
 
 
 def test_run_local_orchestrator_supports_all_four_session_flags():
