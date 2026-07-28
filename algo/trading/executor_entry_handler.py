@@ -549,7 +549,28 @@ class EntryHandler:
         shares_filled: Decimal,
         order_send_time: float | None,
     ) -> None:
-        """Record trade cost analysis (execution quality)."""
+        """Record trade cost analysis (execution quality). Best-effort - must never fail
+        the entry.
+
+        CRITICAL FIX: this method (via _record_entry_phase) runs inside the same
+        _execute_entry_txn transaction as the algo_trades/algo_positions INSERT, and is
+        only called when execution_mode == "auto" after the order has already filled at
+        the broker (see call site: `if ... execution_mode == "auto" and order_status in
+        ("filled", "partially_filled")`) - an irreversible, already-happened event. The
+        old `except DatabaseError` could never match anything this body actually raises:
+        self.tca.record_fill() raises bare psycopg2 errors, RuntimeError, or
+        ValueError/TypeError/ZeroDivisionError - never algo.trading.exceptions.
+        DatabaseError - so every real failure mode (including the two explicit
+        ValueErrors below for missing/negative timing, and a failed TCA slippage alert)
+        propagated uncaught out of this function, out of _execute_entry_txn, out of
+        _with_cursor's DatabaseContext("write") block, which rolls back on any
+        exception - deleting the already-inserted trade/position rows for a position
+        already bought for real at the broker. Same bug class as
+        ExitHandler._execute_exit's notification block and _send_entry_notification
+        (see their fix comments) - TCA (execution-quality/compliance metadata) is not
+        critical to position tracking and must never revert a trade that already
+        happened.
+        """
         try:
             # CRITICAL FIX: order_send_time used to be read as self.context._order_send_time -
             # self.context is a HandlerContext instance, but _order_send_time was only ever set
@@ -559,10 +580,10 @@ class EntryHandler:
             # _submit_and_validate_order's docstring in executor.py for the full live-reproduced
             # failure. Now passed explicitly from the caller instead of relying on shared state.
             if order_send_time is None:
-                raise ValueError(f"[TCA CRITICAL] {symbol}: order_send_time not provided for auto-mode fill")
+                raise ValueError(f"[TCA] {symbol}: order_send_time not provided for auto-mode fill")
             execution_latency_ms = int((time.time() - order_send_time) * 1000)
             if execution_latency_ms < 0:
-                raise ValueError(f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms")
+                raise ValueError(f"[TCA] {symbol}: negative latency {execution_latency_ms}ms")
 
             # shares_requested/shares_filled were previously hardcoded to 1/1, which made
             # fill_rate_pct (algo/trading/tca.py::record_fill, shares_filled/shares_requested*100)
@@ -593,16 +614,15 @@ class EntryHandler:
                         strict=True,
                     )
                 except NotificationError as e:
-                    raise RuntimeError(
-                        f"CRITICAL: Failed to send TCA alert notification: {e}. "
-                        f"Trade Cost Analysis data may not reach monitoring systems. "
-                        f"Trader was not notified of trade {trade_id}."
-                    ) from e
-        except DatabaseError as e:
-            raise RuntimeError(
-                f"CRITICAL: Failed to record TCA data for trade {trade_id}: {e}. "
-                f"Trade Cost Analysis audit trail lost. Cannot proceed without recording."
-            ) from e
+                    logger.error(
+                        f"[TCA] Failed to send TCA slippage alert for {symbol} trade {trade_id} "
+                        f"(non-blocking): {e}"
+                    )
+        except Exception as e:
+            logger.critical(
+                f"[TCA] Failed to record execution-quality data for {symbol} trade {trade_id} "
+                f"(non-blocking, trade already committed): {type(e).__name__}: {e}"
+            )
 
     def _validate_entry_phase(
         self,
