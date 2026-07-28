@@ -2364,14 +2364,23 @@ def get_subprocess_timeout() -> int:
     return cast(int, get_config().timeout.get_subprocess_timeout())
 
 
-def get_alpaca_base_url() -> str:
+def get_alpaca_base_url(execution_mode: str | None = None) -> str:
     """Get Alpaca API base URL from unified config.
 
     Delegates to config/api_endpoints.py (single source of truth for all external APIs).
+
+    BUG FOUND 2026-07-28: this wrapper is re-exported as `algo.infrastructure.get_alpaca_base_url`
+    - a natural top-level import path - but previously called the delegate with NO execution_mode
+    argument, always falling into its weakest fallback branch (bare APCA_API_BASE_URL-presence
+    check, no ALGO_LIVE_TRADING acknowledgment required) regardless of what a caller actually
+    passed. No current caller reaches this path (every real call site imports directly from
+    config.api_endpoints instead), but it was a live footgun on a common import surface for
+    real-money account routing. Now forwards execution_mode so anyone who does reach for this
+    wrapper gets the same full live-intent gate as the properly-imported version.
     """
     from config.api_endpoints import get_alpaca_base_url as get_unified_url
 
-    return get_unified_url()
+    return get_unified_url(execution_mode)
 
 
 if __name__ == "__main__":
