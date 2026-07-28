@@ -269,7 +269,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             raise
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:  # type: ignore[override]
-        """Fetch all metrics from SEC + valuations + yfinance for one symbol.
+        """Fetch all metrics from SEC financial statements + sec_valuations for one symbol.
 
         Returns: List with single tuple of (value_dict, quality_dict, growth_dict)
         """
