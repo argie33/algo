@@ -442,17 +442,29 @@ CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
 CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_symbol ON analyst_sentiment_analysis(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_date ON analyst_sentiment_analysis(date DESC);
 
+-- CORRECTED 2026-07-27: this CREATE TABLE previously didn't match the live schema (real table:
+-- id SERIAL PK, column named `firm` not `analyst_firm`, no action_detail/price_target columns,
+-- PK on `id` not (symbol, action_date)) - someone edited this statement in the past without a
+-- migration to carry existing databases forward, so CREATE TABLE IF NOT EXISTS silently never
+-- applied the change anywhere it mattered. This now matches reality. No migration needed for
+-- already-initialized DBs: live-checked 2026-07-27, the real table already has this exact
+-- structure (id SERIAL PK + UNIQUE(symbol, action_date, firm)) - only this doc-drifted CREATE
+-- TABLE statement (which only matters for a fresh DB init) was wrong, not the live schema.
 CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
+    id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    action_date DATE NOT NULL,
-    action VARCHAR(50),
-    action_detail TEXT,
-    analyst_firm VARCHAR(100),
+    action_date DATE,
+    firm VARCHAR(100),
     old_rating VARCHAR(50),
     new_rating VARCHAR(50),
-    price_target NUMERIC(12, 2),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (symbol, action_date)
+    action VARCHAR(50),
+    company_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- dead legacy column, always NULL - see algo/monitoring/pipeline_health.py's comment. Kept
+    -- (not dropped) since dropping columns on a live table is a separate, more careful pass.
+    date DATE,
+    CONSTRAINT analyst_upgrade_downgrade_symbol_date_firm_key UNIQUE (symbol, action_date, firm)
 );
 CREATE INDEX IF NOT EXISTS idx_analyst_upgrade_downgrade_symbol ON analyst_upgrade_downgrade(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_upgrade_downgrade_date ON analyst_upgrade_downgrade(action_date DESC);

@@ -794,7 +794,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogAaiiFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MarketStatusDaily"
+        Next = "AnalystUpgradeDowngrade"
       }
 
       LogAaiiFailure = {
@@ -802,6 +802,60 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name        = "aaii_sentiment"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AnalystUpgradeDowngrade"
+          ResultPath  = "$.logError"
+        }]
+        Next = "AnalystUpgradeDowngrade"
+      }
+
+      # ── Step 8c-quater: Analyst upgrade/downgrade ratings (Session 2026-07-27) ──
+      # Feeds algo/signals/advanced_filters.py::_analyst_score(), one of 5 catalyst subscore
+      # components. AUXILIARY tier, restores a loader deleted with load_yfinance_snapshot.py
+      # (see steering/DATA_LOADERS.md's GAP note). Fail-open like NaaimSentiment/AaiiSentiment:
+      # a missed run degrades the catalyst score by one of its components, not worth halting
+      # the whole EOD pipeline.
+      AnalystUpgradeDowngrade = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["analyst_upgrade_downgrade"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogAnalystUpgradeDowngradeFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "MarketStatusDaily"
+      }
+
+      LogAnalystUpgradeDowngradeFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "analyst_upgrade_downgrade"
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = false

@@ -425,6 +425,12 @@ locals {
     # Dividends: Ex-dates, payment dates, yields for position management
     "current_reports_8k" = "load_current_reports_8k.py"
     "dividend_data" = "load_dividend_data.py"
+
+    # Analyst upgrade/downgrade ratings (Session 2026-07-27: restores a loader deleted with
+    # load_yfinance_snapshot.py, see steering/DATA_LOADERS.md's GAP note). AUXILIARY tier -
+    # feeds algo/signals/advanced_filters.py::_analyst_score() as one of 5 catalyst subscore
+    # components, degrades gracefully to 0 (not a halt) when missing.
+    "analyst_upgrade_downgrade" = "load_analyst_upgrade_downgrade.py"
   }
 
   # ============================================================
@@ -605,6 +611,10 @@ locals {
     # Dividends: Ex-dates, payment dates, yields (XBRL + 8-K extraction)
     # Typical run ~5-10 min for 5k symbols, lightweight (~100MB)
     "dividend_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+
+    # Analyst upgrade/downgrade ratings: per-symbol yfinance call across the universe,
+    # same shape/sizing as dividend_data (per-symbol external API, not bulk).
+    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
   }
   default_loaders = local.all_loaders
 
@@ -651,7 +661,10 @@ locals {
 
     # SEC Current Reports & Dividend Data (Session 444: XBRL expansion)
     "current_reports_8k",
-    "dividend_data"
+    "dividend_data",
+
+    # Analyst upgrade/downgrade ratings (per-symbol yfinance call, same shape as dividend_data)
+    "analyst_upgrade_downgrade"
   ])
 }
 
