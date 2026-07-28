@@ -1182,7 +1182,23 @@ class OptimalLoader:
             # For incremental loads where actual_symbols_loaded > expected_symbols (e.g., updating existing table),
             # this is expected behavior and should still be marked COMPLETED
             completion_pct = min(completion_pct, 100.0)
-            loader_status = "COMPLETED" if completion_pct >= 90 else "INCOMPLETE"
+            # Canonical LoaderStatus values only (utils/loaders/status_enum.py) - "INCOMPLETE"
+            # is not a member of that enum and was invisible to two downstream consumers that
+            # only recognize FAILED/TIMEOUT: dashboard/freshness_enhancements.py's failure-rate/
+            # MTTR/recovery-trend stats, and algo/monitoring/pipeline_health.py's health-sweep
+            # preserve-real-failure logic (commit 9f61e4833), which only protects a status from
+            # being overwritten back to HEALTHY when consecutive_failures > 0. Confirmed live
+            # 2026-07-27: quarterly_balance_sheet/quarterly_income_statement sat at
+            # status='INCOMPLETE', consecutive_failures=0, completion_pct~85-86% - a real,
+            # ongoing data gap the next orchestrator run's health sweep would have silently
+            # relabeled HEALTHY, and that freshness_enhancements.py's failure_rate_30d/mttr_hours
+            # already silently excluded from their stats.
+            loader_status = "COMPLETED" if completion_pct >= 90 else "FAILED"
+            status_error_message = (
+                None
+                if loader_status == "COMPLETED"
+                else f"Only {completion_pct:.1f}% of symbols loaded ({symbols_loaded}/{expected_symbols})"
+            )
 
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
 
@@ -1207,28 +1223,39 @@ class OptimalLoader:
                     # table permanently after its second-ever run.
                     cur.execute(
                         "INSERT INTO data_loader_status "
-                        "(table_name, row_count, latest_date, last_updated, status, "
-                        "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW()) "
+                        "(table_name, row_count, latest_date, last_updated, status, error_message, "
+                        "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed, "
+                        "last_success_at, consecutive_failures) "
+                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, NOW(), "
+                        "CASE WHEN %s = 'COMPLETED' THEN NOW() ELSE NULL END, "
+                        "CASE WHEN %s = 'COMPLETED' THEN 0 ELSE 1 END) "
                         "ON CONFLICT (table_name) DO UPDATE SET "
                         "row_count = EXCLUDED.row_count, "
                         "latest_date = EXCLUDED.latest_date, "
                         "last_updated = EXCLUDED.last_updated, "
                         "status = EXCLUDED.status, "
+                        "error_message = EXCLUDED.error_message, "
                         "completion_pct = EXCLUDED.completion_pct, "
                         "symbol_count = EXCLUDED.symbol_count, "
                         "symbols_loaded = EXCLUDED.symbols_loaded, "
                         "execution_started = EXCLUDED.execution_started, "
-                        "execution_completed = EXCLUDED.execution_completed",
+                        "execution_completed = EXCLUDED.execution_completed, "
+                        "last_success_at = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NOW() "
+                        "ELSE data_loader_status.last_success_at END, "
+                        "consecutive_failures = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN 0 "
+                        "ELSE data_loader_status.consecutive_failures + 1 END",
                         (
                             self.table_name,
                             total_rows,
                             latest_date,
                             loader_status,
+                            status_error_message,
                             completion_pct,
                             expected_symbols,
                             symbols_loaded,
                             execution_started,
+                            loader_status,
+                            loader_status,
                         ),
                     )
 
@@ -1251,12 +1278,13 @@ class OptimalLoader:
                         cur.execute(
                             "INSERT INTO data_loader_status_history "
                             "(table_name, status, execution_started, execution_completed, "
-                            "row_count, completion_pct, symbols_loaded, symbol_count) "
-                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s)",
+                            "error_message, row_count, completion_pct, symbols_loaded, symbol_count) "
+                            "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s)",
                             (
                                 self.table_name,
                                 loader_status,
                                 execution_started,
+                                status_error_message,
                                 total_rows,
                                 completion_pct,
                                 symbols_loaded,
