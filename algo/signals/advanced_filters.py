@@ -477,8 +477,22 @@ class AdvancedFilters:
 
     def _price_trend_score(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> float:
         """Multi-timeframe alignment (Elder Triple Screen):
-        +2 pts each if 5d return positive, 20d return positive,
-        +1 pt if also a BUY signal on weekly timeframe (very strong combo).
+        +2 pts each if 5d return positive, 20d return positive.
+
+        REMOVED 2026-07-28 (the +1 "weekly BUY alignment" bonus this docstring used to
+        describe): queried buy_sell_weekly, a table with no active loader - confirmed
+        via git history no loader for it (load_buy_sell_weekly.py) has ever existed in
+        this codebase, and its data has been frozen since 2026-05-22. The 30-day lookback
+        window in that query can structurally never match data that old again, so this
+        bonus had been silently, permanently contributing exactly 0 for every symbol,
+        indistinguishable from working correctly (the try/except only caught DB errors,
+        never "zero matching rows"). Removing it changes no actual scoring output -
+        verified the branch could never take effect. A real weekly-alignment signal would
+        need its own weekly technical-indicators + signal-classification pipeline (price_weekly
+        exists and is correctly derived, but there is no weekly equivalent of
+        technical_data_daily/buy_sell_daily's stage-analysis engine to query) - that is a
+        real, scoped feature to build if wanted, not a one-line fix, and not something to
+        improvise inside live trading-signal code during a data-loader audit.
 
         Raises:
             ValueError: If price data unavailable (insufficient history)
@@ -490,25 +504,6 @@ class AdvancedFilters:
             score += 2.0
         if r20 > 0:
             score += 2.0
-
-        # Weekly alignment: if buy_sell_weekly also says BUY in last 30 days, bonus
-        try:
-            interval_30d = get_interval_sql("30d")
-            cur.execute(
-                f"""SELECT 1 FROM buy_sell_weekly
-                   WHERE symbol = %s AND signal_type = 'BUY'
-                     AND date >= %s::date - {interval_30d}
-                     AND date <= %s
-                   LIMIT 1""",
-                (symbol, signal_date, signal_date),
-            )
-            if cur.fetchone():
-                score += 1.0
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            # Weekly data missing or unavailable - signal quality impaired
-            logger.warning(
-                f"[SIGNAL_QUALITY] Weekly alignment data unavailable for {symbol}: {e} (signal bonus not applied)"
-            )
 
         return min(score, FilterRegistry.get_weight("momentum_price_trend"))
 

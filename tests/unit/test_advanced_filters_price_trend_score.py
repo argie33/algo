@@ -1,15 +1,22 @@
 """Verifies AdvancedFilters._price_trend_score() scoring logic.
 
-Current scoring (restored 2026-07-21+):
+Current scoring (as of 2026-07-28):
 - +2 pts if 5-day return positive
 - +2 pts if 20-day return positive
-- +1 pt bonus if also a BUY signal on weekly timeframe (very strong combo)
 
-Max score: 5 pts (capped at filter weight)
+Max score: 4 pts (capped at filter weight)
+
+REMOVED 2026-07-28: a +1 "weekly BUY alignment" bonus that queried buy_sell_weekly, a
+table with no active loader (confirmed via git history - no load_buy_sell_weekly.py has
+ever existed in this codebase) and data frozen since 2026-05-22. Its 30-day lookback
+window could structurally never match that stale data again, so the bonus had been
+silently, permanently contributing exactly 0 for every symbol - removing it is a
+verified no-op for actual scoring output, not a behavior change. See
+algo/signals/advanced_filters.py::_price_trend_score's docstring for the full history.
 """
 
 from datetime import date
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from algo.signals.advanced_filters import AdvancedFilters
 
@@ -26,81 +33,44 @@ def _filters() -> AdvancedFilters:
     return AdvancedFilters(dict(BASE_CONFIG))
 
 
-def test_price_trend_score_does_query_buy_sell_weekly():
-    """Weekly alignment bonus is evaluated: queries buy_sell_weekly."""
+def test_price_trend_score_no_longer_queries_buy_sell_weekly():
+    """buy_sell_weekly must not be queried at all - its loader has been gone since
+    2026-05-22 and the bonus it fed could never fire (see module docstring)."""
     filters = _filters()
     cur = Mock()
     cur.execute = Mock()
-    cur.fetchone.return_value = None  # No weekly BUY signal
 
     with patch.object(filters, "_period_return", side_effect=[1.0, 1.0]):
         filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
 
-    # Verify that buy_sell_weekly IS queried (restored)
-    assert any("buy_sell_weekly" in str(call) for call in cur.execute.call_args_list)
+    assert not cur.execute.called, "no DB query should run - the weekly bonus was removed, not just gated"
 
 
-def test_price_trend_score_both_positive_no_weekly_returns_four():
-    """r5=positive, r20=positive, no weekly BUY: score = 2+2 = 4."""
+def test_price_trend_score_both_positive_returns_four():
+    """r5=positive, r20=positive: score = 2+2 = 4."""
     filters = _filters()
     cur = Mock()
-    cur.fetchone.return_value = None  # No weekly BUY signal
 
     with patch.object(filters, "_period_return", side_effect=[1.0, 1.0]):
         score = filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
     assert score == 4.0
 
 
-def test_price_trend_score_both_positive_with_weekly_returns_five():
-    """r5=positive, r20=positive, weekly BUY: score = 2+2+1 = 5."""
+def test_price_trend_score_one_positive_returns_two():
+    """r5=positive, r20=negative: score = 2."""
     filters = _filters()
     cur = Mock()
-    cur.fetchone.return_value = (1,)  # Weekly BUY signal found
-
-    with patch.object(filters, "_period_return", side_effect=[1.0, 1.0]):
-        score = filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
-    assert score == 5.0
-
-
-def test_price_trend_score_one_positive_no_weekly_returns_two():
-    """r5=positive, r20=negative, no weekly: score = 2."""
-    filters = _filters()
-    cur = Mock()
-    cur.fetchone.return_value = None
 
     with patch.object(filters, "_period_return", side_effect=[1.0, -1.0]):
         score = filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
     assert score == 2.0
 
 
-def test_price_trend_score_one_positive_with_weekly_returns_three():
-    """r5=positive, r20=negative, weekly BUY: score = 2+1 = 3."""
+def test_price_trend_score_neither_positive_returns_zero():
+    """r5=negative, r20=negative: score = 0."""
     filters = _filters()
     cur = Mock()
-    cur.fetchone.return_value = (1,)  # Weekly BUY found
-
-    with patch.object(filters, "_period_return", side_effect=[1.0, -1.0]):
-        score = filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
-    assert score == 3.0
-
-
-def test_price_trend_score_neither_positive_no_weekly_returns_zero():
-    """r5=negative, r20=negative, no weekly: score = 0."""
-    filters = _filters()
-    cur = Mock()
-    cur.fetchone.return_value = None
 
     with patch.object(filters, "_period_return", side_effect=[-1.0, -1.0]):
         score = filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
     assert score == 0.0
-
-
-def test_price_trend_score_neither_positive_with_weekly_returns_one():
-    """r5=negative, r20=negative, weekly BUY: score = 1 (bonus only)."""
-    filters = _filters()
-    cur = Mock()
-    cur.fetchone.return_value = (1,)  # Weekly BUY found (bonus still applies)
-
-    with patch.object(filters, "_period_return", side_effect=[-1.0, -1.0]):
-        score = filters._price_trend_score("AAPL", date(2026, 7, 21), cur)
-    assert score == 1.0
