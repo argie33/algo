@@ -141,20 +141,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                                 f"[VALUE_QUALITY_GROWTH] {symbol}: Could not fetch value_score from stock_scores: {e}"
                             )
 
-                    # Check if value metrics are available (CRITICAL - value metrics required for scoring)
-                    if value_row and value_row.get("data_unavailable"):
-                        logger.warning(
-                            f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}"
-                        )
-                        # Still insert unavailable marker for audit trail, but don't count as success
-                        with DatabaseContext("write") as cur:
-                            self._insert_value_metrics(cur, value_row)
-                            value_inserts += 1
-                        # Skip quality/growth if primary value metrics failed
-                        symbols_failed += 1
-                        continue
-
-                    # Write to all 3 tables in single transaction
+                    # Write to all 3 tables in single transaction. GOVERNANCE: always upsert
+                    # all 3, even when value_row is data_unavailable - quality_row/growth_row
+                    # are computed independently above (different source queries), so a value
+                    # metrics failure must not discard them. This branch previously `continue`d
+                    # here before ever reaching the quality/growth inserts below, leaving those
+                    # 2 tables with NO row at all (not even an unavailable marker) for any
+                    # symbol whose value metrics failed - live-confirmed 44 such symbols in the
+                    # local DB, all missing from quality_metrics/growth_metrics entirely despite
+                    # having a real value_metrics row. Same bug class the comment below already
+                    # fixed for the quality/growth-specific unavailable case.
                     with DatabaseContext("write") as cur:
                         # Insert value metrics (ALWAYS present, either data or unavailable marker)
                         self._insert_value_metrics(cur, value_row)
@@ -186,7 +182,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                                     f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}"
                                 )
 
-                    symbols_succeeded += 1
+                    if value_row and value_row.get("data_unavailable"):
+                        logger.warning(
+                            f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}"
+                        )
+                        symbols_failed += 1
+                    else:
+                        symbols_succeeded += 1
 
                 except Exception as e:
                     import traceback
