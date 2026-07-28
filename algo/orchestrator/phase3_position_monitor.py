@@ -251,17 +251,64 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             with DatabaseContext("write") as cur:
                 updated_count = _update_position_prices(cur)
 
+            # CRITICAL FIX (Session 394): Generate exit recommendations even in paper mode
+            # to maintain position management (keep count below hard limit of 17).
+            # Skipping recommendations breaks position management: Phase 6 gets empty recommendations ->
+            # no exits execute -> position count hits hard limit -> Phase 8 blocks all new entries.
+            recommendations = []
+            try:
+                from algo.monitoring import PositionMonitor
+                monitor = PositionMonitor(config)
+                recommendations = monitor.review_positions(run_date)
+                n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
+                n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
+                logger.info(f"[PHASE 3] Paper mode generated {len(recommendations)} recommendations: {n_early_exit} early exits, {n_raise_stop} stop raises")
+            except Exception as review_err:
+                # Fallback: PositionMonitor requires complex data (sector trends, etc) that may not be available
+                # In paper mode, implement simple position management: close oldest positions to stay below hard limit
+                logger.warning(f"[PHASE 3] PositionMonitor failed ({str(review_err)[:100]}). Using fallback paper-mode exit strategy.")
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute("""
+                            SELECT position_id, trade_ids_arr, symbol, current_price, days_since_entry
+                            FROM algo_positions
+                            WHERE status = 'open'
+                            ORDER BY days_since_entry DESC NULLS LAST
+                            LIMIT 2
+                        """)
+                        old_positions = cur.fetchall()
+
+                    if old_positions:
+                        logger.info(f"[PHASE 3] Paper mode: generating exit recommendations for {len(old_positions)} oldest positions")
+                        for pos_id, trade_ids_arr, symbol, current_price, days_held in old_positions:
+                            if current_price and current_price > 0 and trade_ids_arr and len(trade_ids_arr) > 0:
+                                trade_id = trade_ids_arr[0] if isinstance(trade_ids_arr, list) else str(trade_ids_arr).strip('{}').split(',')[0]
+                                recommendations.append({
+                                    "position_id": pos_id,
+                                    "trade_id": trade_id,
+                                    "symbol": symbol,
+                                    "action": "EARLY_EXIT",
+                                    "action_reason": "Paper mode position management: close oldest to stay below hard limit",
+                                    "current_price": float(current_price),
+                                    "days_held": days_held if days_held else 0,
+                                    "unrealized_pct": 0.0,
+                                    "unrealized_pnl": 0.0,
+                                })
+                except Exception as fallback_err:
+                    logger.error(f"[PHASE 3] Fallback exit strategy also failed: {fallback_err}")
+                    recommendations = []
+
             log_phase_result_fn(
                 3,
                 "position_monitor",
                 "success",
-                f"{updated_count} positions updated with current prices",
+                f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated",
             )
             return PhaseResult(
                 3,
                 "position_monitor",
                 "ok",
-                {"recommendations": [], "count": updated_count},
+                {"recommendations": recommendations, "count": updated_count},
                 False,
                 None,
             )
