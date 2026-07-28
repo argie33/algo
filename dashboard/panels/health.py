@@ -282,6 +282,7 @@ def _build_phase_execution_panel(
                                 phase_status_map[phase_num] = {
                                     "status": str(status_val).lower(),
                                     "name": p.get("name", ""),
+                                    "summary": p.get("summary", ""),
                                 }
                             except (ValueError, TypeError):
                                 pass
@@ -327,6 +328,18 @@ def _build_phase_execution_panel(
             status_icon = "[bold yellow]■[/]"
             status_text = "BLOCKED (guard)"
             base_color = Y
+        elif status_str == "degraded" and "DRY-RUN" in (phase_status.get("summary") or ""):
+            # Same benign-stub exemption already applied to orchestrator.py's _final_report()
+            # console log and overall-success calc (see that file's 2026-07-27 fix): Phase 6's
+            # dry_run branch reports status="degraded" unconditionally, before any real
+            # per-item exit-execution logic runs, so this literal "DRY-RUN" summary can never
+            # coexist with a genuine exit error. Left unexempted here, this panel - the primary
+            # way this system is actually observed per start_dashboard_dev.py - showed "~
+            # HALTED" for Exit Execution on every single local dry-run, indistinguishable from
+            # a real halt.
+            status_icon = "[dim]⊘[/]"
+            status_text = "SKIPPED (dry-run)"
+            base_color = DIM
         elif status_str in ("halt", "halted", "warn", "degraded"):
             status_icon = "[bold yellow]~[/]"
             status_text = "HALTED"

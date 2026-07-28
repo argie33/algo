@@ -365,6 +365,25 @@ as much as we can" ongoing goal - full data flow now: Alpaca (primary, ~99.4%) -
 `yf.download` OHLCV fallback (~0.6% residual + whole-batch-failure fallback) -> nothing else
 touches yfinance.
 
+**Correction (2026-07-27):** the paragraph above is wrong about `PutCallRatioFetcher` - it does
+NOT "unconditionally return a `data_unavailable` marker" and the yfinance options-chain path is
+NOT dead code. Live-checked: `PutCallRatioFetcher._fetch_from_yfinance()`
+(`loaders/market_health_fetchers.py`) still does a real `yf.Ticker("SPY").option_chain(...)`
+call behind its own circuit breaker, `fetch()` returns real `put_call_ratio` values when it
+succeeds, and those real values are actively consumed as an 8%-weighted "HIGH-priority
+enrichment" factor in market exposure scoring (`algo/risk/factors/put_call_ratio_factor.py`,
+`algo/risk/market_factor_calculator.py`) - not inert. `tests/test_put_call_ratio_yfinance.py`
+itself already flagged this contradiction in its own docstring ("Despite Session 291 comment
+saying yfinance was removed, it still works") rather than being corrected to match. Since no
+free official CBOE put/call feed exists, keeping this working yfinance-sourced signal is the
+right call (same "unofficial but real, transparently documented" tradeoff as the OHLCV
+residual fallback above) - the actual bug was only that this doc and the test's module
+docstring both asserted a removal that never happened, which could have misled a future session
+into "finishing" a phantom removal and silently deleting a real, working, weighted signal.
+Fixed both docstrings to state the real, current contract. Also correcting the yfinance
+surface-area count from the paragraph above: `market_health_fetchers.py` is a fourth live
+yfinance call site alongside the three OHLCV-fallback-related files, not zero.
+
 ---
 
 ## FIXED 2026-07-20: 4 broken/dangling Step Functions transitions + 5 unscheduled "critical" loaders
