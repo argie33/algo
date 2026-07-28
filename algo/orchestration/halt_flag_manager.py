@@ -186,7 +186,14 @@ class HaltFlagManager:
                                 )
                                 return True
                         else:
-                            logger.info(f"[HALT_FLAG] Halt from {trigger_date} still active before market open today")
+                            hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                            reason = item.get("reason") or "N/A"
+                            logger.critical(
+                                f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et} (triggered prior "
+                                f"trading day, still before {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET "
+                                f"open). Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')} "
+                                f"on {trigger_date}. Reason: {reason[:150]}"
+                            )
                             return True
 
                     if trigger_date == now_date_et:
@@ -357,8 +364,13 @@ class HaltFlagManager:
                                     logger.warning(f"[HALT_FLAG] Could not auto-clear halt in RDS: {clear_err}")
                                 return False
                             else:
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
+                                hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                                logger.critical(
+                                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et} "
+                                    f"(triggered prior trading day, still before {MARKET_OPEN_HOUR}:"
+                                    f"{MARKET_OPEN_MINUTE:02d} ET open). Triggered {hours_halted:.1f}h ago "
+                                    f"at {trigger_et.strftime('%H:%M ET')} on {trigger_date}. "
+                                    f"Reason: {reason[:150] if reason else 'N/A'}"
                                 )
                                 return True
 

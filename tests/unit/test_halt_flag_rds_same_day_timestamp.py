@@ -39,18 +39,34 @@ def _mock_db_context(row):
 
 
 class TestHaltFlagRdsSameDayNaiveTimestamp:
+    # Fixed instant well after market open ET, so "2 hours earlier" is guaranteed to land
+    # on the same ET calendar day. Using the real, unmocked datetime.now() here (as this
+    # test previously did) makes the test's own "same calendar day" premise wall-clock
+    # dependent - it silently broke for ~2 hours every night whenever the suite happened
+    # to run between midnight and 2 AM ET, since "2 hours ago" then falls on the *previous*
+    # ET calendar day and the code correctly (and intentionally) takes the "still active
+    # before market open" info-log branch instead of the same-day critical-log branch this
+    # test asserts on - not a code bug, a flaky, time-dependent test.
+    _FAKE_NOW_UTC = datetime(2026, 7, 27, 18, 0, 0, tzinfo=timezone.utc)  # 2:00 PM EDT
+
     def test_same_day_active_halt_does_not_crash_and_reports_hours_halted(self):
         """The exact live-reproduced bug: a same-day halt_triggered_at stored as naive
         UTC digits (matching real DB round-trip behavior) must not crash the subtraction
         and must produce a real hours-halted figure in the CRITICAL log, not fall through
         to the generic "could not parse timestamp" path."""
         manager = _manager()
-        naive_utc_triggered_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
+        naive_utc_triggered_at = self._FAKE_NOW_UTC.replace(tzinfo=None) - timedelta(hours=2)
         row = (True, "stale data detected", naive_utc_triggered_at)
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return self._FAKE_NOW_UTC if tz is not None else self._FAKE_NOW_UTC.replace(tzinfo=None)
 
         with (
             patch("algo.orchestration.halt_flag_manager.DatabaseContext", return_value=_mock_db_context(row)),
             patch("algo.orchestration.halt_flag_manager.logger") as mock_logger,
+            patch("algo.orchestration.halt_flag_manager.datetime", _FrozenDatetime),
         ):
             result = manager._check_halt_flag_rds()
 
@@ -67,12 +83,18 @@ class TestHaltFlagRdsSameDayNaiveTimestamp:
 
     def test_same_day_active_halt_reason_preserved_in_critical_log(self):
         manager = _manager()
-        naive_utc_triggered_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        naive_utc_triggered_at = self._FAKE_NOW_UTC.replace(tzinfo=None)
         row = (True, "Phase 1 degraded: stale data detected", naive_utc_triggered_at)
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return self._FAKE_NOW_UTC if tz is not None else self._FAKE_NOW_UTC.replace(tzinfo=None)
 
         with (
             patch("algo.orchestration.halt_flag_manager.DatabaseContext", return_value=_mock_db_context(row)),
             patch("algo.orchestration.halt_flag_manager.logger") as mock_logger,
+            patch("algo.orchestration.halt_flag_manager.datetime", _FrozenDatetime),
         ):
             manager._check_halt_flag_rds()
 
