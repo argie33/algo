@@ -859,7 +859,17 @@ class ExitEngine:
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
                     except Exception as _trade_err:
-                        cur.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                        # CRITICAL FIX: Rollback to savepoint may itself fail if transaction is aborted.
+                        # Wrap it in try-except to ensure we log the error and continue to the next position,
+                        # rather than propagating a "current transaction is aborted" error that would abort
+                        # exit coverage for all remaining positions in this batch.
+                        try:
+                            cur.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                        except psycopg2.Error as _rollback_err:
+                            logger.error(
+                                f"[EXIT_ENGINE] Savepoint rollback failed for {symbol}: {type(_rollback_err).__name__}: {_rollback_err}. "
+                                f"This indicates a transaction error that should be investigated."
+                            )
                         trade_errors += 1
                         logger.error(
                             f"Exit check failed for {symbol} (trade {trade_id}): "
@@ -889,10 +899,19 @@ class ExitEngine:
                             )
                             cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
                         except Exception as _audit_err:
-                            cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
-                            logger.critical(
-                                f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
-                            )
+                            try:
+                                cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
+                            except psycopg2.Error:
+                                # Audit savepoint rollback also failed - the transaction is likely aborted.
+                                # Continue to next position without trying further rollbacks.
+                                logger.critical(
+                                    f"[AUDIT] Transaction state is unrecoverable - cannot write audit for {symbol}. "
+                                    f"Transaction may be aborted. Continuing with next position."
+                                )
+                            else:
+                                logger.critical(
+                                    f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
+                                )
 
                 logger.info(f"\n{'=' * 70}")
 
