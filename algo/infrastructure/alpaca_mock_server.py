@@ -42,6 +42,10 @@ class AlpacaMockAccount:
             "cash": str(self.cash),
             "portfolio_value": str(portfolio_value),
             "buying_power": str(self.cash * Decimal("4")),
+            "trading_blocked": False,
+            "account_blocked": False,
+            "pattern_day_trader": False,
+            "daytrade_count": 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }

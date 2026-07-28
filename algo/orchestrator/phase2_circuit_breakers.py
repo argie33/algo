@@ -226,6 +226,64 @@ def run(  # noqa: C901
             log_phase_error(2, error, log_phase_result_fn)
             raise RuntimeError(error_msg) from e
 
+        # Alpaca account-freeze / PDT-restriction check. Gated on execution_mode=="auto" (the
+        # only mode that actually submits real orders to this broker account - see
+        # reconciliation.py's identical gate) so this is a no-op for local/paper/dry-run
+        # development and only engages once real money is on the line. Without this, an
+        # account Alpaca has frozen (PDT violation, compliance hold, negative balance, etc.)
+        # gives zero proactive signal - every subsequent entry would just fail with a generic
+        # per-symbol 403 from order_manager.py, indistinguishable from an ordinary rejection,
+        # with nothing pointing at the real account-level cause. Same-day stop-loss exits are
+        # intentional (see exit_engine.py's hard-stop-overrides-min_hold_days comment), so this
+        # system can and does generate day trades - a real PDT flag is a live concern here, not
+        # a hypothetical one.
+        execution_mode = config.get("execution_mode")
+        if execution_mode == "auto":
+            try:
+                from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
+
+                account_data = AlpacaBrokerAdapter(config).fetch_account()
+                if account_data.get("trading_blocked") or account_data.get("account_blocked"):
+                    reason = (
+                        f"Alpaca account frozen (trading_blocked={account_data.get('trading_blocked')}, "
+                        f"account_blocked={account_data.get('account_blocked')}) - broker has stopped "
+                        "all trading on this account (PDT violation, compliance hold, negative "
+                        "balance, etc). No orders can be submitted until resolved directly with Alpaca."
+                    )
+                    logger.critical(f"[PHASE 2] ACCOUNT BLOCKED: {reason}")
+                    alerts.send_position_alert(
+                        "PORTFOLIO",
+                        "ACCOUNT_BLOCKED",
+                        reason,
+                        {
+                            "trading_blocked": account_data.get("trading_blocked"),
+                            "account_blocked": account_data.get("account_blocked"),
+                        },
+                    )
+                    log_phase_result_fn(2, "account_status", "halt", reason)
+                    return PhaseResult(2, "circuit_breakers", "halted", risk_snapshot, True, reason)
+                if account_data.get("pattern_day_trader"):
+                    logger.warning(
+                        f"[PHASE 2] Alpaca account flagged pattern_day_trader=True "
+                        f"(daytrade_count={account_data.get('daytrade_count')}). Alpaca will reject "
+                        "same-day round-trip orders once the rolling 5-business-day day-trade limit "
+                        "is exceeded on an account under $25k equity - a subsequent entry rejection "
+                        "may be this, not a data/config bug."
+                    )
+            except RuntimeError as e:
+                # fetch_account() raises RuntimeError specifically for missing/invalid
+                # credentials. execution_mode=="auto" means real orders are about to be
+                # submitted, so - unlike the paper-mode credential skip for the market circuit
+                # breaker above - this must halt, not degrade: we cannot verify the account
+                # isn't frozen before letting Phase 8 submit real orders into it.
+                error_msg = (
+                    f"[PHASE 2 CRITICAL] Cannot verify Alpaca account status before trading: {e}. "
+                    "execution_mode=auto requires a verified, unblocked broker account."
+                )
+                logger.critical(error_msg)
+                log_phase_result_fn(2, "account_status", "halt", error_msg)
+                return PhaseResult(2, "circuit_breakers", "halted", risk_snapshot, True, error_msg)
+
         if result["halted"]:
             # GOVERNANCE: Fail-fast on data contract violations. If halted=True, halt_reasons MUST be present.
             if "halt_reasons" not in result:

@@ -35,6 +35,11 @@ class BrokerAdapter(Protocol):
             - cash: float, available cash
             - equity: float, total equity
             - buying_power: float (optional)
+            - trading_blocked: bool, broker has frozen all trading on this account
+            - account_blocked: bool, broker has frozen the account entirely
+            - pattern_day_trader: bool, account is flagged PDT (restricts day trades if
+              equity < $25k)
+            - daytrade_count: int | None, broker's rolling day-trade count
         """
         ...
 

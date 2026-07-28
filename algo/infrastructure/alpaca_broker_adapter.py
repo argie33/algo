@@ -178,11 +178,33 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                         )
 
                 buying_power_val = data.get("buying_power")
+
+                # Alpaca's own account-freeze/PDT-restriction flags - always present on a real
+                # /v2/account response but never extracted anywhere in this codebase before.
+                # Without these, an account frozen by Alpaca (PDT violation, compliance hold,
+                # negative balance, etc.) gives zero proactive signal - every subsequent order
+                # submission just fails with a generic per-symbol 403 (see order_manager.py),
+                # indistinguishable from an ordinary rejection, with no single alert pointing at
+                # the real account-level cause. Default to the safe/unblocked reading (False/0)
+                # with a warning if a real response is ever missing them, rather than raising -
+                # this endpoint has been relied on for cash/equity/buying_power since before
+                # these fields were read, and a missing optional field here shouldn't break that.
+                for flag_name in ("trading_blocked", "account_blocked", "pattern_day_trader"):
+                    if flag_name not in data:
+                        logger.warning(
+                            f"[FETCH_ACCOUNT] Alpaca /v2/account response missing '{flag_name}' field. "
+                            "Defaulting to False (unblocked) - verify manually if this persists."
+                        )
+                daytrade_count_val = data.get("daytrade_count")
                 return {
                     "cash": float(cash_val) if cash_val is not None else None,
                     "equity": float(equity_val) if equity_val is not None else None,
                     "portfolio_value": float(portfolio_value_val),
                     "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
+                    "trading_blocked": bool(data.get("trading_blocked", False)),
+                    "account_blocked": bool(data.get("account_blocked", False)),
+                    "pattern_day_trader": bool(data.get("pattern_day_trader", False)),
+                    "daytrade_count": (int(daytrade_count_val) if daytrade_count_val is not None else None),
                 }
             if resp.status_code in (401, 403):
                 raise ValueError(

@@ -67,6 +67,10 @@ class DryRunBrokerAdapter(BrokerAdapter):
             "portfolio_value": 100000.0,  # Synthetic test value
             "cash": 50000.0,  # Synthetic test value
             "equity": 50000.0,  # Synthetic test value
+            "trading_blocked": False,
+            "account_blocked": False,
+            "pattern_day_trader": False,
+            "daytrade_count": 0,
             "_is_mock_data": True,  # Mark as fake data
             "_is_testing_only": True,  # Explicit testing marker
         }
