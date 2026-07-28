@@ -191,6 +191,15 @@ class TickerCache:
         if self._ticker_cache is None:
             raise RuntimeError("SEC ticker cache failed to load (cache is None after refresh)")
         cik = self._ticker_cache.get(symbol.upper())
+        if not cik and "." in symbol:
+            # Dual-class share tickers use a dot in most market-data feeds (BRK.A, TAP.A,
+            # WSO.B) but SEC's own company_tickers.json uses a dash (BRK-A, TAP-A, WSO-B) -
+            # live-confirmed 2026-07-28: 23 of 39 dotted tickers reporting missing_sec_data
+            # (including BRK.A/BRK.B - Berkshire Hathaway itself, which has no undotted
+            # ticker at all) resolve correctly once the dot is swapped for a dash. The
+            # remaining dotted tickers are ".R" (rights) suffixes, which genuinely have no
+            # separate SEC ticker entry - only retried here, not fabricated.
+            cik = self._ticker_cache.get(symbol.upper().replace(".", "-"))
         if not cik:
             raise ValueError(f"Symbol {symbol} not found in SEC ticker cache")
         return cik
