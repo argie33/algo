@@ -88,8 +88,13 @@ class ExitHandler:
         if validation_error:
             return validation_error
 
-        # After validation, we know exit_price is a valid float > 0
-        assert exit_price is not None and exit_price > 0
+        # After validation, we know exit_price is a valid float > 0. A plain `assert`
+        # is stripped entirely under `python -O` - not currently used in this repo's
+        # deployment, but load-bearing financial safety code shouldn't depend on that
+        # staying true, same reasoning already applied to PositionSizer's equivalent
+        # checks (raise ValueError, not assert).
+        if exit_price is None or exit_price <= 0:
+            raise ValueError(f"Exit price must be > 0 after validation, got {exit_price!r}")
         validated_exit_price = float(exit_price)
         # Main exit execution with transaction safety
         try:
