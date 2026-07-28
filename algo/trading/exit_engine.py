@@ -535,42 +535,55 @@ class ExitEngine:
 
                 logger.info(f"{'=' * 70}\n")
 
-                # CRITICAL FIX: This WHERE clause previously hardcoded
-                # `t.status IN ('open', 'pending')` instead of calling TradeStatus.all_open().
-                # A real live (execution_mode=auto) filled order writes algo_trades.status =
-                # 'filled' or 'partially_filled' literally (see executor_entry_handler.py) -
-                # never 'open'/'pending', those are paper-mode/review-mode-only values. That
-                # meant this, the core exit-candidate query for the whole exit engine, would
-                # never select a live-filled position for stop-loss/target/time-based exit
-                # evaluation - the position would sit with no automated exit coverage
-                # indefinitely. Invisible in every prior run because every trade so far has
-                # been paper mode (status='open'). Now selects every non-terminal status.
-                open_trade_statuses = TradeStatus.all_open()
-                status_placeholders = ", ".join(["%s"] * len(open_trade_statuses))
-                cur.execute(
-                    f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                              t.target_1_price, t.target_2_price, t.target_3_price,
-                              t.trade_date,
-                              p.position_id, p.quantity, p.target_levels_hit,
-                              p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
-                              t.last_partial_exit_date, t.partial_exits_log
-                       FROM algo_trades t
-                       JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                       WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
-                       ORDER BY t.trade_date ASC""",
-                    (*open_trade_statuses, PositionStatus.OPEN.value),
-                )
+                # CRITICAL FIX Session 392: Wrap initial position fetch in try-except
+                # If the initial SELECT fails (e.g., constraint violation, data corruption),
+                # the transaction becomes aborted. All subsequent queries return "current
+                # transaction is aborted" errors. Catch database errors early and fail
+                # cleanly rather than letting subsequent per-position loop queries fail
+                # with confusing transaction abort messages.
+                try:
+                    # CRITICAL FIX: This WHERE clause previously hardcoded
+                    # `t.status IN ('open', 'pending')` instead of calling TradeStatus.all_open().
+                    # A real live (execution_mode=auto) filled order writes algo_trades.status =
+                    # 'filled' or 'partially_filled' literally (see executor_entry_handler.py) -
+                    # never 'open'/'pending', those are paper-mode/review-mode-only values. That
+                    # meant this, the core exit-candidate query for the whole exit engine, would
+                    # never select a live-filled position for stop-loss/target/time-based exit
+                    # evaluation - the position would sit with no automated exit coverage
+                    # indefinitely. Invisible in every prior run because every trade so far has
+                    # been paper mode (status='open'). Now selects every non-terminal status.
+                    open_trade_statuses = TradeStatus.all_open()
+                    status_placeholders = ", ".join(["%s"] * len(open_trade_statuses))
+                    cur.execute(
+                        f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                                  t.target_1_price, t.target_2_price, t.target_3_price,
+                                  t.trade_date,
+                                  p.position_id, p.quantity, p.target_levels_hit,
+                                  p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
+                                  t.last_partial_exit_date, t.partial_exits_log
+                           FROM algo_trades t
+                           JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                           WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
+                           ORDER BY t.trade_date ASC""",
+                        (*open_trade_statuses, PositionStatus.OPEN.value),
+                    )
 
-                trades = cur.fetchall()
+                    trades = cur.fetchall()
 
-                if not trades:
-                    logger.info("No open positions.\n")
+                    if not trades:
+                        logger.info("No open positions.\n")
 
-                    return 0, 0, 0
+                        return 0, 0, 0
 
-                # Cache market distribution-day status once for the run
+                    # Cache market distribution-day status once for the run
 
-                dist_days_today = self._fetch_market_dist_days(cur, current_date)
+                    dist_days_today = self._fetch_market_dist_days(cur, current_date)
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as _init_err:
+                    logger.critical(
+                        f"[EXIT_ENGINE CRITICAL] Initial position fetch failed: {type(_init_err).__name__}: {_init_err}. "
+                        f"Cannot proceed with exit evaluation. This indicates a database connectivity or schema issue."
+                    )
+                    raise DatabaseError(f"Exit engine initialization failed: {_init_err}") from _init_err
 
                 exits_executed = 0
                 stop_raises_executed = 0
