@@ -408,6 +408,15 @@ def _get_stock_scores(  # noqa: C901
                 "interest_coverage_unavailable_reason": d.get("interest_coverage_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
+                "earnings_surprise_avg": d.get("earnings_surprise_avg"),
+                "eps_growth_stability": d.get("eps_growth_stability"),
+                "earnings_beat_rate": d.get("earnings_beat_rate"),
+                "consecutive_positive_quarters": d.get("consecutive_positive_quarters"),
+                "estimate_revision_direction": d.get("estimate_revision_direction"),
+                "revision_activity_30d": d.get("revision_activity_30d"),
+                "estimate_momentum_60d": d.get("estimate_momentum_60d"),
+                "estimate_momentum_90d": d.get("estimate_momentum_90d"),
+                "revision_trend_score": d.get("revision_trend_score"),
                 "payout_ratio": d.get("payout_ratio"),
                 "payout_ratio_unavailable_reason": d.get("payout_ratio_unavailable_reason"),
                 "free_cashflow": d.get("free_cashflow"),
@@ -424,6 +433,7 @@ def _get_stock_scores(  # noqa: C901
                 "earnings_growth_yoy_unavailable_reason": d.get("earnings_growth_yoy_unavailable_reason"),
                 "revenue_growth_pct": d.get("revenue_growth"),
                 "revenue_growth_yoy_unavailable_reason": d.get("revenue_growth_yoy_unavailable_reason"),
+                "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),
             }
 
             # Momentum Inputs: Price momentum, technical indicators
@@ -476,6 +486,17 @@ def _get_stock_scores(  # noqa: C901
                 "revenue_growth_5y_unavailable_reason": d.get("revenue_growth_5y_unavailable_reason"),
                 "eps_growth_5y_cagr": d.get("eps_growth_5y_val"),
                 "eps_growth_5y_unavailable_reason": d.get("eps_growth_5y_unavailable_reason"),
+                "net_income_growth_yoy": d.get("net_income_growth_yoy"),  # May be None
+                "operating_income_growth_yoy": d.get("op_income_growth_yoy"),  # May be None
+                "gross_margin_trend": d.get("gross_margin_trend"),  # May be None
+                "operating_margin_trend": d.get("op_margin_trend"),  # May be None
+                "net_margin_trend": d.get("net_margin_trend"),  # May be None
+                "roe_trend": d.get("roe_trend"),  # May be None
+                "sustainable_growth_rate": d.get("sustainable_growth_rate"),  # May be None
+                "quarterly_growth_momentum": d.get("quarterly_growth_momentum"),  # May be None
+                "fcf_growth_yoy": d.get("fcf_growth_yoy"),  # May be None
+                "ocf_growth_yoy": d.get("ocf_growth_yoy"),  # May be None
+                "asset_growth_yoy": d.get("asset_growth_yoy"),  # May be None
             }
 
             # Positioning Inputs: Ownership and short interest
