@@ -312,11 +312,29 @@ class DailyReconciliation:
                 # of algo_trades history (see baseline roll-forward comment below for why an all-time
                 # SUM() is the wrong quantity to add to a baseline that itself already reflects all
                 # prior realized P&L). Closed trades with NULL profit_loss_dollars (pending broker
-                # fill reconciliation - see phase9_reconciliation.py) are correctly excluded by SUM()
-                # rather than treated as a $0 realized result.
+                # fill reconciliation - see phase9_reconciliation.py, which deliberately leaves this
+                # NULL rather than fabricate a $0 P&L) are excluded by SUM() the same way the
+                # roll-forward baseline comment below describes: that day's nudge is zero, not an error.
+                #
+                # BUG FOUND 2026-07-28: when EVERY closed trade that day was still pending (all NULL),
+                # SUM() returns NULL for the whole aggregate (not "0 from N excluded rows" - Postgres
+                # SUM() over an all-NULL group is NULL), and this used to be treated as indistinguishable
+                # from real corruption, hard-erroring Phase 9 - live-reproduced: 9 closed trades on
+                # 2026-07-27, all pending broker-fill confirmation, correctly excluded individually but
+                # the all-NULL aggregate wrongly raised. Now distinguish "pending" (estimated_exit_price
+                # IS NOT NULL - the documented marker for this exact state) from genuine corruption
+                # (profit_loss_dollars NULL with no pending marker at all, which is still unexplained
+                # and still raises).
                 cur.execute(
                     """
-                    SELECT COUNT(*) as closed_count, SUM(profit_loss_dollars) as realized_pnl_today
+                    SELECT COUNT(*) as closed_count,
+                           SUM(profit_loss_dollars) as realized_pnl_today,
+                           COUNT(*) FILTER (
+                               WHERE profit_loss_dollars IS NULL AND estimated_exit_price IS NOT NULL
+                           ) as pending_count,
+                           COUNT(*) FILTER (
+                               WHERE profit_loss_dollars IS NULL AND estimated_exit_price IS NULL
+                           ) as corrupt_count
                     FROM algo_trades
                     WHERE status = 'closed' AND exit_date = %s
                     """,
@@ -330,18 +348,37 @@ class DailyReconciliation:
                     )
 
                 closed_count = realized_row["closed_count"]
+                pending_count = realized_row["pending_count"]
+                corrupt_count = realized_row["corrupt_count"]
                 if closed_count == 0:
                     realized_pnl_today = 0.0
                     logger.debug(f"[RECONCILIATION] No closed trades on {reconcile_date} - realized P&L = 0")
-                elif realized_row["realized_pnl_today"] is None:
+                elif corrupt_count > 0:
                     raise RuntimeError(
-                        f"[RECONCILIATION CRITICAL] {closed_count} closed trades on {reconcile_date} "
-                        "but SUM(profit_loss_dollars) returned NULL. This indicates data corruption "
+                        f"[RECONCILIATION CRITICAL] {corrupt_count}/{closed_count} closed trades on "
+                        f"{reconcile_date} have NULL profit_loss_dollars with no estimated_exit_price "
+                        "pending-reconciliation marker either. This indicates data corruption "
                         "(NULL/invalid values in profit_loss_dollars column). "
                         "Check algo_trades records for incomplete exit P&L reconciliation."
                     )
+                elif realized_row["realized_pnl_today"] is None:
+                    # All closed trades today are still pending broker-fill confirmation - not
+                    # corruption. Same zero-nudge treatment as the partial-pending case below.
+                    realized_pnl_today = 0.0
+                    logger.warning(
+                        f"[RECONCILIATION] All {closed_count} closed trades on {reconcile_date} are "
+                        "pending broker-fill confirmation (estimated_exit_price set, profit_loss_dollars "
+                        "not yet known) - realized P&L for today recorded as $0 until "
+                        "reconcile_exit_fills() resolves them."
+                    )
                 else:
                     realized_pnl_today = float(realized_row["realized_pnl_today"])
+                    if pending_count > 0:
+                        logger.warning(
+                            f"[RECONCILIATION] {pending_count}/{closed_count} closed trades on "
+                            f"{reconcile_date} still pending broker-fill confirmation - realized P&L "
+                            f"(${realized_pnl_today:.2f}) excludes them until reconcile_exit_fills() resolves them."
+                        )
 
                 # FIX: Provide default fallback for initial_capital_paper_trading in case config doesn't have it
                 initial_capital = self.config.get("initial_capital_paper_trading")
