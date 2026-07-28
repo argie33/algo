@@ -4,6 +4,42 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: institutional_holdings_13f never refreshed unresolved symbols, freezing pre-OpenFIGI-fix reason strings
+
+Continuation of the loader-review goal, found via a live coverage query rather than
+re-trusting this doc's prior "COMPLETED" claims: `institutional_holdings_13f` real
+coverage is 993/5403 (18.4%) - expected, given the OpenFIGI crosswalk backfill is
+still an incremental multi-run process - but `reason` breakdown showed 3,940 of the
+remaining rows still carrying the literal string `cusip_ticker_crosswalk_not_implemented`,
+a reason that predates the 2026-07-27 OpenFIGI fix and no longer exists anywhere in
+`load_institutional_holdings_13f.py`. The loader had run to `COMPLETED`/100% multiple
+times since that fix, yet these rows had never been touched.
+
+Root cause: `_calculate_and_cache_ownership()` only returned records for tickers that
+both resolved via the OpenFIGI crosswalk this run AND had a usable
+`shares_outstanding` - every other active symbol was simply absent from the returned
+list, so `load_global()`'s `bulk_insert()` never touched its existing row. Since the
+crosswalk resolves a growing subset each run, "absent this run" silently meant "leave
+whatever's already there" - forever, for any symbol that hasn't yet resolved. Same bug
+class as several previously-fixed instances in this codebase (growth_metrics
+all-or-nothing, value_metrics early-continue): a real per-item outcome silently
+discarded instead of writing an explicit, current marker. A second, smaller instance
+of the identical bug existed in the same method - tickers that DID resolve via the
+crosswalk but had no usable `shares_outstanding` were logged and dropped, not marked.
+
+**Fixed:** every active (non-ETF) symbol now gets an explicit, current record every
+run - real ownership when resolved, otherwise an honest `data_unavailable` marker
+(`shares_outstanding_unavailable` or `no_resolved_13f_holdings`) - matching the
+"always upsert the unavailable marker" governance pattern already applied elsewhere in
+this codebase. New regression test
+`test_institutional_loader_writes_fresh_marker_for_unresolved_active_symbols`,
+confirmed fail-before/pass-after via git stash. Not yet live-verified end-to-end
+against a real full-universe run in this session (the loader's own `institutional_holdings_13f`
+row was mid-run under a separate concurrent process at the time of this fix - did not
+interrupt it); the next scheduled/manual run will pick up the fix.
+
+---
+
 ## FIXED 2026-07-28: load_global() had no success-path status transition; 2 analyst loaders' 85% completeness floor was unreachable
 
 Same loader-review pass as the crashed-loader-masking fix above, chasing why
