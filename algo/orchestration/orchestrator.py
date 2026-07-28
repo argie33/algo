@@ -339,7 +339,7 @@ class Orchestrator:
         # passed startup validation with no credentials, then failed later and confusingly
         # when Phase 8 Entry Execution actually tried to place an order and got a 401. That's
         # exactly the fail-fast violation this validator exists to prevent.
-        if execution_mode in ("live", "auto"):
+        if execution_mode == "auto":
             try:
                 from config.credential_manager import CredentialManager
 
@@ -391,8 +391,8 @@ class Orchestrator:
                 if not api_key or not api_secret:
                     raise RuntimeError(
                         f"[STARTUP] CRITICAL: Alpaca credentials missing for execution_mode={execution_mode!r} "
-                        f"(alpaca_paper_trading={is_paper_trading}). Both 'auto' and 'live' send orders to "
-                        "Alpaca and require valid credentials, whether targeting the paper or live endpoint. "
+                        f"(alpaca_paper_trading={is_paper_trading}). 'auto' mode sends orders to Alpaca and "
+                        "requires valid credentials, whether targeting the paper or live endpoint. "
                         "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
                     )
                 logger.info(f"[OK] Alpaca credentials validated for execution_mode={execution_mode!r}")
