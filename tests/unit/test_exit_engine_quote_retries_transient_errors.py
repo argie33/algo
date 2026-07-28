@@ -11,6 +11,7 @@ Fixed by giving the quote fetch the same up-to-3-attempt retry loop already used
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from algo.trading.exit_engine import ExitEngine
 
@@ -104,6 +105,52 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
 
         assert price is None
         assert mock_get.call_count == 1
+
+    def test_timeout_then_success_retries_and_returns_midpoint(self, mock_config):
+        # Narrower gap found the same day as the 429/503 fix above: the retry loop only
+        # inspected response.status_code, so a requests.Timeout/ConnectionError raised by
+        # requests.get() itself escaped on the first attempt with zero retries - for the
+        # single highest-stakes call site in this bug class (real-time stop-loss pricing).
+        engine = _engine(mock_config)
+
+        with (
+            patch(
+                "algo.trading.exit_engine.get_alpaca_credentials",
+                return_value={"key": "k", "secret": "s"},
+            ),
+            patch("algo.trading.exit_engine.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
+            patch(
+                "algo.trading.exit_engine.requests.get",
+                side_effect=[requests.Timeout("timed out"), _quote_response(200)],
+            ),
+            patch("algo.trading.exit_engine.time.sleep") as mock_sleep,
+        ):
+            price = engine._fetch_alpaca_quote("AAPL")
+
+        assert price == 100.25
+        mock_sleep.assert_called_once()
+
+    def test_connection_error_exhausts_retries_then_raises(self, mock_config):
+        from algo.trading.exceptions import ExchangeAPIError
+
+        engine = _engine(mock_config)
+
+        with (
+            patch(
+                "algo.trading.exit_engine.get_alpaca_credentials",
+                return_value={"key": "k", "secret": "s"},
+            ),
+            patch("algo.trading.exit_engine.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
+            patch(
+                "algo.trading.exit_engine.requests.get",
+                side_effect=requests.ConnectionError("connection reset"),
+            ) as mock_get,
+            patch("algo.trading.exit_engine.time.sleep"),
+        ):
+            with pytest.raises(ExchangeAPIError):
+                engine._fetch_alpaca_quote("AAPL")
+
+        assert mock_get.call_count == 3
 
 
 if __name__ == "__main__":
