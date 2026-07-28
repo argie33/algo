@@ -3316,6 +3316,51 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
     )
 
 
+def _build_algo_metrics_table(metrics: list[Any]) -> Table | None:
+    """Build table of today's trading metrics and history."""
+    if not metrics or not isinstance(metrics, list):
+        return None
+
+    valid_metrics = [m for m in metrics if isinstance(m, dict)]
+    if not valid_metrics:
+        return None
+
+    tbl = Table(
+        box=box.SIMPLE,
+        show_header=True,
+        header_style="dim",
+        padding=(0, 1),
+        expand=False,
+    )
+    tbl.add_column("Date", no_wrap=True, min_width=12)
+    tbl.add_column("Entries", no_wrap=True, justify="right", min_width=7)
+    tbl.add_column("Exits", no_wrap=True, justify="right", min_width=7)
+    tbl.add_column("Actions", no_wrap=True, justify="right", min_width=7)
+    tbl.add_column("Sig Score", no_wrap=True, justify="right", min_width=9)
+
+    for m in valid_metrics[:7]:
+        dt = m.get("date", "-")
+        ent = m.get("entries")
+        ext = m.get("exits")
+        act = m.get("total_actions")
+        sig = m.get("avg_signal_score")
+
+        ent_s = f"{ent}" if ent is not None else "-"
+        ext_s = f"{ext}" if ext is not None else "-"
+        act_s = f"{act}" if act is not None else "-"
+        sig_s = f"{sig:.1f}" if sig is not None and isinstance(sig, (int, float)) else "-"
+
+        tbl.add_row(
+            Text(str(dt)[:10], style="dim"),
+            Text(ent_s, style=G if ent and ent > 0 else DIM),
+            Text(ext_s, style=Y if ext and ext > 0 else DIM),
+            Text(act_s, style=CY if act and act > 0 else DIM),
+            Text(sig_s, style=G if sig and sig > 0.5 else (Y if sig and sig > 0.3 else DIM)),
+        )
+
+    return tbl
+
+
 def _build_results_panel(
     run: dict[str, Any] | None,
     act: dict[str, Any] | None,
@@ -3325,24 +3370,25 @@ def _build_results_panel(
     notifs: list[Any],
     hlth: dict[str, Any] | list[Any] | None = None,
 ) -> Panel:
-    """Build RIGHT panel: execution status, run results, history, and alerts.
+    """Build ALGO HEALTH EXPANDED panel: multi-column layout showing all data.
+
+    Redesigned to use horizontal space effectively with 3-column layout:
+    - Left: Run status, risk metrics, today's metrics
+    - Center: Phase execution health detail
+    - Right: Run history and notifications
 
     Args:
         run: Run data (validated for errors)
         act: Activity data (fallback if run missing)
-        algo_metrics: Today's metrics + 5d history
+        algo_metrics: Today's metrics + 5d history (NOW DISPLAYED)
         exec_hist: Full run execution history
         risk: Risk metrics (VaR, beta, concentration)
         notifs: Notification items
         hlth: Health data containing execution_health
 
     Returns:
-        Rich Panel with execution status and health
+        Rich Panel with multi-column layout
     """
-    right_rows: list[Text | Rule | Panel] = [
-        Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"),
-        Rule(style="dim"),
-    ]
 
     run_valid = run and isinstance(run, dict) and not has_error(run)
     act_valid = act and isinstance(act, dict) and not has_error(act)
@@ -3353,17 +3399,25 @@ def _build_results_panel(
     )
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
+    # ──── LEFT COLUMN: Status, Risk, Metrics ────
+    left_rows: list[Text | Rule | Table] = [
+        Text.from_markup("[dim][h] return[/]"),
+        Rule(style="dim"),
+    ]
+
     if run_valid and isinstance(run, dict):
         sts = (
-            f"[bold {G}]OK COMPLETED[/]"
+            f"[bold {G}]✓ COMPLETED[/]"
             if run.get("success") and not run.get("halted")
-            else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
+            else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]✗ ERROR[/]")
         )
         rid_raw = run.get("run_id")
         if rid_raw is None:
             rid_raw = ""
         rid = rid_raw
-        right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
+        left_rows.append(Text.from_markup(f"{sts}{age_s}"))
+        left_rows.append(Text.from_markup(f"[dim]ID:[/] [white]{rid[:16]}[/]"))
+
         halt_r = run.get("halt_reason")
         if halt_r is None:
             halt_r = ""
@@ -3373,90 +3427,96 @@ def _build_results_panel(
         if run.get("halted") or halt_r:
             phase_results_val = run.get("phase_results")
             phase_results_list = phase_results_val if phase_results_val is not None else []
+            left_rows.append(Rule(style="dim"))
+            left_rows.append(Text.from_markup(f"[bold {Y}]Halt details:[/]"))
             for label, detail in _best_halt_reason(halt_r, phase_results_list):
-                prefix = f"{label}: " if label else ""
-                right_rows.append(Text.from_markup(f"  [{Y}]-> {prefix}{detail}[/]"))
+                prefix = f"[dim]{label}:[/] " if label else ""
+                left_rows.append(Text.from_markup(f"  [{Y}]{prefix}{detail[:40]}[/]"))
         elif summary:
-            right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
+            left_rows.append(Text.from_markup(f"[dim]{summary[:50]}[/]"))
 
-    # Portfolio risk snapshot: `risk` was already fetched and passed into this panel (see
-    # renderers/pipeline.py's `risk=ctx.risk`) but never read - the fullscreen ALGO HEALTH
-    # view showed no VaR/CVaR/beta/concentration at all, even though the compact panel
-    # shows it (see panel_algo_health's own D2 section, same root cause, fixed prior
-    # session). Reuse the same formatter so both views stay consistent.
+    # Risk metrics section
     risk_line = _extract_orch_risk_metrics_string(risk).strip()
     if risk_line:
-        right_rows.append(Text.from_markup(risk_line))
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold]Risk Metrics:[/]"))
+        left_rows.append(Text.from_markup(risk_line))
 
-    right_rows.append(Rule(style="dim"))
+    # Trading metrics table (today + historical)
+    metrics_table = _build_algo_metrics_table(algo_metrics)
+    if metrics_table:
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold]Trading Activity:[/]"))
+        left_rows.append(metrics_table)
 
-    # Phase execution health panel (if available)
+    # ──── CENTER COLUMN: Phase Execution ────
+    center_rows: list[Text | Rule | Panel] = []
     if hlth and isinstance(hlth, dict):
         execution_health = hlth.get("execution_health")
         phase_exec_panel = _build_phase_execution_panel(execution_health, run)
         if phase_exec_panel:
-            right_rows.append(phase_exec_panel)
-            right_rows.append(Rule(style="dim"))
+            center_rows.append(phase_exec_panel)
 
+    if not center_rows:
+        center_rows.append(Text.from_markup("[dim]Phase execution data unavailable[/]"))
+
+    # ──── RIGHT COLUMN: History & Alerts ────
+    right_rows: list[Text | Rule] = []
+
+    # Run history
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
         n_ok = sum(1 for r in valid_hist_e if _get_status_safe(r) in PHASE_SUCCESS_STATES)
         wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
         right_rows.append(
-            Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
+            Text.from_markup(f"[bold]Run History ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} ✓[/]")
         )
-        # fetch_exec_history() requests up to 10 runs (see fetchers_external.py), but this
-        # fullscreen expanded panel only ever showed the first 3 - the compact panel_algo_health
-        # tile (far less screen real estate) already shows a 7-run badge summary, so the
-        # dedicated expanded view showing FEWER detailed rows than the compact view's badge
-        # count was an under-use of the extra space, not a deliberate design choice.
-        for r in valid_hist_e[:10]:
+        for r in valid_hist_e[:15]:
             s = _get_status_safe(r)
             dt = r.get("started_at")
             if dt is None:
                 dt_s = "-"
             elif hasattr(dt, "strftime"):
-                dt_s = dt.strftime("%b %d  %I:%M %p")
+                dt_s = dt.strftime("%m/%d %H:%M")
             elif isinstance(dt, str):
                 try:
                     from datetime import datetime as dt_cls
                     dt_obj = dt_cls.fromisoformat(dt.replace('Z', '+00:00'))
-                    dt_s = dt_obj.strftime("%b %d  %I:%M %p")
+                    dt_s = dt_obj.strftime("%m/%d %H:%M")
                 except (ValueError, AttributeError):
                     logger.debug(f"[HEALTH] Could not parse started_at timestamp: {dt}")
                     dt_s = "-"
             else:
                 logger.debug(f"[HEALTH] Unexpected started_at type: {type(dt).__name__}")
                 dt_s = "-"
-            # Same HALTED_STATES/SKIPPED_STATES buckets as _format_phase_badge() - a run-level
-            # "degraded"/"blocked"/"skipped" status (e.g. every DRY-RUN, see
-            # execution_tracker.py) must not fall through to the red error styling below.
+
             if s in PHASE_SUCCESS_STATES:
-                ic, ii = G, "v"
+                ic, ii = G, "✓"
             elif s in HALTED_STATES:
                 ic, ii = Y, "~"
             elif s in SKIPPED_STATES:
-                ic, ii = DIM, "o"
+                ic, ii = DIM, "⊘"
             else:
-                ic, ii = R, "x"
+                ic, ii = R, "✗"
+
             hr = r.get("halt_reason")
             if hr is None:
                 hr = ""
             lph = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
-            # HIGH-003 FIX: Remove redundant OR fallback - hr is already guaranteed to be string
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in hr else ""
-            hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
-            right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
+            hr_s = f"  [{Y}]{body[:30]}[/]{ph_s}" if body else ""
 
+            right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/] [{ic}]{s[:8]}[/]{hr_s}"))
+    else:
+        right_rows.append(Text.from_markup("[dim]No run history available[/]"))
 
+    # Notifications
     valid_notifs_raw = safe_get_list(notifs)
     if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         right_rows.append(Rule(style="dim"))
-        right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
-        # Compact panel_algo_health already shows 5 - this fullscreen panel showing only 3
-        # was fewer than the compact tile despite having far more room. Bump to 10.
-        for n in valid_notifs_raw[:10]:
+        right_rows.append(Text.from_markup(f"[bold]Alerts & Notifications ({len(valid_notifs_raw)}):[/]"))
+        for n in valid_notifs_raw[:12]:
             if not isinstance(n, dict):
                 continue
             severity_val = n.get("severity")
@@ -3477,11 +3537,19 @@ def _build_results_panel(
             seen_val = n.get("seen")
             if seen_val is None:
                 seen_val = True
-            unread = "-" if not seen_val else "."
-            right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
+            unread = "•" if not seen_val else "·"
+            right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title[:35]}[/] [dim]{age}[/]"))
+
+    # Build multi-column layout
+    layout = Layout()
+    layout.split_row(
+        Layout(Group(*left_rows), ratio=1, name="left"),
+        Layout(Group(*center_rows), ratio=2, name="center"),
+        Layout(Group(*right_rows), ratio=1, name="right"),
+    )
 
     return Panel(
-        Group(*right_rows),
+        layout,
         title=r"[bold yellow]ALGO HEALTH - EXPANDED[/]  [dim]\[h] return[/]",
         border_style="yellow",
         padding=(0, 1),
