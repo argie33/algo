@@ -4,6 +4,51 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: quarterly SEC data_unavailable markers silently vanished; data_loader_status.reason frozen forever on success
+
+Continuation of the loader-review goal, found via a live full-universe
+`quarterly_income_statement` backfill (after resetting its watermark to populate 3
+newly-wired XBRL fields - see the entry below): 767/5465 symbols "failed" with
+`CRITICAL: No valid rows after transformation`, vs. 0.0% for the equivalent annual run.
+
+**Root cause:** `SecLoaderBase.fetch_incremental()` (`loaders/helpers/sec_base.py`)
+returns an explicit `data_unavailable` marker (`fiscal_year=0`) for symbols with no SEC
+facts at all - correct for annual statements, where `transform()`'s dedup key is just
+`(symbol, fiscal_year)`. For QUARTERLY statements, `transform()` also requires a
+non-None `fiscal_quarter` to build its key; the marker never set one, so it silently
+failed the `if fiscal_quarter is None: skip` check and vanished. Foreign private
+issuers that file Form 20-F/6-K instead of 10-Q (ZIM, ZTO, ZH, ZKH, ...) have no
+quarterly SEC facts at all, so this marker was their ONLY row each run - leaving
+`transform()` with zero rows, which raises a hard `RuntimeError` instead of writing the
+clean marker the code already exists to produce. No data was ever lost (these symbols
+never had quarterly rows and still don't), but real failures were logged and counted
+against the loader's fail-rate budget for a case that isn't actually a failure.
+
+**Fixed:** new `SecLoaderBase._unavailable_marker()` helper adds a `"fiscal_period": 0`
+sentinel (the field_mapping source-key name that maps to the `fiscal_quarter` DB column
+- NOT the literal `"fiscal_quarter"` key, which isn't in `field_mapping` and would
+vanish the identical way) whenever `self.period != "annual"`. Live-verified against the
+4 real symbols above: each now correctly writes a clean `data_unavailable` row
+(`reason='no_quarterly_income_data_in_sec_edgar_reit_or_special_entity'`) instead of
+crashing. New regression test `tests/unit/test_sec_base_quarterly_unavailable_marker.py`,
+including a test that reproduces the pre-fix vanish directly.
+
+**Separate finding, same audit:** `OptimalLoader`'s `data_loader_status` UPSERT
+(`utils/optimal_loader.py`) never included the `reason` column at all - any value ever
+written there (manual diagnostic notes, one-off backfills) stays frozen forever
+regardless of how many times the loader later succeeds. Live-confirmed 4 tables
+carrying stale/misleading `reason` text despite being demonstrably healthy and actively
+loaded right now: `analyst_sentiment_analysis` ("no free source" - long since disproved,
+see the yfinance-analyst-ratings fix elsewhere in this doc), and
+`industry_ranking`/`sector_rotation_signal`/`naaim` ("no active loader" - all 3 have
+real, currently-scheduled loaders per `loader_registry.py`/`local_loader_scheduler.py`).
+Fixed to clear `reason` on a genuine `COMPLETED` run; one-time cleanup applied directly
+to the 4 already-stale rows so they don't keep misleading anyone reading
+`data_loader_status` as if `reason` were live-maintained (it still isn't, for FAILED
+rows - only cleared on success).
+
+---
+
 ## FIXED 2026-07-28: institutional_holdings_13f never refreshed unresolved symbols, freezing pre-OpenFIGI-fix reason strings
 
 Continuation of the loader-review goal, found via a live coverage query rather than
