@@ -558,15 +558,27 @@ class DailyReconciliation:
                     # "total return" should include both.
                     cumulative_return_pct = (adjusted_equity - float(initial_capital)) / float(initial_capital) * 100
 
+                    # Calculate concentration metrics for paper mode
+                    # average_position_size_pct = average position as % of portfolio
+                    avg_position_size_pct_paper = (
+                        (total_invested / portfolio_value * 100)
+                        if portfolio_value > 0 and open_position_count > 0
+                        else 0.0
+                    )
+                    # Note: largest_position_pct requires querying individual positions;
+                    # for LOCAL mode paper trading, use average as approximation.
+                    # In production path, this is calculated properly via PositionAnalyzer.
+                    largest_position_pct_paper = avg_position_size_pct_paper  # approximation for paper mode
+
                     snapshot_params = (
                         reconcile_date,
                         portfolio_value,
                         cash_remaining,  # THIS IS THE CORRECTED CASH VALUE
                         portfolio_value,
                         open_position_count,
-                        0.0,
-                        0.0,
-                        0.0,
+                        largest_position_pct_paper,
+                        avg_position_size_pct_paper,
+                        avg_position_size_pct_paper,  # concentration_risk_pct
                         realized_pnl_today,  # was hardcoded 0.0 - dashboard/reporting always showed $0 realized
                         total_unrealized_pnl,
                         unrealized_pnl_pct,
@@ -1361,17 +1373,17 @@ class DailyReconciliation:
                 """,
                         (
                             reconcile_date,
-                            float(total_equity_dec),
-                            float(cash_dec),
-                            float(total_equity_dec),
-                            positions_with_prices,
-                            float(max_concentration_dec),
+                            float(total_equity_dec),  # total_portfolio_value
+                            float(cash_dec),  # total_cash
+                            float(total_equity_dec),  # total_equity
+                            len(positions) if positions else 0,  # position_count
+                            float(max_concentration_dec),  # largest_position_pct
                             float(
                                 (avg_position_size_dec / total_equity_dec * Decimal(100))
                                 if total_equity_dec > 0
                                 else Decimal(0)
-                            ),
-                            float(max_concentration_dec),
+                            ),  # average_position_size_pct
+                            float(max_concentration_dec),  # concentration_risk_pct
                             realized_pnl_today,
                             float(unrealized_pnl),
                             float(unrealized_pnl_pct_dec),
@@ -1402,7 +1414,7 @@ class DailyReconciliation:
                 snapshot_date=reconcile_date,
                 total_portfolio_value=float(total_equity_dec),
                 total_cash=float(cash_dec),
-                position_count=positions_with_prices,
+                position_count=len(positions) if positions else 0,
                 unrealized_pnl_total=float(unrealized_pnl),
                 unrealized_pnl_pct=float(unrealized_pnl_pct_dec),
             )
