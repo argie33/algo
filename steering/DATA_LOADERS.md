@@ -224,6 +224,25 @@ value. New tests: `tests/unit/test_stock_scores_segment_diversification.py`.
 loader is correctly wired into the Step Functions pipeline and will backfill more symbols as it
 runs on schedule.
 
+**Correction (2026-07-27) - found the actual root cause of the 5-row caveat above:**
+`terraform/modules/pipeline/main.tf`'s `computed_metrics_pipeline` had the exact same
+structurally-unreachable-state bug already documented elsewhere in this file (the
+`InstitutionalHoldings13F` class), just inverted - `SecCashFlowMetrics`'s SUCCESS `Next`
+pointed straight to `ValueQualityGrowthMetrics`, skipping `SecSegmentInfo`/`SecSegmentMetrics`
+entirely; only `SecCashFlowMetrics`'s own FAILURE handler pointed at `SecSegmentInfo`. One state
+deeper, `SecSegmentInfo`'s SUCCESS `Next` had the identical bug pointed at
+`ValueQualityGrowthMetrics` instead of `SecSegmentMetrics` (again, only its failure handler
+chained forward correctly). Net effect: on the normal/success path - the overwhelming majority
+of runs - both segment states were skipped completely; they only ran on the (uncommon) case
+where `SecCashFlowMetrics` or `SecSegmentInfo` itself failed. This fully explains why
+`sec_segment_metrics` never grew past its initial 5 manually-backfilled rows despite being
+"wired into the pipeline" in the structural/deploy-time-valid sense - it was practically
+unreachable in production. Fixed both `Next` values to chain forward on success
+(`SecValuations` -> `SecCashFlowMetrics` -> `SecSegmentInfo` -> `SecSegmentMetrics` ->
+`ValueQualityGrowthMetrics`, matching `scripts/local_loader_scheduler.py`'s order); `terraform
+validate` clean. Same caveat as the original Class 2/3 fixes in this file: no AWS credentials in
+this environment to verify via a real `terraform apply` - only structurally/locally validated.
+
 ## GAP (documented, not fixed) 2026-07-27: sec_cash_flow_metrics duplicates quality_metrics, adds no real signal
 
 Same audit found a second table in the same situation - `sec_cash_flow_metrics`

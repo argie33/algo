@@ -1626,7 +1626,16 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogSecCashFlowMetricsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "ValueQualityGrowthMetrics"
+        # FIX 2026-07-27: was "ValueQualityGrowthMetrics", skipping SecSegmentInfo/SecSegmentMetrics
+        # entirely on the (common) success path - only this state's OWN failure handler
+        # (LogSecCashFlowMetricsFailure, below) pointed at SecSegmentInfo. Since SecCashFlowMetrics
+        # normally succeeds, SecSegmentInfo/SecSegmentMetrics were structurally reachable only when
+        # cash-flow metrics FAILED - the same "orphaned/unreachable state" bug class as the
+        # InstitutionalHoldings13F fix elsewhere in this file, just inverted (reachable via failure,
+        # not unreachable entirely). This is the real explanation for sec_segment_metrics having only
+        # 5 backfilled rows locally despite being "wired into the pipeline" - it was never actually
+        # exercised via this success path in production.
+        Next = "SecSegmentInfo"
       }
 
       LogSecCashFlowMetricsFailure = {
@@ -1688,7 +1697,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogSecSegmentInfoFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "ValueQualityGrowthMetrics"
+        # FIX 2026-07-27: same bug as SecCashFlowMetrics above, one state deeper - was
+        # "ValueQualityGrowthMetrics", skipping SecSegmentMetrics on the success path even though
+        # SecSegmentMetrics depends on sec_segment_info being freshly populated (only this state's
+        # OWN failure handler pointed at SecSegmentMetrics, backwards - it would only ever run
+        # against a run where segment info had just FAILED to write).
+        Next = "SecSegmentMetrics"
       }
 
       LogSecSegmentInfoFailure = {
