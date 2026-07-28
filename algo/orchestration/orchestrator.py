@@ -1941,6 +1941,29 @@ class Orchestrator:
 
         return None
 
+    def _cleanup_stale_loader_locks(self) -> None:
+        """Clean up any expired loader locks from crashed processes.
+
+        Stale locks from crashed loaders can persist until their TTL (2 hours) expires,
+        blocking Phase 7 and other critical path components. This cleanup runs at
+        orchestrator startup to prevent lock-induced halts.
+
+        Only deletes locks that have expired_at < NOW() (already past their expiration time).
+        Safe to call repeatedly - won't delete locks that are still within their TTL window.
+        """
+        try:
+            from utils.db.local_file_lock import get_lock_manager
+
+            lock_manager = get_lock_manager()
+            if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                # max_age_seconds=0 means delete locks where expires_at < NOW()
+                # This only removes locks that are already past their expiration time
+                cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=0)
+                if cleaned > 0:
+                    logger.warning(f"[LOCK_CLEANUP] Removed {cleaned} expired lock(s) from crashed loaders")
+        except Exception as cleanup_err:
+            logger.warning(f"[LOCK_CLEANUP] Failed to cleanup expired locks: {cleanup_err}. Proceeding anyway.")
+
     def _wait_for_loaders_before_execution(self) -> None:
         """Wait for critical loaders to complete before executor runs."""
         logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
@@ -2118,6 +2141,7 @@ class Orchestrator:
                 self._save_early_exit_log(preflight_result)
                 return preflight_result
 
+            self._cleanup_stale_loader_locks()
             self._wait_for_loaders_before_execution()
             executor_result = self._execute_phases()
             early_exit = self._handle_executor_result(executor_result)
