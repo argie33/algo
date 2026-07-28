@@ -23,6 +23,7 @@ Implements fail-safe protocols that override strategy logic.
 
 import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from typing import Any
@@ -116,7 +117,35 @@ class MarketEventHandler:
                 "APCA-API-KEY-ID": self.alpaca_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
-            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+            # RETRY (found 2026-07-28, same bug class as order_manager.py/position_monitor.py/
+            # exit_engine.py's retry fixes): a transient 429/503 used to raise immediately, and
+            # since this is a real pre-trade gate ("cannot trade without halt status
+            # verification"), a retryable API blip could block real entries for no real reason.
+            max_attempts = 3
+            resp = None
+            for attempt in range(max_attempts):
+                try:
+                    resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+                except (requests.Timeout, requests.ConnectionError) as e:
+                    if attempt < max_attempts - 1:
+                        wait_time = 2**attempt
+                        logger.warning(
+                            f"[HALT_CHECK] {symbol}: Alpaca {type(e).__name__} - transient, "
+                            f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    raise
+                if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[HALT_CHECK] {symbol}: Alpaca {resp.status_code} - transient, "
+                        f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                break
+
             if resp.status_code != 200:
                 raise RuntimeError(
                     f"Cannot verify halt status for {symbol}: API returned {resp.status_code}. "
@@ -228,7 +257,35 @@ class MarketEventHandler:
                 alpaca_data_url = get_alpaca_data_url()
                 url = f"{alpaca_data_url}/v2/stocks/SPY/quotes/latest"
                 try:
-                    resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+                    # RETRY (found 2026-07-28, same bug class as check_single_stock_halt/
+                    # check_delisting above): a transient 429/503 used to raise immediately, and
+                    # the caller (phase2_circuit_breakers.py) fails closed on ANY error here -
+                    # halting ALL new entries for the rest of the day over a single API blip on
+                    # the market-wide SPY check. Highest blast radius of this bug class yet.
+                    max_attempts = 3
+                    resp = None
+                    for attempt in range(max_attempts):
+                        try:
+                            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+                        except (requests.Timeout, requests.ConnectionError) as e:
+                            if attempt < max_attempts - 1:
+                                wait_time = 2**attempt
+                                logger.warning(
+                                    f"[CIRCUIT_BREAKER] SPY quotes: Alpaca {type(e).__name__} - "
+                                    f"transient, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                                )
+                                time.sleep(wait_time)
+                                continue
+                            raise
+                        if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                            wait_time = 2**attempt
+                            logger.warning(
+                                f"[CIRCUIT_BREAKER] SPY quotes: Alpaca {resp.status_code} - "
+                                f"transient, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                            )
+                            time.sleep(wait_time)
+                            continue
+                        break
                     if resp.status_code != 200:
                         raise RuntimeError(f"Quotes API error: status {resp.status_code}")
                     data = resp.json()
@@ -252,15 +309,40 @@ class MarketEventHandler:
                 # /bars/latest endpoint does not accept timeframe parameter (returns 400 if included)
                 url = f"{alpaca_data_url}/v2/stocks/SPY/bars/latest"
                 try:
-                    resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
-                    if resp.status_code == 400:
-                        # Paper trading accounts may require feed=iex (SIP feed returns 400)
-                        resp = requests.get(
-                            url,
-                            headers=headers,
-                            params={"feed": "iex"},
-                            timeout=get_market_data_timeout(),
-                        )
+                    # RETRY (found 2026-07-28, same bug class as fetch_quotes above): a
+                    # transient 429/503 used to raise immediately instead of retrying.
+                    max_attempts = 3
+                    resp = None
+                    for attempt in range(max_attempts):
+                        try:
+                            resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
+                            if resp.status_code == 400:
+                                # Paper trading accounts may require feed=iex (SIP feed returns 400)
+                                resp = requests.get(
+                                    url,
+                                    headers=headers,
+                                    params={"feed": "iex"},
+                                    timeout=get_market_data_timeout(),
+                                )
+                        except (requests.Timeout, requests.ConnectionError) as e:
+                            if attempt < max_attempts - 1:
+                                wait_time = 2**attempt
+                                logger.warning(
+                                    f"[CIRCUIT_BREAKER] SPY bars: Alpaca {type(e).__name__} - "
+                                    f"transient, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                                )
+                                time.sleep(wait_time)
+                                continue
+                            raise
+                        if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                            wait_time = 2**attempt
+                            logger.warning(
+                                f"[CIRCUIT_BREAKER] SPY bars: Alpaca {resp.status_code} - "
+                                f"transient, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                            )
+                            time.sleep(wait_time)
+                            continue
+                        break
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
                     data = resp.json()
@@ -554,7 +636,33 @@ class MarketEventHandler:
                 "APCA-API-KEY-ID": self.alpaca_key,
                 "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
-            resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+            # RETRY (found 2026-07-28, same bug class as check_single_stock_halt above): a
+            # transient 429/503 used to raise immediately on this real pre-trade gate too.
+            max_attempts = 3
+            resp = None
+            for attempt in range(max_attempts):
+                try:
+                    resp = requests.get(url, headers=headers, timeout=get_api_timeout())
+                except (requests.Timeout, requests.ConnectionError) as e:
+                    if attempt < max_attempts - 1:
+                        wait_time = 2**attempt
+                        logger.warning(
+                            f"[DELISTING_CHECK] {symbol}: Alpaca {type(e).__name__} - transient, "
+                            f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    raise
+                if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[DELISTING_CHECK] {symbol}: Alpaca {resp.status_code} - transient, "
+                        f"retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                break
+
             if resp.status_code != 200:
                 # CRITICAL: Cannot determine delisting status - must fail fast
                 raise RuntimeError(

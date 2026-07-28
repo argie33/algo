@@ -1251,7 +1251,18 @@ class PositionMonitor:
         max_attempts = 3
         resp = None
         for attempt in range(max_attempts):
-            resp = requests.get(url, headers=headers, timeout=timeout)
+            try:
+                resp = requests.get(url, headers=headers, timeout=timeout)
+            except (requests.Timeout, requests.ConnectionError) as e:
+                if attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[CORP_ACTION] {symbol}: Alpaca {type(e).__name__} - transient, retrying in "
+                        f"{wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                raise RuntimeError(f"Alpaca API unreachable for {symbol} after {max_attempts} attempts: {e}") from e
             if resp.status_code in (429, 503) and attempt < max_attempts - 1:
                 wait_time = 2**attempt
                 logger.warning(

@@ -1084,12 +1084,23 @@ class ExitEngine:
             max_attempts = 3
             response = None
             for attempt in range(max_attempts):
-                response = requests.get(
-                    f"{data_url}/v2/quotes/latest",
-                    params={"symbols": symbol, "feed": "sip"},
-                    headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
-                    timeout=get_alpaca_timeout(),
-                )
+                try:
+                    response = requests.get(
+                        f"{data_url}/v2/quotes/latest",
+                        params={"symbols": symbol, "feed": "sip"},
+                        headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
+                        timeout=get_alpaca_timeout(),
+                    )
+                except (requests.Timeout, requests.ConnectionError) as e:
+                    if attempt < max_attempts - 1:
+                        wait_time = 2**attempt
+                        logger.warning(
+                            f"[EXIT_ENGINE] {symbol}: Alpaca quote API {type(e).__name__} - "
+                            f"transient, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    raise
                 if response.status_code in (429, 503) and attempt < max_attempts - 1:
                     wait_time = 2**attempt
                     logger.warning(
