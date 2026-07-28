@@ -56,6 +56,21 @@ EXCLUSION_PATTERNS = [
     r"\b2x\b",
     r"\b3x\b",
     r"\binverse\b",
+    # GOVERNANCE 2026-07-28: preferred/subordinated-debt securities that don't say the
+    # literal word "preferred" - live-confirmed 58 already-active symbols in the local
+    # DB (dual-class-looking "$"-suffix tickers like BAC$E, ALL$B, plus plain tickers
+    # like AFGC/DTB/RZC) flowing through technical indicators/scoring/signals as if they
+    # were common equity, none matched by the patterns above. "Preference Shares"
+    # (British/insurance-industry spelling), "Subordinated Debentures"/"Subordinated
+    # Notes" (junior debt, not equity), and "Pfd Ser"/"Pfd Stock" (abbreviated
+    # depositary-share preferred notation) are all real, common NASDAQ/NYSE listing-file
+    # phrasings this loader had never covered. Deliberately NOT a bare `\bpfd\b` - that
+    # false-positived on BNS ("Bank Nova Scotia Halifax Pfd 3 Ordinary Shares"), a real,
+    # actively-traded common ADR with a garbled security_name in the raw feed.
+    r"\bpreference\b",
+    r"\bdebenture",
+    r"\bsubordinated\b",
+    r"\bpfd (ser|stock)",
 ]
 
 
