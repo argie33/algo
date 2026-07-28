@@ -724,7 +724,15 @@ class Orchestrator:
             # undercut). This threshold must track that value or this routine reintroduces the
             # exact bug its own 2026-07-27 fix removed, just in LOCAL_MODE: force-deleting a
             # still-legitimately-running local loader's lock out from under it.
-            stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600" if is_local_mode else "7200"))
+            #
+            # CRITICAL FIX (Session 429): In LOCAL_MODE, detect stuck loaders more aggressively.
+            # LOCAL_MODE is for development/testing where 90-minute+ runs are rare and crashes
+            # are common. Use a 10-minute threshold to clean stuck loaders quickly while still
+            # giving long-running loaders (observed max 2385s) ample time. Production uses full TTL.
+            if is_local_mode:
+                stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "600"))
+            else:
+                stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
 
             with DatabaseContext("write") as cur:
                 # First: Alert on stuck locks BEFORE deleting them (for debugging)
