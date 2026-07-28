@@ -109,12 +109,12 @@ def fetch_analyst_actions(symbol: str, lookback_days: int = 730) -> list[dict[st
         if action_date.toordinal() < cutoff:
             continue
 
-        firm = row.get("Firm")
+        firm = row.get("Firm") if "Firm" in row else None
         if firm is None or (isinstance(firm, float) and firm != firm):  # NaN check w/o pandas import
             continue  # firm is part of the uniqueness key - a row without one can't be upserted safely
         firm_str = str(firm)[:100]
 
-        action_raw = str(row.get("Action", "")).strip().lower()
+        action_raw = str(row.get("Action") if "Action" in row else "").strip().lower()
         action = action_raw if action_raw in _VALID_ACTIONS else None
 
         key = (action_date, firm_str)

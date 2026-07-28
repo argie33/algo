@@ -127,7 +127,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                 )]
 
             # Extract individual segments
-            segments = segment_data.get('segments', [])
+            segments = segment_data.get('segments') if 'segments' in segment_data else []
             if not segments:
                 return [self._unavailable_marker(symbol, "no_segments_found")]
 

@@ -113,7 +113,8 @@ class DividendDataLoader(SecLoaderBase):
         # disclosed, not a later split-adjusted restatement - which also fixes declaration_date
         # (derived from `filed`) landing years after the ex-date estimate it's paired with.
         earliest_fact_by_period: dict[str, dict[str, Any]] = {}
-        for unit, facts_list in concept_data.get("units", {}).items():
+        units_data = concept_data.get("units") if "units" in concept_data else {}
+        for unit, facts_list in units_data.items():
             # XBRL facts are organized by unit. Both concepts this method is called with
             # ("...PerShareDeclared"/"...PerShareCashPaid") are per-share ratio concepts, whose
             # standard US-GAAP taxonomy unit is "USD/shares" - not a plain dollar amount. SEC

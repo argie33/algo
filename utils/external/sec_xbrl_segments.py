@@ -286,7 +286,7 @@ class XBRLSegmentParser:
                 concept_data = us_gaap[concept_name]
                 if isinstance(concept_data, dict) and "units" in concept_data:
                     # companyfacts structure: units[unit_name][facts_list]
-                    units = concept_data.get("units", {})
+                    units = concept_data.get("units") if "units" in concept_data else {}
                     for _unit, facts_list in units.items():
                         if isinstance(facts_list, list):
                             best_fact = None

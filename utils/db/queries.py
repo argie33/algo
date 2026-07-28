@@ -116,8 +116,9 @@ class StockScoresQueries:
 
     @staticmethod
     def get_scores_for_symbols(symbols: list[str]) -> dict[str, float]:
-        """Get composite scores for given symbols."""
+        """Get composite scores for given symbols. Returns empty dict if no symbols provided (not an error)."""
         if not symbols:
+            # Not an error: empty input -> empty result. This is a legitimate case when no symbols to score
             return {}
         with DatabaseContext("read") as cur:
             cur.execute(

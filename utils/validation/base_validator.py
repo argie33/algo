@@ -82,7 +82,7 @@ class BaseResponseValidator:
                 raise ResponseValidationError(f"{source} field '{field}': {e}") from e
 
     @staticmethod
-    def sanitize_response(data: dict[str, Any] | None, remove_none: bool = True) -> dict[str, Any]:
+    def sanitize_response(data: dict[str, Any], remove_none: bool = True) -> dict[str, Any]:
         """Remove None values and clean up response for display.
 
         Args:
@@ -91,9 +91,16 @@ class BaseResponseValidator:
 
         Returns:
             Cleaned response dict
+
+        Raises:
+            ValueError: If data is not a dict (data contract violation)
         """
         if not isinstance(data, dict):
-            return {}
+            raise ValueError(
+                f"sanitize_response requires a dict, got {type(data).__name__}. "
+                f"Caller must handle None before sanitizing. "
+                f"This indicates a data contract violation - ensure caller passes validated dict data."
+            )
 
         if not remove_none:
             return data

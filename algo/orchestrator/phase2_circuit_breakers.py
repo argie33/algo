@@ -243,10 +243,12 @@ def run(  # noqa: C901
                 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 
                 account_data = AlpacaBrokerAdapter(config).fetch_account()
-                if account_data.get("trading_blocked") or account_data.get("account_blocked"):
+                trading_blocked = account_data.get("trading_blocked") if "trading_blocked" in account_data else False
+                account_blocked = account_data.get("account_blocked") if "account_blocked" in account_data else False
+                if trading_blocked or account_blocked:
                     reason = (
-                        f"Alpaca account frozen (trading_blocked={account_data.get('trading_blocked')}, "
-                        f"account_blocked={account_data.get('account_blocked')}) - broker has stopped "
+                        f"Alpaca account frozen (trading_blocked={trading_blocked}, "
+                        f"account_blocked={account_blocked}) - broker has stopped "
                         "all trading on this account (PDT violation, compliance hold, negative "
                         "balance, etc). No orders can be submitted until resolved directly with Alpaca."
                     )
@@ -256,16 +258,18 @@ def run(  # noqa: C901
                         "ACCOUNT_BLOCKED",
                         reason,
                         {
-                            "trading_blocked": account_data.get("trading_blocked"),
-                            "account_blocked": account_data.get("account_blocked"),
+                            "trading_blocked": trading_blocked,
+                            "account_blocked": account_blocked,
                         },
                     )
                     log_phase_result_fn(2, "account_status", "halt", reason)
                     return PhaseResult(2, "circuit_breakers", "halted", risk_snapshot, True, reason)
-                if account_data.get("pattern_day_trader"):
+                pattern_day_trader = account_data.get("pattern_day_trader") if "pattern_day_trader" in account_data else False
+                if pattern_day_trader:
+                    daytrade_count = account_data.get("daytrade_count") if "daytrade_count" in account_data else None
                     logger.warning(
                         f"[PHASE 2] Alpaca account flagged pattern_day_trader=True "
-                        f"(daytrade_count={account_data.get('daytrade_count')}). Alpaca will reject "
+                        f"(daytrade_count={daytrade_count}). Alpaca will reject "
                         "same-day round-trip orders once the rolling 5-business-day day-trade limit "
                         "is exceeded on an account under $25k equity - a subsequent entry rejection "
                         "may be this, not a data/config bug."

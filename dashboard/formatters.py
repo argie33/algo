@@ -67,19 +67,23 @@ def fmt_money_short(v: Any) -> str:
 
 
 def is_open() -> bool:
-    """Check if market is currently open. Uses MarketCalendar for accurate trading hours."""
+    """Check if market is currently open. Uses MarketCalendar for accurate trading hours.
+
+    Fails fast if MarketCalendar unavailable — cannot safely determine market status
+    from hardcoded hours (holiday scheduling varies yearly, early closes occur).
+    """
     try:
         from algo.infrastructure import MarketCalendar
 
         return MarketCalendar.is_market_open()
-    except (ImportError, AttributeError):
-        # Fallback if MarketCalendar unavailable: check weekday and market hours
-        # Note: This fallback does NOT account for market holidays - use MarketCalendar for accuracy
-        n = datetime.now(ET)
-        if n.weekday() >= 5:
-            return False
-        t = n.hour * 60 + n.minute
-        return 570 <= t <= 960
+    except (ImportError, AttributeError) as e:
+        error_msg = (
+            f"MarketCalendar required for accurate market status determination. "
+            f"Fallback to weekday/hours check is unsafe (ignores holidays, early closes, schedule changes). "
+            f"Error: {e}"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
 
 
 def mkt_hours_str() -> tuple[str, str]:
@@ -118,7 +122,11 @@ def mkt_hours_str() -> tuple[str, str]:
 
 
 def next_run_str() -> str:
-    """Return next orchestrator run time using configured schedule."""
+    """Return next orchestrator run time using configured schedule.
+
+    Fails fast if schedule unavailable — dashboard needs accurate timing to guide
+    users on when trades will execute. Silent fallback hides schedule problems.
+    """
     now = time.time()
     if (
         _schedule_cache["result"] is not None
@@ -127,11 +135,7 @@ def next_run_str() -> str:
     ):
         return cast(str, _schedule_cache["result"])
 
-    try:
-        result = _next_run_hardcoded()
-    except Exception as e:
-        logger.warning(f"Schedule calculation failed: {e}. Using minimal fallback.")
-        result = "[yellow]Schedule unavailable[/yellow]"
+    result = _next_run_hardcoded()  # Raises on failure — no silent fallback
     _schedule_cache["result"] = result
     _schedule_cache["timestamp"] = now
     return result

@@ -57,8 +57,8 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
         """Fetch today's analyst sentiment summary for this symbol.
 
         Returns:
-            List with one row (today's summary), or empty if no analyst coverage or
-            already fetched today (watermark). Never returns None (OptimalLoader contract).
+            List with one row (today's summary), or data_unavailable marker if no analyst
+            coverage. Never returns None (OptimalLoader contract).
         """
         today = datetime.now(EASTERN_TZ).date()
         if since is not None and since >= today:
@@ -66,7 +66,15 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
 
         summary = fetch_analyst_sentiment(symbol)
         if summary is None:
-            return []
+            # No analyst coverage for this symbol (legitimate case)
+            return [
+                {
+                    "symbol": symbol,
+                    "date": today,
+                    "data_unavailable": True,
+                    "data_unavailable_reason": "no_analyst_coverage",
+                }
+            ]
 
         summary["date"] = today
         return [summary]

@@ -619,7 +619,11 @@ class HaltFlagManager:
                 try:
                     return self._proactive_clear_stale_halt_rds()
                 except Exception as rds_err:
-                    logger.warning(f"[PROACTIVE_CLEAR] RDS fallback failed: {rds_err}. Continuing anyway.")
+                    logger.warning(
+                        f"[PROACTIVE_CLEAR] RDS fallback failed: {rds_err}. "
+                        "Could not clear stale halt (best-effort optimization). "
+                        "Orchestrator will continue - halt will be checked via normal path."
+                    )
                     return False
 
             dynamodb = boto3.resource("dynamodb")
@@ -703,10 +707,17 @@ class HaltFlagManager:
                 try:
                     return self._proactive_clear_stale_halt_rds()
                 except Exception as rds_err:
-                    logger.warning(f"[PROACTIVE_CLEAR] RDS fallback also failed: {rds_err}. Continuing anyway.")
+                    logger.warning(
+                        f"[PROACTIVE_CLEAR] RDS fallback also failed: {rds_err}. "
+                        "Could not clear stale halt (best-effort optimization). "
+                        "Orchestrator will continue - halt will be checked via normal path."
+                    )
                     return False
             else:
-                logger.warning(f"[PROACTIVE_CLEAR] Could not proactively clear halt: {e}. Continuing anyway.")
+                logger.warning(
+                    f"[PROACTIVE_CLEAR] Could not proactively clear halt: {e}. "
+                    "Best-effort optimization failed. Orchestrator will continue - halt will be checked via normal path."
+                )
             return False
 
     def _proactive_clear_stale_halt_rds(self) -> bool:

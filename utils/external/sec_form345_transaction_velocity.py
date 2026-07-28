@@ -329,8 +329,8 @@ class Form345TransactionVelocityAggregator:
                     if isinstance(owner_row, pd.DataFrame):
                         owner_row = owner_row.iloc[0]  # Take first if multiple
 
-                    insider_cik = owner_row.get("RPTOWNERCIK", "")
-                    insider_name = owner_row.get("RPTOWNERNAME", "")
+                    insider_cik = owner_row.get("RPTOWNERCIK") if "RPTOWNERCIK" in owner_row else ""
+                    insider_name = owner_row.get("RPTOWNERNAME") if "RPTOWNERNAME" in owner_row else ""
 
                     # Create record
                     record = TransactionRecord(

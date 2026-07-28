@@ -67,12 +67,20 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
         """Fetch recent analyst rating actions for this symbol.
 
         Returns:
-            List of new action rows (possibly empty - most symbols have no new activity
-            on most runs). Never returns None (OptimalLoader contract).
+            List of new action rows (possibly empty if no recent activity), or
+            data_unavailable marker if no analyst coverage. Never returns None (OptimalLoader contract).
         """
         rows = fetch_analyst_actions(symbol)
         if not rows:
-            return []
+            # No analyst coverage for this symbol (legitimate case, not a fetch failure)
+            # None return from fetch_analyst_actions indicates no coverage
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "data_unavailable_reason": "no_analyst_coverage",
+                }
+            ]
 
         if since is not None:
             # >= not > : a different firm can issue a same-day action after the watermark
