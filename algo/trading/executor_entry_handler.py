@@ -1077,21 +1077,30 @@ class EntryHandler:
         base_type: str | None,
         trade_id: str,
     ) -> None:
-        """Send trade entry notification. FAIL-FAST if notification system unavailable.
+        """Send trade entry notification. Best-effort - must never fail the entry.
 
-        Entry notifications are CRITICAL-trader must be alerted immediately when
-        position enters. If we cannot notify, we must not proceed with the trade.
+        CRITICAL FIX: this used to re-raise on any notification failure under a
+        "FAIL-FAST, must not proceed with the trade" rationale. That rationale only
+        holds if the check runs BEFORE the trade happens - but this method is PHASE 4
+        of _execute_entry_txn, called after PHASE 2 (order submission - in auto mode, a
+        REAL Alpaca buy that has already filled, an irreversible event) and PHASE 3
+        (the algo_trades/algo_positions INSERT, in the SAME transaction/cursor as this
+        call). By the time this runs there is nothing left to prevent: the trade has
+        already happened. Re-raising here propagated out of _execute_entry_txn, out of
+        the `with DatabaseContext("write") as cur:` block in _with_cursor, which rolls
+        back on any exception - deleting the just-inserted algo_trades/algo_positions
+        rows for a position that was already bought for real at the broker. The result:
+        a fully real, broker-held position with ZERO record anywhere in the DB - not
+        visible to any stop-loss, risk check, circuit breaker, or exit path, since none
+        of them know it exists. (The old comment even said "Trade record created but
+        trader was NOT alerted" immediately before raising - an explicit admission the
+        record already existed when this discarded it.) Mirrors the identical fix
+        already applied to ExitHandler._execute_exit's notification block - a
+        notification delivery problem must never revert a trade that already happened.
         """
         try:
             config_dict = self.config.to_dict() if hasattr(self.config, "to_dict") else self.config
             notif_service = TradeNotificationService(config_dict)
-            # This calls _send_notification() directly (not notify()), which already
-            # raises on failure (RuntimeError from a DB write failure, or the email
-            # channel's own exception type on send failure) rather than swallowing -
-            # but never as NotificationError specifically, so `except NotificationError`
-            # below could never actually match what this call produces. Broadened to
-            # Exception to match the method's own "FAIL-FAST if notification system
-            # unavailable" docstring contract.
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
                 message=f"{shares:.2f} sh {symbol} @ ${float(executed_price):.2f}",
@@ -1108,8 +1117,7 @@ class EntryHandler:
                 },
             )
         except Exception as e:
-            raise RuntimeError(
-                f"CRITICAL: Failed to send entry notification for {symbol} (trade {trade_id}): {e}. "
-                f"Cannot complete entry without confirming trader notification. "
-                f"Trade record created but trader was NOT alerted."
-            ) from e
+            logger.critical(
+                f"[ENTRY_HANDLER] Failed to send entry notification for {symbol} trade {trade_id} "
+                f"(non-blocking, trade already committed): {type(e).__name__}: {e}"
+            )
