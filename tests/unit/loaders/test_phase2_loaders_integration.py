@@ -2,10 +2,19 @@
 """Integration tests for Phase 2 loaders (insider holdings & institutional holdings).
 
 Tests verify:
-1. Loaders handle both XBRL and plain-text Form 4 filings
-2. Loaders properly aggregate insider/institutional data
-3. Loaders return explicit data_unavailable markers
-4. Loaders follow governance rules (fail-fast, explicit markers, no silent fallbacks)
+1. Loaders properly aggregate insider/institutional data
+2. Loaders return explicit data_unavailable markers
+3. Loaders follow governance rules (fail-fast, explicit markers, no silent fallbacks)
+
+REMOVED 2026-07-27: the per-filing Form4PlaintextParser and sec_xml_parser
+(Form4Parser/Schedule13GParser) tests that used to live here - both parsers, and their
+dedicated test files (test_form4_plaintext_parser.py, test_sec_xml_parser.py,
+form4_parsing_metrics.py + its test), were confirmed dead code with zero production
+callers. They were an early per-filing-crawl approach superseded by the bulk Form 3/4/5
+dataset aggregation (utils/external/sec_form345_bulk.py, used by
+InsiderHoldingsSECLoader) and the SEC 13F bulk dataset + OpenFIGI crosswalk (used by
+InstitutionalHoldings13FLoader) - see steering/DATA_LOADERS.md's "Insider holdings" and
+"Institutional holdings" sections. Never cleaned up after the bulk approach shipped.
 """
 
 import unittest
@@ -14,8 +23,6 @@ from unittest.mock import MagicMock, patch
 
 from loaders.load_insider_holdings_sec import InsiderHoldingsSECLoader
 from loaders.load_institutional_holdings_13f import InstitutionalHoldings13FLoader
-from utils.external.form4_plaintext_parser import Form4PlaintextParser
-from utils.external.sec_xml_parser import Form4Parser, Schedule13GParser
 
 
 class TestPhase2LoadersGovernance(unittest.TestCase):
@@ -39,11 +46,25 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         self.assertIn("no_form345_filings", result[0]["reason"])
 
     def test_institutional_loader_returns_data_unavailable_on_no_filings(self):
-        """Loader should return explicit data_unavailable when no institutional ownership data found."""
+        """Loader should return explicit data_unavailable when no institutional ownership data found.
+
+        fetch_incremental() reads a row previously written by fetch_global()'s bulk SEC 13F +
+        OpenFIGI crosswalk (see the loader's module docstring) - it does NOT re-parse 13F
+        filings per symbol. This test previously called it against the real DB unmocked,
+        which only "passed" because this local dev DB happened to have no row for AAPL at
+        the time - if fetch_global() had ever populated real data for AAPL here (the loader
+        is live-verified to resolve real ownership % for mega-caps), this test would have
+        failed. Mock the DB layer explicitly so the test is deterministic regardless of what
+        fetch_global() has or hasn't populated.
+        """
         loader = InstitutionalHoldings13FLoader()
 
-        # Loader currently returns placeholder data_unavailable (SEC 13F parsing not yet implemented)
-        result = loader.fetch_incremental("AAPL", None)
+        with patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = None
+            mock_db_ctx.return_value.__enter__.return_value = mock_cursor
+
+            result = loader.fetch_incremental("AAPL", None)
 
         # Should return data_unavailable record
         self.assertEqual(len(result), 1)
@@ -71,11 +92,19 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         self.assertEqual(result[0]["reason"], "no_form345_filings_in_lookback_window")
 
     def test_institutional_loader_explicit_failure_reason(self):
-        """Loader should provide explicit failure reasons for debugging."""
+        """Loader should provide explicit failure reasons for debugging.
+
+        See test_institutional_loader_returns_data_unavailable_on_no_filings - mocked for
+        the same reason (deterministic regardless of live DB state).
+        """
         loader = InstitutionalHoldings13FLoader()
 
-        # Loader currently returns placeholder data_unavailable (SEC 13F parsing not yet implemented)
-        result = loader.fetch_incremental("INVALIDTICKER", None)
+        with patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = None
+            mock_db_ctx.return_value.__enter__.return_value = mock_cursor
+
+            result = loader.fetch_incremental("INVALIDTICKER", None)
 
         # Should return data_unavailable with reason
         self.assertEqual(len(result), 1)
@@ -83,88 +112,38 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         # Reason is explicit: data not found in 13F filings
         self.assertIn("not_found_in_institutional_holdings_13f", result[0]["reason"])
 
-    def test_form4_plaintext_parser_robustness(self):
-        """Parser should handle edge cases gracefully."""
-        # Test with minimal valid content
-        content = """
-        Reporting Owner Name: Test Officer
-        Shares Owned Following Transaction: 1,000
-        % of Class: 0.5%
-        """
-        result = Form4PlaintextParser.parse(content, "TEST")
-        self.assertIsNotNone(result)
-        self.assertEqual(result["insider_name"], "Test Officer")
-
-    def test_form4_plaintext_parser_handles_malformed_input(self):
-        """Parser should return None for malformed input, not crash."""
-        # Empty content
-        result = Form4PlaintextParser.parse("", "TEST")
-        self.assertIsNone(result)
-
-        # Missing required fields
-        result = Form4PlaintextParser.parse("Some random text", "TEST")
-        self.assertIsNone(result)
-
-        # None input
-        result = Form4PlaintextParser.parse(None, "TEST")  # type: ignore
-        self.assertIsNone(result)
-
     def test_loaders_never_silent_fail(self):
         """Loaders should never silently degrade or skip without marking data_unavailable."""
-        # InsiderHoldingsSECLoader sources from Form345BulkAggregator (not sec_client - see
-        # test_insider_loader_explicit_failure_reason), so it needs its own mock; only
-        # InstitutionalHoldings13FLoader still uses sec_client/symbol_to_cik.
         insider_loader = InsiderHoldingsSECLoader()
         insider_loader._aggregator = MagicMock()
         insider_loader._aggregator.get_symbol_summary.return_value = None
 
         institutional_loader = InstitutionalHoldings13FLoader()
-        mock_client = MagicMock()
-        mock_client.symbol_to_cik.return_value = "0000320193"
-        mock_client.get_submissions.return_value = {
-            "filings": {"recent": {"form": [], "accessionNumber": [], "filingDate": []}}
-        }
-        institutional_loader.sec_client = mock_client  # type: ignore
 
-        for loader in [insider_loader, institutional_loader]:
-            result = loader.fetch_incremental("AAPL", None)
+        # InstitutionalHoldings13FLoader.fetch_incremental() no longer has a `sec_client`
+        # attribute at all (a previous version of this test set one, which the current
+        # loader never reads - it only does a direct DB lookup via DatabaseContext, see
+        # module docstring). Mock that instead so the "no data" branch is deterministic.
+        with patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx:
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = None
+            mock_db_ctx.return_value.__enter__.return_value = mock_cursor
 
-            # Verify: if data is unavailable, flag must be True and reason must be set
-            if result[0]["data_unavailable"]:
-                self.assertIsNotNone(result[0].get("reason"))
-            else:
-                # If data available, all fields should be filled
-                for key in ["insider_ownership_pct", "recent_buys", "recent_sells"]:
-                    if key in result[0]:
-                        self.assertIsNotNone(result[0][key])
+            for loader in [insider_loader, institutional_loader]:
+                result = loader.fetch_incremental("AAPL", None)
+
+                # Verify: if data is unavailable, flag must be True and reason must be set
+                if result[0]["data_unavailable"]:
+                    self.assertIsNotNone(result[0].get("reason"))
+                else:
+                    # If data available, all fields should be filled
+                    for key in ["insider_ownership_pct", "recent_buys", "recent_sells"]:
+                        if key in result[0]:
+                            self.assertIsNotNone(result[0][key])
 
 
 class TestPhase2DataQuality(unittest.TestCase):
     """Test data quality and governance compliance."""
-
-    def test_form4_parser_returns_correct_types(self):
-        """Parsed Form 4 data should have correct types."""
-        content = """
-        Reporting Owner Name: John Smith
-        Officer Title: CEO
-        Shares Owned Following Transaction: 5,000
-        % of Class: 1.2%
-
-        Non-Derivative Transactions
-        2024-01-15 | A | 100
-        2024-01-20 | D | 50
-        """
-
-        result = Form4PlaintextParser.parse(content, "AAPL")
-        self.assertIsNotNone(result)
-
-        # Verify types
-        self.assertIsInstance(result["insider_name"], str)
-        self.assertIsInstance(result["shares_owned"], int)
-        self.assertIsInstance(result["ownership_pct"], float)
-        self.assertIsInstance(result["recent_buys"], int)
-        self.assertIsInstance(result["recent_sells"], int)
-        self.assertIsInstance(result["net_transactions"], int)
 
     def test_insider_loader_field_validation(self):
         """Loader should validate critical fields before returning data."""
