@@ -124,71 +124,84 @@ class OrderManager:
         def _q2(v: float) -> str:
             return str(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-        try:
-            order_data = {
-                "symbol": symbol,
-                "qty": shares,
-                "side": "buy",
-                "type": "limit",
-                "time_in_force": "day",
-                "limit_price": _q2(entry_price),
-                "extended_hours": False,
-            }
-            if client_order_id:
-                order_data["client_order_id"] = client_order_id
+        order_data = {
+            "symbol": symbol,
+            "qty": shares,
+            "side": "buy",
+            "type": "limit",
+            "time_in_force": "day",
+            "limit_price": _q2(entry_price),
+            "extended_hours": False,
+        }
+        if client_order_id:
+            order_data["client_order_id"] = client_order_id
 
-            if stop_loss_price is not None and stop_loss_price > 0:
-                order_data["order_class"] = "bracket"
-                order_data["stop_loss"] = {
-                    "stop_price": _q2(stop_loss_price),
+        if stop_loss_price is not None and stop_loss_price > 0:
+            order_data["order_class"] = "bracket"
+            order_data["stop_loss"] = {
+                "stop_price": _q2(stop_loss_price),
+            }
+            if take_profit_price is not None and take_profit_price > entry_price:
+                order_data["take_profit"] = {
+                    "limit_price": _q2(take_profit_price),
                 }
-                if take_profit_price is not None and take_profit_price > entry_price:
+            else:
+                risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
+                if risk_dec > 0:
+                    tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
+                    # Quantize once and use the Decimal string directly - converting to
+                    # float and back through round() (as this used to do) reintroduces the
+                    # exact binary-representation risk the Decimal quantize above avoided.
                     order_data["take_profit"] = {
-                        "limit_price": _q2(take_profit_price),
+                        "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                     }
-                else:
-                    risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-                    if risk_dec > 0:
-                        tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
-                        # Quantize once and use the Decimal string directly - converting to
-                        # float and back through round() (as this used to do) reintroduces the
-                        # exact binary-representation risk the Decimal quantize above avoided.
-                        order_data["take_profit"] = {
-                            "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+
+        logger.debug(f"[SEND_ORDER] {symbol}: Payload = {order_data}")
+
+        # RETRY (found 2026-07-28): this used to make exactly one attempt, unlike
+        # _send_exit's 3-attempt loop for the same broker/endpoint - a transient Alpaca
+        # 429 (rate limited) or 503 (unavailable) during entry submission was treated as a
+        # permanent rejection, silently losing a real trading opportunity that a retry would
+        # likely have recovered (audited via _log_signal_rejection downstream, but not
+        # actually retried). 422 (unprocessable) is NOT retried - a validation error would
+        # fail identically again - matching _send_exit's own distinction.
+        max_attempts = 3
+        last_error = "No attempts made"
+        for attempt in range(max_attempts):
+            try:
+                response = requests.post(
+                    f"{self.alpaca_base_url}/v2/orders",
+                    json=order_data,
+                    headers={
+                        "APCA-API-KEY-ID": self.alpaca_key,
+                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                    },
+                    timeout=get_api_timeout(),
+                )
+                logger.info(
+                    f"[SEND_ORDER] {symbol}: Alpaca responded with HTTP {response.status_code} "
+                    f"(attempt {attempt + 1}/{max_attempts})"
+                )
+
+                if response.status_code in (200, 201):
+                    try:
+                        data = response.json()
+                    except (
+                        requests.RequestException,
+                        requests.Timeout,
+                        json.JSONDecodeError,
+                    ) as e:
+                        logger.error(
+                            f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}. Response: {response.text}"
+                        )
+                        return {
+                            "success": False,
+                            "message": f"Invalid response format: {e}",
                         }
 
-            logger.debug(f"[SEND_ORDER] {symbol}: Payload = {order_data}")
+                    logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
+                    return self._entry_result_from_order_data(symbol, data)
 
-            response = requests.post(
-                f"{self.alpaca_base_url}/v2/orders",
-                json=order_data,
-                headers={
-                    "APCA-API-KEY-ID": self.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.alpaca_secret,
-                },
-                timeout=get_api_timeout(),
-            )
-            logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with HTTP {response.status_code}")
-
-            if response.status_code in (200, 201):
-                try:
-                    data = response.json()
-                except (
-                    requests.RequestException,
-                    requests.Timeout,
-                    json.JSONDecodeError,
-                ) as e:
-                    logger.error(
-                        f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}. Response: {response.text}"
-                    )
-                    return {
-                        "success": False,
-                        "message": f"Invalid response format: {e}",
-                    }
-
-                logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
-                return self._entry_result_from_order_data(symbol, data)
-            else:
                 error_text = response.text[:500]
                 logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error")
                 logger.error(f"[SEND_ORDER] {symbol}: Request payload: {json.dumps(order_data, indent=2)}")
@@ -199,11 +212,23 @@ class OrderManager:
                         logger.error(f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}")
                 except (json.JSONDecodeError, ValueError) as json_err:
                     logger.debug(f"[SEND_ORDER] {symbol}: Could not parse error response as JSON: {json_err}")
-                # Before reporting failure: this client_order_id may have been rejected
-                # because an EARLIER attempt already succeeded at the broker (response lost
-                # to a timeout/crash, this call is a crash-recovery retry - e.g. Phase 8
-                # reprocessing the same still-valid signal - see
-                # _lookup_order_by_client_order_id's docstring). Ground-truth check, not
+
+                last_error = f"Alpaca {response.status_code}: {error_text[:200]}"
+
+                if response.status_code in (429, 503) and attempt < max_attempts - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"[SEND_ORDER] {symbol}: {last_error} - transient, retrying in {wait_time}s "
+                        f"(attempt {attempt + 1}/{max_attempts})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+
+                # Non-retryable status (or retries exhausted): before reporting failure, this
+                # client_order_id may have been rejected because an EARLIER attempt already
+                # succeeded at the broker (response lost to a timeout/crash, this call is a
+                # crash-recovery retry - e.g. Phase 8 reprocessing the same still-valid signal -
+                # see _lookup_order_by_client_order_id's docstring). Ground-truth check, not
                 # error-text guessing: falls through to the original failure unchanged if no
                 # such order actually exists.
                 if client_order_id:
@@ -212,11 +237,16 @@ class OrderManager:
                         return self._entry_result_from_order_data(symbol, existing)
                 return {
                     "success": False,
-                    "message": f"Alpaca {response.status_code}: {error_text[:200]}",
+                    "message": last_error,
                 }
-        except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
-            logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")
-            return {"success": False, "message": f"Request failed: {e}"}
+            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+                last_error = f"Request failed: {e}"
+                logger.warning(f"[SEND_ORDER] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+
+        logger.error(f"[SEND_ORDER] {symbol}: Failed after {max_attempts} attempts: {last_error}")
+        return {"success": False, "message": last_error}
 
     def cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
         """Cancel bracket order and its children (stop loss + take profit).
