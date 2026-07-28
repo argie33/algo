@@ -55,19 +55,6 @@ class OrchestratorConfig:
     # Retry backoff base (milliseconds) - exponential backoff factor
     DB_RETRY_BACKOFF_MS = int(os.getenv("ORCH_DB_RETRY_BACKOFF_MS", "100"))
 
-    # ─── Feature Flags ────────────────────────────────────────────────────
-    # Enable proactive loader waiting (wait for loaders before Phase 1)
-    ENABLE_PROACTIVE_LOADER_WAIT = os.getenv("ORCH_ENABLE_PROACTIVE_WAIT", "true").lower() == "true"
-
-    # Enable halt flag checking (check DynamoDB halt before executing)
-    ENABLE_HALT_CHECK = os.getenv("ORCH_ENABLE_HALT_CHECK", "true").lower() == "true"
-
-    # Enable data freshness validation (Phase 1 sanity check)
-    ENABLE_DATA_FRESHNESS_CHECK = os.getenv("ORCH_ENABLE_DATA_FRESHNESS_CHECK", "true").lower() == "true"
-
-    # Enable environment validation (check required env vars at startup)
-    ENABLE_ENV_VALIDATION = os.getenv("ORCH_ENABLE_ENV_VALIDATION", "true").lower() == "true"
-
     # Lambda timeout (seconds) - orchestrator must complete before this
     LAMBDA_TIMEOUT_SECONDS = int(os.getenv("LAMBDA_TIMEOUT", "900"))
 
@@ -109,7 +96,5 @@ class OrchestratorConfig:
             f"db_timeout={cls.DB_TIMEOUT_GENERAL}s, "
             f"loader_wait={cls.LOADER_WAIT_TIMEOUT_SECONDS}s, "
             f"loader_completion_threshold={cls.LOADER_COMPLETION_THRESHOLD_PCT}%, "
-            f"phase_timeout={cls.PHASE_TIMEOUT_SECONDS}s, "
-            f"halt_check_enabled={cls.ENABLE_HALT_CHECK}, "
-            f"proactive_wait_enabled={cls.ENABLE_PROACTIVE_LOADER_WAIT}"
+            f"phase_timeout={cls.PHASE_TIMEOUT_SECONDS}s"
         )
