@@ -258,6 +258,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # FAIL-FAST FIX: PositionMonitor failure is CRITICAL - cannot generate fake fallback
             # recommendations. Position monitoring is too fundamental to work around.
             from algo.monitoring import PositionMonitor
+            recommendations = []
             try:
                 monitor = PositionMonitor(config)
                 recommendations = monitor.review_positions(run_date)
