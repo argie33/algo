@@ -289,6 +289,31 @@ class Orchestrator:
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")
 
+        # BUG FOUND 2026-07-28: self.execution_mode (set above in __init__ from the
+        # ORCHESTRATOR_EXECUTION_MODE env var - the value the Lambda deliberately sets per
+        # EventBridge schedule/event, see lambda_function.py's "Set execution_mode in
+        # environment before creating orchestrator" comment) has ZERO effect on actual trading
+        # behavior - every real order-submission call site (TradeExecutor, HandlerContext,
+        # executor_entry_handler.py/executor_exit_handler.py) reads self.config["execution_mode"]
+        # (this method's `execution_mode` above, sourced from the algo_config DB table) instead.
+        # self.execution_mode is read in exactly one other place: the startup banner label
+        # (compute_run_mode_label in run()) - so an operator/schedule believing it controls
+        # real-money risk via ORCHESTRATOR_EXECUTION_MODE is silently overridden by whatever a
+        # single global algo_config DB row happens to hold, with no warning either way. Fail
+        # fast rather than let deployment intent (env var) and actual behavior (DB config)
+        # silently diverge - this is the same class of bug as b8f7d6464's ORCHESTRATOR_DRY_RUN
+        # fix, but for the variable that gates real money instead of monitor-only guarantees.
+        if self.execution_mode != execution_mode:
+            raise RuntimeError(
+                f"[STARTUP] CRITICAL: execution_mode mismatch - ORCHESTRATOR_EXECUTION_MODE env var "
+                f"says {self.execution_mode!r} but algo_config table says {execution_mode!r}. "
+                "Actual trading behavior follows the algo_config value, NOT the env var, so this "
+                "divergence means the deployment/schedule's intended mode is being silently "
+                "ignored. Refusing to proceed until both agree - update algo_config table "
+                "(`UPDATE algo_config SET value = ... WHERE key = 'execution_mode'`) or the "
+                "ORCHESTRATOR_EXECUTION_MODE env var/EventBridge event so they match."
+            )
+
         # 2. Validate Alpaca credentials whenever orders are actually sent to Alpaca.
         # execution_mode == "auto" sends real orders to Alpaca's PAPER endpoint when
         # alpaca_paper_trading=True, and to the LIVE endpoint when False - both need valid
@@ -2031,8 +2056,16 @@ class Orchestrator:
 
     def run(self) -> dict[str, Any]:
         self.run_start = time.time()
+        # Use self.config's execution_mode (the algo_config DB value), NOT self.execution_mode
+        # (the ORCHESTRATOR_EXECUTION_MODE env var) - the DB value is what actually governs
+        # real order submission (TradeExecutor/HandlerContext read self.config, never
+        # self.execution_mode), so the banner must reflect it or it can misreport real-money
+        # risk in either direction. See _validate_startup_configuration's fail-fast check for
+        # the same divergence, added 2026-07-28.
         run_mode_label = compute_run_mode_label(
-            self.dry_run, self.execution_mode, self.config.get("alpaca_paper_trading", True)
+            self.dry_run,
+            self.config.get("execution_mode", "paper"),
+            self.config.get("alpaca_paper_trading", True),
         )
         logger.info(f"\n{'#' * 70}")
         logger.info(f"#   ALGO ORCHESTRATOR - {self.run_date}  ({run_mode_label})")
