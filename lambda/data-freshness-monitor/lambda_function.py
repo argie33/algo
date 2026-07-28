@@ -225,6 +225,7 @@ def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
                 halt_reason, halt_count, updated_by, expires_at
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (state_key) DO UPDATE SET
+                state_value = EXCLUDED.state_value,
                 halt_flag = EXCLUDED.halt_flag,
                 halt_triggered_at = EXCLUDED.halt_triggered_at,
                 halt_reason = EXCLUDED.halt_reason,
