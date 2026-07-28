@@ -200,6 +200,51 @@ class LoaderInfrastructure:
                             (db_status, self.table_name),
                         )
                         logger.debug(f"[{self.table_name}] Status updated to {db_status}")
+
+                        # Archive to history for failure-pattern analysis (dashboard's DATA
+                        # FRESHNESS panel - see dashboard/freshness_enhancements.py's
+                        # enrich_health_item_with_failure_pattern). This is the loader FAILED
+                        # path (OptimalLoader.update_loader_status("FAILED") - see
+                        # utils/optimal_loader.py) and previously had no archiving at all, same
+                        # gap as the COMPLETED path fixed in utils/optimal_loader.py's own raw
+                        # data_loader_status INSERT. Runs inside a SAVEPOINT, not just a bare
+                        # try/except: an uncaught statement error aborts the whole Postgres
+                        # transaction, and this block runs after the real status UPDATE above in
+                        # the same transaction - without a SAVEPOINT to roll back to, a failure
+                        # here would silently discard that UPDATE too when __exit__ commits
+                        # (Postgres treats COMMIT on an aborted transaction as a ROLLBACK).
+                        try:
+                            cur.execute("SAVEPOINT archive_history")
+                            cur.execute(
+                                "SELECT execution_started, execution_completed, error_message, "
+                                "row_count, completion_pct, symbols_loaded, symbol_count "
+                                "FROM data_loader_status WHERE table_name = %s",
+                                (self.table_name,),
+                            )
+                            row = cur.fetchone()
+                            if row:
+                                cur.execute(
+                                    "INSERT INTO data_loader_status_history "
+                                    "(table_name, status, execution_started, execution_completed, error_message, "
+                                    "row_count, completion_pct, symbols_loaded, symbol_count) "
+                                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                    (self.table_name, db_status, *row),
+                                )
+                                cur.execute(
+                                    "DELETE FROM data_loader_status_history "
+                                    "WHERE table_name = %s AND id NOT IN ("
+                                    "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                                    "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                                    ")",
+                                    (self.table_name, self.table_name),
+                                )
+                            cur.execute("RELEASE SAVEPOINT archive_history")
+                        except Exception as archive_err:
+                            logger.debug(f"[{self.table_name}] Failed to archive history: {archive_err}")
+                            try:
+                                cur.execute("ROLLBACK TO SAVEPOINT archive_history")
+                            except Exception as savepoint_err:
+                                logger.debug(f"[{self.table_name}] Failed to rollback to savepoint: {savepoint_err}")
             finally:
                 set_pooled_connection(saved_conn)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
