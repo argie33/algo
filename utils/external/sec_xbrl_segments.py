@@ -265,15 +265,21 @@ class XBRLSegmentParser:
     def _extract_segment_count(us_gaap: dict, symbol: str) -> int | None:
         """Extract number of reportable segments from us-gaap facts.
 
-        SEC XBRL uses several concepts for segment count. We check them in order
-        of reliability, preferring explicit count fields over implicit counts.
+        FIXED 2026-07-28: previously checked ["SegmentNumber", "NumberOfReportableSegments",
+        "OperatingSegmentNumber", "NumberOfSegments"] - live-checking 5 real filers (GILD,
+        REGN, UAL, O, MSFT) found "SegmentNumber"/"OperatingSegmentNumber"/"NumberOfSegments"
+        present in NONE of them, while "NumberOfOperatingSegments" (the real ASU 2023-07
+        concept, already verified and used by _SEGMENT_COUNT_CONCEPT_LOCAL_NAMES elsewhere in
+        this module) was missing from this list entirely despite being present for 3 of the 5
+        (UAL, GILD, O) - UAL in particular tags ONLY this concept, so this function silently
+        returned None for it. Zero live impact today (this function's caller,
+        parse_companyfacts(), always reports data_available=False, and
+        loaders/load_sec_segment_info.py unconditionally overwrites its result with the raw-
+        XML path before persisting anything), but wrong/dead concept names left in the
+        candidate list regardless - reusing the same verified constant instead of a second,
+        divergent hand-maintained list.
         """
-        candidates = [
-            "SegmentNumber",
-            "NumberOfReportableSegments",
-            "OperatingSegmentNumber",
-            "NumberOfSegments",
-        ]
+        candidates = list(_SEGMENT_COUNT_CONCEPT_LOCAL_NAMES)
 
         for concept_name in candidates:
             if concept_name in us_gaap:
