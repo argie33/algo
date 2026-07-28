@@ -209,6 +209,13 @@ class PipelineHealth:
             # names are leftover data_loader_status rows from an earlier design iteration.
             "sec_dividends",  # Superseded by dividend_data
             "sec_material_events",  # Superseded by current_reports_8k
+            # sec_cash_flow_metrics REMOVED from scheduling 2026-07-27 (loaders/DEPRECATED_LOADERS.md):
+            # its 3 fields exactly duplicate quality_metrics formulas already computed by
+            # load_value_quality_growth_metrics.py, zero incremental signal for the real SEC API
+            # cost. Frozen at 5508 rows from its last run - added here proactively so it reports
+            # DEPRECATED once that data ages past the 7-day default secondary-table SLA, instead
+            # of a false STALE/CRITICAL alarm for a table nothing writes anymore.
+            "sec_cash_flow_metrics",
             # Confirmed live 2026-07-27: 0 rows, no INSERT/UPDATE writer anywhere in the
             # codebase - already documented as such in scripts/audit_system_health.py
             # ("never populated") and scripts/monitor_data_staleness.py, but never added

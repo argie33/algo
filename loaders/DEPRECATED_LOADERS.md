@@ -40,6 +40,26 @@ These loaders have been consolidated, replaced, or are no longer used in the act
 **Data Impact**: market_cap_computed table - orphaned, no active loader  
 **Status**: ORPHANED - can be deleted
 
+### load_sec_cash_flow_metrics.py
+**Reason**: Audit (2026-07-27) found its 3 fields exactly duplicate formulas already computed
+elsewhere: `free_cash_flow`/`operating_cash_flow` are the identical `operating_cf - capex`
+formula `load_value_quality_growth_metrics.py` already writes to `quality_metrics`, already
+scored (`_score_quality`/`_enhance_quality_score` via `fcf_to_net_income`) and displayed
+(`lambda/api/routes/stocks.py`'s `fcf_data` CTE, `scores.py`'s `quality_inputs.free_cashflow`);
+`cash_conversion_rate` is identical to `quality_metrics.ocf_to_net_income`; `working_capital` is
+a strictly weaker, non-size-normalized version of `quality_metrics.current_ratio`/`quick_ratio`
+(already scored/displayed). Zero incremental signal for the real SEC API cost.  
+**Replaced By**: Nothing needed - `quality_metrics` (via `load_value_quality_growth_metrics.py`)
+already covers everything this loader computed.  
+**Data Impact**: `sec_cash_flow_metrics` table frozen at 5508 rows from its last run
+(2026-07-27) - added to `algo/monitoring/pipeline_health.py`'s `KNOWN_DEPRECATED_TABLES` so it
+reports DEPRECATED once that data ages past the 7-day secondary-table SLA, not a false
+STALE/CRITICAL alarm.  
+**Status**: REMOVED from `scripts/local_loader_scheduler.py` and
+`terraform/modules/{loaders,pipeline}/main.tf` - file kept on disk for historical reference,
+do not re-wire it in without first shipping a real consumer that isn't already covered by
+`quality_metrics` (see `steering/DATA_LOADERS.md`'s matching FIXED note for the full trace).
+
 ## Deprecated Data Sources (yfinance)
 
 ### load_yfinance_snapshot.py
