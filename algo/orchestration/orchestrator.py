@@ -272,7 +272,7 @@ class Orchestrator:
         """CRITICAL: Validate all required configuration at startup.
 
         Checks:
-        1. execution_mode is set and valid (paper/auto)
+        1. execution_mode is set and valid (paper/review/auto)
         2. For live trading: Alpaca credentials available (API key + secret)
         3. Required config keys present
 
@@ -295,11 +295,18 @@ class Orchestrator:
         # it, since dozens of call sites (executor_entry_handler.py,
         # executor_exit_handler.py, reconciliation.py) do literal `== "auto"` string
         # checks against the raw config value that an alias could silently bypass.
+        #
+        # SEPARATE GAP, same discovery: "review" mode IS a real, fully-implemented strategy
+        # (executor_strategies.py's ReviewExecutionMode; executor.py's execute_entry creates a
+        # distinct "pending" order for manual review - see its own `execution_mode == "review"`
+        # branch; order_manager.py's send_exit early-returns for it same as paper) - but this
+        # check never accepted it, so the only way to reach it was for a caller to bypass
+        # Orchestrator entirely. Added below alongside the "live" rejection.
         execution_mode = self.config.get("execution_mode")
-        if not execution_mode or execution_mode not in ("paper", "auto"):
+        if not execution_mode or execution_mode not in ("paper", "review", "auto"):
             raise RuntimeError(
-                f"[STARTUP] CRITICAL: execution_mode must be 'paper' or 'auto' ('auto' is the "
-                f"real-trading mode - 'live' is not a supported value, despite the name). "
+                f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'review', or 'auto' ('auto' is "
+                f"the real-trading mode - 'live' is not a supported value, despite the name). "
                 f"Current value: {execution_mode!r}. Configure via algo_config table."
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")

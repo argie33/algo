@@ -53,3 +53,8 @@ class TestComputeRunModeLabel:
         # somehow did, it must NOT be treated as equivalent to "auto" (defense in depth,
         # same bug class as the crash this function used to enable).
         assert compute_run_mode_label(dry_run=False, execution_mode="live", alpaca_paper_trading=False) == "PAPER"
+
+    def test_review_mode_never_labeled_real_money(self):
+        # "review" is a real mode (unlike "live") but never sends orders to Alpaca - must
+        # never trigger the real-money banner regardless of alpaca_paper_trading.
+        assert compute_run_mode_label(dry_run=False, execution_mode="review", alpaca_paper_trading=False) == "PAPER"

@@ -158,7 +158,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # FIXED Issue #1: Parse event execution_mode BEFORE validation
         # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
         event_execution_mode = event.get("execution_mode", "").strip().lower()
-        if event_execution_mode and event_execution_mode in ("paper", "auto"):
+        if event_execution_mode and event_execution_mode in ("paper", "review", "auto"):
             # Set environment variable from event so validator will pass
             os.environ["ORCHESTRATOR_EXECUTION_MODE"] = event_execution_mode
             logger.info(f"[EXECUTION_MODE] Set from event payload: {event_execution_mode}")
@@ -262,8 +262,8 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 "This should not happen - EnvironmentValidator should have caught this."
             )
             raise ValueError(
-                "[CONFIG] ORCHESTRATOR_EXECUTION_MODE environment variable is required and must be set to 'paper' or 'auto'. "
-                "Refusing to proceed without explicit execution mode configuration."
+                "[CONFIG] ORCHESTRATOR_EXECUTION_MODE environment variable is required and must be set to "
+                "'paper', 'review', or 'auto'. Refusing to proceed without explicit execution mode configuration."
             )
 
         # BUG FOUND 2026-07-28: "live" was previously accepted here as a third valid mode
@@ -274,8 +274,12 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # validation clean, then crash deep inside TradeExecutor.__init__ once Phase 6/8
         # tried to instantiate it. "auto" is this system's one real live-trading mode -
         # reject "live" explicitly here (same fix applied to orchestrator.py's own check)
-        # rather than let it reach that point.
-        if execution_mode not in ("paper", "auto"):
+        # rather than let it reach that point. "review" is added alongside it for the
+        # opposite reason - it IS a real, fully-implemented mode (see orchestrator.py's
+        # matching startup-validation comment) that this check had never accepted; without
+        # it here, orchestrator.py's own env-var/DB-config mismatch check would reject any
+        # attempt to actually run in review mode via the Lambda/EventBridge path.
+        if execution_mode not in ("paper", "review", "auto"):
             logger.critical(f"[EXECUTION_MODE_VALIDATION_FAILED] Final execution_mode invalid: {execution_mode}")
             raise ValueError(
                 f"[CONFIG] Execution mode validation failed - final mode '{execution_mode}' is invalid "
