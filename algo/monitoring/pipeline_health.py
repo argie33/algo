@@ -646,6 +646,28 @@ class PipelineHealth:
                     # relabeled it HEALTHY - confirmed live 2026-07-27: data_loader_status rows
                     # with consecutive_failures > 0 sat next to status='HEALTHY'/'STALE', not the
                     # FAILED/TIMEOUT LoaderStatusManager actually recorded.
+                    #
+                    # FIX 2026-07-28: status='RUNNING' has the exact same problem and
+                    # consecutive_failures doesn't cover it - a hard-killed loader (OOM,
+                    # SIGKILL, ecs.stop_task()) never reaches the exception handler that would
+                    # increment consecutive_failures, so this sweep happily overwrote its
+                    # orphaned RUNNING row to HEALTHY/STALE the moment it next ran, based purely
+                    # on the target table's row age (which still looks fresh from the last
+                    # *successful* run before the crash). That erased the only signal
+                    # _check_stuck_loaders() depends on (`WHERE status = 'RUNNING'`) - the stuck
+                    # alert fired at most once, on the very same pass that then silently deleted
+                    # the evidence, so no subsequent orchestrator run ever saw it again. Live-
+                    # confirmed 2026-07-28: institutional_holdings_13f and
+                    # analyst_sentiment_analysis both sat at status='HEALTHY' with a *newer*
+                    # execution_started than execution_completed (a crashed/killed attempt this
+                    # morning, no process actually running) - exactly this bug, invisible to
+                    # every health check because the row no longer said RUNNING by the time
+                    # anyone looked. Preserving RUNNING here (same MISSING/ERROR override as the
+                    # failure case - a table that's now genuinely missing or erroring is at
+                    # least as severe and should still surface) lets _check_stuck_loaders'
+                    # 15-minute heartbeat-staleness check keep seeing it on every subsequent run
+                    # until it's genuinely resolved (loader finishes, or the orphan gets marked
+                    # FAILED some other way), instead of only the first.
                     cur.execute(
                         """
                         SELECT table_name, error_message, status, consecutive_failures
@@ -656,7 +678,11 @@ class PipelineHealth:
                     )
                     existing_db_rows = cur.fetchall()
                     existing_errors = {row[0]: row[1] for row in existing_db_rows}
-                    existing_failures = {row[0]: (row[1], row[2]) for row in existing_db_rows if (row[3] or 0) > 0}
+                    existing_failures = {
+                        row[0]: (row[1], row[2])
+                        for row in existing_db_rows
+                        if (row[3] or 0) > 0 or row[2] == "RUNNING"
+                    }
 
                     insert_values = []
                     for table_health in status.tables.values():

@@ -181,8 +181,16 @@ class LoaderInfrastructure:
                 with DatabaseContext("write", enable_correlation_tracking=False) as cur:
                     cur.execute("SET statement_timeout = 0")
                     if status == "RUNNING":
+                        # execution_completed must be cleared here (matches
+                        # LoaderStatusManager.mark_running()'s same convention) - leaving a stale
+                        # completed timestamp from the PREVIOUS run sitting next to a fresh
+                        # execution_started falsely implies this run already finished, and made a
+                        # hard-killed run indistinguishable from a real success once combined with
+                        # the pipeline_health.py age-based status overwrite (fixed 2026-07-28,
+                        # see that file's log_health_check comment).
                         cur.execute(
-                            "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
+                            "UPDATE data_loader_status SET status = %s, last_updated = NOW(), "
+                            "execution_started = NOW(), execution_completed = NULL "
                             "WHERE table_name = %s",
                             (db_status, self.table_name),
                         )

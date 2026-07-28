@@ -297,6 +297,67 @@ class TestPipelineHealthMonitoring:
         )
         assert by_table["dropped_table"]["error_message"] == "Table is empty"
 
+    def test_log_health_check_preserves_running_status_not_just_consecutive_failures(self):
+        """FIX (2026-07-28): a hard-killed loader (OOM, SIGKILL, ecs.stop_task()) never reaches
+        the exception handler that increments consecutive_failures, so the pre-fix
+        consecutive_failures>0 check alone did not protect an orphaned RUNNING row - this sweep
+        happily overwrote it to HEALTHY/STALE based on the target table's row age (still fresh
+        from the last *successful* run before the crash). That erased the only signal
+        _check_stuck_loaders() depends on (`WHERE status = 'RUNNING'`), so the orphan alert
+        fired at most once and then could never see the row as RUNNING again. Live-confirmed
+        2026-07-28: institutional_holdings_13f and analyst_sentiment_analysis both sat at
+        status='HEALTHY' with a newer execution_started than execution_completed (a crashed
+        attempt earlier that morning, no process actually running) - exactly this bug.
+
+        RUNNING must be preserved the same way an unresolved FAILED/TIMEOUT is, with the same
+        MISSING/ERROR override (a table that's now genuinely missing or erroring is at least as
+        severe and must still surface).
+        """
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth, PipelineStatus, TableHealth
+
+        status = PipelineStatus(
+            tables={
+                # Data still looks fresh by age, but the loader that writes it actually
+                # crashed mid-run (RUNNING, no heartbeat) - must NOT be relabeled HEALTHY.
+                "institutional_holdings_13f": TableHealth(
+                    table_name="institutional_holdings_13f",
+                    status=HealthStatus.HEALTHY,
+                    row_count=5461,
+                    latest_date=_date(2026, 7, 27),
+                ),
+                # A genuinely missing table must still win over a stuck-RUNNING record - this
+                # sweep's own live query is more authoritative than a frozen RUNNING row.
+                "dropped_table": TableHealth(
+                    table_name="dropped_table",
+                    status=HealthStatus.MISSING,
+                    row_count=0,
+                    error_message="Table is empty",
+                ),
+            }
+        )
+
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = [
+            ("institutional_holdings_13f", None, "RUNNING", 0),
+            ("dropped_table", None, "RUNNING", 0),
+        ]
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            monitor = PipelineHealth()
+            monitor.log_health_check(status)
+
+        insert_values = mock_cur.executemany.call_args[0][1]
+        status_by_table = {row[0]: row[1] for row in insert_values}
+
+        assert status_by_table["institutional_holdings_13f"] == "RUNNING", (
+            "An orphaned RUNNING loader must not be silently relabeled HEALTHY just because the "
+            "existing data still looks fresh by age - that erases _check_stuck_loaders' only signal"
+        )
+        assert status_by_table["dropped_table"] == "MISSING", (
+            "This sweep's own live MISSING finding must win over a stuck-RUNNING record"
+        )
+
     def test_infer_date_column_prefers_last_updated_at_over_created_at(self):
         """algo_runtime_state (RDS-fallback halt-flag state, actively upserted on every
         orchestrator run) has last_updated_at (tracks real per-row freshness) AND created_at
