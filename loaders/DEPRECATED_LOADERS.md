@@ -120,4 +120,4 @@ All deprecated functionality has been replaced with 100% real data sources:
 `9f39753f8` - confirmed 2026-07-20, none exist on disk anymore. This section previously
 still described them as pending archival; that was stale.
 
-**Last Updated**: Session 314 (2026-07-20)
+**Last Updated**: 2026-07-27 (load_sec_cash_flow_metrics.py removal + analyst tables restoration)

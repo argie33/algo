@@ -50,6 +50,7 @@ import io
 import logging
 import re
 import sys
+import time
 import urllib.request
 import zipfile
 from collections import defaultdict
@@ -87,6 +88,19 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
+
+    # FIXED 2026-07-27: the OpenFIGI crosswalk step (utils/external/openfigi_crosswalk.py)
+    # used to run unbounded, only saving its results to sec_13f_cusip_crosswalk after
+    # EVERY batch in the whole CUSIP backlog had been attempted. terraform/modules/loaders/
+    # main.tf configures this loader's ECS task with TimeoutSeconds=1200 (20 min), but even
+    # a zero-failure cold crosswalk of ~34k CUSIPs takes ~2.5+ hours at OpenFIGI's
+    # unauthenticated rate limit - the task was guaranteed to get killed mid-crosswalk every
+    # single run, discarding 100% of whatever progress OpenFIGI had actually returned. This
+    # budget leaves ~5 minutes of the 1200s task timeout for the rest of fetch_global()
+    # (bulk dataset download/parse, ownership calc, DB writes) and passes a deadline into
+    # fetch_cusip_tickers() so it returns (and this loader saves) partial progress instead
+    # of grinding on toward a kill it can't avoid.
+    _OPENFIGI_CROSSWALK_TIME_BUDGET_SEC = 900
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
@@ -140,15 +154,23 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             )
             holdings_by_ticker = self._crosswalk_to_tickers(holdings_by_cusip)
             if not holdings_by_ticker:
-                msg = (
-                    f"[13F CRITICAL] Downloaded and parsed real SEC 13F bulk data from {url} "
+                # FIXED 2026-07-27: this used to hard-raise on "zero symbols resolved", which
+                # was a reasonable check when a crosswalk was assumed to run to completion in
+                # one pass. It no longer is - a cold-start backlog can take many runs to clear
+                # (see _OPENFIGI_CROSSWALK_TIME_BUDGET_SEC), so "zero NEW resolutions in one
+                # time-boxed run" is now an expected, recoverable state while the cache is
+                # still building, not evidence OpenFIGI or get_active_symbols() is broken.
+                # fetch_cusip_tickers() itself still raises if every attempted batch fails
+                # outright (a real reachability/contract-change signal) unless the run was cut
+                # short by the deadline - that's the actual hard-failure check now.
+                logger.warning(
+                    f"[13F] Downloaded and parsed real SEC 13F bulk data from {url} "
                     f"({len(holdings_by_cusip)} CUSIPs) but the OpenFIGI CUSIP->ticker crosswalk "
-                    f"resolved zero symbols in our own tracked universe. This is a hard failure, "
-                    f"not a coverage gap - some real data should always resolve. ACTION: check "
-                    f"OpenFIGI reachability and get_active_symbols()."
+                    f"resolved zero symbols in our own tracked universe THIS run - expected while "
+                    f"the sec_13f_cusip_crosswalk cache is still building under rate-limit/time "
+                    f"constraints, not a hard failure. Symbols stay data_unavailable until a "
+                    f"future run's incremental crosswalk progress covers them."
                 )
-                logger.critical(msg)
-                raise RuntimeError(msg)
 
             return self._calculate_and_cache_ownership(holdings_by_ticker, period_end)
 
@@ -331,13 +353,24 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         logger.info(f"[13F] {len(cached)} CUSIPs already crosswalked, {len(new_cusips)} new - querying OpenFIGI")
 
         if new_cusips:
-            resolved = fetch_cusip_tickers(new_cusips)
-            newly_cached = {
-                cusip: (resolved[cusip]["ticker"], resolved[cusip]["name"]) if cusip in resolved else (None, None)
-                for cusip in new_cusips
-            }
-            self._save_crosswalk_cache(newly_cached)
-            cached.update(newly_cached)
+            # Save after every batch (not just once at the end) - see this class's
+            # _OPENFIGI_CROSSWALK_TIME_BUDGET_SEC comment: a cold-start backlog this large
+            # cannot finish before the ECS task timeout kills it, so partial progress must
+            # survive the kill or every run silently resets to zero.
+            def _persist_batch(batch_resolved: dict[str, dict[str, Any] | None]) -> None:
+                newly_cached = {
+                    cusip: (entry["ticker"], entry["name"]) if entry else (None, None)
+                    for cusip, entry in batch_resolved.items()
+                }
+                self._save_crosswalk_cache(newly_cached)
+                cached.update(newly_cached)
+
+            deadline = time.monotonic() + self._OPENFIGI_CROSSWALK_TIME_BUDGET_SEC
+            resolved = fetch_cusip_tickers(new_cusips, on_batch_resolved=_persist_batch, deadline=deadline)
+            logger.info(
+                f"[13F] OpenFIGI crosswalk this run: {len(resolved)}/{len(new_cusips)} new CUSIPs resolved "
+                f"(rest cached for next run's smaller delta)"
+            )
 
         symbols = set(get_active_symbols(exclude_etfs=True))
         local_names = self._fetch_local_entity_names(symbols)
@@ -375,11 +408,28 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         Deliberately NOT filtered to our own tracked universe: caches whatever OpenFIGI
         actually said, so a symbol added to our universe later can use an
         already-cached CUSIP without a fresh OpenFIGI call.
+
+        FIXED 2026-07-27 (real production crash, live-verified): sec_13f_cusip_crosswalk.ticker
+        is VARCHAR(20) - fine for a real equity ticker, but OpenFIGI's CUSIP resolution covers
+        the WHOLE 13F universe including bonds/notes (13F filers report fixed-income holdings
+        too), and for those it returns a long descriptive identifier in the same "ticker" field
+        (live example: CUSIP 00033YAA4 -> "GLOBAU 11.5 08/15/29 144A", 26 chars) instead of a
+        short equity symbol. The unguarded INSERT crashed with StringDataRightTruncation on the
+        very first batch containing any bond CUSIP - given how common bonds are in real 13F
+        data, this was very likely the ACTUAL reason fetch_global() kept failing outright before
+        ever reaching _calculate_and_cache_ownership(), a more direct explanation than rate
+        limiting alone for institutional_holdings_13f's 5,461 rows all data_unavailable. These
+        overlong values can never match a real equity ticker in get_active_symbols() anyway
+        (_crosswalk_to_tickers already filters on `ticker not in symbols`), so truncating is
+        safe - it doesn't change which CUSIPs resolve to real holdings, only prevents a
+        malformed non-equity value from crashing the whole batch's cache write.
         """
         if not resolved:
             return
         with DatabaseContext("write") as cur:
             for cusip, (ticker, name) in resolved.items():
+                ticker = ticker[:20] if ticker else ticker
+                name = name[:255] if name else name
                 cur.execute(
                     """
                     INSERT INTO sec_13f_cusip_crosswalk (cusip, ticker, resolved_name, verified_at)

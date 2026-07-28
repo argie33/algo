@@ -566,6 +566,81 @@ Added both this pass.
 
 ---
 
+## FIXED 2026-07-27: "verified with 2 cherry-picked symbols" was masking near-zero real coverage across 4 tables
+
+Continuation of the loader-review goal ("we still have issues getting right data fully from
+official sources... not trying hard enough"). Live-queried `COUNT(DISTINCT symbol)` against the
+actual local dev DB for every recently-restored/fixed loader's output table and found a
+recurring pattern: several tables this doc already described as "live-verified" or "ACTIVE" had
+in fact only ever been run against a handful of mega-cap test symbols (AAPL/MSFT/etc.), not the
+real ~5,500-symbol universe - the mega-cap verification was real, but nothing had triggered a
+full backfill since.
+
+- **`institutional_holdings_13f`**: `sec_13f_cusip_crosswalk` (the OpenFIGI CUSIP->ticker cache)
+  had exactly 10 rows - the 6 mega-caps this doc's "AAPL 86.9%..." figures came from, verified
+  correct, but never extended. The live table itself was **100% `data_unavailable`** (5461/5461
+  rows), and the stale rows still carried `reason='cusip_ticker_crosswalk_not_implemented'` - a
+  string that no longer exists anywhere in current code, confirming these rows predate the
+  OpenFIGI fix and were never touched since. Kicked off a real full-universe crosswalk run
+  (33,628 CUSIPs from the latest bulk 13F dataset, 33,618 never-seen). **Caveat found live**:
+  OpenFIGI's practical unauthenticated throughput today was far below the documented "~2-2.5h
+  cold" estimate in `utils/external/openfigi_crosswalk.py` - every batch hit a 429 on first
+  attempt during observation, consistent with shared-IP throttling stricter than the previous
+  session's own experience (or contention from other concurrent local processes sharing the same
+  egress IP). The mechanism itself is correct (permanent cache, fail-open per-batch, no
+  fabrication) - this is a throughput/environment finding, not a code bug. Left running in the
+  background; will make partial real progress even if it doesn't finish in one sitting.
+- **`analyst_upgrade_downgrade`** / **`analyst_sentiment_analysis`**: both stuck at exactly 2
+  distinct symbols despite this doc's "ACTIVE, not deprecated" status. A full-universe run of
+  `analyst_upgrade_downgrade` got partway (1576 symbols) before crashing on **connection pool
+  exhaustion** - self-inflicted by running 5 backfill loaders concurrently against the same local
+  dev Postgres in this session (each defaults to parallelism 32 when AWS CloudWatch adaptive
+  throttling is unavailable, i.e. always true locally) - not a code bug, a lesson in not
+  parallelizing heavy local backfills against each other. `analyst_sentiment_analysis` hit the
+  shared yfinance IP ban (correctly fail-fast per the circuit breaker) triggered by the
+  concurrent `analyst_upgrade_downgrade` run exhausting the shared quota first - same
+  root cause, needs a sequential re-run once the ban clears.
+- **`dividend_data`** (real bug, fixed): stuck at 2 symbols (AAPL/MSFT, 129 rows) - but this one
+  had a genuine, previously-undiscovered bug, not just a missing backfill. See the dedicated
+  entry below.
+
+**Lesson for future backfill work in this environment:** run these full-universe backfills
+**sequentially**, not concurrently - the local dev Postgres connection pool and the shared
+yfinance/OpenFIGI rate-limit resources are shared across every loader process, and running
+several at once starves all of them rather than speeding any of them up.
+
+## FIXED 2026-07-27: load_dividend_data.py's primary_key never matched its own table's real constraint
+
+`DividendDataLoader.primary_key` was declared as `("symbol", "ex_dividend_date",
+"dividend_per_share")` - a 3-column key that never matched migration 1155's real
+`uq_dividend_event` constraint (`UNIQUE(symbol, ex_dividend_date)`, 2 columns). This produced two
+live bugs, both confirmed by actually running the loader against the full universe (something
+that appears to have never happened before - the table had exactly 2 symbols, both real dividend
+payers, which is exactly what would happen if only companies WITH dividend data ever succeeded):
+
+1. `OptimalLoader._validate_row()` treats every declared `primary_key` column as required/
+   non-NULL. The loader's own correct, intentional `_unavailable_record()` marker sets
+   `dividend_per_share=None` for any symbol with no dividend data - true for the majority of the
+   universe (small/mid-caps that don't pay dividends). Every one of those symbols crashed with
+   `"Row has NULL value for required primary key field 'dividend_per_share'"` (233+ observed in
+   a partial run) instead of writing a clean `data_unavailable` row.
+2. `BulkInsertManager`'s runtime self-healing (`_ensure_constraint()`) saw no existing unique
+   constraint matching the wrong 3-column declaration and **silently created one**
+   (`dividend_data_symbol_ex_dividend_date_dividend_per_share_unique`) alongside the real
+   `uq_dividend_event`. `ON CONFLICT` then targeted the bogus 3-column constraint, so a re-run
+   producing a slightly different `dividend_per_share` for an already-seen `(symbol,
+   ex_dividend_date)` didn't get caught by `ON CONFLICT` and instead hit a live
+   `psycopg2.errors.UniqueViolation` against the real 2-column constraint (confirmed: symbol
+   APOG, `ex_dividend_date` 2024-10-15).
+
+**Fixed:** `primary_key` corrected to `("symbol", "ex_dividend_date")` to match the real schema.
+Migration 1168 drops the bogus auto-created constraint. New regression test
+`tests/unit/test_load_dividend_data_pk_matches_schema.py` asserts the corrected key and that
+`_validate_row()` accepts a `data_unavailable` marker with `dividend_per_share=None`. Backfill
+re-run in progress against the full universe post-fix.
+
+---
+
 ## GAP (documented, not fixed) 2026-07-21: economic_metrics_daily has a table but no loader
 
 `economic_metrics_daily` (CPI YoY, SPY price change, 10Y-2Y yield curve slope - migration 079,

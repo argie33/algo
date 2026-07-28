@@ -20,12 +20,39 @@ real ~87% - a wrong-but-plausible-looking number, not an honest partial result. 
 by switching to the direct CUSIP->ticker OpenFIGI query below, which uses the FULL
 reported share total per CUSIP, not just the FIGI-tagged subset.
 
-COST: OpenFIGI's unauthenticated limit is 10 mapping jobs/request, ~25 requests/minute -
-a full ~34,000-CUSIP universe takes ~2-2.5 hours cold. See
-loaders/load_institutional_holdings_13f.py's sec_13f_cusip_crosswalk table (migration
-1161): CUSIP->ticker attribution is stable across quarters, so callers should cache
-results there and only crosswalk each quarter's small delta of never-seen CUSIPs, not
-redo the full universe every run.
+COST: OpenFIGI's unauthenticated limit is 10 mapping jobs/request, 25 requests/minute -
+a full ~34,000-CUSIP universe takes ~2.5+ hours cold EVEN WITH ZERO 429s, real-world
+sustained rate-limiting can make it far worse (live-verified 2026-07-27: 93+ minutes,
+zero successful batches - see below). This is longer than any sane ECS task timeout
+(institutional_holdings_13f is configured for 1200s/20min), so a cold-start crosswalk
+CANNOT complete in one run. See loaders/load_institutional_holdings_13f.py's
+sec_13f_cusip_crosswalk table (migration 1161): CUSIP->ticker attribution is stable
+across quarters, so callers should cache results there and only crosswalk each
+quarter's small delta of never-seen CUSIPs, not redo the full universe every run.
+
+FIXED 2026-07-27 (real production bug, not just a documentation gap): fetch_cusip_tickers()
+used to return its FULL result only after every batch was attempted - the caller
+(_crosswalk_to_tickers) then persisted the whole result to sec_13f_cusip_crosswalk in one
+shot at the end. Since a cold-start run can never finish before the ECS task timeout kills
+it, every single run was losing 100% of its progress: whatever CUSIPs OpenFIGI DID
+successfully resolve before the kill were never saved, so the cache never grew and every
+run re-started from zero - the exact "all-or-nothing discards real partial data" bug class
+already found and fixed once in this codebase for growth_metrics (see
+steering/DATA_LOADERS.md's 2026-07-21 entry). Live-verified this was happening: local DB
+had 5,461 institutional_holdings_13f rows, ALL data_unavailable, despite
+steering/DATA_LOADERS.md claiming "live-verified... AAPL 86.9%" - that claim was either
+from a luckier run or is simply no longer reproducible; either way, the architecture
+guaranteed eventual failure once the CUSIP backlog was large enough (33,618 CUSIPs seen
+live, vastly more than one run's rate-limited budget can process).
+
+Fixed by adding an optional `on_batch_resolved` callback (invoked after every batch,
+success or failure) and a `deadline` (a `time.monotonic()` cutoff) that returns whatever
+was resolved so far instead of grinding on past the caller's time budget. The caller now
+persists each batch's results as they land, so a run that gets killed mid-crosswalk keeps
+whatever real progress it made, and the backlog shrinks across successive scheduled runs
+(the loader can run more often than the quarterly 13F cadence needs, using the extra runs
+purely to keep chipping away at the crosswalk backlog) instead of resetting to zero
+every time.
 
 CAUTION - live-verified real-world gotcha (2026-07-27): a CUSIP->ticker resolution is
 not always the correct entity, and XOM is quirky on this front in two independent,
@@ -65,8 +92,25 @@ _CORP_SUFFIXES = {
 }  # fmt: skip
 
 
-def fetch_cusip_tickers(cusips: list[str]) -> dict[str, dict[str, Any]]:
+def fetch_cusip_tickers(
+    cusips: list[str],
+    on_batch_resolved: Any = None,
+    deadline: float | None = None,
+) -> dict[str, dict[str, Any]]:
     """Map CUSIPs to their real ticker/entity name via OpenFIGI (free, public API).
+
+    Args:
+        cusips: CUSIPs to resolve.
+        on_batch_resolved: optional callback(dict[cusip, {"ticker":..., "name":...} | None])
+            invoked after EVERY batch attempt (success or failure - failed/unresolved
+            CUSIPs in the batch are passed with value None). Lets the caller persist
+            progress incrementally instead of only after this function returns, since a
+            large cold-start crosswalk can take hours and may never get to return at all
+            if the calling process is killed first (see module docstring's 2026-07-27 fix).
+        deadline: optional time.monotonic() cutoff - stop starting new batches once
+            reached and return whatever was resolved so far, rather than continuing to
+            grind through a backlog that can't possibly finish before the caller's own
+            time budget (e.g. an ECS task timeout) runs out.
 
     Returns {cusip: {"ticker": ..., "name": ...}} only for CUSIPs OpenFIGI could
     resolve. A CUSIP OpenFIGI can't resolve (bond, private placement, foreign-only
@@ -81,26 +125,45 @@ def fetch_cusip_tickers(cusips: list[str]) -> dict[str, dict[str, Any]]:
 
     batches_attempted = 0
     batches_succeeded = 0
+    deadline_hit = False
 
     for i in range(0, len(unique_cusips), _BATCH_SIZE):
+        if deadline is not None and time.monotonic() >= deadline:
+            deadline_hit = True
+            logger.warning(
+                f"[OpenFIGI] Time budget exhausted after {batches_attempted} batches "
+                f"({i}/{len(unique_cusips)} CUSIPs attempted) - returning partial results, "
+                f"remaining CUSIPs picked up next run."
+            )
+            break
+
         batch = unique_cusips[i : i + _BATCH_SIZE]
         batches_attempted += 1
         batch_results = _post_mapping_batch(batch)
-        if batch_results is None:
-            time.sleep(_REQUEST_INTERVAL_SEC)
-            continue
-        batches_succeeded += 1
 
-        for cusip, result in zip(batch, batch_results):
-            data = result.get("data")
-            if not data:
-                continue  # OpenFIGI couldn't resolve this CUSIP - honest gap, not fabricated
-            best = data[0]
-            results[cusip] = {"ticker": best.get("ticker"), "name": best.get("name")}
+        batch_resolved: dict[str, dict[str, Any] | None] = dict.fromkeys(batch)
+        if batch_results is not None:
+            batches_succeeded += 1
+            for cusip, result in zip(batch, batch_results):
+                data = result.get("data")
+                if not data:
+                    continue  # OpenFIGI couldn't resolve this CUSIP - honest gap, not fabricated
+                best = data[0]
+                entry = {"ticker": best.get("ticker"), "name": best.get("name")}
+                results[cusip] = entry
+                batch_resolved[cusip] = entry
 
+        if on_batch_resolved is not None:
+            on_batch_resolved(batch_resolved)
+
+        # Always pace between batches, success or failure - a non-429 failure (network
+        # error, 5xx) doesn't sleep inside _post_mapping_batch at all, and even a 429's
+        # internal 60s retry-wait doesn't guarantee OpenFIGI's window has actually reset;
+        # skipping this sleep on failure was the original code's bug (rapid-fire retries
+        # into a still-active rate limit, worsening it).
         time.sleep(_REQUEST_INTERVAL_SEC)
 
-    if batches_attempted > 0 and batches_succeeded == 0:
+    if not deadline_hit and batches_attempted > 0 and batches_succeeded == 0:
         raise RuntimeError(
             f"[OpenFIGI] All {batches_attempted} mapping request(s) failed - OpenFIGI "
             f"appears unreachable or its API contract changed. Not the same as 'resolved "

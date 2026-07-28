@@ -311,6 +311,15 @@ class YFinanceIPCircuitBreaker:
             ) from e
 
     def get_diagnostics(self) -> dict[str, Any]:
+        # is_banned() applies the expiry-check/auto-clear that a raw _get_ban_state() read
+        # skips - without this, a caller of get_diagnostics() alone (currently unused, but
+        # this is the method a future dashboard/health-panel integration would reach for)
+        # would report "still banned" past the real ban's expiry until some other code path
+        # happened to call is_banned() first and clear it. Live-confirmed: querying
+        # get_diagnostics() right after a ban's ban_until had already passed still showed
+        # is_banned=True/backoff_secs=0.0 (a self-contradictory combination) until is_banned()
+        # was called directly.
+        self.is_banned()
         state = self._get_ban_state()
 
         if state is None:

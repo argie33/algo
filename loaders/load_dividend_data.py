@@ -58,7 +58,17 @@ class DividendDataLoader(SecLoaderBase):
     """
 
     table_name = "dividend_data"
-    primary_key = ("symbol", "ex_dividend_date", "dividend_per_share")
+    # Matches the real DB constraint (migration 1155's uq_dividend_event). A prior version
+    # declared a 3-column key including dividend_per_share, which doesn't match any real
+    # constraint - BulkInsertManager's auto-constraint logic then silently created a SECOND,
+    # conflicting unique constraint on the live table matching the wrong declaration, and
+    # _validate_row() treated dividend_per_share as a required (non-NULL) PK field, crashing
+    # every symbol that legitimately has no dividend data (the data_unavailable marker sets it
+    # to None by design - see _unavailable_record()). Confirmed live: this crashed the loader
+    # for the vast majority of non-dividend-paying symbols in the universe, which is why this
+    # table only ever had 2 test symbols (AAPL/MSFT, both real dividend payers) despite being a
+    # real, wired, SEC XBRL-backed loader.
+    primary_key = ("symbol", "ex_dividend_date")
     watermark_field = "ex_dividend_date"
     exclude_etfs_from_symbols = True
     max_fail_rate = 70.0  # Many companies don't pay dividends; allow data_unavailable
