@@ -590,6 +590,31 @@ full backfill since.
   egress IP). The mechanism itself is correct (permanent cache, fail-open per-batch, no
   fabrication) - this is a throughput/environment finding, not a code bug. Left running in the
   background; will make partial real progress even if it doesn't finish in one sitting.
+
+  **Correction (2026-07-27, same day, later pass): it WAS also a real code bug, not purely
+  environmental.** The backgrounded full-universe run above ran for 93+ minutes with zero
+  successful batches, then got killed - and `fetch_cusip_tickers()` only ever called
+  `_save_crosswalk_cache()` once, after the ENTIRE backlog had been attempted (success or
+  not). Since a cold-start ~34k-CUSIP crosswalk structurally cannot finish inside this
+  loader's 1200s ECS task timeout even under perfect rate-limit conditions (~2.5+ hours
+  minimum), every real production run was guaranteed to lose 100% of whatever OpenFIGI had
+  actually resolved before the kill - the exact "all-or-nothing discards real partial data"
+  bug class already fixed once for `growth_metrics` (2026-07-21 entry above). Fixed (commit
+  `cfdfcfed9`): `fetch_cusip_tickers()` now takes an `on_batch_resolved` callback (fires
+  after every batch) and a `deadline`, so the loader saves progress incrementally and
+  returns gracefully within its time budget instead of grinding toward an unavoidable kill.
+  A second, more severe bug surfaced immediately by live-testing the fix: OpenFIGI resolves
+  13F's many bond/note CUSIPs to long descriptive strings in the same "ticker" field (e.g.
+  `"GLOBAU 11.5 08/15/29 144A"`, 26 chars) that don't fit `sec_13f_cusip_crosswalk.ticker
+  VARCHAR(20)` - the unguarded INSERT crashed outright on the first batch containing any
+  bond CUSIP, which is very likely the actual proximate reason `fetch_global()` kept failing
+  before ever reaching real ownership calculation, a more direct explanation than rate
+  limiting alone. Fixed by truncating defensively before insert (safe - an overlong value
+  can never match a real equity ticker anyway). **Live-verified after both fixes**:
+  `fetch_global()` completed in under 2 minutes and wrote real ownership data matching this
+  doc's original claimed numbers (AAPL 86.9%, AMZN 86.57%, TSLA 68.68%), with the crosswalk
+  cache growing from 10 to 140 real entries in that one run alone - confirming progress now
+  genuinely persists and the backlog will keep shrinking across scheduled runs.
 - **`analyst_upgrade_downgrade`** / **`analyst_sentiment_analysis`**: both stuck at exactly 2
   distinct symbols despite this doc's "ACTIVE, not deprecated" status. A full-universe run of
   `analyst_upgrade_downgrade` got partway (1576 symbols) before crashing on **connection pool
