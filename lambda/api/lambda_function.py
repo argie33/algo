@@ -1311,14 +1311,25 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     }
 
     # Protected endpoints requiring authentication (strategy/trading data)
-    # These endpoints are NOT in PUBLIC_PREFIXES:
-    # - /api/algo/* - algo performance, signals, positions, trades, notifications
-    # - /api/signals/* - trading signals (strategy intelligence)
-    # - /api/scores/* - trading scores (strategy intelligence)
+    # STALE COMMENT FIXED (2026-07-27): this used to claim "/api/algo/*" and "/api/signals/*"
+    # are uniformly protected - false, and directly contradicted by PUBLIC_PREFIXES above,
+    # which deliberately lists many /api/algo/* endpoints (scores, swing-scores,
+    # sector-rotation/-breadth/-stage2, status, last-run, data-status, health, config,
+    # sentiment, economic-calendar, metrics, market-factors, signals) and bare /api/signals as
+    # public - real algo-generated buy/sell signals with quality scores, per
+    # lambda/api/routes/signals.py's actual query. That's a deliberate product choice (the
+    # 2026-07-26 SECURITY FIX above precisely enumerated what got locked down - portfolio,
+    # positions, trades, performance, dashboard-signals, risk-metrics, circuit-breakers,
+    # audit-log, etc. - and never included plain "signals" in that list), not an oversight;
+    # this comment was just never updated to match. What's actually NOT in PUBLIC_PREFIXES,
+    # confirmed against the set above:
+    # - /api/scores/* (bare, distinct from the public /api/algo/scores) - trading scores
     # - /api/audit/* - audit logs (sensitive)
     # - /api/trades/* - trade history (user-specific)
     # - /api/admin/* - admin functions (sensitive)
     # - /api/settings/* - user settings (user-specific)
+    # - most other /api/algo/* endpoints not explicitly listed above (portfolio, positions,
+    #   trades, performance, notifications, dashboard-signals, risk-metrics, circuit-breakers)
 
     # Protected endpoints (requires authentication)
     # /api/trades - user-specific trade history
