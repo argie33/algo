@@ -1117,6 +1117,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})"
             )
 
+        # Initialize trend fields to None (same as quality_metrics) - these are not computed
+        # from income statement history in this method, they come from quality_metrics which
+        # has access to balance sheet data. Initializing them here prevents database errors
+        # from missing column values in the growth_metrics INSERT.
+        for field in [
+            "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
+            "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
+            "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+        ]:
+            if field not in metrics:
+                metrics[field] = None
+
         return metrics
 
     def _insert_value_metrics(self, cur: Any, row: dict[str, Any]) -> None:
