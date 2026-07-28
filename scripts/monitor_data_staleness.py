@@ -233,6 +233,35 @@ def format_age(minutes: float) -> str:
     return f"{days:.1f}d"
 
 
+def get_loader_failed(table_name: str) -> bool:
+    """Check whether data_loader_status's CURRENT row for this table reports 'failed'.
+
+    get_table_age_minutes() only measures when a row was last touched - it can't tell a
+    complete, successful load apart from a crashed one that only wrote a handful of rows
+    before dying (e.g. lock contention against a concurrent backfill). Confirmed live
+    2026-07-28: price_daily's data_loader_status row showed status='failed',
+    completion_pct=0.00, symbols_loaded=1 of 5471 - yet because that single row happened
+    to include today's date, updated_at looked recent enough to report a plain green
+    "FRESH" here, hiding a load that had essentially not happened. status='failed' always
+    reflects the outcome of the MOST RECENT attempt (a later successful retry overwrites
+    it back to 'ok'/'HEALTHY'), so this adds a real-failure signal age alone can't see.
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT status FROM data_loader_status WHERE table_name = %s",
+                (table_name,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return False
+            status = row[0] if not isinstance(row, dict) else row["status"]
+            return str(status).lower() == "failed"
+    except Exception as e:
+        logger.error(f"Error checking loader status for {table_name}: {e}")
+        return False
+
+
 def check_all_tables() -> dict:
     results = {}
     today = date.today()
@@ -327,6 +356,12 @@ def check_all_tables() -> dict:
             else:
                 status = f"{emoji} DEAD ({formatted})"
                 level = "dead"
+
+        # A recent-looking updated_at can't distinguish a real refresh from a crashed run
+        # that only wrote a handful of rows - cross-check the loader's own reported outcome.
+        if get_loader_failed(table):
+            status = f"🔴 LOAD FAILED (last touch {format_age(age) if age is not None else 'unknown'})"
+            level = "critical"
 
         results[table] = {
             "status": status,
