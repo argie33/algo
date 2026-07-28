@@ -453,15 +453,24 @@ class OptimalLoader:
             # enforcement self-kills at this same limit, and the finally-release below
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
-            # LOCAL MODE: Use 10 minutes (600s) for faster recovery from crashed loaders during dev
+            # LOCAL MODE previously hardcoded 600s (10min) "for faster recovery from crashed
+            # loaders during dev", unconditionally ignoring LOADER_SLA_TIMEOUT_SECONDS even
+            # when explicitly set. Real local dev runs regularly exceed 600s - live-confirmed
+            # 2026-07-28: institutional_holdings_13f held its lock for 926.6s on an ordinary
+            # run (OpenFIGI crosswalk alone budgets 900s), and cash-flow statement backfills
+            # observed at ~2385s. A first pass raised this to 1800s, but that still undercuts
+            # the observed 2385s cash-flow run - the lock would still silently expire mid-run,
+            # which is exactly the "concurrent trigger could acquire the lock and double-write"
+            # race the comment above already describes being fixed for production - LOCAL_MODE
+            # had quietly reintroduced it. cleanup_expired_locks() below already provides fast
+            # crash recovery independently (deletes locks whose OWN expires_at is 1800s+ in the
+            # past), so a short TTL was never actually required for that purpose - it only
+            # needs to outlive legitimate runs, same as production. 3600s (1h) clears the
+            # observed 2385s max with margin while still being friendlier than production's
+            # full 2h for an accidental infinite loop.
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
             is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            # CRITICAL: In LOCAL_MODE, always use 600s regardless of LOADER_SLA_TIMEOUT_SECONDS env var
-            # This ensures fast lock recovery during development without requiring env var management
-            if is_local_mode:
-                lock_ttl = 600
-            else:
-                lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600" if is_local_mode else "7200"))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
@@ -684,15 +693,24 @@ class OptimalLoader:
             # enforcement self-kills at this same limit, and the finally-release below
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
-            # LOCAL MODE: Use 10 minutes (600s) for faster recovery from crashed loaders during dev
+            # LOCAL MODE previously hardcoded 600s (10min) "for faster recovery from crashed
+            # loaders during dev", unconditionally ignoring LOADER_SLA_TIMEOUT_SECONDS even
+            # when explicitly set. Real local dev runs regularly exceed 600s - live-confirmed
+            # 2026-07-28: institutional_holdings_13f held its lock for 926.6s on an ordinary
+            # run (OpenFIGI crosswalk alone budgets 900s), and cash-flow statement backfills
+            # observed at ~2385s. A first pass raised this to 1800s, but that still undercuts
+            # the observed 2385s cash-flow run - the lock would still silently expire mid-run,
+            # which is exactly the "concurrent trigger could acquire the lock and double-write"
+            # race the comment above already describes being fixed for production - LOCAL_MODE
+            # had quietly reintroduced it. cleanup_expired_locks() below already provides fast
+            # crash recovery independently (deletes locks whose OWN expires_at is 1800s+ in the
+            # past), so a short TTL was never actually required for that purpose - it only
+            # needs to outlive legitimate runs, same as production. 3600s (1h) clears the
+            # observed 2385s max with margin while still being friendlier than production's
+            # full 2h for an accidental infinite loop.
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
             is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            # CRITICAL: In LOCAL_MODE, always use 600s regardless of LOADER_SLA_TIMEOUT_SECONDS env var
-            # This ensures fast lock recovery during development without requiring env var management
-            if is_local_mode:
-                lock_ttl = 600
-            else:
-                lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600" if is_local_mode else "7200"))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup

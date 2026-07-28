@@ -661,7 +661,14 @@ class Orchestrator:
         """
         try:
             is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            stuck_threshold_seconds = 600 if is_local_mode else int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
+            # UPDATED (2026-07-28): optimal_loader.py's LOCAL_MODE lock_ttl changed from a flat
+            # 600s to 3600s (real local dev runs regularly exceed 600s - e.g.
+            # institutional_holdings_13f held its lock 926.6s on an ordinary run, and cash-flow
+            # statement backfills observed at ~2385s, which an interim 1800s value still
+            # undercut). This threshold must track that value or this routine reintroduces the
+            # exact bug its own 2026-07-27 fix removed, just in LOCAL_MODE: force-deleting a
+            # still-legitimately-running local loader's lock out from under it.
+            stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600" if is_local_mode else "7200"))
 
             with DatabaseContext("write") as cur:
                 # First: Alert on stuck locks BEFORE deleting them (for debugging)

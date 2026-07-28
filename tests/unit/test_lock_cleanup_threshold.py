@@ -12,6 +12,13 @@ Live-reproduced 2026-07-27: a real dry-run flagged insider_transaction_velocity'
 
 Fixed to mirror optimal_loader.py's own LOCAL_MODE-aware threshold (600s local, else
 LOADER_SLA_TIMEOUT_SECONDS/7200s) instead of an independent, shorter, hardcoded value.
+
+UPDATED (2026-07-28): optimal_loader.py's own LOCAL_MODE threshold moved from a flat 600s to
+3600s, since real local dev runs regularly exceed 600s (institutional_holdings_13f held its
+lock 926.6s on an ordinary run; cash-flow statement backfills observed at ~2385s - an interim
+1800s value still undercut that observed run, so it was raised again to 3600s for real margin).
+This test file's local-mode expectation is updated to 3600s to keep mirroring that value, per
+this same file's own stated purpose.
 """
 
 import os
@@ -72,11 +79,20 @@ class TestLockCleanupThresholdMatchesLoaderTTL:
         )
         assert thresholds and all(t == 3600 for t in thresholds)
 
-    def test_local_mode_threshold_stays_600_for_fast_dev_recovery(self):
-        """LOCAL_MODE should keep the fast 600s recovery - this mirrors optimal_loader.py's
-        own is_local_mode branch, so this case is unchanged by the fix."""
+    def test_local_mode_threshold_matches_optimal_loader_3600s(self):
+        """LOCAL_MODE threshold must mirror optimal_loader.py's own is_local_mode lock_ttl
+        (3600s, not the old 600s - real local dev runs regularly exceed 600s, and even
+        exceed an interim 1800s value: cash-flow statement backfills observed at ~2385s)."""
         thresholds = _run_cleanup_and_capture_threshold({"LOCAL_MODE": "True"})
-        assert thresholds and all(t == 600 for t in thresholds)
+        assert thresholds and all(t == 3600 for t in thresholds)
+
+    def test_local_mode_threshold_honors_loader_sla_env_override(self):
+        """Even in LOCAL_MODE, an explicit LOADER_SLA_TIMEOUT_SECONDS must win - this was
+        the other half of the original bug: LOCAL_MODE used to ignore this env var entirely."""
+        thresholds = _run_cleanup_and_capture_threshold(
+            {"LOCAL_MODE": "True", "LOADER_SLA_TIMEOUT_SECONDS": "300"}
+        )
+        assert thresholds and all(t == 300 for t in thresholds)
 
     def test_long_running_loader_not_flagged_stuck_in_production(self):
         """The core bug: a real loader (insider_transaction_velocity) legitimately still
