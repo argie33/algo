@@ -151,8 +151,15 @@ def _get_last_run(cur: cursor) -> Any:
     if overall_status is None:
         return error_response(503, "invalid_data", "Overall status missing from latest orchestrator run")
 
-    # Determine success/halted/errored from overall_status
-    success = overall_status == "success"
+    # Determine success/halted/errored from overall_status.
+    # "ok" is a real, healthy terminal state (e.g. Phase 8 correctly blocked by the
+    # market-hours guard while Phase 9 still completed) - see orchestrator.py's own
+    # authoritative `result["success"] = overall_status in ("success", "ok")`.
+    # Checking only "success" here made this endpoint disagree with the orchestrator
+    # and report success=False for every healthy "ok" run (the common case for any
+    # run outside 9:30-4:00 ET), which the CLI dashboard's status pill (health.py)
+    # renders as the vague "[dim]RUN[/]" fallback instead of "COMPLETED".
+    success = overall_status in ("success", "ok")
     halted = overall_status in ("halted", "halt")
     errored = overall_status == "error"
 
