@@ -900,7 +900,13 @@ class PositionSizer:
                 f"stop_loss_price ({stop_loss_price}) >= entry_price ({entry_price}). "
                 f"Cannot size position with invalid stop price. This indicates corrupted position data."
             )
-        shares = int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        # ROUND_DOWN, not ROUND_HALF_UP: risk_dollars is a hard budget (adjusted_risk_pct *
+        # portfolio_value), not a target - rounding the share count up here can push the
+        # actual dollar risk of the position past that budget by up to half a share's worth
+        # of risk_per_share. Same class of bug the max_position_size_pct cap below already
+        # guards against with ROUND_DOWN (see its comment) - this is the risk-budget
+        # equivalent of that same hard ceiling and needs the same rounding direction.
+        shares = int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_DOWN))
         base_shares = shares  # pre-cap share count from risk-based sizing alone, for algo_position_sizing_audit
 
         if shares < 1:
@@ -994,26 +1000,33 @@ class PositionSizer:
                             "Check: (1) database connectivity, (2) algo_positions/algo_trades tables"
                         )
                     risk_sum = result[0]
+                    # CRITICAL: this is the single most important portfolio-level guardrail
+                    # (aggregate 4% open-risk hard cap) - kept in Decimal throughout, matching
+                    # every other money/threshold computation in this file, instead of the
+                    # float arithmetic previously used here (a precision-drift risk on exactly
+                    # the check meant to be least tolerant of drift).
+                    portfolio_value_dec = Decimal(str(portfolio_value))
                     if risk_sum is None:
                         # SUM returns NULL when no matching rows, but query succeeded
-                        current_risk_dollars = 0.0
+                        current_risk_dollars = Decimal(0)
                     else:
-                        current_risk_dollars = float(risk_sum)
+                        current_risk_dollars = Decimal(str(risk_sum))
 
                     # Calculate aggregate risk after this position would be added
-                    new_position_risk = float(risk_dollars)
-                    total_risk_after_entry = current_risk_dollars + new_position_risk
+                    total_risk_after_entry = current_risk_dollars + risk_dollars
                     total_risk_pct = (
-                        (total_risk_after_entry / float(portfolio_value)) * 100.0 if float(portfolio_value) > 0 else 0.0
+                        (total_risk_after_entry / portfolio_value_dec) * Decimal(100)
+                        if portfolio_value_dec > 0
+                        else Decimal(0)
                     )
 
                     # Hard limit: 4% max total risk
-                    max_risk_pct = 4.0
+                    max_risk_pct = Decimal("4.0")
 
                     if total_risk_pct > max_risk_pct:
                         # Risk limit would be exceeded - scale down position or block
                         available_capacity_dollars = (
-                            max_risk_pct / 100.0 * float(portfolio_value)
+                            max_risk_pct / Decimal(100) * portfolio_value_dec
                         ) - current_risk_dollars
 
                         if available_capacity_dollars <= 0:
@@ -1023,13 +1036,18 @@ class PositionSizer:
                                 "position_size_pct": 0,
                                 "risk_dollars": 0,
                                 "status": "risk_limit",
-                                "reason": f"Total open risk {(current_risk_dollars / float(portfolio_value) * 100.0):.2f}% already at/exceeds 4% limit - no capacity for new position",
+                                "reason": f"Total open risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}% already at/exceeds 4% limit - no capacity for new position",
                             }
                         else:
-                            # Scale down position to fit within available capacity
-                            scaled_risk_dollars = Decimal(str(available_capacity_dollars))
+                            # Scale down position to fit within available capacity.
+                            # ROUND_DOWN, not ROUND_HALF_UP: available_capacity_dollars is the
+                            # remaining room under the 4% aggregate hard risk cap - rounding the
+                            # scaled share count up can push risk_dollars (recomputed below from
+                            # this share count) back past that cap, defeating the entire purpose
+                            # of this scale-down branch. Same class of bug as the
+                            # max_position_size_pct cap above.
                             scaled_shares = int(
-                                (scaled_risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+                                (available_capacity_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_DOWN)
                             )
 
                             if scaled_shares < 1:
@@ -1039,7 +1057,7 @@ class PositionSizer:
                                     "position_size_pct": 0,
                                     "risk_dollars": 0,
                                     "status": "risk_limit_scaled_zero",
-                                    "reason": f"Total open risk {(current_risk_dollars / float(portfolio_value) * 100.0):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
+                                    "reason": f"Total open risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
                                 }
 
                             # Use scaled size
@@ -1050,7 +1068,7 @@ class PositionSizer:
 
                             logger.info(
                                 f"[POSITION_SIZER] {symbol}: Risk-limited sizing applied. "
-                                f"Current risk {(current_risk_dollars / float(portfolio_value) * 100.0):.2f}%, "
+                                f"Current risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}%, "
                                 f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
                             )
             except Exception as e:

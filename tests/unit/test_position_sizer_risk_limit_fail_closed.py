@@ -100,3 +100,44 @@ class TestPositionSizerRiskLimitFailsClosed:
 
         assert result["status"] == "ok"
         assert result["shares"] > 0
+
+
+class TestPositionSizerRiskLimitScaleDownRounding:
+    """Regression test (2026-07-27): the scale-down branch used to round the fitted
+    share count to nearest (ROUND_HALF_UP) instead of down. available_capacity_dollars
+    is the remaining room under the 4% aggregate hard risk cap - rounding the scaled
+    share count up can push the resulting risk_dollars back past that cap, defeating
+    the entire purpose of the branch. Also exercises the float->Decimal fix for the
+    same block (previously computed current_risk_dollars/total_risk_pct/
+    available_capacity_dollars in float, mixed with Decimal risk_dollars elsewhere in
+    the function)."""
+
+    def test_scaled_shares_never_exceed_available_risk_capacity(self):
+        sizer = _make_sizer()
+        # current open risk $3500 + this position's base $1000 (1% of $100k) = $4500 =
+        # 4.5% > the 4% cap -> scale-down triggers. available_capacity = 4% * 100000 -
+        # 3500 = $500. risk_per_share = 100 - 91 = 9 -> 500/9 = 55.555... - the exact
+        # boundary where ROUND_HALF_UP (56 shares, $504 risk) would breach the $500
+        # cap and ROUND_DOWN (55 shares, $495 risk) stays within it.
+        defaults = dict(
+            symbol="AAPL",
+            entry_price=Decimal("100"),
+            stop_loss_price=Decimal("91"),
+            portfolio_value=Decimal("100000"),
+            enforce_total_risk_limit=True,
+        )
+        patches = _patched(sizer)
+        mock_cur = patch("algo.trading.position_sizer.DatabaseContext")
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], mock_cur as MockDB:
+            MockDB.return_value.__enter__.return_value.fetchone.return_value = (Decimal("3500"),)
+            result = sizer._calculate_with_external_cursor(**defaults)
+
+        assert result["status"] == "ok"
+        assert result["shares"] == 55, (
+            f"expected ROUND_DOWN to floor 55.555... to 55 shares, got {result['shares']} - "
+            f"a value of 56 means the ROUND_HALF_UP regression is back"
+        )
+        assert result["risk_dollars"] <= 500, (
+            f"scaled position's risk_dollars ({result['risk_dollars']}) must not exceed "
+            f"the $500 available capacity under the 4% aggregate risk cap"
+        )
