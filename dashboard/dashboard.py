@@ -556,6 +556,14 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 "_dashboard_critical": True,
                 "reason": f"Data refresh failed: {type(e).__name__}. Previous cached data unsafe for trading decisions.",
             }
+            # RELOAD STORM FIX (found 2026-07-28): without advancing last_load here too,
+            # should_reload()'s (time.monotonic() - last_load) >= interval check stays true
+            # forever after any real load_all() exception (this except branch - NOT the 20s
+            # timeout branch above, which already sets last_load at line ~544). The very next
+            # 0.25s main-loop tick sees is_loading=False and should_reload=True and spawns
+            # another reload thread immediately - hammering the backend with zero backoff for
+            # as long as the outage lasts, instead of waiting a normal `interval` between tries.
+            state.last_load = time.monotonic()
 
     try:
         reload_thread = threading.Thread(target=reload, daemon=True)
