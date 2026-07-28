@@ -255,20 +255,22 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # to maintain position management (keep count below hard limit of 17).
             # Skipping recommendations breaks position management: Phase 6 gets empty recommendations ->
             # no exits execute -> position count hits hard limit -> Phase 8 blocks all new entries.
-            recommendations = []
+            # FAIL-FAST FIX: PositionMonitor failure is CRITICAL - cannot generate fake fallback
+            # recommendations. Position monitoring is too fundamental to work around.
+            from algo.monitoring import PositionMonitor
             try:
-                from algo.monitoring import PositionMonitor
                 monitor = PositionMonitor(config)
                 recommendations = monitor.review_positions(run_date)
                 n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
                 n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
                 logger.info(f"[PHASE 3] Paper mode generated {len(recommendations)} recommendations: {n_early_exit} early exits, {n_raise_stop} stop raises")
             except Exception as review_err:
+                # FAIL-FAST: PositionMonitor failure is critical - no fallback exit recommendations
                 error_msg = (
-                    f"[PHASE 3 CRITICAL] Position review failed in paper mode: {str(review_err)[:200]}. "
-                    "Position monitoring requires PositionMonitor to generate safe exit recommendations. "
-                    "Cannot execute with silent fallback — this could lead to unlimited position accumulation. "
-                    "Check: (1) PositionMonitor configuration, (2) sector data availability, (3) market calendar."
+                    f"[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: {str(review_err)[:200]}. "
+                    f"Cannot generate exit recommendations without proper position analysis. "
+                    f"Position monitoring is non-negotiable for risk management. "
+                    f"Failing phase rather than silently generating degraded fallback recommendations."
                 )
                 logger.critical(error_msg)
                 raise RuntimeError(error_msg) from review_err
