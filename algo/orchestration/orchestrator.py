@@ -75,16 +75,16 @@ logger = logging.getLogger(__name__)
 def compute_run_mode_label(dry_run: bool, execution_mode: str, alpaca_paper_trading: bool) -> str:
     """Compute the run-mode label for the startup banner operators scan for real-money risk.
 
-    dry_run alone does NOT mean real money is at risk - execution_mode="paper" (or
-    "auto"/"live" with alpaca_paper_trading=True) still routes to Alpaca's paper endpoint.
-    Only execution_mode in ("live", "auto") with alpaca_paper_trading=False actually risks
-    real money. Previously the banner printed "LIVE" for any non-dry-run, including ordinary
-    local paper-mode test runs, which was indistinguishable in the logs from an actual
-    real-money run.
+    dry_run alone does NOT mean real money is at risk - execution_mode="paper" (or "auto"
+    with alpaca_paper_trading=True) still routes to Alpaca's paper endpoint. Only
+    execution_mode="auto" with alpaca_paper_trading=False actually risks real money.
+    Previously the banner printed "LIVE" for any non-dry-run, including ordinary local
+    paper-mode test runs, which was indistinguishable in the logs from an actual real-money
+    run.
     """
     if dry_run:
         return "DRY RUN"
-    if execution_mode in ("live", "auto") and not alpaca_paper_trading:
+    if execution_mode == "auto" and not alpaca_paper_trading:
         return "LIVE - REAL MONEY"
     return "PAPER"
 
@@ -272,7 +272,7 @@ class Orchestrator:
         """CRITICAL: Validate all required configuration at startup.
 
         Checks:
-        1. execution_mode is set and valid (paper/live/auto)
+        1. execution_mode is set and valid (paper/auto)
         2. For live trading: Alpaca credentials available (API key + secret)
         3. Required config keys present
 
@@ -281,10 +281,25 @@ class Orchestrator:
         logger.info("[STARTUP VALIDATION] Checking required configuration...")
 
         # 1. Validate execution_mode FIRST
+        # BUG FOUND 2026-07-28: this validation (and compute_run_mode_label's real-money
+        # risk check, in run()) used to accept "live" as an equally-valid third value
+        # alongside "paper"/"auto" - but algo/trading/executor_strategies.py's
+        # create_execution_mode_strategy(), the ONLY place execution_mode actually turns
+        # into trading behavior, has never registered a "live" strategy (only paper/
+        # review/auto). "live" - the single most natural word an operator/Terraform var
+        # would pick for "real money mode" - would pass this startup check clean, then
+        # crash deep inside TradeExecutor.__init__ the moment Phase 6 (exit execution,
+        # always_run) instantiated it. "auto" is this system's one real live-trading
+        # strategy (see AutoExecutionMode's own ALGO_LIVE_TRADING/ALPACA_PAPER_TRADING
+        # safety-gate logic) - reject "live" explicitly here rather than silently alias
+        # it, since dozens of call sites (executor_entry_handler.py,
+        # executor_exit_handler.py, reconciliation.py) do literal `== "auto"` string
+        # checks against the raw config value that an alias could silently bypass.
         execution_mode = self.config.get("execution_mode")
-        if not execution_mode or execution_mode not in ("paper", "live", "auto"):
+        if not execution_mode or execution_mode not in ("paper", "auto"):
             raise RuntimeError(
-                f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'live', or 'auto'. "
+                f"[STARTUP] CRITICAL: execution_mode must be 'paper' or 'auto' ('auto' is the "
+                f"real-trading mode - 'live' is not a supported value, despite the name). "
                 f"Current value: {execution_mode!r}. Configure via algo_config table."
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")

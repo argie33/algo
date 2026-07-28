@@ -54,8 +54,10 @@ class TestCompleteAWSDeployment:
         # Simulate Lambda environment with paper trading mode
         mock_event = {"execution_mode": "paper", "dry_run": False}
 
-        # Verify execution_mode is recognized
-        assert mock_event["execution_mode"] in ["auto", "paper", "live"], "Invalid execution mode"
+        # Verify execution_mode is recognized ("live" is not a real mode - see
+        # algo/trading/executor_strategies.py's create_execution_mode_strategy(), which has
+        # never registered it; "auto" is the real live-trading mode)
+        assert mock_event["execution_mode"] in ["auto", "paper"], "Invalid execution mode"
         assert mock_event["execution_mode"] == "paper", "Paper trading mode not set"
         assert mock_event["dry_run"] is False, "Paper trading should not be dry_run"
 
