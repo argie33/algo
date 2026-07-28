@@ -40,6 +40,7 @@ _INCOME_CONCEPTS = [
     "NetIncomeLoss",
     "EarningsPerShareBasic",
     "EarningsPerShareDiluted",
+    "WeightedAverageNumberOfSharesOutstandingBasic",
     "InterestExpense",
     "Depreciation",
     "DepreciationAndAmortization",

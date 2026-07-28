@@ -118,13 +118,25 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "RevenueFromContractWithCustomerIncludingAssessedTax",
         "RevenueFromContractWithCustomerExcludingAssessedTax",
         "CostOfRevenue",
-        "CostsAndExpenses",
+        # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
+        # as would-be operating_income fallbacks, but neither has a field_mapping entry or
+        # destination column, and live-checking real filers missing operating_income (SWK,
+        # KMX, BXP - all with NULL operating_income despite real revenue) found zero cases
+        # where either concept was present and OperatingIncomeLoss wasn't - the NULLs are
+        # explained by fiscal-year filing timing, not a missing concept these would recover.
+        # Pure wasted SEC API payload, same class as the cash-flow depreciation fetch
+        # removed the same session (see get_cash_flow() below).
         "GrossProfit",
-        "OperatingExpenses",
         "OperatingIncomeLoss",
         "NetIncomeLoss",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
+        # FIXED 2026-07-28: real, officially-reported weighted-average basic share count -
+        # now mapped to annual/quarterly_income_statement.shares_outstanding_basic (migration
+        # 1171). Previously fetched every run and silently discarded (no field_mapping entry),
+        # while load_sec_valuations.py derived an inferior EPS-rounding-lossy proxy instead
+        # (shares = net_income / eps) believing (per its own stale docstring) it was already
+        # using this concept.
         "WeightedAverageNumberOfSharesOutstandingBasic",
         # For interest_coverage (quality_metrics) = OperatingIncomeLoss / InterestExpense.
         # No IFRS alias: IFRS "FinanceCosts" is a broader concept (includes non-interest

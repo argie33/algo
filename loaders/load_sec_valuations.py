@@ -8,7 +8,8 @@ Computes audited, current valuations from SEC financial data + price_daily:
   - PEG Ratio: PE Ratio / Earnings Growth Rate %
   - FCF Yield: Free Cash Flow (from cash flow statement) / Market Cap
   - Market Cap: Stock Price x Shares Outstanding (from income statement)
-  - Shares Outstanding: WeightedAverageNumberOfSharesOutstandingBasic (from SEC)
+  - Shares Outstanding: WeightedAverageNumberOfSharesOutstandingBasic (from SEC, migration 1171),
+    falling back to net_income/eps derivation, then company_info_sec, if unavailable
 
 Data Quality:
   - All metrics computed from SEC audited data (vs. yfinance estimates)
@@ -66,7 +67,8 @@ class SecValuationsLoader(OptimalLoader):
                         earnings_per_share,
                         operating_income,
                         depreciation_expense,
-                        amortization_expense
+                        amortization_expense,
+                        shares_outstanding_basic
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC LIMIT 2
@@ -77,7 +79,15 @@ class SecValuationsLoader(OptimalLoader):
                 if not income_rows:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
-                ttm_revenue, _ttm_net_income, ttm_eps_basic, operating_income, depreciation_expense, amortization_expense = income_rows[0]
+                (
+                    ttm_revenue,
+                    _ttm_net_income,
+                    ttm_eps_basic,
+                    operating_income,
+                    depreciation_expense,
+                    amortization_expense,
+                    reported_shares_outstanding,
+                ) = income_rows[0]
                 # PEG's growth-rate leg needs a genuinely prior-year EPS, not the same TTM
                 # value used twice - GOVERNANCE: this used to set `latest_eps = ttm_eps_basic`
                 # (comment literally said "Use same EPS for both TTM and latest"), which made
@@ -93,11 +103,22 @@ class SecValuationsLoader(OptimalLoader):
                 if ttm_revenue is None and ttm_eps_basic is None:
                     return [self._unavailable_marker(symbol, "income_statement_revenue_and_eps_null")]
 
-                # Compute shares outstanding from SEC financial data: shares = net_income / eps
-                # This is more reliable than fetching from company_info_sec which often lacks this data.
-                # If both net_income and eps are available, we can compute shares directly from SEC audited data.
+                # Prefer the real, officially-reported weighted-average basic share count
+                # (SEC XBRL WeightedAverageNumberOfSharesOutstandingBasic, migration 1171)
+                # over the derived net_income/eps proxy below - EPS is reported rounded to
+                # 2 decimals, so back-computing shares from it loses real precision (material
+                # for large-caps with billions of shares). FIXED 2026-07-28: this concept was
+                # fetched from SEC every run but silently discarded (see sec_statements.py),
+                # so the derived proxy ran unconditionally despite this docstring's own claim
+                # (line 11 above) that the real concept was already the source.
                 shares_out = None
-                if ttm_eps_basic and ttm_eps_basic != 0 and _ttm_net_income and _ttm_net_income != 0:
+                if reported_shares_outstanding and reported_shares_outstanding > 0:
+                    shares_out = float(reported_shares_outstanding)
+                    logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
+
+                # Fallback: compute shares outstanding from SEC financial data: shares = net_income / eps.
+                # If both net_income and eps are available, we can compute shares directly from SEC audited data.
+                if not shares_out and ttm_eps_basic and ttm_eps_basic != 0 and _ttm_net_income and _ttm_net_income != 0:
                     try:
                         # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
                         shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))

@@ -109,6 +109,11 @@ _INCOME_FIELD_MAPPING = {
     # currently read diluted_eps (grep-confirmed) so this is additive, not fixing a live
     # scoring bug - but it's a real, standard, already-fetched metric worth actually having.
     "earnings_per_share_diluted": "diluted_eps",
+    # FIXED 2026-07-28 (migration 1171): WeightedAverageNumberOfSharesOutstandingBasic has
+    # been fetched from real SEC XBRL data all along but had no target column - see
+    # sec_statements.py's comment above this concept. load_sec_valuations.py previously
+    # derived a lossier proxy (net_income/eps) believing it already used this concept.
+    "weighted_average_number_of_shares_outstanding_basic": "shares_outstanding_basic",
     "interest_expense": "interest_expense",
     # This mapping key was always correct - the bug was in sec_statements.py's
     # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
@@ -212,6 +217,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "interest_expense",
                     "depreciation_expense",
                     "amortization_expense",
+                    "shares_outstanding_basic",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -238,6 +244,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "interest_expense",
                     "depreciation_expense",
                     "amortization_expense",
+                    "shares_outstanding_basic",
                     "created_at",
                     "data_unavailable",
                     "reason",
