@@ -107,6 +107,24 @@ class TestCircuitBreakerVIX:
         assert result["halted"] is False
         assert result["value"] == 18.5
 
+    def test_vix_spike_fails_closed_on_non_positive_vix(self, mock_config):
+        """VIX is a volatility index and is physically never <= 0 (historical floor
+        ~9). A non-positive value can only come from upstream data corruption - it
+        must fail closed (halt) rather than silently pass the >threshold check."""
+        from datetime import date
+
+        config = dict(mock_config, vix_max_threshold=30.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        today = date(2026, 7, 27)  # a Monday - trading day
+        mock_cur.fetchone.return_value = (-1.0, today, False, None)
+
+        with patch("algo.infrastructure.MarketCalendar.is_trading_day", return_value=True):
+            result = cb._check_vix_spike(current_date=today, cur=mock_cur)
+
+        assert result["halted"] is True
+        assert "corrupted" in result["reason"].lower()
+
 
 class TestCircuitBreakerAll:
     """Test combined circuit breaker checks."""
