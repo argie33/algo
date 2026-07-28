@@ -409,6 +409,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=warmup_render, daemon=True).start()
 
     first_render_with_data = False
+    timed_out = False
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
         try:
             loop_start = time.monotonic()
@@ -418,6 +419,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 # Timeout: if no data after 30 seconds, exit
                 if elapsed_loop > 30 and state.result is None:
                     logger.info("[DASHBOARD] run_once() exiting after 30s with no data")
+                    timed_out = True
                     break
 
                 # CRITICAL FIX: _keypress was blocking indefinitely on Windows.
@@ -477,6 +479,13 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 time.sleep(0.25)
         except KeyboardInterrupt:
             pass
+
+    if timed_out:
+        # Live(screen=True) clears the alternate screen buffer on exit, so without this the
+        # terminal just goes back to a bare prompt with zero indication anything ran - the
+        # 30s-giveup log line only reaches the log file, never the user's screen.
+        CONSOLE.print("\n[bold yellow]Dashboard exited: no data loaded within 30 seconds.[/]")
+        CONSOLE.print("[yellow]Check that dev_server.py is running (--local mode) or run check_system_health.py.[/]\n")
 
     preload_thread.join(timeout=5)
 
