@@ -4,6 +4,46 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: load_global() had no success-path status transition; 2 analyst loaders' 85% completeness floor was unreachable
+
+Same loader-review pass as the crashed-loader-masking fix above, chasing why
+`institutional_holdings_13f` still showed `status='RUNNING'` right after a live-confirmed
+clean `SUCCESS: 620 records loaded` run. Root cause: `OptimalLoader.load_global()` (used by 7
+loaders via `run_loader(..., global_mode=True)`: `institutional_holdings_13f`,
+`load_market_constituents`, `load_sector_industry_daily`, `load_algo_metrics_daily`,
+`load_market_status_daily`, `load_aaii_sentiment`, `load_naaim`) called
+`update_loader_status("RUNNING")` once at the top but none of its 4 return points ever
+transitioned status away from RUNNING - success was structurally unreachable as a terminal
+status. Historically masked by the very sweep-overwrite bug fixed earlier this session; that
+fix now exposes this gap instead (a successfully-completed global_mode loader sits at RUNNING
+forever, eventually tripping the stuck-loader heartbeat alert as a false positive). Fixed:
+`update_loader_status("COMPLETED")` added at all 4 return points, regression-tested
+(fail-before/pass-after via git stash).
+
+Same investigation also found `institutional_holdings_13f`'s real-row count stuck at 215
+despite the crosswalk cache growing steadily (10->140->3170->5080+) - 4,718 of its rows still
+carried the pre-OpenFIGI-fix `cusip_ticker_crosswalk_not_implemented` reason string, untouched
+since 2026-06-30. This traces to the SAME crashed-loader-masking bug: every run attempt since
+2026-07-24 was crashing before completing the per-symbol write-out phase (confirmed via
+`execution_completed` frozen at 2026-07-24 while `execution_started` kept advancing), so the
+full-universe refresh that would overwrite those stale markers with a fresh
+`not_found_in_institutional_holdings_13f` (or real data) never ran. Not a separate bug - a
+downstream symptom, now resolved by the same fix. Live-verified: a run under the fixed code
+completed cleanly in 946.9s (900s crosswalk budget + write-out), real rows grew 215->620.
+
+Separately, `load_analyst_upgrade_downgrade.py`/`load_analyst_sentiment_analysis.py` both
+declared `max_fail_rate = 15.0` (85% completion required), copy-pasted from the SEC-sourced
+loaders' tolerance without checking this source's real ceiling. Live-confirmed across 3
+independent full-universe runs (71.6%, 71.7%, 72.4%) that both consistently land around ~72%
+- genuine yfinance HTTP 404 "No fundamentals data found" for OTC/delisted/rights-offering
+symbols (no coverage exists there, period - zero 429s in the run logs, so not a rate-limit
+cutoff). Every run was marked FAILED despite loading everything structurally available - same
+bug class as the 2026-07-27 fix for `quarterly_balance_sheet`/`quarterly_income_statement`'s
+real 85% ceiling. Raised both to `max_fail_rate = 35.0` (65% floor), comfortably below the
+observed ~72% with margin to still catch a genuine regression.
+
+---
+
 ## FIXED 2026-07-28: crashed loader silently relabeled HEALTHY, erasing the only stuck-loader signal
 
 Continuation of the loader-review goal - live-queried `data_loader_status` for every table
