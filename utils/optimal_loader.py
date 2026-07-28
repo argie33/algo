@@ -1182,6 +1182,20 @@ class OptimalLoader:
             # For incremental loads where actual_symbols_loaded > expected_symbols (e.g., updating existing table),
             # this is expected behavior and should still be marked COMPLETED
             completion_pct = min(completion_pct, 100.0)
+            # Respect the subclass's own declared max_fail_rate (already used elsewhere in this
+            # file, e.g. _run_sequential's fail-fast gate at "max_fail_rate = getattr(self,
+            # 'max_fail_rate', 60.0)") instead of a hardcoded 90% for every OptimalLoader
+            # subclass regardless of its own tolerance. ConsolidatedFinancialStatementsLoader
+            # (quarterly_balance_sheet, quarterly_income_statement) declares max_fail_rate=15.0
+            # specifically because "Some stocks (foreign, delisted, recently-IPO'd) lack annual
+            # reports" - ADRs/foreign private issuers file 20-F/6-K, not 10-Q, so SEC XBRL
+            # companyfacts has no quarterly data for them at all. Confirmed live 2026-07-27:
+            # both loaders sit at completion_pct~85-86%, exactly at their declared 85% floor
+            # (100 - 15) - a real, permanent ceiling, not a transient failure. Before this fix,
+            # a hardcoded >=90 threshold combined with the FAILED-canonicalization above would
+            # have made these two loaders permanently show FAILED with consecutive_failures
+            # climbing forever, even though they're loading everything they structurally can.
+            min_completion_pct = 100.0 - getattr(self, "max_fail_rate", 10.0)
             # Canonical LoaderStatus values only (utils/loaders/status_enum.py) - "INCOMPLETE"
             # is not a member of that enum and was invisible to two downstream consumers that
             # only recognize FAILED/TIMEOUT: dashboard/freshness_enhancements.py's failure-rate/
@@ -1193,11 +1207,12 @@ class OptimalLoader:
             # ongoing data gap the next orchestrator run's health sweep would have silently
             # relabeled HEALTHY, and that freshness_enhancements.py's failure_rate_30d/mttr_hours
             # already silently excluded from their stats.
-            loader_status = "COMPLETED" if completion_pct >= 90 else "FAILED"
+            loader_status = "COMPLETED" if completion_pct >= min_completion_pct else "FAILED"
             status_error_message = (
                 None
                 if loader_status == "COMPLETED"
-                else f"Only {completion_pct:.1f}% of symbols loaded ({symbols_loaded}/{expected_symbols})"
+                else f"Only {completion_pct:.1f}% of symbols loaded ({symbols_loaded}/{expected_symbols}, "
+                f"min {min_completion_pct:.1f}% required)"
             )
 
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
