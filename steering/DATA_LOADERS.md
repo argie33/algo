@@ -4,6 +4,62 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## Full loader/XBRL audit, 2026-07-28 (loader-review goal continuation)
+
+Systematic pass across every table in `data_loader_status` (76 tables) and every
+concept `sec_statements.py` fetches, cross-checked against real code (imports, git
+history, live DB queries) rather than re-trusting this doc's own prior claims.
+
+**XBRL concept-mapping completeness: exhaustively clean.** Programmatically
+cross-checked every concept (GAAP + IFRS alias) `get_income_statement()`/
+`get_balance_sheet()`/`get_cash_flow()` fetch against `load_financial_statements.py`'s
+field_mapping dicts - 0 unmapped keys across all 3 statement types (31 total concepts).
+This supersedes the earlier "3 fields silently dropped" fix entry below - that fix
+plus this session's own quarterly-marker fix (next entry) closed the last known gaps;
+this pass confirms no others remain, not just that the known ones are fixed.
+
+**Per-loader source-of-truth, all 30 registered loaders, verified via actual imports:**
+real official APIs (SEC EDGAR: financial statements/company info/earnings
+calendar/8-Ks/dividends/insider Form 4-5/13F/segments; FRED: economic data; FINRA:
+short interest; official survey/listing URLs: NAAIM/AAII/NASDAQ-NYSE-S&P
+constituents; yfinance: analyst ratings, the only free source, put_call_ratio) or
+correctly derived from already-loaded official-source tables (technical indicators,
+trend analysis, risk/quality/growth/value metrics, stock scores, buy/sell signals,
+sector/industry rankings, company profile, sec_valuations). No loader found silently
+using a worse proxy where a real official source was available and unused.
+
+**Confirmed-slop, already resolved:** `sec_cash_flow_metrics` (removed from
+scheduling - near-total duplicate of `quality_metrics`), `economic_metrics_daily`
+(table dropped). **Confirmed-slop, low-priority, deliberately left alone:**
+`market_cap_computed`/`price_extremes_52week` - DEPRECATED status, no active loader,
+frozen historical data, but read only by dashboard/monitoring code
+(`lambda/api/routes/algo_handlers/market.py`, `pipeline_health.py`), never by
+signal-generation or trading logic. Per this doc's own established precedent
+(the `price_daily`/`etf_price_daily` cross-contamination entry above), deleting real
+frozen historical data for a table-cleanliness reason with no functional benefit is
+not worth the (small but nonzero) destructive risk - left alone deliberately, not an
+overlooked gap.
+
+**Real bug found, NOT low-priority:** unlike the two tables above,
+`buy_sell_weekly` (also DEPRECATED, frozen since 2026-05-22, no loader ever existed
+per git history) had a LIVE consumer - `algo/signals/advanced_filters.py`'s
+`_price_trend_score()` queried it for a +1 "weekly BUY alignment" (Elder Triple
+Screen) bonus, deliberately restored 2026-07-21 per that function's own prior
+docstring/test history. Since the query's 30-day lookback can never match data this
+stale, the bonus had been silently, permanently contributing exactly 0 for every
+symbol - indistinguishable from working correctly, since the surrounding
+try/except only caught DB errors, never "zero matching rows found". **Fixed:**
+removed the dead query (verified behavior-neutral - the branch could never take
+effect under any real market condition, so removing it changes no actual scoring
+output). A real weekly-alignment signal would need its own weekly
+technical-indicators + signal-classification pipeline (`price_weekly` exists and is
+correctly derived, but no weekly equivalent of `technical_data_daily`/
+`buy_sell_daily`'s stage-analysis engine exists to query) - flagging as a real,
+scoped feature to build deliberately if wanted, not something improvised inside live
+trading-signal code during a loader audit.
+
+---
+
 ## FIXED 2026-07-28: quarterly SEC data_unavailable markers silently vanished; data_loader_status.reason frozen forever on success
 
 Continuation of the loader-review goal, found via a live full-universe
