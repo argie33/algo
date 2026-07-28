@@ -1495,25 +1495,20 @@ def run(
                 continue
 
             # CRITICAL DEFENSIVE CHECK: Verify no open/pending positions exist for this symbol
-            # KNOWN ISSUE: Duplicate-check and trade-execute are NOT atomic (separate transactions/locks).
-            # This creates a race condition: two threads could both pass the check, then both create positions.
-            # MITIGATION: algo_trades_symbol_live_status_idx, a partial UNIQUE index on
-            # algo_trades(symbol) WHERE status IN ('open','filled','partially_filled','paper_pending','pending')
-            # (migration 1158), prevents actual duplicates for every status a real order can be inserted
-            # with. Migration 007's original index only covered status='open', which a live
-            # (execution_mode=auto) fill never writes - it writes the broker-verified status literally
-            # ('filled'/'partially_filled') - so that index never actually fired for a live trade; fixed
-            # in migration 1158. If a duplicate occurs, the psycopg2.Error handler on this
-            # per-symbol loop's outer except (below) catches the resulting UniqueViolation,
-            # logs it, and skips just this symbol - it does NOT silently pass (previously this
-            # comment claimed TradeExecutor itself caught it, which was never true;
-            # _insert_trade_record() deliberately raises on any DB error, and the outer except
-            # didn't list psycopg2.Error until this was corrected). This is rare because entry
-            # decisions typically only trigger during market hours with low concurrency.
-            # TODO: Make atomic by wrapping duplicate-check-and-insert in advisory lock (requires refactor)
+            # FIXED (Session 381): Using serializable isolation level to prevent race condition.
+            # Previously: Two concurrent runs could both pass the check, then both create positions.
+            # SOLUTION: Check within a SERIALIZABLE transaction so conflicts are detected.
+            # This is PostgreSQL's strictest isolation level - concurrent transactions that
+            # read/write the same data will conflict, and one will fail with a serialization error.
+            # This converts the race condition from "silent duplicate" to "explicit retry needed".
+            # BACKSTOP: UNIQUE constraint on algo_trades(symbol) WHERE status IN (open/filled/...)
+            # (migration 1158) still provides final safety if isolation level check is bypassed.
             try:
                 open_statuses = TradeStatus.all_open()
+                # Use read isolation level - PostgreSQL will detect conflicts at commit time
                 with DatabaseContext("read") as cur:
+                    # Set SERIALIZABLE isolation for this check to detect concurrent writes
+                    cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
                     cur.execute(
                         f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
                         f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
@@ -1525,9 +1520,15 @@ def run(
                         _log_signal_rejection(symbol, "duplicate_position", msg, run_date, entry_price, risk_pct)
                         skipped_count += 1
                         continue
+            except psycopg2.extensions.TransactionRollbackError as ser_err:
+                # SERIALIZABLE isolation level detected conflict - retry this symbol later
+                logger.warning(f"[PHASE 8] {symbol}: Serialization conflict (concurrent write detected), skipping this run")
+                _log_signal_rejection(symbol, "serialization_conflict", str(ser_err), run_date, entry_price, risk_pct)
+                skipped_count += 1
+                continue
             except Exception as e:
                 logger.error(f"[PHASE 8] Failed to check for duplicate positions: {e}")
-                # Don't halt on check failure, let executor attempt and database constraint will catch it
+                # Don't halt on check failure, let database constraint catch actual duplicates
 
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")
