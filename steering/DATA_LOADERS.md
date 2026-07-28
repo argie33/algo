@@ -733,7 +733,7 @@ re-run in progress against the full universe post-fix.
 
 ---
 
-## GAP (documented, not fixed) 2026-07-21: economic_metrics_daily has a table but no loader
+## FIXED (2026-07-25, table dropped) 2026-07-21: economic_metrics_daily had a table but no loader
 
 `economic_metrics_daily` (CPI YoY, SPY price change, 10Y-2Y yield curve slope - migration 079,
 `report_date` PK) is a genuinely different table from `economic_data` (the FRED series table
@@ -764,6 +764,15 @@ on the fly from `economic_data`; `market_health_daily.yield_curve_slope` is popu
 `loaders/load_market_status_daily.py` from the same FRED series) and the third (SPY daily %
 change) had zero consumers. Same root problem as before: no dashboard/API code queries this
 table. Do not rebuild this loader again without first shipping the consumer that would read it.
+
+**RESOLVED 2026-07-25:** migration 1153 dropped the table outright (`DROP TABLE IF EXISTS
+economic_metrics_daily CASCADE`) and removed the scattered config references this note
+originally left in place (`utils/data_tiers.py`, `utils/loader_priority.py`,
+`utils/db/sql_safety.py`'s allowlist, `lambda/api/routes/algo_handlers/market.py`'s health
+exclusion list). Live-verified 2026-07-28: table confirmed absent from the local DB,
+migration confirmed applied (`schema_version`). This gap is genuinely closed, not just
+documented as inert - stop flagging it as open work. If a real need for this data surfaces
+again, it needs a consumer shipped first per the note above, not a bare loader.
 
 ---
 
