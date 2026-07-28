@@ -170,7 +170,7 @@ try:
         render_header_components,
     )
     from .utilities import CONSOLE, MASCOT_W, logger
-    from .watch import WatchModeController, WatchState
+    from .watch import WatchModeController, WatchState, should_start_reload
 except ImportError:
     # Fall back to absolute imports (direct script execution)
     from dashboard.api_data_layer import get_api_url, reset_circuit_breaker, set_api_url, set_cognito_auth
@@ -190,7 +190,7 @@ except ImportError:
         render_header_components,
     )
     from dashboard.utilities import CONSOLE, MASCOT_W, logger
-    from dashboard.watch import WatchModeController, WatchState
+    from dashboard.watch import WatchModeController, WatchState, should_start_reload
 
 
 class _RenderState:
@@ -623,7 +623,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                         logger.error(f"Failed to check recovery retry status: {type(e).__name__}: {e}")
                         should_retry_load = False
 
-                    if should_reload or should_retry_load:
+                    if should_start_reload(should_reload, should_retry_load, is_loading):
                         cleanup_dead_threads()
                         reload_thread = threading.Thread(target=reload, daemon=True)
                         reload_thread.start()

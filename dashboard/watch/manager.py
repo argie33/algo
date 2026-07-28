@@ -96,3 +96,18 @@ class WatchModeController:
         if is_loading:
             return False
         return (time.monotonic() - last_load_time) >= interval
+
+
+def should_start_reload(should_reload: bool, should_retry_load: bool, is_loading: bool) -> bool:
+    """Decide whether to spawn a new reload thread this tick.
+
+    `should_reload` (interval elapsed) already excludes the in-flight case, but
+    `should_retry_load` (recovery-triggered retry after a transient render failure) is
+    computed independently and does NOT check is_loading - without this guard, a retry
+    firing while a reload is already in flight spawns a second concurrent reload thread.
+    Both threads write WatchState.result independently with no ordering guarantee, so
+    whichever finishes last wins - if that's the older/slower thread, it silently
+    overwrites fresher data with stale data. Never start a second reload while one is
+    already running, regardless of which trigger fired.
+    """
+    return (should_reload or should_retry_load) and not is_loading
