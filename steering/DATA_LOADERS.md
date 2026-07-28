@@ -4,6 +4,40 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: real shares-outstanding XBRL concept fetched but discarded, lossy proxy used instead
+
+`WeightedAverageNumberOfSharesOutstandingBasic` has been fetched from real SEC XBRL data
+every run since `sec_statements.py` was written, but `load_financial_statements.py`'s
+field_mapping never pointed it at a column (same "fetched but unmapped" bug class as the
+2026-07-28 3-field fix above). `load_sec_valuations.py`'s own docstring claimed this
+concept was already the shares-outstanding source; the actual code derived
+`shares = net_income / eps` instead - lossy (EPS rounds to 2 decimals, material error for
+large-caps with billions of shares), with a `company_info_sec` fallback.
+
+**Fixed:** migration 1171 adds `shares_outstanding_basic` to
+`annual_income_statement`/`quarterly_income_statement`; wired the field_mapping + schema_cols;
+`load_sec_valuations.py` now prefers the real reported figure over the derived proxy.
+Live-verified: AAPL 14,948,500,000 (FY2025), MSFT 7,433,000,000 (FY2025) - exact match
+against SEC's own companyfacts API.
+
+Also removed `CostsAndExpenses`/`OperatingExpenses` from the income-statement fetch entirely -
+live-checked real filers with NULL `operating_income` (SWK, KMX, BXP) and found zero cases
+where either concept was present and `OperatingIncomeLoss` wasn't; the NULLs are explained by
+fiscal-year filing timing (FY2026 not yet filed for most calendar-year filers), not a
+recoverable gap. Pure wasted SEC API payload with zero downstream consumers - same class as
+the cash-flow depreciation cleanup in the fix above.
+
+`tests/unit/test_financial_statements_field_mapping_completeness.py` mirrors the fetched
+concept lists by hand (documented in its own docstring as a known limitation - it only
+protects concepts it knows about). All 3 of these concepts existed in the live fetch code
+but were missing from that mirror, meaning the same "concept fetched but never mapped" bug
+class it exists to catch had already recurred once, undetected, within hours of that test
+being added. Added the newly-mapped concept to the mirror; if a new concept is ever added to
+`sec_statements.py`'s fetch lists, it must be added to that test's mirror too or this drift
+gap reopens.
+
+---
+
 ## FIXED 2026-07-28: value_metrics-unavailable early-continue silently dropped quality/growth rows; dual-class dotted tickers (BRK.A) never resolved
 
 Continuation of the loader-review goal ("not trying hard enough to get the data we need").
