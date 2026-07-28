@@ -16,6 +16,7 @@ from urllib3.util.retry import Retry
 
 from algo.trading.executor_strategies import create_execution_mode_strategy
 from config.credential_manager import get_credential_manager
+from utils.db.advisory_locks import ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +282,26 @@ class AlpacaSyncManager:
         return untracked_count, untracked_closed_count
 
     def sync_alpaca_positions(self, cur: Any) -> dict[str, Any]:
+        """Sync Alpaca positions to database - advisory-lock-guarded wrapper.
+
+        This writes algo_positions (status/quantity/price) - the same table
+        executor.py's entry/exit writes guard with ALGO_POSITIONS_LOCK_ID
+        (see executor.py:611-617, _with_cursor(acquire_locks=True)) - but this
+        Phase 4 reconciliation path previously wrote without taking that lock.
+        Not exploitable in production (orchestrator.py's _acquire_run_lock already
+        serializes phases within one run, and no other production process writes
+        these tables), but this local dev environment has multiple concurrent
+        sessions writing to the same DB outside any run lock, so the same
+        defense-in-depth this table's other writers already have is worth
+        matching here too. See memory: session_2026-07-27_order_edge_case_audit.
+        """
+        acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+        try:
+            return self._sync_alpaca_positions_impl(cur)
+        finally:
+            release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+
+    def _sync_alpaca_positions_impl(self, cur: Any) -> dict[str, Any]:
         """Sync Alpaca positions to database.
 
         Fetches open positions from Alpaca and updates database:
