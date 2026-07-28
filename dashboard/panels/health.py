@@ -3406,7 +3406,29 @@ def _build_results_panel(
 
     # Header with run status summary
     header_rows: list[Text] = []
+    phase_summary_map: dict[int, dict[str, Any]] = {}  # For looking up phase results
+
     if run and isinstance(run, dict) and not has_error(run):
+        # Build phase results map for diagnostics
+        phase_results_raw = run.get("phase_results")
+        if phase_results_raw:
+            phase_results_list = safe_get_list(phase_results_raw)
+            if isinstance(phase_results_list, list):
+                for p in phase_results_list:
+                    if isinstance(p, dict):
+                        phase_val = p.get("phase")
+                        if phase_val is not None:
+                            try:
+                                phase_num = int(str(phase_val).replace("phase_", ""))
+                                phase_summary_map[phase_num] = {
+                                    "status": p.get("status", "").lower(),
+                                    "summary": p.get("summary", ""),
+                                    "error": p.get("error", ""),
+                                    "name": p.get("name", ""),
+                                }
+                            except (ValueError, TypeError):
+                                pass
+
         sts = (
             f"[bold {G}]OK COMPLETED[/]"
             if run.get("success") and not run.get("halted")
@@ -3460,31 +3482,51 @@ def _build_results_panel(
             for phase_num, phase_name, phase_data in phases_def:
                 phase_status = phase_status_map.get(phase_num, {})
                 status_str = phase_status.get("status", "not_run")
+                phase_summary = phase_summary_map.get(phase_num, {})
+                phase_error = phase_summary.get("error", "")
+                phase_summary_text = phase_summary.get("summary", "")
 
-                # Determine status icon
+                # Determine status icon and color based on orchestrator result
                 if status_str in ("success", "completed", "ok"):
                     status_icon = "[bold green]✓[/]"
+                    status_label = "OK"
                     color = G
-                elif status_str in ("halt", "halted", "warn", "degraded"):
+                elif status_str in ("halt", "halted"):
                     status_icon = "[bold yellow]~[/]"
+                    status_label = "HALTED"
+                    color = Y
+                elif status_str in ("warn", "degraded"):
+                    status_icon = "[bold yellow]⚠[/]"
+                    status_label = "WARNING"
                     color = Y
                 elif status_str == "skipped":
                     status_icon = "[dim]⊘[/]"
+                    status_label = "SKIPPED"
                     color = DIM
                 elif status_str in ("error", "failed"):
                     status_icon = "[bold red]✗[/]"
+                    status_label = "ERROR"
                     color = R
                 else:
                     status_icon = "[dim]-[/]"
+                    status_label = "NOT RUN"
                     color = DIM
 
-                # Phase header
-                phase_header = Text.from_markup(f"{status_icon} [bold {color}]{phase_name}[/]")
+                # Phase header with status
+                phase_header = Text.from_markup(f"{status_icon} [bold {color}]{phase_name}[/] [{color}]{status_label}[/]")
 
                 # Determine which column this phase goes to (1-5 left, 6-9 right)
                 target_rows = left_phase_rows if phase_num <= 5 else right_phase_rows
 
                 target_rows.append(phase_header)
+
+                # Add phase summary if available
+                if phase_summary_text and status_str != "success":
+                    target_rows.append(Text.from_markup(f"  [dim]{phase_summary_text[:80]}[/]"))
+
+                # Add error message if phase failed
+                if phase_error and status_str in ("error", "failed"):
+                    target_rows.append(Text.from_markup(f"  [{R}]ERROR: {phase_error[:70]}[/]"))
 
                 # Phase details based on data available
                 if phase_data is None:
@@ -3511,17 +3553,24 @@ def _build_results_panel(
                     triggered_text = "TRIGGERED" if triggered else "OK"
                     target_rows.append(Text.from_markup(f"  Status: [{triggered_color}]{triggered_text}[/]"))
                     if phase_data.get("drawdown_pct") is not None:
-                        dd_color = R if phase_data.get("drawdown_pct", 0) >= 20 else Y if phase_data.get("drawdown_pct", 0) >= 10 else G
-                        target_rows.append(Text.from_markup(f"  Drawdown: [{dd_color}]{phase_data.get('drawdown_pct'):.1f}%[/]"))
+                        dd = phase_data.get("drawdown_pct", 0)
+                        dd_color = R if dd >= 20 else Y if dd >= 10 else G
+                        dd_status = "TRIGGERED" if dd >= 20 else "CAUTION" if dd >= 10 else "OK"
+                        target_rows.append(Text.from_markup(f"  Drawdown: [{dd_color}]{dd:.1f}% ({dd_status})[/]"))
                     if phase_data.get("daily_loss_pct") is not None:
-                        dl_color = R if phase_data.get("daily_loss_pct", 0) >= 2 else Y if phase_data.get("daily_loss_pct", 0) >= 1 else G
-                        target_rows.append(Text.from_markup(f"  Daily Loss: [{dl_color}]{phase_data.get('daily_loss_pct'):.1f}%[/]"))
+                        dl = phase_data.get("daily_loss_pct", 0)
+                        dl_color = R if dl >= 2 else Y if dl >= 1 else G
+                        dl_status = "TRIGGERED" if dl >= 2 else "CAUTION" if dl >= 1 else "OK"
+                        target_rows.append(Text.from_markup(f"  Daily Loss: [{dl_color}]{dl:.1f}% ({dl_status})[/]"))
                     if phase_data.get("vix_level") is not None:
-                        vix_color = R if phase_data.get("vix_level", 0) >= 35 else Y if phase_data.get("vix_level", 0) >= 25 else G
-                        target_rows.append(Text.from_markup(f"  VIX: [{vix_color}]{phase_data.get('vix_level'):.1f}[/]"))
+                        vix = phase_data.get("vix_level", 0)
+                        vix_color = R if vix >= 35 else Y if vix >= 25 else G
+                        vix_status = "EXTREME" if vix >= 35 else "HIGH" if vix >= 25 else "NORMAL"
+                        target_rows.append(Text.from_markup(f"  VIX: [{vix_color}]{vix:.1f} ({vix_status})[/]"))
                     if phase_data.get("var95") is not None:
-                        var_color = R if phase_data.get("var95", 0) >= 4 else Y if phase_data.get("var95", 0) >= 2 else G
-                        target_rows.append(Text.from_markup(f"  VaR 95%: [{var_color}]{phase_data.get('var95'):.2f}%[/]"))
+                        var = phase_data.get("var95", 0)
+                        var_color = R if var >= 4 else Y if var >= 2 else G
+                        target_rows.append(Text.from_markup(f"  VaR 95%: [{var_color}]{var:.2f}%[/]"))
 
                 elif phase_num == 3:  # Position Monitor
                     if phase_data.get("open_positions") is not None:
@@ -3561,13 +3610,20 @@ def _build_results_panel(
 
                 elif phase_num == 6:  # Exit Execution
                     if phase_data.get("exits_executed") is not None:
-                        target_rows.append(Text.from_markup(f"  Exits: {phase_data.get('exits_executed')}"))
+                        exits = phase_data.get("exits_executed", 0)
+                        exit_color = G if exits > 0 else Y
+                        target_rows.append(Text.from_markup(f"  [{exit_color}]Exits: {exits}[/]"))
                     if phase_data.get("success_rate") is not None and phase_data.get("exits_executed", 0) > 0:
-                        sr_color = G if phase_data.get("success_rate", 0) >= 80 else Y if phase_data.get("success_rate", 0) >= 50 else R
-                        target_rows.append(Text.from_markup(f"  Success Rate: [{sr_color}]{phase_data.get('success_rate'):.0f}%[/]"))
+                        sr = phase_data.get("success_rate", 0)
+                        sr_color = G if sr >= 80 else Y if sr >= 50 else R
+                        failed_count = int(phase_data.get("exits_executed", 0) * (100 - sr) / 100) if sr < 100 else 0
+                        fail_text = f" ({int(100-sr)}% failed)" if sr < 100 else ""
+                        target_rows.append(Text.from_markup(f"  Success: [{sr_color}]{sr:.0f}%{fail_text}[/]"))
                     if phase_data.get("avg_profit") is not None:
-                        profit_color = G if phase_data.get("avg_profit", 0) > 0 else R
-                        target_rows.append(Text.from_markup(f"  Avg Profit: [{profit_color}]${phase_data.get('avg_profit'):,.0f}[/]"))
+                        profit = phase_data.get("avg_profit", 0)
+                        profit_color = G if profit > 0 else R if profit < 0 else Y
+                        profit_text = "LOSS" if profit < 0 else "PROFIT"
+                        target_rows.append(Text.from_markup(f"  Avg Profit: [{profit_color}]${profit:,.0f} ({profit_text})[/]"))
                     if phase_data.get("symbols_exited"):
                         syms = phase_data.get("symbols_exited")
                         if isinstance(syms, list):
@@ -3594,10 +3650,15 @@ def _build_results_panel(
 
                 elif phase_num == 8:  # Entry Execution
                     if phase_data.get("entries_executed") is not None:
-                        target_rows.append(Text.from_markup(f"  [{G}]Entries: {phase_data.get('entries_executed')}[/]"))
+                        entries = phase_data.get("entries_executed", 0)
+                        entry_color = G if entries > 0 else Y
+                        target_rows.append(Text.from_markup(f"  [{entry_color}]Entries: {entries}[/]"))
                     if phase_data.get("success_rate") is not None and phase_data.get("entries_executed", 0) > 0:
-                        sr_color = G if phase_data.get("success_rate", 0) >= 80 else Y if phase_data.get("success_rate", 0) >= 50 else R
-                        target_rows.append(Text.from_markup(f"  Success Rate: [{sr_color}]{phase_data.get('success_rate'):.0f}%[/]"))
+                        sr = phase_data.get("success_rate", 0)
+                        sr_color = G if sr >= 80 else Y if sr >= 50 else R
+                        failed_count = int(phase_data.get("entries_executed", 0) * (100 - sr) / 100) if sr < 100 else 0
+                        fail_text = f" ({int(100-sr)}% failed)" if sr < 100 else ""
+                        target_rows.append(Text.from_markup(f"  Success: [{sr_color}]{sr:.0f}%{fail_text}[/]"))
                     if phase_data.get("avg_entry_price") is not None:
                         target_rows.append(Text.from_markup(f"  Avg Entry Price: ${phase_data.get('avg_entry_price'):,.2f}"))
                     if phase_data.get("symbols_entered"):
