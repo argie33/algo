@@ -34,6 +34,35 @@ class OrderManager:
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url
 
+    def _entry_result_from_order_data(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Interpret an Alpaca order object into send_bracket_order's result shape.
+
+        Shared by the normal 200/201 submission response and by the duplicate-
+        client_order_id recovery path (_lookup_order_by_client_order_id) - both hand this
+        method the same Alpaca order object schema, just fetched via different requests.
+        """
+        validation = validator.validate_order_response(data)
+        if not validation["valid"]:
+            error_msg = f"Invalid response: {', '.join(validation['errors'])}"
+            logger.error(f"[SEND_ORDER] {symbol}: {error_msg}. Response data: {data}")
+            return {"success": False, "message": error_msg}
+
+        order_status = validation["status"]
+        executed_price = validation["filled_avg_price"]
+
+        logger.info(
+            f"[SEND_ORDER] {symbol}: Order {validation['order_id']} created - status={order_status}, fill=${executed_price}"
+        )
+        return {
+            "success": True,
+            "order_id": validation["order_id"],
+            "order_class": validation["order_class"],
+            "status": order_status,
+            "executed_price": executed_price,
+            "legs": validation["legs"],
+            "rejection_reason": validation.get("rejection_reason"),
+        }
+
     def send_bracket_order(
         self,
         symbol: str,
@@ -158,28 +187,7 @@ class OrderManager:
                     }
 
                 logger.debug(f"[SEND_ORDER] {symbol}: Response = {data}")
-
-                validation = validator.validate_order_response(data)
-                if not validation["valid"]:
-                    error_msg = f"Invalid response: {', '.join(validation['errors'])}"
-                    logger.error(f"[SEND_ORDER] {symbol}: {error_msg}. Response data: {data}")
-                    return {"success": False, "message": error_msg}
-
-                order_status = validation["status"]
-                executed_price = validation["filled_avg_price"]
-
-                logger.info(
-                    f"[SEND_ORDER] {symbol}: Order {validation['order_id']} created - status={order_status}, fill=${executed_price}"
-                )
-                return {
-                    "success": True,
-                    "order_id": validation["order_id"],
-                    "order_class": validation["order_class"],
-                    "status": order_status,
-                    "executed_price": executed_price,
-                    "legs": validation["legs"],
-                    "rejection_reason": validation.get("rejection_reason"),
-                }
+                return self._entry_result_from_order_data(symbol, data)
             else:
                 error_text = response.text[:500]
                 logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error")
@@ -191,6 +199,17 @@ class OrderManager:
                         logger.error(f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}")
                 except (json.JSONDecodeError, ValueError) as json_err:
                     logger.debug(f"[SEND_ORDER] {symbol}: Could not parse error response as JSON: {json_err}")
+                # Before reporting failure: this client_order_id may have been rejected
+                # because an EARLIER attempt already succeeded at the broker (response lost
+                # to a timeout/crash, this call is a crash-recovery retry - e.g. Phase 8
+                # reprocessing the same still-valid signal - see
+                # _lookup_order_by_client_order_id's docstring). Ground-truth check, not
+                # error-text guessing: falls through to the original failure unchanged if no
+                # such order actually exists.
+                if client_order_id:
+                    existing = self._lookup_order_by_client_order_id(client_order_id)
+                    if existing:
+                        return self._entry_result_from_order_data(symbol, existing)
                 return {
                     "success": False,
                     "message": f"Alpaca {response.status_code}: {error_text[:200]}",
@@ -428,6 +447,63 @@ class OrderManager:
             "Alpaca API unreachable. Cannot proceed without status confirmation."
         )
 
+    def _lookup_order_by_client_order_id(self, client_order_id: str) -> dict[str, Any] | None:
+        """Look up an order by the client_order_id we submitted it with.
+
+        Used after a non-200/201 submission response to distinguish two cases that both
+        surface as "the POST failed": (1) the order never reached Alpaca at all (genuine
+        validation failure - bad qty, invalid symbol, etc.), vs (2) client_order_id was
+        rejected as a duplicate of an order Alpaca already has on file - which happens
+        specifically when a crash/timeout lost the response to an EARLIER submission that
+        actually succeeded, and this call is a crash-recovery retry reusing the same id
+        (see send_bracket_order/send_market_exit docstrings). Rather than pattern-matching
+        Alpaca's rejection error text/code for "duplicate" (unverified against Alpaca's
+        actual API in this codebase - see memory:
+        project_client_order_id_duplicate_rejection_not_handled), this checks ground truth:
+        does an order with this client_order_id actually exist at the broker? If yes, that
+        order's real status is authoritative - the original attempt succeeded. If no (404),
+        the rejection was genuine and the caller's existing failure handling is correct.
+
+        Deliberately conservative: on any ambiguity (network error, non-200/404 response,
+        malformed body) returns None so the caller falls through to its pre-existing failure
+        behavior unchanged - this method can only ADD recovery, never mask a real failure.
+
+        Returns: the order dict if found, None if not found or lookup itself was inconclusive.
+        """
+        if not self.alpaca_key or not self.alpaca_secret or not client_order_id:
+            return None
+        try:
+            resp = requests.get(
+                f"{self.alpaca_base_url}/v2/orders:by_client_order_id",
+                params={"client_order_id": client_order_id},
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_secret,
+                },
+                timeout=get_api_timeout(),
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, dict) and data.get("id"):
+                    logger.warning(
+                        f"[ORDER_LOOKUP] client_order_id={client_order_id}: rejected on resubmission "
+                        f"but an order already exists at the broker (id={data['id']}, "
+                        f"status={data.get('status')}) - treating the earlier attempt as the real "
+                        f"outcome instead of reporting this resubmission as a failure."
+                    )
+                    return data
+                return None
+            if resp.status_code == 404:
+                return None
+            logger.debug(
+                f"[ORDER_LOOKUP] client_order_id={client_order_id}: lookup returned "
+                f"HTTP {resp.status_code}, treating as inconclusive"
+            )
+            return None
+        except (requests.RequestException, requests.Timeout, ValueError) as e:
+            logger.debug(f"[ORDER_LOOKUP] client_order_id={client_order_id}: lookup failed: {e}")
+            return None
+
     def wait_for_order_fill(
         self, symbol: str, alpaca_order_id: str, max_wait_seconds: int = 30
     ) -> tuple[bool, float | None, str]:
@@ -535,6 +611,62 @@ class OrderManager:
         logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
         return (False, None, error_msg)
 
+    def _exit_result_from_order_data(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Interpret an Alpaca order object into send_market_exit's result shape.
+
+        Shared by the normal 200/201 submission response and by the duplicate-
+        client_order_id recovery path (_lookup_order_by_client_order_id) - both hand this
+        method the same Alpaca order object schema, just fetched via different requests.
+        """
+        order_id = data.get("id")
+        if not order_id:
+            logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing order id")
+            return {
+                "success": False,
+                "message": "Alpaca response missing order id",
+            }
+        if "status" not in data:
+            logger.error("[ORDER_MANAGER] Alpaca order response missing 'status' field")
+            raise ValueError("Order status missing from Alpaca response")
+        order_status = data["status"]
+
+        if "filled_avg_price" not in data:
+            logger.error(
+                f"[SEND_EXIT] {symbol}: Alpaca order response missing 'filled_avg_price' field. "
+                f"This field should always be present (even if NULL for pending orders). "
+                f"Response keys present: {list(data.keys())}. "
+                f"Cannot proceed without knowing if fill price was returned."
+            )
+            raise ValueError("Alpaca order response missing 'filled_avg_price' field - API contract violation")
+
+        filled_price_raw = data["filled_avg_price"]
+        if filled_price_raw is None:
+            logger.info(
+                f"[SEND_EXIT] {symbol}: Exit order {order_id} submitted (status={order_status}), "
+                f"fill price pending (will be reconciled)"
+            )
+            return {
+                "success": True,
+                "order_id": order_id,
+                "filled_price": None,
+                "message": f"Order submitted, fill pending: {order_id}",
+            }
+        try:
+            filled_price = float(filled_price_raw)
+        except (ValueError, TypeError) as e:
+            logger.error(f"[SEND_EXIT] {symbol}: filled_avg_price not numeric: {e}")
+            return {
+                "success": False,
+                "message": f"filled_avg_price not numeric: {e}",
+            }
+        logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} filled at ${filled_price}")
+        return {
+            "success": True,
+            "order_id": order_id,
+            "filled_price": filled_price,
+            "message": f"Order filled: {order_id}",
+        }
+
     def send_market_exit(
         self, symbol: str, shares: float, execution_mode: str, client_order_id: str | None = None
     ) -> dict[str, Any]:  # noqa: C901
@@ -608,65 +740,19 @@ class OrderManager:
                             "success": False,
                             "message": f"Invalid response format: {e}",
                         }
-                    order_id = data.get("id")
-                    # Issue #13: filled_avg_price is required - no silent None
-                    if not order_id:
-                        logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing order id")
-                        return {
-                            "success": False,
-                            "message": "Alpaca response missing order id",
-                        }
-                    # CRITICAL: Fail if status missing instead of defaulting to empty string
-                    if "status" not in data:
-                        logger.error("[ORDER_MANAGER] Alpaca order response missing 'status' field")
-                        raise ValueError("Order status missing from Alpaca response")
-                    order_status = data["status"]
-
-                    # CRITICAL: filled_avg_price MUST be present in Alpaca response - distinguish between
-                    # "field present but NULL" (expected for pending orders) and "field missing" (API error)
-                    if "filled_avg_price" not in data:
-                        logger.error(
-                            f"[SEND_EXIT] {symbol}: Alpaca order response missing 'filled_avg_price' field. "
-                            f"This field should always be present (even if NULL for pending orders). "
-                            f"Response keys present: {list(data.keys())}. "
-                            f"Cannot proceed without knowing if fill price was returned."
-                        )
-                        raise ValueError(
-                            "Alpaca order response missing 'filled_avg_price' field - API contract violation"
-                        )
-
-                    filled_price_raw = data["filled_avg_price"]
-                    if filled_price_raw is None:
-                        # Market orders return null filled_avg_price when status is "new" or "pending_new"
-                        # - the fill comes asynchronously. Treat as success with pending fill price;
-                        # Phase 9 reconciliation will poll for the actual fill price.
-                        logger.info(
-                            f"[SEND_EXIT] {symbol}: Exit order {order_id} submitted (status={order_status}), "
-                            f"fill price pending (will be reconciled)"
-                        )
-                        return {
-                            "success": True,
-                            "order_id": order_id,
-                            "filled_price": None,
-                            "message": f"Order submitted, fill pending: {order_id}",
-                        }
-                    try:
-                        filled_price = float(filled_price_raw)
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"[SEND_EXIT] {symbol}: filled_avg_price not numeric: {e}")
-                        return {
-                            "success": False,
-                            "message": f"filled_avg_price not numeric: {e}",
-                        }
-                    logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} filled at ${filled_price}")
-                    return {
-                        "success": True,
-                        "order_id": order_id,
-                        "filled_price": filled_price,
-                        "message": f"Order filled: {order_id}",
-                    }
+                    return self._exit_result_from_order_data(symbol, data)
                 elif resp.status_code == 422:
                     logger.error(f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}")
+                    # Before reporting failure: this client_order_id may have been rejected
+                    # because an EARLIER attempt already succeeded at the broker (the response
+                    # was lost to a timeout/crash, and this call is the crash-recovery retry -
+                    # see _lookup_order_by_client_order_id's docstring). Ground-truth check,
+                    # not error-text guessing: falls through to the original failure unchanged
+                    # if no such order actually exists.
+                    if client_order_id:
+                        existing = self._lookup_order_by_client_order_id(client_order_id)
+                        if existing:
+                            return self._exit_result_from_order_data(symbol, existing)
                     return {
                         "success": False,
                         "order_id": None,
