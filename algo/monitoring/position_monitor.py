@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
@@ -675,13 +676,42 @@ class PositionMonitor:
             timeout = int(self.config["api_request_timeout_seconds"])
         except KeyError as e:
             raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
-        try:
-            resp = requests.delete(url, headers=headers, timeout=timeout)
-        except (requests.RequestException, requests.Timeout) as e:
+
+        # RETRY (found 2026-07-28, same bug class as order_manager.py's send/cancel fixes):
+        # a single-attempt transient 429/503 used to raise RuntimeError immediately, which
+        # this function's own caller (line ~169) propagates all the way up as a fail-fast -
+        # a brief Alpaca rate-limit hiccup would abort stale-order cleanup for the whole cycle
+        # instead of a retryable blip.
+        max_attempts = 3
+        resp = None
+        last_error: Exception | None = None
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.delete(url, headers=headers, timeout=timeout)
+            except (requests.RequestException, requests.Timeout) as e:
+                last_error = e
+                logger.warning(
+                    f"[STALE_ORDER] {trade_id}: cancel request failed: {e} (attempt {attempt + 1}/{max_attempts})"
+                )
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+                continue
+
+            if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                wait_time = 2**attempt
+                logger.warning(
+                    f"[STALE_ORDER] {trade_id}: Alpaca {resp.status_code} - transient, retrying in "
+                    f"{wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                )
+                time.sleep(wait_time)
+                continue
+            break
+
+        if resp is None:
             raise RuntimeError(
-                f"Failed to cancel stale order {trade_id} on Alpaca: {e}. "
+                f"Failed to cancel stale order {trade_id} on Alpaca: {last_error}. "
                 f"Cannot proceed without confirmation of cancellation (DB/broker state would diverge)."
-            ) from e
+            ) from last_error
 
         if resp.status_code == 204 or resp.status_code == 200:
             logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
@@ -692,84 +722,6 @@ class PositionMonitor:
                 f"Alpaca cancel failed for {trade_id} (unexpected status {resp.status_code}): {resp.text}. "
                 f"Cannot mark order as cancelled in DB without broker confirmation."
             )
-
-    def _auto_cancel_stale_order(
-        self, trade_id: str, symbol: str, qty: int, price: float, age_minutes: int, cur: Any
-    ) -> None:
-        """Cancel a stale pending order on Alpaca and mark as cancelled in DB.
-
-        Attempts Alpaca API cancellation first. Marks trade as cancelled in DB + adds audit log
-        only if cancellation succeeds (200/204) or order already closed (404).
-
-        Raises RuntimeError if:
-        - Alpaca credentials unavailable
-        - Alpaca API call fails (network/timeout/exception)
-        - Alpaca returns unexpected status code
-        - Database update fails
-
-        This ensures broker/DB state consistency: if DB is marked cancelled, trade must be
-        successfully cancelled at Alpaca (or already was).
-        """
-        try:
-            creds = get_alpaca_credentials()
-            base_url = get_alpaca_base_url(self.config.get("execution_mode"))
-            alpaca_key = creds.get("key")
-            alpaca_secret = creds.get("secret")
-
-            if not alpaca_key or not alpaca_secret:
-                raise RuntimeError(
-                    f"Cannot cancel order {trade_id}: Alpaca credentials unavailable. DB update blocked to maintain broker/DB state consistency."
-                )
-            # Attempt to cancel on Alpaca
-            try:
-                url = f"{base_url}/v2/orders/{trade_id}"
-                headers = {
-                    "APCA-API-KEY-ID": alpaca_key,
-                    "APCA-API-SECRET-KEY": alpaca_secret,
-                }
-                try:
-                    timeout = int(self.config["api_request_timeout_seconds"])
-                except KeyError as e:
-                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
-                resp = requests.delete(url, headers=headers, timeout=timeout)
-
-                if resp.status_code == 204 or resp.status_code == 200:
-                    logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
-                elif resp.status_code == 404:
-                    logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
-                else:
-                    raise RuntimeError(
-                        f"Alpaca cancel returned unexpected status {resp.status_code} for {trade_id}: {resp.text}. DB update blocked to maintain broker/DB state consistency."
-                    )
-            except (requests.RequestException, requests.Timeout) as api_e:
-                raise RuntimeError(
-                    f"Failed to cancel order {trade_id} on Alpaca: {api_e}. DB update blocked to maintain broker/DB state consistency."
-                ) from api_e
-
-            # Update database (atomic with audit log)
-            cur.execute(
-                """UPDATE algo_trades
-                   SET status = %s, updated_at = CURRENT_TIMESTAMP
-                   WHERE trade_id = %s""",
-                ("cancelled", trade_id),
-            )
-
-            cur.execute(
-                """INSERT INTO algo_audit_log (
-                       action_type, symbol, action_date, details, severity, actor, status, created_at
-                   ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
-                (
-                    "STALE_ORDER_AUTO_CANCELLED",
-                    symbol,
-                    f"Trade {trade_id}: {qty}@${price} pending {age_minutes}m >= auto-cancel threshold",
-                    "WARN",
-                    "position_monitor",
-                    "auto_cancelled",
-                ),
-            )
-
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_e:
-            raise RuntimeError(f"Failed to cancel and update {trade_id}: {db_e}") from db_e
 
     def _fetch_current_market(
         self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]
@@ -1293,7 +1245,23 @@ class PositionMonitor:
         except KeyError as e:
             raise KeyError(f"[CONFIG] Missing required field: {e}") from e
 
-        resp = requests.get(url, headers=headers, timeout=timeout)
+        # RETRY (found 2026-07-28, same bug class as order_manager.py's send/cancel fixes and
+        # this file's own _cancel_on_alpaca): a transient 429/503 used to raise immediately,
+        # halting corporate-action detection for the whole cycle over a retryable blip.
+        max_attempts = 3
+        resp = None
+        for attempt in range(max_attempts):
+            resp = requests.get(url, headers=headers, timeout=timeout)
+            if resp.status_code in (429, 503) and attempt < max_attempts - 1:
+                wait_time = 2**attempt
+                logger.warning(
+                    f"[CORP_ACTION] {symbol}: Alpaca {resp.status_code} - transient, retrying in "
+                    f"{wait_time}s (attempt {attempt + 1}/{max_attempts})"
+                )
+                time.sleep(wait_time)
+                continue
+            break
+
         if resp.status_code != 200:
             raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol}")
 
