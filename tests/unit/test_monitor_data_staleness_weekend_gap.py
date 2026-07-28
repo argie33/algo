@@ -11,7 +11,7 @@ loaded Friday data.
 """
 
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from scripts import monitor_data_staleness as mds
 
@@ -55,9 +55,18 @@ class TestWeekendGapCoversAllOnceDailyTables:
         """Sanity check the fix doesn't just always return 'ok': a genuinely
         stale stock_scores (e.g. 3 days old with no weekend gap involved,
         Tuesday check with Monday as the last trading day) must still alert.
+
+        stock_scores is computed once per trading day (signals pipeline, 4:05 PM
+        ET) - same cadence as algo_signals/growth_metrics/etc, whose thresholds
+        were already relaxed to 24h/36h/48h to avoid a false CRITICAL every
+        single morning before that day's run. stock_scores' own thresholds were
+        never migrated to match (confirmed live 2026-07-28: a completely normal
+        10.9h age read '[OK]' in check_system_health.py but 'CRITICAL' here) -
+        fixed to the same 1440/2160/2880 minute bounds. A "genuinely stuck"
+        scenario now means missing more than a full extra trading day's run.
         """
         def fake_age(table_name):
-            return 600 if table_name == "stock_scores" else 60  # 10h: past stale(8h), short of critical(24h)
+            return 45 * 60 if table_name == "stock_scores" else 60  # 45h: past stale(36h), short of dead(48h)
 
         tuesday = date(2026, 7, 28)
         assert tuesday.weekday() == 1
@@ -97,3 +106,32 @@ class TestWeekendGapCoversAllOnceDailyTables:
 
         assert "buy_sell_daily" in results
         assert results["buy_sell_daily"]["level"] == "ok"
+
+
+class TestUpsertTablesUseUpdatedAtNotCreatedAt:
+    """growth_metrics/quality_metrics/value_metrics are UPSERT tables (ON CONFLICT
+    DO UPDATE in load_value_quality_growth_metrics.py) whose SET clause bumps
+    `updated_at` on every write but never touches `created_at` - created_at is
+    INSERT-only, frozen at whenever a symbol was FIRST ever loaded. Using
+    created_at here produced false CRITICAL/DEAD alarms on tables the loader was
+    actually updating daily (confirmed live 2026-07-28: growth_metrics/
+    quality_metrics showed 2.7d DEAD via created_at while updated_at showed
+    4823/5508 rows freshly upserted the day before).
+    """
+
+    def test_growth_quality_value_metrics_query_updated_at(self):
+        for table in ("growth_metrics", "quality_metrics", "value_metrics"):
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = (42.0,)
+            mock_db_ctx = MagicMock()
+            mock_db_ctx.__enter__.return_value = mock_cursor
+
+            with patch.object(mds, "DatabaseContext", return_value=mock_db_ctx):
+                mds.get_table_age_minutes(table)
+
+            executed_sql = mock_cursor.execute.call_args[0][0]
+            assert "MAX(updated_at)" in executed_sql, (
+                f"{table}: staleness query must use updated_at (bumped on every "
+                f"UPSERT), not created_at (frozen at first insert) - got: {executed_sql}"
+            )
+            assert "MAX(created_at)" not in executed_sql

@@ -60,9 +60,15 @@ THRESHOLDS = {
         "critical": 2880,
     },
     "stock_scores": {
-        "fresh": 240,  # 4 hours
-        "stale": 480,  # 8 hours
-        "critical": 1440,  # 24 hours
+        # Computed once per trading day by the signals pipeline (4:05 PM ET, after market
+        # close) - same once-per-trading-day cadence as algo_signals/growth_metrics/etc.
+        # below, not continuous intraday polling. The old 4h/8h/24h thresholds guaranteed a
+        # false CRITICAL every single morning before the next EOD run (confirmed live
+        # 2026-07-28: 10.9h age reported "[OK]" by check_system_health.py's own already-
+        # fixed 24h gap-aware bar, but "CRITICAL" here for the identical real age).
+        "fresh": 1440,  # 24 hours
+        "stale": 2160,  # 36 hours
+        "critical": 2880,  # 48 hours
     },
     "market_exposure_daily": {
         "fresh": 1440,
@@ -169,9 +175,16 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "stock_scores": "updated_at",
                 "market_exposure_daily": "updated_at",
                 "algo_signals": "updated_at",
-                "growth_metrics": "created_at",
-                "quality_metrics": "created_at",
-                "value_metrics": "created_at",
+                # growth_metrics/quality_metrics/value_metrics are UPSERT tables (ON CONFLICT
+                # DO UPDATE in load_value_quality_growth_metrics.py) whose SET clause updates
+                # `updated_at` on every write but never touches `created_at` - created_at is
+                # INSERT-only, frozen at whenever a symbol was FIRST ever loaded. Using it here
+                # produced false CRITICAL/DEAD alarms on tables the loader was updating daily
+                # (confirmed live 2026-07-28: growth_metrics/quality_metrics showed 2.7d DEAD via
+                # created_at while updated_at showed 4823/5508 rows freshly upserted yesterday).
+                "growth_metrics": "updated_at",
+                "quality_metrics": "updated_at",
+                "value_metrics": "updated_at",
                 "algo_trades": "updated_at",
                 "algo_positions": "updated_at",
                 "algo_reconciliation_log": "created_at",
