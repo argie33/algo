@@ -270,7 +270,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 try:
                     with DatabaseContext("read") as cur:
                         cur.execute("""
-                            SELECT position_id, trade_ids_arr, symbol, current_price, days_since_entry
+                            SELECT position_id, trade_ids_arr, symbol, current_price, days_since_entry, avg_entry_price
                             FROM algo_positions
                             WHERE status = 'open'
                             ORDER BY days_since_entry DESC NULLS LAST

@@ -1,0 +1,21 @@
+{
+  "summary": {
+    "total_logs": 29,
+    "error_count": 0,
+    "warning_count": 1,
+    "errors_by_module": {},
+    "warnings_by_module": {
+      "alerts": 1
+    }
+  },
+  "all_errors": [],
+  "all_warnings": [
+    {
+      "level": "WARNING",
+      "logger": "algo.reporting.alerts",
+      "message": "[ALERT CONFIG] No alert channels configured. Running in no-op mode. Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts.",
+      "module": "alerts",
+      "lineno": 53
+    }
+  ]
+}
