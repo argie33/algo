@@ -2124,6 +2124,30 @@ class Orchestrator:
             total_elapsed = time.time() - self.run_start
             self._emit_performance_metrics(total_elapsed)
             return self._final_report()
+        except Exception as e:
+            # GAP FOUND 2026-07-28: save_execution_log() is only ever called from
+            # _save_early_exit_log() (preflight halts) and _final_report() (normal
+            # completion) - both require this try block to return normally. But
+            # phase_executor.py's execute_phase() deliberately re-raises RuntimeError for
+            # governance violations (e.g. phase6_exit_execution.py's "Phase 3 crashed,
+            # open positions unevaluated" / "credentials missing" checks) to crash the
+            # whole orchestrator rather than silently continue - and neither this method,
+            # its callers (lambda_function.py, run_local_orchestrator.py), nor Python's
+            # default handler ever wrote anything to orchestrator_execution_log for that
+            # crash. The run vanished from the one table the dashboard/API/health checks
+            # query - indistinguishable from "never ran" instead of a visible halted/error
+            # record, the exact "exit execution halted, not sure why" blind spot this
+            # table exists to prevent. Record the crash, then re-raise unchanged - this
+            # must not swallow the governance-violation crash, only make it forensically
+            # visible.
+            logger.critical(f"[ORCHESTRATOR CRASH] Unhandled exception during run: {type(e).__name__}: {e}")
+            try:
+                self.execution_tracker.save_execution_log(
+                    "error", f"Orchestrator crashed: {type(e).__name__}: {e}"
+                )
+            except Exception as log_err:
+                logger.error(f"[ORCHESTRATOR CRASH] Could not save crash to execution log: {log_err}")
+            raise
         finally:
             self._release_run_lock()
             self._restore_shutdown_handler()
