@@ -863,6 +863,16 @@ class CircuitBreaker:
             data_unavailable_flag = row[2]
             reason_msg = row[3]
 
+            # CRITICAL FIX: market_health_daily.date can come back as datetime (not date) -
+            # _resolve_current_market_stage needed the identical normalization for the same
+            # column/table. Without it, data_date >= min_acceptable_date below (both `date`
+            # objects) raises TypeError comparing datetime to date - caught by check_all's
+            # generic exception handler and fails closed (halts), but as a confusing crash
+            # rather than a clean stale-data message, and only when the driver happens to
+            # return datetime for this particular row.
+            if isinstance(data_date, datetime):
+                data_date = data_date.date()
+
             # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using VIX data
             if data_unavailable_flag:
                 return {

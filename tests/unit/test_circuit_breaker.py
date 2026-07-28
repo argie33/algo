@@ -85,6 +85,28 @@ class TestCircuitBreakerVIX:
             assert "halted" in result
             assert "vix_level" in result
 
+    def test_vix_spike_handles_datetime_not_date_from_driver(self, mock_config):
+        """market_health_daily.date can come back as datetime (not date) from the DB
+        driver - _resolve_current_market_stage already needed this same normalization
+        for the identical column/table. Without it, comparing data_date (datetime)
+        against min_acceptable_date (date) at the is_acceptable_age check raises
+        TypeError instead of a clean stale-data result."""
+        from datetime import date, datetime
+
+        config = dict(mock_config, vix_max_threshold=30.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        today = date(2026, 7, 27)  # a Monday - trading day
+        # Row's date column is a datetime, not a date - the exact condition that broke
+        # _resolve_current_market_stage before its own fix.
+        mock_cur.fetchone.return_value = (18.5, datetime(2026, 7, 27, 0, 0, 0), False, None)
+
+        with patch("algo.infrastructure.MarketCalendar.is_trading_day", return_value=True):
+            result = cb._check_vix_spike(current_date=today, cur=mock_cur)
+
+        assert result["halted"] is False
+        assert result["value"] == 18.5
+
 
 class TestCircuitBreakerAll:
     """Test combined circuit breaker checks."""
