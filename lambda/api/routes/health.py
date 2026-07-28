@@ -115,12 +115,17 @@ def _handle_basic(cur: cursor) -> Any:
         # This table is populated by the orchestrator and contains the entry/exit signals
         # used for trading decisions.
         try:
-            # Market-aware open check: use trading day logic (accounts for holidays, not just weekdays)
+            # Market-aware open check: must be the actual 9:30-4:00 ET window, not just
+            # "today is a trading weekday" - is_trading_day(today) was true (and this field,
+            # exposed verbatim as "market_open", falsely true) at any hour of a trading day,
+            # including 3 AM. That defeated the STALE/NO_DATA gates below, whose comments
+            # state the real intent ("Don't mark as critical during non-market hours (loaders
+            # don't run then)") - e.g. a stale Friday-evening signal (>24h old) would wrongly
+            # show STALE starting midnight Monday instead of after the market actually opens.
             from algo.infrastructure import MarketCalendar
 
             now = datetime.now(timezone.utc)
-            today = now.date()
-            market_is_open = MarketCalendar.is_trading_day(today)
+            market_is_open = MarketCalendar.is_market_open(now)
 
             # created_at (a real timestamptz, set when the row is written) - NOT
             # MAX(signal_date)::timestamp. signal_date is a DATE column recording which
