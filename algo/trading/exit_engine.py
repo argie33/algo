@@ -864,6 +864,34 @@ class ExitEngine:
                             f"Exit check failed for {symbol} (trade {trade_id}): "
                             f"{type(_trade_err).__name__}: {_trade_err}"
                         )
+                        # Persist to an audit table, not just the logger - this process's stdout
+                        # is gone the moment a scheduled/background run exits, and this is the
+                        # only place a failed exit-check for an open position gets recorded.
+                        # Wrapped in its own savepoint: an audit-insert failure (e.g. table
+                        # unavailable) must not abort the outer transaction and cost every
+                        # remaining position in this batch its exit coverage too.
+                        _audit_sp = f"{_sp}_audit"
+                        try:
+                            cur.execute(f"SAVEPOINT {_audit_sp}")
+                            cur.execute(
+                                """INSERT INTO algo_exit_check_errors
+                                   (error_date, trade_id, position_id, symbol, error_type, error_message)
+                                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                                (
+                                    current_date,
+                                    trade_id,
+                                    _position_id,
+                                    symbol,
+                                    type(_trade_err).__name__,
+                                    str(_trade_err)[:2000],
+                                ),
+                            )
+                            cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
+                        except Exception as _audit_err:
+                            cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
+                            logger.critical(
+                                f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
+                            )
 
                 logger.info(f"\n{'=' * 70}")
 

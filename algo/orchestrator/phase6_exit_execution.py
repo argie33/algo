@@ -441,6 +441,20 @@ def run(
         # a clean success - operators had no signal to go look. Positions that error here
         # get no exit/stop coverage for this run (see check_and_execute_exits errors above).
         phase_status = "degraded" if errors > 0 else "success"
+        if errors > 0:
+            # Exit-check failures mean open positions lost stop/target/time-exit coverage
+            # for this run - unlike phase2 (circuit breakers) and phase3 (position monitor),
+            # this phase previously never used the `alerts` param it's handed, so a degraded
+            # exit-execution status was visible only to something polling
+            # orchestrator_execution_log, never pushed to an operator. Per-trade detail is in
+            # algo_exit_check_errors (see exit_engine.py's check_and_execute_exits).
+            alerts.send_position_alert(
+                "PORTFOLIO",
+                "EXIT_CHECK_FAILURES",
+                f"{errors} position(s) failed exit/stop evaluation this run - "
+                f"see algo_exit_check_errors for detail",
+                {"errors": errors, "exits": exit_count, "stop_raises": stop_raises},
+            )
         log_phase_result_fn(
             6,
             "exit_execution",
