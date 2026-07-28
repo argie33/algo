@@ -255,7 +255,44 @@ def check_dev_server() -> dict:
     return result
 
 
-def check_orchestrator() -> dict:
+# Single source of truth for the 4 production trading sessions is
+# scripts/orchestrator_scheduler.py's TRADING_SESSIONS (terraform/modules/services/
+# 2x-daily-orchestrator.tf: morning 9:30, afternoon 13:00, preclose 15:00, evening 17:30 ET).
+# Mirrored here (not re-imported) since that module runs a scheduler loop with import-time
+# side effects this read-only diagnostic script shouldn't trigger.
+_ORCHESTRATOR_SESSION_TIMES_ET = {
+    "morning": (9, 30),
+    "afternoon": (13, 0),
+    "preclose": (15, 0),
+    "evening": (17, 30),
+}
+
+
+def _most_recently_due_orchestrator_session(now_et):
+    """Return the datetime (ET) of the most recent scheduled session that should have already
+    run, walking back across weekends/holidays via MarketCalendar. Pure function of now_et so
+    it's directly testable without mocking datetime.now().
+    """
+    from datetime import datetime, timedelta
+
+    from algo.infrastructure.market_calendar import MarketCalendar
+
+    check_date = now_et.date()
+    for _ in range(14):  # safety bound - a 2-week trading-day drought would indicate a deeper
+        # MarketCalendar problem, not something to loop past silently
+        if MarketCalendar.is_trading_day(check_date):
+            is_today = check_date == now_et.date()
+            for name in ("evening", "preclose", "afternoon", "morning"):
+                hh, mm = _ORCHESTRATOR_SESSION_TIMES_ET[name]
+                session_dt = datetime(check_date.year, check_date.month, check_date.day, hh, mm, tzinfo=now_et.tzinfo)
+                if not is_today or session_dt <= now_et:
+                    return session_dt
+        check_date -= timedelta(days=1)
+    return None
+
+
+def check_orchestrator(now_et=None) -> dict:
+    """now_et: injectable current ET time, for deterministic testing. Defaults to real now()."""
     result = {
         "name": "Orchestrator Status",
         "status": "unknown",
@@ -301,7 +338,29 @@ def check_orchestrator() -> dict:
 
         if runs_24h > 0:
             age_minutes = float(age_minutes)
-            if age_minutes < 120:
+
+            # Session-aware threshold: a flat 120-minute cutoff false-WARNs every single evening
+            # between the 5:30 PM evening run and next trading day's 9:30 AM morning run - a
+            # ~16h gap that's expected, correct behavior, not staleness. What matters is whether
+            # the most recently-DUE session has actually run yet, with a grace buffer for normal
+            # run duration (observed 2-8 min) plus manual-trigger lag.
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+
+            GRACE_MINUTES = 45
+            if now_et is None:
+                now_et = datetime.now(ZoneInfo("America/New_York"))
+            most_recent_due = _most_recently_due_orchestrator_session(now_et)
+
+            if most_recent_due is None:
+                # Couldn't establish a due session (MarketCalendar problem) - fall back to the
+                # old flat threshold rather than silently skipping the check.
+                fresh = age_minutes < 120
+            else:
+                due_age_minutes = (now_et - most_recent_due).total_seconds() / 60
+                fresh = age_minutes <= due_age_minutes + GRACE_MINUTES
+
+            if fresh:
                 result["status"] = "OK"
                 result["details"].append(f"[OK] Latest run: {age_minutes:.0f} minutes ago")
             else:

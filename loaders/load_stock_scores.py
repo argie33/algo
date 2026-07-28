@@ -345,6 +345,17 @@ class StockScoresLoader(OptimalLoader):
             )
             self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
+            # Business segment concentration (Herfindahl index of revenue by segment), computed
+            # from real XBRL segment disclosures. Was written to sec_segment_metrics but never
+            # read by anything - a fully-built, live-verified input sitting unused. Folded into
+            # stability scoring as a minor sub-weight (same pattern as the debt_to_assets fix
+            # above), not a new top-level factor, since it's a slower-moving structural signal
+            # of the same "business risk" character as the existing financial-stability slot.
+            cur.execute(
+                "SELECT symbol, revenue_concentration_hhi, data_unavailable FROM sec_segment_metrics"
+            )
+            self._segment_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
 
@@ -1021,13 +1032,19 @@ class StockScoresLoader(OptimalLoader):
                 )
                 return {"symbol": symbol, "data_unavailable": True, "reason": "stability_data_marked_unavailable"}
             # Row exists and data is available
-            return {
+            metrics = {
                 "volatility_252d": safe_float(row[0], f"{symbol}.volatility_252d"),
                 "volatility_60d": safe_float(row[1], f"{symbol}.volatility_60d"),
                 "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
                 "beta": safe_float(row[3], f"{symbol}.beta"),
                 "debt_to_assets": safe_float(row[4], f"{symbol}.debt_to_assets", allow_none=True),
             }
+            segment_row = self._segment_cache.get(symbol)
+            if segment_row and not segment_row[1]:
+                metrics["revenue_concentration_hhi"] = safe_float(
+                    segment_row[0], f"{symbol}.revenue_concentration_hhi", allow_none=True
+                )
+            return metrics
         # No row exists at all
         logger.warning(
             f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} - score completeness will be reduced"
@@ -1490,10 +1507,15 @@ class StockScoresLoader(OptimalLoader):
     def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score stability metrics on 0-100 scale using price volatility + financial stability (Phase 8).
 
-        Uses weighted scoring: Volatility 252d (35%) + Volatility 60d (18%) + Volatility 30d (12%)
-        + Beta (15%) + Financial Stability (20%, Phase 3 metrics). Lower volatility and beta closer
-        to 1.0 indicate stable, market-correlated stocks. Financial stability combines debt ratios,
-        liquidity (current/quick ratios), and cash position for solvency assessment.
+        Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)
+        + Beta (15%) + Financial Stability (20%, Phase 3 metrics) + Business Diversification
+        (10%, revenue concentration HHI from XBRL segment disclosures, when available). Lower
+        volatility and beta closer to 1.0 indicate stable, market-correlated stocks. Financial
+        stability combines debt ratios, liquidity (current/quick ratios), and cash position for
+        solvency assessment. Weights are relative, not required to sum to 100 - each present
+        sub-component contributes weighted_sum/total_weight (self-normalizing over whatever
+        metrics are actually available for a symbol, per GOVERNANCE's no-redistribution rule at
+        the top-level factor split; this renormalization is local to stability's own sub-scores).
 
         Phase 3 Enhancement: Financial Stability component now uses:
         - Debt-to-equity ratio (leverage alternative)
@@ -1581,6 +1603,23 @@ class StockScoresLoader(OptimalLoader):
         if fin_stability_score is not None:
             weighted_sum += fin_stability_score * 0.20
             total_weight += 0.20
+
+        # Business diversification (revenue concentration HHI from real XBRL segment
+        # disclosures, 0-10000 scale per standard antitrust convention: <1500 competitive/
+        # diversified, 1500-2500 moderate, >2500 concentrated, 10000 = single segment).
+        # Small weight (0.10) since most healthy companies legitimately report a single
+        # segment - this penalizes concentration gently as a secondary risk signal, not a
+        # verdict on business quality.
+        if metrics.get("revenue_concentration_hhi") is not None:
+            hhi = max(0.0, metrics["revenue_concentration_hhi"])
+            if hhi <= 1500:
+                diversification_score = 100.0
+            elif hhi <= 2500:
+                diversification_score = 100.0 - ((hhi - 1500) / 1000) * 20  # 100->80
+            else:
+                diversification_score = max(50.0, 80.0 - ((hhi - 2500) / 7500) * 30)  # 80->50
+            weighted_sum += diversification_score * 0.10
+            total_weight += 0.10
 
         if total_weight > 0:
             return weighted_sum / total_weight

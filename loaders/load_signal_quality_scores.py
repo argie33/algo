@@ -840,7 +840,9 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 total_max = sum(available_maxes.values())
                 composite_sqs = (
-                    int(sum(all_components[k] for k in available_maxes) / total_max * 100) if total_max > 0 else 0
+                    int(sum(v for v in all_components.values() if v is not None) / total_max * 100)
+                    if total_max > 0
+                    else 0
                 )
                 data_completeness = min(99.99, round((len(available_maxes) / 7.0) * 100, 2))
 

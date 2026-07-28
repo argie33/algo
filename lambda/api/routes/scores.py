@@ -297,7 +297,9 @@ def _get_stock_scores(  # noqa: C901
                     mm.momentum_3m AS momentum_3m_val,
                     mm.momentum_6m AS momentum_6m_val,
                     mm.momentum_12m AS momentum_12m_val,
-                    (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable
+                    (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable,
+                    segm.revenue_concentration_hhi AS segment_revenue_concentration_hhi,
+                    (segm.symbol IS NULL OR segm.data_unavailable = TRUE) AS _segment_data_unavailable
                 FROM filtered_scores fs
                 LEFT JOIN company_profile cp ON cp.symbol = fs.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = fs.symbol
@@ -306,6 +308,7 @@ def _get_stock_scores(  # noqa: C901
                 LEFT JOIN stability_metrics sm ON sm.symbol = fs.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = fs.symbol
                 LEFT JOIN momentum_metrics mm ON mm.symbol = fs.symbol
+                LEFT JOIN sec_segment_metrics segm ON segm.symbol = fs.symbol
                 LEFT JOIN LATERAL (
                     SELECT close, date
                     FROM price_daily
@@ -520,9 +523,10 @@ def _get_stock_scores(  # noqa: C901
                 "ad_rating_unavailable_reason": d.get("ad_rating_unavailable_reason"),
             }
 
-            # Stability Inputs: Volatility, beta, financial stability
-            # NOTE: Only fields computed by load_risk_metrics_daily.py are included
-            # (downside_volatility, max_drawdown_52w, volume_consistency, etc. are not computed by any loader)
+            # Stability Inputs: Volatility, beta, financial stability, business diversification
+            # NOTE: revenue_concentration_hhi comes from sec_segment_metrics (real XBRL segment
+            # disclosures); the rest from load_risk_metrics_daily.py. (downside_volatility,
+            # max_drawdown_52w, volume_consistency, etc. are not computed by any loader)
             d["stability_inputs"] = {
                 "volatility_12m": d.get("volatility_12m_val"),
                 "volatility_12m_unavailable_reason": d.get("volatility_12m_unavailable_reason"),
@@ -534,6 +538,12 @@ def _get_stock_scores(  # noqa: C901
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
+                "revenue_concentration_hhi": (
+                    None if d.get("_segment_data_unavailable") else d.get("segment_revenue_concentration_hhi")
+                ),
+                "revenue_concentration_hhi_unavailable_reason": (
+                    "no_segment_disclosure" if d.get("_segment_data_unavailable") else None
+                ),
             }
 
         items: list[dict[str, Any]] = []

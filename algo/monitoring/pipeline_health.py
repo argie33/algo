@@ -584,12 +584,11 @@ class PipelineHealth:
                         # and error_message together so the two never end up telling different
                         # stories (e.g. status=FAILED next to a HEALTHY-cleared error_message).
                         preserved = existing_failures.get(table_health.table_name)
-                        preserve_failure = preserved is not None and table_health.status not in (
+
+                        if preserved is not None and table_health.status not in (
                             HealthStatus.MISSING,
                             HealthStatus.ERROR,
-                        )
-
-                        if preserve_failure:
+                        ):
                             status_value = preserved[1]
                             error_value = preserved[0]
                         else:

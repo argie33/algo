@@ -196,6 +196,66 @@ clamped to parallelism 1-2 to protect rate limits.
 
 ---
 
+## FIXED 2026-07-27: sec_segment_metrics (real XBRL diversification data) had zero consumers
+
+Continuation of the loader-review goal ("scores should factor in inputs all loaded and used
+... and displayed ... on the site too"). `sec_segment_metrics` (revenue concentration HHI,
+segment count - computed from real XBRL segment disclosures, see "Business segment metrics"
+above) was fully implemented and live-verified, but grep confirmed **zero consumers anywhere**:
+not `load_stock_scores.py`, not any `lambda/api` route, not the dashboard. Its own docstring
+says "Provides business segment analysis for diversification scoring" - it was built for this
+purpose and never wired up.
+
+**Fixed:** folded `revenue_concentration_hhi` into `load_stock_scores.py::_score_stability` as
+a minor (0.10) sub-weight, same pattern already used for `debt_to_assets` (a small slot inside
+an existing factor's local renormalization, not a new top-level factor - GOVERNANCE's "no
+weight redistribution" rule applies to the 6-way top-level split, not sub-components within
+one factor). Scored gently (HHI<=1500 -> 100, floors at 50 for a single-segment company at
+HHI=10000) since most healthy companies legitimately report one segment - concentration is a
+secondary risk signal, not a verdict. Also added to `lambda/api/routes/scores.py`'s
+`stability_inputs` display object (new `revenue_concentration_hhi` field + `_unavailable_reason`
+companion, same convention as every other displayed input). Live-verified against the real
+local DB: AAPL (HHI 2901) and MSFT (HHI 3638) now flow through `_get_stability_metrics` ->
+`_score_stability` and the API JOIN correctly; TSLA (not yet backfilled) correctly reports
+`revenue_concentration_hhi_unavailable_reason: "no_segment_disclosure"` rather than a fabricated
+value. New tests: `tests/unit/test_stock_scores_segment_diversification.py`.
+**Caveat:** `sec_segment_metrics` currently has only 5 real rows locally (AAPL/MSFT/AMZN/KO/JNJ
+- the mega-caps used during the XBRL parser fix sessions), not full-universe coverage yet; the
+loader is correctly wired into the Step Functions pipeline and will backfill more symbols as it
+runs on schedule.
+
+## GAP (documented, not fixed) 2026-07-27: sec_cash_flow_metrics duplicates quality_metrics, adds no real signal
+
+Same audit found a second table in the same situation - `sec_cash_flow_metrics`
+(`working_capital`, `free_cash_flow`, `operating_cash_flow`, `cash_conversion_rate`) also has
+zero consumers. Unlike segment metrics, this one should **not** be wired in: tracing its fields
+shows it's a near-total duplicate of data that already exists, is already scored, and is already
+displayed elsewhere -
+- `free_cash_flow` / `operating_cash_flow`: identical formula (`operating_cf - capex`), already
+  computed by `load_value_quality_growth_metrics.py` into `quality_metrics.free_cash_flow` /
+  `.operating_cash_flow`, already factored into `_score_quality`/`_enhance_quality_score` (via
+  `fcf_to_net_income`), and already displayed (`lambda/api/routes/stocks.py`'s `fcf_data` CTE,
+  `scores.py`'s `quality_inputs.free_cashflow`).
+- `cash_conversion_rate` (`operating_cf / net_income`): identical formula to
+  `quality_metrics.ocf_to_net_income`, same already-scored, already-displayed status.
+- `working_capital` (`current_assets - current_liabilities`): the one field with no direct
+  duplicate, but it's a strictly weaker, non-size-normalized version of a signal already
+  covered - `quality_metrics.current_ratio`/`quick_ratio` are the same liquidity concept
+  normalized by current liabilities, already scored (`_score_current_ratio` inside
+  `_score_financial_stability`) and displayed. Wiring the raw dollar figure in as a new score
+  input would be a real modeling mistake (not comparable across mega-cap vs. small-cap
+  companies without normalization) - the "right" fix here is not to force it in.
+
+Net effect: this loader runs, writes real rows, costs real SEC EDGAR API calls, and produces
+zero incremental information over what already exists. Not touched in this pass - it's wired
+into production Step Functions (`terraform/modules/pipeline/main.tf`), `loader_registry.py`,
+and `scripts/local_loader_scheduler.py`, and this environment has no working AWS credentials to
+verify a `terraform apply` removing it (same constraint noted elsewhere in this doc). Flagging
+as a real "no longer needed" candidate for a deliberate removal pass (stop scheduling it, then
+decide whether to drop the table) rather than doing that removal silently here.
+
+---
+
 ## FIXED 2026-07-21: 10,904 stale snapshot rows for out-of-scope symbols (ETF leak + delisted stragglers)
 
 Continuation of the loader-review goal ("if we have dupes or slops or other messes, address
