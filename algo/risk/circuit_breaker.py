@@ -881,6 +881,23 @@ class CircuitBreaker:
                 }
 
             vix = _float(vix, None, context="vix_level check")
+            # CRITICAL: VIX is a volatility index and is physically never <= 0 (historical
+            # floor is ~9, set by index construction itself) - a non-positive value can only
+            # come from upstream data corruption (bad parse, sign error, wrong field mapped).
+            # Silently treating it as "not halted" (it easily clears the >threshold check)
+            # would be a fail-open on data corruption, the exact failure mode this circuit
+            # breaker exists to prevent. Stress-tested 2026-07-28: confirmed real historical
+            # data has never had vix_level <= 0 (min ever recorded: 15.03), so this only fires
+            # on genuine corruption, never a real market condition.
+            if vix <= 0:
+                logger.critical(f"VIX data corrupted: {vix} is not a physically possible VIX value - halting trading")
+                corrupted_vix_max_val = self._get_required_config("vix_max_threshold", "in VIX circuit breaker check")
+                return {
+                    "halted": True,
+                    "reason": f"VIX data corrupted: value {vix} is not physically possible (VIX must be positive). Fail-closed halt.",
+                    "value": vix,
+                    "threshold": _float(corrupted_vix_max_val, None),
+                }
             # CRITICAL FIX: Use trading-day logic, not calendar days
             # On trading days: accept data from today OR the most recent trading day (pre-market runs get yesterday's EOD)
             # On non-trading days: data from most recent trading day is valid (market regime unchanged while closed)

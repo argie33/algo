@@ -40,6 +40,7 @@ class TestWeekendGapCoversAllOnceDailyTables:
         with (
             patch.object(mds, "date") as mock_date,
             patch.object(mds, "get_table_age_minutes", side_effect=fake_age),
+            patch.object(mds, "get_loader_failed", return_value=False),
         ):
             mock_date.today.return_value = sunday
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
@@ -74,6 +75,7 @@ class TestWeekendGapCoversAllOnceDailyTables:
         with (
             patch.object(mds, "date") as mock_date,
             patch.object(mds, "get_table_age_minutes", side_effect=fake_age),
+            patch.object(mds, "get_loader_failed", return_value=False),
         ):
             mock_date.today.return_value = tuesday
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
@@ -98,6 +100,7 @@ class TestWeekendGapCoversAllOnceDailyTables:
         with (
             patch.object(mds, "date") as mock_date,
             patch.object(mds, "get_table_age_minutes", side_effect=fake_age),
+            patch.object(mds, "get_loader_failed", return_value=False),
         ):
             mock_date.today.return_value = sunday
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
