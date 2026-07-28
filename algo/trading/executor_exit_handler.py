@@ -1018,7 +1018,26 @@ class ExitHandler:
             )
             raise AuditLogError(f"Failed to log trade exit: {audit_e}") from audit_e
 
-        # Send notification (non-blocking failure)
+        # Send notification (best-effort, must never fail the exit).
+        #
+        # CRITICAL FIX: by this point the exit is fully committed to this transaction's
+        # cursor (algo_trades, algo_positions, algo_audit_log all updated above) and, in
+        # auto mode, a REAL broker sell order has already filled - an irreversible,
+        # already-happened event. This block used to `except NotificationError` and
+        # re-raise as RuntimeError despite its own comment saying "non-blocking failure".
+        # That except clause could never even match: TradeNotificationService._send_notification
+        # / _save_notification raise bare RuntimeError (DB write failure) or whatever
+        # exception AlertManager._send_email raises (e.g. SMTP errors) - never
+        # NotificationError - so ANY notification hiccup propagated uncaught out of this
+        # function, out of the `with DatabaseContext("write") as cur:` block in
+        # _with_cursor, which rolls back on any exception. That rollback undid the
+        # already-real broker exit's DB record (trade/position marked open again), while
+        # execute_exit()'s own outer `except Exception` then swallowed the RuntimeError
+        # into a plain `success: False` return - no crash, no halted status, just a
+        # position that was actually closed at the broker but silently reverted to "open"
+        # in the DB, with no operator signal beyond a generic exit-failure log line. Now
+        # broadened to catch anything and only log - matching the stated "non-blocking"
+        # design - so a notification delivery problem can never revert a real trade.
         try:
             notif_service = TradeNotificationService(config={"enabled": True})
             if is_estimated_price:
@@ -1045,9 +1064,11 @@ class ExitHandler:
                     "is_estimated_price": is_estimated_price,
                 },
             )
-        except NotificationError as notif_e:
-            logger.error(f"Critical: Failed to send exit notification for {symbol}: {notif_e}")
-            raise RuntimeError(f"Critical: Exit notification failed for {symbol}") from notif_e
+        except Exception as notif_e:
+            logger.error(
+                f"[EXIT_HANDLER] Failed to send exit notification for {symbol} trade {trade_id} "
+                f"(non-blocking, exit already committed): {type(notif_e).__name__}: {notif_e}"
+            )
 
         return {
             "success": True,
