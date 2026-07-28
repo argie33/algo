@@ -446,10 +446,12 @@ CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_date ON analyst_sentim
 -- id SERIAL PK, column named `firm` not `analyst_firm`, no action_detail/price_target columns,
 -- PK on `id` not (symbol, action_date)) - someone edited this statement in the past without a
 -- migration to carry existing databases forward, so CREATE TABLE IF NOT EXISTS silently never
--- applied the change anywhere it mattered. This now matches reality. No migration needed for
--- already-initialized DBs: live-checked 2026-07-27, the real table already has this exact
--- structure (id SERIAL PK + UNIQUE(symbol, action_date, firm)) - only this doc-drifted CREATE
--- TABLE statement (which only matters for a fresh DB init) was wrong, not the live schema.
+-- applied the change anywhere it mattered. This now matches reality for a FRESH db-init.
+-- Already-initialized databases (the live table pre-existed with just PRIMARY KEY (id), no
+-- uniqueness constraint at all) DO need migration 1167, which adds the same
+-- UNIQUE(symbol, action_date, firm) constraint this corrected CREATE TABLE now has inline -
+-- CREATE TABLE IF NOT EXISTS is a no-op against a table that already exists, so this file alone
+-- never reaches an already-initialized database.
 CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,

@@ -493,42 +493,56 @@ the normal `terraform plan`/`apply` + CI flow before trusting it in production.
 
 ---
 
-## GAP (documented, not fixed) 2026-07-21: analyst_upgrade_downgrade / analyst_sentiment_analysis has no live writer
+## FIXED 2026-07-27: analyst_upgrade_downgrade had no live writer (analyst_sentiment_analysis still does not - separate table, see below)
 
 Continuation of the loader-review goal (factor-input completeness audit). `analyst_upgrade_downgrade`
 (consumed by `algo/signals/advanced_filters.py::_analyst_score()` as the "catalyst" subscore's analyst
-input) and `analyst_sentiment_analysis` (consumed by `lambda/api/routes/sentiment.py`'s
-`/api/sentiment/analyst/*` endpoints) have **zero writers anywhere in the current codebase** - their
-only historical writer, `load_yfinance_snapshot.py`, was deleted in Session 275 alongside the rest of
-the yfinance-snapshot deprecation (see the "Session 275+" note near the top of this doc) and never
-replaced. Confirmed live against the local DB: `analyst_upgrade_downgrade` is frozen at 50 rows, all
-dated 2026-05-22 (the loader's last run before deletion) - not zero rows, just permanently stale and
-covering a tiny fraction of the universe.
+input) had **zero writers anywhere in the codebase** - its only historical writer,
+`load_yfinance_snapshot.py`, was deleted in Session 275 alongside the rest of the yfinance-snapshot
+deprecation (see the "Session 275+" note near the top of this doc) and never replaced. Confirmed live
+against the local DB: frozen at 50 rows, all dated 2026-05-22 (the loader's last run before deletion).
 
 **This does NOT crash** (worth stating precisely, since it initially looked like it might):
 `_analyst_score()`'s query is a bare `COUNT(*) FILTER (...)` aggregate with no `GROUP BY`, which always
 returns exactly one row with integer counts (0, not NULL, when nothing matches) - so its two
 `row is None` / `row[0] is None` guard clauses are unreachable dead code, not a live crash path. The
-real effect is quieter and arguably worse per this codebase's own governance principle ("explicit
+real effect was quieter and arguably worse per this codebase's own governance principle ("explicit
 `data_unavailable` flags, no silent fallbacks"): for the ~99.99% of symbols with zero rows in the
-table, this silently computes `net=0` ("no upgrades or downgrades") indistinguishably from a symbol
-that genuinely has zero recent analyst activity - there is no signal anywhere that this input is
-running on a 2-month-stale, 50-symbol residual table with no active data source, not real current
-analyst sentiment.
+table, this silently computed `net=0` ("no upgrades or downgrades") indistinguishably from a symbol
+that genuinely has zero recent analyst activity.
 
-**Same architectural class as `institutional_holdings_13f` and `sec_segment_metrics` above**: fixing
-it for real needs a live analyst-ratings data source (SEC/EDGAR doesn't publish analyst
-ratings/upgrades - this is proprietary data, typically a paid feed), not a code fix. Correctly modeled
-as `AUXILIARY_DATA`/`AUXILIARY_INCOMPLETE_LOADERS` in `utils/data_tiers.py` /
-`algo/orchestrator/phase1_failsafe_retry.py` (degrade gracefully, don't block trading, don't retry) -
-that part of the design is right and not being questioned here. What's missing is any staleness/
-coverage signal for this specific input, and this doc simply didn't record the gap. Not fixed in this
-pass (would need a product decision on a paid data source, or on how "insufficient analyst coverage"
-should propagate through the composite catalyst score - a bigger design call than a drive-by patch).
-`lambda/api/routes/algo_handlers/market.py`, `utils/loaders/sla_monitor.py`, and
-`terraform/modules/monitoring/loader-monitoring.tf` also reference this table name for
-priority/SLA config - none of that is wrong, it's just monitoring a data source that hasn't had a
-writer in ~2 months.
+**An earlier version of this note concluded "fixing it for real needs a live analyst-ratings data
+source... not a code fix" and left it as a documented, unfixable gap** (SEC/EDGAR doesn't publish
+analyst ratings - real-time coverage is proprietary, typically a paid feed). **That conclusion was
+wrong** - the user pointed out directly that yfinance's `Ticker.upgrades_downgrades` provides real
+analyst rating-action data (Firm/ToGrade/FromGrade/Action/price targets), live-verified working
+2026-07-27. Same "unofficial but real, transparently documented" tradeoff already accepted for
+`put_call_ratio` (see the correction above) - used here because no free official feed exists, not as
+a substitute for one that does. This is exactly the "not trying hard enough to get the data we need"
+failure mode the loader-review goal called out: a usable free source existed and a prior audit pass
+didn't look hard enough before declaring the gap unfixable.
+
+**Fixed:** new `loaders/load_analyst_upgrade_downgrade.py` +
+`utils/external/yfinance_analyst_ratings.py` (shared cross-ECS-task yfinance IP circuit breaker,
+same as the OHLCV fallback - a full-universe run hits this once per symbol, thousands of calls/run,
+unlike the single-SPY-call put_call_ratio case). Also found and fixed along the way: the live table
+schema didn't match `lambda/db-init/schema.sql`'s documented shape at all (real columns: `id` SERIAL
+PK, `firm` not `analyst_firm`, no `action_detail`/`price_target`, no compound PK) - someone edited
+the CREATE TABLE statement in the past without a migration to carry existing databases forward, so
+`CREATE TABLE IF NOT EXISTS` silently never applied anywhere it mattered. Migration 1167 adds a real
+`UNIQUE (symbol, action_date, firm)` constraint (needed since multiple firms commonly rate the same
+symbol on the same calendar date - the loader upserts on this). `schema.sql` corrected to match
+reality for fresh installs. Wired into `eod_pipeline`'s `AaiiSentiment` -> `AnalystUpgradeDowngrade`
+-> `MarketStatusDaily` chain (`terraform/modules/pipeline/main.tf`) and
+`scripts/local_loader_scheduler.py`. Live-verified end-to-end against real symbols (AAPL/MSFT/TSLA/
+GOOGL): real rows landed with correct schema mapping, and the incremental watermark path correctly
+fetched only new activity on a second run. Removed from `pipeline_health.py`'s no-writer staleness
+exclusion list now that a real writer exists.
+
+**`analyst_sentiment_analysis` remains a separate, still-open gap** (consumed by
+`lambda/api/routes/sentiment.py`'s `/api/sentiment/analyst/*` endpoints) - different table, not
+touched in this pass. Whether yfinance also has a usable source for this one is an open question for
+a future pass, not assumed either way.
 
 ---
 

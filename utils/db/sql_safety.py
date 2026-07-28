@@ -144,7 +144,10 @@ SAFE_TABLES = {
     "sec_dividends",  # Superseded by dividend_data (Phase 2) - never had a writer
     "sec_material_events",  # Superseded by current_reports_8k (Phase 2) - never had a writer
     "analyst_sentiment_analysis",  # No writer found; deleted with yfinance_snapshot (Session 275)
-    "analyst_upgrade_downgrade",  # No writer found anywhere in the codebase.
+    # analyst_upgrade_downgrade now HAS a real writer (load_analyst_upgrade_downgrade.py,
+    # yfinance-sourced, restored 2026-07-27) - kept in this allowlist (queryable table), just
+    # correcting the stale "no writer" comment.
+    "analyst_upgrade_downgrade",
     # Market snapshots
     "yfinance_snapshot",
     "yfinance_derived_metrics",
