@@ -100,7 +100,23 @@ _INCOME_FIELD_MAPPING = {
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
     "earnings_per_share_basic": "earnings_per_share",
+    # FIXED 2026-07-28: EarningsPerShareDiluted (GAAP) and DilutedEarningsLossPerShare
+    # (IFRS alias, both target this same key - see sec_statements.py's _INCOME_IFRS_ALIASES)
+    # have been fetched from real SEC XBRL data all along, but this mapping never listed a
+    # target column - unmapped keys are silently skipped by transform() (see this module's
+    # comment above _MARKER_FIELDS), so diluted_eps sat 100% NULL across all 61,427 rows
+    # despite the column existing and real data being available every run. Zero consumers
+    # currently read diluted_eps (grep-confirmed) so this is additive, not fixing a live
+    # scoring bug - but it's a real, standard, already-fetched metric worth actually having.
+    "earnings_per_share_diluted": "diluted_eps",
     "interest_expense": "interest_expense",
+    # This mapping key was always correct - the bug was in sec_statements.py's
+    # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
+    # us-gaap XBRL concept - live-confirmed absent from both AAPL's and MSFT's
+    # companyfacts) instead of "Depreciation" (the real concept, live-confirmed present
+    # for both, which _to_snake()'s to this "depreciation" key). Fixed there 2026-07-28;
+    # live-verified annual_income_statement.depreciation_expense was 0/61,427 populated
+    # before that fix. See that module's comment for the full story.
     "depreciation": "depreciation_expense",  # Session 398: EBITDA extraction
     "depreciation_and_amortization": "amortization_expense",  # Fallback if separate D/A not available
     "amortization_of_intangibles": "amortization_expense",  # Alt source for amortization
@@ -113,6 +129,22 @@ _BALANCE_FIELD_MAPPING = {
     "liabilities": "total_liabilities",
     "liabilities_current": "current_liabilities",
     "stockholders_equity": "stockholders_equity",
+    # FIXED 2026-07-28: these 6 concepts are fetched from real SEC XBRL data every run
+    # (utils/external/sec_statements.py's get_balance_sheet(), GAAP + IFRS aliases both
+    # present since the module was written) but had no target column here - a commit on
+    # 2026-06-21 ("Clean up loader infrastructure - remove dead code") removed these exact
+    # 6 entries from this mapping and from schema_cols below, mistaking real, actively-used
+    # score-relevant balance sheet fields for dead code. Confirmed live: annual_balance_sheet
+    # kept writing fresh rows every day (294 in the last 7 days) while goodwill/inventory/etc.
+    # silently stopped updating on 2026-07-01 (the last rows written before the June 21
+    # regression's effect worked through the existing per-symbol watermark backlog) - a real,
+    # ~1-month-old active data-loss regression, not historically-always-missing data.
+    "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
+    "accounts_receivable_net_current": "accounts_receivable",
+    "inventory_net": "inventory",
+    "property_plant_and_equipment_net": "ppe_net",
+    "goodwill": "goodwill",
+    "long_term_debt": "long_term_debt",
     **_MARKER_FIELDS,
 }
 
@@ -176,6 +208,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "operating_income",
                     "net_income",
                     "earnings_per_share",
+                    "diluted_eps",
                     "interest_expense",
                     "depreciation_expense",
                     "amortization_expense",
@@ -201,6 +234,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "operating_income",
                     "net_income",
                     "earnings_per_share",
+                    "diluted_eps",
                     "interest_expense",
                     "depreciation_expense",
                     "amortization_expense",
@@ -251,6 +285,12 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "total_liabilities",
                     "current_liabilities",
                     "stockholders_equity",
+                    "cash_and_equivalents",
+                    "accounts_receivable",
+                    "inventory",
+                    "ppe_net",
+                    "goodwill",
+                    "long_term_debt",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -272,6 +312,12 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
                     "total_liabilities",
                     "current_liabilities",
                     "stockholders_equity",
+                    "cash_and_equivalents",
+                    "accounts_receivable",
+                    "inventory",
+                    "ppe_net",
+                    "goodwill",
+                    "long_term_debt",
                     "created_at",
                     "data_unavailable",
                     "reason",

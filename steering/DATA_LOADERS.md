@@ -4,6 +4,49 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: 3 real XBRL fields silently dropped in load_financial_statements.py
+
+Systematic pass: cross-checked every `schema_cols`/`field_mapping` entry against the real
+live DB schema for all 6 active statement/period combos, and every concept
+`utils/external/sec_statements.py` actually fetches against `load_financial_statements.py`'s
+field mappings (the exact "hand-maintained frozenset can silently drift" risk this doc's
+"process note" already warned about after the 2026-07-20 capex fix). Found 3 more real,
+active instances of the same bug class:
+
+1. **6 balance sheet fields silently regressed 2026-06-21**: a commit titled "Clean up loader
+   infrastructure - remove dead code" removed `cash_and_equivalents`/`accounts_receivable`/
+   `inventory`/`ppe_net`/`goodwill`/`long_term_debt` from `_BALANCE_FIELD_MAPPING` and
+   `schema_cols`, mistaking real, still-fetched XBRL concepts for dead code.
+   `annual_balance_sheet` kept writing fresh rows daily (294 in the last 7 days) while these
+   6 columns silently stopped updating on 2026-07-01 (the point the existing per-symbol
+   watermark backlog of pre-regression data ran out) - a live, ~1-month-old regression, not
+   historically-missing data. Fixed by restoring the 6 mapping entries + schema_cols.
+2. **`diluted_eps` never wired at all**: `EarningsPerShareDiluted` (GAAP) has been fetched
+   since this module was written, but no field_mapping entry ever pointed it at the
+   `diluted_eps` column (which has existed the whole time) - 0/61,427 rows populated. Fixed;
+   zero consumers currently read it (grep-confirmed), so this is additive, not a live scoring
+   fix - but a real, standard, already-fetched metric worth actually having.
+3. **`depreciation_expense` fetched via a concept name that isn't real XBRL**: Session 398
+   added `"DepreciationExpense"` to `get_income_statement()`'s concepts list for EBITDA
+   calculation - live-confirmed this is NOT a real us-gaap concept (absent from both AAPL's
+   and MSFT's actual companyfacts), so it silently fetched nothing every run since. The real
+   concept is `"Depreciation"` (live-confirmed present for both) - the pre-existing
+   field_mapping key was already correct, the concept name being fetched was wrong. Fixed
+   the concept name; separately removed the exact same wrong concept
+   (`"DepreciationExpense"`/`"DepreciationAndAmortization"`) from `get_cash_flow()`'s concepts
+   list entirely - `annual_cash_flow`/`quarterly_cash_flow` have no depreciation column at
+   all, so this fetch was pure waste with no possible destination, not a second real gap.
+
+**Live-verified after all 3 fixes**: MSFT goodwill $119.5B (FY2025, real - reflects the
+Activision acquisition), AAPL PP&E $49.8B and long-term debt $90.7B, AAPL diluted EPS $7.46
+vs basic $7.49 (correct basic > diluted relationship), MSFT depreciation_expense $22.0B
+(FY2025). Added `tests/unit/test_financial_statements_field_mapping_completeness.py` as a
+permanent regression guard: asserts every concept `sec_statements.py` fetches (GAAP + IFRS
+alias target keys) has a field_mapping entry, so a future "cleanup" pass can't silently
+reintroduce this bug class without a test failing first.
+
+---
+
 ## FIXED 2026-07-28: current_reports_8k + dividend_data never wired into Step Functions; InsiderTransactionVelocity unreachable on success
 
 4th+ occurrence of the recurring Class 1/2/3 wiring-drift bug class documented throughout

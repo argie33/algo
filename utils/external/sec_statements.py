@@ -59,7 +59,8 @@ _CASHFLOW_IFRS_ALIASES = [
         "PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
         "payments_to_acquire_property_plant_and_equipment",
     ),
-    ("DepreciationExpense", "depreciation"),
+    # ("DepreciationExpense", "depreciation") REMOVED 2026-07-28 - see get_cash_flow()'s
+    # comment: no destination column exists for cash-flow-context depreciation.
 ]
 
 
@@ -132,7 +133,14 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # instead of a wrong number.
         "InterestExpense",
         # Session 398: For EBITDA calculation = OperatingIncomeLoss + Depreciation + Amortization
-        "DepreciationExpense",
+        # FIXED 2026-07-28: was "DepreciationExpense", which is not a real us-gaap XBRL
+        # concept at all (live-confirmed absent from both AAPL's and MSFT's companyfacts) -
+        # the real concept standalone-depreciation filers report is "Depreciation" (present
+        # for both). This silently fetched nothing every run since Session 398 introduced
+        # it; annual_income_statement.depreciation_expense was 0/61,427 populated. The
+        # pre-existing field_mapping key "depreciation" (matching _to_snake("Depreciation"))
+        # was already correct and just never received a matching concept to receive.
+        "Depreciation",
         "DepreciationAndAmortization",
         "AmortizationOfIntangibles",
     ]
@@ -155,13 +163,20 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "NetCashProvidedByUsedInInvestingActivities",
         "NetCashProvidedByUsedInFinancingActivities",
         "PaymentsToAcquirePropertyPlantAndEquipment",
-        "Depreciation",
-        "DepreciationAndAmortization",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
         # same reasoning as InterestExpense above - foreign filers get NULL instead of a
         # guessed value.
         "PaymentsOfDividends",
     ]
+    # REMOVED 2026-07-28: "Depreciation"/"DepreciationAndAmortization" (and the matching
+    # ("DepreciationExpense", "depreciation") IFRS alias) used to be fetched here too, but
+    # annual_cash_flow/quarterly_cash_flow have no depreciation-related column at all (see
+    # load_financial_statements.py's _CASHFLOW_FIELD_MAPPING) - every fetch was silently
+    # discarded at the schema_cols filter, wasting SEC API payload for data that could never
+    # land anywhere. The same EBITDA-relevant depreciation figure is already correctly
+    # sourced from get_income_statement()'s own "DepreciationExpense" concept (see the fix
+    # to _INCOME_FIELD_MAPPING's "depreciation"/"depreciation_expense" keys, same session) -
+    # this was redundant, not a second real source.
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_CASHFLOW_IFRS_ALIASES)
 
 
