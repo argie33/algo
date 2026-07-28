@@ -94,3 +94,33 @@ class TestStaleSignalCircuitBreakerWeekendGap:
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 
         assert is_safe is True, f"Expected yesterday's close to be FRESH mid-week, got: {msg}"
+
+    def test_signals_lagging_price_by_one_day_is_acceptable(self):
+        """Phase 8 blocking fix: signals naturally lag price_daily by 1 trading day.
+        Today's technical indicators need yesterday's close to compute them.
+        This is normal operation, not stale data - must NOT block Phase 8."""
+        tuesday = date(2026, 7, 21)
+        todays_price = date(2026, 7, 21)  # Tuesday's close (EOD loader just finished)
+        yesterdays_signal = date(2026, 7, 20)  # Monday's signal (computed from Friday's close)
+
+        with _mock_db(todays_price, yesterdays_signal), \
+             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+            mock_dt.now.return_value = _fake_utcnow(tuesday)
+            is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
+
+        assert is_safe is True, f"Expected 1-day signal lag to be FRESH (normal), got: {msg}"
+        assert "fresh" in msg.lower()
+
+    def test_signals_lagging_by_more_than_one_day_is_stale(self):
+        """Sanity check: if signals lag price data by more than 1 trading day, block."""
+        tuesday = date(2026, 7, 21)
+        todays_price = date(2026, 7, 21)  # Tuesday's close
+        week_old_signal = date(2026, 7, 14)  # Previous Tuesday's signal (> 1 day stale)
+
+        with _mock_db(todays_price, week_old_signal), \
+             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+            mock_dt.now.return_value = _fake_utcnow(tuesday)
+            is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
+
+        assert is_safe is False
+        assert "lag" in msg.lower()

@@ -38,6 +38,9 @@ class StaleSignalCircuitBreaker:
             - is_safe=True if signals based on current price data
             - is_safe=False if signals based on stale price data
         """
+        from datetime import timedelta
+        from algo.infrastructure import MarketCalendar
+
         try:
             with DatabaseContext("read") as cur:
                 # Get latest price data available
@@ -53,12 +56,30 @@ class StaleSignalCircuitBreaker:
                 if not latest_signal_date or not latest_price_date:
                     return False, "No signals or prices in database"
 
-                # Check if signals are based on latest price data
+                # Check if signals lag price data by more than 1 trading day
+                # Normal operation: price_daily has today's close, signals computed from yesterday's data = 1 day lag
+                # This is acceptable - today's technical indicators need yesterday's close to compute them.
+                # Block only if lag exceeds 1 trading day (indicates signal generation stalled or price loader is fresh)
                 if latest_signal_date < latest_price_date:
                     gap_days = (latest_price_date - latest_signal_date).days
-                    msg = f"Signals lag price data by {gap_days}d (signals from old data)"
-                    logger.critical(f"CIRCUIT BREAKER OPEN: {msg}")
-                    return False, msg
+
+                    # Allow up to 1 trading day of lag (normal case)
+                    # Get the trading day strictly before latest_price_date
+                    expected_signal_date = MarketCalendar.get_previous_trading_day(
+                        latest_price_date - timedelta(days=1)
+                    )
+
+                    if expected_signal_date and latest_signal_date < expected_signal_date:
+                        # Gap exceeds 1 trading day - signals are truly stale
+                        msg = f"Signals lag price data by {gap_days}d (signals from old data)"
+                        logger.critical(f"CIRCUIT BREAKER OPEN: {msg}")
+                        return False, msg
+                    else:
+                        # Lag is 1 trading day or less (normal) - signals are FRESH
+                        logger.info(
+                            f"Signals lag price data by {gap_days}d (normal): "
+                            f"price_daily={latest_price_date}, signals={latest_signal_date}"
+                        )
 
                 # Check if price data itself is too old, relative to the actual previous
                 # trading day (not a flat weekday/weekend calendar-day count - see class
@@ -68,8 +89,6 @@ class StaleSignalCircuitBreaker:
                 # it's the correct, most-recent-available data. Reproduced live: real
                 # wall-clock Monday 2026-07-27, real price_daily MAX=2026-07-24 (Friday),
                 # would have blocked every Phase 8 entry all session.
-                from algo.infrastructure import MarketCalendar
-
                 now_et = datetime.now(timezone.utc).astimezone(EASTERN_TZ).date()
                 expected_min_price_date = MarketCalendar.get_previous_trading_day(now_et - timedelta(days=1))
 
