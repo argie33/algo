@@ -171,9 +171,15 @@ def test_crosswalk_to_tickers_queries_and_caches_new_cusips(monkeypatch):
 
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"])
+    def _fake_fetch_cusip_tickers(cusips, on_batch_resolved=None, deadline=None):
+        resolved = {"037833100": {"ticker": "AAPL", "name": "APPLE INC"}}
+        if on_batch_resolved is not None:
+            on_batch_resolved({c: resolved.get(c) for c in cusips})
+        return resolved
+
     monkeypatch.setattr(
         "loaders.load_institutional_holdings_13f.fetch_cusip_tickers",
-        lambda cusips: {"037833100": {"ticker": "AAPL", "name": "APPLE INC"}},
+        _fake_fetch_cusip_tickers,
     )
 
     result = loader._crosswalk_to_tickers({"037833100": 914936485, "UNRESOLVABLE": 500})

@@ -87,6 +87,64 @@ def test_fetch_cusip_tickers_batches_requests(monkeypatch):
     assert calls == [10, 10, 5]
 
 
+def test_fetch_cusip_tickers_calls_on_batch_resolved_incrementally(monkeypatch):
+    """FIXED 2026-07-27: callers used to only get results after the ENTIRE backlog was
+    attempted - fatal for a ~34k-CUSIP cold start, since the process gets killed by its
+    ECS task timeout long before that (see loaders/load_institutional_holdings_13f.py's
+    _OPENFIGI_CROSSWALK_TIME_BUDGET_SEC). on_batch_resolved must fire after every batch
+    so the caller can persist progress incrementally, not just at the very end."""
+
+    def _fake_urlopen(req, timeout=30):
+        jobs = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse([{"data": [{"ticker": f"T{j['idValue']}", "name": "X"}]} for j in jobs])
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    seen_batches = []
+    cusips = [f"{i:09d}" for i in range(25)]  # 3 batches: 10, 10, 5
+    fetch_cusip_tickers(cusips, on_batch_resolved=seen_batches.append)
+
+    assert len(seen_batches) == 3
+    assert sum(len(b) for b in seen_batches) == 25
+    # every CUSIP resolved in this fake response - each batch's entries are non-None
+    assert all(v is not None for batch in seen_batches for v in batch.values())
+
+
+def test_fetch_cusip_tickers_stops_at_deadline_and_returns_partial(monkeypatch):
+    """A deadline reached mid-backlog must stop starting new batches and return whatever
+    was resolved so far, instead of continuing to grind toward a kill it can't avoid."""
+    import time as time_module
+
+    def _fake_urlopen(req, timeout=30):
+        jobs = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse([{"data": [{"ticker": f"T{j['idValue']}", "name": "X"}]} for j in jobs])
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    # 5 batches worth of CUSIPs, but the deadline is already in the past - only the
+    # first iteration's deadline check should stop everything before any batch runs.
+    cusips = [f"{i:09d}" for i in range(50)]
+    result = fetch_cusip_tickers(cusips, deadline=time_module.monotonic() - 1)
+
+    assert result == {}
+
+
+def test_fetch_cusip_tickers_deadline_hit_does_not_raise_even_if_zero_succeeded(monkeypatch):
+    """A deadline cutting the run short before any batch succeeds is a time-budget
+    outcome, not the 'OpenFIGI is unreachable' failure mode - must not raise."""
+    import time as time_module
+
+    def _boom(req, timeout=30):
+        raise OSError("network unreachable")
+
+    monkeypatch.setattr("urllib.request.urlopen", _boom)
+
+    result = fetch_cusip_tickers(["037833100"], deadline=time_module.monotonic() - 1)
+    assert result == {}
+
+
 def test_names_plausibly_match_positive_case():
     assert names_plausibly_match("APPLE INC", "Apple Inc.") is True
 
