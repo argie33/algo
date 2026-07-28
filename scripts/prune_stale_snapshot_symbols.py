@@ -50,6 +50,22 @@ STOCKS_ONLY_SNAPSHOT_TABLES = [
     "company_info_sec",
     "sec_valuations",
     "sec_cash_flow_metrics",
+    # Added 2026-07-28: primary_key = ("symbol",), exclude_etfs_from_symbols = True -
+    # same single-row-per-symbol shape as the tables above, confirmed via
+    # load_sec_segment_metrics.py. 58 orphaned rows found live the day this was added.
+    "sec_segment_metrics",
+]
+
+# Single-row-per-symbol snapshot tables that intentionally cover BOTH stocks and ETFs (no
+# exclude_etfs_from_symbols), so staleness must be checked against the union of
+# stock_symbols and etf_symbols, not stock_symbols alone - checking against stock_symbols
+# only would misclassify every legitimately-covered ETF row as orphaned.
+UNIVERSAL_SNAPSHOT_TABLES = [
+    # load_company_profile.py: primary_key = ("ticker",) (DB column is `symbol`), no
+    # exclude_etfs_from_symbols - restored 2026-07-27, covers both universes. 242 orphaned
+    # rows found live the day this was added (delisted from both stock_symbols and
+    # etf_symbols entirely, not an ETF-scoping miss).
+    "company_profile",
 ]
 
 
@@ -61,26 +77,25 @@ def main() -> int:
     role = "write" if args.execute else "read"
     total = 0
     with DatabaseContext(role) as cur:
-        for table in STOCKS_ONLY_SNAPSHOT_TABLES:
-            cur.execute(
-                f"""
-                SELECT COUNT(*) FROM {table} tt
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM stock_symbols s WHERE s.symbol = tt.symbol AND s.active = true
+        for table, scope_clause in [
+            *(
+                (t, "SELECT 1 FROM stock_symbols s WHERE s.symbol = tt.symbol AND s.active = true")
+                for t in STOCKS_ONLY_SNAPSHOT_TABLES
+            ),
+            *(
+                (
+                    t,
+                    "SELECT 1 FROM stock_symbols s WHERE s.symbol = tt.symbol AND s.active = true "
+                    "UNION SELECT 1 FROM etf_symbols e WHERE e.symbol = tt.symbol",  # etf_symbols has no active column - all rows are in-scope
                 )
-                """
-            )
+                for t in UNIVERSAL_SNAPSHOT_TABLES
+            ),
+        ]:
+            cur.execute(f"SELECT COUNT(*) FROM {table} tt WHERE NOT EXISTS ({scope_clause})")
             stale_count = cur.fetchone()[0]
             total += stale_count
             if args.execute and stale_count > 0:
-                cur.execute(
-                    f"""
-                    DELETE FROM {table} tt
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM stock_symbols s WHERE s.symbol = tt.symbol AND s.active = true
-                    )
-                    """
-                )
+                cur.execute(f"DELETE FROM {table} tt WHERE NOT EXISTS ({scope_clause})")
             logger.info(f"{table:28s} {'deleted' if args.execute else 'stale (dry run)':20s} {stale_count}")
 
     logger.info(f"TOTAL: {total} stale rows {'deleted' if args.execute else 'found (rerun with --execute to delete)'}")
