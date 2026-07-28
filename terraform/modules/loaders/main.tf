@@ -431,6 +431,12 @@ locals {
     # feeds algo/signals/advanced_filters.py::_analyst_score() as one of 5 catalyst subscore
     # components, degrades gracefully to 0 (not a halt) when missing.
     "analyst_upgrade_downgrade" = "load_analyst_upgrade_downgrade.py"
+
+    # Analyst sentiment analysis (Session 2026-07-27: same gap class, separate table). AUXILIARY
+    # tier - feeds lambda/api/routes/sentiment.py's /api/sentiment/analyst/* endpoints, which
+    # correctly fail-fast on stale data rather than serving it (was doing so for ~2 months with
+    # no writer at all).
+    "analyst_sentiment_analysis" = "load_analyst_sentiment_analysis.py"
   }
 
   # ============================================================
@@ -615,6 +621,9 @@ locals {
     # Analyst upgrade/downgrade ratings: per-symbol yfinance call across the universe,
     # same shape/sizing as dividend_data (per-symbol external API, not bulk).
     "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+    # Analyst sentiment analysis: two per-symbol yfinance calls (recommendations_summary +
+    # analyst_price_targets) - same shape/sizing as analyst_upgrade_downgrade.
+    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
   }
   default_loaders = local.all_loaders
 
@@ -664,7 +673,8 @@ locals {
     "dividend_data",
 
     # Analyst upgrade/downgrade ratings (per-symbol yfinance call, same shape as dividend_data)
-    "analyst_upgrade_downgrade"
+    "analyst_upgrade_downgrade",
+    "analyst_sentiment_analysis"
   ])
 }
 

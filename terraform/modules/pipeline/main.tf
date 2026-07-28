@@ -848,7 +848,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogAnalystUpgradeDowngradeFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MarketStatusDaily"
+        Next = "AnalystSentimentAnalysis"
       }
 
       LogAnalystUpgradeDowngradeFailure = {
@@ -856,6 +856,62 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name        = "analyst_upgrade_downgrade"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AnalystSentimentAnalysis"
+          ResultPath  = "$.logError"
+        }]
+        Next = "AnalystSentimentAnalysis"
+      }
+
+      # ── Step 8c-quinquies: Analyst sentiment analysis (Session 2026-07-27) ──
+      # Same gap class as AnalystUpgradeDowngrade above, separate table - feeds
+      # lambda/api/routes/sentiment.py's /api/sentiment/analyst/* endpoints (which correctly
+      # fail-fast on stale data rather than serve it, per steering/DATA_LOADERS.md). AUXILIARY
+      # tier, fail-open like its sibling above - both this state's own success Next AND its
+      # failure handler's Next point at MarketStatusDaily (matching the pattern every other
+      # state in this chain uses - see the SecCashFlowMetrics/SecSegmentInfo fix earlier in
+      # this file for what happens when they don't).
+      AnalystSentimentAnalysis = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["analyst_sentiment_analysis"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogAnalystSentimentAnalysisFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "MarketStatusDaily"
+      }
+
+      LogAnalystSentimentAnalysisFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "analyst_sentiment_analysis"
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = false
