@@ -4,6 +4,44 @@ Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morni
 
 ---
 
+## FIXED 2026-07-28: crashed loader silently relabeled HEALTHY, erasing the only stuck-loader signal
+
+Continuation of the loader-review goal - live-queried `data_loader_status` for every table
+this doc's earlier "in progress" backfill notes reference (institutional_holdings_13f,
+analyst_upgrade_downgrade, analyst_sentiment_analysis) and found two of the three sitting at
+`status='HEALTHY'` with `execution_started` **newer** than `execution_completed` - a real,
+crashed run masquerading as healthy. `ps`-confirmed neither had a live process running.
+
+Root cause: `pipeline_health.py::log_health_check()`'s age-based freshness sweep runs
+unconditionally on every orchestrator pass and only preserved an unresolved FAILED/TIMEOUT
+status (`consecutive_failures > 0`). A hard-killed loader (OOM, SIGKILL, `ecs.stop_task()`)
+never reaches the exception handler that increments `consecutive_failures`, so this sweep
+happily overwrote its orphaned `RUNNING` row to HEALTHY/STALE based purely on the target
+table's own row age (still fresh from the last *successful* run before the crash) - erasing
+the only signal `_check_stuck_loaders()`'s `WHERE status = 'RUNNING'` query depends on. Net
+effect: the stuck-loader alert could fire at most once (the same pass that detected it also
+silently deleted the evidence before writing), so no later orchestrator run ever saw it
+again - the exact opposite of what the 2026-07-27 "Orphaned RUNNING loader detection" fix
+was supposed to guarantee.
+
+**Fixed:** `log_health_check()` now also preserves `status='RUNNING'` the same way it
+preserves an unresolved failure (same MISSING/ERROR override - a table that's now genuinely
+missing or erroring is at least as severe and must still surface). Also fixed
+`LoaderInfrastructure.update_loader_status("RUNNING")` to clear `execution_completed` on
+start (already `LoaderStatusManager.mark_running()`'s convention) so a fresh run doesn't
+leave a stale completed timestamp sitting next to a new started one regardless. New
+regression test `test_log_health_check_preserves_running_status_not_just_consecutive_failures`,
+confirmed fail-before/pass-after via git stash. Live-verified: restarted
+`institutional_holdings_13f`'s OpenFIGI crosswalk backfill (30,458 CUSIPs still unresolved
+of 33,628 total) under the fixed code and it now correctly shows `status='RUNNING'`,
+`execution_completed=NULL` while genuinely in progress, instead of a false HEALTHY.
+`analyst_sentiment_analysis` needs the same re-run but was deliberately left for a
+sequential slot - it shares the yfinance IP circuit breaker with `analyst_upgrade_downgrade`,
+which was already mid-run; the 2026-07-27 entry above already documents that exact
+concurrent-yfinance collision as a real, previously-hit failure mode, not a theoretical one.
+
+---
+
 ## FIXED 2026-07-28: real shares-outstanding XBRL concept fetched but discarded, lossy proxy used instead
 
 `WeightedAverageNumberOfSharesOutstandingBasic` has been fetched from real SEC XBRL data
