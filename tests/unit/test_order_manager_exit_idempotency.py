@@ -121,8 +121,11 @@ class TestExecutorPersistsPendingClientOrderId:
         id_1 = mock_order_manager.send_market_exit.call_args_list[0].args[3]
         id_2 = mock_order_manager.send_market_exit.call_args_list[1].args[3]
         assert id_1 != id_2
-        assert "42" in id_1 and "43" not in id_1
-        assert "43" in id_2 and "42" not in id_2
+        # Check the trade_id as a delimited token (exit-{trade_id}-{hex}), not raw substring
+        # containment - the random hex suffix can coincidentally contain the other trade_id's
+        # digits (e.g. "...439c" contains "43"), making a substring check flaky.
+        assert id_1.startswith("exit-42-")
+        assert id_2.startswith("exit-43-")
 
     def test_crash_recovery_reuses_existing_pending_client_order_id(self):
         """The actual bug fix: if algo_trades.pending_exit_client_order_id is already set
