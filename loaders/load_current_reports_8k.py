@@ -25,6 +25,8 @@ import sys
 from datetime import date, datetime
 from typing import Any
 
+import requests
+
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
@@ -241,17 +243,30 @@ class CurrentReports8KLoader(SecLoaderBase):
             ) from e
 
     def _get_cik(self, symbol: str) -> str | None:
-        """Get CIK for symbol using SEC Edgar client (authoritative source)."""
+        """Get CIK for symbol using SEC Edgar client (authoritative source).
+
+        Raises:
+            RuntimeError: If SEC Edgar API call fails (network error, timeout, etc.)
+            (Does not raise if symbol simply not found - that's a legitimate data gap)
+        """
         try:
             cik = self.sec_client.symbol_to_cik(symbol)
             return str(cik).zfill(10)
         except ValueError:
-            # Symbol not found in SEC
-            logger.debug(f"[{symbol}] Symbol not found in SEC")
+            # Symbol not found in SEC - legitimate, not an error
+            logger.debug(f"[{symbol}] Symbol not found in SEC Edgar")
             return None
+        except (ConnectionError, TimeoutError, requests.RequestException) as e:
+            # Network/API errors should fail-fast - don't mask them
+            raise RuntimeError(
+                f"[8K] SEC Edgar API failed for {symbol}: {type(e).__name__}: {e}. "
+                f"Network/API errors must not be masked."
+            ) from e
         except Exception as e:
-            logger.debug(f"[{symbol}] CIK lookup error: {type(e).__name__}: {e}")
-            return None
+            # Unexpected errors - also fail-fast to alert operators
+            raise RuntimeError(
+                f"[8K] Unexpected error fetching CIK for {symbol}: {type(e).__name__}: {e}"
+            ) from e
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
         """Return a data_unavailable marker for this symbol."""

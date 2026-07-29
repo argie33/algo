@@ -193,6 +193,9 @@ class PutCallRatioFetcher:
 
         Returns:
             float: Put/call open interest ratio, or None if unavailable
+
+        Raises:
+            RuntimeError: On network timeouts or genuine API errors (not when data simply unavailable)
         """
         try:
             import yfinance as yf
@@ -225,15 +228,33 @@ class PutCallRatioFetcher:
                     f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}, ratio={ratio:.3f}"
                 )
                 return ratio
-            except Exception as chain_err:
-                logger.warning(f"[PUT_CALL_RATIO] Failed to parse options chain: {chain_err}")
+            except (TimeoutError, ConnectionError) as chain_err:
+                # Network errors should fail-fast
+                raise RuntimeError(
+                    f"[PUT_CALL_RATIO] Network error fetching options chain: {type(chain_err).__name__}: {chain_err}. "
+                    f"Do not mask network failures."
+                ) from chain_err
+            except (KeyError, ValueError, TypeError) as data_err:
+                # Data format issues - data genuinely unavailable
+                logger.warning(f"[PUT_CALL_RATIO] Could not parse options chain format: {data_err}")
                 return None
+            except Exception as chain_err:
+                # Other unexpected errors - fail-fast
+                raise RuntimeError(
+                    f"[PUT_CALL_RATIO] Unexpected error parsing options chain: {type(chain_err).__name__}: {chain_err}"
+                ) from chain_err
         except ImportError:
             logger.warning("[PUT_CALL_RATIO] yfinance not installed - put/call ratio unavailable")
             return None
+        except RuntimeError:
+            # Re-raise RuntimeError from chain parsing
+            raise
         except Exception as e:
-            logger.warning(f"[PUT_CALL_RATIO] yfinance fetch error: {e}")
-            return None
+            # Unexpected yfinance errors - fail-fast
+            raise RuntimeError(
+                f"[PUT_CALL_RATIO] yfinance API failed: {type(e).__name__}: {e}. "
+                f"Network/API errors must not be masked."
+            ) from e
 
 
 class YieldCurveFetcher:
