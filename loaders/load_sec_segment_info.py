@@ -254,10 +254,25 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         Companyfacts includes metadata with filing dates. We look for the most recent
         filing date in the XBRL facts that have context periods.
+
+        Raises ValueError if facts_response is malformed or cannot be parsed.
+        Returns None only when facts structure exists but contains no valid dates
+        (expected for companies with incomplete XBRL data).
         """
+        if not isinstance(facts_response, dict):
+            raise ValueError(
+                f"[SEC_SEGMENT_INFO] facts_response must be dict, got {type(facts_response).__name__}. "
+                "Data integrity error in SEC API response parsing."
+            )
+
         try:
             # Try to extract filing dates from the facts structure
             us_gaap = facts_response.get('facts', {}).get('us-gaap', {})
+            if not isinstance(us_gaap, dict):
+                raise ValueError(
+                    "[SEC_SEGMENT_INFO] SEC API facts.us-gaap is not a dict. "
+                    "API response structure may have changed or response is malformed."
+                )
 
             latest_date = None
             for _concept_name, concept_data in us_gaap.items():
@@ -274,14 +289,24 @@ class SecSegmentInfoLoader(SecLoaderBase):
                                             filed = datetime.strptime(filed_str, '%Y-%m-%d').date()
                                             if latest_date is None or filed > latest_date:
                                                 latest_date = filed
-                                        except (ValueError, TypeError):
-                                            pass
+                                        except (ValueError, TypeError) as e:
+                                            logger.debug(f"[SEC_SEGMENT_INFO] Skipped malformed date {filed_str}: {e}")
 
             if latest_date:
                 return latest_date
             return None
-        except Exception:
-            return None
+        except ValueError:
+            raise
+        except KeyError as e:
+            raise ValueError(
+                f"[SEC_SEGMENT_INFO] Missing required key in facts response: {e}. "
+                "SEC API response structure has changed or is incomplete."
+            ) from e
+        except Exception as e:
+            raise ValueError(
+                f"[SEC_SEGMENT_INFO] Unexpected error parsing SEC facts: {type(e).__name__}: {str(e)[:200]}. "
+                "Check SEC API connectivity and response format."
+            ) from e
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any | None]:
         """Build a data_unavailable row for a symbol with no segment disclosure."""

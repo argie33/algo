@@ -291,9 +291,10 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                         )
                 else:
                     results["issues"].append("No date data found")
-            except Exception:
-                # Skip if date column doesn't work
-                pass
+            except Exception as e:
+                # Log staleness check failure but continue with other checks
+                import logging
+                logging.debug(f"[VERIFY_LOADERS] Failed to check date staleness for {config['output_table']}: {e}")
 
         # Check for excessive NULLs in key columns
         try:
@@ -310,10 +311,12 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
 
                     if null_pct > 20:
                         results["issues"].append(f"High NULL rate in {col}: {null_pct:.1f}%")
-                except Exception:
-                    pass  # Skip if column check fails
-        except Exception:
-            pass  # Skip if column enumeration fails
+                except Exception as e:
+                    import logging
+                    logging.debug(f"[VERIFY_LOADERS] Failed to check NULL rate for {col}: {e}")
+        except Exception as e:
+            import logging
+            logging.debug(f"[VERIFY_LOADERS] Failed to enumerate columns for {config['output_table']}: {e}")
 
         # Determine overall status
         if not results["issues"]:
