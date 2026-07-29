@@ -260,10 +260,10 @@ class OrderManager:
         Returns: { success: bool, message: str }
         """
         if not alpaca_order_id:
-            return {"success": True, "message": "No order ID provided"}
+            return {"success": False, "message": "No order ID provided"}
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
-            return {"success": True, "message": "Paper mode, no Alpaca order to cancel"}
+            return {"success": False, "message": "Paper mode, no Alpaca order to cancel (not a failure)"}
 
         if not self.alpaca_key or not self.alpaca_secret:
             return {"success": False, "message": "Cannot cancel order - Alpaca credentials missing"}
