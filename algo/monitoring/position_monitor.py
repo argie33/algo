@@ -1006,8 +1006,6 @@ class PositionMonitor:
                 f"Price data marked unavailable for {symbol}: {reason_msg or 'no reason provided'}. "
                 f"Cannot calculate position metrics with invalid prices."
             )
-
-        max_close = float(row[0])
         if max_close <= 0:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
