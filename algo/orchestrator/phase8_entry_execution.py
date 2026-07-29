@@ -36,6 +36,7 @@ import psycopg2
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
+from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
 from algo.trading.position_sizer import PositionSizer
 from algo.trading.pretrade_checks import PreTradeChecks
@@ -1680,7 +1681,7 @@ def run(
 
                             failed_count += 1
 
-                except (ValueError, ZeroDivisionError, TypeError) as exec_err:
+                except (ValueError, ZeroDivisionError, TypeError, DatabaseError) as exec_err:
                     logger.error(
                         f"[PHASE 8] {symbol}: execution error: {exec_err}",
                         exc_info=True,
@@ -1701,7 +1702,7 @@ def run(
 
                     break
 
-        except (RuntimeError, ValueError, TypeError, AttributeError, psycopg2.Error) as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError, psycopg2.Error, DatabaseError) as e:
             logger.error(
                 f"[PHASE 8] Error processing {signal['symbol']}: {e}",
                 exc_info=True,
