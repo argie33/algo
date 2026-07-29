@@ -1202,25 +1202,34 @@ class ExitEngine:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
             elif response.status_code == 404:
-                # CRITICAL: A 404 means the symbol is unavailable in the broker's system
-                # (delisted or paper trading delisted symbols). This is a fundamental issue
-                # that CANNOT be masked by falling back to database prices.
+                # 404 can mean two different things depending on execution mode:
                 #
-                # Silently falling back to database prices hides the real problem: we cannot
-                # execute an exit for a symbol the broker doesn't have. This violates
-                # fail-fast principle and risks leaving unexitable positions open.
+                # 1. Paper/Dry mode: Alpaca sandbox may not support all symbols, but we have
+                #    valid price data in our database. Fall back to database prices rather than
+                #    incorrectly marking valid positions as delisted.
                 #
-                # Fail-fast: propagate the 404 as an error. The position cannot be monitored
-                # or exited safely if the broker doesn't recognize it.
-                error_msg = (
-                    f"[EXIT_ENGINE CRITICAL] {symbol}: Alpaca quote API returned 404 - "
-                    f"symbol unavailable in broker system (delisted or removed from paper trading). "
-                    f"Cannot execute exit for a symbol the broker doesn't have. "
-                    f"This position is unexitable at the broker level. "
-                    f"Manual intervention required: check if symbol is delisted or account permissions changed."
-                )
-                logger.critical(error_msg)
-                raise RuntimeError(error_msg)
+                # 2. Auto mode (live trading): A 404 in live Alpaca is a real error - the broker
+                #    doesn't recognize this symbol at all. This could indicate delisted symbol,
+                #    account permission change, or data corruption. Fail-fast.
+                execution_mode = self.config.get("execution_mode", "paper")
+                if execution_mode in ("paper", "dry", "review"):
+                    # Sandbox limitation - return None to trigger database fallback
+                    logger.warning(
+                        f"[EXIT_ENGINE] {symbol}: Alpaca quote API returned 404 - "
+                        f"symbol unavailable in {execution_mode} sandbox. Using database fallback pricing."
+                    )
+                    return None
+                else:
+                    # Live trading mode (auto): 404 is a critical error
+                    error_msg = (
+                        f"[EXIT_ENGINE CRITICAL] {symbol}: Alpaca quote API returned 404 - "
+                        f"symbol unavailable in live broker system (delisted or removed). "
+                        f"Cannot execute exit for a symbol the broker doesn't have. "
+                        f"This position is unexitable at the broker level. "
+                        f"Manual intervention required: check if symbol is delisted or account permissions changed."
+                    )
+                    logger.critical(error_msg)
+                    raise RuntimeError(error_msg)
 
             else:
                 raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")

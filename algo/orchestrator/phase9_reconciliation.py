@@ -384,14 +384,18 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
     # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own
     # module docstring: "swing scores have been removed; this module ... returns
     # unavailable data") - compute_ic() always returns every component marked
-    # data_unavailable=True, never a real ic_value. Even though the feature is deprecated,
-    # we still run the computation and properly guard persist() to avoid writing all-NULL
-    # rows on every Phase 9 run when all components are unavailable.
+    # data_unavailable=True, never a real ic_value. This is EXPECTED behavior.
+    # Even though the feature is deprecated, we run it and guard persist() to avoid
+    # writing all-NULL rows on every Phase 9 run when all components are unavailable.
+    # This does NOT affect trading - signal attribution is for analytics/backtesting only.
     try:
         attribution = SignalAttributionEngine()
         attr_result = attribution.compute_ic(run_date, lookback_trades=40)
         total_components = len(attr_result)
-        logger.info(f"Signal attribution: IC computed for {total_components} components (deprecated feature)")
+        logger.info(
+            f"Signal attribution: IC computed for {total_components} components "
+            f"(deprecated feature - data unavailable is EXPECTED, not an error)"
+        )
         for comp, ic_data in attr_result.items():
             ic_value = ic_data.get("ic_value")
             ic_pvalue = ic_data.get("ic_pvalue")
