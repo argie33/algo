@@ -139,18 +139,17 @@ class DailyReconciliation:
             self.audit_logger = TradeAuditLogger()
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
-            # For paper trading without Alpaca credentials, allow graceful degradation
-            has_alpaca_creds = bool(os.getenv("APCA_API_KEY_ID")) and bool(os.getenv("APCA_API_SECRET_KEY"))
-            # CRITICAL FIX: Must require explicit config - no silent fallback to True
-            # If config missing this key, fail-fast so we know trading mode isn't determined.
-            # NOTE: `config` is an AlgoConfig instance in production, not a plain dict (the
-            # `dict[str, Any]` type hint on __init__ doesn't match real callers). Two bugs
-            # here previously: (1) `isinstance(config, dict)` was always False for it, so
-            # this raised unconditionally regardless of whether alpaca_paper_trading was
-            # actually configured. (2) AlgoConfig.__contains__ (`in`) only reflects
-            # DB-loaded rows, not AlgoConfig.DEFAULTS, but AlgoConfig.get() correctly falls
-            # back to DEFAULTS -- so presence must be checked via .get() returning
-            # non-None, not `in`.
+            # CRITICAL FIX: Reconciliation MUST validate position state against broker
+            # even in paper mode. Without broker verification, we cannot detect:
+            # - Positions that failed to execute (never sent to broker)
+            # - Orphaned positions at broker not in our database
+            # - Fill price/quantity mismatches that corrupt P&L calculations
+            # Skipping reconciliation in ANY mode corrupts portfolio_value and drawdown metrics
+            # that circuit_breaker and daily loss checks depend on for position management.
+            #
+            # FAIL-FAST: If broker initialization fails, halt and surface the error.
+            # Do not fall back to fabricated portfolio_value (DB-only reconstruction outside
+            # LOCAL_MODE corrupts equity curve used by live circuit breaker checks).
             is_paper_trading = config.get("alpaca_paper_trading")
             if is_paper_trading is None:
                 raise ValueError(
@@ -160,25 +159,17 @@ class DailyReconciliation:
                     "(2) AlgoConfig.get() returns complete config dict"
                 ) from e
 
-            if is_paper_trading and not has_alpaca_creds:
-                # Paper trading without credentials is acceptable - skip reconciliation
-                logger.warning(
-                    "[RECONCILIATION] Alpaca credentials not found. "
-                    "Paper trading mode enabled - reconciliation will be skipped. "
-                    "Orchestrator will continue with signal generation and exit execution."
-                )
-                self.broker = None  # No broker available
-                self.trading_client = False
-            else:
-                # Production mode or live trading requires credentials
-                logger.critical(
-                    f"[CRITICAL] Reconciliation broker adapter initialization failed: {e}. "
-                    "Live trading or production mode requires Alpaca credentials. "
-                    "Set APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables."
-                )
-                raise ValueError(
-                    f"Reconciliation initialization failed: {e}. Live trading requires valid Alpaca credentials."
-                ) from e
+            # All modes require reconciliation - credentials are mandatory
+            logger.critical(
+                f"[CRITICAL] Reconciliation broker adapter initialization failed: {e}. "
+                "Reconciliation requires Alpaca credentials to verify position state. "
+                "Set APCA_API_KEY_ID and APCA_API_SECRET_KEY environment variables. "
+                "Halt to prevent incorrect portfolio calculations that would corrupt risk management."
+            )
+            raise ValueError(
+                f"Reconciliation initialization failed: {e}. "
+                f"Alpaca credentials required for position verification in all trading modes."
+            ) from e
 
     def run_daily_reconciliation(
         self, reconcile_date: _date_type | None = None, dry_run: bool = False

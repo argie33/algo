@@ -888,6 +888,12 @@ class PositionMonitor:
             )
         sector = srow[0]
 
+        # "Other" is a placeholder for unclassified/new symbols without proper sector data
+        # These don't have historical sector_ranking records yet; skip trend check and return neutral
+        if sector == "Other":
+            logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
+            return "neutral"
+
         cur.execute(
             """
             SELECT current_rank, date FROM sector_ranking
@@ -899,15 +905,12 @@ class PositionMonitor:
         )
         cur_row = cur.fetchone()
         if not cur_row or cur_row[0] is None:
-            # CRITICAL FIX: Sector ranking data gaps (e.g., new sectors not yet in the ranking table)
-            # should not halt position monitoring in paper/development mode. Sector health is
-            # enrichment data, not a hard blocker for exit decisions.  Fall back to neutral
-            # for missing sectors rather than crashing all position reviews.
-            logger.warning(
+            raise PositionValidationError(
                 f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
-                f"Skipping sector health check for {symbol} - using fallback 'neutral' assessment."
+                f"Cannot assess sector health for {symbol} without current ranking data. "
+                f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
+                f"Add sector to sector_ranking table or exclude from portfolio."
             )
-            return "neutral"
         cur_rank = int(cur_row[0])
 
         # Get rank from ~4 weeks ago for comparison
@@ -924,14 +927,12 @@ class PositionMonitor:
         )
         old_row = cur.fetchone()
         if not old_row or old_row[0] is None:
-            # CRITICAL FIX: Missing 4-week baseline should not halt all position monitoring.
-            # In paper mode or during data gap periods, gracefully fall back to neutral assessment
-            # rather than failing the entire Phase 3 review. Sector trend is enrichment, not required.
-            logger.warning(
-                f"[POSITION_MONITOR] Sector ranking baseline missing for {sector} (data gap 4 weeks ago). "
-                f"Skipping sector trend assessment for {symbol} - using fallback 'neutral' assessment."
+            raise PositionValidationError(
+                f"[POSITION_MONITOR] Sector ranking baseline missing for {sector} (data gap ~4 weeks ago). "
+                f"Cannot evaluate sector trend for {symbol} without historical baseline. "
+                f"Sector trend analysis requires 4-week comparison - cannot proceed with partial data. "
+                f"Verify sector_ranking table has complete historical data."
             )
-            return "neutral"
         old_rank = int(old_row[0])
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"

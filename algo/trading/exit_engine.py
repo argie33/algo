@@ -1390,7 +1390,15 @@ class ExitEngine:
         rows = cur.fetchall()
 
         if len(rows) < 3:
-            return False
+            # FAIL-FAST: Cannot evaluate pullback with insufficient price history
+            # Returning False (no pullback) when we cannot verify pullback status masks
+            # data quality issues - a position might be extended without confirmation
+            # Pullback detection requires 3+ days of price data to be reliable
+            raise ValueError(
+                f"[EXIT_ENGINE PULLBACK] {symbol}: Insufficient price history ({len(rows)} days, need 3+). "
+                f"Cannot evaluate pullback without complete price data. "
+                f"Fail-fast to prevent blind exit decisions on data gaps."
+            )
 
         cur_close = Decimal(str(rows[0][0]))
 

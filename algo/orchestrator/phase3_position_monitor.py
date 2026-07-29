@@ -132,8 +132,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             continue
 
                         if quantity is None:
-                            logger.warning(f"[PHASE 3] Skipping {symbol}: missing required quantity field")
-                            continue
+                            raise RuntimeError(
+                                f"[PHASE 3 CRITICAL] Position for {symbol} has NULL quantity field. "
+                                f"Cannot monitor position without quantity information. "
+                                f"This indicates a data integrity issue in algo_positions. "
+                                f"Position cannot be evaluated."
+                            )
 
                         current_price = float(current_price)
                         quantity = float(quantity)

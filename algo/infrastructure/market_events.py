@@ -71,23 +71,17 @@ class MarketEventHandler:
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()
         except ValueError as e:
-            # In paper mode, credential failure is degraded but may be tolerable for some operations.
-            # However, market halt checks REQUIRE credentials to call Alpaca API.
-            if execution_mode == "paper":
-                logger.warning(
-                    f"[MARKET_EVENTS] Paper mode: Alpaca credentials not available. "
-                    f"Market halt checks will not be performed. Position updates will still work from database. "
-                    f"Error: {e}"
-                )
-                # Set dummy credentials so methods don't crash, but they'll fail on API calls
-                self.alpaca_key = None
-                self.alpaca_secret = None
-                return
-            else:
-                # Live mode requires real credentials
-                raise
+            # FAIL-FAST: Market halt checks are CRITICAL for all modes, not optional for paper
+            # Halt detection prevents positions in halted stocks and is non-negotiable
+            # even in paper/dry modes where trades are simulated locally.
+            # If we cannot verify halt status, we cannot safely monitor positions.
+            raise ValueError(
+                f"[MARKET_EVENTS CRITICAL] Alpaca credentials required for market event handling. "
+                f"Cannot proceed without credentials to verify halt status (critical for position monitoring). "
+                f"Error: {e}"
+            ) from e
 
-        # CRITICAL: Fail fast if credentials missing (no defaults) in live mode
+        # CRITICAL: Fail fast if credentials missing (no defaults)
         if "key" not in creds:
             raise ValueError("[MARKET_EVENTS] Alpaca API key missing from credentials")
         if "secret" not in creds:
