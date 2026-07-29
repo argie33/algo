@@ -579,7 +579,7 @@ class ExitEngine:
                     if not trades:
                         logger.info("No open positions.\n")
 
-                        return 0, 0, 0
+                        return 0, 0, 0, 0
 
                     # Cache market distribution-day status once for the run
 

@@ -65,7 +65,7 @@ def test_auto_mode_successful_order_does_not_crash_on_bracket_validation():
         "order_id": "alpaca-order-123",
         "status": "filled",
         "executed_price": 100.50,
-        "legs": [{"type": "stop"}, {"type": "limit"}],
+        "legs": [{"order_type": "stop", "order_side": "sell"}, {"order_type": "limit", "order_side": "sell"}],
         "order_class": "bracket",
     }
 
@@ -103,7 +103,7 @@ def test_auto_mode_bracket_missing_stop_leg_is_reported_not_crashed():
         "order_id": "alpaca-order-456",
         "status": "filled",
         "executed_price": 100.50,
-        "legs": [{"type": "limit"}],  # missing the stop leg
+        "legs": [{"order_type": "limit", "order_side": "sell"}],  # missing the stop leg
         "order_class": "bracket",
     }
 

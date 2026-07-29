@@ -302,7 +302,7 @@ class OrderManager:
                     )
                     time.sleep(wait_time)
                     continue
-                return {"success": False, "message": last_error}
+                raise RuntimeError(f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id}: {last_error}")
             except (requests.RequestException, requests.Timeout) as e:
                 last_error = f"Error cancelling order: {e!s}"
                 logger.warning(
@@ -311,7 +311,7 @@ class OrderManager:
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 
-        return {"success": False, "message": last_error}
+        raise RuntimeError(f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id} after {max_attempts} attempts: {last_error}")
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.

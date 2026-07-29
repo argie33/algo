@@ -93,7 +93,7 @@ def test_unexpected_per_trade_exception_is_counted_and_returned(mock_config):
                 side_effect=RuntimeError("simulated unexpected evaluation failure"),
             ),
         ):
-            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = engine.check_and_execute_exits(current_date)
+            exits_executed, stop_raises_executed, trade_errors = engine.check_and_execute_exits(current_date)
 
     assert exits_executed == 0
     assert stop_raises_executed == 0
@@ -118,7 +118,7 @@ def test_no_errors_returns_zero_error_count(mock_config):
     with patch("algo.trading.exit_engine.TradeExecutor"):
         engine = ExitEngine(mock_config)
         with patch("algo.trading.exit_engine.DatabaseContext", return_value=mock_ctx):
-            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = engine.check_and_execute_exits(date(2026, 7, 22))
+            exits_executed, stop_raises_executed, trade_errors = engine.check_and_execute_exits(date(2026, 7, 22))
 
     assert (exits_executed, stop_raises_executed, trade_errors) == (0, 0, 0)
 
