@@ -523,11 +523,11 @@ class OrderManager:
         order's real status is authoritative - the original attempt succeeded. If no (404),
         the rejection was genuine and the caller's existing failure handling is correct.
 
-        Deliberately conservative: on any ambiguity (network error, non-200/404 response,
-        malformed body) returns None so the caller falls through to its pre-existing failure
-        behavior unchanged - this method can only ADD recovery, never mask a real failure.
+        Returns: the order dict if found, None if not found.
 
-        Returns: the order dict if found, None if not found or lookup itself was inconclusive.
+        Raises:
+            RuntimeError: On authentication or infrastructure failures that prevent lookup
+            (Recoverable/inconclusive errors still return None to allow caller's fallback)
         """
         if not self.alpaca_key or not self.alpaca_secret or not client_order_id:
             return None
@@ -553,14 +553,34 @@ class OrderManager:
                     return data
                 return None
             if resp.status_code == 404:
+                # Order not found - this is expected for genuine rejections
                 return None
+            if resp.status_code == 401:
+                # Authentication failure - this is a critical infrastructure issue
+                raise RuntimeError(
+                    f"[ORDER_LOOKUP] Authentication failed for {client_order_id}: HTTP 401. "
+                    f"Alpaca API credentials invalid or expired."
+                )
+            if resp.status_code >= 500:
+                # Server errors - infrastructure problems
+                raise RuntimeError(
+                    f"[ORDER_LOOKUP] Alpaca API server error for {client_order_id}: HTTP {resp.status_code}"
+                )
+            # Other HTTP errors - inconclusive, let caller fall back
             logger.debug(
                 f"[ORDER_LOOKUP] client_order_id={client_order_id}: lookup returned "
                 f"HTTP {resp.status_code}, treating as inconclusive"
             )
             return None
-        except (requests.RequestException, requests.Timeout, ValueError) as e:
-            logger.debug(f"[ORDER_LOOKUP] client_order_id={client_order_id}: lookup failed: {e}")
+        except (requests.Timeout, requests.ConnectionError) as e:
+            # Network problems - could be transient, let caller fall back
+            logger.debug(
+                f"[ORDER_LOOKUP] client_order_id={client_order_id}: network error during lookup: {e}"
+            )
+            return None
+        except ValueError as e:
+            # JSON parsing error - inconclusive
+            logger.debug(f"[ORDER_LOOKUP] client_order_id={client_order_id}: response parse error: {e}")
             return None
 
     def wait_for_order_fill(
