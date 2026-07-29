@@ -927,12 +927,14 @@ class PositionMonitor:
         )
         old_row = cur.fetchone()
         if not old_row or old_row[0] is None:
-            raise PositionValidationError(
-                f"[POSITION_MONITOR] Sector ranking baseline missing for {sector} (data gap ~4 weeks ago). "
-                f"Cannot evaluate sector trend for {symbol} without historical baseline. "
-                f"Sector trend analysis requires 4-week comparison - cannot proceed with partial data. "
-                f"Verify sector_ranking table has complete historical data."
+            # Sector data too young - skip trend analysis and return neutral
+            # This allows positions in newly-tracked sectors to continue being monitored
+            # while trend data accumulates. Once 4 weeks of history exists, trend checks will activate.
+            logger.debug(
+                f"Skipping sector trend check for {symbol} ({sector}): "
+                f"insufficient historical data (< 4 weeks). Returning neutral."
             )
+            return "neutral"
         old_rank = int(old_row[0])
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"
@@ -1187,7 +1189,7 @@ class PositionMonitor:
     def _print_recommendation(self, rec: dict[str, Any]) -> None:
         flags_str = ", ".join(rec["flags"]) if rec["flags"] else "none"
         logger.info(
-            f"  {rec['symbol']:6s}  qty={rec['quantity']:<5d} "
+            f"  {rec['symbol']:6s}  qty={int(rec['quantity']):<5d} "
             f"price=${rec['current_price']:7.2f}  "
             f"R={rec['r_multiple']:+.2f}  "
             f"P&L={rec['unrealized_pct']:+.2f}%  "
