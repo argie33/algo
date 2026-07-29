@@ -10,6 +10,7 @@ import psycopg2
 from algo.exceptions import ValidationError
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
+from algo.trading.exceptions import DatabaseError
 from utils.db.advisory_locks import (
     ALGO_POSITIONS_LOCK_ID,
     acquire_advisory_lock,
@@ -192,7 +193,7 @@ def run(
                                 "symbol": symbol,
                                 "position_id": pos_id,
                                 "action": "force_exit",
-                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count} positions (limit 3)",
+                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count} positions (limit {max_per_sector})",
                                 "trade_id": None,  # Will be fetched during execution
                             }
                             rebalance_actions.append(action)
@@ -635,13 +636,13 @@ def run(
                 f"{errors} position(s) failed exit/stop evaluation this run" if errors > 0 else None,
             )
 
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError, DatabaseError) as e:
         log_phase_result_fn(6, "exit_execution", "error", str(e))
         return PhaseResult(
             6,
             "exit_execution",
             "halted",
-            {"status": "halted", "reason": f"Database error in exit execution: {str(e)[:100]}", "exits_executed": 0},
+            {"status": "halted", "reason": f"Exit execution error: {str(e)[:100]}", "exits_executed": 0},
             True,
             str(e),
         )
