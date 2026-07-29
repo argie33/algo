@@ -240,7 +240,11 @@ class AlpacaSyncManager:
                     if cur.rowcount > 0:
                         untracked_count += 1
                 except Exception as e:
-                    logger.error(f"[POSITION_SYNC] Failed to sync untracked position {symbol}: {e}")
+                    raise RuntimeError(
+                        f"[POSITION_SYNC] Failed to sync untracked position {symbol}: {e}. "
+                        f"Database write error during position reconciliation. Cannot proceed with incomplete position sync. "
+                        f"Alpaca and database position state must remain synchronized."
+                    ) from e
 
         if newly_detected:
             try:
@@ -258,7 +262,14 @@ class AlpacaSyncManager:
                     ),
                 )
             except Exception as e:
-                logger.error(f"[POSITION_SYNC] Failed to send untracked-position alert: {e}", exc_info=True)
+                # CRITICAL: Operators must be notified of untracked broker positions
+                # Silent notification failure means operators won't know about orphaned positions
+                logger.critical(f"[POSITION_SYNC CRITICAL] Failed to send untracked-position alert: {e}", exc_info=True)
+                raise RuntimeError(
+                    f"[POSITION_SYNC] Failed to notify operators of untracked positions: {e}. "
+                    f"Untracked broker positions require immediate investigation. "
+                    f"Cannot silently proceed without alerting - positions may be at risk without stop-loss protection."
+                ) from e
 
         try:
             cur.execute(
@@ -271,7 +282,11 @@ class AlpacaSyncManager:
             )
             untracked_closed_count = cur.rowcount
         except Exception as e:
-            logger.warning(f"[POSITION_SYNC] Failed to mark closed untracked positions: {e}")
+            raise RuntimeError(
+                f"[POSITION_SYNC] Failed to mark closed untracked positions: {e}. "
+                f"Cannot mark stale untracked positions as closed - position tracking state would be incomplete. "
+                f"Reconciliation integrity requires all position updates to succeed."
+            ) from e
 
         if untracked_count > 0 or untracked_closed_count > 0:
             logger.info(

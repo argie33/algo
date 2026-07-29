@@ -57,16 +57,26 @@ def test_already_known_untracked_position_does_not_realert():
     mock_notify.assert_not_called()
 
 
-def test_notification_failure_does_not_crash_sync():
+def test_notification_failure_fails_fast():
+    """Untracked position alerts MUST fail-fast if notification fails.
+
+    Silent notification failures mean operators never learn about untracked broker positions
+    (real shares, real dollars with no risk management). This violates fail-fast principle.
+    If we can't alert operators, reconciliation must halt for manual review.
+    """
     manager = _make_manager()
     cur = MagicMock()
     cur.fetchone.return_value = None
     cur.rowcount = 1
 
     with patch("algo.reporting.notifications.notify", side_effect=RuntimeError("smtp down")):
-        # Must not raise even though notify() failed.
-        manager._sync_untracked_positions(
-            cur,
-            orphan_symbols=["AAPL"],
-            alpaca_positions=[{"symbol": "AAPL", "qty": "10", "current_price": "200.00"}],
-        )
+        # Must raise when notification fails - operators must be aware of untracked positions
+        try:
+            manager._sync_untracked_positions(
+                cur,
+                orphan_symbols=["AAPL"],
+                alpaca_positions=[{"symbol": "AAPL", "qty": "10", "current_price": "200.00"}],
+            )
+            assert False, "Should have raised RuntimeError on notification failure"
+        except RuntimeError as e:
+            assert "untracked-position alert" in str(e).lower() or "notify" in str(e).lower()
