@@ -5,6 +5,7 @@ Guards against re-introducing an unscoped DELETE that wipes an economic series'
 entire history instead of just the date range being refreshed.
 """
 
+import pytest
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -72,3 +73,28 @@ def test_mark_unavailable_upserts_instead_of_bare_insert():
     # fetched earlier the same day must never be clobbered by a later failed retry.
     assert "data_unavailable = TRUE" in sql
     assert params == ("T10Y2Y", date.today(), None, True, "fred_api_timeout")
+
+
+def test_store_economic_data_raises_on_database_failure():
+    """Fail-fast: store_economic_data must raise RuntimeError when database write fails,
+    not swallow the error and return 0. Returning 0 masks write failures and makes the
+    caller think no records were stored (false success)."""
+    records = [{"date": "2026-01-05", "value": 1.5}]
+
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__.side_effect = RuntimeError("Database connection failed")
+
+    with patch("loaders.load_economic_data.DatabaseContext", return_value=mock_ctx):
+        with pytest.raises(RuntimeError, match="Failed to store T10Y2Y"):
+            store_economic_data("T10Y2Y", records)
+
+
+def test_mark_unavailable_raises_on_database_failure():
+    """Fail-fast: mark_unavailable must raise RuntimeError when database write fails,
+    not swallow the error silently. Silent failures hide database connectivity issues."""
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__.side_effect = RuntimeError("Database connection failed")
+
+    with patch("loaders.load_economic_data.DatabaseContext", return_value=mock_ctx):
+        with pytest.raises(RuntimeError, match="Failed to mark T10Y2Y unavailable"):
+            mark_unavailable("T10Y2Y", "test_reason")

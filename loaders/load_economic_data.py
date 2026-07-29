@@ -197,6 +197,9 @@ def store_economic_data(series_id: str, records: list[dict[str, Any]]) -> int:
         records: List of {"date": "...", "value": ...} dicts
 
     Returns: Number of records stored
+
+    Raises:
+        RuntimeError: If database write fails (FAIL-FAST: do not swallow storage errors)
     """
     if not records:
         return 0
@@ -228,8 +231,7 @@ def store_economic_data(series_id: str, records: list[dict[str, Any]]) -> int:
                 )
         return len(records)
     except Exception as e:
-        logger.error(f"[ECONOMIC] Failed to store {series_id}: {e}")
-        return 0
+        raise RuntimeError(f"[ECONOMIC] Failed to store {series_id}: {e}") from e
 
 
 def mark_unavailable(series_id: str, reason: str) -> None:
@@ -238,6 +240,9 @@ def mark_unavailable(series_id: str, reason: str) -> None:
     Args:
         series_id: Series identifier
         reason: Explanation for unavailability
+
+    Raises:
+        RuntimeError: If database write fails (FAIL-FAST: do not swallow marker write failures)
     """
     try:
         with DatabaseContext("write") as cur:
@@ -259,7 +264,7 @@ def mark_unavailable(series_id: str, reason: str) -> None:
                 (series_id, date.today(), None, True, reason),
             )
     except Exception as e:
-        logger.error(f"[ECONOMIC] Failed to mark {series_id} unavailable: {e}")
+        raise RuntimeError(f"[ECONOMIC] Failed to mark {series_id} unavailable: {e}") from e
 
 
 def load() -> dict[str, Any]:
@@ -280,8 +285,13 @@ def load() -> dict[str, Any]:
     if not fred_api_key:
         logger.warning("[ECONOMIC/FRED] No API key available")
         for series_id in FRED_SERIES:
-            mark_unavailable(series_id, "FRED_API_KEY not configured")
-            fred_results[series_id] = "unavailable (no API key)"
+            try:
+                mark_unavailable(series_id, "FRED_API_KEY not configured")
+                fred_results[series_id] = "unavailable (no API key)"
+            except RuntimeError as e:
+                raise RuntimeError(
+                    f"[ECONOMIC] Cannot mark {series_id} unavailable due to database error: {e}"
+                ) from e
     else:
         for i, series_id in enumerate(FRED_SERIES):
             # Rate limiting: 5s between requests
@@ -296,8 +306,13 @@ def load() -> dict[str, Any]:
                 fred_results[series_id] = f"{inserted} records"
             except RuntimeError as e:
                 logger.error(f"[ECONOMIC/FRED] {series_id} failed: {e}")
-                mark_unavailable(series_id, str(e))
-                fred_results[series_id] = "unavailable (fetch error)"
+                try:
+                    mark_unavailable(series_id, str(e))
+                    fred_results[series_id] = "unavailable (fetch error)"
+                except RuntimeError as mark_err:
+                    raise RuntimeError(
+                        f"[ECONOMIC] {series_id} fetch failed and unable to mark unavailable: {mark_err}"
+                    ) from mark_err
 
     # Fetch DXY data (now from FRED instead of yfinance)
     logger.info("[ECONOMIC] Fetching USD Dollar Index proxy from FRED...")
@@ -310,8 +325,13 @@ def load() -> dict[str, Any]:
         dxy_result = f"{inserted} records (proxy: FRED DEXUSEU)"
     except RuntimeError as e:
         logger.error(f"[ECONOMIC/DXY] Failed: {e}")
-        mark_unavailable("DXY_ICE", str(e))
-        dxy_result = "unavailable (fetch error)"
+        try:
+            mark_unavailable("DXY_ICE", str(e))
+            dxy_result = "unavailable (fetch error)"
+        except RuntimeError as mark_err:
+            raise RuntimeError(
+                f"[ECONOMIC] DXY fetch failed and unable to mark unavailable: {mark_err}"
+            ) from mark_err
 
     logger.info(f"[ECONOMIC] Load complete: {total_inserted} total records inserted")
     return {
