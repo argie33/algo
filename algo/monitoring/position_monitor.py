@@ -909,7 +909,7 @@ class PositionMonitor:
 
         cur.execute(
             """
-            SELECT current_rank, date FROM sector_ranking
+            SELECT current_rank, rank_4w_ago FROM sector_ranking
             WHERE sector_name = %s
               AND date <= %s
             ORDER BY date DESC LIMIT 1
@@ -925,33 +925,17 @@ class PositionMonitor:
                 f"Add sector to sector_ranking table or exclude from portfolio."
             )
         cur_rank = int(cur_row[0])
+        old_rank = cur_row[1]
 
-        # Get rank from ~4 weeks ago for comparison
-        four_weeks_ago = current_date - timedelta(days=28)
-        cur.execute(
-            """
-            SELECT current_rank FROM sector_ranking
-            WHERE sector_name = %s
-              AND date >= %s
-              AND date <= %s
-            ORDER BY date ASC LIMIT 1
-            """,
-            (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
-        )
-        old_row = cur.fetchone()
-        if not old_row or old_row[0] is None:
-            # FAIL-FAST: Cannot assess sector trend without 4-week historical baseline
-            # Sector trend analysis is CRITICAL for risk management - positions must not
-            # continue trading if we can't determine whether sector is weakening.
-            # Silently returning "neutral" masks data quality issues and violates fail-fast principle.
+        if old_rank is None:
             raise ValueError(
                 f"[POSITION_MONITOR CRITICAL] Cannot assess sector trend for {symbol} ({sector}) "
-                f"- missing 4-week historical baseline. "
-                f"Sector ranking history required to determine trend direction. "
+                f"- missing 4-week historical baseline (rank_4w_ago is NULL). "
+                f"Sector ranking loader has not calculated 4-week baseline. "
                 f"This is NOT optional data - trending sectors must be actively monitored. "
-                f"Verify sector_ranking table has data for '{sector}' spanning 28+ days back."
+                f"Verify sector_ranking loader is populating rank_4w_ago column."
             )
-        old_rank = int(old_row[0])
+        old_rank = int(old_rank)
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"
         if cur_rank < old_rank - 3:
