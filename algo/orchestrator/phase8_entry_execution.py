@@ -946,12 +946,15 @@ def run(
                 (run_date,),
             )
             result = cur.fetchone()
-            if result and result[0] is not None:
+            if result and result[0] is not None and result[1] == run_date:
                 portfolio_value = Decimal(str(result[0]))
                 portfolio_value_source = "database_snapshot"
                 logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from database snapshot)")
             else:
-                raise ValueError("No portfolio snapshot available for today")
+                if result and result[1] != run_date:
+                    raise ValueError(f"Portfolio snapshot date {result[1]} does not match run_date {run_date}")
+                else:
+                    raise ValueError("No portfolio snapshot available for today")
     except Exception as db_err:
         logger.warning(f"[PHASE 8] Database snapshot unavailable: {db_err}. Trying Alpaca API...")
 
@@ -1198,9 +1201,17 @@ def run(
         # No graceful degradation for paper mode - using synthetic defaults masks
         # data quality issues and causes wrong position sizing. Backtests/paper runs
         # must reveal data gaps before live trading.
-        if sma_50 is None or atr_14 is None or close is None:
+        missing_fields = []
+        if sma_50 is None:
+            missing_fields.append("SMA_50")
+        if atr_14 is None:
+            missing_fields.append("ATR_14")
+        if close is None:
+            missing_fields.append("close")
+
+        if missing_fields:
             raise RuntimeError(
-                f"[PHASE 8] {sym}: Required technical data missing. "
+                f"[PHASE 8] {sym}: Required technical data missing (fields: {', '.join(missing_fields)}). "
                 f"SMA_50={sma_50}, ATR_14={atr_14}, close={close}. "
                 f"Cannot execute trade without complete technical indicators (trading mode={execution_mode})."
             )

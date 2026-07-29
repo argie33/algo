@@ -463,17 +463,30 @@ def _get_candidates_from_buysell(
             momentum_score = float(r[4]) if r[4] is not None else None
             rs_percentile = float(r[5]) if r[5] is not None else None
 
-            # CRITICAL: Core signal quality metrics should be present
-            # If >2 of these are missing, signal is incomplete
+            # CRITICAL: Most core signal quality metrics should be present
+            # If >2 of these are missing (only 1-2 available), signal quality is severely degraded
+            # Incomplete signals indicate upstream data quality issues (stock_scores incomplete)
             missing_scores = sum(
                 [quality_score is None, growth_score is None, momentum_score is None, rs_percentile is None]
             )
             if missing_scores > 2:
+                error_msg = (
+                    f"[PHASE 7 CRITICAL] {symbol}: Signal generated with severely incomplete scoring data. "
+                    f"Missing {missing_scores}/4 component scores (only {4-missing_scores} available): "
+                    f"quality={quality_score}, growth={growth_score}, momentum={momentum_score}, rs={rs_percentile}. "
+                    f"Fail-fast: cannot trade on signals with <50% scoring quality assessment. "
+                    f"Indicates stock_scores loader is incomplete for this symbol. "
+                    f"Check: (1) stock_scores coverage for {symbol}, "
+                    f"(2) quality_metrics/growth_metrics/momentum_metrics/positioning_metrics loaders, "
+                    f"(3) data_completeness threshold in signal query."
+                )
+                logger.critical(error_msg)
+                raise ValueError(error_msg)
+            elif missing_scores > 0:
                 logger.warning(
-                    f"[SIGNAL_QUALITY] {symbol}: Signal generated with incomplete scoring "
-                    f"({missing_scores}/4 component scores missing). "
-                    f"quality={quality_score}, growth={growth_score}, "
-                    f"momentum={momentum_score}, rs={rs_percentile}. "
+                    f"[PHASE 7] {symbol}: Signal generated with incomplete scoring data "
+                    f"(missing {missing_scores}/4 components). "
+                    f"quality={quality_score}, growth={growth_score}, momentum={momentum_score}, rs={rs_percentile}. "
                     f"Position sizing should account for reduced signal quality."
                 )
 
@@ -542,9 +555,9 @@ def _get_candidates_from_buysell(
                         # yesterday, so query technical data from yesterday's date.
                         signal_date = candidate.get("signal_date")
                         if not signal_date:
-                            logger.debug(
-                                f"[PHASE 7 INLINE SCORER] {symbol}: signal_date missing or None - "
-                                f"cannot compute signal_quality_score"
+                            logger.info(
+                                f"[PHASE 7] {symbol}: signal_date missing or None - "
+                                f"cannot compute signal_quality_score (skipping this candidate)"
                             )
                             candidate["signal_quality_score"] = None
                             candidate["trend_template_score"] = None
@@ -563,9 +576,10 @@ def _get_candidates_from_buysell(
                         tech_row = cur_sqs.fetchone()
 
                         if not tech_row:
-                            logger.debug(
-                                f"[PHASE 7 INLINE SCORER] {symbol}: No technical data found for date {signal_date} - "
-                                f"cannot compute signal_quality_score (RSI, MACD, Minervini/Weinstein data missing)"
+                            logger.info(
+                                f"[PHASE 7] {symbol}: No technical data found for date {signal_date} - "
+                                f"cannot compute signal_quality_score (skipping this candidate) "
+                                f"(RSI, MACD, Minervini/Weinstein data missing)"
                             )
                             candidate["signal_quality_score"] = None
                             candidate["trend_template_score"] = None

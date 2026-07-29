@@ -66,6 +66,14 @@ def run(
                 "Cannot determine trading mode (live vs paper). "
                 "Set explicit execution_mode in algo_config table."
             )
+        # Validate execution_mode is one of the allowed values (fail-fast on invalid config)
+        allowed_modes = ("paper", "auto", "dry", "review")
+        if execution_mode_check not in allowed_modes:
+            raise ValueError(
+                f"[PHASE 6 CRITICAL] execution_mode '{execution_mode_check}' is invalid. "
+                f"Must be one of: {', '.join(allowed_modes)}. "
+                f"Check algo_config table for typos or invalid values."
+            )
         # CRITICAL FIX: Require explicit config - fail-fast if missing
         # No silent fallback to False (which would attempt live trading)
         if "alpaca_paper_trading" not in config:

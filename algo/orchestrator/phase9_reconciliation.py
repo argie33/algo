@@ -588,14 +588,18 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
                 perf_summary = f"incomplete: {', '.join(missing)}"
             elif perf_report.get("status") == "warning":
                 perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy} - {perf_report.get('warning', 'see logs')}"
-                # CRITICAL: If execution_mode is "auto" (real money), halt if Sharpe is below configured minimum
+                # CRITICAL: Only halt if ACTUALLY in live trading (execution_mode="auto" AND alpaca_paper_trading=False)
+                # If alpaca_paper_trading=True, we're using Alpaca's PAPER endpoint, not real money
                 execution_mode = config.get("execution_mode")
+                alpaca_paper_trading = config.get("alpaca_paper_trading", True)
                 min_sharpe_val = config.get("min_live_sharpe_ratio")
                 min_sharpe = float(min_sharpe_val) if min_sharpe_val is not None else 0.0
-                if execution_mode == "auto" and sharpe is not None and sharpe < min_sharpe:
+
+                is_live_trading = execution_mode == "auto" and not alpaca_paper_trading
+                if is_live_trading and sharpe is not None and sharpe < min_sharpe:
                     error_msg = (
                         f"[PHASE 9 CRITICAL] Live Sharpe ratio ({sharpe:.2f}) is below minimum threshold ({min_sharpe:.2f}) "
-                        f"in LIVE TRADING MODE (execution_mode=auto). Cannot proceed with real money trading. "
+                        f"in LIVE TRADING MODE (execution_mode=auto, alpaca_paper_trading=False). Cannot proceed with real money trading. "
                         f"Fix: (1) Review backtest for overfitting, (2) Verify signal quality, "
                         f"(3) Wait for larger sample size (need 100+ trades), "
                         f"(4) Check if market regime changed. "

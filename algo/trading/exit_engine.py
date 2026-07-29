@@ -524,6 +524,11 @@ class ExitEngine:
 
         with DatabaseContext("write") as cur:
             try:
+                # Initialize error counters FIRST, before any code that might raise
+                exits_executed = 0
+                stop_raises_executed = 0
+                trade_errors = 0
+
                 # CRITICAL FIX Session 391: Use SERIALIZABLE isolation to prevent phantom reads
                 # between FOR UPDATE lock and position update. This ensures consistency
                 # when position data is read in multiple places (exit_engine, exit_handler, position_tracker)
@@ -585,10 +590,6 @@ class ExitEngine:
                     )
                     raise DatabaseError(f"Exit engine initialization failed: {_init_err}") from _init_err
 
-                exits_executed = 0
-                stop_raises_executed = 0
-                trade_errors = 0
-
                 for _idx, row in enumerate(trades):
                     (
                         trade_id,
@@ -625,9 +626,17 @@ class ExitEngine:
                         status_row = cur.fetchone()
 
                         if not status_row:
-                            logger.warning(f"Position {symbol} ({_position_id}) not found during exit check - skipping")
-                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                            continue
+                            logger.critical(
+                                f"[EXIT_ENGINE CRITICAL] {symbol} ({_position_id}): Position loaded in initial query "
+                                f"but NOT FOUND in status recheck during exit evaluation. This indicates DATA INTEGRITY FAILURE "
+                                f"(position missing from database during transaction, or position_id corrupted). "
+                                f"Cannot proceed with exit evaluation - halting to prevent silent data loss."
+                            )
+                            raise RuntimeError(
+                                f"Position data integrity failure for {symbol} ({_position_id}): "
+                                f"loaded initially but missing during exit check. Database corruption or concurrent deletion suspected. "
+                                f"Exit engine MUST halt until data integrity verified."
+                            )
 
                         status, fresh_quantity, fresh_stop_price = status_row
 
@@ -885,18 +894,35 @@ class ExitEngine:
                         # Wrap it in try-except to ensure we log the error and continue to the next position,
                         # rather than propagating a "current transaction is aborted" error that would abort
                         # exit coverage for all remaining positions in this batch.
+                        transaction_aborted = False
                         try:
                             cur.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
                         except psycopg2.Error as _rollback_err:
-                            logger.error(
-                                f"[EXIT_ENGINE] Savepoint rollback failed for {symbol}: {type(_rollback_err).__name__}: {_rollback_err}. "
-                                f"This indicates a transaction error that should be investigated."
-                            )
+                            # Check if the transaction is aborted - if so, we MUST halt this run
+                            if "current transaction is aborted" in str(_rollback_err).lower():
+                                transaction_aborted = True
+                                logger.critical(
+                                    f"[EXIT_ENGINE CRITICAL] Transaction aborted for {symbol}: {type(_rollback_err).__name__}: {_rollback_err}. "
+                                    f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
+                                )
+                            else:
+                                logger.error(
+                                    f"[EXIT_ENGINE] Savepoint rollback failed for {symbol}: {type(_rollback_err).__name__}: {_rollback_err}. "
+                                    f"This indicates a transaction error that should be investigated."
+                                )
                         trade_errors += 1
                         logger.error(
                             f"Exit check failed for {symbol} (trade {trade_id}): "
                             f"{type(_trade_err).__name__}: {_trade_err}"
                         )
+
+                        # If transaction is aborted, we MUST halt immediately - subsequent positions would all fail
+                        if transaction_aborted:
+                            raise DatabaseError(
+                                f"[EXIT_ENGINE CRITICAL] Transaction aborted - cannot continue evaluating positions. "
+                                f"First abort occurred at symbol {symbol}. Halting exit engine."
+                            ) from _rollback_err
+
                         # Persist to an audit table, not just the logger - this process's stdout
                         # is gone the moment a scheduled/background run exits, and this is the
                         # only place a failed exit-check for an open position gets recorded.

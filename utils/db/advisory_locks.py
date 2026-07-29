@@ -64,7 +64,7 @@ def release_advisory_lock(cursor: Any, lock_id: int, table_name: str = "unknown"
         cursor.fetchone()
         logger.debug(f"[LOCK] Released advisory lock {lock_id} for {table_name}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"Failed to release advisory lock for {table_name}: {e}")
+        raise RuntimeError(f"Failed to release advisory lock for {table_name}: {e}") from e
 
 
 def with_advisory_lock(cursor: Any, lock_id: int, table_name: str, operation: Any) -> Any:
