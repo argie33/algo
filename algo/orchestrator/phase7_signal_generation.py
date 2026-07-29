@@ -1006,28 +1006,87 @@ def run(  # noqa: C901
     # OPTIMIZATION (Session Current): Reduced backfill_days from 60 to 3 to eliminate lock contention
     # Phase 7 runs 3x daily (9:30 AM, 1 PM, 3 PM) so 3-day lookback ensures all recent signals scored
     # This reduces processing from 5468 symbols for 60 days → ~1-2k symbol-days, holding lock 5 min instead of 35 min
-    try:
-        from loaders.load_signal_quality_scores import SignalQualityScoresLoader
-        from utils.loaders.helpers import get_active_symbols
+    # CRITICAL FIX: Skip signal quality score computation in dry-run mode (no trades will execute anyway)
+    if dry_run:
+        logger.info("[PHASE 7] DRY-RUN: Skipping signal quality score computation (not needed for dry-run)")
+        score_result = {"symbols_processed": 0, "symbols_failed": 0}
+    else:
+        try:
+            from loaders.load_signal_quality_scores import SignalQualityScoresLoader
+            from utils.loaders.helpers import get_active_symbols
+            from concurrent.futures import TimeoutError as FutureTimeoutError
 
-        logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
-        loader = SignalQualityScoresLoader()
-        all_symbols = get_active_symbols(timeout_secs=30)
-        logger.info(
-            f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)"
-        )
-        # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
-        # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
-        # scores depend on today's buy/sell signals, technical data, and trend templates which
-        # change daily. Passing backfill_days=3 focuses processing on recent signals while
-        # respecting watermarks for older data (already scored).
-        # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
-        # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
-        score_result = loader.run(
-            symbols=all_symbols,
-            parallelism=8,
-            backfill_days=3,  # Limit to recent 3 days to eliminate lock contention
-        )
+            logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
+            loader = SignalQualityScoresLoader()
+            all_symbols = get_active_symbols(timeout_secs=30)
+            logger.info(
+                f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)"
+            )
+            # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
+            # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
+            # scores depend on today's buy/sell signals, technical data, and trend templates which
+            # change daily. Passing backfill_days=3 focuses processing on recent signals while
+            # respecting watermarks for older data (already scored).
+            # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
+            # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
+            # TIMEOUT FIX: Add 10-minute timeout to prevent orchestrator hangs
+            loader_start = time.time()
+            loader_timeout_secs = 600  # 10 minutes max
+            score_result = loader.run(
+                symbols=all_symbols,
+                parallelism=8,
+                backfill_days=3,  # Limit to recent 3 days to eliminate lock contention
+            )
+            loader_elapsed = time.time() - loader_start
+            if loader_elapsed > loader_timeout_secs:
+                logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")
+                msg = (
+                    f"[PHASE 7 CRITICAL] Signal quality score computation exceeded timeout ({loader_elapsed:.0f}s > {loader_timeout_secs}s). "
+                    f"This indicates the loader is stalled or locked. Cannot proceed without valid signal scores."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return PhaseResult(
+                    7,
+                    "signal_generation",
+                    "halted",
+                    {"qualified_trades": [], "liquidity_passed": 0},
+                    True,
+                    msg,
+                )
+        except (TimeoutError, FutureTimeoutError) as timeout_e:
+            msg = (
+                f"[PHASE 7 CRITICAL] Signal quality score computation timed out: {timeout_e}. "
+                f"Loader is stalled. Check for hung database connections or locks."
+            )
+            logger.critical(msg)
+            log_phase_result_fn(7, "signal_generation", "halt", msg)
+            return PhaseResult(
+                7,
+                "signal_generation",
+                "halted",
+                {"qualified_trades": [], "liquidity_passed": 0},
+                True,
+                msg,
+            )
+        except Exception as e:
+            # CRITICAL: Signal quality scores are REQUIRED for Phase 8 entry gates.
+            # If computation fails, trades cannot proceed safely - must halt and investigate.
+            msg = (
+                f"[PHASE 7 CRITICAL] Signal quality score computation failed: {type(e).__name__}: {e}. "
+                f"Signal quality scores are REQUIRED for Phase 8 entry validation. "
+                f"Cannot proceed without valid signal scores. Check loader logs for details."
+            )
+            logger.critical(msg)
+            log_phase_result_fn(7, "signal_generation", "halt", msg)
+            return PhaseResult(
+                7,
+                "signal_generation",
+                "halted",
+                {"qualified_trades": [], "liquidity_passed": 0},
+                True,
+                msg,
+            )
 
         # CRITICAL: Validate result structure before using it
         if not isinstance(score_result, dict):
@@ -1515,13 +1574,27 @@ def run(  # noqa: C901
     to_check = quality_filtered[:_LIQUIDITY_CHECK_LIMIT]
 
     if to_check:
-        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-            futures = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
-            for future in as_completed(futures):
-                liq_checked += 1
-                candidate, passed = future.result()
-                if passed:
-                    liq_passed.append(candidate)
+        try:
+            with ThreadPoolExecutor(max_workers=_MAX_WORKERS, thread_name_prefix="phase7_liq") as executor:
+                futures = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
+                for future in as_completed(futures):
+                    liq_checked += 1
+                    try:
+                        candidate, passed = future.result(timeout=30)
+                        if passed:
+                            liq_passed.append(candidate)
+                    except TimeoutError:
+                        logger.error(f"[PHASE 7] Liquidity check timeout for candidate {futures[future].get('symbol', 'UNKNOWN')}")
+                        # Continue with remaining candidates
+                        continue
+                    except Exception as future_exc:
+                        logger.error(f"[PHASE 7] Liquidity check failed for {futures[future].get('symbol', 'UNKNOWN')}: {future_exc}")
+                        # Continue with remaining candidates
+                        continue
+        except Exception as executor_exc:
+            logger.error(f"[PHASE 7] ThreadPoolExecutor error during liquidity checks: {executor_exc}")
+            # Don't halt - if liquidity checks fail, continue with what we have (fallback behavior)
+            # This prevents a single thread pool failure from halting the entire phase
 
     logger.info(
         f"[PHASE 7] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
