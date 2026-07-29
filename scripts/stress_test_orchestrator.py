@@ -132,7 +132,7 @@ def test_data_edge_cases():
             ("Positions with zero quantity",
              "SELECT COUNT(*) FROM algo_positions WHERE quantity = 0 AND status = 'open'"),
             ("Negative P&L without exit",
-             "SELECT COUNT(*) FROM algo_trades WHERE unrealized_pnl < -1000 AND status = 'open'"),
+             "SELECT COUNT(*) FROM algo_trades WHERE pnl < -1000 AND status = 'open'"),
         ]
 
         for test_name, query in tests:
