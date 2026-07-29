@@ -928,12 +928,13 @@ class PositionMonitor:
         old_rank = cur_row[1]
 
         if old_rank is None:
-            logger.warning(
-                f"[POSITION_MONITOR] Sector trend unavailable for {symbol} ({sector}) "
-                f"- missing 4-week baseline. Returning neutral trend. "
-                f"Sector will be monitored using other health metrics."
+            raise ValueError(
+                f"Cannot assess sector trend for {symbol} ({sector}): "
+                f"missing 4-week historical baseline for sector ranking. "
+                f"Sector trend assessment requires historical data for proper position monitoring. "
+                f"Do not assume 'neutral' without data - this masks data quality issues. "
+                f"Ensure sector_ranking table has sufficient historical depth."
             )
-            return "neutral"
         old_rank = int(old_rank)
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"

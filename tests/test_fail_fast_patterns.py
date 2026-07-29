@@ -219,12 +219,11 @@ class TestPositionMonitorSectorTrendFailFast:
         # Mock database cursor for sector health check
         with patch("algo.monitoring.position_monitor.DatabaseContext") as mock_db_context:
             mock_cursor = MagicMock()
-            # First call: fetch current sector data (success)
-            # Second call: fetch 4-week ago sector data (missing)
+            # First call: fetch sector from company_profile
+            # Second call: fetch sector_ranking (current_rank=1, rank_4w_ago=None - MISSING HISTORY)
             mock_cursor.fetchone.side_effect = [
                 ("Technology",),  # company_profile sector lookup
-                (1, date(2026, 6, 28)),  # current_rank lookup (succeeds)
-                None,  # old_rank lookup (fails - returns None)
+                (1, None),  # sector_ranking lookup (current_rank=1, rank_4w_ago=None - missing history)
             ]
             mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
             mock_cursor.__exit__ = MagicMock(return_value=None)
