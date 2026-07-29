@@ -971,31 +971,14 @@ class PositionMonitor:
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
             )
         if row[0] is None:
-            # Fallback: if no data through current_date, use the most recent available price
-            # This handles intraday scenarios where EOD prices haven't loaded yet (price_daily data lags)
-            # For same-day position entries, we'll use the latest available price (which may be from yesterday)
-            logger.debug(f"[PRICE FALLBACK] {symbol}: no price data {trade_date}-{current_date}, using latest available...")
-            cur.execute(
-                """
-                SELECT close, data_unavailable, data_unavailable_reason
-                FROM price_daily
-                WHERE symbol = %s
-                AND close IS NOT NULL
-                ORDER BY date DESC
-                LIMIT 1
-                """,
-                (symbol,),
+            raise PositionValidationError(
+                f"[POSITION_MONITOR] Current price data missing for {symbol} on/before {current_date}. "
+                f"Cannot calculate peak unrealized gain with stale or missing prices. "
+                f"Position monitoring requires up-to-date price data - if using same-day entries, "
+                f"ensure price_daily has loaded for today's date before running position monitor. "
+                f"Fail-fast: Do not fall back to stale prices, which would mask peak gains and misidentify "
+                f"'giving back gains' exits on intraday price gaps."
             )
-            fallback_row = cur.fetchone()
-            if fallback_row and fallback_row[0] is not None:
-                logger.info(f"[PRICE FALLBACK SUCCESS] {symbol}: using latest available price (EOD data not yet loaded)")
-                # Convert single row to match the 3-column format expected by governance check below
-                row = (fallback_row[0], fallback_row[1], fallback_row[2])
-            else:
-                logger.critical(f"[PRICE FALLBACK FAILED] {symbol}: no price data available at all")
-                raise PositionValidationError(
-                    f"No price data available for {symbol} in database. Cannot calculate peak unrealized gain."
-                )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using prices
         max_close = float(row[0])
