@@ -562,13 +562,16 @@ def _get_candidates_from_buysell(
                         # yesterday, so query technical data from yesterday's date.
                         signal_date = candidate.get("signal_date")
                         if not signal_date:
-                            logger.info(
-                                f"[PHASE 7] {symbol}: signal_date missing or None - "
-                                f"cannot compute signal_quality_score (skipping this candidate)"
+                            # FAIL-FAST: signal_date is required to look up technical data
+                            # A signal without a date is a data quality issue - we don't know which day
+                            # to look up indicators from. This indicates buy_sell_daily has a NULL date,
+                            # which violates data integrity.
+                            raise ValueError(
+                                f"[PHASE 7 CRITICAL] {symbol}: signal_date missing or None. "
+                                f"Cannot determine which date's technical data to use for quality scoring. "
+                                f"This indicates buy_sell_daily has a NULL date field (data integrity issue). "
+                                f"Fail-fast: check buy_sell_daily loader and ensure all signals have valid dates."
                             )
-                            candidate["signal_quality_score"] = None
-                            candidate["trend_template_score"] = None
-                            continue
                         cur_sqs.execute(
                             """
                             SELECT
@@ -583,14 +586,20 @@ def _get_candidates_from_buysell(
                         tech_row = cur_sqs.fetchone()
 
                         if not tech_row:
-                            logger.info(
-                                f"[PHASE 7] {symbol}: No technical data found for date {signal_date} - "
-                                f"cannot compute signal_quality_score (skipping this candidate) "
-                                f"(RSI, MACD, Minervini/Weinstein data missing)"
+                            # FAIL-FAST: Technical data for signal_date is required for quality scoring
+                            # If a signal exists for signal_date but technical_data_daily is missing,
+                            # this indicates a loader order issue (signals generated before technical data loaded)
+                            # or a data gap. Either way, we cannot reliably score the signal.
+                            raise ValueError(
+                                f"[PHASE 7 CRITICAL] {symbol}: No technical data found for signal_date {signal_date}. "
+                                f"Cannot compute signal quality score without RSI, MACD, and trend template data. "
+                                f"This indicates: (1) technical_data_daily loader incomplete for {signal_date}, "
+                                f"(2) loader order issue (signals generated before technical data), or "
+                                f"(3) signal date out of sync with technical data. "
+                                f"Check: (1) technical_data_daily loader status for {signal_date}, "
+                                f"(2) signal_date field in buy_sell_daily for {symbol}, "
+                                f"(3) Phase 7 run timing vs technical loader completion."
                             )
-                            candidate["signal_quality_score"] = None
-                            candidate["trend_template_score"] = None
-                            continue
 
                         rsi, macd, macd_signal, minervini, weinstein = tech_row
 
