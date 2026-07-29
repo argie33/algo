@@ -53,28 +53,28 @@ def test_fetch_recent_prices_alpaca_404_fallback_today(mock_config):
             assert prev_close == 99.75
 
 
-def test_fetch_recent_prices_no_today_data_fallback_historical(mock_config):
-    """Test that when today's data is missing, we use most recent available price."""
+def test_fetch_recent_prices_no_today_data_fails_fast(mock_config):
+    """Test that when today's data is missing, we fail-fast instead of using stale data.
+
+    FAIL-FAST PRINCIPLE: Exit decisions require current market data, not stale historical prices.
+    Using stale data masks data availability issues and risks incorrect exit execution.
+    """
     with patch('algo.trading.exit_engine.TradeExecutor'):
         engine = ExitEngine(mock_config)
 
         mock_cur = MagicMock()
 
         with patch.object(engine, '_fetch_alpaca_quote', return_value=None):
-            # First query (looking for data <= today) returns nothing
-            # Second query (looking for most recent ANY date) returns historical data
-            mock_cur.fetchall.side_effect = [
-                [],  # No prices for today or earlier
-                [
-                    (date(2026, 7, 19), Decimal('98.50')),  # most recent available
-                    (date(2026, 7, 18), Decimal('97.75')),
-                ]
-            ]
+            # No prices available on/before today
+            mock_cur.fetchall.return_value = []
 
-            current_price, prev_close = engine._fetch_recent_prices(mock_cur, 'ILLIQUID', date(2026, 7, 21))
+            with pytest.raises(RuntimeError) as exc_info:
+                engine._fetch_recent_prices(mock_cur, 'ILLIQUID', date(2026, 7, 21))
 
-            assert current_price == 98.5
-            assert prev_close == 97.75
+            # Verify error message explains why we can't fall back
+            error_msg = str(exc_info.value)
+            assert "current market data required" in error_msg
+            assert "fail-fast" in error_msg.lower()
 
 
 def test_fetch_recent_prices_no_data_at_all_raises(mock_config):
@@ -85,38 +85,37 @@ def test_fetch_recent_prices_no_data_at_all_raises(mock_config):
         mock_cur = MagicMock()
 
         with patch.object(engine, '_fetch_alpaca_quote', return_value=None):
-            # Both queries return empty
-            mock_cur.fetchall.side_effect = [
-                [],  # No data today
-                [],  # No data ever
-            ]
+            # No data available
+            mock_cur.fetchall.return_value = []
 
             with pytest.raises(RuntimeError) as exc_info:
                 engine._fetch_recent_prices(mock_cur, 'DELISTED', date(2026, 7, 21))
 
-            assert "No price history available" in str(exc_info.value)
+            error_msg = str(exc_info.value)
+            assert "No price data available" in error_msg
+            assert "delisted" in error_msg.lower() or "data gap" in error_msg.lower()
 
 
 def test_fetch_recent_prices_single_price_point_raises(mock_config):
-    """Test that we need at least 2 prices (current and previous close)."""
+    """Test that we need current data (on/before today), not historical prices.
+
+    Even with price history available, we require data on or before the current date.
+    Using old data corrupts exit decisions.
+    """
     with patch('algo.trading.exit_engine.TradeExecutor'):
         engine = ExitEngine(mock_config)
 
         mock_cur = MagicMock()
 
         with patch.object(engine, '_fetch_alpaca_quote', return_value=None):
-            # Only one price point
-            mock_cur.fetchall.side_effect = [
-                [],  # No prices today
-                [
-                    (date(2026, 7, 19), Decimal('98.50')),  # only one price
-                ]
-            ]
+            # No prices on/before today (only historical)
+            mock_cur.fetchall.return_value = []
 
             with pytest.raises(RuntimeError) as exc_info:
                 engine._fetch_recent_prices(mock_cur, 'NEWSTOCK', date(2026, 7, 21))
 
-            assert "Insufficient price history" in str(exc_info.value)
+            error_msg = str(exc_info.value)
+            assert "No price data available on/before" in error_msg or "current market data required" in error_msg
 
 
 if __name__ == "__main__":

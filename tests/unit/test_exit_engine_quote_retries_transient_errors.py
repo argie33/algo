@@ -89,7 +89,13 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
 
         assert mock_get.call_count == 3
 
-    def test_404_does_not_retry(self, mock_config):
+    def test_404_fails_fast_unavailable_symbol(self, mock_config):
+        """Test that 404 response fails fast - symbol unavailable at broker.
+
+        FAIL-FAST PRINCIPLE: If the broker doesn't have the symbol (404),
+        we cannot exit the position at the broker level. This is a critical
+        condition that must be surfaced immediately, not retried.
+        """
         engine = _engine(mock_config)
         not_found = MagicMock(status_code=404, text="not found")
 
@@ -101,10 +107,14 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
             patch("algo.trading.exit_engine.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
             patch("algo.trading.exit_engine.requests.get", return_value=not_found) as mock_get,
         ):
-            price = engine._fetch_alpaca_quote("AAPL")
+            with pytest.raises(RuntimeError) as exc_info:
+                engine._fetch_alpaca_quote("AAPL")
 
-        assert price is None
+        # Should fail fast without retrying (only 1 call to requests.get)
         assert mock_get.call_count == 1
+        # Error should explain that the symbol is unavailable
+        error_msg = str(exc_info.value)
+        assert "404" in error_msg or "unavailable" in error_msg.lower()
 
     def test_timeout_then_success_retries_and_returns_midpoint(self, mock_config):
         # Narrower gap found the same day as the 429/503 fix above: the retry loop only
