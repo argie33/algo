@@ -949,13 +949,23 @@ class ExitEngine:
                         except Exception as _audit_err:
                             try:
                                 cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
-                            except psycopg2.Error:
-                                # Audit savepoint rollback also failed - the transaction is likely aborted.
-                                # Continue to next position without trying further rollbacks.
-                                logger.critical(
-                                    f"[AUDIT] Transaction state is unrecoverable - cannot write audit for {symbol}. "
-                                    f"Transaction may be aborted. Continuing with next position."
-                                )
+                            except psycopg2.Error as _audit_rollback_err:
+                                # Check if transaction is aborted - if so, HALT immediately
+                                if "current transaction is aborted" in str(_audit_rollback_err).lower():
+                                    logger.critical(
+                                        f"[AUDIT] Transaction aborted while writing audit for {symbol}: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
+                                        f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
+                                    )
+                                    raise DatabaseError(
+                                        f"[EXIT_ENGINE CRITICAL] Transaction aborted during audit error handling for {symbol}. "
+                                        f"Halting exit engine to prevent cascading failures."
+                                    ) from _audit_rollback_err
+                                else:
+                                    # Audit savepoint rollback failed for non-abort reason
+                                    logger.critical(
+                                        f"[AUDIT] Transaction state is unrecoverable (non-abort error) - cannot write audit for {symbol}. "
+                                        f"Error: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}"
+                                    )
                             else:
                                 logger.critical(
                                     f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
