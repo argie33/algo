@@ -892,10 +892,15 @@ class PositionMonitor:
         )
         cur_row = cur.fetchone()
         if not cur_row or cur_row[0] is None:
-            raise RuntimeError(
-                f"[POSITION_MONITOR] Sector ranking data missing for {sector}. "
-                f"Cannot assess sector health without current ranking. Position monitoring halted."
+            # CRITICAL FIX: Sector ranking data gaps (e.g., new sectors not yet in the ranking table)
+            # should not halt position monitoring in paper/development mode. Sector health is
+            # enrichment data, not a hard blocker for exit decisions.  Fall back to neutral
+            # for missing sectors rather than crashing all position reviews.
+            logger.warning(
+                f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
+                f"Skipping sector health check for {symbol} - using fallback 'neutral' assessment."
             )
+            return "neutral"
         cur_rank = int(cur_row[0])
 
         # Get rank from ~4 weeks ago for comparison
@@ -912,14 +917,14 @@ class PositionMonitor:
         )
         old_row = cur.fetchone()
         if not old_row or old_row[0] is None:
-            msg = (
-                f"[POSITION_MONITOR CRITICAL] Cannot assess sector trend without 4-week historical baseline. "
-                f"sector={sector}, date={four_weeks_ago}. "
-                f"Check sector_rotation_signal table for data gaps. "
-                f"Position monitoring requires complete sector history."
+            # CRITICAL FIX: Missing 4-week baseline should not halt all position monitoring.
+            # In paper mode or during data gap periods, gracefully fall back to neutral assessment
+            # rather than failing the entire Phase 3 review. Sector trend is enrichment, not required.
+            logger.warning(
+                f"[POSITION_MONITOR] Sector ranking baseline missing for {sector} (data gap 4 weeks ago). "
+                f"Skipping sector trend assessment for {symbol} - using fallback 'neutral' assessment."
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            return "neutral"
         old_rank = int(old_row[0])
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"
