@@ -37,6 +37,7 @@ class RDSLockManager:
         self.acquired = False
         self.is_available = True
         self.lock_key = "orchestrator-run-lock"
+        self.acquired_lock_id = None  # Track the actual lock_id stored in database
 
         try:
             # Test RDS connectivity
@@ -61,6 +62,13 @@ class RDSLockManager:
         start_time = time.time()
         attempt = 0
         self.lock_key = lock_key
+
+        # CRITICAL: Clean up any expired locks for this key BEFORE trying to acquire
+        # This prevents stale locks from crashed processes blocking acquisition indefinitely
+        try:
+            self.cleanup_expired_locks(lock_key=lock_key, max_age_seconds=self.lock_duration_seconds)
+        except Exception as e:
+            logger.warning(f"[RDS_LOCK] Failed to cleanup stale locks for {lock_key}: {e}. Proceeding anyway.")
 
         while time.time() - start_time < timeout_seconds:
             attempt += 1
@@ -108,6 +116,7 @@ class RDSLockManager:
                     result = cur.fetchone()
                     if result and result[0] == self.lock_id:
                         self.acquired = True
+                        self.acquired_lock_id = result[0]  # Save actual lock_id for later verification
                         logger.info(f"[RDS_LOCK] Acquired lock {lock_key} on attempt {attempt}")
                         return True
 
@@ -166,31 +175,36 @@ class RDSLockManager:
                 )
                 existing = cur.fetchall()
 
+                # Use acquired_lock_id if available (the actual ID stored when we acquired)
+                # Otherwise fall back to self.lock_id (for backward compatibility with manually created locks)
+                delete_lock_id = self.acquired_lock_id if self.acquired_lock_id else self.lock_id
+
                 cur.execute(
                     """
                     DELETE FROM loader_execution_locks
                     WHERE loader_name = %s AND locked_by = %s
                     """,
-                    (lock_key, self.lock_id),
+                    (lock_key, delete_lock_id),
                 )
                 deleted = cur.rowcount
                 self.acquired = False
                 if deleted == 0:
                     # Log what was in the database for debugging
                     if existing:
-                        logger.debug(f"[RDS_LOCK] DEBUG: Existing locks for {lock_key}: {existing}")
+                        existing_lock_id = existing[0][1] if existing and len(existing[0]) > 1 else "unknown"
+                        logger.error(
+                            f"[RDS_LOCK] Release for {lock_key} affected 0 rows. "
+                            f"Expected locked_by={delete_lock_id}, but database has locked_by={existing_lock_id}. "
+                            f"This indicates: (1) we acquired a different process's lock, or (2) another instance "
+                            f"overwrote our lock, or (3) the lock was manually deleted. Lock will remain until TTL expires."
+                        )
                     else:
-                        logger.debug(f"[RDS_LOCK] DEBUG: No locks found for {lock_key}")
+                        logger.error(
+                            f"[RDS_LOCK] Release for {lock_key} found no locks (affected 0 rows). "
+                            f"Lock may have already expired or been deleted by another process."
+                        )
                     # CRITICAL: a 0-row delete means this instance did NOT actually free the
-                    # lock it thinks it holds (wrong lock_key, already expired and reclaimed
-                    # by someone else, etc.) - the real row (if any) stays held until its TTL
-                    # expires. Surface this loudly instead of logging a false "Released".
-                    logger.error(
-                        f"[RDS_LOCK] Release for {lock_key} affected 0 rows - lock was NOT "
-                        f"actually released (wrong lock_key, already expired, or already "
-                        f"released). It will remain held by locked_by={self.lock_id} until "
-                        f"its TTL expires."
-                    )
+                    # lock it thinks it holds. Surface this loudly instead of logging a false "Released".
                     return False
                 logger.info(f"[RDS_LOCK] Released lock {lock_key}")
                 return True
