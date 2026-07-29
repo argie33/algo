@@ -71,12 +71,14 @@ class RDSLockManager:
                 with DatabaseContext("write") as cur:
                     # Try to acquire lock atomically
                     # First, delete any expired locks for this key
-                    # CRITICAL: expires_at is stored as timestamp WITH timezone (converted to EDT).
-                    # Comparing to NOW() AT TIME ZONE 'UTC' returns timestamp WITHOUT timezone,
-                    # which PostgreSQL interprets as local time - causing false matches.
-                    # Cast both sides to UTC for correct comparison: expires_at::timestamptz AT TIME ZONE 'UTC' < NOW() AT TIME ZONE 'UTC'
+                    # CRITICAL: expires_at is `timestamp with time zone`, stored in server's local timezone (EDT).
+                    # When comparing against NOW(), must ensure both sides are in same timezone representation.
+                    # NOW() returns `timestamp with time zone` in server local time (EDT).
+                    # expires_at is already `timestamp with time zone` (stored in EDT), so compare directly:
+                    # If expires_at (EDT) < NOW() (EDT), then lock is expired. This works because both are
+                    # `timestamp with time zone` and PostgreSQL compares them correctly.
                     cur.execute(
-                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND (expires_at AT TIME ZONE 'UTC') < (NOW() AT TIME ZONE 'UTC')",
+                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < NOW()",
                         (lock_key,),
                     )
 
@@ -157,6 +159,13 @@ class RDSLockManager:
 
         try:
             with DatabaseContext("write") as cur:
+                # DEBUG: Check what locks exist before attempting delete
+                cur.execute(
+                    "SELECT loader_name, locked_by, expires_at FROM loader_execution_locks WHERE loader_name = %s",
+                    (lock_key,),
+                )
+                existing = cur.fetchall()
+
                 cur.execute(
                     """
                     DELETE FROM loader_execution_locks
@@ -167,6 +176,11 @@ class RDSLockManager:
                 deleted = cur.rowcount
                 self.acquired = False
                 if deleted == 0:
+                    # Log what was in the database for debugging
+                    if existing:
+                        logger.debug(f"[RDS_LOCK] DEBUG: Existing locks for {lock_key}: {existing}")
+                    else:
+                        logger.debug(f"[RDS_LOCK] DEBUG: No locks found for {lock_key}")
                     # CRITICAL: a 0-row delete means this instance did NOT actually free the
                     # lock it thinks it holds (wrong lock_key, already expired and reclaimed
                     # by someone else, etc.) - the real row (if any) stays held until its TTL
