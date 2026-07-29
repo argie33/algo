@@ -8,9 +8,11 @@ rows flagged put_call_ratio_data_unavailable=True. 8 historical rows (2026-07-02
 left over from a failed fetch, even though data_unavailable=True correctly flagged them as
 bad (confirmed live in the dev DB and cleaned up in the same fix). Any eval_date landing on
 or after one of those dates with no later real reading (e.g. a backtest evaluating
-2026-07-14) would silently score real position-sizing input off that fabricated value
-instead of raising the documented fail-fast error. This test locks in that the query now
-excludes data_unavailable rows even when the ratio column itself is non-NULL.
+2026-07-14) would silently score real position-sizing input off that fabricated value.
+
+Fixed: put_call_ratio is optional enrichment (Session 291+). Now returns explicit
+data_unavailable marker instead of raising RuntimeError. The query still excludes
+data_unavailable rows even when ratio column is non-NULL (preventing fabricated values).
 """
 
 from datetime import date
@@ -58,12 +60,15 @@ def _corrupted_table():
 
 
 class TestPutCallRatioExcludesUnavailableRows:
-    def test_raises_instead_of_using_fabricated_value_from_flagged_row(self):
+    def test_returns_data_unavailable_marker_instead_of_using_fabricated_value_from_flagged_row(self):
         calc = MarketFactorCalculator()
         cur = _FakeCursor(_corrupted_table())
 
-        with pytest.raises(RuntimeError, match="No put/call ratio data available"):
-            calc.put_call_ratio(date(2026, 7, 14), cur)
+        result = calc.put_call_ratio(date(2026, 7, 14), cur)
+
+        # Put/call ratio is optional enrichment - returns explicit unavailable marker instead of raising
+        assert result.get("data_unavailable") is True
+        assert "reason" in result
 
     def test_uses_real_value_when_a_valid_row_exists(self):
         calc = MarketFactorCalculator()

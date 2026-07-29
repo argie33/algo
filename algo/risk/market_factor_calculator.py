@@ -382,11 +382,11 @@ class MarketFactorCalculator:
             ) from e
 
     def put_call_ratio(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator, 8pt factor).
+        """Put/call ratio (contrarian indicator, 8pt factor - OPTIONAL enrichment).
 
-        Raises RuntimeError if data unavailable - Put/call ratio is a critical 8pt factor.
-        Missing options sentiment data is a data error, not a skip condition.
-        No graceful degradation allowed (violates GOVERNANCE fail-fast principle).
+        Returns explicit data_unavailable marker if data unavailable. Put/call ratio is
+        optional sentiment enrichment (Session 291+: yfinance removed, no official source).
+        Gracefully degrades with explicit marker, not RuntimeError.
         """
         try:
             # put_call_ratio_data_unavailable must be excluded explicitly, not inferred from
@@ -405,41 +405,34 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if not row:
-                # DEBUG: Check if there's ANY put_call_ratio data at all
-                cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE put_call_ratio IS NOT NULL")
-                total_count = cur.fetchone()[0]
-                cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE date <= %s", (eval_date,))
-                date_limited_count = cur.fetchone()[0]
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] No put/call ratio data available on or before {eval_date}. "
-                    f"Total rows with put_call_ratio: {total_count}, rows up to {eval_date}: {date_limited_count}. "
-                    f"Put/call ratio is a critical 8pt factor for market sentiment. "
-                    f"Check: (1) market_health_daily table freshness, (2) put_call_ratio column populated"
-                )
+                # Put/call ratio data unavailable - return explicit marker
+                # This is an expected, graceful degradation (optional enrichment)
+                return {
+                    "data_unavailable": True,
+                    "reason": f"Put/call ratio data unavailable on or before {eval_date} (optional sentiment enrichment)"
+                }
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
             pcr_val = row.get("put_call_ratio") if isinstance(row, dict) else row[0]
             if pcr_val is None:
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] put_call_ratio value is NULL for {eval_date}. "
-                    f"Data quality issue in market_health_daily - put_call_ratio column not populated properly."
-                )
+                return {
+                    "data_unavailable": True,
+                    "reason": "put_call_ratio value is NULL (data quality issue)"
+                }
 
             pcr = float(pcr_val)
             if not (0.2 <= pcr <= 3.0):
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] Put/call ratio {pcr} for {eval_date} is outside realistic 0.2-3.0 range. "
-                    f"Cannot use corrupted data for position sizing. Fix upstream data source."
-                )
+                return {
+                    "data_unavailable": True,
+                    "reason": f"Put/call ratio {pcr} outside realistic 0.2-3.0 range (data quality issue)"
+                }
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
-        except RuntimeError:
-            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as e:
-            raise RuntimeError(
-                f"[PUT_CALL CRITICAL] Put/call ratio query failed ({type(e).__name__}): {e}. "
-                f"Cannot proceed with position sizing without sentiment data."
-            ) from e
+            return {
+                "data_unavailable": True,
+                "reason": f"Query failed: {type(e).__name__}"
+            }
 
     def new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """52-week new highs vs new lows (critical).

@@ -496,8 +496,17 @@ class MarketExposure:
             # --- 7. Put/call ratio (options sentiment - contrarian, 8pt optional) ---
             # OPTIONAL enrichment (Session 291+): No official source for put/call data.
             # Yfinance removed. Factor gracefully skipped if unavailable (don't fail, just skip).
-            try:
-                pc = self.calculator.put_call_ratio(eval_date, cur)
+            pc = self.calculator.put_call_ratio(eval_date, cur)
+            if pc.get("data_unavailable"):
+                logger.info(f"[PUT_CALL_RATIO] Unavailable (optional factor skipped): {pc.get('reason')}")
+                avail_max += self.W_PUT_CALL
+                factors["put_call_ratio"] = {
+                    "data_unavailable": True,
+                    "reason": pc.get("reason", "unknown"),
+                    "pts": 0.0,
+                    "max": self.W_PUT_CALL,
+                }
+            else:
                 pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
                 avail_max += pc_avail
                 factors["put_call_ratio"] = {
@@ -510,15 +519,6 @@ class MarketExposure:
                     f"[PUT_CALL_RATIO] Value: {pc.get('value')}, Score: {pc.get('score'):.1f}, Points: {pc_pts:.1f}/{self.W_PUT_CALL}"
                 )
                 logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
-            except RuntimeError as e:
-                logger.info(f"[PUT_CALL_RATIO] Unavailable (optional factor skipped): {e}")
-                avail_max += self.W_PUT_CALL
-                factors["put_call_ratio"] = {
-                    "data_unavailable": True,
-                    "reason": str(e),
-                    "pts": 0.0,
-                    "max": self.W_PUT_CALL,
-                }
 
             # --- 8. New highs vs new lows ---
             nhnl = self.calculator.new_highs_lows(eval_date, cur)
