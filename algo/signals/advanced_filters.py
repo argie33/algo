@@ -283,32 +283,28 @@ class AdvancedFilters:
                 components["sector_strength"] = round(sec_pts, 1)
                 subscores["momentum"] += sec_pts
             except ValueError as e:
-                hard_fail = f"Sector momentum score unavailable: {str(e)[:40]}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Sector momentum score unavailable: {e}") from e
 
             try:
                 ind_pts = self._industry_momentum_score(industry)
                 components["industry_strength"] = round(ind_pts, 1)
                 subscores["momentum"] += ind_pts
             except ValueError as e:
-                hard_fail = f"Industry momentum score unavailable: {str(e)[:40]}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Industry momentum score unavailable: {e}") from e
 
             try:
                 vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date, cur)
                 components["volume_ratio"] = vol_ratio
                 subscores["momentum"] += vol_pts
             except ValueError as e:
-                hard_fail = f"Volume confirmation score unavailable: {str(e)[:40]}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Volume confirmation score unavailable: {e}") from e
 
             try:
                 trend_pts = self._price_trend_score(symbol, signal_date, cur)
                 components["price_trend_pts"] = round(trend_pts, 1)
                 subscores["momentum"] += trend_pts
             except ValueError as e:
-                hard_fail = f"Price trend score unavailable: {str(e)[:40]}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Price trend score unavailable: {e}") from e
 
             setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
             components["setup_quality"] = setup_breakdown
@@ -347,10 +343,7 @@ class AdvancedFilters:
                 components["insider_net_value"] = in_net
                 subscores["catalyst"] += in_pts
             except ValueError as e:
-                if not hard_fail:
-                    hard_fail = f"Insider data unavailable: {str(e)[:40]}"
-                else:
-                    logger.warning(f"  {symbol}: Additional failure (insider score) but already failed: {hard_fail}")
+                raise ValueError(f"Insider data unavailable: {e}") from e
 
             # RISK (15) - these are GOOD when low risk
             try:
@@ -359,22 +352,14 @@ class AdvancedFilters:
                     components["extension_pts"] = round(ext_pts, 1)
                     subscores["risk"] += ext_pts
             except ValueError as e:
-                if not hard_fail:
-                    hard_fail = f"Extension risk assessment failed: {str(e)[:40]}"
-                else:
-                    logger.warning(f"  {symbol}: Additional failure (extension risk) but already failed: {hard_fail}")
+                raise ValueError(f"Extension risk assessment failed: {e}") from e
 
             try:
                 ep_pts = self._earnings_proximity_score(days_to_earnings, self.block_days_before_earnings)
                 components["earnings_proximity_pts"] = round(ep_pts, 1)
                 subscores["risk"] += ep_pts
             except ValueError as e:
-                if not hard_fail:
-                    hard_fail = f"Earnings proximity assessment failed: {str(e)[:40]}"
-                else:
-                    logger.warning(
-                        f"  {symbol}: Additional failure (earnings proximity) but already failed: {hard_fail}"
-                    )
+                raise ValueError(f"Earnings proximity assessment failed: {e}") from e
 
             composite_score = min(100.0, sum(subscores.values()))
             return {
