@@ -646,3 +646,15 @@ def run(
             True,
             str(e),
         )
+    except Exception as e:
+        logger.critical(f"[PHASE 6] Unexpected error during exit execution: {type(e).__name__}: {str(e)[:200]}")
+        error_msg = f"{type(e).__name__}: {str(e)[:200]}"
+        log_phase_result_fn(6, "exit_execution", "error", error_msg)
+        return PhaseResult(
+            6,
+            "exit_execution",
+            "halted",
+            {"status": "halted", "reason": error_msg, "exits_executed": 0},
+            True,
+            error_msg,
+        )
