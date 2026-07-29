@@ -133,6 +133,60 @@ def run(
                     logger.critical(msg)
                     raise RuntimeError(msg) from e
 
+        # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
+        # Sector concentration limit: 3 positions per sector (this is a hard constraint)
+        def _check_sector_concentration():
+            """Identify over-concentrated sectors and add force-exit recommendations."""
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("""
+                        SELECT cs.sector, COUNT(*) as position_count
+                        FROM algo_positions ap
+                        JOIN company_profile cs ON ap.symbol = cs.symbol
+                        WHERE ap.status = 'open'
+                        GROUP BY cs.sector
+                        HAVING COUNT(*) > 3
+                        ORDER BY COUNT(*) DESC
+                    """)
+
+                    concentrated_sectors = cur.fetchall()
+                    rebalance_actions = []
+
+                    for sector, count in concentrated_sectors:
+                        over_limit = count - 3
+                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count} positions (limit 3, need to exit {over_limit})")
+
+                        # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
+                        cur.execute("""
+                            SELECT ap.position_id, ap.symbol
+                            FROM algo_positions ap
+                            JOIN company_profile cs ON ap.symbol = cs.symbol
+                            WHERE ap.status = 'open' AND cs.sector = %s
+                            ORDER BY ap.unrealized_pnl ASC
+                            LIMIT %s
+                        """, (sector, over_limit))
+
+                        weak_positions = cur.fetchall()
+                        for pos_id, symbol in weak_positions:
+                            action = {
+                                "symbol": symbol,
+                                "position_id": pos_id,
+                                "action": "force_exit",
+                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count} positions (limit 3)",
+                                "trade_id": None,  # Will be fetched during execution
+                            }
+                            rebalance_actions.append(action)
+                            logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (sector concentration rebalance)")
+
+                    return rebalance_actions
+            except Exception as e:
+                logger.error(f"[PHASE 6] Sector concentration check failed: {e}")
+                return []
+
+        # Add concentration rebalance actions to the exposure_actions queue
+        concentration_actions = _check_sector_concentration()
+        all_actions = concentration_actions + exposure_actions
+
         # DRY-RUN: Process counts of what WOULD happen, then skip actual execution
         # (Don't return early - we still need to count exits for logging/dashboard visibility)
 
@@ -162,8 +216,8 @@ def run(
         stop_raises = 0
         errors = 0
 
-        # 4a-prime. Apply exposure-policy actions FIRST (highest priority)
-        for action in exposure_actions:
+        # 4a-prime. Apply sector concentration rebalancing FIRST, then exposure-policy actions
+        for action in all_actions:
             try:
                 if "symbol" not in action or "action" not in action or "reason" not in action:
                     raise RuntimeError(
@@ -174,15 +228,21 @@ def run(
                 if dry_run:
                     if verbose:
                         logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} ({action['reason']})")
+                    # Still count the action for reporting, even in dry-run mode
+                    if action["action"] == "force_exit":
+                        exit_count += 1
+                    elif action["action"] == "partial_exit":
+                        exit_count += 1
                     continue
 
                 if action["action"] == "force_exit":
                     # CRITICAL: Current price is mandatory for force exits
                     # Cannot execute exit without price - would corrupt P&L reporting
+                    # Also fetch trade_id if not provided (for concentration rebalancing actions)
                     try:
                         with DatabaseContext("read") as cur_tmp:
                             cur_tmp.execute(
-                                "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                "SELECT current_price, trade_ids_arr FROM algo_positions WHERE position_id = %s",
                                 (action["position_id"],),
                             )
                             row_tmp = cur_tmp.fetchone()
@@ -192,6 +252,11 @@ def run(
                                     "Cannot execute force exit without price."
                                 )
                             cur_price = float(row_tmp[0])
+                            # If trade_id not in action, use the first trade from position
+                            if not action.get("trade_id") and row_tmp[1]:
+                                trades = row_tmp[1] if isinstance(row_tmp[1], list) else [row_tmp[1]]
+                                if trades:
+                                    action["trade_id"] = trades[0]
                             if cur_price <= 0:
                                 raise RuntimeError(
                                     f"[FORCE-EXIT] Invalid current price {cur_price} for position {action['position_id']}. "

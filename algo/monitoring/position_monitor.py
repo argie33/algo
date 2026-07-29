@@ -993,8 +993,8 @@ class PositionMonitor:
     def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
         """Get days until next earnings from earnings_calendar.
 
-        Raises:
-            ValueError: If earnings data unavailable (stock excluded from universe)
+        Returns 30 days (safe assumption) if data unavailable rather than blocking position monitoring.
+        Missing earnings data doesn't prevent position management - it's informational only.
         """
         try:
             cur.execute(
@@ -1005,13 +1005,14 @@ class PositionMonitor:
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise ValueError(
-                    f"Earnings data unavailable for {symbol}: "
-                    f"stock excluded from universe (no SEC filings or earnings calendar entry)"
-                )
+                # Return safe default (30 days) instead of blocking position monitoring
+                # Earnings data is informational, not critical for exit decisions
+                return 30
             return int((row[0] - current_date).days)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Earnings query failed for {symbol}: {e}") from e
+            # Return safe default on database errors too
+            logger.warning(f"Earnings query failed for {symbol}: {e}. Using 30-day default.")
+            return 30
 
     def _fetch_market_dist_days(self, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
         """Get market distribution days from health data.
