@@ -528,6 +528,7 @@ class ExitEngine:
                 exits_executed = 0
                 stop_raises_executed = 0
                 trade_errors = 0
+                forced_closes_no_price = 0
 
                 # CRITICAL FIX Session 391: Use SERIALIZABLE isolation to prevent phantom reads
                 # between FOR UPDATE lock and position update. This ensures consistency
@@ -788,7 +789,10 @@ class ExitEngine:
                                    WHERE symbol = %s AND status IN ({position_status_placeholders2})""",
                                 (symbol, *open_position_statuses_close2),
                             )
-                            exits_executed += 1
+                            # CRITICAL FIX: Track forced closes from missing price data separately
+                            # These are NOT real market exits (no price to exit at) - counting them
+                            # as exits_executed inflates metrics and masks data quality issues.
+                            forced_closes_no_price += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 
@@ -975,7 +979,7 @@ class ExitEngine:
 
                 logger.info(
                     f"Exits executed: {exits_executed}/{len(trades)} positions "
-                    f"({stop_raises_executed} stop-raises, {trade_errors} errors)"
+                    f"({stop_raises_executed} stop-raises, {trade_errors} errors, {forced_closes_no_price} forced_closes_no_price)"
                 )
 
                 logger.info(f"{'=' * 70}\n")
