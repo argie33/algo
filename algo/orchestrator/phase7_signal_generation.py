@@ -1137,29 +1137,6 @@ def run(  # noqa: C901
                 msg,
             )
 
-    except Exception as e:
-        # CRITICAL: Signal quality scores are REQUIRED for Phase 8 entry gates.
-        # If computation fails, trades cannot proceed safely - must halt and investigate.
-        msg = (
-            f"[PHASE 7 CRITICAL] Signal quality score computation failed: {type(e).__name__}: {e} "
-            f"Signal quality scores are REQUIRED for Phase 8 entry quality gates (min SQS >= 60). "
-            f"Without scores, trades cannot be validated and must not proceed. "
-            f"Check: (1) load_signal_quality_scores.py - loader implementation, "
-            f"(2) buy_sell_daily table - signal data completeness, "
-            f"(3) technical_data_daily - required for score calculation, "
-            f"(4) Database connection and transaction state."
-        )
-        logger.critical(msg)
-        log_phase_result_fn(7, "signal_generation", "halt", msg)
-        return PhaseResult(
-            7,
-            "signal_generation",
-            "halted",
-            {"qualified_trades": [], "liquidity_passed": 0},
-            True,
-            msg,
-        )
-
     # BACKFILL: Compute quality scores for older loader-created signals that don't have scores
     # This is separate from the batch loader above - it specifically targets orphaned signals
     # that were created by the EOD pipeline but never processed by Phase 7 (timing mismatch:
