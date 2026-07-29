@@ -134,27 +134,39 @@ def run(
                     raise RuntimeError(msg) from e
 
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
-        # Sector concentration limit: 3 positions per sector (this is a hard constraint)
+        # Sector concentration limit: configured via max_positions_per_sector (default 10)
+        # CRITICAL FIX: Previously hardcoded limit=3, now uses config value to prevent exits when config != 3
         def _check_sector_concentration():
             """Identify over-concentrated sectors and add force-exit recommendations."""
             try:
+                max_sector_val = config.get("max_positions_per_sector")
+                if max_sector_val is None:
+                    raise ValueError(
+                        "CRITICAL: max_positions_per_sector config missing. "
+                        "Cannot enforce sector concentration limits. Check algo_config table."
+                    )
+                max_per_sector = int(max_sector_val)
+
                 with DatabaseContext("read") as cur:
-                    cur.execute("""
+                    cur.execute(
+                        f"""
                         SELECT cs.sector, COUNT(*) as position_count
                         FROM algo_positions ap
                         JOIN company_profile cs ON ap.symbol = cs.symbol
                         WHERE ap.status = 'open'
                         GROUP BY cs.sector
-                        HAVING COUNT(*) > 3
+                        HAVING COUNT(*) > %s
                         ORDER BY COUNT(*) DESC
-                    """)
+                        """,
+                        (max_per_sector,),
+                    )
 
                     concentrated_sectors = cur.fetchall()
                     rebalance_actions = []
 
                     for sector, count in concentrated_sectors:
-                        over_limit = count - 3
-                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count} positions (limit 3, need to exit {over_limit})")
+                        over_limit = count - max_per_sector
+                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count} positions (limit {max_per_sector}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
                         cur.execute("""
