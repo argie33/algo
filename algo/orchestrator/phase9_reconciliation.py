@@ -6,7 +6,8 @@ import os
 import traceback
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 import psycopg2
@@ -950,7 +951,15 @@ def _record_closed_positions_exits(
     as the algo_positions close, so those positions must never reach this function's
     UPDATE, which assumes exactly one still-open (exit_date IS NULL) algo_trades row.
 
-    CRITICAL FIX: the SELECT below previously had no such filter - it picked up EVERY
+    CRITICAL FIX 2026-07-29: the SELECT was using algo_positions.current_price (a stale
+    market quote, not a confirmed broker fill). When current_price wasn't refreshed after
+    the position closed at the broker, it silently equaled entry_price, fabricating $0.00
+    P&L that hid real gains/losses and corrupted portfolio metrics. Now fetches actual
+    Alpaca fill prices for every closed order (reconcile_exit_fills pattern), and only
+    falls back to price_daily EOD closes if broker data unavailable. This ensures every
+    closed position's P&L is calculated from ACTUAL execution prices, not stale quotes.
+
+    CRITICAL FIX (earlier): the SELECT below previously had no such filter - it picked up EVERY
     position closed today regardless of whether algo_trades was already updated, so this
     function crashed on any position that had already closed correctly through the normal
     exit_engine path (the ordinary, everyday case for every stop-loss/target exit), not
@@ -960,17 +969,48 @@ def _record_closed_positions_exits(
     "0 rows affected", raising a false "data integrity issue" and halting all trading -
     on a day where every exit had in fact been recorded correctly.
     """
+    from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
+
     try:
+        # Fetch actual broker exit prices for any closed sells
+        broker_exit_prices = {}  # symbol -> {exit_price, fill_qty}
+        try:
+            execution_mode = os.getenv("EXECUTION_MODE", "").lower()
+            if execution_mode == "auto":
+                broker = AlpacaBrokerAdapter({})
+                two_days_ago = run_date - timedelta(days=2)
+                orders = broker.fetch_closed_orders(since=datetime.now(timezone.utc) - timedelta(days=2))
+                if orders:
+                    for order in orders:
+                        if order.get("status") == "filled" and order.get("side") == "sell":
+                            symbol = order.get("symbol")
+                            filled_price_str = order.get("filled_avg_price")
+                            filled_qty_str = order.get("filled_qty")
+                            if symbol and filled_price_str and filled_qty_str:
+                                try:
+                                    filled_price = float(filled_price_str)
+                                    filled_qty = float(filled_qty_str)
+                                    if filled_price > 0 and filled_qty > 0:
+                                        broker_exit_prices[symbol] = {
+                                            "exit_price": filled_price,
+                                            "filled_qty": filled_qty
+                                        }
+                                except (ValueError, TypeError):
+                                    pass  # Skip malformed orders
+        except Exception as broker_err:
+            logger.warning(f"[PHASE 9] Could not fetch broker fills for exit reconciliation: {broker_err}. "
+                          f"Will fall back to price_daily EOD closes.")
+
         with DatabaseContext("read") as cursor:
             cursor.execute(
                 """
-                SELECT ap.symbol, ap.avg_entry_price, ap.current_price, ap.quantity
+                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity
                 FROM algo_positions ap
+                JOIN algo_trades at ON at.symbol = ap.symbol
                 WHERE ap.status = 'closed' AND ap.closed_at::date = %s
-                  AND EXISTS (
-                      SELECT 1 FROM algo_trades at
-                      WHERE at.symbol = ap.symbol AND at.exit_date IS NULL
-                  )
+                  AND at.exit_date IS NULL
+                  AND at.status = 'open'
+                ORDER BY ap.closed_at DESC
             """,
                 (run_date,),
             )
@@ -982,19 +1022,14 @@ def _record_closed_positions_exits(
                 acquire_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
                 acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                 try:
-                    for (
-                        symbol,
-                        entry_price,
-                        exit_price,
-                        quantity,
-                    ) in closed_positions:
-                        if not exit_price:
-                            raise RuntimeError(
-                                f"[PHASE 9 CRITICAL] Exit price missing for {symbol} closed position. "
-                                f"Cannot record P&L without exit price. "
-                                f"This indicates a reconciliation failure or data corruption. "
-                                f"Halting Phase 9 to prevent audit trail gaps."
-                            )
+                    for row in closed_positions:
+                        (
+                            symbol,
+                            entry_price,
+                            position_qty,
+                            stop_loss_price,
+                            entry_qty,
+                        ) = row
 
                         if entry_price is None or entry_price <= 0:
                             error_msg = (
@@ -1006,17 +1041,91 @@ def _record_closed_positions_exits(
                             logger.critical(error_msg)
                             raise RuntimeError(error_msg)
 
-                        # CRITICAL: `exit_price` here is algo_positions.current_price at the moment this
-                        # position was detected closed (e.g. no longer present at the broker per
-                        # alpaca_sync_manager.py's reconciliation). That is NOT a confirmed broker fill -
-                        # if current_price was never refreshed after entry (position closed at the broker
-                        # before the next price sync ran), it silently equals entry_price, fabricating a
-                        # $0.00 P&L that hides the real gain/loss. Record it the same way
-                        # executor_exit_handler.py already does for its own estimated exits: leave
-                        # profit_loss_dollars/pct NULL (unknown, not zero) and mark estimated_exit_price
-                        # so the existing reconcile_exit_fills() pass on a subsequent run - and
-                        # audit_stale_estimated_prices() if it stays unreconciled too long - can replace
-                        # this guess with the broker's actual fill price.
+                        # CRITICAL FIX 2026-07-29: Fetch actual exit price from broker or price_daily,
+                        # NOT from stale algo_positions.current_price. Use reconciliation pattern from
+                        # reconciliation.py::resolve_local_pending_exits (use actual price_daily close)
+                        # or reconcile_exit_fills (use actual broker fill prices).
+                        exit_price = None
+                        price_source = None
+
+                        # First priority: actual broker fill price (if available)
+                        if symbol in broker_exit_prices:
+                            exit_price = broker_exit_prices[symbol]["exit_price"]
+                            price_source = "broker fill (from closed_orders)"
+
+                        # Second priority: price_daily EOD close for exit_date
+                        if exit_price is None:
+                            write_cursor.execute(
+                                """
+                                SELECT close FROM price_daily
+                                WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
+                                """,
+                                (symbol, run_date),
+                            )
+                            price_row = write_cursor.fetchone()
+                            if price_row is not None and price_row[0] is not None:
+                                exit_price = float(price_row[0])
+                                price_source = "price_daily EOD close"
+
+                        # Final fallback: only if NO other price available, mark as estimated pending reconciliation
+                        if exit_price is None:
+                            raise RuntimeError(
+                                f"[PHASE 9 CRITICAL] Exit price for {symbol} position closed {run_date}: "
+                                f"No broker fill OR price_daily close available. "
+                                f"Cannot calculate P&L without actual execution price. "
+                                f"Halting Phase 9 to prevent fake P&L records."
+                            )
+
+                        if exit_price <= 0:
+                            raise ValueError(
+                                f"[PHASE 9 CRITICAL] Exit price {exit_price} for {symbol} is invalid (must be > 0). "
+                                f"Price source: {price_source}. Cannot record exit with invalid price."
+                            )
+                        # Calculate actual P&L using real exit_price (not estimated/NULL)
+                        risk_per_share = float(entry_price) - float(stop_loss_price)
+                        if risk_per_share <= 0:
+                            raise ValueError(
+                                f"[PHASE 9 CRITICAL] {symbol}: Invalid risk_per_share={risk_per_share}. "
+                                f"Stop loss ({stop_loss_price}) >= entry price ({entry_price}). "
+                                f"Cannot calculate R-multiple with corrupted stop price."
+                            )
+
+                        # P&L on this leg's quantity (position may have been reduced by partial exits)
+                        pnl_per_share_dec = Decimal(str(exit_price)) - Decimal(str(entry_price))
+                        pnl_dollars_dec = (pnl_per_share_dec * Decimal(str(position_qty))).quantize(
+                            Decimal("0.01"), ROUND_HALF_UP
+                        )
+                        pnl_pct_dec = (pnl_per_share_dec / Decimal(str(entry_price)) * Decimal(100)).quantize(
+                            Decimal("0.01"), ROUND_HALF_UP
+                        )
+                        r_multiple_dec = (pnl_per_share_dec / Decimal(str(risk_per_share))).quantize(
+                            Decimal("0.01"), ROUND_HALF_UP
+                        )
+
+                        # Check for any prior partial exits to compute cumulative P&L (same fix as executor_exit_handler)
+                        write_cursor.execute(
+                            """
+                            SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
+                            FROM algo_audit_log
+                            WHERE action_type LIKE 'exit_%%'
+                              AND symbol = %s
+                              AND action_date::date = %s
+                              AND (details->>'full_exit')::boolean = false
+                            """,
+                            (symbol, run_date),
+                        )
+                        prior_partial = write_cursor.fetchone()
+                        prior_partial_pnl = Decimal(str(prior_partial[0])) if prior_partial else Decimal(0)
+
+                        # Cumulative P&L across all legs
+                        cumulative_pnl_dollars = float((prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
+                        cumulative_pnl_pct = float(pnl_pct_dec) if prior_partial_pnl == 0 else float(
+                            (Decimal(str(cumulative_pnl_dollars)) / (Decimal(str(entry_price)) * Decimal(str(entry_qty))) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                        )
+                        cumulative_r_multiple = float(r_multiple_dec) if prior_partial_pnl == 0 else float(
+                            (Decimal(str(cumulative_pnl_dollars)) / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                        )
+
                         sp = f"sp_exit_{symbol.replace('-', '_').replace('.', '_')}"
                         try:
                             write_cursor.execute(f"SAVEPOINT {sp}")
@@ -1024,23 +1133,28 @@ def _record_closed_positions_exits(
                                 """
                                 UPDATE algo_trades
                                 SET exit_date = %s, exit_time = CURRENT_TIMESTAMP,
-                                    exit_price = %s, estimated_exit_price = %s,
-                                    profit_loss_dollars = NULL, profit_loss_pct = NULL, exit_r_multiple = NULL,
+                                    exit_price = %s, estimated_exit_price = NULL,
+                                    profit_loss_dollars = %s, profit_loss_pct = %s, exit_r_multiple = %s,
                                     exit_reason = %s, status = 'closed',
                                     trade_duration_days = %s::date - entry_date,
+                                    exit_price_reconciled_at = CURRENT_TIMESTAMP,
+                                    reconciliation_note = %s,
                                     updated_at = CURRENT_TIMESTAMP
                                 WHERE trade_id = (
                                     SELECT trade_id FROM algo_trades
-                                    WHERE symbol = %s AND exit_date IS NULL
+                                    WHERE symbol = %s AND exit_date IS NULL AND status = 'open'
                                     ORDER BY trade_date DESC LIMIT 1
                                 )
                             """,
                                 (
                                     run_date,
-                                    exit_price,
-                                    exit_price,
-                                    "Closed position recorded during reconciliation - pending fill price confirmation",
+                                    float(exit_price),
+                                    cumulative_pnl_dollars,
+                                    cumulative_pnl_pct,
+                                    cumulative_r_multiple,
+                                    f"Closed position recorded during reconciliation (exit price source: {price_source})",
                                     run_date,
+                                    f"Recorded from {price_source} on {run_date} (P&L: ${cumulative_pnl_dollars:.2f}, {cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)",
                                     symbol,
                                 ),
                             )
@@ -1060,7 +1174,7 @@ def _record_closed_positions_exits(
                             """,
                                 (
                                     exit_price,
-                                    "Closed position recorded during reconciliation - pending fill price confirmation",
+                                    f"Closed position recorded during reconciliation (from {price_source})",
                                     symbol,
                                 ),
                             )
@@ -1074,8 +1188,8 @@ def _record_closed_positions_exits(
                             exits_recorded += 1
                             write_cursor.execute(f"RELEASE SAVEPOINT {sp}")
                             logger.info(
-                                f"Recorded exit: {symbol} {quantity}sh @ ~${exit_price:.2f} (estimated) on {run_date} "
-                                f"- P&L pending broker fill reconciliation"
+                                f"Recorded exit: {symbol} {position_qty}sh @ ${exit_price:.2f} ({price_source}) on {run_date} "
+                                f"- P&L: ${cumulative_pnl_dollars:+.2f} ({cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)"
                             )
                         except (
                             psycopg2.DatabaseError,
