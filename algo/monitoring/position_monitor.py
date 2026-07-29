@@ -423,7 +423,9 @@ class PositionMonitor:
                             "error": error_msg,
                         }
                     )
-                    logger.warning(f"  Validation failed for {symbol}: {error_msg}")
+                    # CRITICAL FIX: Escape error message that may contain curly braces to prevent f-string format error
+                    safe_error_msg = error_msg.replace("{", "{{").replace("}", "}}")
+                    logger.warning(f"  Validation failed for {symbol}: {safe_error_msg}")
                     continue
 
                 recs.append(rec)
@@ -433,7 +435,9 @@ class PositionMonitor:
                     cur.execute(f"SAVEPOINT {sp_name}")
                     self._persist_review(rec, cur, i)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
+                    # CRITICAL FIX: Escape exception message to prevent f-string format error
+                    safe_error = str(e).replace("{", "{{").replace("}", "}}")
+                    logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
                     cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
 
@@ -589,7 +593,10 @@ class PositionMonitor:
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
         except ValueError as e:
-            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} - skipping proximity check: {e}")
+            # CRITICAL FIX: Escape exception message that may contain curly braces
+            # to prevent f-string format error. Use % formatting or str() instead of embedding in f-string.
+            error_msg = str(e).replace("{", "{{").replace("}", "}}")
+            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} - skipping proximity check: {error_msg}")
         except RuntimeError as e:
             raise PositionValidationError(f"Cannot evaluate earnings proximity for {symbol}: {e}") from e
 
@@ -1171,7 +1178,9 @@ class PositionMonitor:
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             cur.execute(f"ROLLBACK TO {sp_name}")
-            logger.error(f"Failed to persist review for {rec['symbol']}: {e} (rolled back)")
+            # CRITICAL FIX: Escape exception message to prevent f-string format error
+            safe_error = str(e).replace("{", "{{").replace("}", "}}")
+            logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error} (rolled back)")
             raise
 
     def _print_recommendation(self, rec: dict[str, Any]) -> None:
