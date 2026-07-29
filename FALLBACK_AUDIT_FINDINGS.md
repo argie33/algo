@@ -131,7 +131,13 @@ The codebase has excellent fail-fast governance in place. Recent fixes (commits 
 
 ## Recent Fixes Applied
 
-### Commit 2d462492e (Latest - TODAY)
+### Commit dc12baa90 (Latest - THIS SESSION)
+- **Fixed**: loaders/load_sector_industry_daily.py - MarketCalendar.get_previous_trading_day() now fail-fast
+  - **Before**: Silently fell back to `target_date - timedelta(days=1)` when previous trading day was None
+  - **After**: Raises RuntimeError explicitly, forcing infrastructure to surface the real issue
+  - **Impact**: Prevents silent sector_performance stalls when market calendar data unavailable
+
+### Commit 2d462492e (Previous session)
 - **Fixed**: loaders/load_economic_data.py - store_economic_data() and mark_unavailable() now raise
 - **Fixed**: algo/monitoring/position_monitor.py - _check_sector_health() raises on missing baseline
 - **Added**: scripts/stress_test_orchestrator.py - comprehensive orchestrator testing

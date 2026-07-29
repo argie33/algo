@@ -148,7 +148,7 @@ class TestSendBracketOrderToleratesNoneStopLoss:
         # FAIL-FAST: Stop loss protection is non-negotiable. System must reject orders without valid stop-loss.
         # Allowing None stop_loss would create naked positions (no stop-loss protection), violating risk governance.
         assert result["success"] is False
-        assert "stop_loss_price" in result["error"].lower()
+        assert "stop_loss_price" in result["message"].lower()
         # Order should NOT be sent to Alpaca when stop_loss validation fails
         mock_post.assert_not_called()
 
