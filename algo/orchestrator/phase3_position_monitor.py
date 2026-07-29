@@ -267,6 +267,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 logger.info(f"[PHASE 3] Paper mode generated {len(recommendations)} recommendations: {n_early_exit} early exits, {n_raise_stop} stop raises")
             except Exception as review_err:
                 error_str = str(review_err)[:200]
+                # CRITICAL FIX: Escape exception message that may contain curly braces to prevent f-string format error
+                safe_error_str = error_str.replace("{", "{{").replace("}", "}}")
 
                 # CRITICAL FIX (Session 431): FAIL-FAST on data gaps instead of creating fake fallback
                 # Previous approach: Detect data gap errors and generate minimal fallback exit recommendation
@@ -281,7 +283,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # FAIL-FAST: Regardless of error type (data gap, code bug, API failure), position monitoring
                 # failure = critical risk-management failure. Cannot trade if we can't monitor positions.
                 error_msg = (
-                    f"[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: {error_str}. "
+                    f"[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: {safe_error_str}. "
                     f"Cannot generate exit recommendations without proper position analysis. "
                     f"Position monitoring is non-negotiable for risk management. "
                     f"This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
@@ -305,7 +307,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 None,
             )
         except Exception as e:
-            logger.error(f"[PHASE 3] Paper mode price update FAILED: {type(e).__name__}: {e}")
+            # CRITICAL FIX: Escape exception message to prevent f-string format error
+            safe_error = str(e).replace("{", "{{").replace("}", "}}")
+            logger.error(f"[PHASE 3] Paper mode price update FAILED: {type(e).__name__}: {safe_error}")
             # Report the truth: price update failed. Don't mask with "ok" status.
             # If positions need prices and we can't get them, this is an error.
             return PhaseResult(
