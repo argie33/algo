@@ -529,14 +529,22 @@ class OptimalLoader:
                     # trading session (no entries, not just a skipped loader). The competing lock
                     # holder is often the scheduled signal_quality_scores ECS task, which the
                     # comment in phase7_signal_generation.py documents can take 5-35 minutes - far
-                    # longer than the old ~60s budget could ever wait out. 6 retries capped at 60s
-                    # gives ~3.5 min of tolerance (still bounded, still fails loud after) instead of
-                    # trading a full session's entries away over a transient scheduling overlap.
-                    # IMPROVED (2026-07-28): Increased initial timeout from 5s to 15s and max retry from
-                    # 6 to 8 to give signal_quality_scores loader more time on contention.
+                    # longer than the old ~60s budget could ever wait out.
+                    # IMPROVED (2026-07-29): signal_quality_scores-specific timeout (20 min) to allow
+                    # legitimate long-running loader to complete without halting orchestrator.
+                    # Phase 7 orchestrator halt cascades to no entries - must tolerate scheduler overlap.
                     logger.warning(f"[{self.table_name}] Another instance already running, retrying with backoff...")
                     import random
-                    max_retries = 8
+
+                    # signal_quality_scores can take 5-35 min - give it 20 min total timeout
+                    # All other loaders use standard ~5 min timeout
+                    if self.table_name == 'signal_quality_scores':
+                        max_retries = 16  # ~20 min total (exponential backoff caps at 90s per retry)
+                        retry_timeout_label = "20 minutes"
+                    else:
+                        max_retries = 8   # ~5 min total
+                        retry_timeout_label = "5 minutes"
+
                     for retry_attempt in range(1, max_retries + 1):
                         base_wait = min(90, 2 ** (retry_attempt - 1) * 5)
                         jitter = random.uniform(0.9, 1.1)
@@ -550,7 +558,7 @@ class OptimalLoader:
                         # Final failure after retries - fail fast instead of silently skipping
                         # Critical loaders must not silently degrade (violates governance)
                         msg = (
-                            f"[{self.table_name}] Failed to acquire lock after {max_retries} retries (~5 min total wait). "
+                            f"[{self.table_name}] Failed to acquire lock after {max_retries} retries (~{retry_timeout_label} total wait). "
                             f"Another process is holding the lock persistently. Check for: (1) Stale locks held by crashed processes, "
                             f"(2) Long-running loaders (signal_quality_scores can take 5-35+ min), "
                             f"(3) Database connection issues. Cannot proceed without lock - failing fast to surface infrastructure issue."
@@ -559,7 +567,7 @@ class OptimalLoader:
                         raise LockAcquisitionError(
                             lock_key=self.table_name,
                             reason="Lock acquisition timeout after retries",
-                            context={"table_name": self.table_name, "max_retries": max_retries, "total_wait_minutes": 5}
+                            context={"table_name": self.table_name, "max_retries": max_retries, "total_wait_minutes": 20 if self.table_name == 'signal_quality_scores' else 5}
                         )
         except LockAcquisitionError:
             # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
