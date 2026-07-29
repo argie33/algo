@@ -281,7 +281,12 @@ def run_complete_loader_pipeline() -> bool:
     morning_ok = run_loader_pipeline("morning", timeout=1800)
 
     if not morning_ok:
-        print("[STARTUP] [WARN] Morning pipeline failed - proceeding with stale data", flush=True)
+        # FAIL-FAST: Morning pipeline must succeed - it loads prices and technicals
+        # required for all 9 orchestrator phases. Proceeding with stale data violates
+        # fail-fast principle and risks trading on stale market data.
+        msg = "[STARTUP] CRITICAL: Morning pipeline failed. Dashboard cannot start with stale price/technical data. Fix data loaders and retry."
+        print(msg, flush=True)
+        raise RuntimeError(msg)
 
     # Step 2: Check if the slow fundamentals pipeline is needed (metrics table staleness)
     # Don't use stock_scores completeness as gate - that gate was too aggressive and caused
@@ -296,7 +301,12 @@ def run_complete_loader_pipeline() -> bool:
         metrics_ok = run_loader_pipeline("metrics", timeout=1800)  # 30 min for metrics
 
         if not metrics_ok:
-            print("[STARTUP] [WARN] Metrics pipeline failed - fundamentals may be stale", flush=True)
+            # FAIL-FAST: Metrics pipeline failure means fundamental data is stale.
+            # Stale fundamentals affect stock_scores ranking and signal quality.
+            # Do not proceed with degraded scoring.
+            msg = "[STARTUP] CRITICAL: Metrics pipeline failed. Fundamental data (quality/growth/value scores) cannot be loaded. Dashboard cannot start without current fundamentals for signal ranking."
+            print(msg, flush=True)
+            raise RuntimeError(msg)
     else:
         print(f"[STARTUP] Metrics tables are fresh - skipping metrics pipeline ({staleness_reason})", flush=True)
 
@@ -311,11 +321,15 @@ def run_complete_loader_pipeline() -> bool:
         completeness = check_stock_scores_completeness()
         print(f"[STARTUP] [OK] Stock scores recomputed: {completeness:.1f}%", flush=True)
     else:
-        print("[STARTUP] [WARN] Signals pipeline failed - Phase 7 signal generation will be limited", flush=True)
+        # FAIL-FAST: Signal generation failure means buy/sell signals cannot be generated.
+        # Dashboard would show no signals - no point in running without the core signal data.
+        msg = "[STARTUP] CRITICAL: Signals pipeline failed. Buy/sell signals, stock scores, and risk metrics cannot be computed. Dashboard cannot start without signals data."
+        print(msg, flush=True)
+        raise RuntimeError(msg)
 
     print("[STARTUP] [OK] Data refresh complete", flush=True)
     print("[STARTUP] ============================================================", flush=True)
-    return morning_ok and signals_ok
+    return True
 
 
 def start_dev_server() -> subprocess.Popen:
