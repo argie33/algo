@@ -537,6 +537,7 @@ class AlgoConfig:
         "max_daily_loss_pct": ("2.0", "float", "Max daily loss % before halt", "Risk Management"),
         "max_consecutive_losses": ("3", "int", "Max consecutive losing trades", "Risk Limits"),
         "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade", "Risk Limits"),
+        "min_live_sharpe_ratio": ("0.0", "float", "Min acceptable live Sharpe ratio (halt if lower in auto mode)", "Risk Limits"),
         "max_total_risk_pct": ("4.0", "float", "Max total open risk %", "Risk Limits"),
         "min_risk_pct_floor": (
             "0.10",

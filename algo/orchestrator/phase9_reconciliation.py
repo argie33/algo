@@ -588,15 +588,18 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
                 perf_summary = f"incomplete: {', '.join(missing)}"
             elif perf_report.get("status") == "warning":
                 perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy} - {perf_report.get('warning', 'see logs')}"
-                # CRITICAL: If execution_mode is "auto" (real money), halt if Sharpe is negative
+                # CRITICAL: If execution_mode is "auto" (real money), halt if Sharpe is below configured minimum
                 execution_mode = config.get("execution_mode")
-                if execution_mode == "auto" and sharpe is not None and sharpe < 0:
+                min_sharpe_val = config.get("min_live_sharpe_ratio")
+                min_sharpe = float(min_sharpe_val) if min_sharpe_val is not None else 0.0
+                if execution_mode == "auto" and sharpe is not None and sharpe < min_sharpe:
                     error_msg = (
-                        f"[PHASE 9 CRITICAL] Live Sharpe ratio is negative ({sharpe:.2f}) in LIVE TRADING MODE. "
-                        f"Strategy is losing money. Cannot proceed with real money trading. "
+                        f"[PHASE 9 CRITICAL] Live Sharpe ratio ({sharpe:.2f}) is below minimum threshold ({min_sharpe:.2f}) "
+                        f"in LIVE TRADING MODE (execution_mode=auto). Cannot proceed with real money trading. "
                         f"Fix: (1) Review backtest for overfitting, (2) Verify signal quality, "
-                        f"(3) Wait for larger sample size (need 100+ trades, currently have ~50), "
-                        f"(4) Check if market regime changed. Set execution_mode to 'paper' to continue testing."
+                        f"(3) Wait for larger sample size (need 100+ trades), "
+                        f"(4) Check if market regime changed. "
+                        f"Options: Set execution_mode to 'paper' to continue testing, or adjust min_live_sharpe_ratio in config."
                     )
                     logger.critical(error_msg)
                     raise RuntimeError(error_msg)
