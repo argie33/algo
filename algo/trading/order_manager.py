@@ -887,8 +887,11 @@ class OrderManager:
                                                 "filled_price": filled_price,
                                                 "message": f"Closed via position endpoint: {order_id}",
                                             }
-                                        except (ValueError, TypeError):
-                                            pass
+                                        except (ValueError, TypeError) as e:
+                                            logger.error(
+                                                f"[SEND_EXIT] {symbol}: Failed to parse filled_price ({filled_price_raw}). "
+                                                f"Error: {type(e).__name__}: {e}. Retrying..."
+                                            )
                                     # Order placed but price not yet filled (market order in flight)
                                     order_id = close_data.get("id")
                                     if not order_id:
@@ -917,8 +920,11 @@ class OrderManager:
                                         f"[SEND_EXIT] {symbol}: Close-position endpoint returned "
                                         f"{close_resp.status_code}: {close_resp.text[:100]}"
                                     )
-                    except (ValueError, TypeError, json.JSONDecodeError):
-                        pass
+                    except (ValueError, TypeError, json.JSONDecodeError) as e:
+                        logger.error(
+                            f"[SEND_EXIT] {symbol}: Failed to parse response. "
+                            f"Error: {type(e).__name__}: {e}. Retrying..."
+                        )
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
                     logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
                 else:
