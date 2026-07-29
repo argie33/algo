@@ -321,16 +321,11 @@ class AAIISentimentLoader(OptimalLoader):
                 error_type = type(e).__name__
                 logger.warning(f"[AAII_SENTIMENT] Attempt {attempt} network error ({error_type}): {str(e)[:100]}")
                 if attempt >= 2:
-                    logger.error("[AAII_SENTIMENT] Failed to fetch AAII sentiment after all network attempts")
-                    return [
-                        {
-                            "data_unavailable": True,
-                            # migration 1138 added this column (was silently dropped by
-                            # bulk_insert_manager's schema-filter before that - see its comment)
-                            "reason": f"Network error ({error_type}): {e}"[:255],
-                            "created_at": datetime.now(timezone.utc).isoformat(),
-                        }
-                    ]
+                    logger.error("[AAII_SENTIMENT] Network error fetching AAII sentiment after all attempts - fail-fast")
+                    raise RuntimeError(
+                        f"[AAII_SENTIMENT] Cannot fetch sentiment data due to network errors. "
+                        f"Operators must be alerted to infrastructure issues: {error_type}: {e}"
+                    ) from e
             except (ValueError, json.JSONDecodeError, zipfile.BadZipFile, KeyError, AttributeError, TypeError) as e:
                 error_type = type(e).__name__
                 logger.warning(
