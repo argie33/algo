@@ -1255,7 +1255,18 @@ class ExitEngine:
                 )
 
             elif response.status_code == 401:
-                raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
+                # Authentication failed - in paper mode, fall back to database prices
+                # In live mode, this is a critical error that should propagate
+                execution_mode = self.config.get("execution_mode", "paper")
+                if execution_mode in ("paper", "dry", "review"):
+                    logger.warning(
+                        f"[EXIT_ENGINE] {symbol}: Alpaca quote API authentication failed (401) - "
+                        f"falling back to database prices in {execution_mode} mode"
+                    )
+                    return {"data_unavailable": True, "reason": f"Alpaca 401 auth failed in {execution_mode} mode"}
+                else:
+                    # Live trading - auth failure is critical
+                    raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
             elif response.status_code == 404:
                 # 404 can mean two different things depending on execution mode:
