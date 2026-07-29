@@ -408,6 +408,16 @@ class PositionMonitor:
                 try:
                     rec = self._evaluate_position(row, current_date, cur)
                 except PositionValidationError as e:
+                    # SAFETY: Validate row structure before accessing indices
+                    if len(row) < 10:
+                        logger.error(
+                            f"[PHASE 3] Row has insufficient columns ({len(row)}, expected >=10). "
+                            f"Cannot extract position data. Possible database query result corruption."
+                        )
+                        raise RuntimeError(
+                            f"Position row has {len(row)} columns, expected 10+. "
+                            f"Cannot extract position_id or trade_id. This may indicate database connection issues."
+                        ) from e
                     symbol = row[1]  # symbol is at index 1 in the row tuple
                     trade_id = row[0]
                     position_id = row[9]
@@ -586,17 +596,20 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (warn and skip if data unavailable - earnings data is optional enrichment)
+        # 3e. Earnings proximity (fail-fast on data unavailability - consistent with signal generation)
+        # Signal generation (advanced_filters) also fails when earnings data missing. Position monitor
+        # should match this fail-fast governance to detect data quality issues rather than silently degrading.
         days_to_earn: int | None = None
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
         except ValueError as e:
+            # Fail-fast on earnings data unavailability - this indicates a data loading issue that should be visible.
             # CRITICAL FIX: Escape exception message that may contain curly braces
             # to prevent f-string format error. Use % formatting or str() instead of embedding in f-string.
             error_msg = str(e).replace("{", "{{").replace("}", "}}")
-            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} - skipping proximity check: {error_msg}")
+            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} - position health assessment incomplete: {error_msg}")
         except RuntimeError as e:
             raise PositionValidationError(f"Cannot evaluate earnings proximity for {symbol}: {e}") from e
 
@@ -993,8 +1006,12 @@ class PositionMonitor:
     def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
         """Get days until next earnings from earnings_calendar.
 
-        Returns 30 days (safe assumption) if data unavailable rather than blocking position monitoring.
-        Missing earnings data doesn't prevent position management - it's informational only.
+        Raises:
+            ValueError: If earnings data unavailable for symbol (fail-fast consistency with advanced_filters)
+
+        Earnings date is CRITICAL for position monitoring - without it, we cannot detect upcoming earnings gaps
+        that expose positions to gap risk. Consistent with advanced_filters._estimate_days_to_earnings()
+        which also raises ValueError when earnings data missing.
         """
         try:
             cur.execute(
@@ -1005,14 +1022,14 @@ class PositionMonitor:
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                # Return safe default (30 days) instead of blocking position monitoring
-                # Earnings data is informational, not critical for exit decisions
-                return 30
+                raise ValueError(
+                    f"Earnings data unavailable for {symbol}: no future earnings date found in earnings_calendar"
+                )
             return int((row[0] - current_date).days)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            # Return safe default on database errors too
-            logger.warning(f"Earnings query failed for {symbol}: {e}. Using 30-day default.")
-            return 30
+            raise ValueError(
+                f"Earnings query failed for {symbol}: {e}. Cannot proceed without earnings data for position monitoring."
+            ) from e
 
     def _fetch_market_dist_days(self, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
         """Get market distribution days from health data.
