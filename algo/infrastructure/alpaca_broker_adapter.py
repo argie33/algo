@@ -189,21 +189,37 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 # with a warning if a real response is ever missing them, rather than raising -
                 # this endpoint has been relied on for cash/equity/buying_power since before
                 # these fields were read, and a missing optional field here shouldn't break that.
-                for flag_name in ("trading_blocked", "account_blocked", "pattern_day_trader"):
-                    if flag_name not in data:
-                        logger.warning(
-                            f"[FETCH_ACCOUNT] Alpaca /v2/account response missing '{flag_name}' field. "
-                            "Defaulting to False (unblocked) - verify manually if this persists."
-                        )
+                missing_flags = [f for f in ("trading_blocked", "account_blocked", "pattern_day_trader") if f not in data]
+                if missing_flags:
+                    logger.critical(
+                        f"[FETCH_ACCOUNT CRITICAL] Alpaca /v2/account response missing critical flags: {missing_flags}. "
+                        "Cannot determine account trading restrictions. Failing fast to prevent unintended trading on restricted account."
+                    )
+                    raise ValueError(
+                        f"Alpaca /v2/account response missing critical account flags: {missing_flags}. "
+                        "Cannot proceed with trading when account restriction status unknown. "
+                        "Check: Alpaca API endpoint, credentials validity, account restrictions."
+                    )
+
+                trading_blocked_val = data.get("trading_blocked")
+                account_blocked_val = data.get("account_blocked")
+                pattern_day_trader_val = data.get("pattern_day_trader")
+                if trading_blocked_val is None or account_blocked_val is None or pattern_day_trader_val is None:
+                    raise ValueError(
+                        "[FETCH_ACCOUNT CRITICAL] Account flags present but values are NULL. "
+                        "Cannot proceed with trades when account status is indeterminate. "
+                        "Check Alpaca API response validation."
+                    )
+
                 daytrade_count_val = data.get("daytrade_count")
                 return {
                     "cash": float(cash_val) if cash_val is not None else None,
                     "equity": float(equity_val) if equity_val is not None else None,
                     "portfolio_value": float(portfolio_value_val),
                     "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
-                    "trading_blocked": bool(data.get("trading_blocked", False)),
-                    "account_blocked": bool(data.get("account_blocked", False)),
-                    "pattern_day_trader": bool(data.get("pattern_day_trader", False)),
+                    "trading_blocked": bool(trading_blocked_val),
+                    "account_blocked": bool(account_blocked_val),
+                    "pattern_day_trader": bool(pattern_day_trader_val),
                     "daytrade_count": (int(daytrade_count_val) if daytrade_count_val is not None else None),
                 }
             if resp.status_code in (401, 403):
