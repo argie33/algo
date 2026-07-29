@@ -1202,11 +1202,25 @@ class ExitEngine:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
             elif response.status_code == 404:
-                logger.warning(
-                    f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} - "
-                    f"symbol unavailable in paper trading. Using fallback pricing from database."
+                # CRITICAL: A 404 means the symbol is unavailable in the broker's system
+                # (delisted or paper trading delisted symbols). This is a fundamental issue
+                # that CANNOT be masked by falling back to database prices.
+                #
+                # Silently falling back to database prices hides the real problem: we cannot
+                # execute an exit for a symbol the broker doesn't have. This violates
+                # fail-fast principle and risks leaving unexitable positions open.
+                #
+                # Fail-fast: propagate the 404 as an error. The position cannot be monitored
+                # or exited safely if the broker doesn't recognize it.
+                error_msg = (
+                    f"[EXIT_ENGINE CRITICAL] {symbol}: Alpaca quote API returned 404 - "
+                    f"symbol unavailable in broker system (delisted or removed from paper trading). "
+                    f"Cannot execute exit for a symbol the broker doesn't have. "
+                    f"This position is unexitable at the broker level. "
+                    f"Manual intervention required: check if symbol is delisted or account permissions changed."
                 )
-                return None
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
 
             else:
                 raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")
@@ -1275,28 +1289,27 @@ class ExitEngine:
         rows = cur.fetchall()
 
         if not rows or len(rows[0]) < 2:
-            # FALLBACK: No prices up to current_date. Try most recent prices from ANY date
-            cur.execute(
-                """
-                SELECT date, close FROM price_daily
-                WHERE symbol = %s
-                ORDER BY date DESC LIMIT 2
-                """,
-                (symbol,),
+            # CRITICAL: No prices available up to current_date - fail-fast
+            # Do NOT fall back to arbitrary historical prices from unknown dates.
+            # Exit decisions require current market data. Using stale prices violates
+            # fail-fast principle and masks data freshness issues.
+            #
+            # Falling back to "most recent available" means we might be using:
+            # - Prices from days/weeks/months ago
+            # - Delisted symbols with no recent data
+            # - Data loading failures not yet detected
+            #
+            # All of these are critical conditions that should halt position monitoring,
+            # not be masked with a warning log and a stale price fallback.
+            error_msg = (
+                f"[EXIT_PRICE CRITICAL] {symbol}: No price data available on/before {current_date}. "
+                f"Cannot execute exits using stale or historical prices - current market data required. "
+                f"This indicates: symbol delisted, data loader not yet run, or data gap. "
+                f"Check price_daily table freshness and symbol validity. "
+                f"Fail-fast: position cannot be monitored without current prices."
             )
-            rows = cur.fetchall()
-
-            if not rows or len(rows[0]) < 2:
-                error_msg = (
-                    f"[EXIT_PRICE_UNAVAILABLE] No price history available for {symbol} - symbol may be delisted or new"
-                )
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-
-            logger.warning(
-                f"[EXIT_PRICE_FALLBACK] No prices for {symbol} on/before {current_date}. "
-                f"Using most recent available: {rows[0][0]}"
-            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
 
         cur_price = float(rows[0][1]) if rows[0][1] is not None else None
 

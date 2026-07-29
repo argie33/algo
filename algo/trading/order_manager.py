@@ -81,8 +81,9 @@ class OrderManager:
           - Stop loss order (executes if price drops to stop)
           - Take profit limit order (executes if price hits target)
 
-        Falls back to simple limit order if bracket can't be sent (no stop).
-        Never returns None - always returns dict with success/error fields.
+        CRITICAL: Bracket orders REQUIRE a valid stop_loss_price. This is non-negotiable.
+        Sending naked positions without stop-loss protection violates risk management.
+        Fail-fast if stop loss is missing - do not send a simple limit order fallback.
 
         client_order_id: Passed through to Alpaca as broker-side idempotency protection.
         Caller passes a deterministic idempotency_key (hash of symbol/signal_date/entry_price/
@@ -104,12 +105,19 @@ class OrderManager:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {"success": False, "message": "Alpaca credentials not configured"}
 
-        # stop_loss_price is Optional per the signature (docstring: "Falls back to simple limit
-        # order if bracket can't be sent (no stop)") but this log line unconditionally formatted
-        # it with :.2f - a None stop_loss_price would crash here with TypeError before ever
-        # reaching the graceful no-stop handling below, defeating the documented fallback. Only
-        # caller today (executor.py) always passes a float, so this was latent, not yet live.
-        stop_desc = f"${stop_loss_price:.2f}" if stop_loss_price is not None else "None"
+        # CRITICAL: Fail-fast if stop loss is missing or invalid - no fallback to naked positions
+        if stop_loss_price is None or stop_loss_price <= 0:
+            error_msg = (
+                f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order without valid stop_loss_price. "
+                f"Stop loss protection is non-negotiable for risk management. "
+                f"Received: {stop_loss_price}. Entry price: {entry_price}. "
+                f"Fail-fast to prevent naked positions (no stop-loss protection). "
+                f"Check Phase 8 entry validation - stop price calculation must succeed before order submission."
+            )
+            logger.critical(error_msg)
+            return {"success": False, "message": error_msg}
+
+        stop_desc = f"${stop_loss_price:.2f}"
         logger.info(
             f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop {stop_desc} to {self.alpaca_base_url}"
         )
@@ -124,6 +132,7 @@ class OrderManager:
         def _q2(v: float) -> str:
             return str(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
+        # CRITICAL: Always build a bracket order - stop loss protection is mandatory
         order_data = {
             "symbol": symbol,
             "qty": shares,
@@ -132,29 +141,26 @@ class OrderManager:
             "time_in_force": "day",
             "limit_price": _q2(entry_price),
             "extended_hours": False,
+            "order_class": "bracket",
+            "stop_loss": {
+                "stop_price": _q2(stop_loss_price),
+            },
         }
         if client_order_id:
             order_data["client_order_id"] = client_order_id
 
-        if stop_loss_price is not None and stop_loss_price > 0:
-            order_data["order_class"] = "bracket"
-            order_data["stop_loss"] = {
-                "stop_price": _q2(stop_loss_price),
+        # Add take-profit target (either explicit or computed from 1.5R)
+        if take_profit_price is not None and take_profit_price > entry_price:
+            order_data["take_profit"] = {
+                "limit_price": _q2(take_profit_price),
             }
-            if take_profit_price is not None and take_profit_price > entry_price:
+        else:
+            risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
+            if risk_dec > 0:
+                tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
                 order_data["take_profit"] = {
-                    "limit_price": _q2(take_profit_price),
+                    "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                 }
-            else:
-                risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-                if risk_dec > 0:
-                    tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
-                    # Quantize once and use the Decimal string directly - converting to
-                    # float and back through round() (as this used to do) reintroduces the
-                    # exact binary-representation risk the Decimal quantize above avoided.
-                    order_data["take_profit"] = {
-                        "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                    }
 
         logger.debug(f"[SEND_ORDER] {symbol}: Payload = {order_data}")
 
