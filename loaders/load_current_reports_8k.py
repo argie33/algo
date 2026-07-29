@@ -231,11 +231,14 @@ class CurrentReports8KLoader(SecLoaderBase):
             )
 
     def _parse_date(self, date_str: str) -> date:
-        """Parse SEC date string (YYYY-MM-DD format)."""
+        """Parse SEC date string (YYYY-MM-DD format). Fail-fast on parse errors."""
         try:
             return datetime.strptime(date_str, "%Y-%m-%d").date()
-        except (ValueError, TypeError):
-            return date.today()
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"Cannot parse SEC filing date '{date_str}': must be YYYY-MM-DD format. "
+                f"Data quality issue or format change in SEC EDGAR responses."
+            ) from e
 
     def _get_cik(self, symbol: str) -> str | None:
         """Get CIK for symbol using SEC Edgar client (authoritative source)."""

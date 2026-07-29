@@ -181,7 +181,9 @@ def run(
                     return rebalance_actions
             except Exception as e:
                 logger.error(f"[PHASE 6] Sector concentration check failed: {e}")
-                return []
+                raise RuntimeError(
+                    f"[PHASE 6] Cannot proceed with exit execution: sector concentration check failed. {e}"
+                ) from e
 
         # Add concentration rebalance actions to the exposure_actions queue
         concentration_actions = _check_sector_concentration()
