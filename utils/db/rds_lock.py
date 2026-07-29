@@ -71,8 +71,12 @@ class RDSLockManager:
                 with DatabaseContext("write") as cur:
                     # Try to acquire lock atomically
                     # First, delete any expired locks for this key
+                    # CRITICAL: expires_at is stored as timestamp WITH timezone (converted to EDT).
+                    # Comparing to NOW() AT TIME ZONE 'UTC' returns timestamp WITHOUT timezone,
+                    # which PostgreSQL interprets as local time - causing false matches.
+                    # Cast both sides to UTC for correct comparison: expires_at::timestamptz AT TIME ZONE 'UTC' < NOW() AT TIME ZONE 'UTC'
                     cur.execute(
-                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < NOW() AT TIME ZONE 'UTC'",
+                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND (expires_at AT TIME ZONE 'UTC') < (NOW() AT TIME ZONE 'UTC')",
                         (lock_key,),
                     )
 
