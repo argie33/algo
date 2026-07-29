@@ -319,8 +319,15 @@ def _check_liquidity_parallel(
             logger.debug(f"[PHASE 7] {candidate['symbol']}: liquidity - {liq_reason}")
         return candidate, liq_ok
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.warning(f"[PHASE 7] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {e!s}")
-        return candidate, False
+        # FAIL-FAST: Exceptions during liquidity checks indicate real errors, not just failed thresholds
+        # Silently returning False masks configuration errors, missing data, or calculation bugs
+        error_msg = (
+            f"[PHASE 7 FAIL-FAST] Liquidity check error for {candidate['symbol']}: {type(e).__name__}: {e}. "
+            f"Cannot proceed with signal evaluation when liquidity validation fails. "
+            f"Check: (1) LiquidityChecks configuration, (2) price/volume data availability, (3) calculation logic."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
 
 
 def _get_candidates_from_buysell(

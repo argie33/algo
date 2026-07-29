@@ -285,9 +285,16 @@ def run(
                                     "Cannot execute exit with non-positive price."
                                 )
                     except (RuntimeError, TypeError, ValueError) as e:
-                        logger.critical(f"  CRITICAL: force_exit cannot proceed: {e}")
-                        errors += 1
-                        continue
+                        # FAIL-FAST: Force-exit is a safety mechanism - if it fails, halt immediately
+                        # Continuing here silently leaves the position unexited, violating exposure policy
+                        error_msg = (
+                            f"[PHASE 6 FAIL-FAST] Force-exit failed for {action['symbol']}: {e}. "
+                            f"Cannot proceed with unexited position. Position remains in portfolio with stale risk controls. "
+                            f"This indicates a critical data or database issue. Check: (1) current price availability, "
+                            f"(2) broker connection, (3) position state in database."
+                        )
+                        logger.critical(error_msg)
+                        raise RuntimeError(error_msg) from e
 
                     # In dry-run mode, just count (don't execute)
                     if dry_run:

@@ -127,13 +127,17 @@ def run(
         try:
             actions = policy.review_existing_positions(run_date)
         except (RuntimeError, ValueError) as e:
-            # If transaction is aborted (from prior phase), retry with fresh connection
-            if "transaction is aborted" in str(e).lower() or "InFailedSqlTransaction" in str(type(e)):
-                logger.warning(f"Transaction aborted, retrying with fresh connection: {e}")
-                policy = ExposurePolicy()
-                actions = policy.review_existing_positions(run_date)
-            else:
-                raise
+            # Transaction aborts are NOT transient - they indicate a real error in a prior phase.
+            # Do NOT retry silently; fail-fast so operators can investigate root cause.
+            # If a prior phase left the transaction in a bad state, retrying here masks that issue.
+            error_msg = (
+                f"[PHASE 5 FAIL-FAST] Position review failed: {e}. "
+                f"This indicates either a query error or a transaction state issue from a prior phase. "
+                f"Do not retry - check database logs and prior phase execution. "
+                f"Cannot proceed with exposure policy without successful position review."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from e
 
         if not actions:
             logger.info("  No exposure-policy actions")

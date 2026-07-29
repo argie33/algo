@@ -416,12 +416,13 @@ class WeightOptimizer:
             try:
                 optimal = self.optimize(report_date)
             except (RuntimeError, ValueError) as e:
-                # Weight optimization is important but not critical for Phase 9.
-                # When optimization fails due to data quality issues (missing IC, insufficient trades),
-                # skip gracefully and continue with reconciliation per governance feedback.
-                logger.warning(
-                    f"Weight optimization failed on {report_date}: {e}. "
-                    f"Portfolio exposure remains at current weights. Phase 9 continues for reconciliation/metrics/risk."
+                # Fail-fast on optimization errors: optimization failures are real data quality issues
+                # that should be surfaced to operators, not silently masked by returning success=True.
+                # Return explicit failure marker so Phase 9 can handle appropriately.
+                logger.error(
+                    f"[WEIGHT OPTIMIZER FAIL-FAST] Optimization failed on {report_date}: {e}. "
+                    f"Cannot proceed with weight optimization. "
+                    f"Check: (1) Information Coefficient data availability, (2) Trade history in database"
                 )
                 return {
                     "old_weights": current,
@@ -431,8 +432,9 @@ class WeightOptimizer:
                     "blending_factor": self.BLEND_FACTORS[regime],
                     "regime": regime,
                     "dry_run": dry_run,
-                    "success": True,
-                    "skipped_reason": "optimization_failed",
+                    "success": False,
+                    "error": str(e),
+                    "skipped_reason": "optimization_error",
                 }
 
             if not optimal:

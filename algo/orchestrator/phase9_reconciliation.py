@@ -845,20 +845,34 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         try:
             _current_regime = _RegimeManager().get_current_regime(run_date)
         except RuntimeError as regime_e:
-            # Regime data unavailable - log warning and skip weight optimization
-            # This is a data quality issue (market_exposure_daily stale/missing), not a code bug
-            # Weight optimization is important but not critical for Phase 9; Phase 9 must continue
-            # for reconciliation/metrics/risk calculations per governance feedback
-            logger.warning(
-                f"[PHASE 9] Skipping weight optimization: regime unavailable ({regime_e}). "
-                f"Market exposure analysis (Phase 5) must complete to enable weight optimization. "
-                f"Portfolio weights remain unchanged. Phase 9 continues for reconciliation/metrics/risk."
+            # FAIL-FAST: Regime data unavailable is a critical data quality issue
+            # Weight optimization requires market regime data; without it, portfolio management is incomplete.
+            # Do not silently skip optimization - surface the data quality issue to operators.
+            error_msg = (
+                f"[PHASE 9 FAIL-FAST] Market regime data unavailable: {regime_e}. "
+                f"Cannot optimize portfolio weights without market exposure analysis. "
+                f"This indicates Phase 5 (Exposure Policy) did not complete successfully. "
+                f"Check Phase 5 logs and market_exposure_daily table for data availability."
             )
-            log_phase_result_fn(9, "weight_optimization", "warn", f"regime unavailable: {str(regime_e)[:60]}")
-            return opt_result
+            logger.critical(error_msg)
+            log_phase_result_fn(9, "weight_optimization", "error", f"regime unavailable: {str(regime_e)[:60]}")
+            raise RuntimeError(error_msg) from regime_e
 
         optimizer = WeightOptimizer(config)
         opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)
+
+        # FAIL-FAST: Check if optimization failed and raise immediately
+        # Don't silently continue with unoptimized weights - surface real errors to operators
+        if not opt_result.get("success", False):
+            error_msg = (
+                f"[PHASE 9] Weight optimization failed. "
+                f"Cannot proceed with unoptimized portfolio weights. "
+                f"Error: {opt_result.get('error', 'Unknown error')}. "
+                f"Check Information Coefficient data and trade history availability."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
+
         if opt_result.get("changes"):
             logger.info(f"Weight optimization: {len(opt_result['changes'])} changes applied")
             for change in opt_result["changes"]:
