@@ -243,8 +243,23 @@ def run(  # noqa: C901
                 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 
                 account_data = AlpacaBrokerAdapter(config).fetch_account()
-                trading_blocked = account_data.get("trading_blocked") if "trading_blocked" in account_data else False
-                account_blocked = account_data.get("account_blocked") if "account_blocked" in account_data else False
+                # CRITICAL FIX: Fail-fast if account status fields are missing.
+                # These are safety-critical flags - missing data means API is broken or incomplete.
+                # Silent fallback to False could allow trading on a frozen account.
+                if "trading_blocked" not in account_data:
+                    raise KeyError(
+                        "[PHASE 2 CRITICAL] Account data missing required 'trading_blocked' field. "
+                        "Cannot verify account is not frozen before submitting live orders. "
+                        "Check Alpaca API response."
+                    )
+                if "account_blocked" not in account_data:
+                    raise KeyError(
+                        "[PHASE 2 CRITICAL] Account data missing required 'account_blocked' field. "
+                        "Cannot verify account is not blocked before submitting live orders. "
+                        "Check Alpaca API response."
+                    )
+                trading_blocked = bool(account_data["trading_blocked"])
+                account_blocked = bool(account_data["account_blocked"])
                 if trading_blocked or account_blocked:
                     reason = (
                         f"Alpaca account frozen (trading_blocked={trading_blocked}, "
@@ -264,9 +279,22 @@ def run(  # noqa: C901
                     )
                     log_phase_result_fn(2, "account_status", "halt", reason)
                     return PhaseResult(2, "circuit_breakers", "halted", risk_snapshot, True, reason)
-                pattern_day_trader = account_data.get("pattern_day_trader") if "pattern_day_trader" in account_data else False
+                # CRITICAL FIX: Fail-fast if pattern_day_trader flag is missing
+                if "pattern_day_trader" not in account_data:
+                    raise KeyError(
+                        "[PHASE 2 CRITICAL] Account data missing required 'pattern_day_trader' field. "
+                        "Cannot verify PDT status before submitting live orders. "
+                        "Check Alpaca API response."
+                    )
+                pattern_day_trader = bool(account_data["pattern_day_trader"])
                 if pattern_day_trader:
-                    daytrade_count = account_data.get("daytrade_count") if "daytrade_count" in account_data else None
+                    daytrade_count = account_data.get("daytrade_count")
+                    if daytrade_count is None:
+                        logger.warning(
+                            "[PHASE 2] Alpaca account flagged pattern_day_trader=True "
+                            "but daytrade_count is missing. Cannot determine current day-trade count. "
+                            "PDT limit enforcement may be inaccurate."
+                        )
                     logger.warning(
                         f"[PHASE 2] Alpaca account flagged pattern_day_trader=True "
                         f"(daytrade_count={daytrade_count}). Alpaca will reject "

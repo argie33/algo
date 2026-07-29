@@ -268,64 +268,27 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             except Exception as review_err:
                 error_str = str(review_err)[:200]
 
-                # Session 430: DATA GAP FALLBACK
-                # PositionMonitor can fail for two reasons:
-                # 1. DATA GAP (e.g., missing sector history) - safe to use minimal fallback
-                # 2. CODE BUG (e.g., null price, logic error) - must fail-fast
+                # CRITICAL FIX (Session 431): FAIL-FAST on data gaps instead of creating fake fallback
+                # Previous approach: Detect data gap errors and generate minimal fallback exit recommendation
+                # PROBLEM: Fallback recommendations are fake (not based on actual position analysis)
+                # This masks transient data issues and violates fail-fast principle for risk-critical logic
                 #
-                # DATA GAP signals include: "historical baseline", "data gaps", "4-week"
-                # These are transient and should not completely block position management.
+                # Position management must be based on actual analysis. A data gap is transient and should
+                # be resolved, not covered up with synthesized recommendations. If PositionMonitor can't
+                # analyze positions (data gap or code bug), Phase 3 must halt. Orchestrator will retry
+                # on the next run when data has been loaded.
                 #
-                # RISK: Completely failing on data gaps creates a cascading halt:
-                # Phase 3 fails -> Phase 4/6/7 skip -> exit execution halts -> position limit hit
-                # This is worse than using a minimal fallback.
-                is_data_gap = any(phrase in error_str.lower() for phrase in ["baseline", "data gap", "4-week", "historical"])
-
-                if is_data_gap:
-                    # DATA GAP: Use minimal safe fallback (close oldest position)
-                    logger.warning(f"[PHASE 3] PositionMonitor failed due to data gap ({error_str}). Using minimal fallback to manage position count.")
-                    try:
-                        with DatabaseContext("read") as cur:
-                            cur.execute("""
-                                SELECT position_id, trade_ids_arr, symbol, current_price
-                                FROM algo_positions
-                                WHERE status = 'open'
-                                ORDER BY days_since_entry DESC NULLS LAST
-                                LIMIT 1
-                            """)
-                            old_pos = cur.fetchone()
-
-                        if old_pos:
-                            pos_id, trade_ids_arr, symbol, current_price = old_pos
-                            if current_price and current_price > 0 and trade_ids_arr and len(trade_ids_arr) > 0:
-                                trade_id = trade_ids_arr[0] if isinstance(trade_ids_arr, list) else str(trade_ids_arr).strip('{}').split(',')[0]
-                                recommendations.append({
-                                    "position_id": pos_id,
-                                    "trade_id": trade_id,
-                                    "symbol": symbol,
-                                    "action": "EARLY_EXIT",
-                                    "action_reason": "Data gap fallback: minimal position management to stay below hard limit",
-                                    "current_price": float(current_price),
-                                    "days_held": 0,
-                                    "unrealized_pct": 0.0,
-                                    "unrealized_pnl": 0.0,
-                                })
-                                logger.info(f"[PHASE 3] Data gap fallback: generated exit for oldest position {symbol}")
-                        else:
-                            logger.warning("[PHASE 3] Data gap fallback: no positions to exit")
-                    except Exception as fallback_err:
-                        logger.error(f"[PHASE 3] Data gap fallback failed: {fallback_err}. Proceeding with empty recommendations.")
-                        recommendations = []
-                else:
-                    # CODE BUG: Must fail-fast to prevent accidental trading
-                    error_msg = (
-                        f"[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: {error_str}. "
-                        f"Cannot generate exit recommendations without proper position analysis. "
-                        f"Position monitoring is non-negotiable for risk management. "
-                        f"Failing phase rather than silently generating degraded fallback recommendations."
-                    )
-                    logger.critical(error_msg)
-                    raise RuntimeError(error_msg) from review_err
+                # FAIL-FAST: Regardless of error type (data gap, code bug, API failure), position monitoring
+                # failure = critical risk-management failure. Cannot trade if we can't monitor positions.
+                error_msg = (
+                    f"[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: {error_str}. "
+                    f"Cannot generate exit recommendations without proper position analysis. "
+                    f"Position monitoring is non-negotiable for risk management. "
+                    f"This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
+                    f"Next run will retry when data has been loaded."
+                )
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg) from review_err
 
             log_phase_result_fn(
                 3,
