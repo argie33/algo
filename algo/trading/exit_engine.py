@@ -1085,21 +1085,20 @@ class ExitEngine:
 
     # ---------- Data helpers ----------
 
-    def _fetch_alpaca_quote(self, symbol: str) -> float | None:
+    def _fetch_alpaca_quote(self, symbol: str) -> float | dict[str, str | bool]:
         """Fetch real-time quote from Alpaca Data API.
 
+        Returns:
+            float: Valid price from Alpaca
+            dict: {"data_unavailable": True, "reason": "..."} if paper mode sandbox 404
 
-
-        Raises on API failure or missing credentials. Returns None only if market is closed.
-
-
+        Raises on API failure or missing credentials. Raises on critical API errors in live mode.
 
         When API returns status 200 but no valid price data:
-
         - Market open: Raises RuntimeError (API is broken, got 200 but no quote)
+        - Market closed: Raises RuntimeError (caller must check market hours)
 
-        - Market closed: Returns None (expected; market closed means no intraday quotes)
-
+        Paper mode 404: Returns explicit data_unavailable marker instead of None (sandbox limitation)
         """
 
         try:
@@ -1222,12 +1221,12 @@ class ExitEngine:
                 #    account permission change, or data corruption. Fail-fast.
                 execution_mode = self.config.get("execution_mode", "paper")
                 if execution_mode in ("paper", "dry", "review"):
-                    # Sandbox limitation - return None to trigger database fallback
+                    # Sandbox limitation - return explicit data_unavailable marker for database fallback
                     logger.warning(
                         f"[EXIT_ENGINE] {symbol}: Alpaca quote API returned 404 - "
-                        f"symbol unavailable in {execution_mode} sandbox. Using database fallback pricing."
+                        f"symbol unavailable in {execution_mode} sandbox. Database fallback pricing will be used."
                     )
-                    return None
+                    return {"data_unavailable": True, "reason": f"Alpaca 404 in {execution_mode} sandbox"}
                 else:
                     # Live trading mode (auto): 404 is a critical error
                     error_msg = (
@@ -1267,7 +1266,8 @@ class ExitEngine:
 
         current_price = self._fetch_alpaca_quote(symbol)
 
-        if current_price is not None:
+        # Check if got valid price (not data_unavailable marker)
+        if isinstance(current_price, (int, float)) and not isinstance(current_price, bool):
             # Got real-time quote; fetch previous close from daily data
 
             cur.execute(
@@ -1289,7 +1289,7 @@ class ExitEngine:
 
             return current_price, prev_close
 
-        # Fall back to daily closes (market closed or API unavailable)
+        # Fall back to daily closes (Alpaca unavailable, market closed, or data_unavailable marker)
 
         cur.execute(
             """

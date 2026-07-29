@@ -89,13 +89,54 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
 
         assert mock_get.call_count == 3
 
-    def test_404_fails_fast_unavailable_symbol(self, mock_config):
-        """Test that 404 response fails fast - symbol unavailable at broker.
+    def test_404_paper_mode_returns_data_unavailable_marker(self, mock_config):
+        """Test that 404 in paper mode returns data_unavailable marker for fallback.
 
-        FAIL-FAST PRINCIPLE: If the broker doesn't have the symbol (404),
-        we cannot exit the position at the broker level. This is a critical
-        condition that must be surfaced immediately, not retried.
+        PAPER MODE FALLBACK: In sandbox, 404 means Alpaca doesn't support the symbol.
+        Return explicit data_unavailable marker so caller can fall back to database pricing.
         """
+        engine = _engine(mock_config)
+        not_found = MagicMock(status_code=404, text="not found")
+
+        with (
+            patch(
+                "algo.trading.exit_engine.get_alpaca_credentials",
+                return_value={"key": "k", "secret": "s"},
+            ),
+            patch("algo.trading.exit_engine.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
+            patch("algo.trading.exit_engine.requests.get", return_value=not_found) as mock_get,
+        ):
+            result = engine._fetch_alpaca_quote("AAPL")
+
+        # Should fail fast without retrying (only 1 call to requests.get)
+        assert mock_get.call_count == 1
+        # Should return explicit data_unavailable marker for fallback
+        assert isinstance(result, dict)
+        assert result.get("data_unavailable") is True
+        assert "reason" in result
+
+    def test_404_live_mode_fails_fast(self):
+        """Test that 404 in live mode fails fast - symbol unavailable at broker.
+
+        LIVE MODE FAIL-FAST: If the broker doesn't have the symbol (404) in live mode,
+        we cannot exit the position. This is a critical condition that must fail-fast.
+        """
+        mock_config = {
+            "min_hold_days": 1,
+            "max_hold_days": 60,
+            "eight_week_rule_threshold_pct": 20.0,
+            "eight_week_rule_window_days": 21,
+            "exit_on_distribution_day": False,
+            "max_distribution_days": 3,
+            "move_be_at_r": 1.0,
+            "chandelier_atr_mult": 3.0,
+            "use_chandelier_trail": False,
+            "exit_on_td_sequential": False,
+            "exit_on_rs_line_break_50dma": False,
+            "require_target_pullback": True,
+            "execution_mode": "auto",  # Live mode
+            "alpaca_paper_trading": False,
+        }
         engine = _engine(mock_config)
         not_found = MagicMock(status_code=404, text="not found")
 
@@ -112,7 +153,7 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
 
         # Should fail fast without retrying (only 1 call to requests.get)
         assert mock_get.call_count == 1
-        # Error should explain that the symbol is unavailable
+        # Error should explain critical situation
         error_msg = str(exc_info.value)
         assert "404" in error_msg or "unavailable" in error_msg.lower()
 
