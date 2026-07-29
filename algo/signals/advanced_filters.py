@@ -200,8 +200,7 @@ class AdvancedFilters:
             except ValueError as e:
                 # Earnings data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
                 # Continuing without earnings check exposes position to surprise earnings gaps.
-                hard_fail = f"Earnings data unavailable (cannot validate blackout): {e}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Earnings data unavailable (cannot validate blackout): {e}") from e
 
             components["days_to_earnings"] = days_to_earnings
             if days_to_earnings is not None and 0 <= days_to_earnings <= self.block_days_before_earnings:
@@ -216,8 +215,7 @@ class AdvancedFilters:
             except ValueError as e:
                 # SMA_50 data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
                 # Cannot measure extension without SMA_50; trade validity is unmeasurable.
-                hard_fail = f"Extension validation failed (SMA_50 missing): {e}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Extension validation failed (SMA_50 missing): {e}") from e
 
             components["extension_pct"] = ext_pct
             if ext_pct is not None and ext_pct > self.max_extension_above_50ma_pct:
@@ -235,8 +233,7 @@ class AdvancedFilters:
             except ValueError as e:
                 # Liquidity data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
                 # Cannot validate minimum liquidity; trade size calculation is unreliable.
-                hard_fail = f"Liquidity validation failed (price/volume missing): {e}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Liquidity validation failed (price/volume missing): {e}") from e
 
             components["avg_dollar_volume"] = avg_dollar_vol
             if avg_dollar_vol is not None and avg_dollar_vol < self.min_avg_daily_dollar_volume:
@@ -279,8 +276,7 @@ class AdvancedFilters:
                 }
                 subscores["momentum"] += rs_pts
             except ValueError as e:
-                hard_fail = f"Mansfield RS score unavailable: {str(e)[:40]}"
-                logger.warning(f"  {symbol}: {hard_fail}")
+                raise ValueError(f"Mansfield RS score unavailable: {e}") from e
 
             try:
                 sec_pts = self._sector_momentum_score(sector)
