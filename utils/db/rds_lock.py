@@ -72,7 +72,7 @@ class RDSLockManager:
                     # Try to acquire lock atomically
                     # First, delete any expired locks for this key
                     cur.execute(
-                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < NOW()",
+                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < NOW() AT TIME ZONE 'UTC'",
                         (lock_key,),
                     )
 

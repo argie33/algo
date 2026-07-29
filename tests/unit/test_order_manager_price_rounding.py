@@ -145,11 +145,12 @@ class TestSendBracketOrderToleratesNoneStopLoss:
                 stop_loss_price=None,
             )
 
-        assert result["success"] is True
-        payload = mock_post.call_args.kwargs["json"]
-        # No stop -> plain limit order, no bracket/order_class/stop_loss fields
-        assert "order_class" not in payload
-        assert "stop_loss" not in payload
+        # FAIL-FAST: Stop loss protection is non-negotiable. System must reject orders without valid stop-loss.
+        # Allowing None stop_loss would create naked positions (no stop-loss protection), violating risk governance.
+        assert result["success"] is False
+        assert "stop_loss_price" in result["error"].lower()
+        # Order should NOT be sent to Alpaca when stop_loss validation fails
+        mock_post.assert_not_called()
 
 
 class TestClientOrderIdIdempotency:

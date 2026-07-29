@@ -144,14 +144,24 @@ class SectorIndustryDailyLoader(OptimalLoader):
             # Previous TRADING day, not literal calendar day-1: a naive timedelta(days=1)
             # resolves to a weekend/holiday whenever target_date is a Monday (or the day
             # after a market holiday), and price_daily has zero rows for a day the market
-            # never opened. The INNER JOIN below then matches nothing for any symbol - not
-            # an error, just a silently empty result set - so sector_performance quietly
-            # stopped advancing past 2026-07-10 (confirmed live: every run on/after a
-            # non-trading-day-adjacent date inserted "0 sector performance rows" with no
-            # error, while sector_ranking/industry_ranking in the same transaction kept
-            # advancing normally since they don't depend on a day-over-day price join).
+            # never opened. The INNER JOIN below then matches nothing for any symbol.
+            # CRITICAL FIX (Session 291): FAIL-FAST when previous trading day unavailable.
+            # Before: silently fell back to target_date - timedelta(days=1) (which could be
+            # a non-trading day), causing INNER JOIN to return 0 rows silently.
+            # This masked the real error (MarketCalendar unable to find previous trading day)
+            # and stalled sector_performance updates (confirmed live: "0 rows inserted" every
+            # run from 2026-07-10 onward until Session 290 when the fallback was noticed).
+            # Solution: Raise explicit error if previous trading day cannot be determined.
             prev_trading_day = MarketCalendar.get_previous_trading_day(target_date - timedelta(days=1))
-            prev_date = prev_trading_day if prev_trading_day is not None else target_date - timedelta(days=1)
+            if prev_trading_day is None:
+                raise RuntimeError(
+                    f"[{self.table_name}] CRITICAL: Cannot determine previous trading day before {target_date}. "
+                    f"MarketCalendar.get_previous_trading_day() returned None. "
+                    f"Sector performance calculations require a valid previous trading day for day-over-day price changes. "
+                    f"Cannot proceed with silent fallback to calendar date (would cause INNER JOIN to return 0 rows). "
+                    f"Check: (1) Market calendar data is loaded, (2) We're not at start of historical data"
+                )
+            prev_date = prev_trading_day
 
             with DatabaseContext("write") as cur:
                 # ===== SECTOR PERFORMANCE =====
