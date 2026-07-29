@@ -748,23 +748,18 @@ def run(
     ]
     missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
     if missing_keys:
-        # BUG FIX: If constraints are incomplete, use safe defaults instead of crashing
-        # This handles cases where Phase 5 returned incomplete constraints
-        logger.warning(
-            f"[PHASE 8] Exposure constraints incomplete: missing keys {missing_keys}. "
-            f"Switching to safe halt defaults to prevent data loss."
+        # CRITICAL: Phase 5 must return complete constraints. Incomplete data is a system error.
+        # Do NOT silently default to halt constraints - that masks upstream failures.
+        # Fail-fast to surface the problem so Phase 5 can be debugged.
+        msg = (
+            f"[PHASE 8 CRITICAL] Exposure constraints incomplete from Phase 5: missing keys {missing_keys}. "
+            f"Phase 5 (Exposure Policy) must provide complete constraint data. "
+            f"Incomplete data indicates upstream failure that must be surfaced, not masked with defaults. "
+            f"Cannot proceed with entry execution - halting."
         )
-        exposure_constraints = {
-            "regime": "correction",
-            "tier_name": "CORRECTION",
-            "description": "Safe halt defaults (incomplete Phase 5 data)",
-            "risk_multiplier": 0.0,
-            "max_new_positions_today": 0,
-            "halt_new_entries": True,
-            "max_concentration_pct": 0.0,
-            "halt_reason": f"Phase 5 constraints incomplete - missing: {missing_keys}",
-        }
-        logger.info("[PHASE 8] Using safe halt constraints - no new entries allowed")
+        logger.critical(msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # CRITICAL: Verify data freshness before executing trades
 
