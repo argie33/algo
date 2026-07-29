@@ -595,6 +595,12 @@ def run(  # noqa: C901
             # Reject phantom rows (NULL prices counted as fresh data)
             # This is the RIGHT thing: require data for the most recent market close, always
 
+            # CRITICAL FIX 2026-07-29: For afternoon runs, we also need to check TODAY's data
+            # because the orchestrator needs today's prices for Phase 6 exit execution.
+            # The loader should have completed by mid-day, so lack of today's data indicates
+            # loader failure, not normal lag. Check both yesterday (for intraday validation)
+            # and today (for afternoon orchestrator requirements).
+
             # Both counts are scoped to symbols currently marked active in stock_symbols.
             # price_daily retains history for ~10.6K symbols total, but only ~5.5K are
             # still active - the other ~5.1K are delisted/removed tickers whose rows stop
@@ -616,6 +622,39 @@ def run(  # noqa: C901
             if row is None or row[0] is None:
                 raise RuntimeError(f"Symbol count query failed for last trading day ({last_trading_day})")
             symbols_loaded = row[0]
+
+            # CRITICAL: For afternoon/evening runs, also validate TODAY's price data
+            # If we're past early morning and don't have today's data, loader failed
+            if pipeline_context in ("AFTERNOON", "EVENING"):
+                cur.execute(
+                    """SELECT COUNT(DISTINCT pd.symbol)
+                       FROM price_daily pd
+                       JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
+                       WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
+                    (run_date_obj,),
+                )
+                today_row = cur.fetchone()
+                today_symbols = today_row[0] if today_row and today_row[0] is not None else 0
+
+                if today_symbols < min_symbol_count:
+                    logger.critical(
+                        f"[PHASE 1] CRITICAL: Today's ({run_date_obj}) price data incomplete: {today_symbols} symbols loaded. "
+                        f"Loader appears to have failed. Require at least {min_symbol_count} symbols for exit execution."
+                    )
+                    log_phase_result_fn(
+                        1,
+                        "today_price_data_missing",
+                        "halt",
+                        f"Today's price data incomplete: only {today_symbols}/{min_symbol_count} symbols",
+                    )
+                    return PhaseResult(
+                        1,
+                        "today_price_data_missing",
+                        "halted",
+                        {},
+                        True,
+                        f"Loader failed: only {today_symbols} symbols for {run_date_obj}. Check price_daily loader logs.",
+                    )
 
             # CRITICAL FIX: Validate that data_loader_status.completion_pct matches actual symbol count
             # Session 344: Found that completion_pct was calculated on row_count, not symbol_count,
