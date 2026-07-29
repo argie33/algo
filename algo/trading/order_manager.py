@@ -258,10 +258,9 @@ class OrderManager:
         """Cancel bracket order and its children (stop loss + take profit).
 
         Returns: { success: bool, message: str }
-        Raises: RuntimeError on actual cancellation failure (not paper mode)
         """
         if not alpaca_order_id:
-            raise RuntimeError("[CANCEL_BRACKET] Critical: cancel_bracket_orders called with empty alpaca_order_id - programming error")
+            return {"success": True, "message": "No order ID provided"}
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return {"success": True, "message": "Paper mode, no Alpaca order to cancel"}
@@ -303,7 +302,7 @@ class OrderManager:
                     )
                     time.sleep(wait_time)
                     continue
-                raise RuntimeError(f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id}: {last_error}")
+                return {"success": False, "message": last_error}
             except (requests.RequestException, requests.Timeout) as e:
                 last_error = f"Error cancelling order: {e!s}"
                 logger.warning(
@@ -312,7 +311,7 @@ class OrderManager:
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 
-        raise RuntimeError(f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id} after {max_attempts} attempts: {last_error}")
+        return {"success": False, "message": last_error}
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
