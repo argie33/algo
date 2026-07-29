@@ -1569,9 +1569,17 @@ def run(  # noqa: C901
                         # Continue with remaining candidates
                         continue
         except Exception as executor_exc:
-            logger.error(f"[PHASE 7] ThreadPoolExecutor error during liquidity checks: {executor_exc}")
-            # Don't halt - if liquidity checks fail, continue with what we have (fallback behavior)
-            # This prevents a single thread pool failure from halting the entire phase
+            logger.critical(
+                f"[PHASE 7 CRITICAL] ThreadPoolExecutor failure during liquidity checks: {executor_exc}. "
+                f"Cannot verify liquidity for {len(to_check)} candidates. "
+                f"Liquidity checks are critical for trading safety - failing fast instead of proceeding with unverified candidates."
+            )
+            msg = (
+                f"[PHASE 7] Liquidity check system failure: ThreadPoolExecutor error {type(executor_exc).__name__}. "
+                f"Cannot proceed with signal generation without liquidity validation. "
+                f"Check system resources (thread pool, memory) and retry."
+            )
+            raise RuntimeError(msg) from executor_exc
 
     logger.info(
         f"[PHASE 7] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
