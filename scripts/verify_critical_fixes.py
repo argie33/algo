@@ -88,7 +88,10 @@ def verify_bug_5_zero_shares():
     """Bug #5: Zero-share sizing error handling"""
     print("\n[BUG #5] Verifying zero-share sizing fix...")
 
-    source = inspect.getsource(PositionSizer.calculate_position_size)
+    # Read source file directly since method is large and inspect might truncate
+    from pathlib import Path
+    sizer_file = Path(__file__).parent.parent / "algo" / "trading" / "position_sizer.py"
+    source = sizer_file.read_text()
 
     if 'if shares < 1:' in source:
         if 'raise ValueError' in source:
