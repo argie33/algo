@@ -940,14 +940,17 @@ class PositionMonitor:
         )
         old_row = cur.fetchone()
         if not old_row or old_row[0] is None:
-            # Sector data too young - skip trend analysis and return neutral
-            # This allows positions in newly-tracked sectors to continue being monitored
-            # while trend data accumulates. Once 4 weeks of history exists, trend checks will activate.
-            logger.debug(
-                f"Skipping sector trend check for {symbol} ({sector}): "
-                f"insufficient historical data (< 4 weeks). Returning neutral."
+            # FAIL-FAST: Cannot assess sector trend without 4-week historical baseline
+            # Sector trend analysis is CRITICAL for risk management - positions must not
+            # continue trading if we can't determine whether sector is weakening.
+            # Silently returning "neutral" masks data quality issues and violates fail-fast principle.
+            raise ValueError(
+                f"[POSITION_MONITOR CRITICAL] Cannot assess sector trend for {symbol} ({sector}) "
+                f"- missing 4-week historical baseline. "
+                f"Sector ranking history required to determine trend direction. "
+                f"This is NOT optional data - trending sectors must be actively monitored. "
+                f"Verify sector_ranking table has data for '{sector}' spanning 28+ days back."
             )
-            return "neutral"
         old_rank = int(old_row[0])
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"
