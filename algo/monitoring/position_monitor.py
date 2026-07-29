@@ -971,9 +971,33 @@ class PositionMonitor:
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
             )
         if row[0] is None:
-            raise PositionValidationError(
-                f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
+            # Fallback: if no data through current_date, use the most recent available price
+            # This handles intraday scenarios where EOD prices haven't loaded yet
+            logger.debug(f"[PRICE DEBUG] {symbol}: main query returned no data for dates {trade_date} to {current_date}. Trying fallback to latest available price...")
+            cur.execute(
+                """
+                SELECT close, data_unavailable, data_unavailable_reason
+                FROM price_daily
+                WHERE symbol = %s AND date >= %s
+                AND close IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 1
+                """,
+                (symbol, trade_date),
             )
+            fallback_row = cur.fetchone()
+            if fallback_row:
+                logger.debug(f"[PRICE FALLBACK] {symbol}: using latest available price (data for {current_date} not loaded yet)")
+                row = (fallback_row[0], fallback_row[1], fallback_row[2])
+            else:
+                logger.warning(f"[PRICE FALLBACK FAILED] {symbol}: no data found even from {trade_date} onwards. Checking database state...")
+                cur.execute("SELECT COUNT(*), MIN(date), MAX(date) FROM price_daily WHERE symbol = %s", (symbol,))
+                debug_row = cur.fetchone()
+                if debug_row:
+                    logger.warning(f"[PRICE DEBUG] {symbol}: total {debug_row[0]} rows, date range {debug_row[1]} to {debug_row[2]}")
+                raise PositionValidationError(
+                    f"No price data available for {symbol} from {trade_date} onwards. Cannot calculate peak unrealized gain."
+                )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using prices
         max_close = float(row[0])
