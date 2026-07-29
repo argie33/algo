@@ -123,6 +123,7 @@ VALIDATION_SCHEMA = {
     "require_ftd_to_re_engage": ("bool", None, None, False, None),
     # Circuit Breaker Thresholds
     "max_daily_loss_pct": ("float", 0.1, 50.0, True, 2.0),  # Critical halt
+    "min_live_sharpe_ratio": ("float", -100.0, 10.0, False, 0.0),  # Halt if Sharpe < threshold in auto mode
     "max_consecutive_losses": ("int", 1, 100, False, 3),
     "min_win_rate_pct": ("float", 0.0, 100.0, False, 40.0),
     "max_total_risk_pct": ("float", 0.1, 100.0, False, 4.0),
