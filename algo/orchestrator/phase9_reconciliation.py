@@ -311,7 +311,9 @@ def _refresh_positions_with_risk_view(log_phase_result_fn: Callable[..., Any]) -
             error_msg = (
                 f"[PHASE 9 CRITICAL] Failed to refresh algo_positions_with_risk materialized view: "
                 f"permission denied ({e}). Dashboard position data will become stale. "
-                f"Check: DB role/grants on algo_positions_with_risk."
+                f"Fix: GRANT REFRESH ON MATERIALIZED VIEW algo_positions_with_risk TO <db_role>; "
+                f"or run as superuser with elevated privileges. "
+                f"Check: (1) DB role has REFRESH grant on view, (2) connection using correct DB role"
             )
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from e
