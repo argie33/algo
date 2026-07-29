@@ -1950,27 +1950,30 @@ class Orchestrator:
         return None
 
     def _cleanup_stale_loader_locks(self) -> None:
-        """Clean up any expired loader locks from crashed processes.
+        """Clean up any stale loader locks from crashed processes.
 
-        Stale locks from crashed loaders can persist until their TTL (2 hours) expires,
-        blocking Phase 7 and other critical path components. This cleanup runs at
-        orchestrator startup to prevent lock-induced halts.
+        Stale locks from crashed loaders can persist, blocking Phase 7 and other critical
+        path components. This cleanup runs at orchestrator startup to prevent lock-induced halts.
 
-        Only deletes locks that have expired_at < NOW() (already past their expiration time).
-        Safe to call repeatedly - won't delete locks that are still within their TTL window.
+        Uses aggressive cleanup: deletes locks older than 600 seconds (10 minutes) to recover
+        quickly from crashed loader processes. This is safe because:
+        1. Legitimate loader runs timeout at LOADER_SLA_TIMEOUT_SECONDS (3600s+)
+        2. A lock older than 10 minutes with no activity indicates a crash/stall
+        3. The orchestrator runs frequently (15-60 min intervals), so we detect crashes quickly
+        4. Cleanup happens at orchestrator STARTUP, not mid-phase, so legitimate locks won't be affected
         """
         try:
             from utils.db.local_file_lock import get_lock_manager
 
             lock_manager = get_lock_manager()
             if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
-                # max_age_seconds=0 means delete locks where expires_at < NOW()
-                # This only removes locks that are already past their expiration time
-                cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=0)
+                # max_age_seconds=600 deletes locks created 10+ minutes ago
+                # This catches crashed loader processes much faster than waiting for TTL expiry
+                cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=600)
                 if cleaned > 0:
-                    logger.warning(f"[LOCK_CLEANUP] Removed {cleaned} expired lock(s) from crashed loaders")
+                    logger.warning(f"[LOCK_CLEANUP] Removed {cleaned} stale lock(s) from crashed loaders (older than 600s)")
         except Exception as cleanup_err:
-            logger.warning(f"[LOCK_CLEANUP] Failed to cleanup expired locks: {cleanup_err}. Proceeding anyway.")
+            logger.warning(f"[LOCK_CLEANUP] Failed to cleanup stale locks: {cleanup_err}. Proceeding anyway.")
 
     def _wait_for_loaders_before_execution(self) -> None:
         """Wait for critical loaders to complete before executor runs."""

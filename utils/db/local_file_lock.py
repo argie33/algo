@@ -76,6 +76,51 @@ class FileLockManager:
         except Exception as e:
             logger.warning(f"[FILE_LOCK] Cleanup failed: {e}")
 
+    def cleanup_expired_locks(self, lock_key: str | None = None, max_age_seconds: int = 1800) -> int:
+        """Public interface for cleaning up stale locks (compatible with DynamoDB/RDS lock managers).
+
+        Args:
+            lock_key: Specific lock to clean (unused in FileLockManager - all locks are checked)
+            max_age_seconds: Delete locks older than this many seconds from creation
+
+        Returns: Number of locks deleted
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            cleanup_threshold = now - timedelta(seconds=max_age_seconds)
+            deleted_count = 0
+
+            for lock_file in self.lock_dir.glob("*.lock"):
+                try:
+                    # Read creation/expiry time from file
+                    with open(lock_file, encoding="utf-8") as f:
+                        content = f.read().strip()
+                        # Format: "lock_id|expiry_timestamp"
+                        expiry_str = content.split("|")[1] if "|" in content else None
+                        if expiry_str:
+                            expiry = datetime.fromisoformat(expiry_str)
+                            if expiry.tzinfo is None:
+                                expiry = expiry.replace(tzinfo=timezone.utc)
+                            # Delete if expired OR if created more than max_age_seconds ago
+                            # (even if TTL hasn't hit expiration yet)
+                            created_time = expiry - timedelta(seconds=self.lock_duration_seconds)
+                            if now > expiry or created_time < cleanup_threshold:
+                                lock_file.unlink()
+                                deleted_count += 1
+                                logger.debug(
+                                    f"[FILE_LOCK] Cleaned stale lock: {lock_file.name} "
+                                    f"(age={int((now - created_time).total_seconds())}s, ttl={self.lock_duration_seconds}s)"
+                                )
+                except Exception as e:
+                    logger.warning(f"[FILE_LOCK] Error cleaning lock {lock_file.name}: {e}")
+
+            if deleted_count > 0:
+                logger.info(f"[FILE_LOCK] Cleanup: Removed {deleted_count} stale lock(s) older than {max_age_seconds}s")
+            return deleted_count
+        except Exception as e:
+            logger.warning(f"[FILE_LOCK] cleanup_expired_locks failed: {e}")
+            return 0
+
     def acquire(self, lock_key: str = "orchestrator-run-lock", timeout_seconds: int = 5) -> bool:
         """Acquire file-based lock using atomic file creation.
 
