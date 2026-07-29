@@ -815,15 +815,18 @@ class Orchestrator:
                         cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
                         # Find critical loaders that are still running (incomplete)
-                        # Threshold: 85% instead of 90% because yfinance failures cause ~10% of symbols
-                        # to be unavailable; loaders naturally plateau around 89-90% and waiting longer
-                        # than 300s for marginal improvements is wasteful and delays trading operations
+                        # CRITICAL FIX: Require 95%+ completion for price_daily (critical for exits)
+                        # Previous 85% threshold accepted incomplete data causing downstream failures.
+                        # Symbols without price data break exit execution and risk calculation.
+                        # Loaders naturally cap at ~89% due to yfinance unavailability - that's a data
+                        # quality issue, not a reason to proceed. Accept incomplete prices by proceeding
+                        # with degraded mode warning and explicit symbol tracking.
                         cur.execute(
                             """
                             SELECT table_name, status, completion_pct, symbols_loaded, symbol_count
                             FROM data_loader_status
                             WHERE table_name = ANY(%s)
-                            AND (status = 'running' OR completion_pct < 85.0)
+                            AND (status = 'running' OR completion_pct < 95.0)
                             ORDER BY completion_pct ASC
                             """,
                             (list(critical_loaders),),
@@ -831,7 +834,7 @@ class Orchestrator:
 
                         incomplete_loaders = cur.fetchall()
                         if not incomplete_loaders:
-                            logger.info("[PROACTIVE WAIT] All critical loaders are at 85%+ completion")
+                            logger.info("[PROACTIVE WAIT] All critical loaders are at 95%+ completion (target threshold)")
                             return True
 
                         # Still running - log progress and wait
@@ -851,11 +854,13 @@ class Orchestrator:
                     logger.warning(f"[PROACTIVE WAIT] Database error during poll: {db_err}. Retrying...")
                     time.sleep(poll_interval_seconds)
 
-            # Timeout expired (expected condition)
+            # Timeout expired (expected condition when data sources cap below 95%)
             logger.warning(
-                f"[PROACTIVE WAIT] Timeout after {max_wait_seconds}s waiting for critical loaders. "
-                f"Proceeding to Phase 1 (may detect degraded mode). "
-                f"Check EventBridge rules and ECS cluster health if loaders are perpetually incomplete."
+                f"[PROACTIVE WAIT] Timeout after {max_wait_seconds}s waiting for loaders to reach 95%+ completion. "
+                f"Proceeding to Phase 1 with degraded data (some symbols unavailable). "
+                f"Price data incomplete - Phase 1 will flag unavailable symbols and gates trading accordingly. "
+                f"Check: (1) yfinance availability for missing symbols, (2) EventBridge loader schedules, "
+                f"(3) ECS cluster health for stuck loaders"
             )
             return False
 
