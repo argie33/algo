@@ -675,6 +675,8 @@ def run(
                     "max_concentration_pct": 0.0,
                     "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
                 }
+        except ValueError:
+            raise
         except Exception as e:
             logger.warning(f"[PHASE 8] Could not fetch Phase 7/5 data: {e}. Proceeding with available data.")
 
