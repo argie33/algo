@@ -264,7 +264,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 recommendations = monitor.review_positions(run_date)
                 n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
                 n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
-                logger.info(f"[PHASE 3] Paper mode generated {len(recommendations)} recommendations: {n_early_exit} early exits, {n_raise_stop} stop raises")
+                logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises",
+                           len(recommendations), n_early_exit, n_raise_stop)
             except Exception as review_err:
                 error_str = str(review_err)[:200]
 
@@ -280,15 +281,16 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 #
                 # FAIL-FAST: Regardless of error type (data gap, code bug, API failure), position monitoring
                 # failure = critical risk-management failure. Cannot trade if we can't monitor positions.
-                # CRITICAL FIX: Use % formatting instead of f-strings to avoid "invalid format string" when
-                # error_str contains curly braces (e.g., from database/validation errors)
+                # CRITICAL FIX (Session 432): Use string concatenation instead of % formatting.
+                # If error_str contains format specifiers (%, {}, etc), both % and format() will fail.
+                # String concatenation is safe and explicit.
                 error_msg = (
-                    "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: %s. "
+                    "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str + ". "
                     "Cannot generate exit recommendations without proper position analysis. "
                     "Position monitoring is non-negotiable for risk management. "
                     "This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
                     "Next run will retry when data has been loaded."
-                ) % error_str
+                )
                 logger.critical(error_msg)
                 raise RuntimeError(error_msg) from review_err
 
