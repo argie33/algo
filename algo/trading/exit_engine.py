@@ -675,9 +675,18 @@ class ExitEngine:
                         try:
                             cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
                         except RuntimeError as fetch_err:
+                            # Only reach here in auto mode when symbol is truly missing from both
+                            # Alpaca AND our database. In paper/dry modes, _fetch_alpaca_quote returns None
+                            # instead of raising, so _fetch_recent_prices handles it via database fallback.
                             if "unavailable" in str(fetch_err).lower() or "404" in str(fetch_err).lower():
+                                execution_mode = self.config.get("execution_mode", "paper")
+                                error_context = (
+                                    f"live trading (symbol delisted or permission lost)"
+                                    if execution_mode == "auto"
+                                    else f"{execution_mode} mode (sandbox limitation despite DB prices)"
+                                )
                                 logger.critical(
-                                    f"[EXIT ENGINE CRITICAL] {symbol}: Symbol appears delisted or unavailable. "
+                                    f"[EXIT ENGINE CRITICAL] {symbol}: Symbol unavailable in {error_context}. "
                                     f"Cannot exit position without current price data. Will mark for manual review. Error: {fetch_err}"
                                 )
                                 # CRITICAL FIX: Do NOT fall back to entry_price for exit_price
