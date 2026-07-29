@@ -31,6 +31,10 @@ class ReconciliationAnalytics:
         - expectancy: {valid, expectancy, win_rate, kelly_fraction, alert}
 
         These metrics help monitor strategy performance and edge.
+
+        FAIL-FAST: ValueError (data quality issues) raised during computation are re-raised
+        immediately. Other exceptions (DB errors) are caught and logged. Returns {"valid": False}
+        only when there's insufficient data (not enough trades yet), not for quality issues.
         """
         result: dict[str, Any] = {
             "ic": {"valid": False},
@@ -62,6 +66,8 @@ class ReconciliationAnalytics:
                     "trade_count": trade_count,
                     "alert": alert,
                 }
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f"[TRADE ANALYTICS] IC computation failed: {e}", exc_info=True)
             result["ic"] = {"valid": False, "error": str(e)}
@@ -129,11 +135,9 @@ class ReconciliationAnalytics:
                     "kelly_fraction": max(0, kelly_fraction),
                     "alert": alert,
                 }
+        except ValueError:
+            raise
         except Exception as e:
-            # Same issue as compute_closed_trade_metrics below: the ValueErrors above are
-            # intentional fail-fast signals ("Do NOT default NULL values to 0.0"), not
-            # expected-empty states - a bare warning here silently discards them and
-            # returns {"valid": False} indistinguishable from "not enough trades yet".
             logger.error(f"[TRADE ANALYTICS] Expectancy computation failed: {e}", exc_info=True)
             result["expectancy"] = {"valid": False, "error": str(e)}
 
@@ -155,6 +159,10 @@ class ReconciliationAnalytics:
         - reason: str, summary of metrics
 
         These are used for dashboard E3 analytics and strategy validation.
+
+        FAIL-FAST: ValueError (data quality issues) raised during computation are re-raised
+        immediately. Other exceptions (DB errors) are caught and logged. Returns reason="No closed trades yet"
+        only when there's insufficient data (not enough trades yet), not for quality issues.
         """
         result: dict[str, Any] = {
             "win_count": 0,
@@ -256,14 +264,9 @@ class ReconciliationAnalytics:
             else:
                 result["reason"] = "No closed trades yet"
 
+        except ValueError:
+            raise
         except Exception as e:
-            # The ValueErrors raised above (wins/losses NULL, P&L NULL, gross_loss <= 0)
-            # are intentional fail-fast signals for real data-quality problems - the
-            # explicit comments right next to those raises say "Do NOT silently convert
-            # NULL to 0". A bare `except Exception: logger.warning(...)` here caught them
-            # and returned this function's own all-zero default dict, which is exactly the
-            # silent-zero behavior those raises exist to prevent. Log loud (ERROR + trace)
-            # and surface the real reason instead of masking it behind "Unable to compute".
             logger.error(f"[TRADE ANALYTICS] Closed trade metrics computation failed: {e}", exc_info=True)
             result["reason"] = f"Unable to compute closed trade metrics: {e}"
 
