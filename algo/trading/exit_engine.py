@@ -654,6 +654,14 @@ class ExitEngine:
                                 f"This indicates Phase 3 modified the position. Using fresh quantity for exit calculation."
                             )
 
+                        if fresh_quantity <= 0:
+                            logger.debug(
+                                f"[EXIT_ENGINE] {symbol}: Position quantity is now {fresh_quantity}, "
+                                f"position was fully closed by Phase 3. Skipping exit evaluation."
+                            )
+                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                            continue
+
                         # Use fresh stop price if available (ensures exit calculation has latest data)
                         effective_current_stop = fresh_stop_price if fresh_stop_price else current_stop
 
@@ -984,7 +992,7 @@ class ExitEngine:
 
                 logger.info(f"{'=' * 70}\n")
 
-                return exits_executed, stop_raises_executed, trade_errors
+                return exits_executed, stop_raises_executed, trade_errors, forced_closes_no_price
 
             except (ValueError, RuntimeError) as e:
                 logger.error(f"Exit engine error (configuration or data): {type(e).__name__}: {e}")

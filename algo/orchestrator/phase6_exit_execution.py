@@ -536,7 +536,7 @@ def run(
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
         if not dry_run and executor is not None:
             engine = ExitEngine(config)
-            engine_exits, engine_stop_raises, engine_errors = engine.check_and_execute_exits(run_date)
+            engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
             exit_count += engine_exits
             # CRITICAL FIX: engine_exits used to also include the engine's own internal
             # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
@@ -570,7 +570,7 @@ def run(
             detail_text = f"DRY-RUN: execution skipped (no real trades) - would have: {exit_count} exits, {stop_raises} stop-raises"
         else:
             phase_status = "degraded" if errors > 0 else "success"
-            detail_text = f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors"
+            detail_text = f"{exit_count} exits, {stop_raises} stop-raises, {engine_forced_closes_no_price} forced_closes_no_price, {errors} errors"
             if errors > 0:
                 # Exit-check failures mean open positions lost stop/target/time-exit coverage
                 # for this run - unlike phase2 (circuit breakers) and phase3 (position monitor),
@@ -583,7 +583,7 @@ def run(
                     "EXIT_CHECK_FAILURES",
                     f"{errors} position(s) failed exit/stop evaluation this run - "
                     f"see algo_exit_check_errors for detail",
-                    {"errors": errors, "exits": exit_count, "stop_raises": stop_raises},
+                    {"errors": errors, "exits": exit_count, "stop_raises": stop_raises, "forced_closes_no_price": engine_forced_closes_no_price},
                 )
 
         log_phase_result_fn(

@@ -99,17 +99,15 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         data_unavailable_flag = bool(row[2]) if row[2] is not None else False
                         reason_msg = row[3] if row[3] is not None else None
 
-                        # FAIL-FAST: Cannot use prices marked unavailable for position monitoring
+                        # DEGRADE GRACEFULLY: Skip positions with marked unavailable data, but continue phase
+                        # Phase 6 (exit execution) must always run - cannot halt on data gaps
                         if data_unavailable_flag:
-                            logger.critical(
+                            logger.warning(
                                 f"[PHASE 3] {symbol}: Price data marked unavailable: {reason_msg or 'no reason provided'}. "
-                                f"Cannot monitor position without valid price data. Fail-closed."
+                                f"Skipping position update this run. Will retry in next execution cycle."
                             )
-                            raise RuntimeError(
-                                f"[PHASE 3] {symbol}: Price data marked unavailable. "
-                                f"Position monitoring requires valid price data for all open positions. "
-                                f"Check price_daily loader status."
-                            )
+                            prices[symbol] = None
+                            continue
 
                         prices[symbol] = float(close_price) if close_price is not None else None
 

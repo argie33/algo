@@ -445,10 +445,10 @@ class TradeExecutor:
 
             # Extract order details - all required when success=True
             alpaca_order_id = order_result.get("order_id")
-            if not alpaca_order_id:
+            if not alpaca_order_id or not isinstance(alpaca_order_id, str) or not alpaca_order_id.strip():
                 raise OrderExecutionError(
-                    f"[ENTRY] {symbol}: OrderManager returned success=True but no order_id. "
-                    f"Cannot proceed without order ID. OrderManager contract violated."
+                    f"[ENTRY] {symbol}: OrderManager returned success=True but invalid order_id: {alpaca_order_id!r}. "
+                    f"order_id must be a non-empty string. OrderManager contract violated."
                 )
 
             order_status = order_result.get("status")

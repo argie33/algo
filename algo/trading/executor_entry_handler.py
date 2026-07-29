@@ -722,25 +722,59 @@ class EntryHandler:
                     f"Cannot validate order type. OrderManager contract violated."
                 )
 
-            if order_class == "bracket" and len(legs) < 2:
-                try:
-                    self.context._cancel_bracket_orders(alpaca_order_id)
-                except (
-                    OrderExecutionError,
-                    DatabaseError,
-                    requests.RequestException,
-                    requests.Timeout,
-                ) as e:
-                    logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
-                return (
-                    False,
-                    f"Bracket order missing stop loss leg ({len(legs)} legs)",
-                    "",
-                    "",
-                    None,
-                    rejection_reason,
-                    order_send_time,
+            if order_class == "bracket":
+                if len(legs) < 2:
+                    try:
+                        self.context._cancel_bracket_orders(alpaca_order_id)
+                    except (
+                        OrderExecutionError,
+                        DatabaseError,
+                        requests.RequestException,
+                        requests.Timeout,
+                    ) as e:
+                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
+                    return (
+                        False,
+                        f"Bracket order missing stop loss leg ({len(legs)} legs)",
+                        "",
+                        "",
+                        None,
+                        rejection_reason,
+                        order_send_time,
+                    )
+
+                leg_types = {leg.get("order_side") for leg in legs if isinstance(leg, dict)}
+                has_stop_loss = any(
+                    leg.get("order_type") == "stop" for leg in legs if isinstance(leg, dict)
                 )
+                has_take_profit = any(
+                    leg.get("order_type") == "limit" for leg in legs if isinstance(leg, dict)
+                )
+
+                if not has_stop_loss or not has_take_profit:
+                    try:
+                        self.context._cancel_bracket_orders(alpaca_order_id)
+                    except (
+                        OrderExecutionError,
+                        DatabaseError,
+                        requests.RequestException,
+                        requests.Timeout,
+                    ) as e:
+                        logger.warning(f"Failed to cancel incomplete bracket order {alpaca_order_id}: {e}")
+                    missing = []
+                    if not has_stop_loss:
+                        missing.append("stop_loss")
+                    if not has_take_profit:
+                        missing.append("take_profit")
+                    return (
+                        False,
+                        f"Bracket order missing required legs: {', '.join(missing)}",
+                        "",
+                        "",
+                        None,
+                        rejection_reason,
+                        order_send_time,
+                    )
 
             # CRITICAL FIX: Wait for order to actually fill before writing to DB
             # Do NOT trust the order submission response alone - verify fill with broker

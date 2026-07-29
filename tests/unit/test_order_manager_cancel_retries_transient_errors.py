@@ -50,10 +50,12 @@ class TestCancelRetriesTransientErrors:
             ) as mock_delete,
             patch("algo.trading.order_manager.time.sleep"),
         ):
-            result = manager.cancel_bracket_orders("order-123")
-
-        assert result["success"] is False
-        assert mock_delete.call_count == 3
+            try:
+                manager.cancel_bracket_orders("order-123")
+                assert False, "Expected RuntimeError on all-retries-exhausted"
+            except RuntimeError as e:
+                assert "Failed to cancel order" in str(e)
+                assert mock_delete.call_count == 3
 
     def test_404_does_not_retry(self):
         """A non-transient error (e.g. order already gone) would fail identically again."""
@@ -65,10 +67,12 @@ class TestCancelRetriesTransientErrors:
                 "algo.trading.order_manager.requests.delete", return_value=not_found
             ) as mock_delete,
         ):
-            result = manager.cancel_bracket_orders("order-123")
-
-        assert result["success"] is False
-        assert mock_delete.call_count == 1
+            try:
+                manager.cancel_bracket_orders("order-123")
+                assert False, "Expected RuntimeError on non-transient error"
+            except RuntimeError as e:
+                assert "Failed to cancel order" in str(e)
+                assert mock_delete.call_count == 1
 
     def test_network_exception_retries_then_succeeds(self):
         manager = _make_manager()

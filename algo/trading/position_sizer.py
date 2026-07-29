@@ -910,13 +910,11 @@ class PositionSizer:
         base_shares = shares  # pre-cap share count from risk-based sizing alone, for algo_position_sizing_audit
 
         if shares < 1:
-            return {
-                "shares": 0,
-                "position_size_pct": 0,
-                "risk_dollars": 0,
-                "status": "too_small",
-                "reason": f"Position too small: risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}",
-            }
+            raise ValueError(
+                f"Position sizing resulted in zero shares. "
+                f"risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}. "
+                f"Cannot place a 0-share order at the broker. Review position_sizer configuration."
+            )
 
         position_value = Decimal(shares) * Decimal(str(entry_price))
         max_pos_pct_val = self.config.get("max_position_size_pct")
