@@ -234,6 +234,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     sm.downside_volatility_60d_unavailable_reason,
                     sm.downside_volatility_252d,
                     sm.downside_volatility_252d_unavailable_reason,
+                    sm.max_drawdown_1y,
+                    sm.max_drawdown_1y_unavailable_reason,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
                     pm.insider_ownership_pct AS insider_own_val,
@@ -558,6 +560,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "downside_volatility_60d_unavailable_reason": data.get("downside_volatility_60d_unavailable_reason"),
                 "downside_volatility_252d": data.get("downside_volatility_252d"),
                 "downside_volatility_252d_unavailable_reason": data.get("downside_volatility_252d_unavailable_reason"),
+                "max_drawdown_1y": data.get("max_drawdown_1y"),
+                "max_drawdown_1y_unavailable_reason": data.get("max_drawdown_1y_unavailable_reason"),
                 "beta": data.get("beta_val"),
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 "debt_to_assets": data.get("debt_to_assets_val"),
@@ -794,6 +798,8 @@ def _get_stock_scores(  # noqa: C901
                     sm.downside_volatility_60d_unavailable_reason,
                     sm.downside_volatility_252d,
                     sm.downside_volatility_252d_unavailable_reason,
+                    sm.max_drawdown_1y,
+                    sm.max_drawdown_1y_unavailable_reason,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.institutional_ownership_pct_unavailable_reason AS institutional_ownership_unavailable_reason,
                     pm.insider_ownership_pct AS insider_own_val,
@@ -1087,8 +1093,7 @@ def _get_stock_scores(  # noqa: C901
 
             # Stability Inputs: Volatility, beta, financial stability, business diversification
             # NOTE: revenue_concentration_hhi comes from sec_segment_metrics (real XBRL segment
-            # disclosures); the rest from load_risk_metrics_daily.py. (downside_volatility,
-            # max_drawdown_52w, volume_consistency, etc. are not computed by any loader)
+            # disclosures); downside_volatility and max_drawdown_1y from load_risk_metrics_daily.py
             d["stability_inputs"] = {
                 "volatility_12m": d.get("volatility_12m_val"),
                 "volatility_12m_unavailable_reason": d.get("volatility_12m_unavailable_reason"),
@@ -1096,6 +1101,14 @@ def _get_stock_scores(  # noqa: C901
                 "volatility_60d_unavailable_reason": d.get("volatility_60d_unavailable_reason"),
                 "volatility_30d": d.get("volatility_30d_val"),
                 "volatility_30d_unavailable_reason": d.get("volatility_30d_unavailable_reason"),
+                "downside_volatility_30d": d.get("downside_volatility_30d"),
+                "downside_volatility_30d_unavailable_reason": d.get("downside_volatility_30d_unavailable_reason"),
+                "downside_volatility_60d": d.get("downside_volatility_60d"),
+                "downside_volatility_60d_unavailable_reason": d.get("downside_volatility_60d_unavailable_reason"),
+                "downside_volatility_252d": d.get("downside_volatility_252d"),
+                "downside_volatility_252d_unavailable_reason": d.get("downside_volatility_252d_unavailable_reason"),
+                "max_drawdown_1y": d.get("max_drawdown_1y"),
+                "max_drawdown_1y_unavailable_reason": d.get("max_drawdown_1y_unavailable_reason"),
                 "beta": d.get("beta_val"),
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),

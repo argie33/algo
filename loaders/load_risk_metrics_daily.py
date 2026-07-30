@@ -322,12 +322,20 @@ class RiskMetricsLoader(OptimalLoader):
                     "volatility_30d": None,
                     "volatility_60d": None,
                     "volatility_252d": None,
+                    "downside_volatility_30d": None,
+                    "downside_volatility_60d": None,
+                    "downside_volatility_252d": None,
+                    "max_drawdown_1y": None,
                     "beta": None,
                     "debt_to_assets": debt_to_assets,
                     "beta_unavailable_reason": "missing_price_data",
                     "volatility_30d_unavailable_reason": "insufficient_history",
                     "volatility_60d_unavailable_reason": "insufficient_history",
                     "volatility_252d_unavailable_reason": "insufficient_history",
+                    "downside_volatility_30d_unavailable_reason": "insufficient_history",
+                    "downside_volatility_60d_unavailable_reason": "insufficient_history",
+                    "downside_volatility_252d_unavailable_reason": "insufficient_history",
+                    "max_drawdown_1y_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,
                     "reason": None if debt_to_assets is not None else reason,
@@ -350,12 +358,20 @@ class RiskMetricsLoader(OptimalLoader):
                     "volatility_30d": None,
                     "volatility_60d": None,
                     "volatility_252d": None,
+                    "downside_volatility_30d": None,
+                    "downside_volatility_60d": None,
+                    "downside_volatility_252d": None,
+                    "max_drawdown_1y": None,
                     "beta": None,
                     "debt_to_assets": debt_to_assets,
                     "beta_unavailable_reason": "missing_price_data",
                     "volatility_30d_unavailable_reason": "insufficient_history",
                     "volatility_60d_unavailable_reason": "insufficient_history",
                     "volatility_252d_unavailable_reason": "insufficient_history",
+                    "downside_volatility_30d_unavailable_reason": "insufficient_history",
+                    "downside_volatility_60d_unavailable_reason": "insufficient_history",
+                    "downside_volatility_252d_unavailable_reason": "insufficient_history",
+                    "max_drawdown_1y_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,
                     "reason": None if debt_to_assets is not None else reason,
@@ -384,6 +400,9 @@ class RiskMetricsLoader(OptimalLoader):
             downside_vol_60d = self._calculate_downside_volatility(returns[-60:]) if len(returns) >= 60 else None
             downside_vol_252d = self._calculate_downside_volatility(returns) if len(returns) >= 60 else None
 
+            # Calculate max drawdown over 252 days (peak-to-trough decline)
+            max_drawdown_252d = self._calculate_max_drawdown([p[1] for p in prices]) if len(prices) >= 5 else None
+
             beta: float | dict[str, Any] | None = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Build unavailability reasons for any missing components
@@ -410,7 +429,8 @@ class RiskMetricsLoader(OptimalLoader):
             # designed to consume. Mark unavailable only if every component failed.
             has_any_metric = any(v is not None for v in [
                 vol_30d, vol_60d, vol_252d, beta, debt_to_assets,
-                downside_vol_30d, downside_vol_60d, downside_vol_252d
+                downside_vol_30d, downside_vol_60d, downside_vol_252d,
+                max_drawdown_252d
             ])
             data_unavailable = not has_any_metric
             unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
@@ -434,6 +454,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_30d": round(downside_vol_30d, 4) if downside_vol_30d is not None else None,
                 "downside_volatility_60d": round(downside_vol_60d, 4) if downside_vol_60d is not None else None,
                 "downside_volatility_252d": round(downside_vol_252d, 4) if downside_vol_252d is not None else None,
+                "max_drawdown_1y": round(max_drawdown_252d, 2) if max_drawdown_252d is not None else None,
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "debt_to_assets": debt_to_assets,
                 # Session 395+: Add unavailable_reason for each metric
@@ -444,6 +465,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_30d_unavailable_reason": "insufficient_history" if downside_vol_30d is None else None,
                 "downside_volatility_60d_unavailable_reason": "insufficient_history" if downside_vol_60d is None else None,
                 "downside_volatility_252d_unavailable_reason": "insufficient_history" if downside_vol_252d is None else None,
+                "max_drawdown_1y_unavailable_reason": "insufficient_history" if max_drawdown_252d is None else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
                 "reason": unavailability_reason,
@@ -460,6 +482,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_30d": None,
                 "downside_volatility_60d": None,
                 "downside_volatility_252d": None,
+                "max_drawdown_1y": None,
                 "beta": None,
                 "debt_to_assets": debt_to_assets,
                 "beta_unavailable_reason": "missing_price_data",
@@ -469,6 +492,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_30d_unavailable_reason": "insufficient_history",
                 "downside_volatility_60d_unavailable_reason": "insufficient_history",
                 "downside_volatility_252d_unavailable_reason": "insufficient_history",
+                "max_drawdown_1y_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": None if debt_to_assets is not None else reason,
@@ -484,6 +508,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_30d": None,
                 "downside_volatility_60d": None,
                 "downside_volatility_252d": None,
+                "max_drawdown_1y": None,
                 "beta": None,
                 "debt_to_assets": debt_to_assets,
                 "beta_unavailable_reason": "missing_price_data",
@@ -493,6 +518,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_30d_unavailable_reason": "insufficient_history",
                 "downside_volatility_60d_unavailable_reason": "insufficient_history",
                 "downside_volatility_252d_unavailable_reason": "insufficient_history",
+                "max_drawdown_1y_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": f"unexpected_error: {type(e).__name__}" if debt_to_assets is None else None,
@@ -514,14 +540,15 @@ class RiskMetricsLoader(OptimalLoader):
                     INSERT INTO stability_metrics
                     (symbol, volatility_30d, volatility_60d, volatility_252d,
                      downside_volatility_30d, downside_volatility_60d, downside_volatility_252d,
-                     beta, debt_to_assets,
+                     max_drawdown_1y, beta, debt_to_assets,
                      created_at, data_unavailable, reason, reason_type, data_source,
                      beta_unavailable_reason, volatility_30d_unavailable_reason,
                      volatility_60d_unavailable_reason, volatility_252d_unavailable_reason,
                      downside_volatility_30d_unavailable_reason,
                      downside_volatility_60d_unavailable_reason,
-                     downside_volatility_252d_unavailable_reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     downside_volatility_252d_unavailable_reason,
+                     max_drawdown_1y_unavailable_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
@@ -529,6 +556,7 @@ class RiskMetricsLoader(OptimalLoader):
                       downside_volatility_30d = EXCLUDED.downside_volatility_30d,
                       downside_volatility_60d = EXCLUDED.downside_volatility_60d,
                       downside_volatility_252d = EXCLUDED.downside_volatility_252d,
+                      max_drawdown_1y = EXCLUDED.max_drawdown_1y,
                       beta = EXCLUDED.beta,
                       debt_to_assets = EXCLUDED.debt_to_assets,
                       created_at = EXCLUDED.created_at,
@@ -543,6 +571,7 @@ class RiskMetricsLoader(OptimalLoader):
                       downside_volatility_30d_unavailable_reason = EXCLUDED.downside_volatility_30d_unavailable_reason,
                       downside_volatility_60d_unavailable_reason = EXCLUDED.downside_volatility_60d_unavailable_reason,
                       downside_volatility_252d_unavailable_reason = EXCLUDED.downside_volatility_252d_unavailable_reason,
+                      max_drawdown_1y_unavailable_reason = EXCLUDED.max_drawdown_1y_unavailable_reason,
                       updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -553,6 +582,7 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("downside_volatility_30d"),
                         row.get("downside_volatility_60d"),
                         row.get("downside_volatility_252d"),
+                        row.get("max_drawdown_1y"),
                         row.get("beta"),
                         row.get("debt_to_assets"),
                         row.get("created_at"),
@@ -571,6 +601,7 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("downside_volatility_30d_unavailable_reason"),
                         row.get("downside_volatility_60d_unavailable_reason"),
                         row.get("downside_volatility_252d_unavailable_reason"),
+                        row.get("max_drawdown_1y_unavailable_reason"),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -621,6 +652,35 @@ class RiskMetricsLoader(OptimalLoader):
         variance = sum((r - mean_downside) ** 2 for r in downside_returns) / (len(downside_returns) - 1)
         daily_std = math.sqrt(variance)
         return daily_std * math.sqrt(252)
+
+    @staticmethod
+    def _calculate_max_drawdown(prices: list[float]) -> float | None:
+        """Calculate maximum drawdown: largest peak-to-trough decline in percentage terms.
+
+        Max drawdown measures the largest decline from a peak to a subsequent trough,
+        expressed as a percentage. It represents the worst-case loss over the period.
+
+        Args:
+            prices: List of closing prices in chronological order
+
+        Returns:
+            Maximum drawdown as percentage (e.g., -25.5 for 25.5% decline), or None if insufficient data
+        """
+        if not prices or len(prices) < 2:
+            return None
+
+        max_drawdown = 0.0
+        peak = prices[0]
+
+        for price in prices[1:]:
+            if price > 0 and peak > 0:
+                drawdown = ((price - peak) / peak) * 100
+                if drawdown < max_drawdown:
+                    max_drawdown = drawdown
+                if price > peak:
+                    peak = price
+
+        return max_drawdown if max_drawdown < 0 else None
 
     @staticmethod
     def _get_beta_from_db(
