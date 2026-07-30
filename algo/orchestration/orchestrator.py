@@ -417,6 +417,26 @@ class Orchestrator:
                         "requires valid credentials, whether targeting the paper or live endpoint. "
                         "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
                     )
+
+                # CRITICAL FIX: Reject obviously test/fake credentials
+                # Test credentials like "PK0123456789ABCDEF" or "test_*" will fail at runtime
+                # Fail here at startup with clear message instead of later during trading
+                if api_key.startswith("PK") and len(api_key) == 20 and api_key[2:].isalnum():
+                    raise RuntimeError(
+                        f"[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca credentials (starts with PK followed by hex). "
+                        f"Cannot trade with test credentials in 'auto' mode. "
+                        f"This indicates the system is using database fallback credentials instead of real ones. "
+                        f"REQUIRED: Set real APCA_API_KEY_ID and APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
+                        f"Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api"
+                    )
+                if api_secret.startswith("test_"):
+                    raise RuntimeError(
+                        f"[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca secret (starts with 'test_'). "
+                        f"Cannot trade with test credentials in 'auto' mode. "
+                        f"REQUIRED: Set real APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
+                        f"Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api"
+                    )
+
                 logger.info(f"[OK] Alpaca credentials validated for execution_mode={execution_mode!r}")
             except ValueError as e:
                 raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
@@ -435,6 +455,24 @@ class Orchestrator:
                 ) from e
         else:
             logger.info("[OK] Paper trading mode - Alpaca credentials not required")
+            # WARNING: Even in paper mode, check if test credentials are present
+            # These will fail when switching to production (execution_mode='auto')
+            if os.getenv("LOCAL_MODE") == "true":
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
+                        result = cur.fetchone()
+                        if result and result[0] and result[0].startswith("PK"):
+                            logger.warning(
+                                "[STARTUP] WARNING: Test/fake Alpaca credentials detected in database "
+                                "(alpaca_api_key starts with 'PK'). System is in paper mode now, but these "
+                                "credentials will FAIL when switching to 'auto' mode for production trading. "
+                                "To prepare for production: Get real credentials from "
+                                "https://app.alpaca.markets/paper/dashboard/settings/api and set "
+                                "APCA_API_KEY_ID + APCA_API_SECRET_KEY environment variables."
+                            )
+                except Exception as e:
+                    logger.debug(f"[STARTUP] Could not check credentials: {e}")
 
         # 3. Validate required config keys exist (only truly critical ones)
         try:
