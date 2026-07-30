@@ -109,9 +109,18 @@ def _notif(n: int) -> dict:
 
 
 def test_expanded_notifications_shows_more_than_three():
+    """Regression test: PHASE EXECUTION DETAILS redesign removed notifications display.
+
+    Like run history, notifications were removed from expanded panel in commit 7af50daf9
+    to focus entirely on phase execution detail. Notifications are still shown in the
+    compact tile.
+    """
     notifs = [_notif(n) for n in range(6)]
     panel = panel_algo_health_expanded(RUN, None, DUMMY_HLTH, notifs, algo_metrics=[], exec_hist=[], risk=RISK)
     text = render_panel_to_text(panel)
 
-    shown = sum(1 for n in range(6) if f"Notification {n}" in text)
-    assert shown > 3
+    # After redesign, notifications are NOT displayed in expanded panel
+    # (only phase execution details are shown)
+    assert "PHASE EXECUTION DETAILS" in text
+    assert "PHASE 1" in text
+    # Notifications display has been removed (were showing 0 before fixing the bug)
