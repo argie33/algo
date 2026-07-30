@@ -3438,7 +3438,7 @@ def _build_results_panel(
         rid = run.get("run_id", "")
         header_rows.append(Text.from_markup(f"{sts}  [dim]{age} | {rid}[/]"))
 
-    # Add risk metrics summary if available
+    # Add risk metrics summary if available, or error marker if missing
     if risk and isinstance(risk, dict):
         risk_parts = []
         var95 = risk.get("var95")
@@ -3456,6 +3456,9 @@ def _build_results_panel(
 
         if risk_parts:
             header_rows.append(Text.from_markup(f"[dim]{' | '.join(risk_parts)}[/]"))
+    elif risk is None:
+        # Explicit error marker when risk data is missing - fail-fast visibility
+        header_rows.append(Text.from_markup(f"[{R}]⚠ Risk data unavailable[/]"))
 
     # Build phase details - split into left and right columns
     left_phase_rows: list[Text | Rule] = []
