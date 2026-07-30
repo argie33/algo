@@ -111,6 +111,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             )
 
                         quality_fields = [
+                            "roic_pct",
                             "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
                             "consecutive_positive_quarters", "estimate_revision_direction",
                             "revision_activity_30d", "estimate_momentum_60d", "estimate_momentum_90d",
@@ -164,8 +165,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             # Get historical financial data for trend computation
             cur.execute("""
                 SELECT i.fiscal_year, i.revenue, i.operating_income, i.net_income,
-                       b.total_assets, b.stockholders_equity, c.operating_cash_flow,
-                       c.financing_cash_flow
+                       b.total_assets, b.stockholders_equity, b.current_liabilities,
+                       c.operating_cash_flow, c.financing_cash_flow
                 FROM annual_income_statement i
                 LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
                 LEFT JOIN annual_cash_flow c ON c.symbol = i.symbol AND c.fiscal_year = i.fiscal_year
@@ -183,7 +184,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
         try:
             # Extract current year data
-            curr_fy, curr_rev, curr_oi, curr_ni, curr_assets, curr_equity, curr_fcf, curr_ocf = income_rows[0]
+            curr_fy, curr_rev, curr_oi, curr_ni, curr_assets, curr_equity, curr_curr_liab, curr_fcf, curr_ocf = income_rows[0]
 
             # Convert all to float early to avoid Decimal type issues
             curr_rev_f = safe_float(curr_rev, 'revenue')
@@ -191,12 +192,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             curr_ni_f = safe_float(curr_ni, 'net_income')
             curr_assets_f = safe_float(curr_assets, 'assets')
             curr_equity_f = safe_float(curr_equity, 'equity')
+            curr_curr_liab_f = safe_float(curr_curr_liab, 'current_liabilities')
             curr_fcf_f = safe_float(curr_fcf, 'fcf')
             curr_ocf_f = safe_float(curr_ocf, 'ocf')
 
+            # Compute ROIC = Operating Income / (Total Assets - Current Liabilities)
+            if curr_oi_f is not None and curr_assets_f is not None and curr_curr_liab_f is not None:
+                invested_capital = curr_assets_f - curr_curr_liab_f
+                if invested_capital > 0:
+                    metrics["roic_pct"] = float((curr_oi_f / invested_capital) * 100)
+
             # Get prior year data if available
             if len(income_rows) > 1:
-                prior_fy, prior_rev, prior_oi, prior_ni, prior_assets, prior_equity, prior_fcf, prior_ocf = income_rows[1]
+                prior_fy, prior_rev, prior_oi, prior_ni, prior_assets, prior_equity, prior_curr_liab, prior_fcf, prior_ocf = income_rows[1]
 
                 # Convert prior year values too
                 prior_rev_f = safe_float(prior_rev, 'revenue')
@@ -204,6 +212,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 prior_ni_f = safe_float(prior_ni, 'net_income')
                 prior_assets_f = safe_float(prior_assets, 'assets')
                 prior_equity_f = safe_float(prior_equity, 'equity')
+                prior_curr_liab_f = safe_float(prior_curr_liab, 'current_liabilities')
                 prior_fcf_f = safe_float(prior_fcf, 'fcf')
                 prior_ocf_f = safe_float(prior_ocf, 'ocf')
 
