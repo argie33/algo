@@ -2476,6 +2476,17 @@ class Orchestrator:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
+        # Refresh algo_performance_metrics from daily data (non-blocking post-run maintenance)
+        # This keeps the legacy metrics table fresh after Phase 9 completes
+        try:
+            from scripts.refresh_algo_performance_metrics import refresh_performance_metrics
+            if refresh_performance_metrics():
+                logger.info("[POST-RUN] algo_performance_metrics refreshed")
+            else:
+                logger.warning("[POST-RUN] Failed to refresh algo_performance_metrics (non-critical)")
+        except Exception as e:
+            logger.warning(f"[POST-RUN] Could not refresh metrics table: {e} (non-blocking)")
+
         # Publish CloudWatch metrics (non-blocking - never let metrics interrupt trading)
         try:
             from algo.reporting import MetricsPublisher
