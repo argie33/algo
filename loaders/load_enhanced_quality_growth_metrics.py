@@ -188,8 +188,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 return
 
             # quarters is sorted newest first
-            eps_values = [safe_float(q[2]) for q in quarters]  # EPS
-            ni_values = [safe_float(q[3]) for q in quarters]   # Net Income
+            eps_values = [safe_float(q[2], 'earnings_per_share') for q in quarters]  # EPS
+            ni_values = [safe_float(q[3], 'net_income') for q in quarters]   # Net Income
             valid_eps = [e for e in eps_values if e is not None]
             valid_ni = [n for n in ni_values if n is not None]
 
