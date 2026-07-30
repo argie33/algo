@@ -297,35 +297,65 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # recommendations. Position monitoring is too fundamental to work around.
             from algo.monitoring import PositionMonitor
             recommendations = []
-            try:
-                monitor = PositionMonitor(config)
-                recommendations = monitor.review_positions(run_date)
-                n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
-                n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
-                logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises",
-                           len(recommendations), n_early_exit, n_raise_stop)
-            except Exception as review_err:
-                # CRITICAL FIX: Log full exception details for intermittent GROUP BY errors
-                # These happen rarely during orchestrator execution but must be diagnosed
-                import traceback
-                full_trace = traceback.format_exc()
 
-                # Always log the full stack trace for GROUP BY errors to aid diagnosis
-                if 'GROUP BY' in full_trace.upper():
-                    logger.critical(
-                        f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{full_trace}"
+            # CRITICAL FIX 2026-07-30: Retry on "cursor already closed" errors
+            # These indicate transient connection/cursor lifecycle issues
+            max_retries = 3
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    monitor = PositionMonitor(config)
+                    recommendations = monitor.review_positions(run_date)
+                    n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
+                    n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
+                    logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises",
+                               len(recommendations), n_early_exit, n_raise_stop)
+                    break  # Success - exit retry loop
+                except Exception as review_err:
+                    last_error = review_err
+                    error_str = str(review_err)
+
+                    # Check if this is a cursor lifecycle error that might be transient
+                    if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
+                        if attempt < max_retries - 1:
+                            logger.warning(
+                                f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:100]}"
+                            )
+                            import time
+                            time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                            continue
+
+                    # For non-transient errors or after retries exhausted, log and halt
+                    import traceback
+                    full_trace = traceback.format_exc()
+
+                    # Log full stack trace for GROUP BY errors to aid diagnosis
+                    if 'GROUP BY' in full_trace.upper():
+                        logger.critical(
+                            f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{full_trace}"
+                        )
+
+                    error_str = str(review_err)[:200]
+                    error_msg = (
+                        "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str + ". "
+                        "Cannot generate exit recommendations without proper position analysis. "
+                        "Position monitoring is non-negotiable for risk management. "
+                        "This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
+                        "Next run will retry when data has been loaded."
                     )
+                    logger.critical(error_msg)
+                    raise RuntimeError(error_msg) from review_err
 
-                error_str = str(review_err)[:200]
+            # Check if we exhausted retries
+            if last_error is not None and not recommendations:
                 error_msg = (
-                    "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str + ". "
+                    "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed after retries. "
                     "Cannot generate exit recommendations without proper position analysis. "
-                    "Position monitoring is non-negotiable for risk management. "
-                    "This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
-                    "Next run will retry when data has been loaded."
+                    "Position monitoring is non-negotiable for risk management."
                 )
                 logger.critical(error_msg)
-                raise RuntimeError(error_msg) from review_err
+                raise RuntimeError(error_msg) from last_error
 
             log_phase_result_fn(
                 3,

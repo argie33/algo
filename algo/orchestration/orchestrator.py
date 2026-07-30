@@ -234,6 +234,11 @@ class Orchestrator:
             self.execution_mode = "paper"
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}")
 
+        # CRITICAL FIX: Cache the DB execution_mode value to prevent race conditions
+        # where config reloads/refreshes between startup validation and later checks
+        # This snapshot ensures the validation at line ~350 uses the SAME value we validated here
+        self._cached_db_execution_mode = db_execution_mode or self.execution_mode
+
         # Explicitly default run_date to today if not provided
         self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
@@ -324,7 +329,9 @@ class Orchestrator:
         # pass nothing here, then crash inside TradeExecutor.__init__'s
         # create_execution_mode_strategy() call (which also never registered it, now fixed
         # alongside this). Added below too.
-        execution_mode = self.config.get("execution_mode")
+        # Use cached DB value from __init__ to prevent race conditions where
+        # config might have been refreshed/reloaded between startup and this check
+        execution_mode = self._cached_db_execution_mode
         if not execution_mode or execution_mode not in ("paper", "dry", "review", "auto"):
             raise RuntimeError(
                 f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'dry', 'review', or 'auto' ('auto' is "
@@ -347,6 +354,8 @@ class Orchestrator:
         # fast rather than let deployment intent (env var) and actual behavior (DB config)
         # silently diverge - this is the same class of bug as b8f7d6464's ORCHESTRATOR_DRY_RUN
         # fix, but for the variable that gates real money instead of monitor-only guarantees.
+        # CRITICAL FIX 2026-07-30: Use cached value from __init__ to prevent mismatch errors
+        # caused by config reloads between the two validation checks
         if self.execution_mode != execution_mode:
             raise RuntimeError(
                 f"[STARTUP] CRITICAL: execution_mode mismatch - ORCHESTRATOR_EXECUTION_MODE env var "
