@@ -99,15 +99,22 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         data_unavailable_flag = bool(row[2]) if row[2] is not None else False
                         reason_msg = row[3] if row[3] is not None else None
 
-                        # DEGRADE GRACEFULLY: Skip positions with marked unavailable data, but continue phase
-                        # Phase 6 (exit execution) must always run - cannot halt on data gaps
+                        # FAIL-FAST: If price data is explicitly marked unavailable, this is a critical issue
+                        # that should be surfaced immediately, not silently skipped.
+                        # data_unavailable=True means the loader detected a problem and marked it explicitly.
+                        # Positions MUST have valid prices - cannot monitor without them.
                         if data_unavailable_flag:
-                            logger.warning(
-                                f"[PHASE 3] {symbol}: Price data marked unavailable: {reason_msg or 'no reason provided'}. "
-                                f"Skipping position update this run. Will retry in next execution cycle."
+                            logger.error(
+                                f"[PHASE 3 CRITICAL] {symbol}: Price data marked unavailable by data loader. "
+                                f"Reason: {reason_msg or 'no reason provided'}. "
+                                f"Cannot proceed with position monitoring - price data is explicitly unavailable. "
+                                f"This is a data quality issue that must be resolved. "
+                                f"Check if the price_daily loader encountered errors."
                             )
-                            prices[symbol] = None
-                            continue
+                            raise RuntimeError(
+                                f"[PHASE 3] {symbol}: Price data unavailable (marked by loader). "
+                                f"Reason: {reason_msg}. Cannot monitor position."
+                            )
 
                         prices[symbol] = float(close_price) if close_price is not None else None
 
@@ -115,19 +122,26 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 for position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
-                        # Fail-fast: Don't accept stale prices. If today's price missing, skip the position
-                        # (don't silently use yesterday's price, which violates fail-fast principle).
+                        # Fail-fast on missing current prices for open positions.
+                        # Open positions MUST have current prices to:
+                        # (1) Calculate P&L and unrealized gains
+                        # (2) Determine if position has hit profit targets or stop losses
+                        # (3) Generate exit recommendations in Phase 3
+                        # Skipping position updates hides data quality issues and leaves positions unmonitored
                         current_price = prices.get(symbol)
 
                         if current_price is None:
-                            logger.warning(
-                                f"[PHASE 3] {symbol}: Skipping position update - today's price data not available. "
-                                f"This is expected during ramp-up or before morning price loader completes. "
-                                f"Position will be updated in next run when current prices are loaded."
+                            logger.error(
+                                f"[PHASE 3 CRITICAL] {symbol}: Price data missing for open position. "
+                                f"Cannot monitor or evaluate position without current price. "
+                                f"Position monitoring is non-negotiable - open positions must have prices. "
+                                f"Check: (1) price_daily loader has run today, (2) symbol exists in market, "
+                                f"(3) data_unavailable flag is not set on price_daily for this symbol."
                             )
-                            # Skip this position; don't fail the entire phase and don't accept stale data
-                            # It will be updated in a later run when fresh price data arrives
-                            continue
+                            raise RuntimeError(
+                                f"[PHASE 3] {symbol}: Current price data required for position monitoring. "
+                                f"Cannot proceed with missing critical position data."
+                            )
 
                         if quantity is None:
                             raise RuntimeError(
@@ -141,20 +155,25 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         quantity = float(quantity)
 
                         # FAIL-FAST: Critical position data must be present
-                        # avg_entry and stop_loss are required to monitor position health
-                        # Silent defaults (0) hide data quality issues and produce misleading P&L
+                        # avg_entry and stop_loss are required to:
+                        # (1) Calculate P&L (price - avg_entry)
+                        # (2) Assess risk (distance to stop loss)
+                        # (3) Generate exit recommendations
+                        # Missing these fields indicates data integrity issue - do not skip silently
                         if avg_entry is None:
-                            logger.warning(
-                                f"[PHASE 3] {symbol}: Cannot update position - avg_entry_price is missing. "
-                                f"Position exists but entry cost basis unavailable. Skip position update."
+                            raise RuntimeError(
+                                f"[PHASE 3 CRITICAL] {symbol}: avg_entry_price is NULL. "
+                                f"Cannot calculate P&L or monitor position risk without entry cost basis. "
+                                f"This indicates a data integrity issue in algo_positions table. "
+                                f"Position cannot be evaluated."
                             )
-                            continue
                         if stop_loss is None:
-                            logger.warning(
-                                f"[PHASE 3] {symbol}: Cannot update position - stop_loss is missing. "
-                                f"Position exists but stop loss unavailable. Skip position update."
+                            raise RuntimeError(
+                                f"[PHASE 3 CRITICAL] {symbol}: stop_loss is NULL. "
+                                f"Cannot assess position risk without stop loss level. "
+                                f"This indicates a data integrity issue in algo_positions table. "
+                                f"Position cannot be evaluated."
                             )
-                            continue
 
                         avg_entry = float(avg_entry)
                         stop_loss = float(stop_loss)
