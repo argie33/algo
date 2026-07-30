@@ -2211,35 +2211,5 @@ const STABILITY_SCHEMA = [
   { key: "volatility_30d", label: "Volatility (30D)", fmt: (v) => pct(v, 2) },
   { key: "beta", label: "Beta vs Market", fmt: (v) => num(v, 2) },
   { key: "debt_to_assets", label: "Debt / Assets", fmt: (v) => num(v, 2) },
-  {
-    key: "downside_volatility",
-    label: "Downside Volatility",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "max_drawdown_52w",
-    label: "Max Drawdown (52W)",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "volatility_risk_component",
-    label: "Volatility Risk Score",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "volume_consistency",
-    label: "Volume Consistency",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "turnover_velocity",
-    label: "Turnover Velocity",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "volatility_volume_ratio",
-    label: "Volatility / Volume",
-    fmt: (v) => num(v, 1),
-  },
-  { key: "daily_spread", label: "Daily Spread", fmt: (v) => num(v, 1) },
+  { key: "revenue_concentration_hhi", label: "Revenue Concentration (HHI)", fmt: (v) => num(v, 2) },
 ];

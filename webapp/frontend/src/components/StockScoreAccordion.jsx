@@ -552,4 +552,5 @@ const STABILITY_SCHEMA = [
   { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '12%' },
   { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: '10%' },
+  { key: 'revenue_concentration_hhi', label: 'Revenue Concentration (HHI)', fmt: v => num(v, 2) },
 ];
