@@ -447,7 +447,7 @@ class PositionMonitor:
                 validation_errors = []
                 for i, row in enumerate(positions):
                     try:
-                        rec = self._evaluate_position(row, current_date)
+                        rec = self._evaluate_position(row, current_date, cur=cur)
                     except PositionValidationError as e:
                         # SAFETY: Validate row structure before accessing indices
                         # The SELECT query returns 14 columns (indices 0-13), so row must have exactly 14 elements
@@ -527,7 +527,7 @@ class PositionMonitor:
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_err
 
-    def _evaluate_position(self, row: Any, current_date: _date | datetime) -> dict[str, Any]:  # noqa: C901
+    def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> dict[str, Any]:  # noqa: C901
         try:
             (
                 trade_id,
@@ -604,7 +604,7 @@ class PositionMonitor:
 
         # 1. Current market data
         try:
-            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(symbol, current_date)
+            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(symbol, current_date, cur=cur)
         except ValueError as e:
             msg = f"Position {symbol} cannot be monitored: {e}"
             logger.error(f"REJECT: {msg}")
@@ -856,28 +856,49 @@ class PositionMonitor:
             )
 
     def _fetch_current_market(
-        self, symbol: str, current_date: _date | datetime
+        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None
     ) -> tuple[float, float | None, float | None, float | None]:
         """Fetch current price and technical indicators for a symbol.
+
+        Args:
+            symbol: Stock symbol
+            current_date: Date to fetch data for
+            cur: Optional cursor to use. If None, opens new DatabaseContext.
+                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+                 to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
 
         Raises:
             ValueError: If price data is missing - price_daily is required,
                        technical_data_daily may be None (handled by caller)
         """
-        # FIX 2026-07-31: Use fresh DatabaseContext to avoid cursor lifecycle issues
-        # Each read query gets its own independent context
-        with DatabaseContext("read") as fresh_cur:
-            fresh_cur.execute(
-                """
-                SELECT pd.close, td.atr, td.sma_50, td.sma_200
-                FROM price_daily pd
-                INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
-                WHERE pd.symbol = %s AND pd.date <= %s
-                ORDER BY pd.date DESC LIMIT 1
-                """,
-                (symbol, current_date),
-            )
-            row = fresh_cur.fetchone()
+        if cur is not None:
+            try:
+                cur.execute(
+                    """
+                    SELECT pd.close, td.atr, td.sma_50, td.sma_200
+                    FROM price_daily pd
+                    INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                    WHERE pd.symbol = %s AND pd.date <= %s
+                    ORDER BY pd.date DESC LIMIT 1
+                    """,
+                    (symbol, current_date),
+                )
+                row = cur.fetchone()
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                raise ValueError(f"Database error fetching price data for {symbol}: {e}") from e
+        else:
+            with DatabaseContext("read") as fresh_cur:
+                fresh_cur.execute(
+                    """
+                    SELECT pd.close, td.atr, td.sma_50, td.sma_200
+                    FROM price_daily pd
+                    INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                    WHERE pd.symbol = %s AND pd.date <= %s
+                    ORDER BY pd.date DESC LIMIT 1
+                    """,
+                    (symbol, current_date),
+                )
+                row = fresh_cur.fetchone()
 
         if row is None:
             raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier - no price_daily entry")
