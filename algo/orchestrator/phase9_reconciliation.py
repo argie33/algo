@@ -1129,6 +1129,18 @@ def _record_closed_positions_exits(
                             (Decimal(str(cumulative_pnl_dollars)) / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))).quantize(Decimal("0.01"), ROUND_HALF_UP)
                         )
 
+                        # CRITICAL FIX 2026-07-30: Validate P&L calculations before update
+                        # Recent audit found profit_loss_pct=NULL on some closed trades
+                        if cumulative_pnl_pct is None or not isinstance(cumulative_pnl_pct, (int, float)):
+                            raise ValueError(
+                                f"[PHASE 9 CRITICAL] P&L calculation error for {symbol}: "
+                                f"cumulative_pnl_pct={cumulative_pnl_pct} (type={type(cumulative_pnl_pct)}). "
+                                f"Cannot update trade with NULL/invalid profit_loss_pct. "
+                                f"Check: entry_price={entry_price}, exit_price={exit_price}, "
+                                f"position_qty={position_qty}, entry_qty={entry_qty}, "
+                                f"risk_per_share={risk_per_share}"
+                            )
+
                         sp = f"sp_exit_{symbol.replace('-', '_').replace('.', '_')}"
                         try:
                             from utils.trading.status import TradeStatus

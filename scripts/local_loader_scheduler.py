@@ -103,6 +103,7 @@ LOADERS = {
             "load_dividend_data.py",  # NEW: Dividend ex-dates and amounts (position management)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",
+            "load_enhanced_quality_growth_metrics.py",  # Adds analyst estimates, earnings surprises, trend metrics to quality_metrics
             "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
         ],
         "interval_hours": 24,
