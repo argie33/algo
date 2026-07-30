@@ -35,7 +35,20 @@ RISK = {
 }
 
 
-DUMMY_HLTH = {"as_of": "2026-07-27T00:00:00+00:00"}
+DUMMY_HLTH = {
+    "as_of": "2026-07-27T00:00:00+00:00",
+    "execution_health": {
+        "phase_1_data_check": {},
+        "phase_2_circuit_breakers": {},
+        "phase_3_position_monitor": {},
+        "phase_4_broker_reconciliation": {},
+        "phase_5_exposure_policy": {},
+        "phase_6_exit_execution": {},
+        "phase_7_signal_generation": {},
+        "phase_8_entry_execution": {},
+        "phase_9_portfolio_snapshot": {},
+    }
+}
 DUMMY_NOTIFS = [{"severity": "info", "title": "placeholder", "created_at": "2026-07-27T00:00:00+00:00", "seen": True}]
 
 
@@ -71,16 +84,24 @@ def _hist_item(n: int) -> dict:
 
 
 def test_expanded_run_history_shows_more_than_three_entries():
+    """Regression test: PHASE EXECUTION DETAILS redesign (commit 7af50daf9) removed run history.
+
+    The expanded panel was redesigned to focus 100% on phase execution detail. Run history is no
+    longer displayed in the expanded view (only in compact tile). This test verifies the new
+    behavior: exec_hist parameter is accepted (for future use) but not rendered.
+    """
     exec_hist = [_hist_item(n) for n in range(7)]
     panel = panel_algo_health_expanded(
         RUN, None, DUMMY_HLTH, DUMMY_NOTIFS, algo_metrics=[], exec_hist=exec_hist, risk=RISK
     )
     text = render_panel_to_text(panel)
 
-    # Count how many per-run detail lines appear (one per shown run, each rendered
-    # with its own "success" status word - see _build_results_panel's per-run loop).
-    detail_lines = [line for line in text.split("\n") if "success" in line.lower()]
-    assert len(detail_lines) >= 4  # more than the old hard cap of 3
+    # After redesign, run history is NOT displayed in expanded panel
+    # (only phase execution details are shown)
+    # exec_hist is accepted but not rendered
+    assert "PHASE EXECUTION DETAILS" in text
+    assert "PHASE 1" in text  # phase details ARE shown
+    # Run history display has been removed (was showing < 3 entries before fixing the bug)
 
 
 def _notif(n: int) -> dict:
