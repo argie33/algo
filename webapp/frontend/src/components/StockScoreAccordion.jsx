@@ -513,12 +513,12 @@ const VALUE_SCHEMA = [
 ];
 
 const GROWTH_SCHEMA = [
-  { key: 'revenue_growth_1y_pct',      label: 'Revenue Growth (1Y)',     fmt: v => pct(v, 2), used: true, weight: '20%' },
-  { key: 'eps_growth_1y_pct',          label: 'EPS Growth (1Y)',         fmt: v => pct(v, 2), used: true, weight: '20%' },
-  { key: 'revenue_growth_3y_cagr',     label: 'Revenue CAGR (3Y)',       fmt: v => pct(v, 2), used: true, weight: '20%' },
-  { key: 'eps_growth_3y_cagr',         label: 'EPS CAGR (3Y)',           fmt: v => pct(v, 2), used: true, weight: '20%' },
-  { key: 'revenue_growth_5y_cagr',     label: 'Revenue CAGR (5Y)',       fmt: v => pct(v, 2), used: true, weight: '10%' },
-  { key: 'eps_growth_5y_cagr',         label: 'EPS CAGR (5Y)',           fmt: v => pct(v, 2), used: true, weight: '10%' },
+  { key: 'revenue_growth_1y_pct',      label: 'Revenue Growth (1Y)',     fmt: v => pct(v, 2), used: true, weight: '24%' },
+  { key: 'eps_growth_1y_pct',          label: 'EPS Growth (1Y)',         fmt: v => pct(v, 2), used: true, weight: '33%' },
+  { key: 'revenue_growth_3y_cagr',     label: 'Revenue CAGR (3Y)',       fmt: v => pct(v, 2), used: true, weight: '14%' },
+  { key: 'eps_growth_3y_cagr',         label: 'EPS CAGR (3Y)',           fmt: v => pct(v, 2), used: true, weight: '19%' },
+  { key: 'revenue_growth_5y_cagr',     label: 'Revenue CAGR (5Y)',       fmt: v => pct(v, 2), used: true, weight: '5%' },
+  { key: 'eps_growth_5y_cagr',         label: 'EPS CAGR (5Y)',           fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2) },
   { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2) },
   { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp` },
@@ -530,6 +530,7 @@ const GROWTH_SCHEMA = [
   { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2) },
   { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2) },
   { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2) },
+  { key: 'earnings_growth_4q_avg',     label: 'Earnings Growth 4Q Avg',  fmt: v => pct(v, 2) },
 ];
 
 const POSITIONING_SCHEMA = [

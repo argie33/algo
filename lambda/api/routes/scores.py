@@ -243,6 +243,27 @@ def _get_stock_scores(  # noqa: C901
                     qm.earnings_growth_yoy_unavailable_reason,
                     qm.revenue_growth_yoy AS revenue_growth,
                     qm.revenue_growth_yoy_unavailable_reason,
+                    qm.earnings_surprise_avg,
+                    qm.eps_growth_stability,
+                    qm.earnings_beat_rate,
+                    qm.consecutive_positive_quarters,
+                    qm.estimate_revision_direction,
+                    qm.revision_activity_30d,
+                    qm.estimate_momentum_60d,
+                    qm.estimate_momentum_90d,
+                    qm.revision_trend_score,
+                    qm.earnings_growth_4q_avg,
+                    gm.net_income_growth_yoy,
+                    gm.operating_income_growth_yoy,
+                    gm.gross_margin_trend,
+                    gm.operating_margin_trend,
+                    gm.net_margin_trend,
+                    gm.roe_trend,
+                    gm.sustainable_growth_rate,
+                    gm.quarterly_growth_momentum,
+                    gm.fcf_growth_yoy,
+                    gm.ocf_growth_yoy,
+                    gm.asset_growth_yoy,
                     gm.revenue_growth_1y AS rev_growth_1y_val,
                     gm.revenue_growth_1y_unavailable_reason,
                     gm.eps_growth_1y AS eps_growth_1y_val,
@@ -434,6 +455,14 @@ def _get_stock_scores(  # noqa: C901
                 "revenue_growth_pct": d.get("revenue_growth"),
                 "revenue_growth_yoy_unavailable_reason": d.get("revenue_growth_yoy_unavailable_reason"),
                 "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),
+                "net_income_growth_yoy": d.get("net_income_growth_yoy"),
+                "operating_income_growth_yoy": d.get("operating_income_growth_yoy"),
+                "gross_margin_trend": d.get("gross_margin_trend"),
+                "operating_margin_trend": d.get("operating_margin_trend"),
+                "net_margin_trend": d.get("net_margin_trend"),
+                "roe_trend": d.get("roe_trend"),
+                "sustainable_growth_rate": d.get("sustainable_growth_rate"),
+                "quarterly_growth_momentum": d.get("quarterly_growth_momentum"),
             }
 
             # Momentum Inputs: Price momentum, technical indicators
@@ -486,17 +515,17 @@ def _get_stock_scores(  # noqa: C901
                 "revenue_growth_5y_unavailable_reason": d.get("revenue_growth_5y_unavailable_reason"),
                 "eps_growth_5y_cagr": d.get("eps_growth_5y_val"),
                 "eps_growth_5y_unavailable_reason": d.get("eps_growth_5y_unavailable_reason"),
-                "net_income_growth_yoy": d.get("net_income_growth_yoy"),  # May be None
-                "operating_income_growth_yoy": d.get("op_income_growth_yoy"),  # May be None
-                "gross_margin_trend": d.get("gross_margin_trend"),  # May be None
-                "operating_margin_trend": d.get("op_margin_trend"),  # May be None
-                "net_margin_trend": d.get("net_margin_trend"),  # May be None
-                "roe_trend": d.get("roe_trend"),  # May be None
-                "sustainable_growth_rate": d.get("sustainable_growth_rate"),  # May be None
-                "quarterly_growth_momentum": d.get("quarterly_growth_momentum"),  # May be None
-                "fcf_growth_yoy": d.get("fcf_growth_yoy"),  # May be None
-                "ocf_growth_yoy": d.get("ocf_growth_yoy"),  # May be None
-                "asset_growth_yoy": d.get("asset_growth_yoy"),  # May be None
+                "net_income_growth_yoy": d.get("net_income_growth_yoy"),
+                "operating_income_growth_yoy": d.get("operating_income_growth_yoy"),
+                "gross_margin_trend": d.get("gross_margin_trend"),
+                "operating_margin_trend": d.get("operating_margin_trend"),
+                "net_margin_trend": d.get("net_margin_trend"),
+                "roe_trend": d.get("roe_trend"),
+                "sustainable_growth_rate": d.get("sustainable_growth_rate"),
+                "quarterly_growth_momentum": d.get("quarterly_growth_momentum"),
+                "fcf_growth_yoy": d.get("fcf_growth_yoy"),
+                "ocf_growth_yoy": d.get("ocf_growth_yoy"),
+                "asset_growth_yoy": d.get("asset_growth_yoy"),
             }
 
             # Positioning Inputs: Ownership and short interest

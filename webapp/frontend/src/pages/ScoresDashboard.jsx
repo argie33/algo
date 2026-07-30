@@ -2153,6 +2153,11 @@ const GROWTH_SCHEMA = [
   { key: "fcf_growth_yoy", label: "FCF Growth YoY", fmt: (v) => pct(v, 2) },
   { key: "ocf_growth_yoy", label: "OCF Growth YoY", fmt: (v) => pct(v, 2) },
   { key: "asset_growth_yoy", label: "Asset Growth YoY", fmt: (v) => pct(v, 2) },
+  {
+    key: "earnings_growth_4q_avg",
+    label: "Earnings Growth 4Q Avg",
+    fmt: (v) => pct(v, 2),
+  },
 ];
 
 const POSITIONING_SCHEMA = [

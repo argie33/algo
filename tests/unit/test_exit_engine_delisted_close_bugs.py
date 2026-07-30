@@ -137,17 +137,26 @@ def test_delisted_branch_close_update_is_valid_sql_and_covers_live_statuses(mock
     _assert_close_updates_are_valid(mock_cur)
 
 
-def test_no_price_data_branch_close_update_is_valid_sql_and_covers_live_statuses(mock_config):
+def test_no_price_data_branch_skip_retry_later(mock_config):
     """_fetch_recent_prices returning (None, prev_close) - as opposed to raising - triggers
-    the separate "no price data" close-out branch."""
+    the separate "no price data" branch.
+
+    FIX: When cur_price is None (no current price data available), skip the position
+    and increment trade_errors to retry later. Do NOT force-close with NULL exit_price
+    as that corrupts P&L calculations. The position will be retried on next orchestrator run
+    when price data becomes available.
+    """
     mock_cur, exits_executed, trade_errors, forced_closes_no_price = _run_with_fetch_recent_prices(
         mock_config,
         return_value=(None, 95.0),
     )
+    # Position is skipped, not force-closed
     assert exits_executed == 0
-    assert trade_errors == 0
-    assert forced_closes_no_price == 1
-    _assert_close_updates_are_valid(mock_cur)
+    assert trade_errors == 1
+    assert forced_closes_no_price == 0
+    # Since we skip the position, no UPDATE queries should be executed
+    trade_updates = [c for c in mock_cur.execute.call_args_list if "UPDATE algo_trades" in str(c.args[0])]
+    assert len(trade_updates) == 0, "position should be skipped, not force-closed"
 
 
 if __name__ == "__main__":

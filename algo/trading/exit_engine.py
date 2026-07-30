@@ -784,7 +784,7 @@ class ExitEngine:
                             # Do NOT close position with NULL exit_price (corrupts P&L downstream)
                             # Do NOT fall back to entry_price (masks actual market exit prices)
                             # Skip this position, increment error counter, retry next cycle
-                            errors += 1
+                            trade_errors += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 
@@ -1239,18 +1239,29 @@ class ExitEngine:
                 )
 
             elif response.status_code == 401:
-                # Authentication failed - fall back to database prices
-                # CRITICAL FIX: In auto mode, raising RuntimeError prevents exit evaluation entirely.
-                # If Alpaca credentials are temporarily unavailable (rotated, not yet set, or transient
-                # auth issue), blocking all exits is worse than using potentially-stale database prices.
-                # Caller (check_and_execute_exits) should still evaluate exits using these "data_unavailable"
-                # marked prices and let upstream logic decide if the risk is acceptable.
+                # Authentication failed - CRITICAL in auto mode, gracefully degrade in paper/dry modes
                 execution_mode = self.config.get("execution_mode", "paper")
-                logger.warning(
-                    f"[EXIT_ENGINE] {symbol}: Alpaca quote API authentication failed (401) in {execution_mode} mode - "
-                    f"falling back to database prices for exit evaluation"
-                )
-                return {"data_unavailable": True, "reason": f"Alpaca 401 auth failed - using database fallback"}
+                if execution_mode == "auto":
+                    # Live trading mode: 401 auth failure is a HARD STOP. Do NOT execute exits with stale
+                    # database prices when broker communication fails. Broker is the source of truth for
+                    # live positions. Using old prices to close positions without broker confirmation
+                    # is incredibly dangerous (could close at completely wrong price, wrong time, etc.)
+                    error_msg = (
+                        f"[EXIT_ENGINE CRITICAL] {symbol}: Alpaca authentication failed (401) in LIVE trading mode. "
+                        f"Cannot execute exits without valid broker communication. "
+                        f"Cannot fall back to database prices when broker is unreachable. "
+                        f"Check: Alpaca API credentials are valid, APCA_API_BASE_URL is correct, network connectivity. "
+                        f"This position remains open - retry when broker communication restored."
+                    )
+                    logger.critical(error_msg)
+                    raise RuntimeError(error_msg)
+                else:
+                    # Paper/dry modes: sandbox limitation, fall back to database prices for testing
+                    logger.warning(
+                        f"[EXIT_ENGINE] {symbol}: Alpaca quote API authentication failed (401) in {execution_mode} mode - "
+                        f"falling back to database prices for exit evaluation"
+                    )
+                    return {"data_unavailable": True, "reason": f"Alpaca 401 auth failed - using database fallback"}
 
             elif response.status_code == 404:
                 # 404 can mean two different things depending on execution mode:
