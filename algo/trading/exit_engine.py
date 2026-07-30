@@ -798,9 +798,9 @@ class ExitEngine:
                             # Do NOT close position with NULL exit_price (corrupts P&L downstream)
                             # Do NOT fall back to entry_price (masks actual market exit prices)
                             # Skip this position, log error, then increment counter only if logged
-                            audit_success = False
                             _missing_price_err = RuntimeError(f"No price data available for {symbol}")
                             _audit_sp = f"{_sp}_missing_price"
+                            trade_errors += 1
                             try:
                                 cur.execute(f"SAVEPOINT {_audit_sp}")
                                 cur.execute(
@@ -817,7 +817,6 @@ class ExitEngine:
                                     ),
                                 )
                                 cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
-                                audit_success = True
                             except Exception as _audit_err:
                                 try:
                                     cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
@@ -835,9 +834,6 @@ class ExitEngine:
                                     logger.error(
                                         f"[AUDIT] Failed to persist missing-price error for {symbol}: {_audit_err}"
                                     )
-
-                            if audit_success:
-                                trade_errors += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 
@@ -978,11 +974,13 @@ class ExitEngine:
                         # Wrapped in its own savepoint: an audit-insert failure (e.g. table
                         # unavailable) must not abort the outer transaction and cost every
                         # remaining position in this batch its exit coverage too.
-                        # CRITICAL: Only count this as an error if it's successfully audited.
-                        # Counting errors before audit succeeds creates a mismatch where we report
-                        # "3 errors" but nothing is logged if the audit transaction rolls back.
+                        # CRITICAL: Count error unconditionally - it occurred (we caught the exception)
+                        # regardless of whether audit persistence succeeds. Audit is forensics,
+                        # not the source of truth for whether an error happened. If audit fails,
+                        # log it but still count the error.
+                        trade_errors += 1
+
                         _audit_sp = f"{_sp}_audit"
-                        audit_success = False
                         try:
                             cur.execute(f"SAVEPOINT {_audit_sp}")
                             cur.execute(
@@ -999,7 +997,6 @@ class ExitEngine:
                                 ),
                             )
                             cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
-                            audit_success = True
                         except Exception as _audit_err:
                             try:
                                 cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
@@ -1024,10 +1021,6 @@ class ExitEngine:
                                 logger.critical(
                                     f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
                                 )
-
-                        # Only count as error if successfully audited to DB
-                        if audit_success:
-                            trade_errors += 1
 
                 logger.info(f"\n{'=' * 70}")
 
