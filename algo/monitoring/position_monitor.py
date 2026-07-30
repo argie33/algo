@@ -409,7 +409,7 @@ class PositionMonitor:
                 validation_errors = []
                 for i, row in enumerate(positions):
                     try:
-                        rec = self._evaluate_position(row, current_date, cur)
+                        rec = self._evaluate_position(row, current_date)
                     except PositionValidationError as e:
                         # SAFETY: Validate row structure before accessing indices
                         if len(row) < 10:
@@ -488,7 +488,7 @@ class PositionMonitor:
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_err
 
-    def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # noqa: C901
+    def _evaluate_position(self, row: Any, current_date: _date | datetime) -> dict[str, Any]:  # noqa: C901
         (
             trade_id,
             symbol,

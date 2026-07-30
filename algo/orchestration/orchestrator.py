@@ -212,20 +212,27 @@ class Orchestrator:
         self.config = config
 
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
+        db_execution_mode = self.config.get("execution_mode")
+
+        # CRITICAL: Check for mismatches between env var and database
+        if env_execution_mode and db_execution_mode and env_execution_mode != db_execution_mode.lower():
+            raise RuntimeError(
+                f"[STARTUP] CRITICAL: execution_mode mismatch - "
+                f"ORCHESTRATOR_EXECUTION_MODE env var says '{env_execution_mode}' "
+                f"but algo_config table says '{db_execution_mode}'. "
+                f"This is a configuration error. Set env var and database to match."
+            )
+
         if env_execution_mode:
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: {env_execution_mode}")
             self.execution_mode = env_execution_mode
+        elif db_execution_mode:
+            self.execution_mode = db_execution_mode
+            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}")
         else:
-            # If env var not set, read from database config instead of hardcoding a default
-            # This prevents mismatch errors when database has a different value than the hardcoded default
-            db_execution_mode = self.config.get("execution_mode")
-            if db_execution_mode:
-                self.execution_mode = db_execution_mode
-                logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}")
-            else:
-                # Only fallback to paper if database also doesn't have it set
-                self.execution_mode = "paper"
-                logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}")
+            # Only fallback to paper if database also doesn't have it set
+            self.execution_mode = "paper"
+            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}")
 
         # Explicitly default run_date to today if not provided
         self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()
