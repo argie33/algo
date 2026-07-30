@@ -165,6 +165,18 @@ class TradeExecutor:
                 logger.critical(error_msg)
                 raise ValueError(error_msg)
 
+            # CRITICAL: Verify execution mode wasn't silently downgraded to paper by safety guards
+            # If execution_mode='auto' but safety checks force paper endpoint, raise error explicitly
+            if self.execution_mode == "auto":
+                if self.execution_mode_strategy.resolve_paper_mode():
+                    raise ValueError(
+                        "[EXECUTOR_INIT_FAILED] Auto mode requested but safety guards prevented execution. "
+                        "Execution strategy downgraded to paper mode. "
+                        "Check: ALGO_LIVE_TRADING='I_UNDERSTAND_REAL_MONEY', "
+                        "ALPACA_PAPER_TRADING='false', APCA_API_BASE_URL (must point to live endpoint), "
+                        "and API credentials must be present."
+                    )
+
         # Validate initialization with execution mode strategy
         self.execution_mode_strategy.validate_and_log_initialization(
             self.alpaca_key, self.alpaca_secret, self.alpaca_base_url
