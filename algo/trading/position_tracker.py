@@ -64,6 +64,8 @@ class PositionTracker:
         full_exit: bool = False,
         exit_stage: str | None = None,
         expected_current_qty: float | None = None,
+        pnl_dollars: float | None = None,
+        pnl_pct: float | None = None,
     ) -> tuple[bool, str | None]:
         """Update position with retry logic for race condition safety.
 
@@ -72,6 +74,8 @@ class PositionTracker:
         Args:
             expected_current_qty: Optional hint of current quantity (from FOR UPDATE read in exit_engine).
                 If provided and doesn't match actual quantity, raises error immediately (fail-fast).
+            pnl_dollars: P&L in dollars when closing position (full_exit=True)
+            pnl_pct: P&L as percentage when closing position (full_exit=True)
 
         Returns: (success: bool, message: str or None)
         """
@@ -116,9 +120,10 @@ class PositionTracker:
             if full_exit or effective_new_qty <= 0:
                 cur.execute(
                     """UPDATE algo_positions
-                       SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP
+                       SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP,
+                           unrealized_pnl = %s, unrealized_pnl_pct = %s
                        WHERE position_id = %s AND quantity = %s""",
-                    (PositionStatus.CLOSED.value, position_id, current_qty),
+                    (PositionStatus.CLOSED.value, pnl_dollars, pnl_pct, position_id, current_qty),
                 )
             else:
                 # Validate target_levels_hit is populated (critical for exit sequencing)

@@ -942,6 +942,11 @@ class ExitHandler:
 
         # TRANSACTION GUARD 4: Update position with safety checks
         effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
+
+        # When closing a position, pass P&L values to be persisted in algo_positions
+        close_pnl_dollars = cumulative_pnl_dollars if (full_exit or new_qty <= 0) else None
+        close_pnl_pct = cumulative_pnl_pct if (full_exit or new_qty <= 0) else None
+
         update_success, update_error = self.context._update_position_with_retry(
             cur=cur,
             position_id=position_id,
@@ -949,6 +954,8 @@ class ExitHandler:
             new_stop_price=effective_stop,
             full_exit=full_exit or new_qty <= 0,
             exit_stage=exit_stage,
+            pnl_dollars=close_pnl_dollars,
+            pnl_pct=close_pnl_pct,
         )
 
         if not update_success:
