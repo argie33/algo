@@ -181,7 +181,7 @@ class CredentialManager:
                 # Cache expired, remove it and fetch fresh
                 del self._cache[secret_name]
 
-        # Try Secrets Manager if in AWS (but fall back to env var on access errors)
+        # Try Secrets Manager if in AWS (fail-fast on access errors - don't fall back)
         if self._is_aws:
             try:
                 secret = self._fetch_from_secrets_manager(secret_name)
@@ -189,12 +189,21 @@ class CredentialManager:
                     self._cache[secret_name] = (secret, time.time())
                     return secret
             except RuntimeError as e:
-                # Access denied or unavailable - fall back to environment variable
-                # This is NOT a critical failure; env vars are a valid credential source
-                logger.debug(
-                    f"[CREDENTIALS] AWS Secrets Manager access denied for '{secret_name}', "
-                    f"falling back to environment variable. Error: {e}"
-                )
+                # CRITICAL FIX: In AWS environment, Secrets Manager unavailability is a critical
+                # infrastructure failure, not something to silently mask with fallback env vars.
+                # Falling back hides the fact that:
+                # 1. Secrets Manager is misconfigured (wrong ARN, wrong IAM permissions)
+                # 2. Lambda/container is running in wrong AWS region
+                # 3. Secret doesn't exist or is inaccessible
+                # All of these are deployment errors that operators need to know about immediately.
+                # Do not attempt env var fallback in AWS environment - fail fast.
+                raise RuntimeError(
+                    f"[CREDENTIALS_AWS_FAILURE] Secrets Manager unavailable for '{secret_name}'. "
+                    f"In AWS environment, Secrets Manager is the primary credential source - "
+                    f"environment variables are NOT used as fallback. "
+                    f"Check: AWS Secrets Manager access, IAM permissions, secret existence, deployment region. "
+                    f"Details: {e}"
+                ) from e
 
         # Fall back to environment variable
         env_var = secret_name.upper().replace("/", "_")
@@ -297,31 +306,24 @@ class CredentialManager:
                 except _json.JSONDecodeError as e:
                     raise ValueError(f"Database secret contains invalid JSON: {e}") from e
 
-                # Extract host - explicit priority with fallback logging
-                # NOTE: Environment variables in Lambda take priority because they contain RDS Proxy endpoint
-                # which can change independently of the Secrets Manager secret (which may become stale).
+                # Extract host - MUST come from environment variables, not Secrets Manager fallback.
+                # In Lambda, DB_HOST contains the RDS Proxy endpoint which can change independently
+                # of the Secrets Manager secret. Using stale Secrets Manager value causes connection failures.
                 db_host = os.getenv("DB_HOST")  # Primary: env var (RDS Proxy endpoint in Lambda)
-                if db_host:
-                    logger.debug(f"[CREDENTIALS] Using DB_HOST from environment: {db_host[:20]}...")
-                else:
-                    db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var name
-                    if db_host:
-                        logger.debug(
-                            f"[CREDENTIALS] DB_HOST not set, using DB_ENDPOINT from environment: {db_host[:20]}..."
-                        )
-                    else:
-                        # Last resort: Secrets Manager value (which may be outdated)
-                        db_host = creds.get("host")
-                        if db_host:
-                            logger.warning(
-                                "[CREDENTIALS] DB_HOST/DB_ENDPOINT env vars not set, using Secrets Manager value. "
-                                "This may be outdated if RDS Proxy endpoint changed recently."
-                            )
+                if not db_host:
+                    db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var name (same source)
 
                 if not db_host:
+                    # CRITICAL FIX: Do NOT fall back to Secrets Manager value - it may be stale.
+                    # Missing env vars indicate Lambda misconfiguration (not set in environment or Terraform).
                     raise ValueError(
-                        "Database host not found in DB_HOST/DB_ENDPOINT env vars or Secrets Manager secret"
+                        "[CREDENTIALS_LAMBDA_CONFIG] Database host endpoint not found in environment variables. "
+                        "In AWS Lambda, DB_HOST must be explicitly set (it contains the RDS Proxy endpoint). "
+                        "Do NOT rely on Secrets Manager 'host' field - it may be outdated if RDS Proxy endpoint changed. "
+                        "Check: Lambda environment variables, Terraform configuration, RDS endpoint URL."
                     )
+
+                logger.debug(f"[CREDENTIALS] Using DB_HOST from environment: {db_host[:20]}...")
 
                 # Extract port (no fallback, must be in secret)
                 port_str = creds.get("port")
