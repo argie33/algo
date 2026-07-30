@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
 import os
-from algo.infrastructure.config.db_config import get_connection_pool
+import psycopg2
 
-pool = get_connection_pool()
-con = pool.getconn()
+# Get DB connection from environment
+db_url = os.environ.get('DATABASE_URL')
+if not db_url:
+    print("ERROR: DATABASE_URL not set")
+    exit(1)
+
+con = psycopg2.connect(db_url)
 cur = con.cursor()
 
 try:
     # Check current value
-    cur.execute("SELECT config_value FROM algo_config WHERE config_key = 'execution_mode'")
+    cur.execute("SELECT value FROM algo_config WHERE key = 'execution_mode'")
     result = cur.fetchone()
     print(f"Current execution_mode in DB: {result[0] if result else 'NOT FOUND'}")
     print(f"ORCHESTRATOR_EXECUTION_MODE env var: {os.environ.get('ORCHESTRATOR_EXECUTION_MODE', 'NOT SET')}")
 
     # Fix: Set both to consistent value
-    cur.execute("UPDATE algo_config SET config_value = %s WHERE config_key = %s", ('paper', 'execution_mode'))
+    cur.execute("UPDATE algo_config SET value = %s WHERE key = %s", ('paper', 'execution_mode'))
     con.commit()
     print("✓ Updated algo_config execution_mode to paper")
 
     # Verify
-    cur.execute("SELECT config_value FROM algo_config WHERE config_key = 'execution_mode'")
+    cur.execute("SELECT value FROM algo_config WHERE key = 'execution_mode'")
     print(f"✓ Verified: {cur.fetchone()[0]}")
 finally:
-    pool.putconn(con)
+    cur.close()
+    con.close()

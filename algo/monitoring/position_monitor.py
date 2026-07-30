@@ -293,6 +293,7 @@ class PositionMonitor:
         # These occur randomly despite correct SQL, likely environmental - capture full diagnostic
         try:
             with DatabaseContext("write") as cur:
+                logger.info("[POSITION_MONITOR] review_positions: Entered DatabaseContext, cursor acquired")
                 # Issue #24: Check margin utilization and warn/halt if excessive
                 try:
                     cur.execute("""
@@ -371,7 +372,26 @@ class PositionMonitor:
                     ) from margin_e
 
                 try:
+                    logger.info("[POSITION_MONITOR] About to call check_sector_concentration, cursor status check...")
+                    try:
+                        cur.execute("SELECT 1")  # Quick cursor health check
+                        cur.fetchone()
+                        logger.info("[POSITION_MONITOR] Cursor health check passed before check_sector_concentration")
+                    except Exception as health_e:
+                        logger.error(f"[POSITION_MONITOR] CURSOR HEALTH CHECK FAILED before check_sector_concentration: {health_e}")
+                        raise RuntimeError(f"Cursor became unusable before sector concentration check: {health_e}") from health_e
+
                     conc = self.check_sector_concentration(current_date)
+
+                    logger.info("[POSITION_MONITOR] Returned from check_sector_concentration, checking cursor again...")
+                    try:
+                        cur.execute("SELECT 1")  # Cursor health check after nested context
+                        cur.fetchone()
+                        logger.info("[POSITION_MONITOR] Cursor still healthy after check_sector_concentration")
+                    except Exception as health_e:
+                        logger.error(f"[POSITION_MONITOR] CURSOR CLOSED BY check_sector_concentration: {health_e}")
+                        raise RuntimeError(f"Cursor was closed by nested context (check_sector_concentration): {health_e}") from health_e
+
                     if conc["status"] == "HIGH_CONCENTRATION":
                         logger.info("  [WARNING]  Portfolio concentration risk detected")
                 except RuntimeError as conc_e:
