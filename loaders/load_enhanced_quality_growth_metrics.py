@@ -246,7 +246,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                         if len(margin_rows) == 2:
                             # Current year margin (using gross_profit / revenue)
                             curr_gross_profit = safe_float(margin_rows[0][2], 'gross_profit')
+                            curr_cogs = safe_float(margin_rows[0][1], 'cogs')
                             prior_gross_profit = safe_float(margin_rows[1][2], 'gross_profit')
+                            prior_cogs = safe_float(margin_rows[1][1], 'cogs')
+
+                            # Fallback: compute gross_profit from revenue - COGS if not directly available
+                            if curr_gross_profit is None and curr_cogs is not None:
+                                curr_gross_profit = curr_rev_f - curr_cogs
+                            if prior_gross_profit is None and prior_cogs is not None:
+                                prior_gross_profit = prior_rev_f - prior_cogs
 
                             if curr_gross_profit is not None and curr_rev_f > 0:
                                 curr_gross_margin = (curr_gross_profit / curr_rev_f * 100)
@@ -300,12 +308,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                     retention_ratio = 0.60
                     metrics["sustainable_growth_rate"] = float(curr_roe_pct * retention_ratio * 100)
 
-            # Compute quarterly earnings metrics
+            # Compute quarterly earnings metrics (includes consecutive_positive_quarters, eps_growth_stability, etc.)
             self._compute_quarterly_metrics(symbol, metrics)
 
-            # Initialize missing analyst estimate fields as None (not yet loaded by any loader)
+            # Compute earnings surprise and beat rate from yfinance
+            self._compute_earnings_surprise_metrics(symbol, metrics)
+
+            # Initialize remaining missing analyst estimate fields as None (not yet loaded by any loader)
+            # These require more complex data tracking (revision activity, momentum trends)
             for field in [
-                "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
                 "estimate_revision_direction", "revision_activity_30d",
                 "estimate_momentum_60d", "estimate_momentum_90d", "revision_trend_score"
             ]:
@@ -320,6 +331,42 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except Exception as e:
             logger.error(f"[ENHANCED_METRICS] {symbol}: Computation failed: {e}")
             return [{"symbol": symbol, "data_unavailable": True, "reason": str(e)}]
+
+    def _compute_earnings_surprise_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
+        """Compute earnings surprise and beat rate from yfinance earnings dates.
+
+        Uses yfinance earnings_dates which provides:
+        - EPS Estimate: Analyst consensus EPS estimate
+        - Reported EPS: Actual reported EPS
+        - Surprise(%): (Reported - Estimate) / Estimate * 100
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+
+            # Get last 4 quarters of earnings data
+            earnings_dates = ticker.earnings_dates
+            if earnings_dates is None or earnings_dates.empty:
+                return
+
+            # Take most recent 4 reported earnings
+            reported = earnings_dates[earnings_dates['Reported EPS'].notna()].head(4)
+            if len(reported) < 2:
+                return
+
+            surprises = reported['Surprise(%)'].dropna()
+            if len(surprises) > 0:
+                # Average surprise over available quarters
+                metrics["earnings_surprise_avg"] = float(surprises.mean())
+
+                # Beat rate: % of quarters with positive surprise
+                beat_count = (surprises > 0).sum()
+                beat_rate = (beat_count / len(surprises)) * 100
+                metrics["earnings_beat_rate"] = float(beat_rate)
+
+        except Exception as e:
+            # yfinance may not have data or may be rate-limited; silently skip
+            logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise: {e}")
 
     def _compute_quarterly_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
         """Compute metrics from quarterly earnings data."""
