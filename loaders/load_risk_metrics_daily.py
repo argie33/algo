@@ -623,20 +623,6 @@ class RiskMetricsLoader(OptimalLoader):
         return daily_std * math.sqrt(252)
 
     @staticmethod
-    def _calculate_downside_volatility(returns: list[float]) -> float | None:
-        if not returns or len(returns) < 2:
-            return None
-
-        downside_returns = [r for r in returns if r < 0]
-        if len(downside_returns) < 2:
-            return None
-
-        mean_downside = sum(downside_returns) / len(downside_returns)
-        variance = sum((r - mean_downside) ** 2 for r in downside_returns) / (len(downside_returns) - 1)
-        daily_std = math.sqrt(variance)
-        return daily_std * math.sqrt(252)
-
-    @staticmethod
     def _get_beta_from_db(
         symbol: str,
         stock_prices: list[tuple[Any, float]],
