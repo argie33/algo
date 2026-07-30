@@ -121,7 +121,8 @@ class PositionTracker:
                 cur.execute(
                     """UPDATE algo_positions
                        SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP,
-                           unrealized_pnl = %s, unrealized_pnl_pct = %s
+                           profit_loss_dollars = %s, unrealized_pnl = NULL, unrealized_pnl_pct = %s,
+                           exit_reason = 'position_tracker_full_exit'
                        WHERE position_id = %s AND quantity = %s""",
                     (PositionStatus.CLOSED.value, pnl_dollars, pnl_pct, position_id, current_qty),
                 )
