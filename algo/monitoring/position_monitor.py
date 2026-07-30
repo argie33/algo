@@ -246,10 +246,16 @@ class PositionMonitor:
                     }
             return {"status": "OK", "count": 0}
 
-    def check_sector_concentration(self, current_date: _date | None = None) -> dict[str, Any]:
+    def check_sector_concentration(self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None) -> dict[str, Any]:
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
+
+        Args:
+            current_date: Date to check (defaults to today)
+            cur: Optional cursor to use. If None, opens new DatabaseContext.
+                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+                 to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
 
         Raises:
             RuntimeError: If concentration check fails (fail-fast for risk management)
@@ -257,7 +263,9 @@ class PositionMonitor:
         if current_date is None:
             current_date = _date.today()
 
-        with DatabaseContext("read") as cur:
+        # CRITICAL FIX: If caller passed a cursor, use it instead of opening new context
+        # This prevents nested DatabaseContext from closing the outer cursor
+        if cur is not None:
             try:
                 cur.execute("""
                     -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
@@ -281,6 +289,32 @@ class PositionMonitor:
                     f"Sector concentration check failed: {e}. "
                     f"Cannot proceed with position monitoring without valid concentration metrics."
                 ) from e
+        else:
+            # Fallback: open own context if not provided
+            with DatabaseContext("read") as ctx:
+                try:
+                    ctx.execute("""
+                        -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
+                        SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+                        FROM algo_positions ap
+                        LEFT JOIN company_profile cp ON ap.symbol = cp.symbol
+                        WHERE ap.status = 'open' AND ap.quantity > 0
+                        GROUP BY cp.sector
+                        HAVING COUNT(DISTINCT ap.symbol) > 3
+                        ORDER BY position_count DESC
+                    """)
+                    concentrated = ctx.fetchall()
+                    if concentrated:
+                        logger.info("\n  [CONCENTRATION ALERT]")
+                        for sector, count in concentrated:
+                            logger.info(f"    {sector}: {count} positions (>3 is risky)")
+                        return {"status": "HIGH_CONCENTRATION", "sectors": concentrated}
+                    return {"status": "OK", "sectors": []}
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    raise RuntimeError(
+                        f"Sector concentration check failed: {e}. "
+                        f"Cannot proceed with position monitoring without valid concentration metrics."
+                    ) from e
 
     def review_positions(self, current_date: _date | None = None) -> list[dict[str, Any]]:
         """Review every open position. Returns list of recommendations."""
@@ -372,25 +406,9 @@ class PositionMonitor:
                     ) from margin_e
 
                 try:
-                    logger.info("[POSITION_MONITOR] About to call check_sector_concentration, cursor status check...")
-                    try:
-                        cur.execute("SELECT 1")  # Quick cursor health check
-                        cur.fetchone()
-                        logger.info("[POSITION_MONITOR] Cursor health check passed before check_sector_concentration")
-                    except Exception as health_e:
-                        logger.error(f"[POSITION_MONITOR] CURSOR HEALTH CHECK FAILED before check_sector_concentration: {health_e}")
-                        raise RuntimeError(f"Cursor became unusable before sector concentration check: {health_e}") from health_e
-
-                    conc = self.check_sector_concentration(current_date)
-
-                    logger.info("[POSITION_MONITOR] Returned from check_sector_concentration, checking cursor again...")
-                    try:
-                        cur.execute("SELECT 1")  # Cursor health check after nested context
-                        cur.fetchone()
-                        logger.info("[POSITION_MONITOR] Cursor still healthy after check_sector_concentration")
-                    except Exception as health_e:
-                        logger.error(f"[POSITION_MONITOR] CURSOR CLOSED BY check_sector_concentration: {health_e}")
-                        raise RuntimeError(f"Cursor was closed by nested context (check_sector_concentration): {health_e}") from health_e
+                    logger.info("[POSITION_MONITOR] Calling check_sector_concentration with shared cursor (cursor lifecycle fix)")
+                    # CRITICAL FIX: Pass cursor to avoid nested DatabaseContext closing our cursor
+                    conc = self.check_sector_concentration(current_date, cur=cur)
 
                     if conc["status"] == "HIGH_CONCENTRATION":
                         logger.info("  [WARNING]  Portfolio concentration risk detected")
