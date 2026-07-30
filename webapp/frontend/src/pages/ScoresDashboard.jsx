@@ -1995,6 +1995,7 @@ const QUALITY_SCHEMA = [
   { key: "debt_to_equity", label: "Debt / Equity", fmt: (v) => num(v, 2) },
   { key: "current_ratio", label: "Current Ratio", fmt: (v) => num(v, 2) },
   { key: "quick_ratio", label: "Quick Ratio", fmt: (v) => num(v, 2) },
+  { key: "interest_coverage", label: "Interest Coverage", fmt: (v) => num(v, 2) },
   {
     key: "earnings_surprise_avg",
     label: "Earnings Surprise (4Q)",
