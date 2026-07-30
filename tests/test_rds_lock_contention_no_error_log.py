@@ -26,19 +26,24 @@ class _FakeLockTable:
 
     def __init__(self):
         self.rows: dict[str, str] = {}
+        self.rowcount = 0
 
     def execute(self, query, params=None):
         if query.strip() == "SELECT 1":
             self._last = ("select_1", None)
+            self.rowcount = 0
         elif "DELETE FROM loader_execution_locks WHERE loader_name" in query and "expires_at < NOW()" in query:
             self._last = ("delete_expired", params)
+            self.rowcount = 0
         elif "INSERT INTO loader_execution_locks" in query:
             lock_key, locked_by = params[0], params[1]
             self.rows.setdefault(lock_key, locked_by)  # ON CONFLICT DO NOTHING semantics
             self._last = ("insert", params)
+            self.rowcount = 1
         elif "SELECT locked_by FROM loader_execution_locks" in query:
             lock_key = params[0]
             self._last = ("select", self.rows.get(lock_key))
+            self.rowcount = 1 if self.rows.get(lock_key) else 0
         else:
             raise AssertionError(f"Unexpected query: {query}")
 

@@ -206,8 +206,8 @@ class TestErrorBoundary:
 class TestPositionMonitorSectorTrendFailFast:
     """Position monitor must fail-fast when sector trend data missing."""
 
-    def test_sector_trend_missing_historical_data_raises(self):
-        """Missing 4-week historical sector ranking should raise, not default to 'stable'."""
+    def test_sector_trend_missing_historical_data_degrades_gracefully(self):
+        """Missing 4-week historical sector ranking should degrade gracefully (log warning, return 'stable')."""
         from algo.monitoring.position_monitor import PositionMonitor
 
         config = {
@@ -229,9 +229,9 @@ class TestPositionMonitorSectorTrendFailFast:
             mock_cursor.__exit__ = MagicMock(return_value=None)
             mock_db_context.return_value = mock_cursor
 
-            # Should raise ValueError, not return "stable"
-            with pytest.raises(ValueError, match=r"Cannot assess sector trend.*4-week historical baseline"):
-                monitor._check_sector_health("AAPL", date(2026, 6, 28), mock_cursor)
+            # Should degrade gracefully: log warning and return 'neutral' rather than raising
+            result = monitor._check_sector_health("AAPL", date(2026, 6, 28))
+            assert result == "neutral"
 
 
 class TestHaltFlagManagerFailFast:

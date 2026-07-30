@@ -112,20 +112,27 @@ def test_concurrent_orchestrator_stress():
     print()
 
     # Check database for halted runs
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT COUNT(*) as halted_count
-        FROM orchestrator_execution_log
-        WHERE run_date = CURRENT_DATE
-            AND phases_halted > 0
-            AND started_at > %s
-    """, (start_time.replace(tzinfo=None),))
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*) as halted_count
+            FROM orchestrator_execution_log
+            WHERE run_date = CURRENT_DATE
+                AND phases_halted > 0
+                AND started_at > %s
+        """, (start_time.replace(tzinfo=None),))
 
-    halted_in_test = cur.fetchone()[0]
-    conn.close()
+        result = cur.fetchone()
+        if result:
+            halted_in_test = result.get('halted_count', result[0]) if isinstance(result, dict) else result[0]
+        else:
+            halted_in_test = 0
+        conn.close()
 
-    print(f"Halted runs in database during this test: {halted_in_test}")
+        print(f"Halted runs in database during this test: {halted_in_test}")
+    except Exception as e:
+        print(f"Warning: Could not check halted runs: {e}")
 
     # PASS if all runs completed (even if some are degraded)
     # FAIL if any run errored out

@@ -27,11 +27,16 @@ def _summary(symbol: str = "AAPL") -> dict:
 
 
 class TestFetchIncremental:
-    def test_no_coverage_returns_empty_list_not_none(self):
+    def test_no_coverage_returns_data_unavailable_marker(self):
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
+        today = datetime.now(EASTERN_TZ).date()
         with patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=None):
             result = loader.fetch_incremental("ZZZZ", since=None)
-        assert result == []
+        assert len(result) == 1
+        assert result[0]["symbol"] == "ZZZZ"
+        assert result[0]["date"] == today
+        assert result[0]["data_unavailable"] is True
+        assert result[0]["data_unavailable_reason"] == "no_analyst_coverage"
 
     def test_since_none_fetches_todays_snapshot(self):
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)

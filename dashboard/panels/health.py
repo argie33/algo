@@ -3526,16 +3526,16 @@ def _build_results_panel(
     if risk and isinstance(risk, dict):
         risk_parts = []
         var95 = risk.get("var95")
-        if var95 is not None:
+        if var95 is not None and isinstance(var95, (int, float)):
             risk_parts.append(f"VaR 95%: {var95:.2f}%")
         cvar95 = risk.get("cvar95")
-        if cvar95 is not None:
+        if cvar95 is not None and isinstance(cvar95, (int, float)):
             risk_parts.append(f"CVaR 95%: {cvar95:.2f}%")
         beta = risk.get("beta")
-        if beta is not None:
+        if beta is not None and isinstance(beta, (int, float)):
             risk_parts.append(f"Portfolio Beta: {beta:.2f}")
         conc5 = risk.get("conc5")
-        if conc5 is not None:
+        if conc5 is not None and isinstance(conc5, (int, float)):
             risk_parts.append(f"Top 5%: {conc5:.1f}%")
 
         if risk_parts:
