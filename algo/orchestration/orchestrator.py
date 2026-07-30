@@ -2124,30 +2124,22 @@ class Orchestrator:
                 # uses the same canonical vocabulary the orchestrator itself already trusts.
                 self.execution_tracker.phase_results[phase_num]["status"] = phase_result.status
 
-            if already_logged is None:
-                # Phase never called log_phase_result_fn itself: this is the skip path inside
-                # phase_executor.py's execute_phase() (skip_if_halted=True after an earlier
-                # halt), which builds a PhaseResult directly and never calls phase.execute_fn -
-                # so the log_phase_result_fn callback wired to it never fires. Previously this
-                # only ever updated self.phase_results (this orchestrator instance's in-memory
-                # dict, used solely for the console _final_report()), never
-                # self.execution_tracker (utils/logging/execution_tracker.py, the tracker whose
-                # phase_results actually gets JSON-serialized into orchestrator_execution_log
-                # and counted into phases_completed/halted/errored). Result: every skipped
-                # phase (4, 5, 7, 8 whenever an earlier phase halts) silently vanished from the
-                # persisted audit trail and the health dashboard instead of showing as skipped -
-                # confirmed live: a halted run's DB row phase_results only had phases 1/2/3/6/9,
-                # phases 4/5/7/8 entirely absent rather than status="skipped". Route through the
-                # canonical log_phase_result() (same path every executed phase already uses) so
-                # skipped phases reach the DB, audit log, and event hub too.
+            # Ensure ALL phases (executed or skipped) are logged to execution_tracker.
+            # Phases that call log_phase_result_fn during execution are already in execution_tracker.
+            # Phases that don't (including successful ones and skipped ones) need to be added now.
+            # Without this, successful phases that don't explicitly call the callback won't appear
+            # in orchestrator_execution_log, causing empty phase_results arrays and dashboard
+            # visibility issues. This is a catch-all: log any phase not already in the tracker.
+            if phase_num not in self.execution_tracker.phase_results:
                 self.log_phase_result(phase_num, phase_result.phase_name, phase_result.status, summary)
-            else:
-                self.phase_results[phase_num] = {
-                    "phase": phase_num,
-                    "name": phase_result.phase_name,
-                    "status": phase_result.status,
-                    "summary": summary,
-                }
+
+            # Update orchestrator's in-memory tracking (used for console report)
+            self.phase_results[phase_num] = {
+                "phase": phase_num,
+                "name": phase_result.phase_name,
+                "status": phase_result.status,
+                "summary": summary,
+            }
 
         return executor_result
 
