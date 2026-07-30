@@ -1255,18 +1255,18 @@ class ExitEngine:
                 )
 
             elif response.status_code == 401:
-                # Authentication failed - in paper mode, fall back to database prices
-                # In live mode, this is a critical error that should propagate
+                # Authentication failed - fall back to database prices
+                # CRITICAL FIX: In auto mode, raising RuntimeError prevents exit evaluation entirely.
+                # If Alpaca credentials are temporarily unavailable (rotated, not yet set, or transient
+                # auth issue), blocking all exits is worse than using potentially-stale database prices.
+                # Caller (check_and_execute_exits) should still evaluate exits using these "data_unavailable"
+                # marked prices and let upstream logic decide if the risk is acceptable.
                 execution_mode = self.config.get("execution_mode", "paper")
-                if execution_mode in ("paper", "dry", "review"):
-                    logger.warning(
-                        f"[EXIT_ENGINE] {symbol}: Alpaca quote API authentication failed (401) - "
-                        f"falling back to database prices in {execution_mode} mode"
-                    )
-                    return {"data_unavailable": True, "reason": f"Alpaca 401 auth failed in {execution_mode} mode"}
-                else:
-                    # Live trading - auth failure is critical
-                    raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
+                logger.warning(
+                    f"[EXIT_ENGINE] {symbol}: Alpaca quote API authentication failed (401) in {execution_mode} mode - "
+                    f"falling back to database prices for exit evaluation"
+                )
+                return {"data_unavailable": True, "reason": f"Alpaca 401 auth failed - using database fallback"}
 
             elif response.status_code == 404:
                 # 404 can mean two different things depending on execution mode:
