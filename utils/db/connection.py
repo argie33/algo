@@ -47,12 +47,12 @@ def register_connection_callbacks(on_connect: Any, on_disconnect: Any) -> None:
 def _get_connection_pool() -> Any:
     """Get or create the module-level connection pool (thread-safe).
 
-    Pool size: minconn=2, maxconn=10
+    Pool size: minconn=2, maxconn=20 (dev mode); minconn=2, maxconn=10 (Lambda)
     - minconn=2: keeps 2 idle connections warm (cold-start prevention)
-    - maxconn=10: limits per-Lambda instance to 10 connections max
+    - maxconn=20: increased from 10 to handle orchestrator's 9 parallel phases
     - RDS Proxy multiplexes to actual DB, limits total to 500 connections
 
-    With 50 concurrent Lambdas at max parallelism (10 conn each) = 500 peak = at RDS limit
+    Lambda mode will cap at 10; local dev can use up to 20.
     Default: Graceful queueing when pool exhausted (blocks until connection available, max 30s)
 
     Wrapped with IdleConnectionPool to clean up idle connections and prevent pool exhaustion
@@ -103,7 +103,7 @@ def _get_connection_pool() -> Any:
                     # environment) never needed it, which is why this went uncaught.
                     base_pool = psycopg2.pool.ThreadedConnectionPool(
                         minconn=2,
-                        maxconn=10,
+                        maxconn=20,
                         host=db_config["host"],
                         port=port,
                         database=db_config["database"],
@@ -128,7 +128,7 @@ def _get_connection_pool() -> Any:
 
                     _connection_pool = IdleConnectionPool(base_pool, max_idle_sec=300, cleanup_interval_sec=60)
                     logger.info(
-                        "[DB_POOL] Connection pool initialized (minconn=2, maxconn=10) "
+                        "[DB_POOL] Connection pool initialized (minconn=2, maxconn=20) "
                         "with idle connection cleanup (max_idle=300s, check every 60s)"
                     )
                 except psycopg2.Error as e:
