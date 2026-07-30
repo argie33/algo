@@ -150,12 +150,14 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                     retention_ratio = 0.60
                     metrics["sustainable_growth_rate"] = float(curr_roe_pct * retention_ratio * 100)
 
-            # Initialize missing fields as None
+            # Compute quarterly earnings metrics
+            self._compute_quarterly_metrics(symbol, metrics)
+
+            # Initialize missing analyst estimate fields as None (not yet loaded by any loader)
             for field in [
                 "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
-                "consecutive_positive_quarters", "estimate_revision_direction",
-                "revision_activity_30d", "estimate_momentum_60d", "estimate_momentum_90d",
-                "revision_trend_score", "earnings_growth_4q_avg", "quarterly_growth_momentum"
+                "estimate_revision_direction", "revision_activity_30d",
+                "estimate_momentum_60d", "estimate_momentum_90d", "revision_trend_score"
             ]:
                 if field not in metrics:
                     metrics[field] = None
@@ -168,6 +170,71 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except Exception as e:
             logger.error(f"[ENHANCED_METRICS] {symbol}: Computation failed: {e}")
             return [{"symbol": symbol, "data_unavailable": True, "reason": str(e)}]
+
+    def _compute_quarterly_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
+        """Compute metrics from quarterly earnings data."""
+        with DatabaseContext("read") as cur:
+            # Get last 8 quarters of earnings data
+            cur.execute("""
+                SELECT fiscal_year, fiscal_quarter, earnings_per_share, net_income
+                FROM quarterly_income_statement
+                WHERE symbol = %s AND data_unavailable IS NOT TRUE
+                ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                LIMIT 8
+            """, (symbol,))
+
+            quarters = cur.fetchall()
+            if not quarters or len(quarters) < 2:
+                return
+
+            # quarters is sorted newest first
+            eps_values = [safe_float(q[2]) for q in quarters]  # EPS
+            ni_values = [safe_float(q[3]) for q in quarters]   # Net Income
+            valid_eps = [e for e in eps_values if e is not None]
+            valid_ni = [n for n in ni_values if n is not None]
+
+            # Compute consecutive positive quarters (from most recent going backwards)
+            consecutive_positive = 0
+            for ni in ni_values:
+                if ni is not None and ni > 0:
+                    consecutive_positive += 1
+                else:
+                    break
+            if consecutive_positive > 0:
+                metrics["consecutive_positive_quarters"] = float(consecutive_positive)
+
+            # Compute EPS growth rates over last 4 quarters (if we have 5 quarters)
+            if len(valid_eps) >= 5:
+                eps_growth_rates = []
+                for i in range(len(valid_eps) - 1):
+                    if valid_eps[i + 1] is not None and valid_eps[i + 1] != 0:
+                        growth = (valid_eps[i] - valid_eps[i + 1]) / abs(valid_eps[i + 1])
+                        eps_growth_rates.append(growth)
+
+                if eps_growth_rates:
+                    # Average EPS growth (last 4 quarters)
+                    if len(eps_growth_rates) >= 4:
+                        avg_growth = sum(eps_growth_rates[:4]) / 4
+                        metrics["earnings_growth_4q_avg"] = float(avg_growth * 100)
+
+                    # EPS growth stability (standard deviation)
+                    if len(eps_growth_rates) >= 2:
+                        import statistics
+                        try:
+                            stdev = statistics.stdev(eps_growth_rates)
+                            metrics["eps_growth_stability"] = float(stdev)
+                        except (ValueError, statistics.StatisticsError):
+                            pass
+
+            # Compute quarterly growth momentum (average of recent quarterly growth rates)
+            if len(valid_eps) >= 4:
+                recent_growth = []
+                for i in range(min(4, len(valid_eps) - 1)):
+                    if valid_eps[i + 1] is not None and valid_eps[i + 1] != 0:
+                        growth = (valid_eps[i] - valid_eps[i + 1]) / abs(valid_eps[i + 1]) * 100
+                        recent_growth.append(growth)
+                if recent_growth:
+                    metrics["quarterly_growth_momentum"] = float(sum(recent_growth) / len(recent_growth))
 
 
 def main() -> int:

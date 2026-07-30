@@ -144,6 +144,13 @@ THRESHOLDS = {
         "stale": 2160,
         "critical": 2880,
     },
+    "algo_performance_metrics": {
+        # Legacy table synced daily from algo_performance_daily by orchestrator post-run.
+        # Should be updated after each orchestrator run (Phase 9 completion).
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
+    },
 }
 
 
@@ -192,6 +199,7 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "sector_rotation_signal": "created_at",
                 "trend_template_data": "created_at",
                 "buy_sell_daily": "updated_at",
+                "algo_performance_metrics": "updated_at",
             }
 
             if table_name not in timestamp_cols:

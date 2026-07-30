@@ -104,19 +104,26 @@ def main():
             results = []
             for label, (col, table) in fields.items():
                 if 'tl.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM technical_data_daily WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM technical_data_daily WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 elif 'mm.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM momentum_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM momentum_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 elif 'qm.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM quality_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM quality_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 elif 'gm.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM growth_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM growth_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 elif 'vm.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM value_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM value_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 elif 'pm.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM positioning_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM positioning_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 elif 'sm.' in col:
-                    query = f"SELECT COUNT(*) FILTER (WHERE {col} IS NOT NULL) FROM stability_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
+                    col_name = col.split('.')[1]
+                    query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM stability_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 else:
                     print(f"  ❌ {label:30} [unmapped column]")
                     continue
