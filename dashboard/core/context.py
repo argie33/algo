@@ -140,3 +140,7 @@ class DashboardContext:
     @property
     def inventory(self) -> Any:
         return self.data.get("inventory")
+
+    @property
+    def exec_stats(self) -> Any:
+        return self.data.get("exec_stats")

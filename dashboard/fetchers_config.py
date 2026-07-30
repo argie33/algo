@@ -233,6 +233,59 @@ def fetch_run(c: None) -> dict[str, Any]:
         return FetcherValidator.build_error_response(error_msg)
 
 
+def fetch_execution_stats(c: None) -> dict[str, Any]:
+    """Fetch orchestrator execution stats (last 24 hours).
+
+    Captures success rate, error rate, and recent failure details to make the
+    dashboard aware of orchestrator health, not just the latest run status.
+    Critical for detecting 24% failure rates that are invisible when only showing
+    the most recent run.
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    try:
+        data = api_call("/api/algo/execution/stats?days=1")
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("exec_stats", "api_call", "api_error", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(data, dict):
+            error_msg = "Execution stats API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("exec_stats", "type", "not_dict", type(data).__name__)
+            return FetcherValidator.build_error_response(error_msg)
+
+        # Extract stats: total_runs, by_status dict, success_rate, error_rate, halt_rate
+        total_runs = data.get("total_runs", 0)
+        by_status = data.get("by_status", {})
+        success_rate = data.get("success_rate")
+        error_rate = data.get("error_rate")
+        halt_rate = data.get("halt_rate")
+
+        if total_runs is None or by_status is None:
+            error_msg = "Execution stats API missing required fields: total_runs or by_status"
+            logger.error(error_msg)
+            record_data_quality_issue("exec_stats", "validation", "missing_fields")
+            return FetcherValidator.build_error_response(error_msg)
+
+        return {
+            "total_runs": total_runs,
+            "by_status": by_status,
+            "success_rate": success_rate,
+            "error_rate": error_rate,
+            "halt_rate": halt_rate,
+            "period_days": data.get("period_days", 1),
+        }
+    except Exception as e:
+        error_msg = format_fetcher_error("exec_stats", e)
+        logger.error(error_msg)
+        record_data_quality_issue("exec_stats", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
+
+
 def fetch_algo_config(c: None) -> dict[str, Any]:
     """AWS-only algo configuration (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator

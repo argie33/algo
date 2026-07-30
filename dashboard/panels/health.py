@@ -1275,6 +1275,7 @@ def panel_orch(
     cfg: dict[str, Any],
     risk: dict[str, Any] | None = None,
     hlth: dict[str, Any] | list[Any] | None = None,
+    exec_stats: dict[str, Any] | None = None,
 ) -> Panel:
     error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
     if error_pnl is not None:
@@ -1477,6 +1478,9 @@ def panel_orch(
                 exec_health_rows = _format_phase_execution_health(execution_health)
 
         # Build body as Group if we have execution health rows
+        # Build execution stats line if available
+        stats_line_obj = _format_execution_stats(exec_stats)
+
         if exec_health_rows:
             body_rows: list[Text | Rule] = [
                 Text.from_markup(
@@ -1486,18 +1490,35 @@ def panel_orch(
                     f"[dim]Next run:[/] [white]{next_run}[/]\n"
                     f"{phases_str}" + extra + var_line
                 ),
-                Rule(style="dim"),
             ]
+            if stats_line_obj:
+                body_rows.insert(1, stats_line_obj)
+                body_rows.insert(2, Rule(style="dim"))
+            else:
+                body_rows.insert(1, Rule(style="dim"))
             body_rows.extend(exec_health_rows)
             body_content = Group(*body_rows)
         else:
-            body_content = Text.from_markup(
-                f"{sts}  [dim]{age}[/]\n"
-                f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
-                f"[dim]{config_line}[/]\n"
-                f"[dim]Next run:[/] [white]{next_run}[/]\n"
-                f"{phases_str}" + extra + var_line
-            )
+            if stats_line_obj:
+                body_rows: list[Text | Rule] = [
+                    Text.from_markup(
+                        f"{sts}  [dim]{age}[/]\n"
+                        f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
+                        f"[dim]{config_line}[/]\n"
+                        f"[dim]Next run:[/] [white]{next_run}[/]\n"
+                        f"{phases_str}" + extra + var_line
+                    ),
+                    stats_line_obj,
+                ]
+                body_content = Group(*body_rows)
+            else:
+                body_content = Text.from_markup(
+                    f"{sts}  [dim]{age}[/]\n"
+                    f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
+                    f"[dim]{config_line}[/]\n"
+                    f"[dim]Next run:[/] [white]{next_run}[/]\n"
+                    f"{phases_str}" + extra + var_line
+                )
     return Panel(body_content, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
@@ -1512,6 +1533,58 @@ def _get_status_safe(run: dict[str, Any]) -> str:
         )
         return "unknown"
     return str(status).lower()
+
+
+def _format_execution_stats(exec_stats: dict[str, Any] | None) -> Text | None:
+    """Format 24-hour execution statistics prominently.
+
+    Shows failure rate, error/halt counts to make recent failures visible.
+    Returns None if data unavailable so callers can skip this section.
+    """
+    if not exec_stats or has_error(exec_stats):
+        return None
+
+    total = exec_stats.get("total_runs")
+    by_status = exec_stats.get("by_status", {})
+    error_rate_str = exec_stats.get("error_rate")
+    halt_rate_str = exec_stats.get("halt_rate")
+    success_rate_str = exec_stats.get("success_rate")
+
+    if total is None or total == 0:
+        return None
+
+    # Parse rates (they come as strings like "2.3%")
+    error_count = by_status.get("error", 0)
+    halt_count = by_status.get("halted", 0)
+    ok_count = by_status.get("ok", 0) + by_status.get("success", 0)
+
+    # Determine alert level
+    try:
+        error_rate_val = float(error_rate_str.strip("%")) if error_rate_str else 0
+    except (ValueError, AttributeError):
+        error_rate_val = 0
+
+    if error_rate_val > 20:
+        alert_color = R
+        alert_icon = "⚠⚠⚠"
+    elif error_rate_val > 5:
+        alert_color = R
+        alert_icon = "⚠⚠"
+    elif error_rate_val > 0:
+        alert_color = Y
+        alert_icon = "⚠"
+    else:
+        alert_color = G
+        alert_icon = "✓"
+
+    return Text.from_markup(
+        f"[bold {alert_color}]{alert_icon} Last 24h:[/] "
+        f"[{G}]{ok_count} ok[/] "
+        f"[{Y if halt_count else DIM}]{halt_count} halted[/] "
+        f"[{R if error_count else DIM}]{error_count} error[/] "
+        f"({total} total) "
+        f"[{alert_color}]{error_rate_str or '0%'} failure rate[/]"
+    )
 
 
 def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
@@ -2951,8 +3024,13 @@ def panel_algo_health(
     audit: list[Any] | None = None,
     exec_hist: list[Any] | None = None,
     risk: dict[str, Any] | None = None,
+    exec_stats: dict[str, Any] | None = None,
 ) -> Panel:
-    """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
+    """Focused 'did the algo work?' panel: run outcome → what it did → system health.
+
+    Now includes recent execution statistics (last 24h failures) to make hidden
+    failure rates visible instead of only showing the latest run.
+    """
     hlth_err = _error_panel("health", hlth, "HEALTH")
     if hlth_err is not None:
         return hlth_err
@@ -3028,6 +3106,12 @@ def panel_algo_health(
         rows.append(Text.from_markup(f"[dim]Last run (audit):[/]  [dim]{fmt_age(run_at)}[/]"))
     else:
         rows.append(Text.from_markup("[dim]No run data - algo has not run yet[/]"))
+
+    # ── A.5: Execution stats (last 24h failures) ──────────────────────────────
+    stats_line = _format_execution_stats(exec_stats)
+    if stats_line:
+        rows.append(stats_line)
+        rows.append(Rule(style="dim"))
 
     # ── B: Phase badges + aggregated "what did it do?" metrics ───────────────
     signals_gen = 0

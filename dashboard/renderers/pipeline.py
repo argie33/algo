@@ -179,6 +179,7 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
             ctx.audit,
             ctx.exec_hist,
             risk=ctx.risk,
+            exec_stats=ctx.exec_stats,
         )
         if not (has_error(ctx.run) or has_error(ctx.health))
         else Panel("[red]Health data unavailable[/]", border_style="red")

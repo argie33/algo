@@ -24,6 +24,7 @@ from .fetchers_config import (
     fetch_algo_config,
     fetch_algo_metrics,
     fetch_circuit,
+    fetch_execution_stats,
     fetch_health,
     fetch_run,
     fetch_table_inventory,
@@ -73,6 +74,7 @@ __all__ = [
     "fetch_economic_calendar",
     "fetch_economic_pulse",
     "fetch_exec_history",
+    "fetch_execution_stats",
     "fetch_exp_factors",
     "fetch_health",
     "fetch_industry_ranking",
@@ -120,6 +122,7 @@ FETCHERS = {
     "irank": fetch_industry_ranking,
     "audit": fetch_audit_log,
     "exec_hist": fetch_exec_history,
+    "exec_stats": fetch_execution_stats,
     "exp_factors": fetch_exp_factors,
     "scores": fetch_scores,
     "inventory": fetch_table_inventory,
@@ -294,6 +297,7 @@ def load_all() -> dict[str, Any]:
         "irank": 6.0,
         "audit": 6.0,
         "exec_hist": 6.0,
+        "exec_stats": 6.0,
         "scores": 8.0,
         "inventory": 6.0,
     }
@@ -327,6 +331,7 @@ def load_all() -> dict[str, Any]:
         "irank",  # Industry rankings (optional enrichment)
         "audit",  # Audit log (optional for debugging)
         "exec_hist",  # Execution history (optional detailed view)
+        "exec_stats",  # Execution stats (last 24h failures) - makes health panel aware of recent errors
         "cb",  # Circuit breakers - moved from critical to optional.
         # Lambda endpoint returns 503 with exponential retry backoff (12+ seconds).
         # Not required for dashboard function; panels handle missing data gracefully.
