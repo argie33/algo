@@ -62,12 +62,14 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         with DatabaseContext("read") as cur:
             # Get historical financial data for trend computation
             cur.execute("""
-                SELECT fiscal_year, total_revenue, operating_income, net_income,
-                       total_assets, stockholders_equity, free_cash_flow,
-                       operating_cash_flow
-                FROM annual_income_statement
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
+                SELECT i.fiscal_year, i.revenue, i.operating_income, i.net_income,
+                       b.total_assets, b.stockholders_equity, c.operating_cash_flow,
+                       c.financing_cash_flow
+                FROM annual_income_statement i
+                LEFT JOIN annual_balance_sheet b ON b.symbol = i.symbol AND b.fiscal_year = i.fiscal_year
+                LEFT JOIN annual_cash_flow c ON c.symbol = i.symbol AND c.fiscal_year = i.fiscal_year
+                WHERE i.symbol = %s
+                ORDER BY i.fiscal_year DESC
                 LIMIT 5
             """, (symbol,))
 
@@ -102,10 +104,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
                 # Margin trends
                 if prior_rev and prior_rev > 0 and curr_rev and curr_rev > 0:
-                    # Get COGS from balance sheet to compute margins
+                    # Get COGS from income statement to compute margins
                     with DatabaseContext("read") as cur:
                         cur.execute("""
-                            SELECT cost_of_revenue, gross_profit
+                            SELECT fiscal_year, cost_of_revenue, gross_profit
                             FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year IN (%s, %s)
                             ORDER BY fiscal_year DESC
