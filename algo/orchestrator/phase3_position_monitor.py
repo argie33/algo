@@ -76,6 +76,13 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 positions = cur.fetchall()
                 logger.info(f"[PHASE 3] Found {len(positions)} open positions to update")
 
+                # CRITICAL: Validate tuple structure before indexing to prevent tuple index errors
+                if positions and len(positions[0]) < 7:
+                    raise RuntimeError(
+                        f"[PHASE 3] Position query returned {len(positions[0])} columns, expected >= 7. "
+                        f"Schema drift detected - cannot extract all position fields."
+                    )
+
                 # Get latest prices from price_daily table for all open symbols
                 open_symbols = [row[1] for row in positions]  # row[1] is symbol
                 prices: dict[str, float | None] = {}
@@ -239,7 +246,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         )
                         updated += 1
                     except Exception as e:
-                        logger.error(f"[PHASE 3 CRITICAL] Failed to update {symbol}: {type(e).__name__}: {e}")
+                        # Use % formatting to avoid f-string format errors when exception contains braces
+                        logger.error("[PHASE 3 CRITICAL] Failed to update %s: %s: %s", symbol, type(e).__name__, str(e)[:200])
                         update_errors.append((symbol, str(e)[:100]))
 
                 # GOVERNANCE: Fail-fast only if CRITICAL errors (not just missing price data)
@@ -411,8 +419,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         if verbose:
                             logger.warning(f"  [WARN] {symbol} halted - pending orders cancelled")
                 except Exception as halt_exc:
+                    # Use % formatting to avoid f-string format errors when exception contains braces
                     logger.error(
-                        f"[PHASE 3 CRITICAL] Failed to check halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}"
+                        "[PHASE 3 CRITICAL] Failed to check halt status for %s: %s: %s",
+                        symbol, type(halt_exc).__name__, str(halt_exc)[:200]
                     )
                     halt_check_errors.append((symbol, f"exception: {type(halt_exc).__name__}"))
 
