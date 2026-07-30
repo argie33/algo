@@ -555,5 +555,7 @@ const STABILITY_SCHEMA = [
   { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2) },
   { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2) },
   { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2) },
-  { key: 'revenue_concentration_hhi', label: 'Revenue Concentration (HHI)', fmt: v => num(v, 2) },
+  { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2) },
+  { key: 'dividend_yield',           label: 'Dividend Yield',       fmt: v => pct(v, 2) },
+  { key: 'payout_ratio',             label: 'Payout Ratio',         fmt: v => pct(v, 1) },
 ];

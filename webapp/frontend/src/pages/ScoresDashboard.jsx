@@ -2213,6 +2213,8 @@ const STABILITY_SCHEMA = [
   { key: "downside_volatility_60d", label: "Downside Vol (60D)", fmt: (v) => pct(v, 2) },
   { key: "downside_volatility_30d", label: "Downside Vol (30D)", fmt: (v) => pct(v, 2) },
   { key: "beta", label: "Beta vs Market", fmt: (v) => num(v, 2) },
-  { key: "debt_to_assets", label: "Debt / Assets", fmt: (v) => num(v, 2) },
-  { key: "revenue_concentration_hhi", label: "Revenue Concentration (HHI)", fmt: (v) => num(v, 2) },
+  { key: "debt_to_assets", label: "Debt / Assets", fmt: (v) => pct(v, 1) },
+  { key: "max_drawdown_1y", label: "Max Drawdown (1Y)", fmt: (v) => pct(v, 2) },
+  { key: "dividend_yield", label: "Dividend Yield", fmt: (v) => pct(v, 2) },
+  { key: "payout_ratio", label: "Payout Ratio", fmt: (v) => pct(v, 1) },
 ];
