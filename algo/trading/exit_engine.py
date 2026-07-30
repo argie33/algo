@@ -797,8 +797,47 @@ class ExitEngine:
                             # CRITICAL FIX: FAIL-FAST on missing price data
                             # Do NOT close position with NULL exit_price (corrupts P&L downstream)
                             # Do NOT fall back to entry_price (masks actual market exit prices)
-                            # Skip this position, increment error counter, retry next cycle
-                            trade_errors += 1
+                            # Skip this position, log error, then increment counter only if logged
+                            audit_success = False
+                            _missing_price_err = RuntimeError(f"No price data available for {symbol}")
+                            _audit_sp = f"{_sp}_missing_price"
+                            try:
+                                cur.execute(f"SAVEPOINT {_audit_sp}")
+                                cur.execute(
+                                    """INSERT INTO algo_exit_check_errors
+                                       (error_date, trade_id, position_id, symbol, error_type, error_message)
+                                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                                    (
+                                        current_date,
+                                        trade_id,
+                                        _position_id,
+                                        symbol,
+                                        "MissingPriceData",
+                                        str(_missing_price_err)[:2000],
+                                    ),
+                                )
+                                cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
+                                audit_success = True
+                            except Exception as _audit_err:
+                                try:
+                                    cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
+                                except psycopg2.Error as _audit_rollback_err:
+                                    if "current transaction is aborted" in str(_audit_rollback_err).lower():
+                                        logger.critical(
+                                            f"[AUDIT] Transaction aborted while logging missing price for {symbol}: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
+                                            f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
+                                        )
+                                        raise DatabaseError(
+                                            f"[EXIT_ENGINE CRITICAL] Transaction aborted during audit error handling for {symbol}. "
+                                            f"Halting exit engine to prevent cascading failures."
+                                        ) from _audit_rollback_err
+                                else:
+                                    logger.error(
+                                        f"[AUDIT] Failed to persist missing-price error for {symbol}: {_audit_err}"
+                                    )
+
+                            if audit_success:
+                                trade_errors += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 
