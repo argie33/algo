@@ -496,7 +496,7 @@ class ExitEngine:
                 f"Cannot initialize exit engine without these values."
             )
 
-    def check_and_execute_exits(self, current_date: _date | None = None) -> tuple[int, int, int]:
+    def check_and_execute_exits(self, current_date: _date | None = None) -> tuple[int, int, int, int]:
         """Evaluate all open positions for exit/stop-raise conditions.
 
         Returns:
