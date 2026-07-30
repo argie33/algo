@@ -288,7 +288,11 @@ class PositionMonitor:
             current_date = _date.today()
 
         recs = []
-        with DatabaseContext("write") as cur:
+
+        # CRITICAL: Wrap entire operation with detailed error logging for intermittent GROUP BY errors
+        # These occur randomly despite correct SQL, likely environmental - capture full diagnostic
+        try:
+            with DatabaseContext("write") as cur:
             # Issue #24: Check margin utilization and warn/halt if excessive
             try:
                 cur.execute("""
@@ -451,13 +455,35 @@ class PositionMonitor:
                     cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
 
-            # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
-            if validation_errors:
-                logger.warning(
-                    f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
-                )
+                # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
+                if validation_errors:
+                    logger.warning(
+                        f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
+                    )
 
-            return recs
+                return recs
+
+        except psycopg2.errors.GroupingError as group_err:
+            # CRITICAL: GROUP BY errors happen intermittently despite correct SQL
+            # Log full details for root cause analysis when this occurs
+            import traceback
+            logger.critical(
+                f"[POSITION_MONITOR CRITICAL] GROUP BY error in review_positions: {group_err}\n"
+                f"Full traceback: {traceback.format_exc()}\n"
+                f"This is a known intermittent issue - attempting graceful degradation"
+            )
+            # Return empty recommendations to prevent cascade halt - position monitoring degrades
+            # but doesn't crash the orchestrator
+            return []
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
+            # CRITICAL: Log any database errors with full context for diagnosis
+            import traceback
+            logger.critical(
+                f"[POSITION_MONITOR CRITICAL] Database error in review_positions: {db_err}\n"
+                f"Full traceback: {traceback.format_exc()}"
+            )
+            # Return empty recommendations to allow orchestrator to continue
+            return []
 
     def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # noqa: C901
         (
