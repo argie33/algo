@@ -344,20 +344,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 LEFT JOIN LATERAL (
                     SELECT ROUND(
                         CASE
-                            WHEN ais.operating_income IS NOT NULL AND ais.interest_expense IS NOT NULL AND ais.interest_expense > 0
-                            THEN ais.operating_income::float / ais.interest_expense
-                            ELSE NULL
-                        END, 2) AS calculated_interest_coverage
-                    FROM annual_income_statement ais
-                    WHERE ais.symbol = sc.symbol
-                      AND ais.interest_expense IS NOT NULL
-                      AND ais.interest_expense > 0
-                    ORDER BY ais.fiscal_year DESC
-                    LIMIT 1
-                ) ic_calc ON true
-                LEFT JOIN LATERAL (
-                    SELECT ROUND(
-                        CASE
                             WHEN acf_curr.free_cash_flow IS NOT NULL
                                  AND acf_prior.free_cash_flow IS NOT NULL
                                  AND acf_prior.free_cash_flow != 0
