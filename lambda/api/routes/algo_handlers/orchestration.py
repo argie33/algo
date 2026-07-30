@@ -127,7 +127,7 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
                        FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
-                       WHERE p->>'status' IN ('success', 'ok', 'degraded', 'skipped')
+                       WHERE p->>'status' IN ('success', 'ok', 'degraded', 'skipped', 'blocked')
                    ), ARRAY[]::text[]) AS phases_completed,
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
