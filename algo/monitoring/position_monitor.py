@@ -454,13 +454,13 @@ class PositionMonitor:
                         cur.execute(f"ROLLBACK TO {sp_name}")
                         continue
 
-                    # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
-                    if validation_errors:
-                        logger.warning(
-                            f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
-                        )
+                # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
+                if validation_errors:
+                    logger.warning(
+                        f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
+                    )
 
-                    return recs
+                return recs
 
         except psycopg2.errors.GroupingError as group_err:
             # CRITICAL: GROUP BY errors happen intermittently despite correct SQL
@@ -597,6 +597,35 @@ class PositionMonitor:
             logger.error(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
             proposed_stop = cur_price - 0.01  # Clamp to 1c below market
             logger.info(f"  Clamped stop to ${proposed_stop:.2f}")
+
+        # CRITICAL: Stop loss check MUST come first, before any other logic
+        # If price <= active stop, this is a HARD EXIT condition, not optional
+        if cur_price <= active_stop:
+            logger.critical(f"[PHASE 3 CRITICAL] {symbol}: Current price ${cur_price:.2f} <= active stop ${active_stop:.2f} - IMMEDIATE EXIT REQUIRED")
+            return {
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "position_id": position_id,
+                "days_held": days_held,
+                "quantity": quantity,
+                "entry_price": entry_price,
+                "current_price": cur_price,
+                "r_multiple": round(r_multiple, 2),
+                "unrealized_pnl": round(unrealized_pnl, 2),
+                "unrealized_pct": round(unrealized_pct, 2),
+                "active_stop": active_stop,
+                "proposed_stop": proposed_stop,
+                "target_hits": target_hits,
+                "rs_label": "",
+                "sector_state": "",
+                "flags": ["STOP_LOSS_HIT"],
+                "days_to_earnings": None,
+                "action": "EARLY_EXIT",
+                "action_reason": f"STOP LOSS HIT: price ${cur_price:.2f} <= stop ${active_stop:.2f}",
+                "urgent_exit": True,
+                "new_stop_recommended": None,
+                "trade_ids": getattr(self, 'trade_ids', None),
+            }
 
         # 3. Health flags
         flags = []
