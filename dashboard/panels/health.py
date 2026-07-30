@@ -3438,6 +3438,25 @@ def _build_results_panel(
         rid = run.get("run_id", "")
         header_rows.append(Text.from_markup(f"{sts}  [dim]{age} | {rid}[/]"))
 
+    # Add risk metrics summary if available
+    if risk and isinstance(risk, dict):
+        risk_parts = []
+        var95 = risk.get("var95")
+        if var95 is not None:
+            risk_parts.append(f"VaR 95%: {var95:.2f}%")
+        cvar95 = risk.get("cvar95")
+        if cvar95 is not None:
+            risk_parts.append(f"CVaR 95%: {cvar95:.2f}%")
+        beta = risk.get("beta")
+        if beta is not None:
+            risk_parts.append(f"Portfolio Beta: {beta:.2f}")
+        conc5 = risk.get("conc5")
+        if conc5 is not None:
+            risk_parts.append(f"Top 5%: {conc5:.1f}%")
+
+        if risk_parts:
+            header_rows.append(Text.from_markup(f"[dim]{' | '.join(risk_parts)}[/]"))
+
     # Build phase details - split into left and right columns
     left_phase_rows: list[Text | Rule] = []
     right_phase_rows: list[Text | Rule] = []
