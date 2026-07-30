@@ -1238,14 +1238,20 @@ class Orchestrator:
 
     # ---------- Logging helpers ----------
 
-    def _acquire_run_lock(self, lock_timeout_seconds: int = 5) -> bool:
+    def _acquire_run_lock(self, lock_timeout_seconds: int = 60) -> bool:
         """Acquire distributed lock to prevent concurrent orchestrator runs.
 
         FIXED Issue #8: Uses DynamoDB conditional writes instead of filesystem locks
         for correct distributed locking in Fargate ECS tasks (no shared filesystem).
 
+        CRITICAL FIX 2026-07-30: Increased default timeout from 5s to 60s. Orchestrator
+        runs typically take 470+ seconds. Previous 5s timeout caused lock acquisition
+        failures when multiple runs were scheduled close together (e.g., morning/afternoon
+        runs) - second run would fail immediately even though first run was still executing.
+        60s gives reasonable time for previous run to complete before giving up.
+
         Args:
-            lock_timeout_seconds: How long to retry acquiring lock (default 5s)
+            lock_timeout_seconds: How long to retry acquiring lock (default 60s, was 5s)
 
         Returns: True if lock acquired, False if another active instance holds it.
         """
