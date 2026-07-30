@@ -1187,12 +1187,15 @@ def _record_closed_positions_exits(
                             write_cursor.execute(
                                 """
                                 UPDATE algo_positions
-                                SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s, unrealized_pnl = NULL,
+                                SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s,
+                                    unrealized_pnl = NULL, profit_loss_dollars = %s, profit_loss_pct = %s,
                                     exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                 WHERE symbol = %s AND status = 'open'
                             """,
                                 (
                                     exit_price,
+                                    cumulative_pnl_dollars,
+                                    cumulative_pnl_pct,
                                     f"Closed position recorded during reconciliation (from {price_source})",
                                     symbol,
                                 ),

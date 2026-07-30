@@ -734,7 +734,14 @@ class ExitEngine:
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_time = CURRENT_TIMESTAMP,
-                                       exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                       exit_price = %s,
+                                       profit_loss_dollars = CASE WHEN entry_price > 0
+                                         THEN (COALESCE(current_price, %s) - entry_price) * quantity
+                                         ELSE NULL END,
+                                       profit_loss_pct = CASE WHEN entry_price > 0
+                                         THEN ((COALESCE(current_price, %s) - entry_price) / entry_price) * 100
+                                         ELSE NULL END,
+                                       exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE trade_id = (
                                            SELECT trade_id FROM algo_trades
                                            WHERE symbol = %s AND status IN ({trade_status_placeholders})
@@ -743,6 +750,8 @@ class ExitEngine:
                                     (
                                         current_date,
                                         None,
+                                        None,
+                                        None,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
@@ -750,18 +759,23 @@ class ExitEngine:
                                 )
                                 open_position_statuses_close = PositionStatus.all_active()
                                 position_status_placeholders = ", ".join(["%s"] * len(open_position_statuses_close))
-                                # FIX: Calculate profit_loss_dollars before closing position (was leaving it NULL)
+                                # FIX: Calculate profit_loss_dollars and pct before closing position
                                 # Must calculate actual P&L: (current_price - entry_price) * quantity
+                                # And percentage: ((current_price - entry_price) / entry_price) * 100
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = %s,
                                        current_price = %s,
                                        profit_loss_dollars = (COALESCE(current_price, %s) - avg_entry_price) * quantity,
+                                       profit_loss_pct = CASE WHEN avg_entry_price > 0
+                                         THEN ((COALESCE(current_price, %s) - avg_entry_price) / avg_entry_price) * 100
+                                         ELSE NULL END,
                                        unrealized_pnl = NULL,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
+                                        None,
                                         None,
                                         None,
                                         symbol,
