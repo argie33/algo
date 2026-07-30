@@ -64,7 +64,7 @@ def _is_dev_server_available() -> bool:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(0.5)
-        result = sock.connect_ex(("localhost", 3001))
+        result = sock.connect_ex(("127.0.0.1", 3001))
         sock.close()
         return result == 0
     except Exception as e:

@@ -291,7 +291,7 @@ def run_complete_loader_pipeline() -> bool:
     # Step 2: Check if the slow fundamentals pipeline is needed (metrics table staleness)
     # Don't use stock_scores completeness as gate - that gate was too aggressive and caused
     # metrics tables to become stale even when scores were complete. Instead, check if the
-    # actual metrics tables (growth_metrics, quality_metrics) are stale (>24h old).
+    # actual metrics tables (growth_metrics, quality_metrics) are stale (>12h old).
     is_stale, staleness_reason = check_metrics_tables_staleness()
     print(f"[STARTUP] Metrics table staleness check: {staleness_reason}", flush=True)
 
