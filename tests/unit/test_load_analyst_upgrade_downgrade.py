@@ -7,10 +7,11 @@ and that an empty/None fetch result never becomes None (OptimalLoader's fetch_in
 contract requires a list, even when empty).
 """
 
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 
 from loaders.load_analyst_upgrade_downgrade import AnalystUpgradeDowngradeLoader
+from utils.infrastructure.timezone import EASTERN_TZ
 
 
 def _row(action_date: date, firm: str = "Some Firm") -> dict:
@@ -25,11 +26,14 @@ def _row(action_date: date, firm: str = "Some Firm") -> dict:
 
 
 class TestFetchIncremental:
-    def test_no_coverage_returns_empty_list_not_none(self):
+    def test_no_coverage_returns_data_unavailable_marker(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
         with patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None):
             result = loader.fetch_incremental("ZZZZ", since=None)
-        assert result == []
+        assert len(result) == 1
+        assert result[0]["symbol"] == "ZZZZ"
+        assert result[0]["data_unavailable"] is True
+        assert result[0]["data_unavailable_reason"] == "no_analyst_coverage"
 
     def test_since_none_returns_all_rows(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
