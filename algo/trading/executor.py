@@ -628,9 +628,32 @@ class TradeExecutor:
                     acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     try:
                         return operation(cur)
+                    except Exception as op_exc:
+                        # CRITICAL FIX 2026-07-30: Transaction is now aborted after operation failure
+                        # Cannot release locks on aborted transaction. Rollback explicitly first.
+                        try:
+                            cur.execute("ROLLBACK")
+                        except Exception as rollback_exc:
+                            logger.debug(f"Rollback during exception handling failed: {rollback_exc}")
+                        # Try to release locks, but tolerate failure (transaction was already rolled back)
+                        try:
+                            release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                        except Exception as pos_lock_exc:
+                            logger.debug(f"Could not release positions lock: {pos_lock_exc}")
+                        try:
+                            release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                        except Exception as trades_lock_exc:
+                            logger.debug(f"Could not release trades lock: {trades_lock_exc}")
+                        raise op_exc
                     finally:
-                        release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
-                        release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                        # Normal success path
+                        try:
+                            release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                            release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                        except Exception as lock_exc:
+                            # Lock release on successful transaction should not fail
+                            logger.error(f"Failed to release locks after successful operation: {lock_exc}")
+                            raise
                 else:
                     return operation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
