@@ -157,6 +157,16 @@ def run(  # noqa: C901
                     )
                     # Continue without circuit breaker check in paper mode - explicitly skip market check
                     cb_result = None  # Skip market circuit breaker processing below
+                elif is_credential_error and execution_mode != "paper":
+                    # Live/review mode requires working circuit breaker check
+                    msg = (
+                        f"[PHASE 2 CRITICAL] Credential error checking market circuit breaker in {execution_mode} mode: {error_msg}. "
+                        f"Live/review modes require valid Alpaca credentials and working circuit breaker. "
+                        f"Cannot proceed with trading."
+                    )
+                    logger.critical(msg)
+                    log_phase_result_fn(2, "circuit_breakers", "halt", msg)
+                    raise RuntimeError(msg)
                 elif is_transient_error:
                     # CRITICAL FIX: Transient network errors cannot be silently ignored for market circuit breaker.
                     # Circuit breaker is a critical safety gate - cannot proceed without verification.

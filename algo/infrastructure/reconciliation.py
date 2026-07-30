@@ -2172,20 +2172,19 @@ class DailyReconciliation:
             json.JSONDecodeError,
             psycopg2.DatabaseError,
         ) as e:
-            # Handle Alpaca 401/auth errors gracefully in local development
+            # Handle Alpaca 401/auth errors gracefully in paper mode
             error_str = str(e).lower()
             if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str:
                 logger.warning(
                     "[PARTIAL_FILL_CHECK] Alpaca broker authentication failed (401). "
-                    "Gracefully skipping partial fill validation in local test mode. "
+                    "Gracefully skipping partial fill validation in paper mode. "
                     "In production, this requires valid Alpaca credentials."
                 )
-                return {"mismatches": 0, "message": "Broker auth unavailable (test mode)", "auth_unavailable": True}
+                return {"mismatches": 0, "message": "Broker auth unavailable (paper mode)", "auth_unavailable": True}
             # CRITICAL: Partial fill detection failure - cannot reconcile fill status
             raise RuntimeError(
                 f"[PARTIAL_FILL_CHECK FAILED] {type(e).__name__}: {e}. "
-                f"Cannot reconcile fill status - algorithm cannot proceed without fill validation. "
-                f"Partial fills undetected could lead to position quantity mismatches. Check broker connection."
+                f"Cannot reconcile fill status without valid broker connection."
             ) from e
 
     def check_pending_reconciliations(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
@@ -2278,12 +2277,12 @@ class DailyReconciliation:
         try:
             return self.broker.fetch_account()
         except ValueError as e:
-            # Handle Alpaca 401/auth errors gracefully in local test mode
+            # Handle Alpaca 401/auth errors gracefully in paper mode
             error_str = str(e).lower()
             if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str:
                 logger.warning(
                     "[RECONCILIATION] Alpaca broker authentication failed (401). "
-                    "Gracefully falling back to database portfolio state in test mode."
+                    "Gracefully falling back to database portfolio state in paper mode."
                 )
                 return None  # Return None to trigger DB fallback in run_daily_reconciliation
             # Re-raise other ValueErrors

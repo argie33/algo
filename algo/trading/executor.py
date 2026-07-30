@@ -146,14 +146,17 @@ class TradeExecutor:
         # For paper mode only, allow missing credentials (will not execute real trades)
         if self.execution_mode == "paper":
             if not self.alpaca_key or not self.alpaca_secret:
-                logger.info("[EXECUTOR] Running in paper trading mode without live Alpaca credentials")
+                logger.warning(
+                    "[EXECUTOR] Running in paper trading mode without live Alpaca credentials. "
+                    "Reconciliation will use database state only (no live Alpaca API calls)."
+                )
                 self.alpaca_key = self.alpaca_key or "paper_trading_key"
                 self.alpaca_secret = self.alpaca_secret or "paper_trading_secret"
         else:
-            # Live mode requires actual credentials
+            # Live/review mode requires actual credentials
             if not self.alpaca_key or not self.alpaca_secret or not self.alpaca_base_url:
                 error_msg = (
-                    f"[EXECUTOR_INIT_FAILED] Missing critical Alpaca credentials: "
+                    f"[EXECUTOR_INIT_FAILED] Missing critical Alpaca credentials for {self.execution_mode} mode: "
                     f"key={'present' if self.alpaca_key else 'MISSING'} "
                     f"secret={'present' if self.alpaca_secret else 'MISSING'} "
                     f"url={'present' if self.alpaca_base_url else 'MISSING'}"
