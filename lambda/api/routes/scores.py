@@ -206,7 +206,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     gm.roe_trend,
                     gm.sustainable_growth_rate,
                     gm.fcf_growth_yoy,
-                    gm.ocf_growth_yoy,
+                    COALESCE(ocf_calc.calculated_ocf_growth, gm.ocf_growth_yoy) AS ocf_growth_yoy,
                     gm.asset_growth_yoy,
                     gm.revenue_growth_1y AS rev_growth_1y_val,
                     gm.revenue_growth_1y_unavailable_reason,
@@ -240,7 +240,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     pm.short_interest_trend_unavailable_reason,
                     pm.top_10_institutions_pct,
                     pm.top_10_institutions_pct_unavailable_reason,
-                    pm.institutional_holders_count,
+                    COALESCE(pm.institutional_holders_count, ih.number_of_institutional_holders) AS institutional_holders_count,
                     pm.institutional_holders_count_unavailable_reason,
                     pm.short_percent_of_float AS short_pct_float,
                     pm.short_percent_of_float_unavailable_reason,
@@ -273,6 +273,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
                 LEFT JOIN stability_metrics sm ON sm.symbol = sc.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
+                LEFT JOIN institutional_holdings_13f ih ON ih.symbol = sc.symbol
                 LEFT JOIN momentum_metrics mm ON mm.symbol = sc.symbol
                 LEFT JOIN sec_segment_metrics segm ON segm.symbol = sc.symbol
                 LEFT JOIN LATERAL (
@@ -304,6 +305,24 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     WHERE symbol = sc.symbol
                       AND date >= CURRENT_DATE - {interval_52w}
                 ) p52 ON true
+                LEFT JOIN LATERAL (
+                    SELECT ROUND(
+                        CASE
+                            WHEN acf_curr.operating_cash_flow IS NOT NULL
+                                 AND acf_prior.operating_cash_flow IS NOT NULL
+                                 AND acf_prior.operating_cash_flow != 0
+                            THEN ((acf_curr.operating_cash_flow - acf_prior.operating_cash_flow)
+                                  / ABS(acf_prior.operating_cash_flow)) * 100
+                            ELSE NULL
+                        END, 2) AS calculated_ocf_growth
+                    FROM annual_cash_flow acf_curr
+                    LEFT JOIN annual_cash_flow acf_prior
+                        ON acf_curr.symbol = acf_prior.symbol
+                        AND acf_prior.fiscal_year = acf_curr.fiscal_year - 1
+                    WHERE acf_curr.symbol = sc.symbol
+                    ORDER BY acf_curr.fiscal_year DESC
+                    LIMIT 1
+                ) ocf_calc ON true
                 WHERE sc.symbol = %s
             """
 
@@ -712,7 +731,7 @@ def _get_stock_scores(  # noqa: C901
                     gm.roe_trend,
                     gm.sustainable_growth_rate,
                     gm.fcf_growth_yoy,
-                    gm.ocf_growth_yoy,
+                    COALESCE(ocf_calc.calculated_ocf_growth, gm.ocf_growth_yoy) AS ocf_growth_yoy,
                     gm.asset_growth_yoy,
                     gm.revenue_growth_1y AS rev_growth_1y_val,
                     gm.revenue_growth_1y_unavailable_reason,
@@ -746,7 +765,7 @@ def _get_stock_scores(  # noqa: C901
                     pm.short_interest_trend_unavailable_reason,
                     pm.top_10_institutions_pct,
                     pm.top_10_institutions_pct_unavailable_reason,
-                    pm.institutional_holders_count,
+                    COALESCE(pm.institutional_holders_count, ih.number_of_institutional_holders) AS institutional_holders_count,
                     pm.institutional_holders_count_unavailable_reason,
                     pm.short_percent_of_float AS short_pct_float,
                     pm.short_percent_of_float_unavailable_reason,
@@ -778,6 +797,7 @@ def _get_stock_scores(  # noqa: C901
                 LEFT JOIN growth_metrics gm ON gm.symbol = fs.symbol
                 LEFT JOIN stability_metrics sm ON sm.symbol = fs.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = fs.symbol
+                LEFT JOIN institutional_holdings_13f ih ON ih.symbol = fs.symbol
                 LEFT JOIN momentum_metrics mm ON mm.symbol = fs.symbol
                 LEFT JOIN sec_segment_metrics segm ON segm.symbol = fs.symbol
                 LEFT JOIN LATERAL (
@@ -809,6 +829,24 @@ def _get_stock_scores(  # noqa: C901
                     WHERE symbol = fs.symbol
                       AND date >= CURRENT_DATE - {interval_52w}
                 ) p52 ON true
+                LEFT JOIN LATERAL (
+                    SELECT ROUND(
+                        CASE
+                            WHEN acf_curr.operating_cash_flow IS NOT NULL
+                                 AND acf_prior.operating_cash_flow IS NOT NULL
+                                 AND acf_prior.operating_cash_flow != 0
+                            THEN ((acf_curr.operating_cash_flow - acf_prior.operating_cash_flow)
+                                  / ABS(acf_prior.operating_cash_flow)) * 100
+                            ELSE NULL
+                        END, 2) AS calculated_ocf_growth
+                    FROM annual_cash_flow acf_curr
+                    LEFT JOIN annual_cash_flow acf_prior
+                        ON acf_curr.symbol = acf_prior.symbol
+                        AND acf_prior.fiscal_year = acf_curr.fiscal_year - 1
+                    WHERE acf_curr.symbol = fs.symbol
+                    ORDER BY acf_curr.fiscal_year DESC
+                    LIMIT 1
+                ) ocf_calc ON true
                 ORDER BY fs.{sort_col} {sort_direction}
             """
         params_list.extend([limit, offset])
