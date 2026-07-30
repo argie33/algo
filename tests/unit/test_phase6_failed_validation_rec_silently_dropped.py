@@ -45,7 +45,7 @@ def test_failed_validation_rec_counted_as_error_not_silently_dropped():
     ):
         mock_executor_cls.return_value = MagicMock()
         mock_engine = MagicMock()
-        mock_engine.check_and_execute_exits.return_value = (0, 0, 0)
+        mock_engine.check_and_execute_exits.return_value = (0, 0, 0, 0)
         mock_engine_cls.return_value = mock_engine
 
         result = p6.run(

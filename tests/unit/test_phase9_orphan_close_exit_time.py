@@ -28,6 +28,13 @@ def test_orphan_close_sets_exit_time_not_just_exit_date():
 
     mock_write_cur = MagicMock()
     mock_write_cur.rowcount = 1
+    # Mock fetchone for multiple calls in sequence:
+    # 1. price_daily query (line 1068) - returns exit price
+    # 2. prior partial P&L query (line 1120) - returns prior P&L sum
+    mock_write_cur.fetchone.side_effect = [
+        (150.0,),  # price_daily close price
+        (0,),      # COALESCE(SUM(prior_partial), 0)
+    ]
     mock_write_ctx = MagicMock()
     mock_write_ctx.__enter__.return_value = mock_write_cur
     mock_write_ctx.__exit__.return_value = False

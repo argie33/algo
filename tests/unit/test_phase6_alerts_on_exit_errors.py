@@ -19,6 +19,8 @@ def _make_config():
     return {
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
+        "max_positions_per_sector": 10,
+        "max_exposure_pct": 100,
     }
 
 
@@ -33,7 +35,7 @@ def test_alert_sent_when_exit_errors_occur():
     ):
         mock_executor_cls.return_value = MagicMock()
         mock_engine = MagicMock()
-        mock_engine.check_and_execute_exits.return_value = (0, 0, 3)
+        mock_engine.check_and_execute_exits.return_value = (0, 0, 3, 0)
         mock_engine_cls.return_value = mock_engine
 
         # Mock the open position count check to return 0 open positions
@@ -73,7 +75,7 @@ def test_no_alert_when_no_exit_errors():
     ):
         mock_executor_cls.return_value = MagicMock()
         mock_engine = MagicMock()
-        mock_engine.check_and_execute_exits.return_value = (2, 1, 0)
+        mock_engine.check_and_execute_exits.return_value = (2, 1, 0, 0)
         mock_engine_cls.return_value = mock_engine
 
         # Mock the open position count check to return 0 open positions

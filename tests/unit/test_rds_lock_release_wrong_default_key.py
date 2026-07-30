@@ -29,6 +29,7 @@ def _manager_with_mock_db(cur_mock):
     manager.acquired = True
     manager.is_available = True
     manager.lock_key = "orchestrator-run-lock"
+    manager.acquired_lock_id = None
 
     db_context = MagicMock()
     db_context.__enter__.return_value = cur_mock

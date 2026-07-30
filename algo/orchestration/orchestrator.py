@@ -331,7 +331,8 @@ class Orchestrator:
         # alongside this). Added below too.
         # Use cached DB value from __init__ to prevent race conditions where
         # config might have been refreshed/reloaded between startup and this check
-        execution_mode = self._cached_db_execution_mode
+        # Fall back to config value if attribute doesn't exist (for tests with fake objects)
+        execution_mode = getattr(self, '_cached_db_execution_mode', self.config.get("execution_mode"))
         if not execution_mode or execution_mode not in ("paper", "dry", "review", "auto"):
             raise RuntimeError(
                 f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'dry', 'review', or 'auto' ('auto' is "
@@ -785,12 +786,12 @@ class Orchestrator:
             # exact bug its own 2026-07-27 fix removed, just in LOCAL_MODE: force-deleting a
             # still-legitimately-running local loader's lock out from under it.
             #
-            # CRITICAL FIX (Session 429): In LOCAL_MODE, detect stuck loaders more aggressively.
-            # LOCAL_MODE is for development/testing where 90-minute+ runs are rare and crashes
-            # are common. Use a 10-minute threshold to clean stuck loaders quickly while still
-            # giving long-running loaders (observed max 2385s) ample time. Production uses full TTL.
+            # CRITICAL FIX (Session 429): In LOCAL_MODE, match optimal_loader.py's lock_ttl
+            # value (3600s) to prevent force-deleting still-running loaders' locks.
+            # LOCAL_MODE loaders can run 60-90+ min (observed max 2385s) so use the same
+            # threshold to maintain parity with per-loader TTL expectations.
             if is_local_mode:
-                stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "600"))
+                stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600"))
             else:
                 stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
 
