@@ -920,7 +920,7 @@ class ExitEngine:
                                     f"[EXIT_ENGINE] Savepoint rollback failed for {symbol}: {type(_rollback_err).__name__}: {_rollback_err}. "
                                     f"This indicates a transaction error that should be investigated."
                                 )
-                        trade_errors += 1
+
                         logger.error(
                             f"Exit check failed for {symbol} (trade {trade_id}): "
                             f"{type(_trade_err).__name__}: {_trade_err}"
@@ -939,7 +939,11 @@ class ExitEngine:
                         # Wrapped in its own savepoint: an audit-insert failure (e.g. table
                         # unavailable) must not abort the outer transaction and cost every
                         # remaining position in this batch its exit coverage too.
+                        # CRITICAL: Only count this as an error if it's successfully audited.
+                        # Counting errors before audit succeeds creates a mismatch where we report
+                        # "3 errors" but nothing is logged if the audit transaction rolls back.
                         _audit_sp = f"{_sp}_audit"
+                        audit_success = False
                         try:
                             cur.execute(f"SAVEPOINT {_audit_sp}")
                             cur.execute(
@@ -956,6 +960,7 @@ class ExitEngine:
                                 ),
                             )
                             cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
+                            audit_success = True
                         except Exception as _audit_err:
                             try:
                                 cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
@@ -980,6 +985,10 @@ class ExitEngine:
                                 logger.critical(
                                     f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
                                 )
+
+                        # Only count as error if successfully audited to DB
+                        if audit_success:
+                            trade_errors += 1
 
                 logger.info(f"\n{'=' * 70}")
 
