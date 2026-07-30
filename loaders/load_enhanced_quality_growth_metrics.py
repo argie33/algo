@@ -88,18 +88,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if len(income_rows) > 1:
                 prior_fy, prior_rev, prior_oi, prior_ni, prior_assets, prior_equity, prior_fcf, prior_ocf = income_rows[1]
 
-                # YoY Growth metrics
-                if prior_rev and prior_rev > 0:
-                    metrics["operating_income_growth_yoy"] = float(((curr_oi or 0) - (prior_oi or 0)) / prior_oi * 100) if prior_oi and prior_oi > 0 else None
-                    metrics["net_income_growth_yoy"] = float(((curr_ni or 0) - (prior_ni or 0)) / prior_ni * 100) if prior_ni and prior_ni > 0 else None
+                # YoY Growth metrics - only compute if both current and prior values exist and prior > 0
+                if prior_oi and prior_oi > 0 and curr_oi is not None:
+                    metrics["operating_income_growth_yoy"] = float(((curr_oi or 0) - (prior_oi or 0)) / prior_oi * 100)
+                if prior_ni and prior_ni > 0 and curr_ni is not None:
+                    metrics["net_income_growth_yoy"] = float(((curr_ni or 0) - (prior_ni or 0)) / prior_ni * 100)
 
-                if prior_assets and prior_assets > 0:
+                if prior_assets and prior_assets > 0 and curr_assets is not None:
                     metrics["asset_growth_yoy"] = float(((curr_assets or 0) - (prior_assets or 0)) / prior_assets * 100)
 
-                if prior_fcf and prior_fcf > 0:
+                if prior_fcf and prior_fcf > 0 and curr_fcf is not None:
                     metrics["fcf_growth_yoy"] = float(((curr_fcf or 0) - (prior_fcf or 0)) / prior_fcf * 100)
 
-                if prior_ocf and prior_ocf > 0:
+                if prior_ocf and prior_ocf > 0 and curr_ocf is not None:
                     metrics["ocf_growth_yoy"] = float(((curr_ocf or 0) - (prior_ocf or 0)) / prior_ocf * 100)
 
                 # Margin trends
@@ -115,24 +116,44 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
                         margin_rows = cur.fetchall()
                         if len(margin_rows) == 2:
-                            # Current year margin
-                            curr_gross_margin = (margin_rows[0][1] / curr_rev * 100) if curr_rev else None
+                            # Current year margin (using gross_profit / revenue)
+                            curr_gross_profit = margin_rows[0][2]
+                            prior_gross_profit = margin_rows[1][2]
+                            if curr_gross_profit is not None and curr_rev:
+                                curr_gross_margin = float((curr_gross_profit / curr_rev * 100))
+                            else:
+                                curr_gross_margin = None
                             # Prior year margin
-                            prior_gross_margin = (margin_rows[1][1] / prior_rev * 100) if prior_rev else None
+                            if prior_gross_profit is not None and prior_rev:
+                                prior_gross_margin = float((prior_gross_profit / prior_rev * 100))
+                            else:
+                                prior_gross_margin = None
 
-                            if curr_gross_margin and prior_gross_margin:
+                            if curr_gross_margin is not None and prior_gross_margin is not None:
                                 metrics["gross_margin_trend"] = float(curr_gross_margin - prior_gross_margin)
 
                             # Operating margin trend
-                            curr_op_margin = (curr_oi / curr_rev * 100) if (curr_oi and curr_rev) else None
-                            prior_op_margin = (prior_oi / prior_rev * 100) if (prior_oi and prior_rev) else None
-                            if curr_op_margin and prior_op_margin:
+                            if curr_oi is not None and curr_rev and curr_rev > 0:
+                                curr_op_margin = float(curr_oi / curr_rev * 100)
+                            else:
+                                curr_op_margin = None
+                            if prior_oi is not None and prior_rev and prior_rev > 0:
+                                prior_op_margin = float(prior_oi / prior_rev * 100)
+                            else:
+                                prior_op_margin = None
+                            if curr_op_margin is not None and prior_op_margin is not None:
                                 metrics["operating_margin_trend"] = float(curr_op_margin - prior_op_margin)
 
                             # Net margin trend
-                            curr_net_margin = (curr_ni / curr_rev * 100) if (curr_ni and curr_rev) else None
-                            prior_net_margin = (prior_ni / prior_rev * 100) if (prior_ni and prior_rev) else None
-                            if curr_net_margin and prior_net_margin:
+                            if curr_ni is not None and curr_rev and curr_rev > 0:
+                                curr_net_margin = float(curr_ni / curr_rev * 100)
+                            else:
+                                curr_net_margin = None
+                            if prior_ni is not None and prior_rev and prior_rev > 0:
+                                prior_net_margin = float(prior_ni / prior_rev * 100)
+                            else:
+                                prior_net_margin = None
+                            if curr_net_margin is not None and prior_net_margin is not None:
                                 metrics["net_margin_trend"] = float(curr_net_margin - prior_net_margin)
 
                 # ROE trend
