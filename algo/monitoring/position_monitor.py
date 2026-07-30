@@ -558,7 +558,7 @@ class PositionMonitor:
 
         # 1. Current market data
         try:
-            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(symbol, current_date, cur)
+            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(symbol, current_date)
         except ValueError as e:
             msg = f"Position {symbol} cannot be monitored: {e}"
             logger.error(f"REJECT: {msg}")
@@ -636,18 +636,18 @@ class PositionMonitor:
         flags = []
 
         # 3a. Relative strength vs SPY (degrading?)
-        rs_state = self._check_relative_strength(symbol, current_date, cur)
+        rs_state = self._check_relative_strength(symbol, current_date)
         if rs_state == "weakening":
             flags.append("RS_WEAKENING")
         rs_label = rs_state
 
         # 3b. Sector turned weak?
-        sector_state = self._check_sector_health(symbol, current_date, cur)
+        sector_state = self._check_sector_health(symbol, current_date)
         if sector_state == "weakening":
             flags.append("SECTOR_WEAK")
 
         # 3c. Giving back gains (>33% retrace from peak)?
-        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price, cur)
+        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price)
         if peak_pct > 5 and unrealized_pct < peak_pct * 0.66:
             flags.append("GIVING_BACK_GAINS")
 
@@ -659,7 +659,7 @@ class PositionMonitor:
         # Try to fetch earnings data, but continue without it if unavailable (new IPOs may not have earnings scheduled)
         days_to_earn: int | None = None
         try:
-            days_to_earn = self._days_to_earnings(symbol, current_date, cur)
+            days_to_earn = self._days_to_earnings(symbol, current_date)
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
         except (ValueError, RuntimeError) as e:
@@ -671,7 +671,7 @@ class PositionMonitor:
         # 3f. Distribution-day stress (graceful degradation on early-day NULL data)
         market_dist_days: int | None = None
         try:
-            market_dist_days = self._fetch_market_dist_days(current_date, cur)
+            market_dist_days = self._fetch_market_dist_days(current_date)
         except (ValueError, RuntimeError) as e:
             # Graceful degradation: distribution data may be NULL early in the trading day
             # before market_exposure_daily loader has run. Continue without this check.
@@ -810,7 +810,7 @@ class PositionMonitor:
             )
 
     def _fetch_current_market(
-        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]
+        self, symbol: str, current_date: _date | datetime
     ) -> tuple[float, float | None, float | None, float | None]:
         """Fetch current price and technical indicators for a symbol.
 
@@ -818,9 +818,8 @@ class PositionMonitor:
             ValueError: If price data is missing - price_daily is required,
                        technical_data_daily may be None (handled by caller)
         """
-        # CRITICAL FIX 2026-07-30: Avoid "cursor already closed" errors by NOT reusing passed cursor
-        # The passed cursor may be recycled/closed by connection pool between calls.
-        # Always open a fresh context for database queries.
+        # FIX 2026-07-31: Use fresh DatabaseContext to avoid cursor lifecycle issues
+        # Each read query gets its own independent context
         with DatabaseContext("read") as fresh_cur:
             fresh_cur.execute(
                 """
@@ -920,10 +919,10 @@ class PositionMonitor:
         final_stop = max(new_stop, active_stop)
         return float(Decimal(str(final_stop)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-    def _check_relative_strength(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> str:
+    def _check_relative_strength(self, symbol: str, current_date: _date | datetime) -> str:
         """20-day relative return vs SPY: weakening / neutral / strong."""
         try:
-            stock = self._period_return(symbol, current_date, 20, cur)
+            stock = self._period_return(symbol, current_date, 20)
         except (ValueError, RuntimeError) as e:
             raise PositionValidationError(
                 f"[RS_CALCULATION_FAILED] Cannot evaluate relative strength for {symbol}: {e}. "
@@ -931,7 +930,7 @@ class PositionMonitor:
             ) from e
 
         try:
-            spy = self._period_return("SPY", current_date, 20, cur)
+            spy = self._period_return("SPY", current_date, 20)
         except (ValueError, RuntimeError) as e:
             raise PositionValidationError(
                 f"[RS_CALCULATION_FAILED] Cannot evaluate market baseline (SPY) for RS: {e}. "
@@ -944,14 +943,14 @@ class PositionMonitor:
             return "strong"
         return "neutral"
 
-    def _check_sector_health(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> str:
+    def _check_sector_health(self, symbol: str, current_date: _date | datetime) -> str:
         """Is the symbol's sector currently weakening?"""
         # Skip sector checks for index/macro ETFs (Session 196: removed unused sector ETFs)
         # Only kept SPY, QQQ, IWM for critical market factors; GLD, TLT for macro
         if symbol in ("SPY", "QQQ", "IWM", "GLD", "TLT", "^GSPC", "^IXIC", "^DJI"):
             return "neutral"
 
-        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
+        # FIX 2026-07-31: Use fresh DatabaseContext for independent read query
         with DatabaseContext("read") as fresh_cur:
             fresh_cur.execute(
                 "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
@@ -1018,7 +1017,6 @@ class PositionMonitor:
         trade_date: _date,
         current_date: _date | datetime,
         entry_price: float,
-        cur: PsycopgCursor[Any],
     ) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:
@@ -1026,8 +1024,7 @@ class PositionMonitor:
                 f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
             )
 
-        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
-        # Passed cursor may be recycled/closed by connection pool between calls
+        # FIX 2026-07-31: Use fresh DatabaseContext for independent read query
         with DatabaseContext("read") as fresh_cur:
             fresh_cur.execute(
                 """
@@ -1075,7 +1072,7 @@ class PositionMonitor:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
 
-    def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
+    def _days_to_earnings(self, symbol: str, current_date: _date | datetime) -> int:
         """Get days until next earnings from earnings_calendar.
 
         Raises:
@@ -1105,7 +1102,7 @@ class PositionMonitor:
                 f"Earnings query failed for {symbol}: {e}. Cannot proceed without earnings data for position monitoring."
             ) from e
 
-    def _fetch_market_dist_days(self, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
+    def _fetch_market_dist_days(self, current_date: _date | datetime) -> int:
         """Get market distribution days from health data.
 
         Raises:
@@ -1151,7 +1148,7 @@ class PositionMonitor:
 
         return int(row[0])
 
-    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: PsycopgCursor[Any]) -> float:
+    def _period_return(self, symbol: str, end_date: _date, lookback_days: int) -> float:
         """Compute simple return over a lookback period.
 
         Raises:
@@ -1160,8 +1157,8 @@ class PositionMonitor:
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_1d = get_interval_sql("1d")
-        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
-        # Passed cursor may be recycled/closed by connection pool between calls
+        # FIX 2026-07-31: Use fresh DatabaseContext for independent read query
+        # Each calculation manages its own database context
         with DatabaseContext("read") as fresh_cur:
             fresh_cur.execute(
                 f"""

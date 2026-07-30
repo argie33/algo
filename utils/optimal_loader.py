@@ -536,12 +536,14 @@ class OptimalLoader:
                     logger.warning(f"[{self.table_name}] Another instance already running, retrying with backoff...")
                     import random
 
-                    # CRITICAL FIX 2026-07-30: signal_quality_scores can take 5-35 min
-                    # Increased timeout from 20 to 40 minutes to safely cover documented range
-                    # Phase 7 halt cascades to entire orchestrator (no entries) - must not timeout
+                    # CRITICAL FIX 2026-07-31: signal_quality_scores can take 5-35 min, observed up to 45+ min
+                    # Previous timeout (20 retries) was MATHEMATICALLY WRONG: actually only ~25 min, not claimed 40 min
+                    # Calculation: 5+10+20+40+80+90*15 = 1505s ≈ 25 min (NOT 40 min)
+                    # For TRUE 50+ minute coverage: 5+10+20+40+80+90*30 = 2885s ≈ 48 min
+                    # Phase 7 halt cascades to entire orchestrator (no entries) - must not timeout on legitimate long loader
                     if self.table_name == 'signal_quality_scores':
-                        max_retries = 20  # ~40 min total (exponential backoff: 5+10+20+40+80+90*15 = 1375s ≈ 23 min, actually less due to min(90))
-                        retry_timeout_label = "40 minutes"
+                        max_retries = 35  # ~50 min total (exponential backoff: 5+10+20+40+80+90*30 = 2885s ≈ 48 min, safely covers observed 5-45+ min range)
+                        retry_timeout_label = "50 minutes"
                     else:
                         max_retries = 8   # ~5 min total
                         retry_timeout_label = "5 minutes"
@@ -568,7 +570,7 @@ class OptimalLoader:
                         raise LockAcquisitionError(
                             lock_key=self.table_name,
                             reason="Lock acquisition timeout after retries",
-                            context={"table_name": self.table_name, "max_retries": max_retries, "total_wait_minutes": 40 if self.table_name == 'signal_quality_scores' else 5}
+                            context={"table_name": self.table_name, "max_retries": max_retries, "total_wait_minutes": 50 if self.table_name == 'signal_quality_scores' else 5}
                         )
         except LockAcquisitionError:
             # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
