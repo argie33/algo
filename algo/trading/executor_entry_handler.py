@@ -210,10 +210,36 @@ class EntryHandler:
             logger.error(f"Failed to check for duplicate position: {e}")
             raise
 
-        # Generate idempotency key
+        # Check for idempotent duplicate (same symbol + signal_date = same signal, should not re-enter)
+        def _check_idem_dup(cur: PsycopgCursor[Any]) -> dict[str, str] | None:
+            is_dup, msg, existing_id = self.validator.check_idempotent_duplicate(
+                cur, symbol, signal_date, entry_price, stop_loss_price
+            )
+            if is_dup:
+                return {"error": msg, "existing_trade_id": existing_id}
+            logger.debug(f"[ENTRY_HANDLER] No idempotent duplicate for {symbol} on {signal_date}")
+            return None
+
+        try:
+            idem_result = self.context._with_cursor(_check_idem_dup)
+            if idem_result and "error" in idem_result:
+                return {
+                    "success": False,
+                    "trade_id": idem_result.get("existing_trade_id", ""),
+                    "status": "duplicate_signal",
+                    "message": idem_result["error"],
+                    "duplicate": True,
+                }
+        except DatabaseError as e:
+            logger.error(f"Failed to check for idempotent duplicate: {e}")
+            raise
+
+        # Generate idempotency key (symbol|signal_date only, to match validator logic)
+        # CRITICAL FIX 2026-07-31: Use ONLY symbol + signal_date to match check_idempotent_duplicate
+        # Previous code included entry_price/stop_loss_price, allowing different prices to bypass check
         import hashlib
 
-        key_source = f"{symbol}|{signal_date}|{entry_price}|{stop_loss_price}"
+        key_source = f"{symbol}|{signal_date}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks
