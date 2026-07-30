@@ -951,62 +951,66 @@ class PositionMonitor:
         if symbol in ("SPY", "QQQ", "IWM", "GLD", "TLT", "^GSPC", "^IXIC", "^DJI"):
             return "neutral"
 
-        cur.execute(
-            "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
-            (symbol,),
-        )
-        srow = cur.fetchone()
-        if srow is None or len(srow) < 1:
-            raise ValueError(
-                f"[POSITION MONITOR] Sector data missing for {symbol}. "
-                f"Cannot classify position without sector information for exposure calculations."
+        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
+        with DatabaseContext("read") as fresh_cur:
+            fresh_cur.execute(
+                "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
+                (symbol,),
             )
-        if srow[0] is None:
-            raise ValueError(
-                f"[POSITION MONITOR] Sector is NULL for {symbol}. "
-                f"Cannot classify position without valid sector for exposure calculations."
-            )
-        sector = srow[0]
+            srow = fresh_cur.fetchone()
+            if srow is None or len(srow) < 1:
+                raise ValueError(
+                    f"[POSITION MONITOR] Sector data missing for {symbol}. "
+                    f"Cannot classify position without sector information for exposure calculations."
+                )
+            if srow[0] is None:
+                raise ValueError(
+                    f"[POSITION MONITOR] Sector is NULL for {symbol}. "
+                    f"Cannot classify position without valid sector for exposure calculations."
+                )
+            sector = srow[0]
 
-        # "Other" is a placeholder for unclassified/new symbols without proper sector data
-        # These don't have historical sector_ranking records yet; skip trend check and return neutral
-        if sector == "Other":
-            logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
-            return "neutral"
+            # "Other" is a placeholder for unclassified/new symbols without proper sector data
+            # These don't have historical sector_ranking records yet; skip trend check and return neutral
+            if sector == "Other":
+                logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
+                return "neutral"
 
-        cur.execute(
-            """
-            SELECT current_rank, rank_4w_ago FROM sector_ranking
-            WHERE sector_name = %s
-              AND date <= %s
-            ORDER BY date DESC LIMIT 1
-            """,
-            (sector, current_date),
-        )
-        cur_row = cur.fetchone()
-        if not cur_row or cur_row[0] is None:
-            raise PositionValidationError(
-                f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
-                f"Cannot assess sector health for {symbol} without current ranking data. "
-                f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
-                f"Add sector to sector_ranking table or exclude from portfolio."
-            )
-        cur_rank = int(cur_row[0])
-        old_rank = cur_row[1]
+            # CRITICAL FIX 2026-07-30: Use fresh context for sector ranking query too
+            with DatabaseContext("read") as ranking_cur:
+                ranking_cur.execute(
+                    """
+                    SELECT current_rank, rank_4w_ago FROM sector_ranking
+                    WHERE sector_name = %s
+                      AND date <= %s
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (sector, current_date),
+                )
+                cur_row = ranking_cur.fetchone()
+                if not cur_row or cur_row[0] is None:
+                    raise PositionValidationError(
+                        f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
+                        f"Cannot assess sector health for {symbol} without current ranking data. "
+                        f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
+                        f"Add sector to sector_ranking table or exclude from portfolio."
+                    )
+                cur_rank = int(cur_row[0])
+                old_rank = cur_row[1]
 
-        if old_rank is None:
-            logger.warning(
-                f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
-                f"using current rank alone without historical trend assessment. "
-                f"This is expected for new sectors or data gaps. Position monitoring continues."
-            )
-            return "neutral"
-        old_rank = int(old_rank)
-        if cur_rank > old_rank + 3:  # got worse by 3+ ranks
-            return "weakening"
-        if cur_rank < old_rank - 3:
-            return "strengthening"
-        return "stable"
+                if old_rank is None:
+                    logger.warning(
+                        f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
+                        f"using current rank alone without historical trend assessment. "
+                        f"This is expected for new sectors or data gaps. Position monitoring continues."
+                    )
+                    return "neutral"
+                old_rank = int(old_rank)
+                if cur_rank > old_rank + 3:  # got worse by 3+ ranks
+                    return "weakening"
+                if cur_rank < old_rank - 3:
+                    return "strengthening"
+                return "stable"
 
     def _max_unrealized_pct(
         self,
@@ -1149,21 +1153,24 @@ class PositionMonitor:
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_1d = get_interval_sql("1d")
-        cur.execute(
-            f"""
-            WITH bracket AS (
-                SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                FROM price_daily
-                WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - (%s * {interval_1d})
+        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
+        # Passed cursor may be recycled/closed by connection pool between calls
+        with DatabaseContext("read") as fresh_cur:
+            fresh_cur.execute(
+                f"""
+                WITH bracket AS (
+                    SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                    FROM price_daily
+                    WHERE symbol = %s AND date <= %s
+                      AND date >= %s::date - (%s * {interval_1d})
+                )
+                SELECT
+                    (SELECT close FROM bracket WHERE rn = 1),
+                    (SELECT close FROM bracket ORDER BY rn DESC LIMIT 1)
+                """,
+                (symbol, end_date, end_date, lookback_days + 5),
             )
-            SELECT
-                (SELECT close FROM bracket WHERE rn = 1),
-                (SELECT close FROM bracket ORDER BY rn DESC LIMIT 1)
-            """,
-            (symbol, end_date, end_date, lookback_days + 5),
-        )
-        row = cur.fetchone()
+            row = fresh_cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(
                 f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) - insufficient price history"

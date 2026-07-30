@@ -100,47 +100,48 @@ def run(
         # The Alpaca account paper flag should not override orchestrator execution mode setting
         is_paper_mode = execution_mode_check == "paper"
 
-        # In paper mode, skip all position_recs validation - Phase 3 intentionally returns empty
-        if is_paper_mode:
-            logger.info("[PHASE 6] Paper trading mode active - skipping position monitor validation")
-            # Continue to exit engine execution (positions still need monitoring for circuit breakers)
-        else:
-            # Live mode: Detect Phase 3 crash - if position monitor errored, position_recs is []
-            # but we may have real open positions. This is a critical data integrity error.
-            if position_recs is None:
-                msg = (
-                    "[PHASE 6 CRITICAL] position_recs not set - Phase 3 did not execute properly. "
-                    "Cannot proceed with exit execution without position monitor recommendations."
-                )
-                logger.critical(msg)
-                raise RuntimeError(msg)
-            elif len(position_recs) == 0:
-                # Check if open positions exist but phase 3 returned empty
-                try:
-                    with DatabaseContext("read") as cur_chk:
-                        cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-                        row = cur_chk.fetchone()
-                        if row is None or row[0] is None:
-                            raise RuntimeError("Open position count query failed")
-                        open_count = row[0]
-                    if open_count > 0:
-                        msg = (
-                            f"[PHASE 6 CRITICAL] position_recs is empty but {open_count} open positions exist. "
-                            f"Phase 3 likely crashed without recommendations. "
-                            f"Cannot execute safety exits without position monitor evaluation. "
-                            f"Open positions remain unevaluated for exit conditions."
-                        )
-                        logger.critical(msg)
-                        raise RuntimeError(msg)
-                except RuntimeError:
-                    raise
-                except Exception as e:
+        # CRITICAL FIX 2026-07-30: ALWAYS validate Phase 3 data regardless of mode
+        # Phase 3 DOES generate recommendations in paper mode (verified: recent runs show 14 recommendations)
+        # Paper mode safety checks are NOT optional - still need to detect Phase 3 crashes
+        # Previously: paper mode skipped this validation, allowing Phase 3 crashes to go undetected
+        logger.info("[PHASE 6] Validating Phase 3 position monitor data (mode=%s)", execution_mode_check)
+
+        # Detect Phase 3 crash - if position monitor errored, position_recs is []
+        # but we may have real open positions. This is a critical data integrity error.
+        if position_recs is None:
+            msg = (
+                "[PHASE 6 CRITICAL] position_recs not set - Phase 3 did not execute properly. "
+                "Cannot proceed with exit execution without position monitor recommendations."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg)
+        elif len(position_recs) == 0:
+            # Check if open positions exist but phase 3 returned empty
+            try:
+                with DatabaseContext("read") as cur_chk:
+                    cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                    row = cur_chk.fetchone()
+                    if row is None or row[0] is None:
+                        raise RuntimeError("Open position count query failed")
+                    open_count = row[0]
+                if open_count > 0:
                     msg = (
-                        f"[PHASE 6 CRITICAL] Position count check failed: {e}. "
-                        f"Cannot verify if open positions need exit evaluation."
+                        f"[PHASE 6 CRITICAL] position_recs is empty but {open_count} open positions exist. "
+                        f"Phase 3 likely crashed without recommendations. "
+                        f"Cannot execute safety exits without position monitor evaluation. "
+                        f"Open positions remain unevaluated for exit conditions."
                     )
                     logger.critical(msg)
-                    raise RuntimeError(msg) from e
+                    raise RuntimeError(msg)
+            except RuntimeError:
+                raise
+            except Exception as e:
+                msg = (
+                    f"[PHASE 6 CRITICAL] Position count check failed: {e}. "
+                    f"Cannot verify if open positions need exit evaluation."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg) from e
 
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
         # Sector concentration limit: configured via max_positions_per_sector (default 10)
