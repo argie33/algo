@@ -93,7 +93,7 @@ def main():
         cur.execute("SELECT COUNT(*) FROM stock_scores WHERE composite_score > 0")
         total = cur.fetchone()[0]
 
-        print(f"\n📊 Factor Score Input Coverage Analysis")
+        print(f"\nFactor Score Input Coverage Analysis")
         print(f"   Total ranked stocks: {total}\n")
 
         for factor_name, fields in to_analyze.items():
@@ -125,7 +125,7 @@ def main():
                     col_name = col.split('.')[1]
                     query = f"SELECT COUNT(*) FILTER (WHERE {col_name} IS NOT NULL) FROM stability_metrics WHERE symbol IN (SELECT DISTINCT symbol FROM stock_scores WHERE composite_score > 0)"
                 else:
-                    print(f"  ❌ {label:30} [unmapped column]")
+                    print(f"  [ERR] {label:30} [unmapped column]")
                     continue
 
                 try:
@@ -134,15 +134,15 @@ def main():
                     pct = int((count / max(total, 1)) * 100)
 
                     if pct >= 80:
-                        status = "✅ AVAILABLE"
+                        status = "[OK]"
                     elif pct >= 50:
-                        status = "⚠️  PARTIAL"
+                        status = "[MID]"
                     else:
-                        status = "❌ SPARSE"
+                        status = "[LOW]"
 
                     results.append((label, count, pct, status))
                 except Exception as e:
-                    print(f"  ⚠️  {label:30} [ERROR: {str(e)[:30]}]")
+                    print(f"  [ERR] {label:30} [ERROR: {str(e)[:30]}]")
 
             # Sort by coverage
             results.sort(key=lambda x: x[2], reverse=True)
