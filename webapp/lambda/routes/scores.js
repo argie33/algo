@@ -472,6 +472,7 @@ router.get("/details/:symbol", async (req, res) => {
       stock_ev_ebitda: row?.ev_ebitda,
       stock_ev_ebitda_unavailable_reason: row?.ev_ebitda_unavailable_reason,
       stock_ev_revenue: row?.ev_revenue,
+      stock_ev_revenue_unavailable_reason: row?.ev_revenue_unavailable_reason,
       fcf_yield: row?.fcf_yield,
       fcf_yield_unavailable_reason: row?.fcf_yield_unavailable_reason,
       stock_dividend_yield: row?.dividend_yield,

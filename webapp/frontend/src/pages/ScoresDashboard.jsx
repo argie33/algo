@@ -2064,11 +2064,16 @@ const MOMENTUM_SCHEMA = [
   { key: "price_vs_52w_high", label: "vs 52w High", fmt: (v) => pct(v, 2) },
   { key: "price_vs_sma_50", label: "vs 50-SMA", fmt: (v) => pct(v, 2) },
   { key: "price_vs_sma_200", label: "vs 200-SMA", fmt: (v) => pct(v, 2) },
+  { key: "momentum_1m", label: "1-Month Return", fmt: (v) => pct(v, 2) },
   { key: "momentum_3m", label: "3-Month Return", fmt: (v) => pct(v, 2) },
   { key: "momentum_6m", label: "6-Month Return", fmt: (v) => pct(v, 2) },
   { key: "momentum_12_3", label: "12-3 Momentum", fmt: (v) => pct(v, 2) },
   { key: "rsi", label: "RSI (14)", fmt: (v) => num(v, 1) },
   { key: "macd", label: "MACD", fmt: (v) => num(v, 3) },
+  { key: "roc_20d", label: "ROC (20d)", fmt: (v) => pct(v, 2) },
+  { key: "roc_60d", label: "ROC (60d)", fmt: (v) => pct(v, 2) },
+  { key: "roc_120d", label: "ROC (120d)", fmt: (v) => pct(v, 2) },
+  { key: "roc_252d", label: "ROC (252d)", fmt: (v) => pct(v, 2) },
 ];
 
 const VALUE_SCHEMA = [
