@@ -216,10 +216,16 @@ class Orchestrator:
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: {env_execution_mode}")
             self.execution_mode = env_execution_mode
         else:
-            # OrchestratorConfig doesn't have get() method - it's static class attributes
-            # Default to paper trading for local/test environments
-            self.execution_mode = "paper"
-            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, defaulting to: {self.execution_mode}")
+            # If env var not set, read from database config instead of hardcoding a default
+            # This prevents mismatch errors when database has a different value than the hardcoded default
+            db_execution_mode = self.config.get("execution_mode")
+            if db_execution_mode:
+                self.execution_mode = db_execution_mode
+                logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}")
+            else:
+                # Only fallback to paper if database also doesn't have it set
+                self.execution_mode = "paper"
+                logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}")
 
         # Explicitly default run_date to today if not provided
         self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()

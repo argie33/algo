@@ -817,17 +817,22 @@ class PositionMonitor:
             ValueError: If price data is missing - price_daily is required,
                        technical_data_daily may be None (handled by caller)
         """
-        cur.execute(
-            """
-            SELECT pd.close, td.atr, td.sma_50, td.sma_200
-            FROM price_daily pd
-            INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
-            WHERE pd.symbol = %s AND pd.date <= %s
-            ORDER BY pd.date DESC LIMIT 1
-            """,
-            (symbol, current_date),
-        )
-        row = cur.fetchone()
+        # CRITICAL FIX 2026-07-30: Avoid "cursor already closed" errors by NOT reusing passed cursor
+        # The passed cursor may be recycled/closed by connection pool between calls.
+        # Always open a fresh context for database queries.
+        with DatabaseContext("read") as fresh_cur:
+            fresh_cur.execute(
+                """
+                SELECT pd.close, td.atr, td.sma_50, td.sma_200
+                FROM price_daily pd
+                INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                WHERE pd.symbol = %s AND pd.date <= %s
+                ORDER BY pd.date DESC LIMIT 1
+                """,
+                (symbol, current_date),
+            )
+            row = fresh_cur.fetchone()
+
         if row is None:
             raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier - no price_daily entry")
 
