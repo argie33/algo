@@ -1189,7 +1189,7 @@ def _record_closed_positions_exits(
                                 UPDATE algo_positions
                                 SET status = 'closed', closed_at = CURRENT_TIMESTAMP, current_price = %s, unrealized_pnl = NULL,
                                     exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                WHERE symbol = %s
+                                WHERE symbol = %s AND status = 'open'
                             """,
                                 (
                                     exit_price,
