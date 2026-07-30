@@ -466,26 +466,27 @@ class PositionMonitor:
                 return recs
 
         except psycopg2.errors.GroupingError as group_err:
-            # CRITICAL: GROUP BY errors happen intermittently despite correct SQL
-            # Log full details for root cause analysis when this occurs
+            # FAIL-FAST: GROUP BY errors indicate data integrity issues.
+            # Cannot safely evaluate positions without proper aggregation.
+            # Orchestrator is designed to halt on this exception.
             import traceback
-            logger.critical(
+            error_msg = (
                 f"[POSITION_MONITOR CRITICAL] GROUP BY error in review_positions: {group_err}\n"
-                f"Full traceback: {traceback.format_exc()}\n"
-                f"This is a known intermittent issue - attempting graceful degradation"
+                f"Full traceback: {traceback.format_exc()}"
             )
-            # Return empty recommendations to prevent cascade halt - position monitoring degrades
-            # but doesn't crash the orchestrator
-            return []
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from group_err
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
-            # CRITICAL: Log any database errors with full context for diagnosis
+            # FAIL-FAST: Database errors in position retrieval are CRITICAL.
+            # Cannot generate recommendations without position data.
+            # Orchestrator is designed to halt on this exception.
             import traceback
-            logger.critical(
+            error_msg = (
                 f"[POSITION_MONITOR CRITICAL] Database error in review_positions: {db_err}\n"
                 f"Full traceback: {traceback.format_exc()}"
             )
-            # Return empty recommendations to allow orchestrator to continue
-            return []
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from db_err
 
     def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # noqa: C901
         (
