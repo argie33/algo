@@ -456,14 +456,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "revenue_growth_pct": data.get("revenue_growth"),
                 "revenue_growth_yoy_unavailable_reason": data.get("revenue_growth_yoy_unavailable_reason"),
                 "earnings_growth_4q_avg": data.get("earnings_growth_4q_avg"),
-                "net_income_growth_yoy": data.get("net_income_growth_yoy"),
-                "operating_income_growth_yoy": data.get("operating_income_growth_yoy"),
-                "gross_margin_trend": data.get("gross_margin_trend"),
-                "operating_margin_trend": data.get("operating_margin_trend"),
-                "net_margin_trend": data.get("net_margin_trend"),
-                "roe_trend": data.get("roe_trend"),
-                "sustainable_growth_rate": data.get("sustainable_growth_rate"),
-                "quarterly_growth_momentum": data.get("quarterly_growth_momentum"),
             }
 
             # Momentum Inputs
@@ -1004,14 +996,6 @@ def _get_stock_scores(  # noqa: C901
                 "revenue_growth_pct": d.get("revenue_growth"),
                 "revenue_growth_yoy_unavailable_reason": d.get("revenue_growth_yoy_unavailable_reason"),
                 "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),
-                "net_income_growth_yoy": d.get("net_income_growth_yoy"),
-                "operating_income_growth_yoy": d.get("operating_income_growth_yoy"),
-                "gross_margin_trend": d.get("gross_margin_trend"),
-                "operating_margin_trend": d.get("operating_margin_trend"),
-                "net_margin_trend": d.get("net_margin_trend"),
-                "roe_trend": d.get("roe_trend"),
-                "sustainable_growth_rate": d.get("sustainable_growth_rate"),
-                "quarterly_growth_momentum": d.get("quarterly_growth_momentum"),
             }
 
             # Momentum Inputs: Price momentum, technical indicators
