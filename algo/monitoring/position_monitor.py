@@ -1026,16 +1026,19 @@ class PositionMonitor:
                 f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
             )
 
-        cur.execute(
-            """
-            SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
-            FROM price_daily
-            WHERE symbol = %s AND date >= %s AND date <= %s
-            AND close IS NOT NULL
-            """,
-            (symbol, trade_date, current_date),
-        )
-        row = cur.fetchone()
+        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
+        # Passed cursor may be recycled/closed by connection pool between calls
+        with DatabaseContext("read") as fresh_cur:
+            fresh_cur.execute(
+                """
+                SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
+                FROM price_daily
+                WHERE symbol = %s AND date >= %s AND date <= %s
+                AND close IS NOT NULL
+                """,
+                (symbol, trade_date, current_date),
+            )
+            row = fresh_cur.fetchone()
         if row is None or len(row) != 3:
             raise PositionValidationError(
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
