@@ -270,22 +270,6 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                            len(recommendations), n_early_exit, n_raise_stop)
             except Exception as review_err:
                 error_str = str(review_err)[:200]
-
-                # CRITICAL FIX (Session 431): FAIL-FAST on data gaps instead of creating fake fallback
-                # Previous approach: Detect data gap errors and generate minimal fallback exit recommendation
-                # PROBLEM: Fallback recommendations are fake (not based on actual position analysis)
-                # This masks transient data issues and violates fail-fast principle for risk-critical logic
-                #
-                # Position management must be based on actual analysis. A data gap is transient and should
-                # be resolved, not covered up with synthesized recommendations. If PositionMonitor can't
-                # analyze positions (data gap or code bug), Phase 3 must halt. Orchestrator will retry
-                # on the next run when data has been loaded.
-                #
-                # FAIL-FAST: Regardless of error type (data gap, code bug, API failure), position monitoring
-                # failure = critical risk-management failure. Cannot trade if we can't monitor positions.
-                # CRITICAL FIX (Session 432): Use string concatenation instead of % formatting.
-                # If error_str contains format specifiers (%, {}, etc), both % and format() will fail.
-                # String concatenation is safe and explicit.
                 error_msg = (
                     "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str + ". "
                     "Cannot generate exit recommendations without proper position analysis. "

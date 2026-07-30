@@ -144,14 +144,15 @@ class TradeExecutor:
         self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(configured_url)
 
         # For paper mode only, allow missing credentials (will not execute real trades)
+        # CRITICAL: Do NOT use placeholder credentials - they cause confusing errors downstream
+        # and mask actual configuration problems. If credentials are missing, log clearly but leave None.
         if self.execution_mode == "paper":
             if not self.alpaca_key or not self.alpaca_secret:
                 logger.warning(
                     "[EXECUTOR] Running in paper trading mode without live Alpaca credentials. "
-                    "Reconciliation will use database state only (no live Alpaca API calls)."
+                    "Reconciliation will use database state only (no live Alpaca API calls). "
+                    "Credentials will remain None to avoid confusing error messages with fake values."
                 )
-                self.alpaca_key = self.alpaca_key or "paper_trading_key"
-                self.alpaca_secret = self.alpaca_secret or "paper_trading_secret"
         else:
             # Live/review mode requires actual credentials
             if not self.alpaca_key or not self.alpaca_secret or not self.alpaca_base_url:
