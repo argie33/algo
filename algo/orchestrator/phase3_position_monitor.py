@@ -512,7 +512,33 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 {"orders": stale_count},
             )
 
-        recommendations = monitor.review_positions(run_date)
+        # CRITICAL FIX 2026-07-30 (LIVE MODE): Retry on "cursor already closed" errors
+        # Live mode had NO retry logic (unlike paper mode), causing immediate failure on transient cursor errors
+        # Apply same retry mechanism as paper mode to handle transient connection issues
+        max_retries = 3
+        recommendations = None
+        last_review_error = None
+
+        for attempt in range(max_retries):
+            try:
+                recommendations = monitor.review_positions(run_date)
+                break  # Success - exit retry loop
+            except Exception as review_err:
+                last_review_error = review_err
+                error_str = str(review_err)
+
+                # Check if this is a cursor lifecycle error that might be transient
+                if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:100]}"
+                        )
+                        import time
+                        time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                        continue
+
+                # For non-transient errors or after retries exhausted, raise
+                raise
 
         n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
         n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
