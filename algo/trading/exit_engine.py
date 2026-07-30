@@ -765,42 +765,14 @@ class ExitEngine:
                         if cur_price is None:
                             logger.critical(
                                 f"[EXIT ENGINE CRITICAL] {symbol}: No price data available for exit calculation. "
-                                f"Cannot determine exit price. Marking position for manual review."
+                                f"Cannot execute exit without valid price. Halting exit evaluation. "
+                                f"Position remains open - retry when price data available."
                             )
-                            # CRITICAL FIX: Do NOT fall back to entry_price for exit_price
-                            # This fallback masks actual exit prices and produces completely wrong P&L
-                            # Set exit_price to NULL and mark as requiring manual price determination
-                            exit_price = None
-                            # Same two bugs as the delisted/unavailable branch above: hardcoded
-                            # status = 'open' never matches a live filled/partially_filled trade
-                            # (silently leaves it open forever), and PostgreSQL doesn't support
-                            # ORDER BY/LIMIT on a bare UPDATE (guaranteed SyntaxError, confirmed
-                            # live) - fixed the same way, via TradeStatus.all_open() and a subquery.
-                            open_trade_statuses_close2 = TradeStatus.all_open()
-                            trade_status_placeholders2 = ", ".join(["%s"] * len(open_trade_statuses_close2))
-                            cur.execute(
-                                f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
-                                   exit_time = CURRENT_TIMESTAMP,
-                                   exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                   WHERE trade_id = (
-                                       SELECT trade_id FROM algo_trades
-                                       WHERE symbol = %s AND status IN ({trade_status_placeholders2})
-                                       ORDER BY trade_date DESC LIMIT 1
-                                   )""",
-                                (current_date, exit_price, "no_price_data", symbol, *open_trade_statuses_close2),
-                            )
-                            open_position_statuses_close2 = PositionStatus.all_active()
-                            position_status_placeholders2 = ", ".join(["%s"] * len(open_position_statuses_close2))
-                            cur.execute(
-                                f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
-                                   updated_at = CURRENT_TIMESTAMP
-                                   WHERE symbol = %s AND status IN ({position_status_placeholders2})""",
-                                (symbol, *open_position_statuses_close2),
-                            )
-                            # CRITICAL FIX: Track forced closes from missing price data separately
-                            # These are NOT real market exits (no price to exit at) - counting them
-                            # as exits_executed inflates metrics and masks data quality issues.
-                            forced_closes_no_price += 1
+                            # CRITICAL FIX: FAIL-FAST on missing price data
+                            # Do NOT close position with NULL exit_price (corrupts P&L downstream)
+                            # Do NOT fall back to entry_price (masks actual market exit prices)
+                            # Skip this position, increment error counter, retry next cycle
+                            errors += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 

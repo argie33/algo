@@ -276,10 +276,17 @@ def run(
                                 )
                             cur_price = float(row_tmp[0])
                             # If trade_id not in action, use the first trade from position
-                            if not action.get("trade_id") and row_tmp[1]:
-                                trades = row_tmp[1] if isinstance(row_tmp[1], list) else [row_tmp[1]]
-                                if trades:
-                                    action["trade_id"] = trades[0]
+                            if not action.get("trade_id"):
+                                if row_tmp[1]:
+                                    trades = row_tmp[1] if isinstance(row_tmp[1], list) else [row_tmp[1]]
+                                    if trades:
+                                        action["trade_id"] = trades[0]
+                                # CRITICAL: Ensure trade_id was found
+                                if not action.get("trade_id"):
+                                    raise RuntimeError(
+                                        f"[FORCE-EXIT] Cannot find trade_id for position {action['position_id']}. "
+                                        "Position has no associated trades. Cannot execute force exit."
+                                    )
                             if cur_price <= 0:
                                 raise RuntimeError(
                                     f"[FORCE-EXIT] Invalid current price {cur_price} for position {action['position_id']}. "

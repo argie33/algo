@@ -1002,17 +1002,20 @@ def _record_closed_positions_exits(
                           f"Will fall back to price_daily EOD closes.")
 
         with DatabaseContext("read") as cursor:
+            from utils.trading.status import TradeStatus
+            open_trade_statuses = TradeStatus.all_open()
+            trade_status_ph = ", ".join(["%s"] * len(open_trade_statuses))
             cursor.execute(
-                """
+                f"""
                 SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity
                 FROM algo_positions ap
                 JOIN algo_trades at ON at.symbol = ap.symbol
                 WHERE ap.status = 'closed' AND ap.closed_at::date = %s
                   AND at.exit_date IS NULL
-                  AND at.status = 'open'
+                  AND at.status IN ({trade_status_ph})
                 ORDER BY ap.closed_at DESC
             """,
-                (run_date,),
+                (run_date, *open_trade_statuses),
             )
             closed_positions = cursor.fetchall()
 
@@ -1128,9 +1131,12 @@ def _record_closed_positions_exits(
 
                         sp = f"sp_exit_{symbol.replace('-', '_').replace('.', '_')}"
                         try:
+                            from utils.trading.status import TradeStatus
+                            open_trade_statuses_2 = TradeStatus.all_open()
+                            trade_status_ph_2 = ", ".join(["%s"] * len(open_trade_statuses_2))
                             write_cursor.execute(f"SAVEPOINT {sp}")
                             write_cursor.execute(
-                                """
+                                f"""
                                 UPDATE algo_trades
                                 SET exit_date = %s, exit_time = CURRENT_TIMESTAMP,
                                     exit_price = %s, estimated_exit_price = NULL,
@@ -1142,7 +1148,7 @@ def _record_closed_positions_exits(
                                     updated_at = CURRENT_TIMESTAMP
                                 WHERE trade_id = (
                                     SELECT trade_id FROM algo_trades
-                                    WHERE symbol = %s AND exit_date IS NULL AND status = 'open'
+                                    WHERE symbol = %s AND exit_date IS NULL AND status IN ({trade_status_ph_2})
                                     ORDER BY trade_date DESC LIMIT 1
                                 )
                             """,
@@ -1156,6 +1162,7 @@ def _record_closed_positions_exits(
                                     run_date,
                                     f"Recorded from {price_source} on {run_date} (P&L: ${cumulative_pnl_dollars:.2f}, {cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)",
                                     symbol,
+                                    *open_trade_statuses_2,
                                 ),
                             )
                             if write_cursor.rowcount == 0:
