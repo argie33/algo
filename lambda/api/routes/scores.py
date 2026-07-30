@@ -139,6 +139,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     vm.ev_ebitda,
                     vm.ev_ebitda_unavailable_reason,
                     vm.ev_revenue,
+                    vm.ev_revenue_unavailable_reason,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
@@ -466,6 +467,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "price_vs_52w_high": data.get("price_vs_52w_high_val"),
                 "price_vs_sma_50": data.get("price_vs_sma_50"),
                 "price_vs_sma_200": data.get("price_vs_sma_200"),
+                "momentum_1m": data.get("momentum_1m_val"),
                 "momentum_3m": data.get("momentum_3m_val"),
                 "momentum_6m": data.get("momentum_6m_val"),
                 "momentum_12_3": data.get("momentum_12m_val"),
@@ -488,6 +490,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "stock_ev_ebitda": data.get("ev_ebitda"),
                 "stock_ev_ebitda_unavailable_reason": data.get("ev_ebitda_unavailable_reason"),
                 "stock_ev_revenue": data.get("ev_revenue"),
+                "stock_ev_revenue_unavailable_reason": data.get("ev_revenue_unavailable_reason"),
                 "fcf_yield": data.get("fcf_yield_val"),
                 "fcf_yield_unavailable_reason": data.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": data.get("dividend_yield"),
@@ -566,12 +569,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 "debt_to_assets": data.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": data.get("debt_to_assets_unavailable_reason"),
-                "revenue_concentration_hhi": (
-                    None if data.get("_segment_data_unavailable") else data.get("segment_revenue_concentration_hhi")
-                ),
-                "revenue_concentration_hhi_unavailable_reason": (
-                    "no_segment_disclosure" if data.get("_segment_data_unavailable") else None
-                ),
+                "dividend_yield": data.get("dividend_yield"),
+                "dividend_yield_unavailable_reason": data.get("dividend_yield_unavailable_reason"),
+                "payout_ratio": data.get("payout_ratio"),
+                "payout_ratio_unavailable_reason": data.get("payout_ratio_unavailable_reason"),
             }
 
         _build_factor_inputs(d)
@@ -703,6 +704,7 @@ def _get_stock_scores(  # noqa: C901
                     vm.ev_ebitda,
                     vm.ev_ebitda_unavailable_reason,
                     vm.ev_revenue,
+                    vm.ev_revenue_unavailable_reason,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
@@ -1005,16 +1007,15 @@ def _get_stock_scores(  # noqa: C901
             }
 
             # Momentum Inputs: Price momentum, technical indicators
-            # Note: momentum_12_3 represents 12-minus-3-month momentum (Jegadeesh-Titman effect);
-            # API returns individual period returns; may need computation for accuracy
             d["momentum_inputs"] = {
                 "current_price": d.get("current_price"),
                 "price_vs_52w_high": d.get("price_vs_52w_high_val"),
                 "price_vs_sma_50": d.get("price_vs_sma_50"),
                 "price_vs_sma_200": d.get("price_vs_sma_200"),
-                "momentum_3m": d.get("momentum_3m_val"),  # 3-month return
-                "momentum_6m": d.get("momentum_6m_val"),  # 6-month return
-                "momentum_12_3": d.get("momentum_12m_val"),  # 12-month return (proxy for 12-3)
+                "momentum_1m": d.get("momentum_1m_val"),
+                "momentum_3m": d.get("momentum_3m_val"),
+                "momentum_6m": d.get("momentum_6m_val"),
+                "momentum_12_3": d.get("momentum_12m_val"),
                 "rsi": d.get("tdd_rsi"),
                 "macd": d.get("tdd_macd"),
             }
@@ -1023,7 +1024,7 @@ def _get_stock_scores(  # noqa: C901
             d["value_inputs"] = {
                 "stock_pe": d.get("trailing_pe"),
                 "stock_pe_unavailable_reason": d.get("pe_ratio_unavailable_reason"),
-                "stock_forward_pe": d.get("forward_pe"),  # May be None
+                "stock_forward_pe": d.get("forward_pe"),
                 "stock_forward_pe_unavailable_reason": d.get("forward_pe_unavailable_reason"),
                 "stock_pb": d.get("price_to_book"),
                 "stock_pb_unavailable_reason": d.get("pb_ratio_unavailable_reason"),
@@ -1031,9 +1032,10 @@ def _get_stock_scores(  # noqa: C901
                 "stock_ps_unavailable_reason": d.get("ps_ratio_unavailable_reason"),
                 "peg_ratio": d.get("peg_ratio_val"),
                 "peg_ratio_unavailable_reason": d.get("peg_ratio_unavailable_reason"),
-                "stock_ev_ebitda": d.get("ev_ebitda"),  # May be None
+                "stock_ev_ebitda": d.get("ev_ebitda"),
                 "stock_ev_ebitda_unavailable_reason": d.get("ev_ebitda_unavailable_reason"),
-                "stock_ev_revenue": d.get("ev_revenue"),  # May be None
+                "stock_ev_revenue": d.get("ev_revenue"),
+                "stock_ev_revenue_unavailable_reason": d.get("ev_revenue_unavailable_reason"),
                 "fcf_yield": d.get("fcf_yield_val"),
                 "fcf_yield_unavailable_reason": d.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": d.get("dividend_yield"),
@@ -1091,9 +1093,7 @@ def _get_stock_scores(  # noqa: C901
                 "ad_rating_unavailable_reason": d.get("ad_rating_unavailable_reason"),
             }
 
-            # Stability Inputs: Volatility, beta, financial stability, business diversification
-            # NOTE: revenue_concentration_hhi comes from sec_segment_metrics (real XBRL segment
-            # disclosures); downside_volatility and max_drawdown_1y from load_risk_metrics_daily.py
+            # Stability Inputs: Volatility, beta, financial stability
             d["stability_inputs"] = {
                 "volatility_12m": d.get("volatility_12m_val"),
                 "volatility_12m_unavailable_reason": d.get("volatility_12m_unavailable_reason"),
@@ -1113,12 +1113,10 @@ def _get_stock_scores(  # noqa: C901
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
-                "revenue_concentration_hhi": (
-                    None if d.get("_segment_data_unavailable") else d.get("segment_revenue_concentration_hhi")
-                ),
-                "revenue_concentration_hhi_unavailable_reason": (
-                    "no_segment_disclosure" if d.get("_segment_data_unavailable") else None
-                ),
+                "dividend_yield": d.get("dividend_yield"),
+                "dividend_yield_unavailable_reason": d.get("dividend_yield_unavailable_reason"),
+                "payout_ratio": d.get("payout_ratio"),
+                "payout_ratio_unavailable_reason": d.get("payout_ratio_unavailable_reason"),
             }
 
         items: list[dict[str, Any]] = []
