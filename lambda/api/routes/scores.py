@@ -473,6 +473,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "momentum_12_3": data.get("momentum_12m_val"),
                 "rsi": data.get("tdd_rsi"),
                 "macd": data.get("tdd_macd"),
+                "roc_20d": data.get("tdd_roc_20d"),
+                "roc_60d": data.get("tdd_roc_60d"),
+                "roc_120d": data.get("tdd_roc_120d"),
+                "roc_252d": data.get("tdd_roc_252d"),
             }
 
             # Value Inputs
@@ -1018,6 +1022,10 @@ def _get_stock_scores(  # noqa: C901
                 "momentum_12_3": d.get("momentum_12m_val"),
                 "rsi": d.get("tdd_rsi"),
                 "macd": d.get("tdd_macd"),
+                "roc_20d": d.get("tdd_roc_20d"),
+                "roc_60d": d.get("tdd_roc_60d"),
+                "roc_120d": d.get("tdd_roc_120d"),
+                "roc_252d": d.get("tdd_roc_252d"),
             }
 
             # Value Inputs: Valuation ratios
