@@ -28,6 +28,15 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 ) -> PhaseResult:
     """Execute Phase 3: Position Monitor.
 
+    GOVERNANCE: Fail-fast on missing critical position data.
+    Open positions MUST have current prices, entry costs, and stop losses to:
+    - Calculate P&L and unrealized gains
+    - Determine if positions have hit profit targets or stop losses
+    - Generate exit recommendations
+
+    Gracefully skipping positions due to missing data hides data quality issues
+    and leaves positions unmonitored, which violates fail-fast governance.
+
     Args:
         config: Configuration object
         get_conn: Function to get database connection
