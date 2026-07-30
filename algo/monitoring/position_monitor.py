@@ -412,14 +412,15 @@ class PositionMonitor:
                         rec = self._evaluate_position(row, current_date)
                     except PositionValidationError as e:
                         # SAFETY: Validate row structure before accessing indices
-                        if len(row) < 10:
+                        # The SELECT query returns 14 columns (indices 0-13), so row must have exactly 14 elements
+                        if len(row) != 14:
                             logger.error(
-                                f"[PHASE 3] Row has insufficient columns ({len(row)}, expected >=10). "
-                                f"Cannot extract position data. Possible database query result corruption."
+                                f"[PHASE 3] Row has incorrect column count ({len(row)}, expected 14). "
+                                f"Cannot extract position data. Possible database query result corruption or schema drift."
                             )
                             raise RuntimeError(
-                                f"Position row has {len(row)} columns, expected 10+. "
-                                f"Cannot extract position_id or trade_id. This may indicate database connection issues."
+                                f"Position row has {len(row)} columns, expected 14. "
+                                f"Cannot extract position data. This may indicate database connection issues or schema mismatch."
                             ) from e
                         symbol = row[1]  # symbol is at index 1 in the row tuple
                         trade_id = row[0]
@@ -489,22 +490,29 @@ class PositionMonitor:
             raise RuntimeError(error_msg) from db_err
 
     def _evaluate_position(self, row: Any, current_date: _date | datetime) -> dict[str, Any]:  # noqa: C901
-        (
-            trade_id,
-            symbol,
-            entry_price,
-            init_stop,
-            _t1_price,
-            _t2_price,
-            _t3_price,
-            trade_date,
-            _signal_date,
-            position_id,
-            quantity,
-            target_hits,
-            current_stop,
-            _db_current_price,
-        ) = row
+        try:
+            (
+                trade_id,
+                symbol,
+                entry_price,
+                init_stop,
+                _t1_price,
+                _t2_price,
+                _t3_price,
+                trade_date,
+                _signal_date,
+                position_id,
+                quantity,
+                target_hits,
+                current_stop,
+                _db_current_price,
+            ) = row
+        except (ValueError, TypeError) as unpack_err:
+            raise PositionValidationError(
+                f"Failed to unpack position row: {type(unpack_err).__name__}: {unpack_err}. "
+                f"Row has {len(row) if isinstance(row, (tuple, list)) else '?'} elements, expected 14. "
+                f"This indicates database query result corruption."
+            ) from unpack_err
 
         if entry_price is None:
             msg = f"Entry price missing for {symbol} - cannot monitor"
