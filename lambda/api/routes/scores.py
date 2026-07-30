@@ -79,7 +79,7 @@ def handle(
 
             return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol)
         else:
-            return error_response(404, "not_found", f"No scores handler for {path}")
+            return error_response(404, "not_found", "Invalid scores endpoint requested")
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
