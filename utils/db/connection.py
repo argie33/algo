@@ -102,8 +102,8 @@ def _get_connection_pool() -> Any:
                     # around pool access; production Lambda (one invocation per execution
                     # environment) never needed it, which is why this went uncaught.
                     base_pool = psycopg2.pool.ThreadedConnectionPool(
-                        minconn=2,
-                        maxconn=20,
+                        minconn=5,
+                        maxconn=40,
                         host=db_config["host"],
                         port=port,
                         database=db_config["database"],
@@ -128,8 +128,9 @@ def _get_connection_pool() -> Any:
 
                     _connection_pool = IdleConnectionPool(base_pool, max_idle_sec=300, cleanup_interval_sec=60)
                     logger.info(
-                        "[DB_POOL] Connection pool initialized (minconn=2, maxconn=20) "
-                        "with idle connection cleanup (max_idle=300s, check every 60s)"
+                        "[DB_POOL] Connection pool initialized (minconn=5, maxconn=40) "
+                        "with idle connection cleanup (max_idle=300s, check every 60s). "
+                        "Supports 60 concurrent loaders + dev server threads."
                     )
                 except psycopg2.Error as e:
                     logger.error(f"[DB_POOL] Failed to create pool: {e}")
