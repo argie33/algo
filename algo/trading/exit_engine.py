@@ -750,11 +750,23 @@ class ExitEngine:
                                 )
                                 open_position_statuses_close = PositionStatus.all_active()
                                 position_status_placeholders = ", ".join(["%s"] * len(open_position_statuses_close))
+                                # FIX: Calculate profit_loss_dollars before closing position (was leaving it NULL)
+                                # Must calculate actual P&L: (current_price - entry_price) * quantity
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                                       exit_reason = %s,
+                                       current_price = %s,
+                                       profit_loss_dollars = (COALESCE(current_price, %s) - avg_entry_price) * quantity,
+                                       unrealized_pnl = NULL,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
-                                    (symbol, *open_position_statuses_close),
+                                    (
+                                        "delisted_or_unavailable|price_data_missing",
+                                        None,
+                                        None,
+                                        symbol,
+                                        *open_position_statuses_close,
+                                    ),
                                 )
                                 exits_executed += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")

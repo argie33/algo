@@ -1405,9 +1405,14 @@ class PositionMonitor:
     ) -> None:
         """Handle quantity changes between DB and Alpaca."""
         if alpaca_qty == 0:
+            # FIX: Calculate profit_loss_dollars before closing position (was leaving it NULL)
             cur.execute(
-                "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP WHERE position_id = %s",
-                (pos_id,),
+                """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                   exit_reason = %s,
+                   profit_loss_dollars = (current_price - avg_entry_price) * quantity,
+                   unrealized_pnl = NULL
+                   WHERE position_id = %s""",
+                ("position_closed_at_broker", pos_id),
             )
             adjustments.append(
                 {
