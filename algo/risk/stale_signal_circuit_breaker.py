@@ -2,7 +2,7 @@
 """Circuit breaker to halt trading when signals are stale (ROOT CAUSE #4 fix)."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2

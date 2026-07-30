@@ -26,7 +26,7 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
