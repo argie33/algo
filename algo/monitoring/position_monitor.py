@@ -650,28 +650,28 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (fail-fast on data unavailability - consistent with signal generation)
-        # Signal generation (advanced_filters) also fails when earnings data missing. Position monitor
-        # should match this fail-fast governance to detect data quality issues rather than silently degrading.
+        # 3e. Earnings proximity (graceful degradation on data unavailability)
+        # Try to fetch earnings data, but continue without it if unavailable (new IPOs may not have earnings scheduled)
         days_to_earn: int | None = None
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
-        except ValueError as e:
-            # Fail-fast on earnings data unavailability - this indicates a data loading issue that should be visible.
-            # CRITICAL FIX: Escape exception message that may contain curly braces
-            # to prevent f-string format error. Use % formatting or str() instead of embedding in f-string.
+        except (ValueError, RuntimeError) as e:
+            # Graceful degradation on earnings data unavailability
+            # This is expected for new IPOs and listings without scheduled earnings
             error_msg = str(e).replace("{", "{{").replace("}", "}}")
-            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} - position health assessment incomplete: {error_msg}")
-        except RuntimeError as e:
-            raise PositionValidationError(f"Cannot evaluate earnings proximity for {symbol}: {e}") from e
+            logger.debug(f"[POSITION_MONITOR] Earnings data unavailable for {symbol}: {error_msg} - continuing without earnings check")
 
-        # 3f. Distribution-day stress
+        # 3f. Distribution-day stress (graceful degradation on early-day NULL data)
+        market_dist_days: int | None = None
         try:
             market_dist_days = self._fetch_market_dist_days(current_date, cur)
         except (ValueError, RuntimeError) as e:
-            raise PositionValidationError(f"Cannot evaluate market distribution days for position {symbol}: {e}") from e
+            # Graceful degradation: distribution data may be NULL early in the trading day
+            # before market_exposure_daily loader has run. Continue without this check.
+            error_msg = str(e).replace("{", "{{").replace("}", "}}")
+            logger.debug(f"[POSITION_MONITOR] Market distribution data unavailable: {error_msg} - continuing without distribution check")
 
         try:
             max_dist_days = int(self.config["max_distribution_days"])
