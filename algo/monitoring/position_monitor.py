@@ -370,97 +370,97 @@ class PositionMonitor:
                         f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
                     ) from margin_e
 
-            try:
-                conc = self.check_sector_concentration(current_date)
-                if conc["status"] == "HIGH_CONCENTRATION":
-                    logger.info("  [WARNING]  Portfolio concentration risk detected")
-            except RuntimeError as conc_e:
-                raise PositionValidationError(
-                    f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
-                ) from conc_e
-
-            # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
-            # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
-            # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
-            # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
-            open_statuses = TradeStatus.all_open()
-            status_placeholders = ", ".join(["%s"] * len(open_statuses))
-            cur.execute(
-                f"""
-                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                       t.target_1_price, t.target_2_price, t.target_3_price,
-                       t.trade_date, t.signal_date,
-                       p.position_id, p.quantity, p.target_levels_hit,
-                       p.current_stop_price, p.current_price
-                FROM algo_trades t
-                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
-                  AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
-                """,
-                tuple(open_statuses),
-            )
-            positions = cur.fetchall()
-
-            logger.info(f"\n{'=' * 70}")
-            logger.info(f"POSITION MONITOR - {current_date}")
-            logger.info(f"{'=' * 70}")
-            logger.info(f"Reviewing {len(positions)} open position(s)\n")
-
-            validation_errors = []
-            for i, row in enumerate(positions):
                 try:
-                    rec = self._evaluate_position(row, current_date, cur)
-                except PositionValidationError as e:
-                    # SAFETY: Validate row structure before accessing indices
-                    if len(row) < 10:
-                        logger.error(
-                            f"[PHASE 3] Row has insufficient columns ({len(row)}, expected >=10). "
-                            f"Cannot extract position data. Possible database query result corruption."
+                    conc = self.check_sector_concentration(current_date)
+                    if conc["status"] == "HIGH_CONCENTRATION":
+                        logger.info("  [WARNING]  Portfolio concentration risk detected")
+                except RuntimeError as conc_e:
+                    raise PositionValidationError(
+                        f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
+                    ) from conc_e
+
+                # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
+                # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
+                # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
+                # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
+                open_statuses = TradeStatus.all_open()
+                status_placeholders = ", ".join(["%s"] * len(open_statuses))
+                cur.execute(
+                    f"""
+                    SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                           t.target_1_price, t.target_2_price, t.target_3_price,
+                           t.trade_date, t.signal_date,
+                           p.position_id, p.quantity, p.target_levels_hit,
+                           p.current_stop_price, p.current_price
+                    FROM algo_trades t
+                    JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                    WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
+                      AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
+                    """,
+                    tuple(open_statuses),
+                )
+                positions = cur.fetchall()
+
+                logger.info(f"\n{'=' * 70}")
+                logger.info(f"POSITION MONITOR - {current_date}")
+                logger.info(f"{'=' * 70}")
+                logger.info(f"Reviewing {len(positions)} open position(s)\n")
+
+                validation_errors = []
+                for i, row in enumerate(positions):
+                    try:
+                        rec = self._evaluate_position(row, current_date, cur)
+                    except PositionValidationError as e:
+                        # SAFETY: Validate row structure before accessing indices
+                        if len(row) < 10:
+                            logger.error(
+                                f"[PHASE 3] Row has insufficient columns ({len(row)}, expected >=10). "
+                                f"Cannot extract position data. Possible database query result corruption."
+                            )
+                            raise RuntimeError(
+                                f"Position row has {len(row)} columns, expected 10+. "
+                                f"Cannot extract position_id or trade_id. This may indicate database connection issues."
+                            ) from e
+                        symbol = row[1]  # symbol is at index 1 in the row tuple
+                        trade_id = row[0]
+                        position_id = row[9]
+                        error_msg = str(e)
+                        validation_errors.append((symbol, error_msg))
+                        # Include failed position in results so orchestrator has complete visibility
+                        recs.append(
+                            {
+                                "trade_id": trade_id,
+                                "symbol": symbol,
+                                "position_id": position_id,
+                                "action": "FAILED_VALIDATION",
+                                "error": error_msg,
+                            }
                         )
-                        raise RuntimeError(
-                            f"Position row has {len(row)} columns, expected 10+. "
-                            f"Cannot extract position_id or trade_id. This may indicate database connection issues."
-                        ) from e
-                    symbol = row[1]  # symbol is at index 1 in the row tuple
-                    trade_id = row[0]
-                    position_id = row[9]
-                    error_msg = str(e)
-                    validation_errors.append((symbol, error_msg))
-                    # Include failed position in results so orchestrator has complete visibility
-                    recs.append(
-                        {
-                            "trade_id": trade_id,
-                            "symbol": symbol,
-                            "position_id": position_id,
-                            "action": "FAILED_VALIDATION",
-                            "error": error_msg,
-                        }
-                    )
-                    # CRITICAL FIX: Escape error message that may contain curly braces to prevent f-string format error
-                    safe_error_msg = error_msg.replace("{", "{{").replace("}", "}}")
-                    logger.warning(f"  Validation failed for {symbol}: {safe_error_msg}")
-                    continue
+                        # CRITICAL FIX: Escape error message that may contain curly braces to prevent f-string format error
+                        safe_error_msg = error_msg.replace("{", "{{").replace("}", "}}")
+                        logger.warning(f"  Validation failed for {symbol}: {safe_error_msg}")
+                        continue
 
-                recs.append(rec)
-                self._print_recommendation(rec)
-                try:
-                    sp_name = f"sp_pos_{i}"
-                    cur.execute(f"SAVEPOINT {sp_name}")
-                    self._persist_review(rec, cur, i)
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    # CRITICAL FIX: Escape exception message to prevent f-string format error
-                    safe_error = str(e).replace("{", "{{").replace("}", "}}")
-                    logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
-                    cur.execute(f"ROLLBACK TO {sp_name}")
-                    continue
+                    recs.append(rec)
+                    self._print_recommendation(rec)
+                    try:
+                        sp_name = f"sp_pos_{i}"
+                        cur.execute(f"SAVEPOINT {sp_name}")
+                        self._persist_review(rec, cur, i)
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                        # CRITICAL FIX: Escape exception message to prevent f-string format error
+                        safe_error = str(e).replace("{", "{{").replace("}", "}}")
+                        logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
+                        cur.execute(f"ROLLBACK TO {sp_name}")
+                        continue
 
-                # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
-                if validation_errors:
-                    logger.warning(
-                        f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
-                    )
+                    # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
+                    if validation_errors:
+                        logger.warning(
+                            f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
+                        )
 
-                return recs
+                    return recs
 
         except psycopg2.errors.GroupingError as group_err:
             # CRITICAL: GROUP BY errors happen intermittently despite correct SQL
