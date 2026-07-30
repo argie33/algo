@@ -54,6 +54,43 @@ MIGRATIONS = [
         "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS reason VARCHAR(500)",
         "Add reason field to stability_metrics",
     ),
+    # Migration: downside volatility metrics (2026-07-30)
+    (
+        "stability_metrics.downside_volatility_30d",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='downside_volatility_30d'",
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_30d NUMERIC(10, 4)",
+        "Add 30d downside volatility to stability_metrics",
+    ),
+    (
+        "stability_metrics.downside_volatility_60d",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='downside_volatility_60d'",
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_60d NUMERIC(10, 4)",
+        "Add 60d downside volatility to stability_metrics",
+    ),
+    (
+        "stability_metrics.downside_volatility_252d",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='downside_volatility_252d'",
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_252d NUMERIC(10, 4)",
+        "Add 252d downside volatility to stability_metrics",
+    ),
+    (
+        "stability_metrics.downside_volatility_30d_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='downside_volatility_30d_unavailable_reason'",
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_30d_unavailable_reason VARCHAR(255)",
+        "Add 30d downside volatility unavailable reason to stability_metrics",
+    ),
+    (
+        "stability_metrics.downside_volatility_60d_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='downside_volatility_60d_unavailable_reason'",
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_60d_unavailable_reason VARCHAR(255)",
+        "Add 60d downside volatility unavailable reason to stability_metrics",
+    ),
+    (
+        "stability_metrics.downside_volatility_252d_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='stability_metrics' AND column_name='downside_volatility_252d_unavailable_reason'",
+        "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_252d_unavailable_reason VARCHAR(255)",
+        "Add 252d downside volatility unavailable reason to stability_metrics",
+    ),
 ]
 
 

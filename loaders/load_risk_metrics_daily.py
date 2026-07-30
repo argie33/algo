@@ -378,6 +378,12 @@ class RiskMetricsLoader(OptimalLoader):
             # enforces: vol_252d should never rest on a thinner sample than the mid-window
             # measure it's supposed to be a more-robust superset of.
             vol_252d = self._calculate_volatility(returns) if len(returns) >= 60 else None
+
+            # Calculate downside volatilities (only negative returns - risk metric)
+            downside_vol_30d = self._calculate_downside_volatility(returns[-30:]) if len(returns) >= 30 else None
+            downside_vol_60d = self._calculate_downside_volatility(returns[-60:]) if len(returns) >= 60 else None
+            downside_vol_252d = self._calculate_downside_volatility(returns) if len(returns) >= 60 else None
+
             beta: float | dict[str, Any] | None = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Build unavailability reasons for any missing components
@@ -402,7 +408,10 @@ class RiskMetricsLoader(OptimalLoader):
             # volatility_252d/volatility_60d/beta/debt_to_assets must be non-NULL"), so
             # requiring all four upstream silently dropped real data the scorer was
             # designed to consume. Mark unavailable only if every component failed.
-            has_any_metric = any(v is not None for v in [vol_30d, vol_60d, vol_252d, beta, debt_to_assets])
+            has_any_metric = any(v is not None for v in [
+                vol_30d, vol_60d, vol_252d, beta, debt_to_assets,
+                downside_vol_30d, downside_vol_60d, downside_vol_252d
+            ])
             data_unavailable = not has_any_metric
             unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
@@ -422,6 +431,9 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_30d": round(vol_30d, 4) if vol_30d is not None else None,
                 "volatility_60d": round(vol_60d, 4) if vol_60d is not None else None,
                 "volatility_252d": round(vol_252d, 4) if vol_252d is not None else None,
+                "downside_volatility_30d": round(downside_vol_30d, 4) if downside_vol_30d is not None else None,
+                "downside_volatility_60d": round(downside_vol_60d, 4) if downside_vol_60d is not None else None,
+                "downside_volatility_252d": round(downside_vol_252d, 4) if downside_vol_252d is not None else None,
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "debt_to_assets": debt_to_assets,
                 # Session 395+: Add unavailable_reason for each metric
@@ -429,6 +441,9 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_30d_unavailable_reason": "insufficient_history" if vol_30d is None else None,
                 "volatility_60d_unavailable_reason": "insufficient_history" if vol_60d is None else None,
                 "volatility_252d_unavailable_reason": "insufficient_history" if vol_252d is None else None,
+                "downside_volatility_30d_unavailable_reason": "insufficient_history" if downside_vol_30d is None else None,
+                "downside_volatility_60d_unavailable_reason": "insufficient_history" if downside_vol_60d is None else None,
+                "downside_volatility_252d_unavailable_reason": "insufficient_history" if downside_vol_252d is None else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
                 "reason": unavailability_reason,
@@ -442,8 +457,18 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_30d": None,
                 "volatility_60d": None,
                 "volatility_252d": None,
+                "downside_volatility_30d": None,
+                "downside_volatility_60d": None,
+                "downside_volatility_252d": None,
                 "beta": None,
                 "debt_to_assets": debt_to_assets,
+                "beta_unavailable_reason": "missing_price_data",
+                "volatility_30d_unavailable_reason": "insufficient_history",
+                "volatility_60d_unavailable_reason": "insufficient_history",
+                "volatility_252d_unavailable_reason": "insufficient_history",
+                "downside_volatility_30d_unavailable_reason": "insufficient_history",
+                "downside_volatility_60d_unavailable_reason": "insufficient_history",
+                "downside_volatility_252d_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": None if debt_to_assets is not None else reason,
@@ -456,12 +481,18 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_30d": None,
                 "volatility_60d": None,
                 "volatility_252d": None,
+                "downside_volatility_30d": None,
+                "downside_volatility_60d": None,
+                "downside_volatility_252d": None,
                 "beta": None,
                 "debt_to_assets": debt_to_assets,
                 "beta_unavailable_reason": "missing_price_data",
                 "volatility_30d_unavailable_reason": "insufficient_history",
                 "volatility_60d_unavailable_reason": "insufficient_history",
                 "volatility_252d_unavailable_reason": "insufficient_history",
+                "downside_volatility_30d_unavailable_reason": "insufficient_history",
+                "downside_volatility_60d_unavailable_reason": "insufficient_history",
+                "downside_volatility_252d_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": f"unexpected_error: {type(e).__name__}" if debt_to_assets is None else None,
@@ -481,15 +512,23 @@ class RiskMetricsLoader(OptimalLoader):
                 cur.execute(
                     """
                     INSERT INTO stability_metrics
-                    (symbol, volatility_30d, volatility_60d, volatility_252d, beta, debt_to_assets,
+                    (symbol, volatility_30d, volatility_60d, volatility_252d,
+                     downside_volatility_30d, downside_volatility_60d, downside_volatility_252d,
+                     beta, debt_to_assets,
                      created_at, data_unavailable, reason, reason_type, data_source,
                      beta_unavailable_reason, volatility_30d_unavailable_reason,
-                     volatility_60d_unavailable_reason, volatility_252d_unavailable_reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     volatility_60d_unavailable_reason, volatility_252d_unavailable_reason,
+                     downside_volatility_30d_unavailable_reason,
+                     downside_volatility_60d_unavailable_reason,
+                     downside_volatility_252d_unavailable_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
                       volatility_252d = EXCLUDED.volatility_252d,
+                      downside_volatility_30d = EXCLUDED.downside_volatility_30d,
+                      downside_volatility_60d = EXCLUDED.downside_volatility_60d,
+                      downside_volatility_252d = EXCLUDED.downside_volatility_252d,
                       beta = EXCLUDED.beta,
                       debt_to_assets = EXCLUDED.debt_to_assets,
                       created_at = EXCLUDED.created_at,
@@ -501,6 +540,9 @@ class RiskMetricsLoader(OptimalLoader):
                       volatility_30d_unavailable_reason = EXCLUDED.volatility_30d_unavailable_reason,
                       volatility_60d_unavailable_reason = EXCLUDED.volatility_60d_unavailable_reason,
                       volatility_252d_unavailable_reason = EXCLUDED.volatility_252d_unavailable_reason,
+                      downside_volatility_30d_unavailable_reason = EXCLUDED.downside_volatility_30d_unavailable_reason,
+                      downside_volatility_60d_unavailable_reason = EXCLUDED.downside_volatility_60d_unavailable_reason,
+                      downside_volatility_252d_unavailable_reason = EXCLUDED.downside_volatility_252d_unavailable_reason,
                       updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -508,6 +550,9 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("volatility_30d"),
                         row.get("volatility_60d"),
                         row.get("volatility_252d"),
+                        row.get("downside_volatility_30d"),
+                        row.get("downside_volatility_60d"),
+                        row.get("downside_volatility_252d"),
                         row.get("beta"),
                         row.get("debt_to_assets"),
                         row.get("created_at"),
@@ -523,6 +568,9 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("volatility_30d_unavailable_reason"),
                         row.get("volatility_60d_unavailable_reason"),
                         row.get("volatility_252d_unavailable_reason"),
+                        row.get("downside_volatility_30d_unavailable_reason"),
+                        row.get("downside_volatility_60d_unavailable_reason"),
+                        row.get("downside_volatility_252d_unavailable_reason"),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -542,6 +590,49 @@ class RiskMetricsLoader(OptimalLoader):
         # of error as computing risk too optimistically.
         mean_return = sum(returns) / len(returns)
         variance = sum((r - mean_return) ** 2 for r in returns) / (len(returns) - 1)
+        daily_std = math.sqrt(variance)
+        return daily_std * math.sqrt(252)
+
+    @staticmethod
+    def _calculate_downside_volatility(returns: list[float]) -> float | None:
+        """Calculate annualized downside volatility (std dev of negative returns only).
+
+        Downside volatility is a risk metric that measures the standard deviation of only
+        negative returns, providing a better reflection of downside risk than traditional
+        volatility which treats gains and losses symmetrically. Used in Sortino ratio.
+
+        Args:
+            returns: List of daily log returns
+
+        Returns:
+            Annualized downside volatility (annualized by sqrt(252)), or None if insufficient data
+        """
+        if not returns or len(returns) < 2:
+            return None
+
+        downside_returns = [r for r in returns if r < 0]
+        if not downside_returns or len(downside_returns) < 1:
+            return None
+
+        if len(downside_returns) < 2:
+            return None
+
+        mean_downside = sum(downside_returns) / len(downside_returns)
+        variance = sum((r - mean_downside) ** 2 for r in downside_returns) / (len(downside_returns) - 1)
+        daily_std = math.sqrt(variance)
+        return daily_std * math.sqrt(252)
+
+    @staticmethod
+    def _calculate_downside_volatility(returns: list[float]) -> float | None:
+        if not returns or len(returns) < 2:
+            return None
+
+        downside_returns = [r for r in returns if r < 0]
+        if len(downside_returns) < 2:
+            return None
+
+        mean_downside = sum(downside_returns) / len(downside_returns)
+        variance = sum((r - mean_downside) ** 2 for r in downside_returns) / (len(downside_returns) - 1)
         daily_std = math.sqrt(variance)
         return daily_std * math.sqrt(252)
 
