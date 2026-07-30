@@ -522,6 +522,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "roe_trend": data.get("roe_trend"),
                 "sustainable_growth_rate": data.get("sustainable_growth_rate"),
                 "quarterly_growth_momentum": data.get("quarterly_growth_momentum"),
+                "earnings_growth_4q_avg": data.get("earnings_growth_4q_avg"),
                 "fcf_growth_yoy": data.get("fcf_growth_yoy"),
                 "ocf_growth_yoy": data.get("ocf_growth_yoy"),
                 "asset_growth_yoy": data.get("asset_growth_yoy"),
