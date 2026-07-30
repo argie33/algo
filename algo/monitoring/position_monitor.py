@@ -451,7 +451,10 @@ class PositionMonitor:
                         # CRITICAL FIX: Escape exception message to prevent f-string format error
                         safe_error = str(e).replace("{", "{{").replace("}", "}}")
                         logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
-                        cur.execute(f"ROLLBACK TO {sp_name}")
+                        try:
+                            cur.execute(f"ROLLBACK TO {sp_name}")
+                        except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
+                            logger.warning(f"[POSITION_MONITOR] Could not rollback savepoint {sp_name}: {rb_err} - continuing")
                         continue
 
                 # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
@@ -595,7 +598,8 @@ class PositionMonitor:
 
         if proposed_stop > cur_price:
             logger.error(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
-            proposed_stop = cur_price - 0.01  # Clamp to 1c below market
+            # Use Decimal for precision on stop price clamp
+            proposed_stop = float(Decimal(str(cur_price)) - Decimal("0.01"))
             logger.info(f"  Clamped stop to ${proposed_stop:.2f}")
 
         # CRITICAL: Stop loss check MUST come first, before any other logic
@@ -872,15 +876,17 @@ class PositionMonitor:
             raise PositionValidationError(f"Invalid entry price for trailing stop: {entry_price}")
 
         # Sanity check: if active_stop is already > cur_price (shouldn't happen), clamp it.
-        # This can occur with stale/imported positions.
+        # This can occur with stale/imported positions. Use Decimal for precision.
         if active_stop > cur_price:
-            active_stop = cur_price - 0.01
-            logger.warning(f"  Clamped active_stop {active_stop:.2f} to {cur_price - 0.01:.2f} (was above market)")
+            active_stop = float(Decimal(str(cur_price)) - Decimal("0.01"))
+            logger.warning(f"  Clamped active_stop {active_stop:.2f} (was above market)")
 
         candidates = [active_stop]
 
+        # Use Decimal for precise arithmetic on stop calculations
         if atr is not None and atr > 0:
-            candidates.append(cur_price - (2.0 * atr))
+            atr_dec = Decimal(str(atr))
+            candidates.append(float(Decimal(str(cur_price)) - (Decimal("2.0") * atr_dec)))
         if sma_50 is not None and sma_50 > 0 and sma_50 < cur_price:
             candidates.append(sma_50)
 
@@ -890,7 +896,8 @@ class PositionMonitor:
 
         # Don't let trailing stop get within 1.0 ATR of price (room to breathe)
         if atr is not None and atr > 0:
-            cap = cur_price - atr
+            atr_dec = Decimal(str(atr))
+            cap = float(Decimal(str(cur_price)) - atr_dec)
             candidates = [c for c in candidates if c <= cap]
             if not candidates:
                 candidates = [cap]
@@ -1250,10 +1257,13 @@ class PositionMonitor:
                 ),
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            cur.execute(f"ROLLBACK TO {sp_name}")
+            try:
+                cur.execute(f"ROLLBACK TO {sp_name}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
+                logger.warning(f"[POSITION_MONITOR] Could not rollback savepoint {sp_name}: {rb_err}")
             # CRITICAL FIX: Escape exception message to prevent f-string format error
             safe_error = str(e).replace("{", "{{").replace("}", "}}")
-            logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error} (rolled back)")
+            logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
             raise
 
     def _print_recommendation(self, rec: dict[str, Any]) -> None:
