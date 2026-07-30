@@ -327,6 +327,11 @@ def run(
                             logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
                         else:
                             errors += 1
+                            logger.error(
+                                f"  FORCE-EXIT FAILED: {action['symbol']} (reason: {action['reason']}). "
+                                f"Error: {result.get('message', 'Unknown error')}. "
+                                f"Trade ID: {action.get('trade_id', 'UNKNOWN')}"
+                            )
 
                 elif action["action"] == "partial_exit":
                     # Need current price - fetch
@@ -379,6 +384,12 @@ def run(
                                 logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
                             else:
                                 errors += 1
+                                logger.error(
+                                    f"  PARTIAL-EXIT FAILED: {action['symbol']} (fraction: {action.get('exit_fraction', '?')}). "
+                                    f"Reason: {action['reason']}. "
+                                    f"Error: {result.get('message', 'Unknown error')}. "
+                                    f"Trade ID: {action.get('trade_id', 'UNKNOWN')}"
+                                )
 
                 elif action["action"] == "tighten_stop":
                     if dry_run:
