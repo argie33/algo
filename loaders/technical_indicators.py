@@ -254,3 +254,90 @@ def compute_adx(
     return plus_di, minus_di, adx
 
 
+def compute_accumulation_distribution_line(
+    high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series
+) -> pd.Series:
+    """Calculate Accumulation/Distribution Line (A/D Line).
+
+    The A/D Line is a volume-weighted technical indicator that measures buying/selling
+    pressure. It combines price action with volume to identify accumulation (buying) and
+    distribution (selling) phases.
+
+    Formula:
+    1. Money Flow Multiplier = ((Close - Low) - (High - Close)) / (High - Low)
+    2. Money Flow Volume = Money Flow Multiplier × Volume
+    3. A/D Line = Previous A/D + Money Flow Volume (cumulative sum)
+
+    Args:
+        high: Series of high prices
+        low: Series of low prices
+        close: Series of closing prices
+        volume: Series of trading volumes
+
+    Returns:
+        Series of A/D Line values (cumulative from start of period)
+    """
+    # Avoid division by zero: if High == Low (no range), Money Flow Multiplier is 0
+    high_low_diff = high - low
+    high_low_diff = high_low_diff.replace(0, np.nan)
+
+    # Calculate Money Flow Multiplier: ((Close - Low) - (High - Close)) / (High - Low)
+    mfm = ((close - low) - (high - close)) / high_low_diff
+
+    # Calculate Money Flow Volume: Money Flow Multiplier × Volume
+    mfv = mfm * volume
+
+    # Calculate A/D Line as cumulative sum (handles NaN appropriately)
+    ad_line = mfv.fillna(0).cumsum()
+
+    return ad_line
+
+
+def compute_ad_rating(high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> float | None:
+    """Calculate A/D Rating (0-100 score) from Accumulation/Distribution Line.
+
+    Compares A/D Line direction (volume trend) with price direction (momentum) to
+    identify confirmation or divergence:
+    - If A/D and price both trending up/down: strong confirmation (100)
+    - If A/D up but price down: bullish divergence - hidden strength (60)
+    - If A/D down but price up or both down: bearish signal (30)
+
+    Args:
+        high, low, close: Price series
+        volume: Trading volume series
+
+    Returns:
+        A/D Rating score (0-100) or None if insufficient data
+    """
+    if len(close) < 20:
+        return None
+
+    ad_line = compute_accumulation_distribution_line(high, low, close, volume)
+
+    # Use last 20 days for trend analysis (similar to RSI/MACD lookback)
+    ad_recent = ad_line.iloc[-20:]
+    close_recent = close.iloc[-20:]
+
+    # Check for NaN or all zeros (insufficient data)
+    if ad_recent.isna().all() or close_recent.isna().all():
+        return None
+
+    ad_recent = ad_recent.ffill().bfill()
+    close_recent = close_recent.ffill().bfill()
+
+    # Get direction changes: positive = up trend, negative = down trend
+    ad_change = ad_recent.iloc[-1] - ad_recent.iloc[0]
+    price_change = close_recent.iloc[-1] - close_recent.iloc[0]
+
+    # Score based on confirmation/divergence
+    if ad_change > 0 and price_change > 0:
+        # Both rising - strong confirmation
+        return 100.0
+    elif ad_change > 0 and price_change < 0:
+        # A/D rising but price falling - bullish divergence (buying pressure despite price decline)
+        return 60.0
+    else:
+        # A/D falling, or both falling - bearish signal
+        return 30.0
+
+

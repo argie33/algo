@@ -26,11 +26,15 @@ import sys
 from datetime import date, datetime
 from typing import Any
 
+import pandas as pd
+
 from loaders.runner import run_loader
+from loaders.technical_indicators import compute_ad_rating
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +57,44 @@ class PositioningMetricsLoader(OptimalLoader):
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
 
+    def _compute_ad_rating(self, symbol: str) -> tuple[float | None, str | None]:
+        """Calculate A/D Rating (0-100 score) from Accumulation/Distribution analysis.
+
+        Returns:
+            Tuple of (ad_rating_score, unavailable_reason)
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                # Fetch last 252 days of OHLCV data for A/D calculation
+                cur.execute(
+                    """
+                    SELECT date, high, low, close, volume
+                    FROM price_daily
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY date ASC
+                    """,
+                    (symbol,),
+                )
+                rows = cur.fetchall()
+
+            if not rows or len(rows) < 20:
+                return None, "insufficient_price_history"
+
+            # Build pandas series for calculation
+            dates = [row[0] for row in rows]
+            high = pd.Series([safe_float(row[1], f"{symbol}.high", allow_none=False) for row in rows], index=dates)
+            low = pd.Series([safe_float(row[2], f"{symbol}.low", allow_none=False) for row in rows], index=dates)
+            close = pd.Series([safe_float(row[3], f"{symbol}.close", allow_none=False) for row in rows], index=dates)
+            volume = pd.Series([safe_float(row[4], f"{symbol}.volume", allow_none=False) for row in rows], index=dates)
+
+            # Compute A/D rating from technical indicator
+            ad_rating = compute_ad_rating(high, low, close, volume)
+            return ad_rating, None if ad_rating is not None else "ad_calculation_failed"
+
+        except Exception as e:
+            logger.debug(f"[POSITIONING] A/D rating calculation failed for {symbol}: {e}")
+            return None, f"ad_calculation_error: {str(e)[:50]}"
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch positioning metrics from official SEC sources (TIER 1 only).
 
@@ -67,6 +109,9 @@ class PositioningMetricsLoader(OptimalLoader):
         Returns positioning data or data_unavailable marker if all sources exhausted.
         """
         now_et = datetime.now(EASTERN_TZ)
+
+        # Calculate A/D rating from price and volume data
+        ad_rating, ad_rating_reason = self._compute_ad_rating(symbol)
 
         # TIER 1: Fetch short interest from FINRA (OPTIONAL if table unavailable)
         short_interest_pct = None
@@ -234,9 +279,9 @@ class PositioningMetricsLoader(OptimalLoader):
                 "top_10_institutions_pct_unavailable_reason": "institutional_data_not_available",
                 "institutional_holders_count": None,
                 "institutional_holders_count_unavailable_reason": "institutional_data_not_available",
-                # A/D rating not implemented
-                "ad_rating": None,
-                "ad_rating_unavailable_reason": "ad_rating_not_available",
+                # A/D rating from volume-weighted technical indicator
+                "ad_rating": ad_rating,
+                "ad_rating_unavailable_reason": ad_rating_reason,
                 "data_unavailable": all_unavailable,
                 "reason": (
                     f"short_interest:{short_interest_source};institutional:{institutional_source};insider:{insider_source}"
