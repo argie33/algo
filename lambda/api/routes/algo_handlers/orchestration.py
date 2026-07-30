@@ -127,7 +127,7 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
                        FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
-                       WHERE p->>'status' IN ('success', 'ok')
+                       WHERE p->>'status' IN ('success', 'ok', 'degraded', 'skipped')
                    ), ARRAY[]::text[]) AS phases_completed,
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
@@ -137,7 +137,7 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
                        FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
-                       WHERE p->>'status' IN ('error', 'alert')
+                       WHERE p->>'status' IN ('error', 'alert', 'warn')
                    ), ARRAY[]::text[]) AS phases_errored
             FROM orchestrator_execution_log
             WHERE run_date >= CURRENT_DATE - %s
@@ -179,21 +179,28 @@ def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
     total = sum(stats_by_status.values())
 
     # Provide 0 counts for any missing statuses (no runs of that type in period is valid)
-    expected_statuses = {"success", "halted", "error"}
+    # Include all possible statuses: success, ok, degraded, halted, error, skipped, running
+    expected_statuses = {"success", "ok", "degraded", "halted", "error", "skipped", "running"}
     for status in expected_statuses:
         stats_by_status.setdefault(status, 0)
 
     success_count = int(stats_by_status["success"])
+    ok_count = int(stats_by_status["ok"])
+    degraded_count = int(stats_by_status["degraded"])
     halt_count = int(stats_by_status["halted"])
     error_count = int(stats_by_status["error"])
+    skipped_count = int(stats_by_status["skipped"])
 
     return success_response(
         {
             "total_runs": total,
             "by_status": stats_by_status,
             "success_rate": (f"{(success_count / total * 100):.1f}%" if total > 0 else None),
+            "ok_rate": (f"{(ok_count / total * 100):.1f}%" if total > 0 else None),
+            "degraded_rate": (f"{(degraded_count / total * 100):.1f}%" if total > 0 else None),
             "halt_rate": (f"{(halt_count / total * 100):.1f}%" if total > 0 else None),
             "error_rate": (f"{(error_count / total * 100):.1f}%" if total > 0 else None),
+            "skipped_rate": (f"{(skipped_count / total * 100):.1f}%" if total > 0 else None),
             "period_days": days,
         }
     )

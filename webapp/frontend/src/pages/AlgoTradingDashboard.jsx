@@ -79,6 +79,19 @@ const STATUS_ICON = {
   running: <Activity size={14} />,
 };
 
+// Phase status colors for the chip display
+const PHASE_STATUS_COLORS = {
+  success: "#10b981",
+  ok: "#10b981",
+  degraded: "#f59e0b",
+  warn: "#f59e0b",
+  halt: "#f59e0b",
+  halted: "#f59e0b",
+  error: "#ef4444",
+  alert: "#ef4444",
+  skipped: "#6b7280",
+};
+
 const fmtAgo = (ts) => {
   if (!ts) return "—";
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
@@ -145,19 +158,27 @@ export function PhaseChips({ phasesCompleted, phasesHalted, phasesErrored }) {
         const label = p.replace("P", "Phase ");
         let color = "var(--surface-2)";
         let text = "var(--text-faint)";
+        let title = "Not run";
+
+        // Check status in order of severity
         if (errored.has(p) || errored.has(label)) {
           color = "var(--danger)";
           text = "#fff";
+          title = "Phase errored or has warnings";
         } else if (halted.has(p) || halted.has(label)) {
           color = "var(--amber)";
           text = "#000";
+          title = "Phase halted";
         } else if (completed.has(p) || completed.has(label)) {
           color = "var(--success)";
           text = "#fff";
+          title = "Phase completed";
         }
+
         return (
           <span
             key={p}
+            title={title}
             style={{
               padding: "2px 6px",
               borderRadius: "var(--r-sm)",
@@ -166,6 +187,7 @@ export function PhaseChips({ phasesCompleted, phasesHalted, phasesErrored }) {
               background: color,
               color: text,
               fontFamily: "var(--font-mono)",
+              cursor: "help",
             }}
           >
             {p}
@@ -472,8 +494,17 @@ function AlgoTradingDashboardContent() {
               {stats.success_rate
                 ? `${stats.success_rate} success`
                 : "No data yet"}
+              {stats.ok_rate && stats.ok_rate !== "0.0%"
+                ? ` · ${stats.ok_rate} ok`
+                : ""}
+              {stats.degraded_rate && stats.degraded_rate !== "0.0%"
+                ? ` · ${stats.degraded_rate} degraded`
+                : ""}
               {stats.halt_rate && stats.halt_rate !== "0.0%"
                 ? ` · ${stats.halt_rate} halted`
+                : ""}
+              {stats.error_rate && stats.error_rate !== "0.0%"
+                ? ` · ${stats.error_rate} error`
                 : ""}
             </div>
           </div>
