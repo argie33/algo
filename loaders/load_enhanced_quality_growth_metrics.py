@@ -57,6 +57,107 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0
     exclude_etfs_from_symbols = True
 
+    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:
+        """Override run() to write trend metrics to BOTH quality_metrics and growth_metrics."""
+        from utils.loaders.config import get_default_parallelism
+
+        symbols_succeeded = 0
+        symbols_failed = 0
+        parallelism = parallelism or get_default_parallelism("quality_metrics")
+
+        try:
+            with DatabaseContext("write") as cur:
+                for table in ["quality_metrics", "growth_metrics"]:
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() WHERE table_name = %s",
+                        ("loading", table),
+                    )
+                    if cur.rowcount == 0:
+                        cur.execute(
+                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
+                            (table, "loading"),
+                        )
+
+            for symbol in symbols:
+                try:
+                    metrics = self.fetch_incremental(symbol, since_date)
+                    if not metrics:
+                        logger.error(f"[ENHANCED] {symbol}: fetch_incremental returned empty list")
+                        symbols_failed += 1
+                        continue
+
+                    metric_dict = metrics[0]
+
+                    with DatabaseContext("write") as cur:
+                        growth_fields = [
+                            "gross_margin_trend", "operating_margin_trend", "net_margin_trend",
+                            "roe_trend", "sustainable_growth_rate", "fcf_growth_yoy", "ocf_growth_yoy",
+                            "asset_growth_yoy", "quarterly_growth_momentum", "net_income_growth_yoy",
+                            "operating_income_growth_yoy"
+                        ]
+
+                        update_fields = []
+                        values = []
+                        for key in growth_fields:
+                            if key in metric_dict and metric_dict[key] is not None:
+                                update_fields.append(f"{key} = %s")
+                                values.append(metric_dict[key])
+
+                        if update_fields:
+                            update_fields.append("updated_at = CURRENT_DATE")
+                            cur.execute(
+                                f"UPDATE growth_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
+                                values + [symbol]
+                            )
+
+                        quality_fields = [
+                            "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
+                            "consecutive_positive_quarters", "estimate_revision_direction",
+                            "revision_activity_30d", "estimate_momentum_60d", "estimate_momentum_90d",
+                            "revision_trend_score", "earnings_growth_4q_avg"
+                        ]
+
+                        update_fields = []
+                        values = []
+                        for key in quality_fields:
+                            if key in metric_dict and metric_dict[key] is not None:
+                                update_fields.append(f"{key} = %s")
+                                values.append(metric_dict[key])
+
+                        if update_fields:
+                            update_fields.append("updated_at = CURRENT_DATE")
+                            cur.execute(
+                                f"UPDATE quality_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
+                                values + [symbol]
+                            )
+
+                    symbols_succeeded += 1
+
+                except Exception as e:
+                    logger.error(f"[ENHANCED] {symbol}: {e}")
+                    symbols_failed += 1
+
+            success = symbols_succeeded > 0
+            fail_rate = (symbols_failed / max(symbols_succeeded + symbols_failed, 1)) * 100
+
+            with DatabaseContext("write") as cur:
+                for table in ["quality_metrics", "growth_metrics"]:
+                    status = "healthy" if success and fail_rate <= self.max_fail_rate else "failed"
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() WHERE table_name = %s",
+                        (status, table),
+                    )
+
+            return {
+                "symbols_succeeded": symbols_succeeded,
+                "symbols_failed": symbols_failed,
+                "success": success
+            }
+
+        except Exception as e:
+            logger.error(f"[ENHANCED] Fatal error: {e}")
+            return {"success": False, "error": str(e)}
+
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:
         """Compute enhanced metrics for symbol."""
         with DatabaseContext("read") as cur:
