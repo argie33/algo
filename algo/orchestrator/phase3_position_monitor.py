@@ -297,6 +297,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises",
                            len(recommendations), n_early_exit, n_raise_stop)
             except Exception as review_err:
+                # CRITICAL FIX: Log full exception details for intermittent GROUP BY errors
+                # These happen rarely during orchestrator execution but must be diagnosed
+                import traceback
+                full_trace = traceback.format_exc()
+
+                # Always log the full stack trace for GROUP BY errors to aid diagnosis
+                if 'GROUP BY' in full_trace.upper():
+                    logger.critical(
+                        f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{full_trace}"
+                    )
+
                 error_str = str(review_err)[:200]
                 error_msg = (
                     "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str + ". "
