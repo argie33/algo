@@ -219,7 +219,7 @@ class RDSLockManager:
 
         Args:
             lock_key: Specific lock to clean (optional)
-            max_age_seconds: Locks older than this are considered expired
+            max_age_seconds: Locks older than this are considered expired (unused - deletes ANY expired lock)
 
         Returns:
             Number of locks cleaned up
@@ -229,19 +229,18 @@ class RDSLockManager:
 
         try:
             cleaned = 0
-            cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
 
             with DatabaseContext("write") as cur:
                 if lock_key:
-                    # Clean specific lock
+                    # Clean specific lock - delete if expired (expires_at < NOW())
                     cur.execute(
-                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < %s",
-                        (lock_key, cutoff_time),
+                        "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < NOW()",
+                        (lock_key,),
                     )
                     cleaned = int(cur.rowcount)
                 else:
-                    # Clean all expired locks
-                    cur.execute("DELETE FROM loader_execution_locks WHERE expires_at < %s", (cutoff_time,))
+                    # Clean all expired locks - delete if expired (expires_at < NOW())
+                    cur.execute("DELETE FROM loader_execution_locks WHERE expires_at < NOW()")
                     cleaned = int(cur.rowcount)
 
             if cleaned > 0:

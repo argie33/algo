@@ -278,7 +278,13 @@ class TradeValidator:
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
         """
-        key_source = f"{symbol}|{signal_date}|{entry_price}|{stop_loss_price}"
+        # CRITICAL FIX 2026-07-30: Idempotency key must ONLY use symbol + signal_date
+        # Earlier implementation included entry_price and stop_loss_price in key,
+        # allowing different prices to bypass idempotency check.
+        # Example: LNG 3 trades on 2026-07-24 had prices 275.225, 276.62, 275.925
+        # all were allowed because each price created different hash key.
+        # CORRECT: Only symbol + signal_date matters (entry occurs once per signal per day)
+        key_source = f"{symbol}|{signal_date}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         cur.execute(
