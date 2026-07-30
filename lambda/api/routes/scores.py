@@ -147,7 +147,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     qm.roa_unavailable_reason,
                     qm.roic_pct,
                     qm.roic_pct_unavailable_reason,
-                    qm.gross_margin AS gross_margin_pct,
+                    COALESCE(gm_calc.calculated_gross_margin, qm.gross_margin) AS gross_margin_pct,
                     qm.gross_margin_unavailable_reason,
                     qm.ebitda_margin AS ebitda_margin_pct,
                     qm.ebitda_margin_unavailable_reason,
@@ -323,6 +323,18 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     ORDER BY acf_curr.fiscal_year DESC
                     LIMIT 1
                 ) ocf_calc ON true
+                LEFT JOIN LATERAL (
+                    SELECT ROUND(
+                        CASE
+                            WHEN ais.gross_profit IS NOT NULL AND ais.revenue IS NOT NULL AND ais.revenue > 0
+                            THEN (ais.gross_profit / ais.revenue) * 100
+                            ELSE NULL
+                        END, 2) AS calculated_gross_margin
+                    FROM annual_income_statement ais
+                    WHERE ais.symbol = sc.symbol
+                    ORDER BY ais.fiscal_year DESC
+                    LIMIT 1
+                ) gm_calc ON true
                 WHERE sc.symbol = %s
             """
 
@@ -672,7 +684,7 @@ def _get_stock_scores(  # noqa: C901
                     qm.roa_unavailable_reason,
                     qm.roic_pct,
                     qm.roic_pct_unavailable_reason,
-                    qm.gross_margin AS gross_margin_pct,
+                    COALESCE(gm_calc.calculated_gross_margin, qm.gross_margin) AS gross_margin_pct,
                     qm.gross_margin_unavailable_reason,
                     qm.ebitda_margin AS ebitda_margin_pct,
                     qm.ebitda_margin_unavailable_reason,
@@ -847,6 +859,18 @@ def _get_stock_scores(  # noqa: C901
                     ORDER BY acf_curr.fiscal_year DESC
                     LIMIT 1
                 ) ocf_calc ON true
+                LEFT JOIN LATERAL (
+                    SELECT ROUND(
+                        CASE
+                            WHEN ais.revenue IS NOT NULL AND ais.cost_of_revenue IS NOT NULL AND ais.revenue > 0
+                            THEN ((ais.revenue - ais.cost_of_revenue) / ais.revenue) * 100
+                            ELSE NULL
+                        END, 2) AS calculated_gross_margin
+                    FROM annual_income_statement ais
+                    WHERE ais.symbol = fs.symbol
+                    ORDER BY ais.fiscal_year DESC
+                    LIMIT 1
+                ) gm_calc ON true
                 ORDER BY fs.{sort_col} {sort_direction}
             """
         params_list.extend([limit, offset])
