@@ -1083,13 +1083,15 @@ class PositionMonitor:
         which also raises ValueError when earnings data missing.
         """
         try:
-            cur.execute(
-                """SELECT earnings_date FROM earnings_calendar
-                   WHERE symbol = %s AND earnings_date >= %s
-                   ORDER BY earnings_date ASC LIMIT 1""",
-                (symbol, current_date),
-            )
-            row = cur.fetchone()
+            # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
+            with DatabaseContext("read") as fresh_cur:
+                fresh_cur.execute(
+                    """SELECT earnings_date FROM earnings_calendar
+                       WHERE symbol = %s AND earnings_date >= %s
+                       ORDER BY earnings_date ASC LIMIT 1""",
+                    (symbol, current_date),
+                )
+                row = fresh_cur.fetchone()
             if row is None or row[0] is None:
                 raise ValueError(
                     f"Earnings data unavailable for {symbol}: no future earnings date found in earnings_calendar"
@@ -1118,12 +1120,14 @@ class PositionMonitor:
         # the equivalent for execution_mode='auto' (Phase 3 short-circuits before reaching it
         # in paper mode, so this path is currently dormant but will hit the same crash the
         # moment auto/live mode runs with an open position).
-        cur.execute(
-            "SELECT distribution_days, data_unavailable, reason FROM market_exposure_daily "
-            "WHERE date <= %s AND distribution_days IS NOT NULL ORDER BY date DESC LIMIT 1",
-            (current_date,),
-        )
-        row = cur.fetchone()
+        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
+        with DatabaseContext("read") as fresh_cur:
+            fresh_cur.execute(
+                "SELECT distribution_days, data_unavailable, reason FROM market_exposure_daily "
+                "WHERE date <= %s AND distribution_days IS NOT NULL ORDER BY date DESC LIMIT 1",
+                (current_date,),
+            )
+            row = fresh_cur.fetchone()
         if not row:
             raise ValueError(
                 f"Market distribution days not available for {current_date} - market_exposure_daily table missing or empty"
