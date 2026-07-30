@@ -1,14 +1,14 @@
 # Project
 
 ```bash
-python start_dashboard_dev.py        # Local dev
-python check_system_health.py        # Diagnose
+python start_dashboard_dev.py                          # Local dev
+python scripts/run_local_orchestrator.py               # Test orchestrator
 ```
 
-**Data not available?** → Run health check, then `start_dashboard_dev.py`
+**Data not available?** → Check staleness, then run orchestrator tests
 
 **Rules:** Type-safe. No `.env`/`pdb`. Data integrity first. Always use `start_dashboard_dev.py` for local dev.
 
-**Orchestrator testing:** `python scripts/run_local_orchestrator.py [--afternoon|--evening]`
+**Data staleness:** `python scripts/monitor_data_staleness.py` + `python scripts/verify_eventbridge_scheduler.py --fix`
 
-**Stale data:** `python scripts/monitor_data_staleness.py` + `verify_eventbridge_scheduler.py --fix`
+**Orchestrator testing:** `python scripts/run_local_orchestrator.py [--afternoon|--evening]`
