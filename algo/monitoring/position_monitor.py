@@ -293,83 +293,82 @@ class PositionMonitor:
         # These occur randomly despite correct SQL, likely environmental - capture full diagnostic
         try:
             with DatabaseContext("write") as cur:
-            # Issue #24: Check margin utilization and warn/halt if excessive
-            try:
-                cur.execute("""
-                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date DESC LIMIT 1
-                """)
-                eq_row = cur.fetchone()
+                # Issue #24: Check margin utilization and warn/halt if excessive
+                try:
+                    cur.execute("""
+                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                        ORDER BY snapshot_date DESC LIMIT 1
+                    """)
+                    eq_row = cur.fetchone()
 
-                if eq_row is None or eq_row[0] is None:
-                    # CRITICAL FAIL-FAST: Portfolio snapshot is mandatory for position monitoring
-                    # Cannot use fallback estimates (dummy $100k, rough 1.5x multiplier) for equity calculations
-                    # Margin checks depend on accurate account data from Phase 9 reconciliation
-                    # If Phase 9 hasn't completed, position monitoring must halt and retry next run
+                    if eq_row is None or eq_row[0] is None:
+                        # CRITICAL FAIL-FAST: Portfolio snapshot is mandatory for position monitoring
+                        # Cannot use fallback estimates (dummy $100k, rough 1.5x multiplier) for equity calculations
+                        # Margin checks depend on accurate account data from Phase 9 reconciliation
+                        # If Phase 9 hasn't completed, position monitoring must halt and retry next run
+                        raise PositionValidationError(
+                            "[POSITION_MONITOR CRITICAL] Portfolio snapshot unavailable. "
+                            "Cannot monitor positions without accurate account equity from Phase 9 reconciliation. "
+                            "Fallback estimates ($100k dummy, position-value extrapolation) violate fail-fast principle. "
+                            "Position monitoring depends on real broker account data, not guesses. "
+                            "Verify Phase 9 (reconciliation) completed successfully, then retry this orchestrator run."
+                        )
+                    else:
+                        total_equity = float(eq_row[0])
+                    if total_equity <= 0:
+                        raise PositionValidationError(
+                            f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
+                        )
+
+                    # Compute margin usage = (equity - buying_power) / equity
+                    # Using proxy: if total open position value > 90% of equity, halt new entries
+                    cur.execute("""
+                        SELECT COUNT(*), SUM(position_value) FROM algo_positions WHERE status = 'open'
+                    """)
+                    count_row = cur.fetchone()
+                    if count_row is None:
+                        raise PositionValidationError("Query for open positions returned None - database error")
+                    position_count = count_row[0]
+                    pos_value_sum = count_row[1] if len(count_row) > 1 else None
+
+                    # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
+                    if position_count > 0 and pos_value_sum is None:
+                        raise PositionValidationError(
+                            f"CRITICAL: {position_count} open positions exist but SUM(position_value) is NULL. "
+                            "Database corruption detected. Margin calculation halted."
+                        )
+
+                    # NULL sum means no open positions (SUM of empty set is NULL, not 0)
+                    pos_value = float(pos_value_sum) if pos_value_sum is not None else 0.0
+                    if pos_value < 0:
+                        # Negative total may be caused by a short position written during
+                        # an Alpaca sync anomaly. Log at ERROR but do not halt - Phase 4
+                        # reconciliation will close any short positions in DB. A true
+                        # corruption scenario (negative equity from math error) is caught
+                        # by the total_equity <= 0 check above.
+                        logger.error(
+                            f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 - "
+                            "likely stale short position in algo_positions. "
+                            "Reconciliation (Phase 4) will close it. Continuing with pos_value=0."
+                        )
+                        pos_value = 0.0
+
+                    margin_util_pct = pos_value / total_equity * 100
+                    if margin_util_pct > 90:
+                        logger.critical(
+                            f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity - liquidation risk imminent"
+                        )
+                        raise PositionValidationError(
+                            f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
+                        )
+                    elif margin_util_pct > 80:
+                        logger.warning(f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%")
+                except PositionValidationError:
+                    raise
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as margin_e:
                     raise PositionValidationError(
-                        "[POSITION_MONITOR CRITICAL] Portfolio snapshot unavailable. "
-                        "Cannot monitor positions without accurate account equity from Phase 9 reconciliation. "
-                        "Fallback estimates ($100k dummy, position-value extrapolation) violate fail-fast principle. "
-                        "Position monitoring depends on real broker account data, not guesses. "
-                        "Verify Phase 9 (reconciliation) completed successfully, then retry this orchestrator run."
-                    )
-
-                else:
-                    total_equity = float(eq_row[0])
-                if total_equity <= 0:
-                    raise PositionValidationError(
-                        f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
-                    )
-
-                # Compute margin usage = (equity - buying_power) / equity
-                # Using proxy: if total open position value > 90% of equity, halt new entries
-                cur.execute("""
-                    SELECT COUNT(*), SUM(position_value) FROM algo_positions WHERE status = 'open'
-                """)
-                count_row = cur.fetchone()
-                if count_row is None:
-                    raise PositionValidationError("Query for open positions returned None - database error")
-                position_count = count_row[0]
-                pos_value_sum = count_row[1] if len(count_row) > 1 else None
-
-                # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
-                if position_count > 0 and pos_value_sum is None:
-                    raise PositionValidationError(
-                        f"CRITICAL: {position_count} open positions exist but SUM(position_value) is NULL. "
-                        "Database corruption detected. Margin calculation halted."
-                    )
-
-                # NULL sum means no open positions (SUM of empty set is NULL, not 0)
-                pos_value = float(pos_value_sum) if pos_value_sum is not None else 0.0
-                if pos_value < 0:
-                    # Negative total may be caused by a short position written during
-                    # an Alpaca sync anomaly. Log at ERROR but do not halt - Phase 4
-                    # reconciliation will close any short positions in DB. A true
-                    # corruption scenario (negative equity from math error) is caught
-                    # by the total_equity <= 0 check above.
-                    logger.error(
-                        f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 - "
-                        "likely stale short position in algo_positions. "
-                        "Reconciliation (Phase 4) will close it. Continuing with pos_value=0."
-                    )
-                    pos_value = 0.0
-
-                margin_util_pct = pos_value / total_equity * 100
-                if margin_util_pct > 90:
-                    logger.critical(
-                        f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity - liquidation risk imminent"
-                    )
-                    raise PositionValidationError(
-                        f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
-                    )
-                elif margin_util_pct > 80:
-                    logger.warning(f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%")
-            except PositionValidationError:
-                raise
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as margin_e:
-                raise PositionValidationError(
-                    f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
-                ) from margin_e
+                        f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
+                    ) from margin_e
 
             try:
                 conc = self.check_sector_concentration(current_date)
