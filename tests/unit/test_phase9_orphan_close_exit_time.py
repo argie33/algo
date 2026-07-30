@@ -20,7 +20,8 @@ from algo.orchestrator.phase9_reconciliation import _record_closed_positions_exi
 
 def test_orphan_close_sets_exit_time_not_just_exit_date():
     mock_read_cur = MagicMock()
-    mock_read_cur.fetchall.return_value = [("AAPL", 100.0, 105.0, 10)]
+    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
+    mock_read_cur.fetchall.return_value = [("AAPL", 100.0, 10, 95.0, 10)]
     mock_read_ctx = MagicMock()
     mock_read_ctx.__enter__.return_value = mock_read_cur
     mock_read_ctx.__exit__.return_value = False

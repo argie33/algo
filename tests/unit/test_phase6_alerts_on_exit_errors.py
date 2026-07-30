@@ -29,11 +29,18 @@ def test_alert_sent_when_exit_errors_occur():
     with (
         patch("algo.trading.executor.TradeExecutor") as mock_executor_cls,
         patch("algo.trading.ExitEngine") as mock_engine_cls,
+        patch("algo.orchestrator.phase6_exit_execution.DatabaseContext") as mock_db_ctx,
     ):
         mock_executor_cls.return_value = MagicMock()
         mock_engine = MagicMock()
         mock_engine.check_and_execute_exits.return_value = (0, 0, 3)
         mock_engine_cls.return_value = mock_engine
+
+        # Mock the open position count check to return 0 open positions
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = (0,)  # No open positions
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
 
         result = p6.run(
             config=config,
@@ -62,11 +69,18 @@ def test_no_alert_when_no_exit_errors():
     with (
         patch("algo.trading.executor.TradeExecutor") as mock_executor_cls,
         patch("algo.trading.ExitEngine") as mock_engine_cls,
+        patch("algo.orchestrator.phase6_exit_execution.DatabaseContext") as mock_db_ctx,
     ):
         mock_executor_cls.return_value = MagicMock()
         mock_engine = MagicMock()
         mock_engine.check_and_execute_exits.return_value = (2, 1, 0)
         mock_engine_cls.return_value = mock_engine
+
+        # Mock the open position count check to return 0 open positions
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = (0,)  # No open positions
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
 
         result = p6.run(
             config=config,

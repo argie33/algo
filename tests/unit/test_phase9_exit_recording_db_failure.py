@@ -34,7 +34,8 @@ def _make_read_cursor(rows):
 def test_db_error_recording_exit_raises_instead_of_silently_continuing():
     """A transient DB error on the exit-recording UPDATE must halt Phase 9, not be
     swallowed - swallowing it creates a permanent, un-retryable audit-trail gap."""
-    closed_row = ("AAPL", 150.0, 160.0, 10)  # symbol, entry_price, exit_price(current_price), quantity
+    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10)  # symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
     read_cur = _make_read_cursor([closed_row])
 
     write_cur = MagicMock()
@@ -76,7 +77,8 @@ def test_algo_trades_zero_rowcount_raises_before_touching_positions():
     still marked closed, exits_recorded still increments, and algo_trades.exit_date is
     never set - the same permanent, un-retryable audit-trail gap this function's other
     checks exist to prevent."""
-    closed_row = ("AAPL", 150.0, 160.0, 10)
+    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10)  # symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
     read_cur = _make_read_cursor([closed_row])
 
     write_cur = MagicMock()
