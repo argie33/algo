@@ -337,17 +337,20 @@ class Orchestrator:
         # mode confusion (e.g., operator believes it's paper trading due to env var but DB
         # is set to auto/live, so real orders execute without operator realizing).
         env_execution_mode = self.execution_mode
-        # CRITICAL FIX 2026-07-31: Removed redundant mismatch crash that contradicted early warning
-        # Issue: __init__ establishes precedence logic (env var > DB > default) and warns on mismatch
-        # (line 220-229). A late crash here on the same condition caused July 30 crashes at 05:49-05:52:
-        # early check warned but continued, late check crashed on same condition, user experienced crash
-        # despite early warning suggesting it was safe to continue.
-        # Solution: Trust the precedence logic in __init__. self.execution_mode is the final value after
-        # applying precedence. No need for a second mismatch check since deployment behavior follows
-        # the same precedence logic as actual runtime.
+        db_execution_mode = self.config.get("execution_mode")
+        if env_execution_mode and db_execution_mode and env_execution_mode != db_execution_mode:
+            raise RuntimeError(
+                f"[STARTUP] execution_mode mismatch: "
+                f"env var (ORCHESTRATOR_EXECUTION_MODE) is '{env_execution_mode}' "
+                f"but database config is '{db_execution_mode}'. "
+                f"These must match - actual trading behavior uses the database value, "
+                f"but the banner and scheduling info use the env var. "
+                f"This mismatch risks silent real-money trading confusion. "
+                f"Set both to the same value and redeploy."
+            )
 
         # Use self.execution_mode which was set by __init__ precedence logic (env var > DB > default)
-        # This is the ACTUAL value being used for trading, not a stale DB copy
+        # This is the ACTUAL value being used for trading after precedence is applied
         execution_mode = self.execution_mode
         if not execution_mode or execution_mode not in ("paper", "dry", "review", "auto"):
             raise RuntimeError(

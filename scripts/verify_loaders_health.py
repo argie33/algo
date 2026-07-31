@@ -231,14 +231,16 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                 WHERE table_name = '{config["output_table"]}'
             )
         """)
-        if not cur.fetchone()[0]:
+        table_exists_row = cur.fetchone()
+        if not (table_exists_row and table_exists_row[0]):
             results["status"] = "TABLE_MISSING"
             results["issues"].append(f"Output table {config['output_table']} does not exist")
             return results
 
         # Check row count
         cur.execute(f"SELECT COUNT(*) FROM {config['output_table']}")
-        row_count = cur.fetchone()[0]
+        count_row = cur.fetchone()
+        row_count = count_row[0] if count_row and count_row[0] is not None else 0
 
         if row_count < config["min_rows"]:
             results["issues"].append(f"Low row count: {row_count} (expected >= {config['min_rows']})")
@@ -250,7 +252,8 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                     SELECT MAX({config["date_column"]}::date)
                     FROM {config["output_table"]}
                 """)
-                max_date = cur.fetchone()[0]
+                date_row = cur.fetchone()
+                max_date = date_row[0] if date_row else None
 
                 if max_date:
                     today = datetime.now().date()
@@ -306,7 +309,8 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
             for col in cols[:3]:  # Check first 3 columns
                 try:
                     cur.execute(f"SELECT COUNT(*) FROM {config['output_table']} WHERE {col} IS NULL")
-                    null_count = cur.fetchone()[0]
+                    null_row = cur.fetchone()
+                    null_count = null_row[0] if null_row and null_row[0] is not None else 0
                     null_pct = 100 * null_count / max(1, row_count)
 
                     if null_pct > 20:

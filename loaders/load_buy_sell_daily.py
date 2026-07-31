@@ -252,7 +252,8 @@ class SignalsDailyLoader(OptimalLoader):
                 cur.execute(
                     "SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = (SELECT MAX(date) FROM buy_sell_daily)"
                 )
-                latest_count = cur.fetchone()[0]
+                row = cur.fetchone()
+                latest_count = row[0] if row and row[0] is not None else 0
                 if latest_count == 0:
                     raise RuntimeError(
                         "[LOAD_BUY_SELL_DAILY] Generated ZERO signals for today. "
