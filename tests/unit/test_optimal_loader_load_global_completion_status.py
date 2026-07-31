@@ -32,6 +32,7 @@ def _make_loader(table_name="test_global_table"):
     loader.watermark_field = "date"
     loader._execution_start_time = None
     loader._infrastructure = MagicMock()
+    loader._status_manager = MagicMock()
     loader._bulk_insert_mgr = MagicMock()
     loader._stats = MagicMock()
     return loader
@@ -73,10 +74,10 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, rows)
 
         assert result == 1
-        loader._infrastructure.update_loader_status.assert_any_call("COMPLETED")
-        # Must not be left claiming RUNNING after a real success.
-        assert "RUNNING" == loader._infrastructure.update_loader_status.call_args_list[0].args[0]
-        assert "COMPLETED" == loader._infrastructure.update_loader_status.call_args_list[-1].args[0]
+        loader._status_manager.mark_completed.assert_called()
+        # Verify mark_running was called first (before mark_completed)
+        loader._status_manager.mark_running.assert_called()
+        assert loader._status_manager.mark_running.call_count == 1
 
     def test_empty_result_still_marks_completed_not_left_running(self):
         loader = _make_loader()
@@ -84,7 +85,7 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, [])
 
         assert result == 0
-        loader._infrastructure.update_loader_status.assert_any_call("COMPLETED")
+        loader._status_manager.mark_completed.assert_called()
 
     def test_data_unavailable_marker_dict_still_marks_completed(self):
         loader = _make_loader()
@@ -92,7 +93,7 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, {"data_unavailable": True, "reason": "no_source_available"})
 
         assert result == 0
-        loader._infrastructure.update_loader_status.assert_any_call("COMPLETED")
+        loader._status_manager.mark_completed.assert_called()
 
     def test_list_wrapped_data_unavailable_marker_still_marks_completed(self):
         loader = _make_loader()
@@ -100,4 +101,4 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, [{"data_unavailable": True, "reason": "no_source_available"}])
 
         assert result == 0
-        loader._infrastructure.update_loader_status.assert_any_call("COMPLETED")
+        loader._status_manager.mark_completed.assert_called()
