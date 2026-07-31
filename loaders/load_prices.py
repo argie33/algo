@@ -1568,6 +1568,15 @@ class PriceLoader(OptimalLoader):
                 f"couldn't load {total_failed_symbols - symbols_recovered - symbols_skipped_delisted}"
             )
 
+            # CRITICAL: If batch fallback failed to recover most symbols, this is a serious issue
+            # that should halt the orchestrator (not just continue with incomplete data)
+            if symbols_recovered < (total_failed_symbols * 0.5):
+                logger.critical(
+                    f"[PRICE_LOADER] Per-symbol fallback only recovered {symbols_recovered}/{total_failed_symbols} symbols. "
+                    f"This indicates systemic API failures, not just delisted symbols. "
+                    f"Price data quality is degraded. Recommend manual investigation."
+                )
+
         logger.debug(
             "[BATCH_JOBS] All batches completed successfully. Emergency mode was %s.",
             "active" if emergency_mode_enabled else "not active",
