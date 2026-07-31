@@ -308,7 +308,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            (SELECT earnings_per_share FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_eps,
                            (SELECT revenue FROM annual_income_statement
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue,
+                           ais.gross_profit
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year
@@ -484,8 +485,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             return self._unavailable_marker("quality_metrics", symbol)
 
-        if len(quality_row) < 19:
-            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 19")
+        if len(quality_row) < 20:
+            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 20")
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
@@ -526,6 +527,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             prior_year_eps = self._nan_to_none(safe_float(quality_row[17], f"{symbol}.prior_year_eps", allow_none=True))
             prior_year_revenue = self._nan_to_none(
                 safe_float(quality_row[18], f"{symbol}.prior_year_revenue", allow_none=True)
+            )
+            gross_profit_direct = self._nan_to_none(
+                safe_float(quality_row[19], f"{symbol}.gross_profit", allow_none=True)
             )
 
             metrics: dict[str, Any] = {
@@ -644,10 +648,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 ebitda_ev = self._nan_to_none(safe_float(ev_metrics[2], f"{symbol}.ebitda", allow_none=True))
 
             # Phase 3 Expansion Metrics (Session 357+)
-            # Gross Margin = (Revenue - COGS) / Revenue
-            if cost_of_revenue is not None and revenue is not None and revenue != 0:
-                gross_profit = revenue - cost_of_revenue
-                metrics["gross_margin"] = float((gross_profit / revenue) * 100)
+            # Gross Margin = Gross Profit / Revenue
+            # Session 399: Prefer gross_profit from SEC data if available (68% coverage)
+            # vs computing from cost_of_revenue (42% coverage) - improves from 34% to 68%
+            gross_profit_used = None
+            if gross_profit_direct is not None:
+                gross_profit_used = gross_profit_direct
+            elif cost_of_revenue is not None:
+                gross_profit_used = revenue - cost_of_revenue if revenue is not None else None
+
+            if gross_profit_used is not None and revenue is not None and revenue != 0:
+                metrics["gross_margin"] = float((gross_profit_used / revenue) * 100)
             else:
                 failed_metrics.append("gross_margin")
 
