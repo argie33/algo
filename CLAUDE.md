@@ -12,3 +12,19 @@ python scripts/run_local_orchestrator.py               # Test orchestrator
 **Data staleness:** `python scripts/monitor_data_staleness.py` + `python scripts/verify_eventbridge_scheduler.py --fix`
 
 **Orchestrator testing:** `python scripts/run_local_orchestrator.py [--afternoon|--evening]`
+
+---
+
+## Token Optimization
+
+**Keep context lean:** Session-specific docs/logs/audits belong in memory, not root. Delete after sessions.
+
+**Monthly maintenance:** 
+```bash
+git stash clear                          # Clear uncommitted work storage
+git gc --aggressive --prune=now          # Compact .git (frees 50-100 MB)
+```
+
+**What to keep:** Code, tests, IaC, config. **What to delete:** .log files, audit reports, debug scripts, worktree branches.
+
+**Memory best practice:** Only load-bearing rules in memory (safety gates, bugs, patterns). Session findings → delete when session ends.
