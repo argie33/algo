@@ -115,7 +115,7 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
     try:
         cur.execute(
             """
-            SELECT run_id, run_date, started_at, completed_at, overall_status, summary,
+            SELECT run_id, run_date, started_at, completed_at, overall_status, summary, halt_reason,
                    -- Phases log via two status vocabularies that were never reconciled: the
                    -- persisted phase_results JSONB uses the log_phase_result_fn callback vocab
                    -- ("success"/"halt"/"error"/"alert"/"degraded"/"skipped"), not the PhaseResult

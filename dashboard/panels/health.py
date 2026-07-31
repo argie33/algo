@@ -3496,21 +3496,19 @@ def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
         status = _get_status_safe(run)
         color, icon = _format_phase_badge(status)
 
-        run_at = run.get("run_at")
+        # API returns "started_at", not "run_at"
+        run_at = run.get("started_at") or run.get("run_at")
         run_id = run.get("run_id", "")
         timestamp_str = fmt_age(run_at) if run_at else "?"
 
         # Get failure details
         halt_reason = run.get("halt_reason", "")
         summary = run.get("summary", "")
-        error_msg = run.get("error", "")
 
         # Determine what reason to show based on status
         reason = ""
         if status in HALTED_STATES and halt_reason:
             reason = halt_reason[:40]
-        elif status in ERROR_STATES and error_msg:
-            reason = error_msg[:40]
         elif status in ERROR_STATES and summary:
             reason = summary[:40]
 
