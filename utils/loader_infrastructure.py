@@ -182,26 +182,26 @@ class LoaderInfrastructure:
                     cur.execute("SET statement_timeout = 0")
                     if status == "RUNNING":
                         # FIX 2026-07-31: Use actual schema columns (migration 1164)
-                        # Map: is_complete=FALSE for RUNNING, last_run for execution tracking
+                        # Mark as running: status=loading, execution_started=now
                         cur.execute(
-                            "UPDATE data_loader_status SET is_complete = FALSE, last_run = NOW(), last_updated = NOW() "
+                            "UPDATE data_loader_status SET status = %s, execution_started = NOW(), last_updated = NOW() "
                             "WHERE table_name = %s",
-                            (self.table_name,),
+                            ("loading", self.table_name),
                         )
                         if cur.rowcount == 0:
                             cur.execute(
-                                "INSERT INTO data_loader_status (table_name, is_complete, last_run, last_updated) "
-                                "VALUES (%s, FALSE, NOW(), NOW())",
-                                (self.table_name,),
+                                "INSERT INTO data_loader_status (table_name, status, execution_started, last_updated) "
+                                "VALUES (%s, %s, NOW(), NOW())",
+                                (self.table_name, "loading"),
                             )
                         logger.debug(f"[{self.table_name}] Status updated to RUNNING")
                     elif status in ("COMPLETED", "FAILED", "INCOMPLETE"):
-                        # Map COMPLETED/FAILED -> is_complete boolean
-                        is_complete = (status == "COMPLETED")
+                        # Map COMPLETED/FAILED/INCOMPLETE -> status column
+                        db_status = status
                         cur.execute(
-                            "UPDATE data_loader_status SET is_complete = %s, last_run = NOW(), last_updated = NOW() "
+                            "UPDATE data_loader_status SET status = %s, execution_completed = NOW(), last_updated = NOW() "
                             "WHERE table_name = %s",
-                            (is_complete, self.table_name),
+                            (db_status, self.table_name),
                         )
                         logger.debug(f"[{self.table_name}] Status updated to {status}")
 

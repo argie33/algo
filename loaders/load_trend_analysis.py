@@ -68,22 +68,22 @@ def _update_loader_status(status: str, error_message: str | None = None, symbol_
 
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
-            # Mark as running: is_complete=false, set last_run to now
+            # Mark as running: status=loading, execution_started=now
             cur.execute(
-                "UPDATE data_loader_status SET is_complete=FALSE, last_run=NOW(), last_updated=NOW() WHERE table_name=%s",
-                (_TABLE,),
+                "UPDATE data_loader_status SET status=%s, execution_started=NOW(), last_updated=NOW() WHERE table_name=%s",
+                ("loading", _TABLE),
             )
             if cur.rowcount == 0:
                 cur.execute(
-                    "INSERT INTO data_loader_status (table_name, is_complete, last_run, last_updated) VALUES (%s, FALSE, NOW(), NOW())",
-                    (_TABLE,),
+                    "INSERT INTO data_loader_status (table_name, status, execution_started, last_updated) VALUES (%s, %s, NOW(), NOW())",
+                    (_TABLE, "loading"),
                 )
         else:
             # Mark as complete/failed based on status
-            is_complete = status == "COMPLETED"
+            db_status = "COMPLETED" if status == "COMPLETED" else "FAILED"
             cur.execute(
-                "UPDATE data_loader_status SET is_complete=%s, last_run=NOW(), last_updated=NOW(), error_message=%s WHERE table_name=%s",
-                (is_complete, error_message, _TABLE),
+                "UPDATE data_loader_status SET status=%s, execution_completed=NOW(), last_updated=NOW(), error_message=%s WHERE table_name=%s",
+                (db_status, error_message, _TABLE),
             )
             # Archive to history for failure-pattern analysis. SAVEPOINT-protected: runs after
             # the real UPDATE above in the same transaction, so an uncaught error here must not abort that write.
