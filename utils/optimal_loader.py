@@ -1108,8 +1108,8 @@ class OptimalLoader:
                 if completion_pct is None:
                     logger.critical(f"[UPSTREAM] {upstream_table} completion percent is NULL")
                     return False
-                if completion_pct < 90:
-                    logger.critical(f"[UPSTREAM] {upstream_table} only {completion_pct:.1f}% complete")
+                if completion_pct < 95:
+                    logger.critical(f"[UPSTREAM] {upstream_table} only {completion_pct:.1f}% complete (need >=95%)")
                     self._infrastructure.update_loader_status("FAILED")
                     return False
                 return True

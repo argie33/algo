@@ -36,6 +36,7 @@ from utils.infrastructure.correlation import set_correlation_id
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism
 from utils.loaders.helpers import get_active_symbols
+from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
@@ -1872,27 +1873,25 @@ class PriceLoader(OptimalLoader):
             else:
                 loader_status = "ok"
 
-            # CRITICAL FIX 2026-07-22: Session 344 found loader reporting "ok" with only 1 symbol loaded.
-            # Add explicit sanity check: if we loaded almost NO symbols but finished load, that's an error.
-            # This catches early-exit or crash scenarios where the loader partial-writes then marks complete.
-            # FIX SESSION 352: Changed from max(100, 10%) to 80% minimum to avoid breaking small loaders like etf_price_daily (5 symbols)
+            # CRITICAL FIX 2026-07-31: Mark loads <95% complete as failed for real-money readiness
+            # Real-money trading requires 99%+ completion. 95% minimum threshold prevents:
+            # - Missing 270+ symbols from 5486 expected = inaccurate position sizing/risk calc
+            # - Silent degradation where orchestrator sees "ok" but data is 5% incomplete
             if symbols_successfully_loaded > 0 and symbols_expected > 0:
-                min_acceptable_pct = 80.0  # Require at least 80% of expected symbols
+                min_acceptable_pct = 95.0  # Require at least 95% of expected symbols
                 if completion_pct < min_acceptable_pct:
                     logger.critical(
-                        f"[{self.table_name}] CRITICAL: Load finished with only {symbols_successfully_loaded} symbols "
-                        f"({completion_pct:.2f}%), below minimum acceptable threshold of {min_acceptable_pct}%. "
-                        f"This suggests loader crashed partway through or external API failure. "
-                        f"Marking as FAILED (not ok) to prevent Phase 1 from proceeding with incomplete data."
+                        f"[{self.table_name}] FAILED: Load incomplete - {symbols_successfully_loaded} symbols "
+                        f"({completion_pct:.2f}%), below minimum required threshold of {min_acceptable_pct}%. "
+                        f"Missing {symbols_expected - symbols_successfully_loaded} symbols. Halting orchestrator."
                     )
                     loader_status = "failed"
                     completion_pct = 0.0  # Reset to 0% to signal incomplete
-
-            if completion_pct < 90:
-                logger.warning(
-                    f"[{self.table_name}] Load completed but incomplete: "
-                    f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%)"
-                )
+                elif completion_pct < 99.0:
+                    logger.warning(
+                        f"[{self.table_name}] WARNING: Load incomplete - "
+                        f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%)"
+                    )
 
             if "start_time" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'start_time' not tracked.")
@@ -1902,88 +1901,29 @@ class PriceLoader(OptimalLoader):
                     f"[{self.table_name}] Load stats corrupt: 'start_time' is None, cannot record execution time."
                 )
 
-            with DatabaseContext("write") as cur:
-                from datetime import timezone
+            exec_duration_sec = None
+            if start_time:
+                from datetime import timezone as dt_timezone
+                now_utc = datetime.now(dt_timezone.utc)
+                if isinstance(start_time, datetime):
+                    exec_duration_sec = (now_utc - start_time).total_seconds()
+                else:
+                    exec_duration_sec = time.time() - start_time
 
-                exec_completed_utc = datetime.now(timezone.utc)
-                # Use correct schema columns: symbols_loaded, status, execution_started/completed
-                error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
+            error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
 
-                # UPSERT, not DELETE+INSERT: table_name is the PK, and
-                # data_loader_status_history.table_name FK-references it (see
-                # utils/optimal_loader.py's identical fix, 2026-07-27) - once any history
-                # row exists for this table, a DELETE here would fail with
-                # ForeignKeyViolation and silently freeze this table's status forever.
-                cur.execute(
-                    "INSERT INTO data_loader_status "
-                    "(table_name, status, completion_pct, symbols_loaded, symbol_count, error_message, execution_started, execution_completed, last_updated) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW()) "
-                    "ON CONFLICT (table_name) DO UPDATE SET "
-                    "status = EXCLUDED.status, "
-                    "completion_pct = EXCLUDED.completion_pct, "
-                    "symbols_loaded = EXCLUDED.symbols_loaded, "
-                    "symbol_count = EXCLUDED.symbol_count, "
-                    "error_message = EXCLUDED.error_message, "
-                    "execution_started = EXCLUDED.execution_started, "
-                    "execution_completed = EXCLUDED.execution_completed, "
-                    "last_updated = NOW()",
-                    (
-                        self.table_name,
-                        loader_status,
-                        completion_pct,
-                        symbols_successfully_loaded,
-                        symbols_expected,
-                        error_msg,
-                        start_time,
-                        exec_completed_utc,
-                    ),
-                )
-
-                # Archive to history for failure-pattern analysis (dashboard's DATA FRESHNESS
-                # panel - see dashboard/freshness_enhancements.py's
-                # enrich_health_item_with_failure_pattern). This loader writes data_loader_status
-                # directly above instead of going through utils/loaders/status_manager.py's
-                # StatusManager, the same gap utils/optimal_loader.py's _update_final_status had
-                # (fixed 2026-07-27) - but PriceLoader has its own separate finalize path here
-                # that base-class fix never reaches, so price_daily specifically (the loader Phase
-                # 1's staleness check reads) still had 0 history rows. SAVEPOINT-protected: this
-                # runs after the real UPSERT above in the same transaction, so an uncaught error
-                # here must not abort that write when __exit__ commits.
-                try:
-                    cur.execute("SAVEPOINT archive_price_history")
-                    cur.execute(
-                        "INSERT INTO data_loader_status_history "
-                        "(table_name, status, execution_started, execution_completed, "
-                        "row_count, completion_pct, symbols_loaded, symbol_count) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        (
-                            self.table_name,
-                            loader_status,
-                            start_time,
-                            exec_completed_utc,
-                            total_rows,
-                            completion_pct,
-                            symbols_successfully_loaded,
-                            symbols_expected,
-                        ),
-                    )
-                    # Keep only the last 100 runs per table (matches StatusManager's own
-                    # retention policy in utils/loaders/status_manager.py)
-                    cur.execute(
-                        "DELETE FROM data_loader_status_history "
-                        "WHERE table_name = %s AND id NOT IN ("
-                        "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
-                        "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
-                        ")",
-                        (self.table_name, self.table_name),
-                    )
-                    cur.execute("RELEASE SAVEPOINT archive_price_history")
-                except Exception as archive_err:
-                    logger.debug(f"[{self.table_name}] Failed to archive loader history: {archive_err}")
-                    try:
-                        cur.execute("ROLLBACK TO SAVEPOINT archive_price_history")
-                    except Exception as savepoint_err:
-                        logger.debug(f"[{self.table_name}] Failed to rollback to savepoint: {savepoint_err}")
+            # Use LoaderStatusManager for consolidated status updates (FIX 2026-07-31)
+            # This eliminates duplicate direct SQL writes and ensures single unified pathway
+            self._status_manager.update_final_status(
+                status_string=loader_status,
+                completion_pct=completion_pct,
+                symbols_loaded=symbols_successfully_loaded,
+                symbol_count=symbols_expected,
+                error_message=error_msg,
+                row_count=total_rows,
+                execution_duration_sec=exec_duration_sec,
+                latest_date=latest_date,
+            )
 
             try:
                 # CRITICAL FIX #5: Use proper fail-fast cache invalidation with three-tier approach

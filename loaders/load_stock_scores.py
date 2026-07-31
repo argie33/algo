@@ -1899,8 +1899,8 @@ class StockScoresLoader(OptimalLoader):
                     )
                     return
 
-                # Require at least 90% coverage on critical metric loaders
-                min_coverage_pct = 90.0
+                # Require at least 95% coverage on critical metric loaders for real-money readiness
+                min_coverage_pct = 95.0
                 critical_metric_loaders = ["value_metrics", "stability_metrics"]
 
                 for table_name, completion_pct, symbols_loaded, symbol_count in metric_coverage:

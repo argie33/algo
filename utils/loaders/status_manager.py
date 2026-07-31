@@ -351,6 +351,105 @@ class LoaderStatusManager:
         except Exception as e:
             logger.debug(f"[STATUS_MANAGER] Failed to archive history for {self.table_name}: {e}")
 
+    def update_final_status(
+        self,
+        status_string: str,
+        completion_pct: float | None = None,
+        symbols_loaded: int | None = None,
+        symbol_count: int | None = None,
+        error_message: str | None = None,
+        row_count: int | None = None,
+        execution_duration_sec: float | None = None,
+        http_status: int | None = None,
+        latest_date: Any | None = None,
+    ) -> None:
+        """Comprehensive final status update with all statistics.
+
+        This is used by loaders' _update_final_status() / _update_loader_status() methods
+        to record the full outcome: status, completion %, symbols loaded, etc.
+
+        Args:
+            status_string: Final status value (typically "ok", "failed", "error", "loading")
+            completion_pct: Percentage of symbols successfully loaded (0-100)
+            symbols_loaded: Number of symbols successfully loaded
+            symbol_count: Total number of symbols to load
+            error_message: Error description if failed
+            row_count: Total rows inserted
+            execution_duration_sec: How long loader ran
+            http_status: HTTP status code if applicable
+            latest_date: Latest date in loaded data (for freshness tracking)
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                # Build dynamic SQL to only update non-None fields
+                updates: dict[str, str] = {"last_updated": "NOW()"}
+                params: list[Any] = []
+
+                if status_string is not None:
+                    updates["status"] = "%s"
+                    params.append(status_string)
+
+                if completion_pct is not None:
+                    updates["completion_pct"] = "%s"
+                    params.append(completion_pct)
+
+                if symbols_loaded is not None:
+                    updates["symbols_loaded"] = "%s"
+                    params.append(symbols_loaded)
+
+                if symbol_count is not None:
+                    updates["symbol_count"] = "%s"
+                    params.append(symbol_count)
+
+                if error_message is not None:
+                    updates["error_message"] = "%s"
+                    params.append(error_message)
+
+                if row_count is not None:
+                    updates["row_count"] = "%s"
+                    params.append(row_count)
+
+                if execution_duration_sec is not None:
+                    updates["execution_duration_sec"] = "%s"
+                    params.append(execution_duration_sec)
+
+                if http_status is not None:
+                    updates["http_status_code"] = "%s"
+                    params.append(http_status)
+
+                if latest_date is not None:
+                    updates["latest_date"] = "%s"
+                    params.append(latest_date)
+
+                if status_string in ("ok", "COMPLETED"):
+                    updates["execution_completed"] = "NOW()"
+                    updates["last_success_at"] = "NOW()"
+                    updates["consecutive_failures"] = "0"
+                elif status_string in ("failed", "error", "FAILED"):
+                    updates["execution_completed"] = "NOW()"
+                    updates["consecutive_failures"] = "consecutive_failures + 1"
+
+                params.append(self.table_name)
+
+                update_clause = ", ".join([f"{k} = {v}" for k, v in updates.items()])
+                cur.execute(
+                    f"UPDATE data_loader_status SET {update_clause} WHERE table_name = %s",
+                    params,
+                )
+
+                if cur.rowcount != 1:
+                    logger.warning(
+                        f"[STATUS_MANAGER] update_final_status: rowcount={cur.rowcount}, expected 1 for {self.table_name}"
+                    )
+
+                # Archive to history for pattern analysis
+                self._archive_to_history(cur, status_string, http_status)
+
+            logger.info(f"[STATUS] {self.table_name}: Final update - status={status_string}, completion_pct={completion_pct}")
+        except Exception as e:
+            logger.error(f"[STATUS_MANAGER] Failed final status update for {self.table_name}: {e}")
+            raise
+
     def get_status(self) -> dict[str, Any] | None:
         """Fetch current status from database.
 
