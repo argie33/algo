@@ -34,54 +34,62 @@ class CoverageChecker(BaseCheck):
                     SELECT MAX(date) AS max_date FROM price_daily
                 )
                 SELECT
-                    COUNT(DISTINCT CASE WHEN pd.date = ld.max_date THEN pd.symbol END) AS today_count,
-                    COUNT(DISTINCT pd.symbol) AS total_count
+                    COUNT(DISTINCT CASE WHEN pd.date = ld.max_date THEN pd.symbol END) AS today_count
                 FROM price_daily pd
                 CROSS JOIN latest_date ld
             """)
             row = cur.fetchone()
             if isinstance(row, dict):
-                today_count, total_count = row.get("today_count"), row.get("total_count")
+                today_count = row.get("today_count")
             else:
                 raise TypeError(
                     f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
                     f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
                 )
-            if today_count is None or total_count is None:
-                msg = f"price_daily coverage query returned NULL (today={today_count}, total={total_count}) - data may not be fully loaded yet"
+            if today_count is None:
+                msg = f"price_daily coverage query returned NULL - data may not be fully loaded yet"
                 logger.warning(msg)
-                self.log("coverage", WARN, "price_daily", msg, {"today_count": today_count, "total_count": total_count})
+                self.log("coverage", WARN, "price_daily", msg, {"today_count": today_count})
                 return
             today_count = int(today_count)
-            total_count = int(total_count)
+
+            # Get expected symbol count from active symbols, not historical price_daily
+            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
+            expected_row = cur.fetchone()
+            if expected_row is None or expected_row[0] is None:
+                msg = "Cannot determine expected symbol count - stock_symbols table may be empty"
+                logger.warning(msg)
+                self.log("coverage", WARN, "stock_symbols", msg, None)
+                return
+            total_count = int(expected_row[0])
             if total_count <= 0:
-                logger.warning("price_daily total_count is 0 - skipping coverage check (no expected records)")
+                logger.warning("Expected symbol count is 0 - skipping coverage check")
                 return
             pct = today_count / total_count * 100
 
-            if pct < 0.1:
+            if pct < 10:
                 self.log(
                     "coverage",
                     WARN,
                     "price_daily",
-                    f"Only {pct:.1f}% of universe updated on latest date (yfinance limitation)",
-                    {"today": today_count, "total": total_count, "pct": round(pct, 2)},
+                    f"Only {pct:.1f}% of active symbols updated on latest date ({today_count}/{total_count})",
+                    {"today": today_count, "expected": total_count, "pct": round(pct, 2)},
                 )
-            elif pct < 10:
+            elif pct < 90:
                 self.log(
                     "coverage",
                     INFO,
                     "price_daily",
-                    f"{pct:.1f}% coverage on latest date (within yfinance expected range)",
-                    {"today": today_count, "total": total_count},
+                    f"{pct:.1f}% of active symbols have price data on latest date ({today_count}/{total_count})",
+                    {"today": today_count, "expected": total_count, "pct": round(pct, 2)},
                 )
             else:
                 self.log(
                     "coverage",
                     INFO,
                     "price_daily",
-                    f"{pct:.1f}% universe coverage",
-                    None,
+                    f"{pct:.1f}% universe coverage ({today_count}/{total_count} active symbols)",
+                    {"today": today_count, "expected": total_count, "pct": round(pct, 1)},
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log("coverage", ERROR, "price_daily", f"Check failed: {e}", None)

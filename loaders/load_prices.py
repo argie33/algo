@@ -1906,6 +1906,12 @@ class PriceLoader(OptimalLoader):
                 from datetime import timezone
 
                 exec_completed_utc = datetime.now(timezone.utc)
+                # FIX 2026-07-31: Use actual schema columns instead of non-existent ones.
+                # Schema has: last_run, completion_pct, records_loaded, records_failed, error_message, is_complete, is_stale
+                # Map: symbols_loaded -> records_loaded, status -> is_complete (bool), loader_status determines error_message
+                is_complete = completion_pct >= 95.0
+                error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
+
                 # UPSERT, not DELETE+INSERT: table_name is the PK, and
                 # data_loader_status_history.table_name FK-references it (see
                 # utils/optimal_loader.py's identical fix, 2026-07-27) - once any history
@@ -1913,29 +1919,22 @@ class PriceLoader(OptimalLoader):
                 # ForeignKeyViolation and silently freeze this table's status forever.
                 cur.execute(
                     "INSERT INTO data_loader_status "
-                    "(table_name, row_count, latest_date, last_updated, status, "
-                    "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                    "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s) "
+                    "(table_name, last_run, completion_pct, records_loaded, error_message, is_complete, is_stale) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, FALSE) "
                     "ON CONFLICT (table_name) DO UPDATE SET "
-                    "row_count = EXCLUDED.row_count, "
-                    "latest_date = EXCLUDED.latest_date, "
-                    "last_updated = EXCLUDED.last_updated, "
-                    "status = EXCLUDED.status, "
+                    "last_run = EXCLUDED.last_run, "
                     "completion_pct = EXCLUDED.completion_pct, "
-                    "symbol_count = EXCLUDED.symbol_count, "
-                    "symbols_loaded = EXCLUDED.symbols_loaded, "
-                    "execution_started = EXCLUDED.execution_started, "
-                    "execution_completed = EXCLUDED.execution_completed",
+                    "records_loaded = EXCLUDED.records_loaded, "
+                    "error_message = EXCLUDED.error_message, "
+                    "is_complete = EXCLUDED.is_complete, "
+                    "last_updated = NOW()",
                     (
                         self.table_name,
-                        total_rows,
-                        latest_date,
-                        loader_status,
-                        completion_pct,
-                        symbols_expected,
-                        symbols_successfully_loaded,
                         start_time,
-                        exec_completed_utc,
+                        completion_pct,
+                        symbols_successfully_loaded,
+                        error_msg,
+                        is_complete,
                     ),
                 )
 

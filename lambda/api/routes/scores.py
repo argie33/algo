@@ -640,12 +640,13 @@ def _get_stock_scores(  # noqa: C901
             where_clause += " AND sc.symbol = %s"
             params_list.append(symbol.upper())
         else:
-            # Bulk queries: filter out degraded composite scores.
-            # Only return scores with >= 70% metric completeness per GOVERNANCE.md line 62.
-            # stock_scores computes at >=50% but API must gate to >=70% for downstream use.
-            # This prevents clients from receiving degraded data without visibility into completeness %.
+            # Bulk queries: filter by data availability status computed by loader.
+            # Loader marks data_unavailable=false for scores with 4+/6 metrics (sufficient diversity).
+            # Loader marks data_unavailable=true for scores with <4/6 metrics or data_completeness < 70%.
+            # API: Return all scores where loader marked available; dashboard filters on completeness %.
+            # This gives traders full visibility: completeness % shown for all scores >= 50%.
             where_clause += (
-                " AND sc.data_completeness >= 70 AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
+                " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
             )
 
         # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the

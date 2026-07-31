@@ -181,71 +181,56 @@ class LoaderInfrastructure:
                 with DatabaseContext("write", enable_correlation_tracking=False) as cur:
                     cur.execute("SET statement_timeout = 0")
                     if status == "RUNNING":
-                        # execution_completed must be cleared here (matches
-                        # LoaderStatusManager.mark_running()'s same convention) - leaving a stale
-                        # completed timestamp from the PREVIOUS run sitting next to a fresh
-                        # execution_started falsely implies this run already finished, and made a
-                        # hard-killed run indistinguishable from a real success once combined with
-                        # the pipeline_health.py age-based status overwrite (fixed 2026-07-28,
-                        # see that file's log_health_check comment).
+                        # FIX 2026-07-31: Use actual schema columns (migration 1164)
+                        # Map: is_complete=FALSE for RUNNING, last_run for execution tracking
                         cur.execute(
-                            "UPDATE data_loader_status SET status = %s, last_updated = NOW(), "
-                            "execution_started = NOW(), execution_completed = NULL "
+                            "UPDATE data_loader_status SET is_complete = FALSE, last_run = NOW(), last_updated = NOW() "
                             "WHERE table_name = %s",
-                            (db_status, self.table_name),
+                            (self.table_name,),
                         )
                         if cur.rowcount == 0:
                             cur.execute(
-                                "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) "
-                                "VALUES (%s, %s, NOW(), NOW())",
-                                (self.table_name, db_status),
-                            )
-                        logger.debug(f"[{self.table_name}] Status updated to {db_status}")
-                    elif status in ("COMPLETED", "FAILED", "INCOMPLETE"):
-                        cur.execute(
-                            "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
-                            "WHERE table_name = %s",
-                            (db_status, self.table_name),
-                        )
-                        logger.debug(f"[{self.table_name}] Status updated to {db_status}")
-
-                        # Archive to history for failure-pattern analysis (dashboard's DATA
-                        # FRESHNESS panel - see dashboard/freshness_enhancements.py's
-                        # enrich_health_item_with_failure_pattern). This is the loader FAILED
-                        # path (OptimalLoader.update_loader_status("FAILED") - see
-                        # utils/optimal_loader.py) and previously had no archiving at all, same
-                        # gap as the COMPLETED path fixed in utils/optimal_loader.py's own raw
-                        # data_loader_status INSERT. Runs inside a SAVEPOINT, not just a bare
-                        # try/except: an uncaught statement error aborts the whole Postgres
-                        # transaction, and this block runs after the real status UPDATE above in
-                        # the same transaction - without a SAVEPOINT to roll back to, a failure
-                        # here would silently discard that UPDATE too when __exit__ commits
-                        # (Postgres treats COMMIT on an aborted transaction as a ROLLBACK).
-                        try:
-                            cur.execute("SAVEPOINT archive_history")
-                            cur.execute(
-                                "SELECT execution_started, execution_completed, error_message, "
-                                "row_count, completion_pct, symbols_loaded, symbol_count "
-                                "FROM data_loader_status WHERE table_name = %s",
+                                "INSERT INTO data_loader_status (table_name, is_complete, last_run, last_updated) "
+                                "VALUES (%s, FALSE, NOW(), NOW())",
                                 (self.table_name,),
                             )
-                            row = cur.fetchone()
-                            if row:
-                                cur.execute(
-                                    "INSERT INTO data_loader_status_history "
-                                    "(table_name, status, execution_started, execution_completed, error_message, "
-                                    "row_count, completion_pct, symbols_loaded, symbol_count) "
-                                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                    (self.table_name, db_status, *row),
-                                )
-                                cur.execute(
-                                    "DELETE FROM data_loader_status_history "
-                                    "WHERE table_name = %s AND id NOT IN ("
-                                    "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
-                                    "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
-                                    ")",
-                                    (self.table_name, self.table_name),
-                                )
+                        logger.debug(f"[{self.table_name}] Status updated to RUNNING")
+                    elif status in ("COMPLETED", "FAILED", "INCOMPLETE"):
+                        # Map COMPLETED/FAILED -> is_complete boolean
+                        is_complete = (status == "COMPLETED")
+                        cur.execute(
+                            "UPDATE data_loader_status SET is_complete = %s, last_run = NOW(), last_updated = NOW() "
+                            "WHERE table_name = %s",
+                            (is_complete, self.table_name),
+                        )
+                        logger.debug(f"[{self.table_name}] Status updated to {status}")
+
+                        # Archive to history for failure-pattern analysis. Runs inside a SAVEPOINT,
+                        # not just a bare try/except: an uncaught statement error aborts the whole
+                        # Postgres transaction, and this block runs after the real status UPDATE above
+                        # in the same transaction - without a SAVEPOINT to roll back to, a failure
+                        # here would silently discard that UPDATE too when __exit__ commits.
+                        try:
+                            cur.execute("SAVEPOINT archive_history")
+                            # FIX 2026-07-31: Don't try to SELECT non-existent columns
+                            # Just insert what we have for history
+                            from datetime import datetime, timezone
+                            now_utc = datetime.now(timezone.utc)
+                            cur.execute(
+                                "INSERT INTO data_loader_status_history "
+                                "(table_name, status, execution_started, execution_completed) "
+                                "VALUES (%s, %s, %s, %s)",
+                                (self.table_name, db_status, now_utc, now_utc),
+                            )
+                            # Keep only last 100 runs per table
+                            cur.execute(
+                                "DELETE FROM data_loader_status_history "
+                                "WHERE table_name = %s AND id NOT IN ("
+                                "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                                "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                                ")",
+                                (self.table_name, self.table_name),
+                            )
                             cur.execute("RELEASE SAVEPOINT archive_history")
                         except Exception as archive_err:
                             logger.debug(f"[{self.table_name}] Failed to archive history: {archive_err}")

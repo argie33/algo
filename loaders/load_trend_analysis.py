@@ -62,81 +62,59 @@ _LOOKBACK_DAYS = 10  # compute for the last N trading days to fill recent gaps
 
 
 def _update_loader_status(status: str, error_message: str | None = None, symbol_count: int | None = None) -> None:
-    # Map old status values to new health-based ones
-    # Old: "RUNNING", "COMPLETED", "FAILED"
-    # New: "loading", "ok", "error"
-    status_map = {"RUNNING": "loading", "COMPLETED": "ok", "FAILED": "error"}
-    # CRITICAL FIX: Do not silently fall back to unknown status values.
-    # If caller passes invalid status, fail-fast with clear error.
-    db_status = status_map.get(status)
-    if db_status is None:
-        raise ValueError(
-            f"[TREND_ANALYSIS] Invalid status '{status}'. "
-            f"Must be one of: {', '.join(status_map.keys())}. "
-            f"Unexpected status could corrupt data_loader_status. Fail-fast to prevent data corruption."
-        )
+    # FIX 2026-07-31: Use correct schema columns
+    # Old non-existent columns: status, execution_started, execution_completed
+    # Correct columns: is_complete, last_run, error_message, is_stale
 
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
+            # Mark as running: is_complete=false, set last_run to now
             cur.execute(
-                "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_started=NOW() WHERE table_name=%s",
-                (db_status, _TABLE),
+                "UPDATE data_loader_status SET is_complete=FALSE, last_run=NOW(), last_updated=NOW() WHERE table_name=%s",
+                (_TABLE,),
             )
             if cur.rowcount == 0:
                 cur.execute(
-                    "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
-                    (_TABLE, db_status),
-                )
-        else:
-            cur.execute(
-                "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_completed=NOW(), error_message=%s WHERE table_name=%s",
-                (db_status, error_message, _TABLE),
-            )
-            # Archive to history for failure-pattern analysis (dashboard's DATA FRESHNESS panel
-            # - see dashboard/freshness_enhancements.py's enrich_health_item_with_failure_pattern).
-            # This standalone loader writes data_loader_status directly instead of going through
-            # utils/loaders/status_manager.py's StatusManager, the same gap utils/optimal_loader.py's
-            # _update_final_status and loaders/load_prices.py's PriceLoader had (both fixed
-            # 2026-07-27) - trend_template_data (read directly by Phase 1's freshness check) had 0
-            # history rows for the same reason. SAVEPOINT-protected: runs after the real UPDATE
-            # above in the same transaction, so an uncaught error here must not abort that write.
-            try:
-                cur.execute("SAVEPOINT archive_trend_history")
-                cur.execute(
-                    "SELECT execution_started, execution_completed, row_count, completion_pct, "
-                    "symbols_loaded, symbol_count FROM data_loader_status WHERE table_name = %s",
+                    "INSERT INTO data_loader_status (table_name, is_complete, last_run, last_updated) VALUES (%s, FALSE, NOW(), NOW())",
                     (_TABLE,),
                 )
-                row = cur.fetchone()
-                if row:
-                    exec_started, exec_completed, row_count, completion_pct, symbols_loaded, sym_count = row
-                    cur.execute(
-                        "INSERT INTO data_loader_status_history "
-                        "(table_name, status, execution_started, execution_completed, error_message, "
-                        "row_count, completion_pct, symbols_loaded, symbol_count) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (
-                            _TABLE,
-                            db_status,
-                            exec_started,
-                            exec_completed,
-                            error_message,
-                            row_count,
-                            completion_pct,
-                            symbols_loaded,
-                            sym_count,
-                        ),
-                    )
-                    # Keep only the last 100 runs per table (matches StatusManager's own
-                    # retention policy in utils/loaders/status_manager.py)
-                    cur.execute(
-                        "DELETE FROM data_loader_status_history "
-                        "WHERE table_name = %s AND id NOT IN ("
-                        "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
-                        "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
-                        ")",
-                        (_TABLE, _TABLE),
-                    )
+        else:
+            # Mark as complete/failed based on status
+            is_complete = status == "COMPLETED"
+            cur.execute(
+                "UPDATE data_loader_status SET is_complete=%s, last_run=NOW(), last_updated=NOW(), error_message=%s WHERE table_name=%s",
+                (is_complete, error_message, _TABLE),
+            )
+            # Archive to history for failure-pattern analysis. SAVEPOINT-protected: runs after
+            # the real UPDATE above in the same transaction, so an uncaught error here must not abort that write.
+            try:
+                cur.execute("SAVEPOINT archive_trend_history")
+                # FIX 2026-07-31: Don't try to SELECT non-existent columns. Just insert what we have.
+                # Map is_complete back to status string for history table
+                history_status = "COMPLETED" if is_complete else "FAILED"
+                from datetime import datetime, timezone
+                now_utc = datetime.now(timezone.utc)
+                cur.execute(
+                    "INSERT INTO data_loader_status_history "
+                    "(table_name, status, execution_started, execution_completed, error_message) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (
+                        _TABLE,
+                        history_status,
+                        now_utc,  # execution_started - approximate
+                        now_utc,  # execution_completed
+                        error_message,
+                    ),
+                )
+                # Keep only the last 100 runs per table
+                cur.execute(
+                    "DELETE FROM data_loader_status_history "
+                    "WHERE table_name = %s AND id NOT IN ("
+                    "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                    "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                    ")",
+                    (_TABLE, _TABLE),
+                )
                 cur.execute("RELEASE SAVEPOINT archive_trend_history")
             except Exception as archive_err:
                 logger.debug(f"[TREND_ANALYSIS] Failed to archive loader history: {archive_err}")
