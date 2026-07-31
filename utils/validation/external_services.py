@@ -224,11 +224,15 @@ class DatabaseResultValidator:
         try:
             # Explicit key presence check
             if key not in row:
+                if strict:
+                    raise ValueError(f"Key {key} not in row (required in strict mode)")
                 logger.debug(f"Key {key} not in row, using default {default}")
                 return default
 
             value = row[key]
             if value is None:
+                if strict:
+                    raise ValueError(f"Value for {key} is None (required in strict mode)")
                 logger.debug(f"Value for {key} is None, using default {default}")
                 return default
             return float(value)
@@ -244,6 +248,7 @@ class DatabaseResultValidator:
         """Safely extract and convert int from database row.
 
         Note: Uses default value when missing/invalid. Log when fallback is used.
+        When strict=True, raises error if key missing, value is None, or conversion fails.
         """
         if row is None:
             if strict:
@@ -255,11 +260,15 @@ class DatabaseResultValidator:
         try:
             # Explicit key presence check
             if key not in row:
+                if strict:
+                    raise ValueError(f"Key {key} not in row (required in strict mode)")
                 logger.debug(f"Key {key} not in row, using default {default}")
                 return default
 
             value = row[key]
             if value is None:
+                if strict:
+                    raise ValueError(f"Value for {key} is None (required in strict mode)")
                 logger.debug(f"Value for {key} is None, using default {default}")
                 return default
             return int(value)
@@ -277,6 +286,7 @@ class DatabaseResultValidator:
         """Safely extract and convert string from database row.
 
         Note: Uses default value when missing/invalid. Log when fallback is used.
+        When strict=True, raises error if key missing, value is None, or conversion fails.
         """
         if row is None:
             if strict:
@@ -288,11 +298,15 @@ class DatabaseResultValidator:
         try:
             # Explicit key presence check
             if key not in row:
+                if strict:
+                    raise ValueError(f"Key {key} not in row (required in strict mode)")
                 logger.debug(f"Key {key} not in row, using default '{default}'")
                 return default
 
             value = row[key]
             if value is None:
+                if strict:
+                    raise ValueError(f"Value for {key} is None (required in strict mode)")
                 logger.debug(f"Value for {key} is None, using default '{default}'")
                 return default
             return str(value)
