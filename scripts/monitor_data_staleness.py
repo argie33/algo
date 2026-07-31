@@ -290,14 +290,14 @@ def get_price_symbol_coverage() -> tuple[int, int, float] | None:
     """
     try:
         today = date.today()
-        last_trading_day = today if MarketCalendar.is_trading_day(today) else None
-        if last_trading_day is None:
-            d = today - timedelta(days=1)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(d):
-                    last_trading_day = d
-                    break
-                d -= timedelta(days=1)
+        # Price data is only available after EOD load - find the most recent date with data
+        d = today - timedelta(days=1)  # Start with yesterday
+        last_trading_day = None
+        for _ in range(10):
+            if MarketCalendar.is_trading_day(d):
+                last_trading_day = d
+                break
+            d -= timedelta(days=1)
 
         with DatabaseContext("read") as cur:
             cur.execute(
