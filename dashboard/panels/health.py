@@ -3406,10 +3406,11 @@ def panel_algo_health(
 
 
 def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
-    """Summary-focused data freshness panel: ready/not-ready status, high-level metrics.
+    """Summary-focused data freshness panel: ready/not-ready status + key diagnostics.
 
-    Shows overall data readiness (success/failure summary), critical issues, and Phase 1 gate
-    result. Detailed table with per-table ages and row counts moved to expanded view.
+    Shows overall data readiness, critical issues, Phase 1 gate result, and key diagnostic
+    sections (stale tables, loader errors, repeated failures, coverage gaps).
+    Expanded full table view available via [l] for complete per-table breakdown.
     """
     hlth_err = _error_panel("health", hlth, "DATA FRESHNESS")
     if hlth_err is not None:
@@ -3494,9 +3495,86 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
                 if stale_list:
                     rows.append(Text.from_markup(f"  [dim]Stale:[/] {', '.join(stale_list)}"))
 
-    # Link to expanded view for table details
+    # ── STALE TABLE DETAIL ──────────────────────────────────────
+    # Show which tables are stale and by how much relative to their thresholds
+    stale_detail = [
+        (r.get("tbl") or "unknown", r.get("age"), r.get("stale_threshold_days"))
+        for r in hlth_items
+        if isinstance(r, dict) and r.get("st") == "stale" and r.get("age") is not None and r.get("stale_threshold_days") is not None
+    ]
+    if stale_detail:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {Y}]Stale tables (age vs threshold):[/]"))
+        for tbl_name, age, threshold in stale_detail[:5]:
+            rows.append(Text.from_markup(f"  [{Y}]{tbl_name}:[/] [dim]{age}d old, threshold {threshold}d[/]"))
+        if len(stale_detail) > 5:
+            rows.append(Text.from_markup(f"  [dim]...and {len(stale_detail) - 5} more[/]"))
+
+    # ── LOADER ERRORS ──────────────────────────────────────────
+    # Show which loaders are failing and why
+    loader_errors = [
+        (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
+        for r in hlth_items
+        if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_error")
+    ]
+    if loader_errors:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
+        for tbl_name, err, lrs in loader_errors[:5]:
+            tag = f"[{lrs}] " if lrs in ("TIMEOUT", "FAILED") else ""
+            rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:70]}[/]"))
+        if len(loader_errors) > 5:
+            rows.append(Text.from_markup(f"  [dim]...and {len(loader_errors) - 5} more[/]"))
+
+    # ── REPEATED FAILURES ──────────────────────────────────────
+    # Distinguish stuck loaders from transient blips
+    repeated_failures: list[tuple[str, int, Any]] = []
+    for r in hlth_items:
+        if isinstance(r, dict):
+            n_fail_raw = r.get("consecutive_failures")
+            if isinstance(n_fail_raw, (int, float)) and n_fail_raw >= 2:
+                repeated_failures.append((r.get("tbl") or "unknown", int(n_fail_raw), r.get("last_success_at")))
+    if repeated_failures:
+        repeated_failures.sort(key=lambda t: t[1], reverse=True)
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Repeated failures:[/]"))
+        for tbl_name, n_fail, last_ok in repeated_failures[:5]:
+            last_ok_s = f"last ok {fmt_age(last_ok)}" if last_ok else "never succeeded"
+            rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{n_fail}x in a row, {last_ok_s}[/]"))
+        if len(repeated_failures) > 5:
+            rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 5} more[/]"))
+
+    # ── NEVER STARTED LOADERS ──────────────────────────────────
+    # Flag tables tracked but never initialized
+    never_started = [
+        r.get("tbl") or "unknown"
+        for r in hlth_items
+        if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
+    ]
+    if never_started:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Never run:[/]  " + "  ".join(f"[white]{n}[/]" for n in never_started[:6])))
+        if len(never_started) > 6:
+            rows.append(Text.from_markup(f"  [dim]...and {len(never_started) - 6} more[/]"))
+
+    # ── CURRENTLY LOADING ──────────────────────────────────────
+    # Show what's in progress
+    in_progress = [r for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed")]
+    if in_progress:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {Y}]Loading now:[/]"))
+        for r in in_progress[:4]:
+            pct = r.get("completion_pct")
+            pct_s = f"{float(pct):.0f}%" if pct is not None else "?"
+            sl, sc = r.get("symbols_loaded"), r.get("symbol_count")
+            cnt_s = f" ({sl}/{sc} symbols)" if sl is not None and sc is not None else ""
+            rows.append(Text.from_markup(f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s}"))
+        if len(in_progress) > 4:
+            rows.append(Text.from_markup(f"  [dim]...and {len(in_progress) - 4} more[/]"))
+
+    # Link to expanded view for complete table details
     rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup(f"[dim]→ Press [l] to view table details and diagnostics[/]"))
+    rows.append(Text.from_markup(f"[dim]→ Press [l] to view full table details and coverage analysis[/]"))
 
     return Panel(
         Group(*rows),
