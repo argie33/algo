@@ -235,6 +235,16 @@ class Orchestrator:
             self.execution_mode = "paper"
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}")
 
+        # CRITICAL: Validate execution_mode is one of the supported values
+        VALID_EXECUTION_MODES = {"paper", "dry", "review", "auto"}
+        if self.execution_mode not in VALID_EXECUTION_MODES:
+            raise ValueError(
+                f"[STARTUP CRITICAL] Invalid execution_mode: '{self.execution_mode}'. "
+                f"Must be one of: {', '.join(sorted(VALID_EXECUTION_MODES))}. "
+                f"Note: 'live' is not supported; use 'auto' with alpaca_paper_trading=false for real-money trading. "
+                f"Check ORCHESTRATOR_EXECUTION_MODE env var and algo_config table."
+            )
+
         # CRITICAL FIX: Cache the DB execution_mode value to prevent race conditions
         # where config reloads/refreshes between startup validation and later checks
         # This snapshot ensures the validation at line ~350 uses the SAME value we validated here

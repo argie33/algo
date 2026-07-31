@@ -158,7 +158,19 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # FIXED Issue #1: Parse event execution_mode BEFORE validation
         # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
         event_execution_mode = event.get("execution_mode", "").strip().lower()
-        if event_execution_mode and event_execution_mode in ("paper", "dry", "review", "auto"):
+        if event_execution_mode:
+            VALID_MODES = ("paper", "dry", "review", "auto")
+            if event_execution_mode not in VALID_MODES:
+                error_msg = (
+                    f"[LAMBDA CRITICAL] Invalid execution_mode in event payload: '{event_execution_mode}'. "
+                    f"Must be one of: {', '.join(VALID_MODES)}. "
+                    f"Note: 'live' is not supported; use 'auto' with alpaca_paper_trading=false for real-money trading."
+                )
+                logger.error(error_msg)
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"status": "error", "message": error_msg}),
+                }
             # Set environment variable from event so validator will pass
             os.environ["ORCHESTRATOR_EXECUTION_MODE"] = event_execution_mode
             logger.info(f"[EXECUTION_MODE] Set from event payload: {event_execution_mode}")
