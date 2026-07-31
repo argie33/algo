@@ -32,6 +32,7 @@ import {
 import { useApiQuery } from "../hooks/useApiQuery";
 import { api } from "../services/api";
 import ErrorBoundary from "../components/ErrorBoundary";
+import LoaderHealthPanel from "../components/LoaderHealthPanel";
 
 const TOOLTIP_STYLE = {
   background: "var(--surface)",
@@ -341,14 +342,26 @@ function AlgoTradingDashboardContent() {
     { refetchInterval: 60000 }
   );
 
+  const {
+    data: healthData,
+    loading: healthLoading,
+    error: healthError,
+    refetch: refetchHealth,
+  } = useApiQuery(
+    ["algo-health"],
+    () => api.get("/api/health/detailed"),
+    { refetchInterval: 90000 }
+  );
+
   const isLoading =
-    statusLoading || statsLoading || runsLoading || breakersLoading;
+    statusLoading || statsLoading || runsLoading || breakersLoading || healthLoading;
 
   const refetchAll = () => {
     refetchStatus();
     refetchStats();
     refetchRuns();
     refetchBreakers();
+    refetchHealth();
   };
 
   const runs = Array.isArray(recentRuns) ? recentRuns : recentRuns?.items || [];
@@ -356,6 +369,12 @@ function AlgoTradingDashboardContent() {
     ? breakers
     : breakers?.breakers || breakers?.items || [];
   const stats = execStats || {};
+
+  // Extract health items from the health data response
+  // The API may return health_items or just an array at the top level
+  const healthItems = Array.isArray(healthData)
+    ? healthData
+    : healthData?.health_items || healthData?.items || [];
 
   const byStatus = stats.by_status || {};
   const chartData = Object.entries(byStatus).map(([status, count]) => ({
@@ -715,6 +734,44 @@ function AlgoTradingDashboardContent() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Loader Health Panel */}
+      <div className="card" style={{ marginBottom: "var(--space-6)" }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Table & Loader Health</div>
+            <div className="card-sub">
+              All tables grouped by health status · Loader status badges · Row counts & age
+            </div>
+          </div>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {healthLoading ? (
+            <div style={{ padding: "var(--space-4)" }}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="skeleton"
+                  style={{ height: 32, marginBottom: 8 }}
+                />
+              ))}
+            </div>
+          ) : healthError ? (
+            <div
+              className="alert alert-danger"
+              style={{ margin: "var(--space-4)" }}
+            >
+              Failed to load health data: {healthError?.message}
+            </div>
+          ) : (
+            <LoaderHealthPanel
+              healthData={healthItems}
+              loading={healthLoading}
+              error={healthError?.message}
+            />
+          )}
         </div>
       </div>
 
