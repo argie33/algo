@@ -1011,49 +1011,71 @@ def run(  # noqa: C901
         logger.info("[PHASE 7] DRY-RUN: Skipping signal quality score computation (not needed for dry-run)")
         score_result = {"symbols_processed": 0, "symbols_failed": 0}
     else:
+        # CRITICAL FIX (Session Current): Check if today's signal_quality_scores are already computed.
+        # Phase 7 runs 3x daily (9:30 AM, 1 PM, 3 PM) and all three runs were calling loader.run(),
+        # causing lock contention. If run_date's scores are already in the table, skip the loader call.
+        today_scores_exist = False
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM signal_quality_scores WHERE date = CURRENT_DATE LIMIT 1"
+                )
+                count = cur.fetchone()[0]
+                today_scores_exist = count > 0
+                if today_scores_exist:
+                    logger.info(f"[PHASE 7] Today's signal_quality_scores already computed ({count} rows exist)")
+        except Exception as check_err:
+            logger.warning(
+                f"[PHASE 7] Could not check if today's scores exist (will proceed with loader): {check_err}"
+            )
+
         try:
             from loaders.load_signal_quality_scores import SignalQualityScoresLoader
             from utils.loaders.helpers import get_active_symbols
             from concurrent.futures import TimeoutError as FutureTimeoutError
 
-            logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
-            loader = SignalQualityScoresLoader()
-            all_symbols = get_active_symbols(timeout_secs=30)
-            logger.info(
-                f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)"
-            )
-            # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
-            # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
-            # scores depend on today's buy/sell signals, technical data, and trend templates which
-            # change daily. Passing backfill_days=3 focuses processing on recent signals while
-            # respecting watermarks for older data (already scored).
-            # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
-            # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
-            # TIMEOUT FIX: Add 10-minute timeout to prevent orchestrator hangs
-            loader_start = time.time()
-            loader_timeout_secs = 600  # 10 minutes max
-            score_result = loader.run(
-                symbols=all_symbols,
-                parallelism=8,
-                backfill_days=3,  # Limit to recent 3 days to eliminate lock contention
-            )
-            loader_elapsed = time.time() - loader_start
-            if loader_elapsed > loader_timeout_secs:
-                logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")
-                msg = (
-                    f"[PHASE 7 CRITICAL] Signal quality score computation exceeded timeout ({loader_elapsed:.0f}s > {loader_timeout_secs}s). "
-                    f"This indicates the loader is stalled or locked. Cannot proceed without valid signal scores."
+            if today_scores_exist:
+                logger.info("[PHASE 7] Skipping signal quality score loader (today's scores already available)")
+                score_result = {"symbols_processed": 0, "symbols_failed": 0}
+            else:
+                logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
+                loader = SignalQualityScoresLoader()
+                all_symbols = get_active_symbols(timeout_secs=30)
+                logger.info(
+                    f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)"
                 )
-                logger.critical(msg)
-                log_phase_result_fn(7, "signal_generation", "halt", msg)
-                return PhaseResult(
-                    7,
-                    "signal_generation",
-                    "halted",
-                    {"qualified_trades": [], "liquidity_passed": 0},
-                    True,
-                    msg,
+                # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
+                # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
+                # scores depend on today's buy/sell signals, technical data, and trend templates which
+                # change daily. Passing backfill_days=3 focuses processing on recent signals while
+                # respecting watermarks for older data (already scored).
+                # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
+                # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
+                # TIMEOUT FIX: Add 10-minute timeout to prevent orchestrator hangs
+                loader_start = time.time()
+                loader_timeout_secs = 600  # 10 minutes max
+                score_result = loader.run(
+                    symbols=all_symbols,
+                    parallelism=8,
+                    backfill_days=3,  # Limit to recent 3 days to eliminate lock contention
                 )
+                loader_elapsed = time.time() - loader_start
+                if loader_elapsed > loader_timeout_secs:
+                    logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")
+                    msg = (
+                        f"[PHASE 7 CRITICAL] Signal quality score computation exceeded timeout ({loader_elapsed:.0f}s > {loader_timeout_secs}s). "
+                        f"This indicates the loader is stalled or locked. Cannot proceed without valid signal scores."
+                    )
+                    logger.critical(msg)
+                    log_phase_result_fn(7, "signal_generation", "halt", msg)
+                    return PhaseResult(
+                        7,
+                        "signal_generation",
+                        "halted",
+                        {"qualified_trades": [], "liquidity_passed": 0},
+                        True,
+                        msg,
+                    )
         except (TimeoutError, FutureTimeoutError) as timeout_e:
             msg = (
                 f"[PHASE 7 CRITICAL] Signal quality score computation timed out: {timeout_e}. "
