@@ -1750,9 +1750,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             with _NAIVE_DB_TZ_LOCK:
                 if _NAIVE_DB_TZ_CACHE is None:
                     try:
-                        with DatabaseContext("read") as tz_cur:
-                            tz_cur.execute("SHOW timezone")
-                            _NAIVE_DB_TZ_CACHE = ZoneInfo(tz_cur.fetchone()[0])
+                        from utils.db.timezone_utils import get_db_timezone
+                        _NAIVE_DB_TZ_CACHE = get_db_timezone()
                     except Exception as tz_err:
                         logger.warning(f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {tz_err}")
                         _NAIVE_DB_TZ_CACHE = timezone.utc

@@ -14,7 +14,8 @@ conn.commit()
 
 # Verify
 cur.execute('SELECT COUNT(*) FROM algo_exit_check_errors')
-remaining = cur.fetchone()[0]
+result = cur.fetchone()
+remaining = result[0] if result else 0
 print(f'Remaining error records: {remaining}')
 
 cur.close()

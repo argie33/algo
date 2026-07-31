@@ -542,10 +542,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # DB session's local wall-clock (utils/bulk_insert_manager.py's convention), not
         # UTC. Without this, age_hours was inflated by the session's UTC offset (4-6h) -
         # confirmed live: a table updated 9 minutes ago showed age_hours=5.2.
-        from zoneinfo import ZoneInfo
+        from utils.db.timezone_utils import get_db_timezone
 
-        cur.execute("SHOW timezone")
-        naive_tz = ZoneInfo(cur.fetchone()[0])
+        naive_tz = get_db_timezone()
 
         for row in rows:
             last_updated = row["last_updated"]

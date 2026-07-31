@@ -151,7 +151,7 @@ class RejectionTracker:
                 SELECT
                     {col_name} as reason,
                     COUNT(*) as count,
-                    ARRAY_AGG(symbol ORDER BY symbol) as symbols
+                    ARRAY_AGG(symbol ORDER BY symbol) FILTER (WHERE symbol IS NOT NULL) as symbols
                 FROM filter_rejection_log
                 WHERE eval_date = %s AND {col_name} IS NOT NULL AND {col_name} != ''
                 GROUP BY reason

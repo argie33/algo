@@ -579,6 +579,7 @@ class VectorizedTechnicalLoader:
 
         try:
             vcp_patterns: list[dict[str, Any]] = []
+            failed_symbols = []
 
             for symbol, symbol_df in indicators_df.groupby("symbol"):
                 try:
@@ -586,13 +587,16 @@ class VectorizedTechnicalLoader:
                 except Exception as e:
                     # GOVERNANCE: Log at WARNING level (not DEBUG) for visibility to operators
                     logger.warning(f"[VCP] Failed to compute VCP for {symbol}: {e}")
+                    failed_symbols.append(symbol)
 
             if vcp_patterns:
                 self._bulk_insert_vcp_patterns(vcp_patterns)
+                if failed_symbols:
+                    logger.warning(f"[VCP] Partial success: {len(vcp_patterns)} patterns computed, {len(failed_symbols)} symbols failed: {failed_symbols[:10]}")
             else:
-                logger.info("[VCP] No VCP patterns computed for any symbols")
+                logger.warning("[VCP] No VCP patterns computed - all symbols failed or empty indicators")
         except Exception as e:
-            logger.warning(f"[VCP] VCP pattern computation failed (non-blocking): {e}")
+            logger.error(f"[VCP] VCP pattern computation failed (non-blocking): {e}")
 
     def _compute_vcp_for_symbol(self, symbol: str, symbol_df: pd.DataFrame, vcp_patterns: list[dict[str, Any]]) -> None:
         """Compute VCP pattern for a single symbol from its in-memory indicator history.

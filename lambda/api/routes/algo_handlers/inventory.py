@@ -69,7 +69,8 @@ def _get_table_inventory(cur: cursor) -> Any:
         for tbl_name in sorted(actual_tables_set - tracked_tables_set):
             try:
                 cur.execute(f'SELECT COUNT(*) FROM "{tbl_name}"')
-                cnt = cur.fetchone()[0]
+                result = cur.fetchone()
+                cnt = result[0] if result else 0
                 untracked_tables.append(
                     {
                         "name": tbl_name,

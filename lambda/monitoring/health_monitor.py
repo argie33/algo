@@ -39,10 +39,9 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
         # UTC - treating it as UTC directly inflated every age_hours below by the session's
         # UTC offset (4-6h), the same bug just fixed for /api/algo/data-status
         # (lambda/api/routes/algo_handlers/market.py). Resolved once, not per loader.
-        cur.execute("SHOW timezone")
-        from zoneinfo import ZoneInfo
+        from utils.db.timezone_utils import get_db_timezone
 
-        naive_tz = ZoneInfo(cur.fetchone()[0])
+        naive_tz = get_db_timezone()
 
         critical_loaders = [
             "price_daily",
@@ -136,10 +135,9 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
         # Same session-local-not-UTC fix as check_loader_health() above - these tables'
         # created_at columns are naive and written per utils/bulk_insert_manager.py's
         # convention.
-        cur.execute("SHOW timezone")
-        from zoneinfo import ZoneInfo
+        from utils.db.timezone_utils import get_db_timezone
 
-        naive_tz = ZoneInfo(cur.fetchone()[0])
+        naive_tz = get_db_timezone()
 
         critical_tables = {
             "price_daily": "Daily stock prices (blocks all downstream loaders)",

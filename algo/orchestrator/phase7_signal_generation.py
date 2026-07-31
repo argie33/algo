@@ -655,7 +655,7 @@ def _get_candidates_from_buysell(
             # CRITICAL FIX: Write computed signal_quality_scores back to buy_sell_daily
             # so that backtest and other systems can access them. Only write non-NULL scores.
             scores_to_write = [
-                (c.get("signal_quality_score"), c.get("trend_template_score"), c.get("symbol"), c.get("signal_date"))
+                (c.get("signal_quality_score"), c.get("signal_quality_score"), c.get("symbol"), c.get("signal_date"))
                 for c in candidates
                 if c.get("symbol") and c.get("signal_date") and c.get("signal_quality_score") is not None
             ]
