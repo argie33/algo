@@ -134,6 +134,7 @@ class LoaderStatusManager:
         execution_duration_sec: float | None = None,
         http_status: int | None = None,
         rate_limit_quota: str | None = None,
+        latest_date: Any | None = None,
     ) -> None:
         """Mark loader as completed successfully.
 
@@ -146,6 +147,7 @@ class LoaderStatusManager:
             execution_duration_sec: Optional execution duration for performance tracking
             http_status: Optional HTTP status code from API call (200=ok)
             rate_limit_quota: Optional rate limit quota string for display
+            latest_date: Optional latest date in the loaded data (for data freshness tracking)
         """
         try:
             with DatabaseContext("write") as cur:
@@ -158,19 +160,35 @@ class LoaderStatusManager:
                     if result and result[0]:
                         symbols_per_sec = result[0] / execution_duration_sec
 
-                cur.execute(
-                    """
-                    UPDATE data_loader_status
-                    SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
-                        error_message = NULL, last_updated = NOW(),
-                        last_success_at = NOW(), consecutive_failures = 0,
-                        execution_duration_sec = %s, http_status_code = %s,
-                        rate_limit_quota = %s, symbols_per_second = %s
-                    WHERE table_name = %s
-                    """,
-                    (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
-                     rate_limit_quota, symbols_per_sec, self.table_name),
-                )
+                # Build dynamic SQL to optionally include latest_date
+                if latest_date is not None:
+                    cur.execute(
+                        """
+                        UPDATE data_loader_status
+                        SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
+                            error_message = NULL, last_updated = NOW(),
+                            last_success_at = NOW(), consecutive_failures = 0,
+                            execution_duration_sec = %s, http_status_code = %s,
+                            rate_limit_quota = %s, symbols_per_second = %s, latest_date = %s
+                        WHERE table_name = %s
+                        """,
+                        (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
+                         rate_limit_quota, symbols_per_sec, latest_date, self.table_name),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        UPDATE data_loader_status
+                        SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
+                            error_message = NULL, last_updated = NOW(),
+                            last_success_at = NOW(), consecutive_failures = 0,
+                            execution_duration_sec = %s, http_status_code = %s,
+                            rate_limit_quota = %s, symbols_per_second = %s
+                        WHERE table_name = %s
+                        """,
+                        (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
+                         rate_limit_quota, symbols_per_sec, self.table_name),
+                    )
                 # Archive to history table for failure pattern analysis
                 self._archive_to_history(cur, LoaderStatus.COMPLETED.value)
 

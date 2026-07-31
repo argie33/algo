@@ -24,6 +24,7 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
+from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -1143,7 +1144,7 @@ def main() -> int:  # noqa: C901
         # Bug fix: Use MAX(date) from buy_sell_daily, not calendar date (today_et)
         # Root cause: Reporting today's calendar date when signals may only be generated through yesterday
         try:
-            with DatabaseContext("write") as cur:
+            with DatabaseContext("read") as cur:
                 cur.execute("SET statement_timeout = 0")
                 # Get actual maximum date from buy_sell_daily (signals generated up to this date)
                 cur.execute("SELECT COALESCE(MAX(date), %s) FROM buy_sell_daily", (today_et,))
@@ -1152,17 +1153,14 @@ def main() -> int:  # noqa: C901
                     raise RuntimeError("CRITICAL: Failed to query max date from buy_sell_daily")
                 actual_max_date = date_result[0]
 
-                cur.execute(
-                    """UPDATE data_loader_status
-                       SET status = %s, latest_date = %s, last_updated = NOW(), completion_pct = 100.0
-                       WHERE table_name = %s""",
-                    ("ok", actual_max_date, "buy_sell_daily"),
-                )
-                logger.info(
-                    f"[STATUS] Updated buy_sell_daily status to ok with latest_date={actual_max_date} (actual table max, not calendar date)"
-                )
+            # Use LoaderStatusManager to consolidate status writes
+            status_manager = LoaderStatusManager(table_name="buy_sell_daily")
+            status_manager.mark_completed(latest_date=actual_max_date)
+            logger.info(
+                f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
+            )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-            logger.error(f"[STATUS] Could not update loader status to ok: {status_err}")
+            logger.error(f"[STATUS] Could not update loader status: {status_err}")
             return 1
 
         return 0
