@@ -731,31 +731,17 @@ class ExitEngine:
                                 # target the most-recent matching trade_id via a subquery.
                                 open_trade_statuses_close = TradeStatus.all_open()
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
-                                # CRITICAL FIX: Use entry_price as fallback when market data unavailable
-                                # When delisted, we can't get current market price, so use entry price for closing
-                                # This at least preserves the actual entry point for record-keeping
-                                # until the position can be manually reviewed and priced correctly
-                                fallback_price = float(entry_price) if entry_price else None
-
-                                if fallback_price is None or fallback_price <= 0:
-                                    logger.critical(
-                                        f"[EXIT ENGINE CRITICAL] {symbol}: Cannot determine fallback price for delisted position. "
-                                        f"Entry price invalid: {entry_price}. Position cannot be properly closed."
-                                    )
-                                    trade_errors += 1
-                                    cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                                    continue
-
+                                # CRITICAL FIX: For delisted/unavailable symbols, mark position closed WITHOUT calculating P&L
+                                # Cannot use entry_price as fallback (masks actual exit price)
+                                # Cannot use current_price fallback (no price available)
+                                # Set exit_price=NULL and profit_loss=NULL to indicate manual review needed
+                                # Position is marked closed so it stops showing in open positions list
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_time = CURRENT_TIMESTAMP,
-                                       exit_price = %s,
-                                       profit_loss_dollars = CASE WHEN entry_price > 0
-                                         THEN (%s - entry_price) * quantity
-                                         ELSE NULL END,
-                                       profit_loss_pct = CASE WHEN entry_price > 0
-                                         THEN ((%s - entry_price) / entry_price) * 100
-                                         ELSE NULL END,
+                                       exit_price = NULL,
+                                       profit_loss_dollars = NULL,
+                                       profit_loss_pct = NULL,
                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE trade_id = (
                                            SELECT trade_id FROM algo_trades
@@ -764,9 +750,6 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
-                                        fallback_price,
-                                        fallback_price,
-                                        fallback_price,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
@@ -774,27 +757,20 @@ class ExitEngine:
                                 )
                                 open_position_statuses_close = PositionStatus.all_active()
                                 position_status_placeholders = ", ".join(["%s"] * len(open_position_statuses_close))
-                                # FIX: Calculate profit_loss_dollars and pct before closing position
-                                # Must calculate actual P&L: (current_price - entry_price) * quantity
-                                # And percentage: ((current_price - entry_price) / entry_price) * 100
-                                # CRITICAL FIX: Use fallback_price for position closure when market price unavailable
-                                # Do NOT set current_price to NULL - must preserve price for P&L calculation
+                                # CRITICAL FIX: For delisted/unavailable symbols, close position with NULL P&L
+                                # Do NOT calculate fake P&L when price is unavailable (no fallback to entry_price)
+                                # Leave current_price and profit_loss fields as NULL to indicate manual review needed
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = %s,
-                                       current_price = %s,
-                                       profit_loss_dollars = (%s - avg_entry_price) * quantity,
-                                       profit_loss_pct = CASE WHEN avg_entry_price > 0
-                                         THEN ((%s - avg_entry_price) / avg_entry_price) * 100
-                                         ELSE NULL END,
+                                       current_price = NULL,
+                                       profit_loss_dollars = NULL,
+                                       profit_loss_pct = NULL,
                                        unrealized_pnl = NULL,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
-                                        fallback_price,
-                                        fallback_price,
-                                        fallback_price,
                                         symbol,
                                         *open_position_statuses_close,
                                     ),
