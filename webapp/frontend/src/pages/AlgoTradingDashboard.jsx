@@ -370,27 +370,22 @@ function AlgoTradingDashboardContent() {
     : breakers?.breakers || breakers?.items || [];
   const stats = execStats || {};
 
-  // Transform sources from /api/algo/data-status into the format LoaderHealthPanel expects
-  // API returns: { data: { sources: [...], ready_to_trade, ... } }
-  // We need to transform source.name → tbl, source.status → st, source.loader_run_status → loader.status
-  const transformHealthData = (rawData) => {
-    if (!rawData || !Array.isArray(rawData)) return [];
-    return rawData.map(source => ({
-      tbl: source.name,
-      st: source.status, // health status: ok, stale, empty, error
-      age_hours: source.age_hours,
-      age: source.age_hours ? source.age_hours / 24 : undefined,
-      row_count: source.row_count,
-      load: {
-        status: source.loader_run_status, // loader state: RUNNING, COMPLETED, FAILED, TIMEOUT, etc
-        error_message: source.loader_error,
-        completion_pct: source.completion_pct,
-        consecutive_failures: source.consecutive_failures,
-      },
-    }));
-  };
-
-  const healthItems = transformHealthData(healthDataRaw?.data?.sources || []);
+  // Transform API sources into the data format LoaderHealthPanel expects
+  // The component will parse tbl, st, and loader_status fields
+  const healthItems = (healthDataRaw?.data?.sources || []).map(source => ({
+    tbl: source.name,
+    st: source.status, // health status: ok, stale, empty, error
+    age_hours: source.age_hours,
+    age: source.age_hours ? source.age_hours / 24 : undefined,
+    row_count: source.row_count,
+    // Loader status object - component will look for this field and extract status
+    loader_status: {
+      status: source.loader_run_status, // RUNNING, COMPLETED, FAILED, TIMEOUT, NOT_STARTED, etc
+      error_message: source.loader_error,
+      completion_pct: source.completion_pct,
+      consecutive_failures: source.consecutive_failures,
+    },
+  }));
 
   const byStatus = stats.by_status || {};
   const chartData = Object.entries(byStatus).map(([status, count]) => ({
