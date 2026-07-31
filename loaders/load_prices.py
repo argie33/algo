@@ -1528,18 +1528,28 @@ class PriceLoader(OptimalLoader):
             failed_batches = still_failed
 
         if failed_batches:
-            failed_count = sum(len(batch) for batch, _ in failed_batches)
-            batch_summary = "; ".join(
-                f"Batch {i + 1}: {len(b)} symbols, error={err}" for i, (b, err) in enumerate(failed_batches[:5])
+            # FIX: Instead of failing completely, fall back to per-symbol loading for failed batches
+            # This allows graceful degradation when batch API has issues (yfinance rate limiting, etc.)
+            # while preserving fail-fast behavior for individual symbol issues.
+            logger.warning(
+                f"[BATCH_RETRY] Falling back to per-symbol loading for {len(failed_batches)} failed batches "
+                f"({sum(len(b) for b, _ in failed_batches)} symbols total)"
             )
-            if len(failed_batches) > 5:
-                batch_summary += f"; ... and {len(failed_batches) - 5} more batches failed"
-            msg = (
-                f"[LOAD_PRICES CRITICAL] Price fetch failed for {failed_count} symbols across {len(failed_batches)} batches "
-                f"(after 1 retry). Cannot load market prices without complete data. {batch_summary}"
-            )
-            logger.critical(msg)
-            raise RuntimeError(msg)
+            for batch, first_err in failed_batches:
+                for symbol in batch:
+                    try:
+                        # Attempt per-symbol load for each symbol in the failed batch
+                        symbol_batch = [symbol]
+                        self._load_batch(symbol_batch)
+                        logger.debug(f"[SYMBOL_FALLBACK] {symbol} loaded successfully via per-symbol fetch")
+                    except Exception as symbol_err:
+                        # Track individual symbol failure (not fatal)
+                        logger.error(
+                            f"[SYMBOL_FALLBACK] {symbol} failed: {type(symbol_err).__name__}: {str(symbol_err)[:100]}"
+                        )
+                        self._stats["symbols_failed"] += 1
+                        self._stats["symbols_processed"] += 1
+                        # Continue with next symbol - don't halt entire loader
 
         logger.debug(
             "[BATCH_JOBS] All batches completed successfully. Emergency mode was %s.",

@@ -12,8 +12,6 @@ from utils.data.watermark import WatermarkManager
 from utils.db.context import DatabaseContext
 from utils.loader_infrastructure import LoaderInfrastructure
 from utils.loader_stats import LoaderStats
-from utils.loaders.status_manager import LoaderStatusManager
-from utils.loaders.status_enum import LoaderStatus
 from utils.loaders.transient_errors import TransientAPIError
 
 if not logging.root.handlers:
