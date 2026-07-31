@@ -514,21 +514,55 @@ CREATE INDEX IF NOT EXISTS idx_schema_version_applied_at ON schema_version(appli
 -- LOAD TRACKING (For monitoring)
 -- ============================================================================
 -- CRITICAL: Code references data_loader_status (the active status table)
+-- Schema evolved over time to track execution lifecycle and performance metrics
 CREATE TABLE IF NOT EXISTS data_loader_status (
-    id SERIAL PRIMARY KEY,
-    table_name VARCHAR(100) NOT NULL,
-    last_run TIMESTAMP WITH TIME ZONE,
-    completion_pct NUMERIC(5, 2),
-    records_loaded INTEGER,
-    records_failed INTEGER,
+    table_name VARCHAR(100) NOT NULL PRIMARY KEY,
+    frequency VARCHAR(50),
+    role VARCHAR(100),
+    latest_date DATE,
+    age_days INTEGER,
+    row_count BIGINT,
+    stale_threshold_days INTEGER,
+    status VARCHAR(50),
+    last_updated TIMESTAMP WITHOUT TIME ZONE,
     error_message TEXT,
-    is_complete BOOLEAN DEFAULT FALSE,
-    is_stale BOOLEAN DEFAULT FALSE,
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(table_name)
+    completion_pct NUMERIC(5, 2),
+    symbol_count INTEGER,
+    symbols_loaded INTEGER,
+    execution_started TIMESTAMP WITHOUT TIME ZONE,
+    execution_completed TIMESTAMP WITHOUT TIME ZONE,
+    reason VARCHAR(500),
+    last_success_at TIMESTAMP WITHOUT TIME ZONE,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    http_status_code INTEGER,
+    rate_limit_quota TEXT,
+    retry_count INTEGER,
+    execution_duration_sec NUMERIC(10, 2),
+    symbols_per_second NUMERIC(10, 2)
 );
 CREATE INDEX IF NOT EXISTS idx_data_loader_status_table ON data_loader_status(table_name);
 CREATE INDEX IF NOT EXISTS idx_data_loader_status_updated ON data_loader_status(last_updated DESC);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_status ON data_loader_status(status);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_execution_started ON data_loader_status(execution_started DESC);
+
+-- History of loader status for pattern analysis and failure tracking
+CREATE TABLE IF NOT EXISTS data_loader_status_history (
+    id SERIAL PRIMARY KEY,
+    table_name VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    execution_started TIMESTAMP WITHOUT TIME ZONE,
+    execution_completed TIMESTAMP WITHOUT TIME ZONE,
+    error_message TEXT,
+    http_status_code INTEGER,
+    row_count BIGINT,
+    completion_pct NUMERIC(5, 2),
+    symbols_loaded INTEGER,
+    symbol_count INTEGER,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_history_table ON data_loader_status_history(table_name);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_history_status ON data_loader_status_history(status);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_history_created ON data_loader_status_history(created_at DESC);
 
 -- Orchestrator run history (distinct from orchestrator_execution_log)
 CREATE TABLE IF NOT EXISTS algo_orchestrator_runs (
@@ -552,12 +586,12 @@ CREATE TABLE IF NOT EXISTS stock_symbols (
     sector VARCHAR(100),
     industry VARCHAR(100),
     market_cap_millions DECIMAL(15, 2),
-    is_active BOOLEAN DEFAULT TRUE,
+    active BOOLEAN DEFAULT TRUE,
     added_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_stock_symbols_sector ON stock_symbols(sector);
-CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(is_active);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(active);
 
 -- Company fundamental data for sector/industry lookups
 CREATE TABLE IF NOT EXISTS company_profile (
