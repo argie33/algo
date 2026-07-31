@@ -621,7 +621,7 @@ def _start_combo(loader: "ConsolidatedFinancialStatementsLoader", start: float, 
     loader._execution_start_time = start
     loader._stats["symbols_total"] = symbols_total
     loader._prepare_batch_context()
-    loader._status_manager.mark_running()
+    loader._infrastructure.update_loader_status("RUNNING")
     loader._infrastructure.start_heartbeat()
 
 

@@ -12,8 +12,6 @@ from utils.data.watermark import WatermarkManager
 from utils.db.context import DatabaseContext
 from utils.loader_infrastructure import LoaderInfrastructure
 from utils.loader_stats import LoaderStats
-from utils.loaders.status_manager import LoaderStatusManager
-from utils.loaders.status_enum import LoaderStatus
 from utils.loaders.transient_errors import TransientAPIError
 
 if not logging.root.handlers:
@@ -70,7 +68,6 @@ class OptimalLoader:
         self._execution_start_time: float | None = None
 
         self._infrastructure = LoaderInfrastructure(self.table_name)
-        self._status_manager = LoaderStatusManager(self.table_name)
         self._stats = LoaderStats()
         # CRITICAL FIX: Derive loader_name from the class's source file, not self.__class__.__module__.
         # __module__ depends on *how* Python was invoked: every loader here is normally launched as
@@ -605,7 +602,7 @@ class OptimalLoader:
             if backfill_days is not None:
                 self._backfill_days = backfill_days
 
-            self._status_manager.mark_running()
+            self._infrastructure.update_loader_status("RUNNING")
             self._infrastructure.start_heartbeat()
 
             logger.warning(f"[{self.table_name}] DEBUG: _backfill_days={self._backfill_days}")
@@ -622,7 +619,7 @@ class OptimalLoader:
                 raise RuntimeError(f"Batch context preparation failed: {e}") from e
 
             if not self._check_upstream_completeness(len(symbols)):
-                self._status_manager.mark_failed("Upstream data incomplete")
+                self._infrastructure.update_loader_status("FAILED")
                 self._infrastructure.stop_heartbeat()
                 self._log_execution_history("failed", "Upstream data incomplete")
                 return self._stats.to_dict()
@@ -641,7 +638,7 @@ class OptimalLoader:
                 elapsed = time.time() - start
                 if elapsed > sla_timeout_seconds:
                     logger.critical(f"[{self.table_name}] TIMEOUT: Exceeded SLA {sla_timeout_seconds}s")
-                    self._status_manager.mark_timeout(elapsed)
+                    self._infrastructure.update_loader_status("FAILED")
                     raise RuntimeError(f"Loader exceeded SLA timeout ({sla_timeout_seconds}s)")
 
             self._stats.set("duration_sec", round(time.time() - start, 2))
@@ -812,7 +809,7 @@ class OptimalLoader:
             conn_manager = PooledConnectionManager(self.table_name)
             set_pooled_connection(conn_manager.acquire())
 
-            self._status_manager.mark_running()
+            self._infrastructure.update_loader_status("RUNNING")
             start = time.time()
             self._execution_start_time = start
 
@@ -846,7 +843,7 @@ class OptimalLoader:
                 # aaii_sentiment, naaim) now sits at RUNNING forever and eventually trips
                 # _check_stuck_loaders()'s 15-minute heartbeat-staleness alert as a false
                 # "crashed" positive. Must explicitly close the loop here.
-                self._status_manager.mark_completed()
+                self._infrastructure.update_loader_status("COMPLETED")
                 return 0
 
             # Some subclasses (e.g. load_naaim.py) list-wrap the marker dict instead of
@@ -862,7 +859,7 @@ class OptimalLoader:
                     f"[{self.table_name}] fetch_global returned list-wrapped data_unavailable marker "
                     f"(reason: {rows_result[0].get('reason', 'unknown')}). Skipping global load step."
                 )
-                self._status_manager.mark_completed()
+                self._infrastructure.update_loader_status("COMPLETED")
                 return 0
 
             # rows_result is now guaranteed to be a list[dict] after marker dict check
@@ -870,7 +867,7 @@ class OptimalLoader:
 
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned empty list (no data available)")
-                self._status_manager.mark_completed()
+                self._infrastructure.update_loader_status("COMPLETED")
                 return 0
 
             rows = self.transform(rows)
@@ -878,7 +875,7 @@ class OptimalLoader:
 
             self._stats.set("rows_inserted", inserted)
             self._log_execution_history("success")
-            self._status_manager.mark_completed()
+            self._infrastructure.update_loader_status("COMPLETED")
 
             return inserted
         finally:
@@ -1113,7 +1110,7 @@ class OptimalLoader:
                     return False
                 if completion_pct < 90:
                     logger.critical(f"[UPSTREAM] {upstream_table} only {completion_pct:.1f}% complete")
-                    self._status_manager.mark_failed(f"Upstream data incomplete: {upstream_table} only {completion_pct:.1f}% complete")
+                    self._infrastructure.update_loader_status("FAILED")
                     return False
                 return True
         except Exception as e:
