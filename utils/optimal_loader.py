@@ -809,7 +809,7 @@ class OptimalLoader:
             conn_manager = PooledConnectionManager(self.table_name)
             set_pooled_connection(conn_manager.acquire())
 
-            self._infrastructure.update_loader_status("RUNNING")
+            self._status_manager.mark_running()
             start = time.time()
             self._execution_start_time = start
 
@@ -829,21 +829,7 @@ class OptimalLoader:
                     f"[{self.table_name}] fetch_global not implemented by subclass "
                     f"(data_unavailable: {rows_result.get('reason', 'unknown')}). Skipping global load step."
                 )
-                # FIX 2026-07-28: load_global() had no success-path status transition at
-                # all - every one of its 4 return points left status='RUNNING' forever
-                # (only update_loader_status("RUNNING") is called, at the top of this
-                # method; "FAILED" is only reached via exceptions elsewhere). Historically
-                # masked by pipeline_health.py's log_health_check() age-based sweep
-                # silently relabeling any RUNNING row HEALTHY - the exact bug fixed
-                # earlier this session. That fix now makes THIS gap visible instead:
-                # preserving RUNNING (correct for a genuinely crashed loader) also means a
-                # successfully-completed global_mode loader (7 loaders use
-                # global_mode=True: institutional_holdings_13f, market_constituents,
-                # sector_industry_daily, algo_metrics_daily, market_status_daily,
-                # aaii_sentiment, naaim) now sits at RUNNING forever and eventually trips
-                # _check_stuck_loaders()'s 15-minute heartbeat-staleness alert as a false
-                # "crashed" positive. Must explicitly close the loop here.
-                self._infrastructure.update_loader_status("COMPLETED")
+                self._status_manager.mark_completed()
                 return 0
 
             # Some subclasses (e.g. load_naaim.py) list-wrap the marker dict instead of
@@ -859,7 +845,7 @@ class OptimalLoader:
                     f"[{self.table_name}] fetch_global returned list-wrapped data_unavailable marker "
                     f"(reason: {rows_result[0].get('reason', 'unknown')}). Skipping global load step."
                 )
-                self._infrastructure.update_loader_status("COMPLETED")
+                self._status_manager.mark_completed()
                 return 0
 
             # rows_result is now guaranteed to be a list[dict] after marker dict check
@@ -867,7 +853,7 @@ class OptimalLoader:
 
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned empty list (no data available)")
-                self._infrastructure.update_loader_status("COMPLETED")
+                self._status_manager.mark_completed()
                 return 0
 
             rows = self.transform(rows)
@@ -875,7 +861,7 @@ class OptimalLoader:
 
             self._stats.set("rows_inserted", inserted)
             self._log_execution_history("success")
-            self._infrastructure.update_loader_status("COMPLETED")
+            self._status_manager.mark_completed()
 
             return inserted
         finally:
