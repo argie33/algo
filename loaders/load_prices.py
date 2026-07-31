@@ -1547,6 +1547,8 @@ class PriceLoader(OptimalLoader):
                         symbol_batch = [symbol]
                         self._load_batch(symbol_batch)
                         symbols_recovered += 1
+                        # CRITICAL: Count as processed since we successfully loaded it
+                        self._stats["symbols_processed"] += 1
                         logger.debug(f"[SYMBOL_FALLBACK] {symbol} loaded successfully via per-symbol fetch")
                     except Exception as symbol_err:
                         # Check if this is a "delisted" or "not found" error (expected for some symbols)
@@ -1554,12 +1556,15 @@ class PriceLoader(OptimalLoader):
                         if any(x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"]):
                             symbols_skipped_delisted += 1
                             logger.info(f"[SYMBOL_FALLBACK] {symbol} skipped: appears delisted or unavailable (yfinance confirmed)")
+                            # Count delisted symbols as processed (we tried, data legitimately unavailable)
+                            self._stats["symbols_processed"] += 1
                         else:
                             logger.error(
                                 f"[SYMBOL_FALLBACK] {symbol} failed: {type(symbol_err).__name__}: {str(symbol_err)[:100]}"
                             )
-                        # Mark as processed (we tried) but not necessarily failed (could be data unavailability)
-                        self._stats["symbols_processed"] += 1
+                            # Mark as failed since we encountered an error (not just data unavailability)
+                            self._stats["symbols_failed"] += 1
+                            self._stats["symbols_processed"] += 1
                         # Continue with next symbol - don't halt entire loader
 
             logger.warning(
