@@ -22,8 +22,7 @@ def _cursor_for_table_sequence(naive_updated_at: datetime, session_tz: str = "Am
     staleness check) repeated for each of the 4 required_metric_tables, tracking every
     executed SQL string so the test can assert SHOW timezone was actually issued.
 
-    Note: get_db_timezone() caches its result, so SHOW timezone is only called once,
-    not once per table."""
+    Note: get_db_timezone() caches its result, so SHOW timezone is only called once."""
     cur = MagicMock()
     executed_sql: list[str] = []
 
@@ -43,11 +42,19 @@ def _cursor_for_table_sequence(naive_updated_at: datetime, session_tz: str = "Am
     # Optional quality_metrics: coverage only
     fetchone_results.append(coverage_row)
 
+    call_counter = [0]
+    def _fetchone():
+        if call_counter[0] < len(fetchone_results):
+            result = fetchone_results[call_counter[0]]
+            call_counter[0] += 1
+            return result
+        return None
+
     def _execute(sql: str, *args, **kwargs) -> None:
         executed_sql.append(sql)
 
     cur.execute.side_effect = _execute
-    cur.fetchone.side_effect = fetchone_results
+    cur.fetchone.side_effect = _fetchone
     cur._executed_sql = executed_sql
     return cur
 
@@ -67,7 +74,9 @@ class TestStockScoresStalenessTimezone:
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
         loader = StockScoresLoader.__new__(StockScoresLoader)
-        with patch("loaders.load_stock_scores.DatabaseContext", return_value=mock_db_context):
+        # Patch DatabaseContext in both modules to use the same mock
+        with patch("loaders.load_stock_scores.DatabaseContext", return_value=mock_db_context), \
+             patch("utils.db.timezone_utils.DatabaseContext", return_value=mock_db_context):
             loader.validate_upstream_metrics_ready()
 
         assert "SHOW timezone" in cur._executed_sql, (
@@ -79,12 +88,30 @@ class TestStockScoresStalenessTimezone:
         from datetime import timezone as tz
 
         aware_updated_at = datetime(2026, 7, 25, 23, 0, 0, tzinfo=tz.utc)
-        cur = _cursor_for_table_sequence(aware_updated_at)
-        # Aware timestamps skip the SHOW timezone branch entirely - drop it from fetchone results.
-        cur.fetchone.side_effect = [
-            (100, 100),
-            (aware_updated_at,),
-        ] * 4 + [(100, 100)]
+
+        # For aware timestamps, SHOW timezone is not queried, so we don't include it in fetchone results
+        fetchone_results = [
+            (100, 100),  # coverage table 1
+            (aware_updated_at,),  # staleness table 1
+        ] * 4 + [(100, 100)]  # coverage quality_metrics
+
+        cur = MagicMock()
+        executed_sql = []
+
+        call_counter = [0]
+        def _fetchone():
+            if call_counter[0] < len(fetchone_results):
+                result = fetchone_results[call_counter[0]]
+                call_counter[0] += 1
+                return result
+            return None
+
+        def _execute(sql: str, *args, **kwargs) -> None:
+            executed_sql.append(sql)
+
+        cur.execute.side_effect = _execute
+        cur.fetchone.side_effect = _fetchone
+        cur._executed_sql = executed_sql
 
         mock_db_context = MagicMock()
         mock_db_context.__enter__ = MagicMock(return_value=cur)

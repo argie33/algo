@@ -33,6 +33,7 @@ def test_policy_rejection_statuses_exclude_genuine_execution_failures():
 
     assert _POLICY_REJECTION_STATUSES == {
         "duplicate",
+        "duplicate_signal",
         "duplicate_position",
         "pending_trade_exists",
         "reentry_cooldown",

@@ -122,10 +122,9 @@ class TestReentryCooldownUsesRealSessionTimezone:
             0: None,  # Check 1: no open algo_positions row
             1: None,  # Check 1b: no open algo_trades row
             2: (1, closed_at_naive),  # Check 2: a recently-closed position
-            3: (session_tz_name,),  # SHOW timezone (in get_db_timezone)
         }
-        # Add extra_fetches starting from index 4
-        for i, fetch in enumerate(extra_fetches, start=4):
+        # Add extra_fetches starting from index 3
+        for i, fetch in enumerate(extra_fetches, start=3):
             responses[i] = fetch
 
         def _fetchone():
@@ -139,7 +138,9 @@ class TestReentryCooldownUsesRealSessionTimezone:
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
-        with patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context):
+        # Mock get_db_timezone to return the session timezone directly without consuming a DB query
+        with patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context), \
+             patch("utils.db.timezone_utils.get_db_timezone", return_value=ZoneInfo(session_tz_name)):
             return checks.run_all(
                 symbol="AAPL",
                 position_value=1000.0,
