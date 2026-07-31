@@ -1465,12 +1465,14 @@ class PriceLoader(OptimalLoader):
         failed_batches = []
         batch_times = []
         halted = False  # Track if we've halted due to circuit breaker
+        processed_futures = set()  # Track which futures we've handled
 
         max_concurrent = min(parallelism, 5)
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             futures = {executor.submit(self._load_batch, batch): batch for batch in batches}
             for future in as_completed(futures):
                 batch = futures[future]
+                processed_futures.add(future)  # Mark this future as processed
                 batch_start = time.time()
                 try:
                     future.result()
@@ -1504,9 +1506,8 @@ class PriceLoader(OptimalLoader):
                     if result.get("status") == "halted":
                         # CRITICAL: Mark remaining futures as failed so per-symbol fallback can attempt them
                         halted = True
-                        completed_futures = set(futures.keys())
-                        completed_futures.remove(future)  # Don't re-mark the current future
-                        remaining_batches = [futures[f] for f in completed_futures if f.done() is False]
+                        unprocessed_futures = set(futures.keys()) - processed_futures
+                        remaining_batches = [futures[f] for f in unprocessed_futures]
                         if remaining_batches:
                             logger.warning(
                                 f"[CIRCUIT_BREAKER] Halting early due to timeout. Adding {len(remaining_batches)} unprocessed batches "
