@@ -125,6 +125,7 @@ _REJECTION_REASON_MAX_LEN = 200
 # indistinguishable from a real broker/DB outage in the final report.
 _POLICY_REJECTION_STATUSES = {
     "duplicate",
+    "duplicate_signal",
     "duplicate_position",
     "pending_trade_exists",
     "reentry_cooldown",
