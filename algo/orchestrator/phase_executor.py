@@ -401,6 +401,21 @@ class OrchestratorPhaseExecutor:
         for phase_num in remaining:
             phase_def = self.phases[phase_num]
 
+            # AUDIT FIX: Clean up expired loader locks before Phase 7 to prevent lock contention
+            # Phase 7 (signal generation) acquires signal_quality_scores loader lock. Any stale
+            # locks from earlier phases (or crashed loaders) could cause lock acquisition timeout.
+            # Cleanup once before Phase 7 prevents lock timeouts from cascading.
+            if phase_num == 7:
+                try:
+                    from utils.db.local_file_lock import get_lock_manager
+                    lock_manager = get_lock_manager()
+                    if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                        cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=600)
+                        if cleaned > 0:
+                            logger.info(f"[PRE-PHASE-7] Cleaned {cleaned} expired loader lock(s) before signal generation")
+                except Exception as cleanup_err:
+                    logger.warning(f"[PRE-PHASE-7] Lock cleanup failed (non-blocking): {cleanup_err}")
+
             # Skip phases in skip_phases list (unless always_run)
             if phase_num in self.skip_phases:
                 if not phase_def.always_run:
