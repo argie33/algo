@@ -20,7 +20,10 @@ def _cursor_for_table_sequence(naive_updated_at: datetime, session_tz: str = "Am
     """Build a mock cursor whose execute/fetchone sequence matches
     validate_upstream_metrics_ready()'s per-table query order (coverage check, then
     staleness check) repeated for each of the 4 required_metric_tables, tracking every
-    executed SQL string so the test can assert SHOW timezone was actually issued."""
+    executed SQL string so the test can assert SHOW timezone was actually issued.
+
+    Note: get_db_timezone() caches its result, so SHOW timezone is only called once,
+    not once per table."""
     cur = MagicMock()
     executed_sql: list[str] = []
 
@@ -29,11 +32,16 @@ def _cursor_for_table_sequence(naive_updated_at: datetime, session_tz: str = "Am
     show_tz_row = (session_tz,)
 
     fetchone_results = []
-    for _ in range(4):  # value_metrics, growth_metrics, positioning_metrics, stability_metrics
+    # First required metric table: coverage, staleness, SHOW timezone
+    fetchone_results.append(coverage_row)
+    fetchone_results.append(staleness_row)
+    fetchone_results.append(show_tz_row)
+    # Remaining 3 required metric tables: coverage, staleness (get_db_timezone cached)
+    for _ in range(3):
         fetchone_results.append(coverage_row)
         fetchone_results.append(staleness_row)
-        fetchone_results.append(show_tz_row)
-    fetchone_results.append(coverage_row)  # optional_sec_metric_tables: quality_metrics (no staleness check)
+    # Optional quality_metrics: coverage only
+    fetchone_results.append(coverage_row)
 
     def _execute(sql: str, *args, **kwargs) -> None:
         executed_sql.append(sql)
@@ -45,6 +53,11 @@ def _cursor_for_table_sequence(naive_updated_at: datetime, session_tz: str = "Am
 
 
 class TestStockScoresStalenessTimezone:
+    def setup_method(self):
+        """Clear the global timezone cache before each test."""
+        import utils.db.timezone_utils
+        utils.db.timezone_utils._DB_TZ_CACHE = None
+
     def test_naive_updated_at_resolves_real_session_timezone_not_utc(self):
         naive_updated_at = datetime(2026, 7, 25, 23, 0, 0)  # naive, no tzinfo
         cur = _cursor_for_table_sequence(naive_updated_at, session_tz="America/Chicago")
