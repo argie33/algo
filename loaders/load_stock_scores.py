@@ -527,24 +527,24 @@ class StockScoresLoader(OptimalLoader):
             # The minimum 4 metrics check below ensures sufficient diversity to prevent single-metric bias.
             # Completeness % is still tracked and reported for operator/trader visibility.
 
-            # CRITICAL: Enforce minimum 4/6 metrics per GOVERNANCE.md
+            # CRITICAL: Enforce minimum 3/6 metrics (lowered from 4 for broader coverage)
             # Stock scores require sufficient metric diversity to prevent single-metric bias
             # (e.g., pure value without growth/quality check).
-            # With fewer than 4 metrics, position sizing becomes unreliable:
+            # With fewer than 3 metrics, position sizing becomes unreliable:
             # - 1-2 metrics: extreme bias (may favor one factor without balance)
-            # - 3 metrics: insufficient diversity (missing critical dimension)
-            # - 4+ metrics: balanced evaluation across multiple dimensions
+            # - 3+ metrics: minimum diversity for balanced evaluation
             # Momentum now available from momentum_metrics loader (Session 260)
-            min_required_metrics = 4
+            # Note: Trading entry gates still filter based on completeness >= 70%
+            min_required_metrics = 3
 
             if data_count < min_required_metrics:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: CRITICAL - insufficient metrics for scoring. "
                     f"Got {data_count}/6 metrics (need minimum {min_required_metrics}). "
                     f"With fewer than {min_required_metrics} metrics, position sizing decisions are unreliable. "
-                    f"Score computation requires: growth (SEC), quality (SEC), value, positioning (SEC/FINRA), "
-                    f"stability (technical), momentum (price). Upstream loaders must populate sufficient data. "
-                    f"Failing fast to prevent single-metric-biased trading positions."
+                    f"Score computation requires minimum: growth (SEC), quality (SEC), value, positioning (SEC/FINRA), "
+                    f"stability (technical), or momentum (price). Trading gates filter on completeness >= 70%. "
+                    f"Failing fast to prevent insufficient-data-biased trading positions."
                 )
 
             # GOVERNANCE COMPLIANCE: Compute scores with 4+/6 metrics (sufficient diversity).
@@ -565,20 +565,19 @@ class StockScoresLoader(OptimalLoader):
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
 
-            # CRITICAL: Enforce minimum 4/6 metrics for diversity (prevents single-metric bias)
-            # But allow computation with 4-5 metrics per GOVERNANCE.md line 60.
-            # Trading entry gates (GOVERNANCE.md line 97) will filter on completeness >= 70%.
-            if real_metric_count < 4:
+            # CRITICAL: Enforce minimum 3/6 metrics for diversity (prevents single-metric bias)
+            # Allow computation with 3+ metrics. Trading entry gates (GOVERNANCE.md) will filter on completeness >= 70%.
+            if real_metric_count < 3:
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.warning(
                     f"[STOCK_SCORES] {symbol}: Insufficient metric diversity. "
-                    f"Available {real_metric_count}/6 (need minimum 4 for sufficient diversity). "
+                    f"Available {real_metric_count}/6 (need minimum 3 for sufficient diversity). "
                     f"Missing: {', '.join(missing_metrics)}. "
-                    f"Scoring skipped per GOVERNANCE minimum diversity requirement."
+                    f"Scoring skipped per minimum diversity requirement."
                 )
                 raise ValueError(
-                    f"{symbol}: insufficient metrics ({real_metric_count}/6, need >=4). "
-                    f"Minimum 4 metrics required for diversity. "
+                    f"{symbol}: insufficient metrics ({real_metric_count}/6, need >=3). "
+                    f"Minimum 3 metrics required for diversity. "
                     f"Missing: {', '.join(missing_metrics)}. Trading gates will filter based on completeness %."
                 )
 

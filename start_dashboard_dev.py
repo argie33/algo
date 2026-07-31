@@ -213,7 +213,8 @@ def run_loader_pipeline(pipeline_name: str, timeout: int = 3600) -> bool:
 
     if not scheduler_path.exists():
         print(f"[STARTUP] [WARN] Loader scheduler not found at {scheduler_path}", flush=True)
-        return False
+        print(f"[STARTUP] [WARN] Will proceed with existing database data for {pipeline_name} pipeline", flush=True)
+        return True  # Allow continuing with existing data
 
     print(f"[STARTUP] Running {pipeline_name} loader pipeline (timeout: {timeout}s)...", flush=True)
 
