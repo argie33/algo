@@ -47,7 +47,7 @@ def refresh_performance_metrics() -> bool:
                     total_trades,
                     num_wins,
                     num_losses,
-                    COALESCE(win_rate_50t, 0),
+                    win_rate_50t,
                     profit_factor,
                     rolling_sharpe_252d,
                     rolling_sortino_252d,
