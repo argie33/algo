@@ -3253,6 +3253,12 @@ def panel_algo_health(
             notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
         rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
 
+    # ── F: Past runs section (bottom) ───────────────────────────────────────────
+    if valid_hist_list is not None and valid_hist_list:
+        past_runs_rows = _build_past_runs_section(valid_hist_list)
+        if past_runs_rows:
+            rows.extend(past_runs_rows)
+
     if not rows:
         logger.warning(
             "[HEALTH_PANEL] Algo health panel has no data to display. "
