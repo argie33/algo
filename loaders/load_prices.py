@@ -1912,18 +1912,87 @@ class PriceLoader(OptimalLoader):
 
             error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
 
-            # Use LoaderStatusManager for consolidated status updates (FIX 2026-07-31)
-            # This eliminates duplicate direct SQL writes and ensures single unified pathway
-            self._status_manager.update_final_status(
-                status_string=loader_status,
-                completion_pct=completion_pct,
-                symbols_loaded=symbols_successfully_loaded,
-                symbol_count=symbols_expected,
-                error_message=error_msg,
-                row_count=total_rows,
-                execution_duration_sec=exec_duration_sec,
-                latest_date=latest_date,
-            )
+            # UPSERT status to data_loader_status with all required fields
+            with DatabaseContext("write") as cur:
+                from datetime import timezone
+                exec_completed_utc = datetime.now(timezone.utc)
+                cur.execute(
+                    "INSERT INTO data_loader_status "
+                    "(table_name, status, completion_pct, symbols_loaded, symbol_count, error_message, execution_started, execution_completed, latest_date, last_updated) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()) "
+                    "ON CONFLICT (table_name) DO UPDATE SET "
+                    "status = EXCLUDED.status, "
+                    "completion_pct = EXCLUDED.completion_pct, "
+                    "symbols_loaded = EXCLUDED.symbols_loaded, "
+                    "symbol_count = EXCLUDED.symbol_count, "
+                    "error_message = EXCLUDED.error_message, "
+                    "execution_started = EXCLUDED.execution_started, "
+                    "execution_completed = EXCLUDED.execution_completed, "
+                    "latest_date = EXCLUDED.latest_date, "
+                    "last_updated = NOW()",
+                    (
+                        self.table_name,
+                        loader_status,
+                        completion_pct,
+                        symbols_successfully_loaded,
+                        symbols_expected,
+                        error_msg,
+                        start_time,
+                        exec_completed_utc,
+                        latest_date,
+                    ),
+                )
+
+                # Archive to history for failure-pattern analysis (dashboard's DATA FRESHNESS
+                # panel - see dashboard/freshness_enhancements.py's
+                # enrich_health_item_with_failure_pattern). This loader writes data_loader_status
+                # directly above instead of going through utils/loaders/status_manager.py's
+                # StatusManager, the same gap utils/optimal_loader.py's _update_final_status had
+                # (fixed 2026-07-27) - but PriceLoader has its own separate finalize path here
+                # that base-class fix never reaches, so price_daily specifically (the loader Phase
+                # 1's staleness check reads) still had 0 history rows. SAVEPOINT-protected: this
+                # runs after the real UPSERT above in the same transaction, so an uncaught error
+                # here must not abort that write when __exit__ commits.
+                try:
+                    cur.execute("SAVEPOINT archive_price_history")
+                    cur.execute(
+                        "INSERT INTO data_loader_status_history "
+                        "(table_name, status, execution_started, execution_completed, "
+                        "row_count, completion_pct, symbols_loaded, symbol_count) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            self.table_name,
+                            loader_status,
+                            start_time,
+                            exec_completed_utc,
+                            total_rows,
+                            completion_pct,
+                            symbols_successfully_loaded,
+                            symbols_expected,
+                        ),
+                    )
+                    # Keep only the last 100 runs per table (matches StatusManager's own
+                    # retention policy in utils/loaders/status_manager.py)
+                    cur.execute(
+                        "DELETE FROM data_loader_status_history "
+                        "WHERE table_name = %s AND id NOT IN ("
+                        "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
+                        "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
+                        ")",
+                        (self.table_name, self.table_name),
+                    )
+                    cur.execute("RELEASE SAVEPOINT archive_price_history")
+                except Exception as archive_err:
+                    # SAVEPOINT rollback: archive failure doesn't abort the main UPSERT above
+                    logger.warning(
+                        f"[LOADER STATUS] Could not archive {self.table_name} to history: {archive_err}. "
+                        f"Main status updated (UPSERT committed above), but history row missing. "
+                        f"Dashboard failure-pattern analysis may have gaps for this loader."
+                    )
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT archive_price_history")
+                    except Exception as rollback_err:
+                        logger.warning(f"Could not rollback savepoint: {rollback_err}")
 
             try:
                 # CRITICAL FIX #5: Use proper fail-fast cache invalidation with three-tier approach
