@@ -1041,7 +1041,6 @@ def _get_stock_scores(  # noqa: C901
                 "stock_ev_ebitda": d.get("ev_ebitda"),
                 "stock_ev_ebitda_unavailable_reason": d.get("ev_ebitda_unavailable_reason"),
                 "stock_ev_revenue": d.get("ev_revenue"),
-                "stock_ev_revenue_unavailable_reason": d.get("ev_revenue_unavailable_reason"),
                 "fcf_yield": d.get("fcf_yield_val"),
                 "fcf_yield_unavailable_reason": d.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": d.get("dividend_yield"),
