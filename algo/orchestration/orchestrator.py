@@ -301,13 +301,24 @@ class Orchestrator:
         """CRITICAL: Validate all required configuration at startup.
 
         Checks:
-        1. execution_mode is set and valid (paper/review/auto)
-        2. For live trading: Alpaca credentials available (API key + secret)
-        3. Required config keys present
+        1. OrchestratorConfig values are valid (timeouts, thresholds, ranges)
+        2. execution_mode is set and valid (paper/review/auto)
+        3. For live trading: Alpaca credentials available (API key + secret)
+        4. Required config keys present
 
         Raises RuntimeError if any validation fails.
         """
         logger.info("[STARTUP VALIDATION] Checking required configuration...")
+
+        # 0. Validate OrchestratorConfig values (timeouts, thresholds, etc.)
+        from algo.config.orchestrator_config import OrchestratorConfig
+        is_valid, config_errors = OrchestratorConfig.validate()
+        if not is_valid:
+            error_msg = "\n  ".join(config_errors)
+            raise RuntimeError(
+                f"[STARTUP] CRITICAL: OrchestratorConfig validation failed. Fix environment variables or config values:\n  {error_msg}"
+            )
+        logger.info(f"[OK] OrchestratorConfig validated: {len(config_errors) == 0}")
 
         # 1. Validate execution_mode FIRST
         # BUG FOUND 2026-07-28: this validation (and compute_run_mode_label's real-money
