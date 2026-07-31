@@ -66,6 +66,12 @@ def _update_loader_status(status: str, error_message: str | None = None, symbol_
     # Old non-existent columns: status, execution_started, execution_completed
     # Correct columns: is_complete, last_run, error_message, is_stale
 
+    valid_statuses = {"RUNNING", "COMPLETED", "FAILED"}
+    if status not in valid_statuses:
+        raise ValueError(
+            f"Invalid status '{status}'. Must be one of: {', '.join(sorted(valid_statuses))}"
+        )
+
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
             # Mark as running: status=loading, execution_started=now
@@ -90,8 +96,8 @@ def _update_loader_status(status: str, error_message: str | None = None, symbol_
             try:
                 cur.execute("SAVEPOINT archive_trend_history")
                 # FIX 2026-07-31: Don't try to SELECT non-existent columns. Just insert what we have.
-                # Map is_complete back to status string for history table
-                history_status = "COMPLETED" if is_complete else "FAILED"
+                # Status comes directly from the parameter
+                history_status = status
                 from datetime import datetime, timezone
                 now_utc = datetime.now(timezone.utc)
                 cur.execute(

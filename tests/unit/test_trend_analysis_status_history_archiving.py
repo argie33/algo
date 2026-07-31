@@ -44,7 +44,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
         cur = MagicMock()
 
         def _execute(sql, *args, **kwargs):
-            if "SELECT execution_started" in sql:
+            if "INSERT INTO data_loader_status_history" in sql:
                 raise Exception("boom")
 
         cur.execute.side_effect = _execute

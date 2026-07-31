@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import List, Tuple
 from datetime import datetime, timedelta
 
-# Fix encoding on Windows
-if sys.stdout.encoding and 'utf' not in sys.stdout.encoding.lower():
+# Fix encoding on Windows (but not during pytest)
+if sys.stdout.encoding and 'utf' not in sys.stdout.encoding.lower() and "pytest" not in sys.modules:
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 

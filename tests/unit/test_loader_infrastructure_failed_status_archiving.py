@@ -39,7 +39,12 @@ class TestFailedStatusArchiving:
     def test_archive_failure_rolls_back_savepoint_without_raising(self):
         infra = _make_infra()
         cur = MagicMock()
-        cur.fetchone.side_effect = Exception("boom")
+
+        def _execute(sql, *args, **kwargs):
+            if "INSERT INTO data_loader_status_history" in sql:
+                raise Exception("boom")
+
+        cur.execute.side_effect = _execute
 
         with patch("utils.loader_infrastructure.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = cur

@@ -159,7 +159,24 @@ class PhaseEventHub:
 
         Args:
             event: PhaseEvent instance to publish
+
+        Raises:
+            ValueError: If event is PhaseCompletedEvent with invalid status
         """
+        # CRITICAL: Validate status before publishing PhaseCompletedEvent
+        # Prevents invalid statuses from polluting event history (hard to debug downstream)
+        if isinstance(event, PhaseCompletedEvent):
+            status_str = event.details.get("status")
+            if status_str:
+                try:
+                    PhaseStatus(status_str)
+                except ValueError as e:
+                    raise ValueError(
+                        f"[PHASE_EVENT] Invalid status '{status_str}' in PhaseCompletedEvent for phase {event.phase_num}. "
+                        f"Valid statuses: {', '.join(s.value for s in PhaseStatus)}. "
+                        f"Cannot publish event with invalid status."
+                    ) from e
+
         logger.info(f"[EVENT_HUB] Publishing {event.event_type} for phase {event.phase_num}")
 
         # Store in history
