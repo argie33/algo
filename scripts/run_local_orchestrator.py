@@ -198,30 +198,20 @@ def main() -> None:
             # Support ORCHESTRATOR_DRY_RUN env var for local development/testing
             # Bypasses Phase 1 staleness checks when data is being loaded
             dry_run_override = os.environ.get("ORCHESTRATOR_DRY_RUN")
-            if dry_run_override is not None:
+            if run_type in MONITOR_ONLY_RUN_IDENTIFIERS:
+                # CRITICAL SAFETY: --evening/monitor-only MUST always be dry_run=True.
+                # ORCHESTRATOR_DRY_RUN env var can only override to enable dry_run, never to disable it.
+                # An ambient ORCHESTRATOR_DRY_RUN=false (leftover from testing) must not silently
+                # override --evening's documented "always monitor-only" guarantee.
+                # Previously (2026-07-28): shell with ORCHESTRATOR_DRY_RUN=false caused --evening to submit
+                # real (paper) orders instead of monitor-only. FIXED: now dry_run=True is enforced.
+                if dry_run_override is not None and dry_run_override.lower() in ("1", "true", "yes"):
+                    dry_run = True
+                else:
+                    dry_run = True
+            elif dry_run_override is not None:
+                # For LIVE_TRADING runs, respect explicit ORCHESTRATOR_DRY_RUN override
                 dry_run = dry_run_override.lower() in ("1", "true", "yes")
-                # SAFETY: an ambient ORCHESTRATOR_DRY_RUN (e.g. left set in a shell from
-                # earlier testing) silently overrides --evening's documented "always
-                # monitor-only, never places new entries" guarantee (see module docstring)
-                # with zero indication to the operator - found live 2026-07-28 when a
-                # shell with ORCHESTRATOR_DRY_RUN=false inherited from its environment
-                # caused --evening to skip the monitor-only path entirely. Surface this
-                # loudly rather than let it pass unnoticed.
-                if run_type in MONITOR_ONLY_RUN_IDENTIFIERS and not dry_run:
-                    print(
-                        f"  [WARNING] ORCHESTRATOR_DRY_RUN={dry_run_override!r} in environment "
-                        f"overrides --{run_type}'s normal monitor-only default (dry_run=True). "
-                        f"This run will NOT be dry-run despite --{run_type} - unset "
-                        f"ORCHESTRATOR_DRY_RUN if you intended a safe monitor-only exercise."
-                    )
-            elif run_type in MONITOR_ONLY_RUN_IDENTIFIERS:
-                # CRITICAL FIX: previously always defaulted to dry_run=False regardless of
-                # run_type, so --evening locally submitted real (paper) orders exactly like
-                # --morning/--afternoon - but production's real evening run (run_identifier=
-                # "evening") is monitor-only (see LIVE_TRADING_RUN_IDENTIFIERS/
-                # MONITOR_ONLY_RUN_IDENTIFIERS in lambda_function.py) and never places new
-                # entries. Local --evening testing must match that, not silently diverge from it.
-                dry_run = True
             elif run_type in LIVE_TRADING_RUN_IDENTIFIERS:
                 dry_run = False
             else:
