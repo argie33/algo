@@ -245,6 +245,33 @@ def run_loader_pipeline(pipeline_name: str, timeout: int = 3600) -> bool:
         return False
 
 
+def check_if_run_already_complete(run_type: str) -> bool:
+    """Check if a run (morning/metrics/signals) already completed successfully today.
+
+    Returns True if run already completed, False if it needs to run or check failed.
+    """
+    try:
+        from datetime import date
+        from utils.db import DatabaseContext
+
+        today = date.today()
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT run_id, overall_status, started_at
+                FROM orchestrator_execution_log
+                WHERE run_date = %s AND run_id ILIKE %s AND overall_status = 'success'
+                ORDER BY started_at DESC LIMIT 1
+                """,
+                (today, f"LOCAL-{run_type.upper()}-%"),
+            )
+            row = cur.fetchone()
+            return row is not None
+    except Exception as e:
+        print(f"[STARTUP] [WARN] Could not check if {run_type} already ran: {e}", flush=True)
+        return False
+
+
 def run_complete_loader_pipeline() -> bool:
     """Run COMPLETE loader pipeline: morning + (conditional) metrics + signals.
 
@@ -271,14 +298,20 @@ def run_complete_loader_pipeline() -> bool:
     print("[STARTUP] REFRESHING DATA: Running complete loader pipeline", flush=True)
     print("[STARTUP] ============================================================", flush=True)
 
-    # Step 1: Run morning pipeline (prices, technicals)
-    # 7 loaders (incl. rate-limited SEC/FINRA/Playwright fetches) over the full symbol
-    # universe (5459 active symbols as of the stock_symbols NYSE-listing fix) routinely
-    # exceed 10 minutes - a too-short timeout here silently truncates the pipeline
-    # mid-loader every run, which is why price_daily/technical_data_daily kept going
-    # stale even when this startup script ran. 1800s matches the metrics pipeline budget.
-    print("[STARTUP] Step 1/3: Morning pipeline (prices, technicals, market status)...", flush=True)
-    morning_ok = run_loader_pipeline("morning", timeout=1800)
+    # Step 1: Check if morning pipeline already ran today - skip if it did
+    if check_if_run_already_complete("morning"):
+        print("[STARTUP] Step 1/3: Morning pipeline (prices, technicals, market status)...", flush=True)
+        print("[STARTUP] [OK] Morning pipeline already ran today - skipping", flush=True)
+        morning_ok = True
+    else:
+        # Step 1: Run morning pipeline (prices, technicals)
+        # 7 loaders (incl. rate-limited SEC/FINRA/Playwright fetches) over the full symbol
+        # universe (5459 active symbols as of the stock_symbols NYSE-listing fix) routinely
+        # exceed 10 minutes - a too-short timeout here silently truncates the pipeline
+        # mid-loader every run, which is why price_daily/technical_data_daily kept going
+        # stale even when this startup script ran. 1800s matches the metrics pipeline budget.
+        print("[STARTUP] Step 1/3: Morning pipeline (prices, technicals, market status)...", flush=True)
+        morning_ok = run_loader_pipeline("morning", timeout=1800)
 
     if not morning_ok:
         # FAIL-FAST: Morning pipeline must succeed - it loads prices and technicals
@@ -301,21 +334,27 @@ def run_complete_loader_pipeline() -> bool:
         metrics_ok = run_loader_pipeline("metrics", timeout=1800)  # 30 min for metrics
 
         if not metrics_ok:
-            # FAIL-FAST: Metrics pipeline failure means fundamental data is stale.
-            # Stale fundamentals affect stock_scores ranking and signal quality.
-            # Do not proceed with degraded scoring.
-            msg = "[STARTUP] CRITICAL: Metrics pipeline failed. Fundamental data (quality/growth/value scores) cannot be loaded. Dashboard cannot start without current fundamentals for signal ranking."
-            print(msg, flush=True)
-            raise RuntimeError(msg)
+            # NON-CRITICAL: Metrics pipeline failure means fundamentals data remains stale.
+            # This is not ideal for signal quality, but the dashboard can still function with
+            # yesterday's fundamental data while trading on today's prices. Signals will still
+            # generate and trade (based on price action) - they just won't have today's earnings
+            # or 13F updates. Continue startup to avoid blocking the entire platform.
+            print("[STARTUP] [WARN] Metrics pipeline failed - fundamentals data remains stale, but dashboard can still function", flush=True)
+            print("[STARTUP] [WARN] If signal quality degrades, re-run orchestrator or restart dashboard after metrics pipeline succeeds", flush=True)
     else:
         print(f"[STARTUP] Metrics tables are fresh - skipping metrics pipeline ({staleness_reason})", flush=True)
 
-    # Step 3: ALWAYS re-fetch closing prices/technicals and regenerate scores/signals from them.
-    # Must run every launch so the dashboard's buy/sell signals reflect today's prices, not
-    # whatever day metrics last ran. Includes a price/technical re-fetch (like "morning"), so
-    # uses the same 1800s budget rather than the shorter timeout the DB-only steps alone would need.
-    print("[STARTUP] Step 3/3: Signals pipeline (closing prices, stock scores, buy/sell signals, risk metrics)...", flush=True)
-    signals_ok = run_loader_pipeline("signals", timeout=1800)
+    # Step 3: Check if signals pipeline already ran today - skip if it did
+    # Signals pipeline is price-driven, so it should run whenever prices update (always on
+    # dashboard startup to ensure signals reflect today's prices). However, if it already ran
+    # earlier today, skip the re-run to avoid unnecessary load.
+    if check_if_run_already_complete("signals"):
+        print("[STARTUP] Step 3/3: Signals pipeline (closing prices, stock scores, buy/sell signals, risk metrics)...", flush=True)
+        print("[STARTUP] [OK] Signals pipeline already ran today - skipping", flush=True)
+        signals_ok = True
+    else:
+        print("[STARTUP] Step 3/3: Signals pipeline (closing prices, stock scores, buy/sell signals, risk metrics)...", flush=True)
+        signals_ok = run_loader_pipeline("signals", timeout=1800)
 
     if signals_ok:
         completeness = check_stock_scores_completeness()

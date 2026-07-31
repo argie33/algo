@@ -41,6 +41,7 @@ from typing import Any
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
+from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
 

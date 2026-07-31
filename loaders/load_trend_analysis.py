@@ -54,6 +54,7 @@ import psycopg2
 import psycopg2.extensions
 
 from utils.db.context import DatabaseContext
+from utils.loaders.status_manager import LoaderStatusManager
 
 logger = logging.getLogger(__name__)
 
@@ -62,72 +63,21 @@ _LOOKBACK_DAYS = 10  # compute for the last N trading days to fill recent gaps
 
 
 def _update_loader_status(status: str, error_message: str | None = None, symbol_count: int | None = None) -> None:
-    # FIX 2026-07-31: Use correct schema columns
-    # Old non-existent columns: status, execution_started, execution_completed
-    # Correct columns: is_complete, last_run, error_message, is_stale
-
+    # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
     valid_statuses = {"RUNNING", "COMPLETED", "FAILED"}
     if status not in valid_statuses:
         raise ValueError(
             f"Invalid status '{status}'. Must be one of: {', '.join(sorted(valid_statuses))}"
         )
 
-    with DatabaseContext("write") as cur:
-        if status == "RUNNING":
-            # Mark as running: status=loading, execution_started=now
-            cur.execute(
-                "UPDATE data_loader_status SET status=%s, execution_started=NOW(), last_updated=NOW() WHERE table_name=%s",
-                ("loading", _TABLE),
-            )
-            if cur.rowcount == 0:
-                cur.execute(
-                    "INSERT INTO data_loader_status (table_name, status, execution_started, last_updated) VALUES (%s, %s, NOW(), NOW())",
-                    (_TABLE, "loading"),
-                )
-        else:
-            # Mark as complete/failed based on status
-            db_status = "COMPLETED" if status == "COMPLETED" else "FAILED"
-            cur.execute(
-                "UPDATE data_loader_status SET status=%s, execution_completed=NOW(), last_updated=NOW(), error_message=%s WHERE table_name=%s",
-                (db_status, error_message, _TABLE),
-            )
-            # Archive to history for failure-pattern analysis. SAVEPOINT-protected: runs after
-            # the real UPDATE above in the same transaction, so an uncaught error here must not abort that write.
-            try:
-                cur.execute("SAVEPOINT archive_trend_history")
-                # FIX 2026-07-31: Don't try to SELECT non-existent columns. Just insert what we have.
-                # Status comes directly from the parameter
-                history_status = status
-                from datetime import datetime, timezone
-                now_utc = datetime.now(timezone.utc)
-                cur.execute(
-                    "INSERT INTO data_loader_status_history "
-                    "(table_name, status, execution_started, execution_completed, error_message) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (
-                        _TABLE,
-                        history_status,
-                        now_utc,  # execution_started - approximate
-                        now_utc,  # execution_completed
-                        error_message,
-                    ),
-                )
-                # Keep only the last 100 runs per table
-                cur.execute(
-                    "DELETE FROM data_loader_status_history "
-                    "WHERE table_name = %s AND id NOT IN ("
-                    "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
-                    "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
-                    ")",
-                    (_TABLE, _TABLE),
-                )
-                cur.execute("RELEASE SAVEPOINT archive_trend_history")
-            except Exception as archive_err:
-                logger.debug(f"[TREND_ANALYSIS] Failed to archive loader history: {archive_err}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT archive_trend_history")
-                except Exception as savepoint_err:
-                    logger.debug(f"[TREND_ANALYSIS] Failed to rollback to savepoint: {savepoint_err}")
+    status_mgr = LoaderStatusManager(_TABLE)
+
+    if status == "RUNNING":
+        status_mgr.mark_running()
+    elif status == "COMPLETED":
+        status_mgr.mark_completed()
+    elif status == "FAILED":
+        status_mgr.mark_failed(error_message=error_message or "Unknown error")
 
 
 def _fetch_latest_dates(cur: psycopg2.extensions.cursor) -> list[date]:

@@ -38,6 +38,7 @@ from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
+from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
 
@@ -66,17 +67,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         parallelism = parallelism or get_default_parallelism("quality_metrics")
 
         try:
-            with DatabaseContext("write") as cur:
-                for table in ["quality_metrics", "growth_metrics"]:
-                    cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() WHERE table_name = %s",
-                        ("loading", table),
-                    )
-                    if cur.rowcount == 0:
-                        cur.execute(
-                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
-                            (table, "loading"),
-                        )
+            # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
+            for table in ["quality_metrics", "growth_metrics"]:
+                status_mgr = LoaderStatusManager(table)
+                status_mgr.mark_running()
 
             for symbol in symbols:
                 try:
@@ -141,12 +135,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             success = symbols_succeeded > 0
             fail_rate = (symbols_failed / max(symbols_succeeded + symbols_failed, 1)) * 100
 
-            with DatabaseContext("write") as cur:
-                for table in ["quality_metrics", "growth_metrics"]:
-                    status = "healthy" if success and fail_rate <= self.max_fail_rate else "failed"
-                    cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() WHERE table_name = %s",
-                        (status, table),
+            # Use LoaderStatusManager for final status (RACE CONDITION FIX)
+            for table in ["quality_metrics", "growth_metrics"]:
+                status_mgr = LoaderStatusManager(table)
+                if success and fail_rate <= self.max_fail_rate:
+                    status_mgr.mark_completed()
+                else:
+                    status_mgr.mark_failed(
+                        error_message=f"Failed symbols: {symbols_failed}/{symbols_failed + symbols_succeeded}",
+                        completion_pct=100.0 * symbols_succeeded / max(symbols_succeeded + symbols_failed, 1)
                     )
 
             return {

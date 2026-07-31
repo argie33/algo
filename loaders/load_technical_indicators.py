@@ -43,6 +43,7 @@ from utils.db.context import DatabaseContext
 from utils.db.retry import OptimisticLockRetry
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+from utils.loaders.status_manager import LoaderStatusManager
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
@@ -951,58 +952,22 @@ class VectorizedTechnicalLoader:
 
 
 def _update_tech_loader_status(status: str, error_message: str | None = None, latest_date: date | None = None) -> None:
-    # Map old status values to new health-based ones
-    # Old: "RUNNING", "COMPLETED", "FAILED"
-    # New: "loading", "ok", "error"
-    status_map = {"RUNNING": "loading", "COMPLETED": "ok", "FAILED": "error"}
-    # CRITICAL FIX: Do not silently fall back to unknown status values.
-    # If caller passes invalid status, fail-fast with clear error.
-    db_status = status_map.get(status)
-    if db_status is None:
+    # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
+    # Map old status values to LoaderStatusManager methods
+    status_mgr = LoaderStatusManager("technical_data_daily")
+
+    if status == "RUNNING":
+        status_mgr.mark_running()
+    elif status == "COMPLETED":
+        status_mgr.mark_completed(latest_date=latest_date)
+    elif status == "FAILED":
+        status_mgr.mark_failed(error_message=error_message or "Unknown error")
+    else:
         raise ValueError(
             f"[TECHNICAL_INDICATORS] Invalid status '{status}'. "
-            f"Must be one of: {', '.join(status_map.keys())}. "
+            f"Must be one of: RUNNING, COMPLETED, FAILED. "
             f"Unexpected status could corrupt data_loader_status. Fail-fast to prevent data corruption."
         )
-
-    with DatabaseContext("write") as cur:
-        if status == "RUNNING":
-            cur.execute(
-                """
-                UPDATE data_loader_status
-                SET status = %s, last_updated = NOW(), execution_started = NOW()
-                WHERE table_name = %s
-            """,
-                (db_status, "technical_data_daily"),
-            )
-            if cur.rowcount == 0:
-                cur.execute(
-                    """
-                    INSERT INTO data_loader_status
-                    (table_name, status, last_updated, execution_started)
-                    VALUES (%s, %s, NOW(), NOW())
-                """,
-                    ("technical_data_daily", db_status),
-                )
-        else:
-            if latest_date:
-                cur.execute(
-                    """
-                    UPDATE data_loader_status
-                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s, latest_date = %s
-                    WHERE table_name = %s
-                """,
-                    (db_status, error_message, latest_date, "technical_data_daily"),
-                )
-            else:
-                cur.execute(
-                    """
-                    UPDATE data_loader_status
-                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
-                    WHERE table_name = %s
-                """,
-                    (db_status, error_message, "technical_data_daily"),
-                )
 
 
 def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
@@ -1015,15 +980,9 @@ def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
         try:
             if stop_event.wait(timeout=60):  # exits early when stop is requested
                 break
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    """
-                    UPDATE data_loader_status
-                    SET last_updated = NOW()
-                    WHERE table_name = %s AND status = %s
-                """,
-                    ("technical_data_daily", "loading"),
-                )
+            # Use LoaderStatusManager for centralized heartbeat (RACE CONDITION FIX)
+            status_mgr = LoaderStatusManager("technical_data_daily")
+            status_mgr.update_progress()  # Just update last_updated
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(
                 f"HEARTBEAT FAILURE: Cannot update loader status - hung task detection DISABLED. "

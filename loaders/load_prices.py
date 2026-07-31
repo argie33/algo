@@ -1984,87 +1984,33 @@ class PriceLoader(OptimalLoader):
 
             error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
 
-            # UPSERT status to data_loader_status with all required fields
-            with DatabaseContext("write") as cur:
-                from datetime import timezone
-                exec_completed_utc = datetime.now(timezone.utc)
-                cur.execute(
-                    "INSERT INTO data_loader_status "
-                    "(table_name, status, completion_pct, symbols_loaded, symbol_count, error_message, execution_started, execution_completed, latest_date, last_updated) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()) "
-                    "ON CONFLICT (table_name) DO UPDATE SET "
-                    "status = EXCLUDED.status, "
-                    "completion_pct = EXCLUDED.completion_pct, "
-                    "symbols_loaded = EXCLUDED.symbols_loaded, "
-                    "symbol_count = EXCLUDED.symbol_count, "
-                    "error_message = EXCLUDED.error_message, "
-                    "execution_started = EXCLUDED.execution_started, "
-                    "execution_completed = EXCLUDED.execution_completed, "
-                    "latest_date = EXCLUDED.latest_date, "
-                    "last_updated = NOW()",
-                    (
-                        self.table_name,
-                        loader_status,
-                        completion_pct,
-                        symbols_successfully_loaded,
-                        symbols_expected,
-                        error_msg,
-                        start_time,
-                        exec_completed_utc,
-                        latest_date,
-                    ),
+            # Use LoaderStatusManager for centralized, thread-safe status updates (RACE CONDITION FIX)
+            # Eliminates concurrent-write race condition where multiple loaders write data_loader_status directly.
+            status_mgr = LoaderStatusManager(self.table_name)
+
+            # Map loader status to LoaderStatus enum for consistency
+            if loader_status == "ok":
+                status_mgr.mark_completed(
+                    execution_duration_sec=(time.time() - start_time) if hasattr(self, '_start_time') else None,
+                    latest_date=latest_date
+                )
+            elif loader_status == "error":
+                status_mgr.mark_failed(
+                    error_message=error_msg or "Unknown error",
+                    completion_pct=completion_pct
+                )
+            else:
+                # For partial/timeout states
+                status_mgr.update_final_status(
+                    status_string=loader_status,
+                    completion_pct=completion_pct,
+                    symbols_loaded=symbols_successfully_loaded,
+                    symbol_count=symbols_expected,
+                    error_message=error_msg,
+                    latest_date=latest_date
                 )
 
-                # Archive to history for failure-pattern analysis (dashboard's DATA FRESHNESS
-                # panel - see dashboard/freshness_enhancements.py's
-                # enrich_health_item_with_failure_pattern). This loader writes data_loader_status
-                # directly above instead of going through utils/loaders/status_manager.py's
-                # StatusManager, the same gap utils/optimal_loader.py's _update_final_status had
-                # (fixed 2026-07-27) - but PriceLoader has its own separate finalize path here
-                # that base-class fix never reaches, so price_daily specifically (the loader Phase
-                # 1's staleness check reads) still had 0 history rows. SAVEPOINT-protected: this
-                # runs after the real UPSERT above in the same transaction, so an uncaught error
-                # here must not abort that write when __exit__ commits.
-                try:
-                    cur.execute("SAVEPOINT archive_price_history")
-                    cur.execute(
-                        "INSERT INTO data_loader_status_history "
-                        "(table_name, status, execution_started, execution_completed, "
-                        "row_count, completion_pct, symbols_loaded, symbol_count) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                        (
-                            self.table_name,
-                            loader_status,
-                            start_time,
-                            exec_completed_utc,
-                            total_rows,
-                            completion_pct,
-                            symbols_successfully_loaded,
-                            symbols_expected,
-                        ),
-                    )
-                    # Keep only the last 100 runs per table (matches StatusManager's own
-                    # retention policy in utils/loaders/status_manager.py)
-                    cur.execute(
-                        "DELETE FROM data_loader_status_history "
-                        "WHERE table_name = %s AND id NOT IN ("
-                        "  SELECT id FROM data_loader_status_history WHERE table_name = %s "
-                        "  ORDER BY execution_completed DESC NULLS LAST LIMIT 100"
-                        ")",
-                        (self.table_name, self.table_name),
-                    )
-                    cur.execute("RELEASE SAVEPOINT archive_price_history")
-                except Exception as archive_err:
-                    # SAVEPOINT rollback: archive failure doesn't abort the main UPSERT above
-                    logger.warning(
-                        f"[LOADER STATUS] Could not archive {self.table_name} to history: {archive_err}. "
-                        f"Main status updated (UPSERT committed above), but history row missing. "
-                        f"Dashboard failure-pattern analysis may have gaps for this loader."
-                    )
-                    try:
-                        cur.execute("ROLLBACK TO SAVEPOINT archive_price_history")
-                    except Exception as rollback_err:
-                        logger.warning(f"Could not rollback savepoint: {rollback_err}")
+            # Archive to history for failure-pattern analysis (now done by LoaderStatusManager._archive_to_history)
 
             try:
                 # CRITICAL FIX #5: Use proper fail-fast cache invalidation with three-tier approach
@@ -2686,18 +2632,10 @@ def derive_aggregate_prices(asset_class: str) -> None:
             cur.execute(f"SELECT MAX(date) FROM {target_table}")
             latest_row = cur.fetchone()
             latest_date = latest_row[0] if latest_row else None
-            cur.execute(
-                """UPDATE data_loader_status
-                   SET status = %s, last_updated = NOW(), execution_completed = NOW(), latest_date = %s
-                   WHERE table_name = %s""",
-                ("ok", latest_date, target_table),
-            )
-            if cur.rowcount == 0:
-                cur.execute(
-                    """INSERT INTO data_loader_status (table_name, status, last_updated, execution_completed, latest_date)
-                       VALUES (%s, %s, NOW(), NOW(), %s)""",
-                    (target_table, "ok", latest_date),
-                )
+
+        # Use LoaderStatusManager for centralized status update (RACE CONDITION FIX)
+        status_mgr = LoaderStatusManager(target_table)
+        status_mgr.mark_completed(latest_date=latest_date)
 
 
 def log_loader_execution(
