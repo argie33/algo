@@ -8,23 +8,27 @@ Verify pipeline-loaded tables are fresh before trading. "Fresh" = LAST TRADING D
 - NO multi-day lookback windows (Session 223 fix: stale data bypass)
 
 Tables verified (all must have LAST-TRADING-DAY data with non-NULL prices):
-1. price_daily: Must have last trading day data (75%+ symbol coverage) - HALT if stale
-2. market_health_daily: Market breadth metrics - HALT if stale
-3. market_exposure_daily: Market regime / exposure limits - HALT if stale
-4. earnings_calendar: Earnings dates for blackout window gating - HALT if stale
-5. growth_metrics: Multi-year revenue/EPS growth metrics - HALT if stale (ADDED 2026-07-05)
-6. quality_metrics: Financial quality metrics (ROE/margins/ratios) - HALT if stale (ADDED 2026-07-05)
-7. value_metrics: Valuation metrics (P/E, P/B, etc.) - HALT if stale (ADDED 2026-07-05)
-8. positioning_metrics: Ownership and short interest - HALT if stale (ADDED 2026-07-05)
-9. stability_metrics: Volatility and beta metrics - HALT if stale (ADDED 2026-07-05)
-10. trend_template_data: Minervini/Weinstein criteria - WARNING if stale
-11. sector_ranking: Sector data for last trading day - WARNING if stale
+
+HALT IF STALE (core to signal generation):
+1. price_daily: Stock prices (75%+ symbol coverage required)
+2. market_health_daily: Market breadth metrics (regime detection)
+3. earnings_calendar: Earnings dates (blackout window gating)
+
+WARNING IF STALE (enrichment only, website/portfolio analysis, not core signals):
+4. market_exposure_daily: Market regime / exposure limits (EOD loader, morning runs lag 1d)
+5. growth_metrics: Multi-year revenue/EPS growth metrics
+6. quality_metrics: Financial quality metrics (ROE/margins/ratios)
+7. value_metrics: Valuation metrics (P/E, P/B, etc.)
+8. positioning_metrics: Ownership and short interest
+9. stability_metrics: Volatility and beta metrics
+10. trend_template_data: Minervini/Weinstein criteria
+11. sector_ranking: Sector data for last trading day
 (swing_trader_scores: removed in Session 14, no longer checked)
 
-CRITICAL FIX 2026-07-05: Metric loaders (growth, quality, value, positioning, stability)
-are now required for stock scoring. Per phase1_failsafe_retry.py, these are CRITICAL loaders
-that must complete and remain fresh. stock_scores requires minimum 3/6 metrics per GOVERNANCE.md
-to prevent single-metric bias. Stale metrics = stale scores = HALT.
+NOTE: Metric loaders (growth, quality, value, positioning, stability) are ENRICHMENT ONLY.
+They're used for website display and portfolio analysis, not core signal generation (which uses
+price_daily + technical_data_daily). Phase 5 generates stock_scores on-the-fly from price_daily;
+metrics are not required for trading. Stale metrics = WARNING only, trading continues.
 
 Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
 Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (pipeline-loaded, Phase 1 just validates).
