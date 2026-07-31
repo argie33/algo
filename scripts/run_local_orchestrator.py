@@ -205,10 +205,11 @@ def main() -> None:
                 # override --evening's documented "always monitor-only" guarantee.
                 # Previously (2026-07-28): shell with ORCHESTRATOR_DRY_RUN=false caused --evening to submit
                 # real (paper) orders instead of monitor-only. FIXED: now dry_run=True is enforced.
+                # WARNING: If ORCHESTRATOR_DRY_RUN defeats the monitor-only guarantee, log it
                 if dry_run_override is not None and dry_run_override.lower() not in ("1", "true", "yes"):
+                    import sys
                     print(f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' would disable monitor-only "
-                          f"for --{run_type}, but safety override forces dry_run=True. "
-                          f"Recommend unsetting ORCHESTRATOR_DRY_RUN for monitor-only runs.")
+                          f"for --{run_type}, but safety override forces dry_run=True.", file=sys.stderr)
                 dry_run = True
             elif dry_run_override is not None:
                 # For LIVE_TRADING runs, respect explicit ORCHESTRATOR_DRY_RUN override
