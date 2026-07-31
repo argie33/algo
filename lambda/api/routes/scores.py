@@ -910,6 +910,24 @@ def _get_stock_scores(  # noqa: C901
                     ORDER BY ais.fiscal_year DESC
                     LIMIT 1
                 ) gm_calc ON true
+                LEFT JOIN LATERAL (
+                    SELECT ROUND(
+                        CASE
+                            WHEN acf_curr.free_cash_flow IS NOT NULL
+                                 AND acf_prior.free_cash_flow IS NOT NULL
+                                 AND acf_prior.free_cash_flow != 0
+                            THEN ((acf_curr.free_cash_flow - acf_prior.free_cash_flow)
+                                  / ABS(acf_prior.free_cash_flow)) * 100
+                            ELSE NULL
+                        END, 2) AS calculated_fcf_growth
+                    FROM annual_cash_flow acf_curr
+                    LEFT JOIN annual_cash_flow acf_prior
+                        ON acf_curr.symbol = acf_prior.symbol
+                        AND acf_prior.fiscal_year = acf_curr.fiscal_year - 1
+                    WHERE acf_curr.symbol = fs.symbol
+                    ORDER BY acf_curr.fiscal_year DESC
+                    LIMIT 1
+                ) fcf_calc ON true
                 ORDER BY fs.{sort_col} {sort_direction}
             """
         params_list.extend([limit, offset])
