@@ -69,6 +69,11 @@ jobs:
           python .pre-commit-scripts/check-credential-defaults.py
           python .pre-commit-scripts/check-silent-fallbacks.py
 
+      - name: Validate memory files
+        run: |
+          python scripts/validate_memory.py
+        continue-on-error: false
+
       - name: Run unit tests
         run: |
           pytest tests/ -m unit -v --tb=short
