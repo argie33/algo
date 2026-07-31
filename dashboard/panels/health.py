@@ -3463,6 +3463,63 @@ def _build_algo_metrics_table(metrics: list[Any]) -> Table | None:
     return tbl
 
 
+def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
+    """Build compact past runs section showing last few runs with status and failure reasons.
+
+    Shows up to 5 most recent runs with:
+    - Status indicator (✓/~/✗)
+    - Timestamp
+    - Brief failure reason if applicable
+
+    Returns list of Rich Text/Rule objects for display in health panel footer.
+    """
+    rows: list[Text | Rule] = []
+
+    valid_hist = safe_get_list(exec_hist)
+    if not isinstance(valid_hist, list) or not valid_hist:
+        return rows
+
+    # Show last 5 runs
+    recent_runs = valid_hist[:5]
+
+    # Build row with status badges and details
+    for i, run in enumerate(recent_runs):
+        if not isinstance(run, dict):
+            continue
+
+        status = _get_status_safe(run)
+        color, icon = _format_phase_badge(status)
+
+        run_at = run.get("run_at")
+        run_id = run.get("run_id", "")
+        timestamp_str = fmt_age(run_at) if run_at else "?"
+
+        # Get failure details
+        halt_reason = run.get("halt_reason", "")
+        summary = run.get("summary", "")
+        error_msg = run.get("error", "")
+
+        # Determine what reason to show based on status
+        reason = ""
+        if status in HALTED_STATES and halt_reason:
+            reason = halt_reason[:40]
+        elif status in ERROR_STATES and error_msg:
+            reason = error_msg[:40]
+        elif status in ERROR_STATES and summary:
+            reason = summary[:40]
+
+        # Format the run line
+        reason_part = f" • {reason}" if reason else ""
+        run_line = f"  [{color}]{icon}[/] [{DIM}]{timestamp_str}[/]{reason_part}"
+        rows.append(Text.from_markup(run_line))
+
+    if rows:
+        rows.insert(0, Rule(style="dim"))
+        rows.insert(0, Text.from_markup(f"[bold dim]Past runs:[/]"))
+
+    return rows
+
+
 def _build_results_panel(
     run: dict[str, Any] | None,
     act: dict[str, Any] | None,
@@ -3795,8 +3852,19 @@ def _build_results_panel(
         Layout(Group(*right_phase_rows), ratio=1, name="right_phases"),
     )
 
-    # Add header at top if we have it
-    all_content = Group(*header_rows, Rule(style="dim"), layout) if header_rows else layout
+    # Build past runs section at bottom
+    past_runs_rows = _build_past_runs_section(exec_hist)
+
+    # Add header at top if we have it, past runs at bottom
+    content_rows: list[Any] = []
+    if header_rows:
+        content_rows.extend(header_rows)
+        content_rows.append(Rule(style="dim"))
+    content_rows.append(layout)
+    if past_runs_rows:
+        content_rows.extend(past_runs_rows)
+
+    all_content = Group(*content_rows) if content_rows else layout
 
     return Panel(
         all_content,
