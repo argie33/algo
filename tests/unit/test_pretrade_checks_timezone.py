@@ -114,13 +114,27 @@ class TestReentryCooldownUsesRealSessionTimezone:
         checks = PreTradeChecks(config=self._config())
 
         mock_cur = MagicMock()
-        mock_cur.fetchone.side_effect = [
-            None,  # Check 1: no open algo_positions row
-            None,  # Check 1b: no open algo_trades row
-            (1, closed_at_naive),  # Check 2: a recently-closed position
-            [session_tz_name],  # SHOW timezone
-            *extra_fetches,
-        ]
+        # Counter to track query number
+        query_counter = [0]
+
+        # Map each query to its expected result
+        responses = {
+            0: None,  # Check 1: no open algo_positions row
+            1: None,  # Check 1b: no open algo_trades row
+            2: (1, closed_at_naive),  # Check 2: a recently-closed position
+            3: (session_tz_name,),  # SHOW timezone (in get_db_timezone)
+        }
+        # Add extra_fetches starting from index 4
+        for i, fetch in enumerate(extra_fetches, start=4):
+            responses[i] = fetch
+
+        def _fetchone():
+            result = responses.get(query_counter[0], None)
+            query_counter[0] += 1
+            return result
+
+        mock_cur.fetchone.side_effect = _fetchone
+
         mock_db_context = MagicMock()
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)
