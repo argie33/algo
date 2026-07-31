@@ -1087,7 +1087,10 @@ def run(  # noqa: C901
 
                     # Verify stock_scores were computed for the latest trading day available in price data
                     cur.execute("SELECT MAX(date) FROM price_daily")
-                    latest_price_date = cur.fetchone()[0]
+                    price_row = cur.fetchone()
+                    if not price_row or price_row[0] is None:
+                        raise RuntimeError("[PHASE 1] price_daily table is empty - cannot verify stock_scores freshness")
+                    latest_price_date = price_row[0]
 
                     # Stock scores should have been updated AFTER the latest price date (they're computed
                     # end-of-day). Allow up to 48 hours for EOD pipelines to run (covering overnight + weekend scenarios).

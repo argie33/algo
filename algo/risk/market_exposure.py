@@ -216,7 +216,10 @@ class MarketExposure:
                 # normalize_to_utc_datetime - resolve the real session timezone dynamically.
                 if not updated_at.tzinfo:
                     cur.execute("SHOW timezone")
-                    naive_tz = ZoneInfo(cur.fetchone()[0])
+                    tz_row = cur.fetchone()
+                    if not tz_row or not tz_row[0]:
+                        raise RuntimeError("[MARKET_EXPOSURE] Failed to fetch database timezone - connection error")
+                    naive_tz = ZoneInfo(tz_row[0])
                     updated_at = updated_at.replace(tzinfo=naive_tz)
                 now = datetime.now(timezone.utc)
                 age = now - updated_at
