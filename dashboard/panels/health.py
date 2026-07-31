@@ -1564,9 +1564,17 @@ def _format_execution_stats(exec_stats: dict[str, Any] | None) -> Text | None:
         return None
 
     # Parse rates (they come as strings like "2.3%")
+    # CRITICAL: Validate status counts exist - default to 0 only if structure exists
+    if not isinstance(by_status, dict):
+        logger.error("[STATUS SUMMARY] by_status is not a dict or missing - cannot compute status summary")
+        return None
+
     error_count = by_status.get("error", 0)
     halt_count = by_status.get("halted", 0)
     ok_count = by_status.get("ok", 0) + by_status.get("success", 0)
+
+    if error_count == 0 and halt_count == 0 and ok_count == 0:
+        logger.warning("[STATUS SUMMARY] All status counts are 0 or missing - data may be incomplete")
 
     # Determine alert level
     try:
@@ -3925,116 +3933,138 @@ def _build_results_panel(
                         vix_color = R if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else Y if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else G
                         vix_status = "EXTREME" if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else "HIGH" if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else "NORMAL"
                         target_rows.append(Text.from_markup(f"  VIX: [{vix_color}]{vix:.1f} ({vix_status})[/]"))
-                    if phase_data.get("var95") is not None:
-                        var = phase_data.get("var95", 0)
+                    var = phase_data.get("var95")
+                    if var is not None:
                         var_color = R if var >= 4 else Y if var >= 2 else G
                         target_rows.append(Text.from_markup(f"  VaR 95%: [{var_color}]{var:.2f}%[/]"))
 
                 elif phase_num == 3:  # Position Monitor
-                    if phase_data.get("open_positions") is not None:
-                        pos_color = G if phase_data.get("open_positions", 0) == 0 else Y if phase_data.get("open_positions", 0) <= 5 else R
-                        target_rows.append(Text.from_markup(f"  Open Positions: [{pos_color}]{phase_data.get('open_positions')}[/]"))
-                    if phase_data.get("oldest_days") is not None:
-                        target_rows.append(Text.from_markup(f"  Oldest: {phase_data.get('oldest_days')}d"))
-                    if phase_data.get("max_loss_pct") is not None:
-                        loss_color = R if phase_data.get("max_loss_pct", 0) <= -5 else Y if phase_data.get("max_loss_pct", 0) <= -2 else G
-                        target_rows.append(Text.from_markup(f"  Max Loss: [{loss_color}]{phase_data.get('max_loss_pct'):.1f}%[/]"))
-                    if phase_data.get("total_unrealized_pnl") is not None:
-                        pnl_color = G if phase_data.get("total_unrealized_pnl", 0) >= 0 else R
-                        target_rows.append(Text.from_markup(f"  Total P&L: [{pnl_color}]${phase_data.get('total_unrealized_pnl'):,.0f}[/]"))
+                    open_pos = phase_data.get("open_positions")
+                    if open_pos is not None:
+                        pos_color = G if open_pos == 0 else Y if open_pos <= 5 else R
+                        target_rows.append(Text.from_markup(f"  Open Positions: [{pos_color}]{open_pos}[/]"))
+                    oldest_days = phase_data.get("oldest_days")
+                    if oldest_days is not None:
+                        target_rows.append(Text.from_markup(f"  Oldest: {oldest_days}d"))
+                    max_loss = phase_data.get("max_loss_pct")
+                    if max_loss is not None:
+                        loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
+                        target_rows.append(Text.from_markup(f"  Max Loss: [{loss_color}]{max_loss:.1f}%[/]"))
+                    total_pnl = phase_data.get("total_unrealized_pnl")
+                    if total_pnl is not None:
+                        pnl_color = G if total_pnl >= 0 else R
+                        target_rows.append(Text.from_markup(f"  Total P&L: [{pnl_color}]${total_pnl:,.0f}[/]"))
 
                 elif phase_num == 4:  # Broker Reconciliation
-                    if phase_data.get("sync_count") is not None:
-                        target_rows.append(Text.from_markup(f"  Syncs: {phase_data.get('sync_count')}"))
-                    if phase_data.get("avg_match_pct") is not None:
-                        match_color = G if phase_data.get("avg_match_pct", 0) >= 95 else Y if phase_data.get("avg_match_pct", 0) >= 80 else R
-                        target_rows.append(Text.from_markup(f"  Match Rate: [{match_color}]{phase_data.get('avg_match_pct'):.0f}%[/]"))
-                    if phase_data.get("errors_found", 0) > 0:
-                        target_rows.append(Text.from_markup(f"  [{R}]Errors: {phase_data.get('errors_found')}[/]"))
+                    sync_count = phase_data.get("sync_count")
+                    if sync_count is not None:
+                        target_rows.append(Text.from_markup(f"  Syncs: {sync_count}"))
+                    match_pct = phase_data.get("avg_match_pct")
+                    if match_pct is not None:
+                        match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
+                        target_rows.append(Text.from_markup(f"  Match Rate: [{match_color}]{match_pct:.0f}%[/]"))
+                    errors = phase_data.get("errors_found")
+                    if errors is not None and errors > 0:
+                        target_rows.append(Text.from_markup(f"  [{R}]Errors: {errors}[/]"))
 
                 elif phase_num == 5:  # Exposure Policy
-                    if phase_data.get("market_regime"):
-                        target_rows.append(Text.from_markup(f"  Regime: {phase_data.get('market_regime')}"))
-                    if phase_data.get("entry_allowed") is not None:
-                        entry_color = G if phase_data.get("entry_allowed") else R
-                        entry_text = "ALLOWED" if phase_data.get("entry_allowed") else "BLOCKED"
+                    regime = phase_data.get("market_regime")
+                    if regime:
+                        target_rows.append(Text.from_markup(f"  Regime: {regime}"))
+                    entry_allowed = phase_data.get("entry_allowed")
+                    if entry_allowed is not None:
+                        entry_color = G if entry_allowed else R
+                        entry_text = "ALLOWED" if entry_allowed else "BLOCKED"
                         target_rows.append(Text.from_markup(f"  Entries: [{entry_color}]{entry_text}[/]"))
-                    if phase_data.get("max_new_entries") is not None:
-                        target_rows.append(Text.from_markup(f"  Max Slots: {phase_data.get('max_new_entries')}"))
-                    if phase_data.get("halt_active"):
+                    max_entries = phase_data.get("max_new_entries")
+                    if max_entries is not None:
+                        target_rows.append(Text.from_markup(f"  Max Slots: {max_entries}"))
+                    halt_active = phase_data.get("halt_active")
+                    if halt_active:
                         target_rows.append(Text.from_markup(f"  [{R}]HALT ACTIVE[/]"))
-                        if phase_data.get("halt_reason"):
-                            target_rows.append(Text.from_markup(f"    Reason: {phase_data.get('halt_reason')[:60]}"))
+                        halt_reason = phase_data.get("halt_reason")
+                        if halt_reason:
+                            target_rows.append(Text.from_markup(f"    Reason: {halt_reason[:60]}"))
 
                 elif phase_num == 6:  # Exit Execution
-                    if phase_data.get("exits_executed") is not None:
-                        exits = phase_data.get("exits_executed", 0)
+                    exits = phase_data.get("exits_executed")
+                    if exits is not None:
                         exit_color = G if exits > 0 else Y
                         target_rows.append(Text.from_markup(f"  [{exit_color}]Exits: {exits}[/]"))
-                    if phase_data.get("success_rate") is not None and phase_data.get("exits_executed", 0) > 0:
-                        sr = phase_data.get("success_rate", 0)
+                    sr = phase_data.get("success_rate")
+                    exits_count = phase_data.get("exits_executed")
+                    if sr is not None and exits_count is not None and exits_count > 0:
                         sr_color = G if sr >= 80 else Y if sr >= 50 else R
-                        failed_count = int(phase_data.get("exits_executed", 0) * (100 - sr) / 100) if sr < 100 else 0
+                        failed_count = int(exits_count * (100 - sr) / 100) if sr < 100 else 0
                         fail_text = f" ({int(100-sr)}% failed)" if sr < 100 else ""
                         target_rows.append(Text.from_markup(f"  Success: [{sr_color}]{sr:.0f}%{fail_text}[/]"))
-                    if phase_data.get("avg_profit") is not None:
-                        profit = phase_data.get("avg_profit", 0)
+                    profit = phase_data.get("avg_profit")
+                    if profit is not None:
                         profit_color = G if profit > 0 else R if profit < 0 else Y
                         profit_text = "LOSS" if profit < 0 else "PROFIT"
                         target_rows.append(Text.from_markup(f"  Avg Profit: [{profit_color}]${profit:,.0f} ({profit_text})[/]"))
-                    if phase_data.get("symbols_exited"):
-                        syms = phase_data.get("symbols_exited")
+                    syms = phase_data.get("symbols_exited")
+                    if syms:
                         if isinstance(syms, list):
                             target_rows.append(Text.from_markup(f"  Symbols: {', '.join(syms[:5])}"))
                         elif isinstance(syms, str):
                             target_rows.append(Text.from_markup(f"  Symbols: {syms[:50]}"))
 
                 elif phase_num == 7:  # Signal Generation
-                    if phase_data.get("signals_generated") is not None:
-                        target_rows.append(Text.from_markup(f"  [{G}]Signals: {phase_data.get('signals_generated')}[/]"))
-                    if phase_data.get("buy_signals") is not None or phase_data.get("sell_signals") is not None:
-                        bs = phase_data.get("buy_signals", 0)
-                        ss = phase_data.get("sell_signals", 0)
-                        target_rows.append(Text.from_markup(f"  Buy: [{G}]{bs}[/]  Sell: [{Y}]{ss}[/]"))
-                    if phase_data.get("avg_strength") is not None:
-                        strength_color = G if phase_data.get("avg_strength", 0) >= 70 else Y if phase_data.get("avg_strength", 0) >= 50 else R
-                        target_rows.append(Text.from_markup(f"  Avg Strength: [{strength_color}]{phase_data.get('avg_strength'):.1f}[/]"))
-                    if phase_data.get("symbols_with_signals"):
-                        syms = phase_data.get("symbols_with_signals")
+                    signals_gen = phase_data.get("signals_generated")
+                    if signals_gen is not None:
+                        target_rows.append(Text.from_markup(f"  [{G}]Signals: {signals_gen}[/]"))
+                    bs = phase_data.get("buy_signals")
+                    ss = phase_data.get("sell_signals")
+                    if bs is not None or ss is not None:
+                        bs_display = bs if bs is not None else 0
+                        ss_display = ss if ss is not None else 0
+                        target_rows.append(Text.from_markup(f"  Buy: [{G}]{bs_display}[/]  Sell: [{Y}]{ss_display}[/]"))
+                    strength = phase_data.get("avg_strength")
+                    if strength is not None:
+                        strength_color = G if strength >= 70 else Y if strength >= 50 else R
+                        target_rows.append(Text.from_markup(f"  Avg Strength: [{strength_color}]{strength:.1f}[/]"))
+                    syms = phase_data.get("symbols_with_signals")
+                    if syms:
                         if isinstance(syms, list):
                             target_rows.append(Text.from_markup(f"  Symbols: {', '.join(syms[:5])}"))
                         elif isinstance(syms, str):
                             target_rows.append(Text.from_markup(f"  Symbols: {syms[:50]}"))
 
                 elif phase_num == 8:  # Entry Execution
-                    if phase_data.get("entries_executed") is not None:
-                        entries = phase_data.get("entries_executed", 0)
+                    entries = phase_data.get("entries_executed")
+                    if entries is not None:
                         entry_color = G if entries > 0 else Y
                         target_rows.append(Text.from_markup(f"  [{entry_color}]Entries: {entries}[/]"))
-                    if phase_data.get("success_rate") is not None and phase_data.get("entries_executed", 0) > 0:
-                        sr = phase_data.get("success_rate", 0)
+                    sr = phase_data.get("success_rate")
+                    entries_count = phase_data.get("entries_executed")
+                    if sr is not None and entries_count is not None and entries_count > 0:
                         sr_color = G if sr >= 80 else Y if sr >= 50 else R
-                        failed_count = int(phase_data.get("entries_executed", 0) * (100 - sr) / 100) if sr < 100 else 0
+                        failed_count = int(entries_count * (100 - sr) / 100) if sr < 100 else 0
                         fail_text = f" ({int(100-sr)}% failed)" if sr < 100 else ""
                         target_rows.append(Text.from_markup(f"  Success: [{sr_color}]{sr:.0f}%{fail_text}[/]"))
-                    if phase_data.get("avg_entry_price") is not None:
-                        target_rows.append(Text.from_markup(f"  Avg Entry Price: ${phase_data.get('avg_entry_price'):,.2f}"))
-                    if phase_data.get("symbols_entered"):
-                        syms = phase_data.get("symbols_entered")
+                    avg_price = phase_data.get("avg_entry_price")
+                    if avg_price is not None:
+                        target_rows.append(Text.from_markup(f"  Avg Entry Price: ${avg_price:,.2f}"))
+                    syms = phase_data.get("symbols_entered")
+                    if syms:
                         if isinstance(syms, list):
                             target_rows.append(Text.from_markup(f"  Symbols: {', '.join(syms[:5])}"))
                         elif isinstance(syms, str):
                             target_rows.append(Text.from_markup(f"  Symbols: {syms[:50]}"))
 
                 elif phase_num == 9:  # Portfolio Snapshot
-                    if phase_data.get("portfolio_value") is not None:
-                        target_rows.append(Text.from_markup(f"  Portfolio: ${phase_data.get('portfolio_value'):,.0f}"))
-                    if phase_data.get("cash_available") is not None:
-                        cash_color = G if phase_data.get("cash_available", 0) > 0 else R
-                        target_rows.append(Text.from_markup(f"  Cash: [{cash_color}]${phase_data.get('cash_available'):,.0f}[/]"))
-                    if phase_data.get("total_return_pct") is not None:
-                        ret_color = G if phase_data.get("total_return_pct", 0) > 0 else R
-                        target_rows.append(Text.from_markup(f"  Return: [{ret_color}]{phase_data.get('total_return_pct'):.2f}%[/]"))
+                    portfolio = phase_data.get("portfolio_value")
+                    if portfolio is not None:
+                        target_rows.append(Text.from_markup(f"  Portfolio: ${portfolio:,.0f}"))
+                    cash = phase_data.get("cash_available")
+                    if cash is not None:
+                        cash_color = G if cash > 0 else R
+                        target_rows.append(Text.from_markup(f"  Cash: [{cash_color}]${cash:,.0f}[/]"))
+                    ret_pct = phase_data.get("total_return_pct")
+                    if ret_pct is not None:
+                        ret_color = G if ret_pct > 0 else R
+                        target_rows.append(Text.from_markup(f"  Return: [{ret_color}]{ret_pct:.2f}%[/]"))
                     if phase_data.get("latest_snapshot"):
                         target_rows.append(Text.from_markup(f"  Snapshot: {phase_data.get('latest_snapshot')[:19]}"))
 
