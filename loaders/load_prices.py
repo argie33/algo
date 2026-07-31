@@ -1464,6 +1464,7 @@ class PriceLoader(OptimalLoader):
         processed = 0
         failed_batches = []
         batch_times = []
+        halted = False  # Track if we've halted due to circuit breaker
 
         max_concurrent = min(parallelism, 5)
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
@@ -1485,24 +1486,36 @@ class PriceLoader(OptimalLoader):
                 batch_times.append(batch_elapsed)
                 processed += len(batch)
 
-                result = self._monitor_and_enforce_timeouts(
-                    elapsed_sec=time.time() - start_time,
-                    processed=processed,
-                    total_symbols=total_symbols,
-                    batch_times=batch_times,
-                    batches_count=len(batches),
-                    task_timeout_sec=task_timeout_sec,
-                    emergency_mode_threshold=emergency_mode_threshold,
-                    completion_threshold_pct=completion_threshold_pct,
-                    emergency_mode_enabled=emergency_mode_enabled,
-                    batch_elapsed=batch_elapsed,
-                    max_concurrent=max_concurrent,
-                )
-                if result.get("status") == "halted":
-                    return result
+                # Skip timeout checks if we've already halted (just let remaining futures complete)
+                if not halted:
+                    result = self._monitor_and_enforce_timeouts(
+                        elapsed_sec=time.time() - start_time,
+                        processed=processed,
+                        total_symbols=total_symbols,
+                        batch_times=batch_times,
+                        batches_count=len(batches),
+                        task_timeout_sec=task_timeout_sec,
+                        emergency_mode_threshold=emergency_mode_threshold,
+                        completion_threshold_pct=completion_threshold_pct,
+                        emergency_mode_enabled=emergency_mode_enabled,
+                        batch_elapsed=batch_elapsed,
+                        max_concurrent=max_concurrent,
+                    )
+                    if result.get("status") == "halted":
+                        # CRITICAL: Mark remaining futures as failed so per-symbol fallback can attempt them
+                        halted = True
+                        completed_futures = set(futures.keys())
+                        completed_futures.remove(future)  # Don't re-mark the current future
+                        remaining_batches = [futures[f] for f in completed_futures if f.done() is False]
+                        if remaining_batches:
+                            logger.warning(
+                                f"[CIRCUIT_BREAKER] Halting early due to timeout. Adding {len(remaining_batches)} unprocessed batches "
+                                f"({sum(len(b) for b in remaining_batches)} symbols) to fallback queue."
+                            )
+                            failed_batches.extend((batch, "circuit_breaker_halt") for batch in remaining_batches)
 
-                # Track emergency mode state across iterations
-                emergency_mode_enabled = result.get("emergency_mode_enabled", emergency_mode_enabled)
+                    # Track emergency mode state across iterations
+                    emergency_mode_enabled = result.get("emergency_mode_enabled", emergency_mode_enabled)
 
         if failed_batches:
             # One sequential retry pass before declaring the whole run failed. Confirmed
@@ -1547,8 +1560,8 @@ class PriceLoader(OptimalLoader):
                         symbol_batch = [symbol]
                         self._load_batch(symbol_batch)
                         symbols_recovered += 1
-                        # CRITICAL: Count as processed since we successfully loaded it
-                        self._stats["symbols_processed"] += 1
+                        # CRITICAL: _load_batch already incremented symbols_processed internally,
+                        # so do NOT increment again here (would double-count)
                         logger.debug(f"[SYMBOL_FALLBACK] {symbol} loaded successfully via per-symbol fetch")
                     except Exception as symbol_err:
                         # Check if this is a "delisted" or "not found" error (expected for some symbols)
@@ -1557,12 +1570,14 @@ class PriceLoader(OptimalLoader):
                             symbols_skipped_delisted += 1
                             logger.info(f"[SYMBOL_FALLBACK] {symbol} skipped: appears delisted or unavailable (yfinance confirmed)")
                             # Count delisted symbols as processed (we tried, data legitimately unavailable)
+                            # _load_batch didn't complete for this symbol (exception), so we count it here
                             self._stats["symbols_processed"] += 1
                         else:
                             logger.error(
                                 f"[SYMBOL_FALLBACK] {symbol} failed: {type(symbol_err).__name__}: {str(symbol_err)[:100]}"
                             )
                             # Mark as failed since we encountered an error (not just data unavailability)
+                            # _load_batch didn't complete for this symbol (exception), so we count it here
                             self._stats["symbols_failed"] += 1
                             self._stats["symbols_processed"] += 1
                         # Continue with next symbol - don't halt entire loader
@@ -1920,8 +1935,13 @@ class PriceLoader(OptimalLoader):
             # - Silent degradation where orchestrator sees "ok" but data is 5% incomplete
             min_acceptable_pct = 95.0  # Require at least 95% of expected symbols
 
+            logger.info(
+                f"[{self.table_name}] FINAL STATUS CHECK: symbols_loaded={symbols_successfully_loaded}, "
+                f"symbols_expected={symbols_expected}, completion={completion_pct:.1f}%"
+            )
+
             if symbols_successfully_loaded > 0 and symbols_expected > 0:
-                logger.debug(
+                logger.info(
                     f"[{self.table_name}] Completeness check: {symbols_successfully_loaded}/{symbols_expected} = {completion_pct:.1f}% "
                     f"(min acceptable: {min_acceptable_pct}%)"
                 )
@@ -1929,7 +1949,7 @@ class PriceLoader(OptimalLoader):
                     logger.critical(
                         f"[{self.table_name}] FAILED: Load incomplete - {symbols_successfully_loaded} symbols "
                         f"({completion_pct:.2f}%), below minimum required threshold of {min_acceptable_pct}%. "
-                        f"Missing {symbols_expected - symbols_successfully_loaded} symbols. Halting orchestrator."
+                        f"Missing {symbols_expected - symbols_successfully_loaded} symbols. Marking as FAILED."
                     )
                     loader_status = "failed"
                     completion_pct = 0.0  # Reset to 0% to signal incomplete
@@ -1938,6 +1958,11 @@ class PriceLoader(OptimalLoader):
                         f"[{self.table_name}] WARNING: Load incomplete - "
                         f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%)"
                     )
+            else:
+                logger.critical(
+                    f"[{self.table_name}] WARNING: Completeness check skipped - "
+                    f"symbols_successfully_loaded={symbols_successfully_loaded}, symbols_expected={symbols_expected}"
+                )
 
             if "start_time" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'start_time' not tracked.")
