@@ -26,6 +26,7 @@ import os
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -34,6 +35,9 @@ from utils.db.context import DatabaseContext
 from utils.logging.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Track which loaders have already been alerted to avoid alert spam
+_alert_history: dict[str, dict[str, Any]] = {}
 
 # Freshness thresholds (max age before each status)
 # For price/technical tables: thresholds differ on trading vs non-trading days
@@ -516,18 +520,141 @@ def print_report(results: dict) -> None:
     print("\n" + "=" * 70 + "\n")
 
 
-def watch_mode(interval: int) -> None:
-    """Continuous monitoring mode."""
+def send_slack_alert(table_name: str, level: str, age_minutes: int, threshold_minutes: int) -> None:
+    """Send Slack alert for stale data.
+
+    Args:
+        table_name: Name of stale table
+        level: Severity level (critical, dead, stale)
+        age_minutes: Age of data in minutes
+        threshold_minutes: Threshold for this level
+    """
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        logger.warning(f"[ALERT] SLACK_WEBHOOK_URL not set - cannot send Slack alert for {table_name}")
+        return
+
+    try:
+        import requests
+
+        hours = age_minutes // 60
+        message = {
+            "text": f"⚠️ Data Staleness Alert: {table_name}",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": "🚨 Data Staleness Alert"},
+                }
+            ],
+            "attachments": [
+                {
+                    "color": {"critical": "danger", "dead": "danger", "stale": "warning"}.get(level, "warning"),
+                    "fields": [
+                        {"title": "Table", "value": table_name, "short": True},
+                        {"title": "Severity", "value": level.upper(), "short": True},
+                        {"title": "Age", "value": f"{age_minutes} minutes ({hours}h)", "short": True},
+                        {"title": "Threshold", "value": f"{threshold_minutes} minutes", "short": True},
+                        {"title": "Timestamp", "value": datetime.now(timezone.utc).isoformat(), "short": False},
+                    ],
+                    "footer": "Data Staleness Monitor",
+                    "ts": int(datetime.now(timezone.utc).timestamp()),
+                }
+            ],
+        }
+
+        response = requests.post(webhook_url, json=message, timeout=5)
+        if response.status_code == 200:
+            logger.info(f"[ALERT] Slack alert sent for {table_name}")
+        else:
+            logger.warning(f"[ALERT] Slack webhook returned {response.status_code}: {response.text}")
+
+    except Exception as e:
+        logger.error(f"[ALERT] Failed to send Slack alert for {table_name}: {e}")
+
+
+def should_send_alert(table_name: str, level: str) -> bool:
+    """Determine if alert should be sent (avoid spam).
+
+    Sends alert only if:
+    1. This is the first time we're seeing this table/level combo
+    2. OR at least 1 hour has passed since last alert for this table
+
+    Args:
+        table_name: Name of the table
+        level: Severity level
+
+    Returns:
+        True if alert should be sent
+    """
+    now = datetime.now(timezone.utc)
+    key = f"{table_name}:{level}"
+
+    if key not in _alert_history:
+        _alert_history[key] = {"first_alert": now, "last_alert": now, "count": 1}
+        return True
+
+    history = _alert_history[key]
+    time_since_last = (now - history["last_alert"]).total_seconds() / 3600  # Convert to hours
+
+    if time_since_last >= 1:  # Only re-alert after 1 hour
+        history["last_alert"] = now
+        history["count"] += 1
+        return True
+
+    return False
+
+
+def send_alert(table_name: str, level: str, age_minutes: int, threshold_minutes: int, method: str = "log") -> None:
+    """Send alert for stale data using specified method.
+
+    Args:
+        table_name: Name of stale table
+        level: Severity level (critical, dead, stale)
+        age_minutes: Age of data in minutes
+        threshold_minutes: Threshold for this level
+        method: Alert method (slack, email, log)
+    """
+    if not should_send_alert(table_name, level):
+        return  # Alert already sent recently
+
+    if method == "slack":
+        send_slack_alert(table_name, level, age_minutes, threshold_minutes)
+    elif method == "email":
+        # Email alerting not yet implemented - fall back to log
+        logger.warning(
+            f"[ALERT] Email alerting not yet implemented. "
+            f"Table: {table_name}, Level: {level}, Age: {age_minutes}min"
+        )
+    elif method == "log":
+        logger.warning(
+            f"[ALERT] Data staleness: {table_name} is {level.upper()} "
+            f"(age={age_minutes}min, threshold={threshold_minutes}min)"
+        )
+
+
+def watch_mode(interval: int, alert_method: str | None = None) -> None:
+    """Continuous monitoring mode.
+
+    Args:
+        interval: Check interval in seconds
+        alert_method: Alert method (slack, email, log, or None to disable)
+    """
     print(f"[WATCH MODE] Checking every {interval}s. Press Ctrl+C to exit.")
+    if alert_method:
+        print(f"[WATCH MODE] Alerts enabled: {alert_method}")
     try:
         while True:
             results = check_all_tables()
             print_report(results)
 
-            # Check for critical staleness
+            # Check for critical staleness and send alerts
             critical = [t for t, d in results.items() if d["level"] in ("critical", "dead")]
             if critical:
                 print(f"⚠️  ALERT: {len(critical)} table(s) critically stale!")
+                if alert_method:
+                    for table in critical:
+                        data = results[table]
+                        send_alert(table, data["level"], data["age_minutes"], data["stale_threshold"], alert_method)
 
             time.sleep(interval)
     except KeyboardInterrupt:
@@ -560,16 +687,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--alert",
         choices=["slack", "email", "log"],
-        help="Alert method for critical staleness (not yet implemented)",
+        help="Alert method for critical staleness (slack requires SLACK_WEBHOOK_URL env var)",
     )
 
     args = parser.parse_args()
 
     if args.watch:
-        watch_mode(args.watch)
+        watch_mode(args.watch, alert_method=args.alert)
     else:
         results = check_all_tables()
         print_report(results)
+
+        # Send alerts if requested
+        if args.alert:
+            for table, data in results.items():
+                if data["level"] in ("critical", "dead"):
+                    send_alert(table, data["level"], data["age_minutes"], data["stale_threshold"], args.alert)
 
         # Exit with error code if critical staleness detected
         critical = [t for t, d in results.items() if d["level"] in ("critical", "dead")]

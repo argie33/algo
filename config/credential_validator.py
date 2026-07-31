@@ -142,14 +142,10 @@ def validate_credentials() -> tuple[bool, list[str]]:
     if os.getenv("ALERT_ENABLED") == "true":
         smtp_password = os.getenv("ALERT_SMTP_PASSWORD")
         smtp_user = os.getenv("ALERT_SMTP_USER")
-        if not smtp_password or not smtp_user:
+        if not smtp_password or not smtp_user or len(smtp_password.strip()) == 0 or len(smtp_user.strip()) == 0:
             errors.append(
-                "[ERROR] ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing. "
+                "[ERROR] ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing or empty. "
                 "Set these credentials or set ALERT_ENABLED=false."
-            )
-        elif not smtp_password or not smtp_user or len(smtp_password.strip()) == 0 or len(smtp_user.strip()) == 0:
-            errors.append(
-                "[ERROR] ALERT_SMTP_PASSWORD or ALERT_SMTP_USER is empty string. Check environment variable loading."
             )
 
     twilio_token = os.getenv("TWILIO_AUTH_TOKEN")

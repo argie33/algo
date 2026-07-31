@@ -212,13 +212,13 @@ class RDSCredentialFetcher:
             Dictionary with host, port, user, password, database
 
         Raises:
-            AWSRDSInitializationError: If any required variable missing
+            AWSRDSInitializationError: If any required variable missing or empty
         """
         # Get host (try DB_HOST first, then DB_ENDPOINT)
         host = os.getenv("DB_HOST")
         if not host:
             host = os.getenv("DB_ENDPOINT")
-        if not host:
+        if not host or host.strip() == "":
             raise AWSRDSInitializationError(
                 "DB_HOST or DB_ENDPOINT environment variable not set. Cannot determine database host."
             )
@@ -232,18 +232,28 @@ class RDSCredentialFetcher:
 
         # Get user
         user = os.getenv("DB_USER")
-        if not user:
-            raise AWSRDSInitializationError("DB_USER environment variable not set.")
+        if not user or user.strip() == "":
+            raise AWSRDSInitializationError(
+                "DB_USER environment variable not set or is empty. "
+                "Set DB_USER to your database username."
+            )
 
         # Get password
         password = os.getenv("DB_PASSWORD")
-        if not password:
-            raise AWSRDSInitializationError("DB_PASSWORD environment variable not set.")
+        if not password or password.strip() == "":
+            raise AWSRDSInitializationError(
+                "DB_PASSWORD environment variable not set or is empty. "
+                "Set DB_PASSWORD to your database password. "
+                "Credentials are NEVER loaded from .env files - must be set via environment variables."
+            )
 
         # Get database name
         database = os.getenv("DB_NAME")
-        if not database:
-            raise AWSRDSInitializationError("DB_NAME environment variable not set.")
+        if not database or database.strip() == "":
+            raise AWSRDSInitializationError(
+                "DB_NAME environment variable not set or is empty. "
+                "Set DB_NAME to your database name."
+            )
 
         logger.info(f"[RDS_INIT] Using environment variables (host={host}, port={port}, user={user[:8]}...)")
 

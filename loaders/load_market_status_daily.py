@@ -60,6 +60,7 @@ class MarketStatusDailyLoader(OptimalLoader):
         self._put_call_fetcher = PutCallRatioFetcher()
         self._yield_curve_fetcher = YieldCurveFetcher()
         self._breadth_fetcher = BreadthFetcher()
+        self._fred_api_key: str | None = None
 
     def run(
         self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
@@ -218,6 +219,85 @@ class MarketStatusDailyLoader(OptimalLoader):
                 }
             ]
 
+    def _fetch_fed_rate_environment(self, eval_date: date) -> dict[str, Any]:
+        """Fetch current Fed funds rate and determine policy environment.
+
+        Returns:
+            {
+                "fed_rate_environment": "neutral" | "accommodative" | "restrictive" | None,
+                "fed_rate": float (latest FEDFUNDS rate) | None,
+                "fed_rate_data_unavailable": bool,
+                "fed_rate_unavailable_reason": str | None,
+            }
+
+        Policy environments:
+        - "accommodative": rate < 2.0% (supporting growth)
+        - "neutral": rate 2.0% - 4.0% (balanced)
+        - "restrictive": rate > 4.0% (fighting inflation)
+        """
+        try:
+            from loaders.load_economic_data import fetch_from_fred, get_fred_api_key
+
+            # Get FRED API key (will raise if missing)
+            if not self._fred_api_key:
+                self._fred_api_key = get_fred_api_key()
+
+            # Fetch latest FEDFUNDS rate (last 30 days to ensure we have data)
+            start_date = eval_date - timedelta(days=30)
+            fred_data = fetch_from_fred(self._fred_api_key, "FEDFUNDS", start_date, eval_date)
+
+            if not fred_data:
+                return {
+                    "fed_rate_environment": None,
+                    "fed_rate": None,
+                    "fed_rate_data_unavailable": True,
+                    "fed_rate_unavailable_reason": "no_fred_data_returned",
+                }
+
+            # Get latest rate (should be sorted by date from FRED API)
+            latest_record = fred_data[-1]  # Assuming FRED returns sorted by date ascending
+            fed_rate = latest_record["value"]
+            rate_date = latest_record["date"]
+
+            # Validate rate is recent (within 5 trading days)
+            from algo.infrastructure import MarketCalendar
+
+            last_trading_day = MarketCalendar.get_previous_trading_day(eval_date)
+            rate_date_obj = datetime.fromisoformat(rate_date).date() if isinstance(rate_date, str) else rate_date
+            days_old = (eval_date - rate_date_obj).days
+
+            if days_old > 7:  # More than a week old
+                logger.warning(
+                    f"[MARKET_STATUS] FEDFUNDS data is {days_old} days old (from {rate_date}). "
+                    f"Using stale rate={fed_rate:.2f}% for regime classification."
+                )
+
+            # Determine environment based on rate level
+            if fed_rate < 2.0:
+                environment = "accommodative"
+            elif fed_rate >= 4.0:
+                environment = "restrictive"
+            else:
+                environment = "neutral"
+
+            logger.info(f"[MARKET_STATUS] Fed funds rate: {fed_rate:.2f}% ({environment})")
+
+            return {
+                "fed_rate_environment": environment,
+                "fed_rate": fed_rate,
+                "fed_rate_data_unavailable": False,
+                "fed_rate_unavailable_reason": None,
+            }
+
+        except Exception as e:
+            logger.warning(f"[MARKET_STATUS] Fed rate fetch failed: {e}")
+            return {
+                "fed_rate_environment": None,
+                "fed_rate": None,
+                "fed_rate_data_unavailable": True,
+                "fed_rate_unavailable_reason": f"fetch_failed: {str(e)[:100]}",
+            }
+
     def _fetch_market_health(self, eval_date: date) -> dict[str, Any]:
         """Fetch all health metrics (VIX, breadth, yields, put/call)."""
         try:
@@ -361,6 +441,12 @@ class MarketStatusDailyLoader(OptimalLoader):
                 logger.warning(f"[MARKET_STATUS] Put/call ratio fetcher failed: {e}")
                 # put_call remains None - optional indicator
 
+            # Fetch Federal Reserve funds rate (for policy environment classification)
+            fed_rate_data = self._fetch_fed_rate_environment(eval_date)
+            fed_rate_environment = fed_rate_data["fed_rate_environment"]
+            fed_rate_unavailable = fed_rate_data["fed_rate_data_unavailable"]
+            fed_rate_reason = fed_rate_data["fed_rate_unavailable_reason"]
+
             # CRITICAL FIX (Session 416): Add explicit unavailable markers for breadth_momentum_10d
             # Per GOVERNANCE.md line 47-48: "Every record must have data_unavailable flag"
             # When breadth_momentum_10d is None, set corresponding unavailable flag and reason.
@@ -386,9 +472,9 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "put_call_ratio": put_call,
                 "put_call_ratio_data_unavailable": put_call_unavailable,
                 "put_call_ratio_unavailable_reason": put_call_reason,
-                "fed_rate_environment": None,
-                "fed_rate_data_unavailable": True,
-                "fed_rate_unavailable_reason": "fed_rate_fetcher_not_implemented",
+                "fed_rate_environment": fed_rate_environment,
+                "fed_rate_data_unavailable": fed_rate_unavailable,
+                "fed_rate_unavailable_reason": fed_rate_reason,
                 "breadth_momentum_10d": breadth_momentum_10d,
                 "breadth_momentum_10d_data_unavailable": breadth_momentum_unavailable,
                 "breadth_momentum_10d_unavailable_reason": breadth_momentum_reason,
