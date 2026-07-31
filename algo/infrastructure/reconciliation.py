@@ -1957,11 +1957,8 @@ class DailyReconciliation:
                 if exit_time.tzinfo:
                     exit_time_utc = exit_time
                 else:
-                    cur.execute("SHOW timezone")
-                    tz_row = cur.fetchone()
-                    if not tz_row or not tz_row[0]:
-                        raise RuntimeError("[RECONCILIATION] Failed to fetch database timezone - connection error")
-                    naive_tz = ZoneInfo(tz_row[0])
+                    from utils.db.timezone_utils import get_db_timezone
+                    naive_tz = get_db_timezone()
                     exit_time_utc = exit_time.replace(tzinfo=naive_tz)
                 age = now - exit_time_utc
             if age >= stale_threshold:

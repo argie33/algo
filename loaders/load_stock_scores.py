@@ -176,13 +176,9 @@ class StockScoresLoader(OptimalLoader):
                                 # algo/trading/pretrade_checks.py's re-entry cooldown and
                                 # algo/risk/market_exposure.py's cache-age check: resolve the
                                 # real session timezone dynamically instead of assuming UTC.
-                                cur.execute("SHOW timezone")
-                                tz_result = cur.fetchone()
-                                if tz_result:
-                                    naive_tz = ZoneInfo(tz_result[0])
-                                    max_update_ts = max_update_ts.replace(tzinfo=naive_tz)
-                                else:
-                                    raise RuntimeError("Could not determine database timezone")
+                                from utils.db.timezone_utils import get_db_timezone
+                                naive_tz = get_db_timezone()
+                                max_update_ts = max_update_ts.replace(tzinfo=naive_tz)
                             stale_days = (now_utc - max_update_ts).days
                             max_staleness_days = 14  # Metrics older than 2 weeks are stale
                             if stale_days > max_staleness_days:

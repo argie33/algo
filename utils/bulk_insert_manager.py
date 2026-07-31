@@ -42,8 +42,8 @@ class BulkInsertManager:
         whenever compared against NOW() - reproduced live for stock_scores.updated_at.
         """
         if self._session_tz_cache is None:
-            cur.execute("SHOW timezone")
-            self._session_tz_cache = ZoneInfo(cur.fetchone()[0])
+            from utils.db.timezone_utils import get_db_timezone
+            self._session_tz_cache = get_db_timezone()
         return self._session_tz_cache
 
     def _create_staging_table(self, cur: Any) -> str:

@@ -157,11 +157,8 @@ class PositionMonitor:
                         # algo/trading/pretrade_checks.py's re-entry cooldown: resolve the real
                         # session timezone dynamically instead of assuming UTC.
                         if not getattr(created_at, "tzinfo", None):
-                            cur.execute("SHOW timezone")
-                            tz_row = cur.fetchone()
-                            if not tz_row or not tz_row[0]:
-                                raise RuntimeError("[POSITION_MONITOR] Failed to fetch database timezone - connection error")
-                            naive_tz = ZoneInfo(tz_row[0])
+                            from utils.db.timezone_utils import get_db_timezone
+                            naive_tz = get_db_timezone()
                             created_at = created_at.replace(tzinfo=naive_tz)
                         age_minutes = int((datetime.now(timezone.utc) - created_at).total_seconds() / 60)
                         logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")

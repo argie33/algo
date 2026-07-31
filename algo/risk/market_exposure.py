@@ -215,11 +215,8 @@ class MarketExposure:
                 # computed here by that offset. Same fix as lambda/api/routes/utils.py's
                 # normalize_to_utc_datetime - resolve the real session timezone dynamically.
                 if not updated_at.tzinfo:
-                    cur.execute("SHOW timezone")
-                    tz_row = cur.fetchone()
-                    if not tz_row or not tz_row[0]:
-                        raise RuntimeError("[MARKET_EXPOSURE] Failed to fetch database timezone - connection error")
-                    naive_tz = ZoneInfo(tz_row[0])
+                    from utils.db.timezone_utils import get_db_timezone
+                    naive_tz = get_db_timezone()
                     updated_at = updated_at.replace(tzinfo=naive_tz)
                 now = datetime.now(timezone.utc)
                 age = now - updated_at
