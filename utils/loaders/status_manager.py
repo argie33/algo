@@ -79,9 +79,15 @@ class LoaderStatusManager:
                     """,
                     (LoaderStatus.RUNNING.value, self.table_name),
                 )
+                if cur.rowcount != 1:
+                    raise RuntimeError(
+                        f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "
+                        f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
+                    )
             logger.info(f"[STATUS] {self.table_name}: RUNNING")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as RUNNING: {e}")
+            raise
 
     def update_progress(
         self,
@@ -175,6 +181,11 @@ class LoaderStatusManager:
                         (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
                          rate_limit_quota, symbols_per_sec, latest_date, self.table_name),
                     )
+                    if cur.rowcount != 1:
+                        raise RuntimeError(
+                            f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "
+                            f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
+                        )
                 else:
                     cur.execute(
                         """
@@ -189,12 +200,18 @@ class LoaderStatusManager:
                         (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
                          rate_limit_quota, symbols_per_sec, self.table_name),
                     )
+                if cur.rowcount != 1:
+                    raise RuntimeError(
+                        f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "
+                        f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
+                    )
                 # Archive to history table for failure pattern analysis
                 self._archive_to_history(cur, LoaderStatus.COMPLETED.value)
 
             logger.info(f"[STATUS] {self.table_name}: COMPLETED ({execution_duration_sec:.1f}s)" if execution_duration_sec else f"[STATUS] {self.table_name}: COMPLETED")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as COMPLETED: {e}")
+            raise
 
     def mark_failed(
         self,
@@ -239,12 +256,18 @@ class LoaderStatusManager:
                         """,
                         (LoaderStatus.FAILED.value, msg, http_status, retry_count, self.table_name),
                     )
+                if cur.rowcount != 1:
+                    raise RuntimeError(
+                        f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "
+                        f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
+                    )
                 # Archive to history table for failure pattern analysis
                 self._archive_to_history(cur, LoaderStatus.FAILED.value, http_status)
 
             logger.error(f"[STATUS] {self.table_name}: FAILED - {msg[:100]}")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as FAILED: {e}")
+            raise
 
     def mark_timeout(self, runtime_seconds: float, http_status: int | None = None) -> None:
         """Mark loader as timed out.
@@ -266,12 +289,18 @@ class LoaderStatusManager:
                     """,
                     (LoaderStatus.TIMEOUT.value, msg, runtime_seconds, http_status, self.table_name),
                 )
+                if cur.rowcount != 1:
+                    raise RuntimeError(
+                        f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "
+                        f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
+                    )
                 # Archive to history table for failure pattern analysis
                 self._archive_to_history(cur, LoaderStatus.TIMEOUT.value, http_status)
 
             logger.error(f"[STATUS] {self.table_name}: TIMEOUT - {msg}")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as TIMEOUT: {e}")
+            raise
 
     def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> None:
         """Archive current status to history table for pattern analysis.

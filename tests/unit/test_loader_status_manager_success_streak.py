@@ -29,6 +29,7 @@ def test_mark_completed_resets_streak_and_stamps_success():
 
         # Mock the fetchone for throughput calculation
         mock_cur.fetchone.return_value = (None,)  # symbols_loaded
+        mock_cur.rowcount = 1  # Verify rowcount check passes
 
         manager.mark_completed()
 
@@ -46,6 +47,7 @@ def test_mark_failed_increments_streak_without_touching_last_success(monkeypatch
         mock_cur = MagicMock()
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1  # Verify rowcount check passes
 
         manager.mark_failed("connection refused")
 
@@ -62,6 +64,7 @@ def test_mark_failed_with_completion_pct_also_increments_streak():
         mock_cur = MagicMock()
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1  # Verify rowcount check passes
 
         manager.mark_failed("timeout mid-batch", completion_pct=42.0)
 
@@ -75,6 +78,7 @@ def test_mark_timeout_increments_streak_without_touching_last_success():
         mock_cur = MagicMock()
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.rowcount = 1  # Verify rowcount check passes
 
         manager.mark_timeout(runtime_seconds=120.5)
 
