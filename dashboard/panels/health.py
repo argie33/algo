@@ -1909,6 +1909,208 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     return rows
 
 
+def _format_comprehensive_table_loader_health(
+    hlth_items: list[Any] | None, loader: list[Any] | None
+) -> list[Text]:
+    """Format comprehensive table and loader health showing ALL tables with loader status.
+
+    Groups tables by health status (HEALTHY, STALE, CRITICAL, EMPTY) and shows:
+    - Table name with loader status badge (OK, RUNNING, FAILED, etc.)
+    - Row count and age
+    - Loader-specific details for problem loaders
+
+    This unified view eliminates the need for separate data health and loader status sections.
+    """
+    rows: list[Text] = []
+
+    # Parse health items (table freshness data)
+    hlth_dict: dict[str, dict[str, Any]] = {}
+    if hlth_items:
+        try:
+            for item in hlth_items:
+                if isinstance(item, dict):
+                    tbl_name = item.get("tbl")
+                    if tbl_name:
+                        hlth_dict[tbl_name] = item
+        except (ValueError, TypeError):
+            logger.warning("[TABLE_LOADER_HEALTH] Failed to parse health items")
+
+    # Parse loader status (loader execution data)
+    loader_dict: dict[str, dict[str, Any]] = {}
+    if loader:
+        try:
+            valid_loader = safe_get_list(loader)
+            if isinstance(valid_loader, list):
+                for item in valid_loader:
+                    if isinstance(item, dict):
+                        tbl_name = item.get("table_name")
+                        if tbl_name:
+                            loader_dict[tbl_name] = item
+        except (ValueError, TypeError):
+            logger.warning("[TABLE_LOADER_HEALTH] Failed to parse loader items")
+
+    # Merge all known tables (union of health items and loader items)
+    all_tables = set()
+    all_tables.update(hlth_dict.keys())
+    all_tables.update(loader_dict.keys())
+
+    if not all_tables:
+        rows.append(Text.from_markup("[dim]No table data available[/]"))
+        return rows
+
+    # Categorize tables by health status
+    categories: dict[str, list[tuple[str, dict[str, Any], dict[str, Any]]]] = {
+        "healthy": [],
+        "stale": [],
+        "critical": [],
+        "empty": [],
+        "error": [],
+    }
+
+    for tbl in sorted(all_tables):
+        hlth = hlth_dict.get(tbl, {})
+        load = loader_dict.get(tbl, {})
+
+        # Determine primary status from health data
+        status = hlth.get("st", "unknown")
+        if status == "ok":
+            categories["healthy"].append((tbl, hlth, load))
+        elif status == "stale":
+            categories["stale"].append((tbl, hlth, load))
+        elif status == "critical":
+            categories["critical"].append((tbl, hlth, load))
+        elif status == "empty":
+            categories["empty"].append((tbl, hlth, load))
+        else:
+            # Check loader status if health status unclear
+            loader_status = load.get("status", "").lower()
+            if loader_status in ("error", "failed"):
+                categories["error"].append((tbl, hlth, load))
+            elif status == "unknown" or not hlth_dict.get(tbl):
+                # Loader-only tables (orchestrator-generated)
+                if loader_status in ("running", "loading", "not_started"):
+                    categories["stale"].append((tbl, hlth, load))
+                else:
+                    categories["healthy"].append((tbl, hlth, load))
+            else:
+                categories["healthy"].append((tbl, hlth, load))
+
+    # Display by category with counts
+    summary_parts = []
+    if categories["healthy"]:
+        summary_parts.append(f"[{G}]{len(categories['healthy'])}✓[/]")
+    if categories["stale"]:
+        summary_parts.append(f"[{Y}]{len(categories['stale'])}~[/]")
+    if categories["critical"]:
+        summary_parts.append(f"[{R}]{len(categories['critical'])}![/]")
+    if categories["empty"]:
+        summary_parts.append(f"[dim]{len(categories['empty'])}○[/]")
+    if categories["error"]:
+        summary_parts.append(f"[{R}]{len(categories['error'])}✗[/]")
+
+    if summary_parts:
+        rows.append(Text.from_markup(f"  {' '.join(summary_parts)}"))
+
+    # Show CRITICAL tables first (need immediate attention)
+    if categories["critical"]:
+        rows.append(Text.from_markup(f"[{R}]CRITICAL ({len(categories['critical'])}):[/]"))
+        for tbl, hlth, load in categories["critical"][:5]:
+            rows.append(_format_table_with_loader(tbl, hlth, load, R))
+
+    # Show ERROR loaders (real failures)
+    if categories["error"]:
+        rows.append(Text.from_markup(f"[{R}]FAILED LOADERS ({len(categories['error'])}):[/]"))
+        for tbl, hlth, load in categories["error"][:5]:
+            rows.append(_format_table_with_loader(tbl, hlth, load, R, show_error=True))
+
+    # Show STALE tables (aged but not critical yet)
+    if categories["stale"]:
+        display_count = min(4, len(categories["stale"]))
+        truncation = f" [dim](showing {display_count}/{len(categories['stale'])})[/]" if len(categories["stale"]) > 4 else ""
+        rows.append(Text.from_markup(f"[{Y}]STALE{truncation}:[/]"))
+        for tbl, hlth, load in categories["stale"][:4]:
+            rows.append(_format_table_with_loader(tbl, hlth, load, Y))
+
+    # Show EMPTY tables (no data yet)
+    if categories["empty"]:
+        display_count = min(3, len(categories["empty"]))
+        truncation = f" [dim](showing {display_count}/{len(categories['empty'])})[/]" if len(categories["empty"]) > 3 else ""
+        rows.append(Text.from_markup(f"[dim]EMPTY{truncation}:[/]"))
+        for tbl, hlth, load in categories["empty"][:3]:
+            rows.append(_format_table_with_loader(tbl, hlth, load, DIM))
+
+    return rows
+
+
+def _format_table_with_loader(
+    table_name: str, hlth: dict[str, Any], load: dict[str, Any], color: str, show_error: bool = False
+) -> Text:
+    """Format single table line with loader status badge and details."""
+    # Table name (left-aligned, 16 chars)
+    tbl_display = table_name[:16].ljust(16)
+
+    # Loader status badge
+    loader_status = load.get("status", "").lower() if load else ""
+    if loader_status in ("running", "loading"):
+        badge = f"[{CY}]●[/]"
+        completion = load.get("completion_pct")
+        status_text = f" {int(completion)}%" if completion else ""
+    elif loader_status in ("failed", "error"):
+        badge = f"[{R}]✗[/]"
+        status_text = ""
+    elif loader_status == "timeout":
+        badge = f"[{Y}]⏱[/]"
+        status_text = ""
+    elif loader_status == "not_started":
+        badge = f"[dim]∘[/]"
+        status_text = ""
+    elif loader_status == "completed":
+        badge = f"[{G}]✓[/]"
+        status_text = ""
+    else:
+        badge = ""
+        status_text = ""
+
+    # Age information
+    age_hours = safe_float(hlth.get("age_hours"), default=None)
+    age_days = safe_float(hlth.get("age"), default=None)
+    if age_hours is not None and age_hours < 24:
+        age_text = f"{age_hours:.0f}h"
+    elif age_days is not None:
+        age_text = f"{age_days:.1f}d"
+    else:
+        age_text = "--"
+
+    # Row count
+    row_count = hlth.get("row_count") or load.get("row_count")
+    if row_count is not None:
+        try:
+            row_text = f" n={int(row_count)}"
+        except (ValueError, TypeError):
+            row_text = ""
+    else:
+        row_text = ""
+
+    # Build line
+    line = f"  {badge} [{color}]{tbl_display}[/] [dim]{age_text}{row_text}[/]"
+
+    # Add error/loader details if showing errors
+    if show_error:
+        error_msg = load.get("error_message", "")
+        if error_msg:
+            line += f" [dim]{error_msg[:30]}[/]"
+
+        # Show consecutive failures for repeated failures
+        consecutive = load.get("consecutive_failures")
+        if consecutive and consecutive > 1:
+            line += f" [yellow]({consecutive} failures)[/]"
+
+    if status_text:
+        line += f"[{CY}]{status_text}[/]"
+
+    return Text.from_markup(line)
+
+
 def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
     """Format notifications section."""
     rows: list[Text] = []
@@ -2809,11 +3011,11 @@ def panel_status(
     trade_rows = _format_recent_trade_events(act)
     rows.extend(trade_rows)
 
-    # Data health (stale tables only)
-    if hlth_items:
+    # Data & Loader Health (unified comprehensive view showing all tables with loader status)
+    if hlth_items or loader:
         rows.append(Rule(style="dim"))
-        health_rows = _format_data_health_summary(hlth_items)
-        rows.extend(health_rows)
+        table_loader_rows = _format_comprehensive_table_loader_health(hlth_items, loader)
+        rows.extend(table_loader_rows)
 
     # Notifications (up to 4)
     valid_notifs_raw = safe_get_list(notifs)
@@ -2891,77 +3093,6 @@ def panel_status(
                 )
             )
 
-    # Data loader status (errors/stale from data_loader_status table)
-    valid_loader: list[Any] | None = None
-    if loader is None:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup("[red]Loader status unavailable (data is None)[/]"))
-    else:
-        try:
-            valid_loader_raw = safe_get_list(loader)
-            # Type guard: convert dict (error marker) to None for consistency
-            if isinstance(valid_loader_raw, dict):
-                valid_loader = None
-            else:
-                valid_loader = valid_loader_raw
-        except (ValueError, TypeError) as e:
-            rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
-        if valid_loader is None:
-            rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup("[red]Loader data unavailable[/]"))
-    if valid_loader is not None:
-        problem_loader = [r for r in valid_loader if r.get("status") in ("error", "failed", "stale")]
-        running_loader = [r for r in valid_loader if r.get("status") == "loading"]
-        # Count loaders with missing/unknown status separately for diagnostics
-        unknown_status = [r for r in valid_loader if r.get("status") is None]
-        if unknown_status:
-            logger.warning(f"[HEALTH] {len(unknown_status)} loaders with missing status field")
-        ok_count = len(valid_loader) - len(problem_loader) - len(running_loader) - len(unknown_status)
-    else:
-        problem_loader = []
-        running_loader = []
-        ok_count = 0
-    if problem_loader:
-        rows.append(Rule(style="dim"))
-        ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
-        display_count = min(3, len(problem_loader))
-        truncation_note = f" [dim](showing {display_count}/{len(problem_loader)})[/]" if len(problem_loader) > 3 else ""
-        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){truncation_note}{ok_s}:[/]"))
-        for r in problem_loader[:3]:
-            table_name_val = r.get("table_name")
-            if table_name_val is None:
-                table_name_val = ""
-            nm = str((table_name_val if table_name_val else "--")[:14])
-            status_val = r.get("status")
-            st = status_val if status_val is not None else "?"
-            age = r.get("age_days")
-            age_s = str(f"{int(age)}d" if age is not None else "--")
-            sc = R if st in ("error", "failed") else Y
-            error_msg_val = r.get("error_message")
-            # CRITICAL: Explicit None check instead of nested ternary fallback
-            # Missing error message indicates incomplete loader status record
-            if error_msg_val is None:
-                error_msg_val = ""
-            else:
-                error_msg_val = str(error_msg_val)
-            err = error_msg_val[:20]
-            rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
-    elif valid_loader:
-        if running_loader:
-            rows.append(Rule(style="dim"))
-            for r in running_loader[:3]:
-                table_name_val = r.get("table_name")
-                if table_name_val is None:
-                    table_name_val = ""
-                # CRITICAL: Explicit value check - table_name_val already validated above
-                nm = table_name_val[:12]
-                pct = r.get("completion_pct")
-                pct_s = f" {float(pct):.0f}%" if pct is not None else ""
-                rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
-        elif ok_count > 0:
-            rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log - most recent notable actions
     valid_audit_raw = safe_get_list(audit)
@@ -3275,18 +3406,16 @@ def panel_algo_health(
 
 
 def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
-    """Focused 'is our data current and complete?' panel: per-table freshness, critical
-    gaps, and the orchestrator's own Phase 1 freshness gate.
+    """Summary-focused data freshness panel: ready/not-ready status, high-level metrics.
 
-    Split out of ALGO HEALTH so table-by-table staleness detail (row counts, ages, which
-    loaders are behind) has its own real estate instead of competing with run/execution
-    history for space in one crowded panel.
+    Shows overall data readiness (success/failure summary), critical issues, and Phase 1 gate
+    result. Detailed table with per-table ages and row counts moved to expanded view.
     """
     hlth_err = _error_panel("health", hlth, "DATA FRESHNESS")
     if hlth_err is not None:
         return hlth_err
 
-    rows: list[Text | Rule | Table] = []
+    rows: list[Text | Rule] = []
     hlth_dict = hlth if isinstance(hlth, dict) else {}
     hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
 
@@ -3302,24 +3431,21 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
             padding=(0, 1),
         )
 
-    stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
-    if stale:
-        rows.append(Text.from_markup(_format_health_data_stale_section(stale, hlth_items)))
-    else:
-        crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
-        ages_raw = [_age_h(r) for r in hlth_items if isinstance(r, dict)]
-        ages: list[float | None] = [a if isinstance(a, float) else None for a in ages_raw]
-        rows.append(Text.from_markup(_format_health_data_fresh_section(hlth_items, crit, ready_to_trade, ages)))
+    # Summary status line: overall readiness indicator
+    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
+    total_count = len([r for r in hlth_items if isinstance(r, dict)])
 
-    # ready_to_trade folds BOTH data freshness AND the latest orchestrator run's halt state
-    # together (see lambda/api/routes/algo_handlers/market.py::_get_data_status), so a bare
-    # "NOT READY" could otherwise be mistaken for a data problem when the real cause was a
-    # circuit-breaker halt unrelated to staleness. Surface the actual reason when it's known.
+    ready_color = G if ready_to_trade else R
+    ready_text = "✓ READY" if ready_to_trade else "✗ NOT READY"
+    rows.append(Text.from_markup(f"[{ready_color}]{ready_text}[/]  [dim]{total_count - stale_count}/{total_count} fresh[/]"))
+
+    # Trading halted status (if applicable)
     trading_halted = hlth_dict.get("trading_halted")
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
     if trading_halted and trading_halt_reason:
         rows.append(Text.from_markup(f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}"))
 
+    # Summary counts by status
     summary = hlth_dict.get("summary")
     if isinstance(summary, dict) and summary:
         parts = []
@@ -3336,67 +3462,41 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         if error_n:
             parts.append(f"[{R}]{error_n} error[/]")
         if parts:
-            rows.append(Text.from_markup("[dim]By status:[/]  " + "  ".join(parts)))
+            rows.append(Text.from_markup("[dim]Summary:[/]  " + "  ".join(parts)))
 
+    # Critical tables stale alert
     critical_stale = hlth_dict.get("critical_stale")
     if critical_stale:
         names = "  ".join(f"[bold {R}]{n}[/]" for n in critical_stale[:5])
-        rows.append(Text.from_markup(f"[{R}]⚠ CRIT STALE:[/]  {names}"))
+        rows.append(Text.from_markup(f"[{R}]⚠ CRITICAL STALE:[/]  {names}"))
 
-    rows.append(Rule(style="dim"))
-
-    # Per-table breakdown: not-ok tables first, CRIT role first within each group
-    def sort_key(r: dict[str, Any]) -> tuple[int, int, str]:
-        not_ok = 0 if r.get("st") != "ok" else 1
-        role_val = r.get("role")
-        role_rank = ROLE_ORDER.get(role_val, 3) if isinstance(role_val, str) else 3
-        name = str(r.get("tbl") or "")
-        return (not_ok, role_rank, name)
-
-    sorted_items = sorted([r for r in hlth_items if isinstance(r, dict)], key=sort_key)
-    shown = sorted_items[:10]
-
-    tbl = Table(
-        box=box.SIMPLE_HEAD,
-        show_header=True,
-        header_style="dim",
-        padding=(0, 1),
-        expand=True,
-        row_styles=["", "dim"],
-    )
-    tbl.add_column("Table", no_wrap=True, min_width=16)
-    tbl.add_column("Age", no_wrap=True, justify="right", min_width=5)
-    tbl.add_column("Rows", no_wrap=True, justify="right", min_width=7)
-    tbl.add_column("St", no_wrap=True, min_width=4)
-    for r in shown:
-        nm = str(r.get("tbl") or "--")
-        st = r.get("st") or "unknown"
-        ok = st == "ok"
-        ic = G if ok else (Y if st == "empty" else R)
-        row_count = safe_int(r.get("row_count"), default=None)
-        rc_s = f"{row_count:,}" if row_count is not None else "--"
-        tbl.add_row(
-            Text.from_markup(f"[{ic}]{'✓' if ok else ('-' if st == 'empty' else '✗')}[/] {nm}"),
-            Text(_fmt_age(r), style=DIM if ok else Y),
-            Text(rc_s, style="dim"),
-            Text("ok" if ok else st.upper()[:3], style=ic),
-        )
-    rows.append(tbl)
-    if len(sorted_items) > len(shown):
-        rows.append(Text.from_markup(f"[dim]...and {len(sorted_items) - len(shown)} more (see expanded view)[/]"))
-
-    # Phase 1: the orchestrator's own freshness gate result from the last run (distinct from
-    # the live per-table snapshot above - this is what the run actually evaluated at Phase 1).
+    # Phase 1 data freshness check result (orchestrator's view at last run)
     execution_health = hlth_dict.get("execution_health")
-    p1 = execution_health.get("phase_1_data_check") if isinstance(execution_health, dict) else None
-    if p1:
-        vs = p1.get("validation_status")
-        vc = G if vs == "pass" else (Y if vs == "warn" else (R if vs == "fail" else DIM))
-        tf = p1.get("tables_fresh")
-        tv = p1.get("tables_validated")
-        counts_s = f"  [dim]{tf}/{tv} fresh[/]" if tf is not None and tv is not None else ""
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[dim]Phase 1 gate:[/] [{vc}]{vs or '?'}[/]{counts_s}"))
+    if isinstance(execution_health, dict):
+        p1 = execution_health.get("phase_1_data_check")
+        if p1:
+            rows.append(Rule(style="dim"))
+            vs = p1.get("validation_status")
+            vc = G if vs == "pass" else (Y if vs == "warn" else (R if vs == "fail" else DIM))
+            tf = p1.get("tables_fresh")
+            tv = p1.get("tables_validated")
+            counts_s = f"  [dim]{tf}/{tv} fresh[/]" if tf is not None and tv is not None else ""
+            rows.append(Text.from_markup(f"[dim]Phase 1 gate:[/] [{vc}]{vs or '?'}[/]{counts_s}"))
+
+            # Show stale table list if there are any
+            stale_tables = p1.get("stale_tables")
+            if stale_tables and isinstance(stale_tables, (list, dict)):
+                stale_list = []
+                if isinstance(stale_tables, list):
+                    stale_list = [tbl.get("table_name", "?") for tbl in stale_tables[:5] if isinstance(tbl, dict)]
+                elif isinstance(stale_tables, dict):
+                    stale_list = list(stale_tables.keys())[:5]
+                if stale_list:
+                    rows.append(Text.from_markup(f"  [dim]Stale:[/] {', '.join(stale_list)}"))
+
+    # Link to expanded view for table details
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[dim]→ Press [l] to view table details and diagnostics[/]"))
 
     return Panel(
         Group(*rows),
