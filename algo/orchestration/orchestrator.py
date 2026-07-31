@@ -214,18 +214,19 @@ class Orchestrator:
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
         db_execution_mode = self.config.get("execution_mode")
 
-        # CRITICAL: Check for mismatches between env var and database
-        if env_execution_mode and db_execution_mode and env_execution_mode != db_execution_mode.lower():
-            raise RuntimeError(
-                f"[STARTUP] CRITICAL: execution_mode mismatch - "
-                f"ORCHESTRATOR_EXECUTION_MODE env var says '{env_execution_mode}' "
-                f"but algo_config table says '{db_execution_mode}'. "
-                f"This is a configuration error. Set env var and database to match."
-            )
-
+        # Configuration precedence: env var > database > default
+        # Warn if they mismatch (indicates deployment configuration drift), but don't crash
+        # Crashing on mismatch can cause cascading failures if database gets out of sync
         if env_execution_mode:
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: {env_execution_mode}")
             self.execution_mode = env_execution_mode
+            if db_execution_mode and env_execution_mode != db_execution_mode.lower():
+                logger.warning(
+                    f"[STARTUP] execution_mode mismatch: "
+                    f"env var '{env_execution_mode}' != database '{db_execution_mode}'. "
+                    f"Using env var (has precedence). "
+                    f"Recommend setting database to match to avoid confusion."
+                )
         elif db_execution_mode:
             self.execution_mode = db_execution_mode
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}")
