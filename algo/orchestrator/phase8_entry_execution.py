@@ -1598,12 +1598,6 @@ def run(
                 f"composite={composite_score} rs_pct={rs_pct} sqs={sqs} trend={trend_score}"
             )
 
-            # DEBUG: Verify what's actually in the signal dict
-            logger.debug(
-                f"[PHASE 8 DEBUG] {symbol}: sqs type={type(sqs).__name__}, value={sqs}. "
-                f"Available signal keys: {list(signal.keys())}"
-            )
-
             if not dry_run:
                 try:
                     # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
