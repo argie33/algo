@@ -19,7 +19,8 @@ SOURCE = (Path(__file__).parent.parent.parent / "scripts" / "run_local_orchestra
 
 def _dry_run_override_block() -> str:
     start = SOURCE.index("dry_run_override = os.environ.get")
-    end = SOURCE.index("elif run_type in MONITOR_ONLY_RUN_IDENTIFIERS", start)
+    # Find the end of the monitor-only block (look for the next elif after the if block)
+    end = SOURCE.index("elif dry_run_override is not None:", start)
     return SOURCE[start:end]
 
 
