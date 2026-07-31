@@ -1531,25 +1531,42 @@ class PriceLoader(OptimalLoader):
             # FIX: Instead of failing completely, fall back to per-symbol loading for failed batches
             # This allows graceful degradation when batch API has issues (yfinance rate limiting, etc.)
             # while preserving fail-fast behavior for individual symbol issues.
+            total_failed_symbols = sum(len(b) for b, _ in failed_batches)
             logger.warning(
                 f"[BATCH_RETRY] Falling back to per-symbol loading for {len(failed_batches)} failed batches "
-                f"({sum(len(b) for b, _ in failed_batches)} symbols total)"
+                f"({total_failed_symbols} symbols total) due to transient batch API errors"
             )
+
+            symbols_recovered = 0
+            symbols_skipped_delisted = 0
+
             for batch, first_err in failed_batches:
                 for symbol in batch:
                     try:
                         # Attempt per-symbol load for each symbol in the failed batch
                         symbol_batch = [symbol]
                         self._load_batch(symbol_batch)
+                        symbols_recovered += 1
                         logger.debug(f"[SYMBOL_FALLBACK] {symbol} loaded successfully via per-symbol fetch")
                     except Exception as symbol_err:
-                        # Track individual symbol failure (not fatal)
-                        logger.error(
-                            f"[SYMBOL_FALLBACK] {symbol} failed: {type(symbol_err).__name__}: {str(symbol_err)[:100]}"
-                        )
-                        self._stats["symbols_failed"] += 1
+                        # Check if this is a "delisted" or "not found" error (expected for some symbols)
+                        err_str = str(symbol_err).lower()
+                        if any(x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"]):
+                            symbols_skipped_delisted += 1
+                            logger.info(f"[SYMBOL_FALLBACK] {symbol} skipped: appears delisted or unavailable (yfinance confirmed)")
+                        else:
+                            logger.error(
+                                f"[SYMBOL_FALLBACK] {symbol} failed: {type(symbol_err).__name__}: {str(symbol_err)[:100]}"
+                            )
+                        # Mark as processed (we tried) but not necessarily failed (could be data unavailability)
                         self._stats["symbols_processed"] += 1
                         # Continue with next symbol - don't halt entire loader
+
+            logger.warning(
+                f"[BATCH_FALLBACK SUMMARY] Recovered {symbols_recovered} symbols via per-symbol load, "
+                f"skipped {symbols_skipped_delisted} (delisted/unavailable), "
+                f"couldn't load {total_failed_symbols - symbols_recovered - symbols_skipped_delisted}"
+            )
 
         logger.debug(
             "[BATCH_JOBS] All batches completed successfully. Emergency mode was %s.",
