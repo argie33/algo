@@ -11,9 +11,8 @@ from datetime import date as _date
 from datetime import datetime, time
 from functools import lru_cache
 from typing import Any
-from zoneinfo import ZoneInfo
 
-_ET = ZoneInfo("America/New_York")
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 # US market holidays (2025-2026)
@@ -99,7 +98,7 @@ class MarketCalendar:
             # could answer "is today a trading day?" against the wrong calendar day near the
             # midnight-ET boundary. Same fix as every other eval_date default in this codebase
             # (2026-07-21 audit).
-            check_date = datetime.now(_ET).date()
+            check_date = datetime.now(EASTERN_TZ).date()
 
         return MarketCalendar._is_trading_day_cached(check_date)
 
@@ -140,7 +139,7 @@ class MarketCalendar:
     def is_early_close(check_date: _date | None = None) -> bool:
         if not check_date:
             # Eastern Time, not system-local date.today() - see is_trading_day's identical fix.
-            check_date = datetime.now(_ET).date()
+            check_date = datetime.now(EASTERN_TZ).date()
 
         return check_date in EARLY_CLOSES
 
@@ -151,14 +150,14 @@ class MarketCalendar:
         US equities: 9:30 AM - 4:00 PM ET weekdays (except holidays)
         """
         if not check_datetime:
-            check_datetime = datetime.now(_ET)
+            check_datetime = datetime.now(EASTERN_TZ)
 
         # Convert UTC datetime to ET if needed
-        if check_datetime.tzinfo is not None and check_datetime.tzinfo != _ET:
-            check_datetime = check_datetime.astimezone(_ET)
+        if check_datetime.tzinfo is not None and check_datetime.tzinfo != EASTERN_TZ:
+            check_datetime = check_datetime.astimezone(EASTERN_TZ)
         elif check_datetime.tzinfo is None:
             # Naive datetime assumed to be ET
-            check_datetime = check_datetime.replace(tzinfo=_ET)
+            check_datetime = check_datetime.replace(tzinfo=EASTERN_TZ)
 
         check_date = check_datetime.date()
         check_time = check_datetime.time()
@@ -181,7 +180,7 @@ class MarketCalendar:
     @staticmethod
     def market_status(check_datetime: datetime | None = None) -> dict[str, Any]:
         if not check_datetime:
-            check_datetime = datetime.now(_ET)
+            check_datetime = datetime.now(EASTERN_TZ)
 
         check_date = check_datetime.date()
         check_time = check_datetime.time()
@@ -249,7 +248,7 @@ class MarketCalendar:
             # confirmed live no-argument caller for this one today, but fixed defensively
             # to the same convention rather than leave a known-bad pattern for a future
             # caller to inherit.
-            from_date = datetime.now(_ET).date()
+            from_date = datetime.now(EASTERN_TZ).date()
 
         next_date = from_date
         max_iterations = 10  # prevent infinite loop
@@ -273,7 +272,7 @@ class MarketCalendar:
         """
         if not from_date:
             # Eastern Time, not system-local date.today() - see is_trading_day's fix.
-            from_date = datetime.now(_ET).date()
+            from_date = datetime.now(EASTERN_TZ).date()
 
         prev_date = from_date
         max_iterations = 10  # prevent infinite loop

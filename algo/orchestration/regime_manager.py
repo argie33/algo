@@ -12,7 +12,6 @@ from datetime import date as _date
 from datetime import datetime as _datetime
 from datetime import timedelta
 from typing import Any, ClassVar, cast
-from zoneinfo import ZoneInfo
 
 import psycopg2
 
@@ -36,10 +35,9 @@ from algo.infrastructure.constants import (
     REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
 )
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
-
-_ET = ZoneInfo("America/New_York")
 
 
 class RegimeManager:
@@ -102,7 +100,7 @@ class RegimeManager:
         3 calendar days old) and after any holiday - mirrors the trading-day-aware fix already
         applied to price_daily freshness checks in phase1_data_freshness.py (Session 239/288).
         """
-        now_et = _datetime.now(_ET)
+        now_et = _datetime.now(EASTERN_TZ)
         if as_of_date == now_et.date() and MarketCalendar.is_trading_day(as_of_date) and now_et.hour < 16:
             # Same trading day, before EOD close: today's row isn't published yet - the most
             # recent COMPLETE row is the prior trading day's.
@@ -130,12 +128,12 @@ class RegimeManager:
                 # Eastern Time, not system-local date.today() - same bug class already fixed
                 # elsewhere in this codebase (see algo/trading/pretrade_checks.py, and prior
                 # sessions' "N more date.today()-instead-of-Eastern-Time instances" fixes).
-                # This file already uses _datetime.now(_ET) correctly in _expected_regime_date()
+                # This file already uses _datetime.now(EASTERN_TZ) correctly in _expected_regime_date()
                 # above; a server not running in America/New_York (UTC in AWS, Central on this
                 # dev machine) could resolve "today" to the wrong calendar day near midnight ET,
                 # looking up the wrong day's regime and feeding a stale/wrong position-size
                 # multiplier into position sizing.
-                as_of_date = _datetime.now(_ET).date()
+                as_of_date = _datetime.now(EASTERN_TZ).date()
 
             with DatabaseContext("read") as cur:
                 # GOVERNANCE: Must check data_unavailable flag before using regime data
@@ -264,7 +262,7 @@ class RegimeManager:
 
     def regime_history(self, days: int = 30) -> list[dict[str, Any]]:
         try:
-            start_date = _datetime.now(_ET).date() - timedelta(days=days)
+            start_date = _datetime.now(EASTERN_TZ).date() - timedelta(days=days)
 
             with DatabaseContext("read") as cur:
                 # GOVERNANCE: Select data_unavailable to filter out invalid rows
@@ -320,7 +318,7 @@ class RegimeManager:
         try:
             if as_of_date is None:
                 # Eastern Time, not system-local date.today() - see get_current_regime() above.
-                as_of_date = _datetime.now(_ET).date()
+                as_of_date = _datetime.now(EASTERN_TZ).date()
 
             with DatabaseContext("read") as cur:
                 # GOVERNANCE: Check data_unavailable flag before using score

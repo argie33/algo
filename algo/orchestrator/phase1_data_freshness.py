@@ -51,6 +51,7 @@ from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -308,9 +309,8 @@ def run(  # noqa: C901
     ) = _validate_config(config)
 
     from datetime import datetime as dt
-    from zoneinfo import ZoneInfo
 
-    now_et = dt.now(ZoneInfo("America/New_York"))
+    now_et = dt.now(EASTERN_TZ)
     pipeline_context = "EOD" if now_et.hour >= 16 else "MORNING" if now_et.hour < 10 else "INTRADAY"
 
     logger.info(
@@ -1031,7 +1031,7 @@ def run(  # noqa: C901
                 )
 
             elapsed = time.time() - phase_start
-            phase1_end_et = dt.now(ZoneInfo("America/New_York"))
+            phase1_end_et = dt.now(EASTERN_TZ)
 
             sla_status = ""
             if pipeline_context == "MORNING":

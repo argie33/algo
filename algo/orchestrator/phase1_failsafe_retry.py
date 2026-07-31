@@ -33,6 +33,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +76,10 @@ def _get_expected_data_date() -> tuple[_date, str]:
         Tuple of (expected_data_date, freshness_context_str)
     """
     from datetime import timedelta as td
-    from zoneinfo import ZoneInfo
 
     from algo.infrastructure import MarketCalendar
 
-    now_et = datetime.now(ZoneInfo("America/New_York"))
+    now_et = datetime.now(EASTERN_TZ)
     run_date_et = now_et.date()
 
     if now_et.hour < 16:  # INTRADAY: before market close
