@@ -371,8 +371,9 @@ function AlgoTradingDashboardContent() {
   const stats = execStats || {};
 
   // Transform API sources into the data format LoaderHealthPanel expects
-  // The component will parse tbl, st, and loader_status fields
-  const healthItems = (healthDataRaw?.data?.sources || []).map(source => ({
+  // The API returns data via list_response, so extractData() wraps it as { items, pagination, ... }
+  // where items IS the sources array (comprehensive health data with loader status)
+  const healthItems = (healthDataRaw?.items || []).map(source => ({
     tbl: source.name,
     st: source.status, // health status: ok, stale, empty, error
     age_hours: source.age_hours,
