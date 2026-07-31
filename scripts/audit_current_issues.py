@@ -69,7 +69,8 @@ def check_exit_execution_errors():
     for run_id, started_at, overall_status, phases_json, halt_reason in cur.fetchall():
         try:
             phases = json.loads(phases_json) if isinstance(phases_json, str) else phases_json
-        except:
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"[WARN] Failed to parse phases JSON for run {run_id}: {e}")
             phases = []
 
         for phase in phases:

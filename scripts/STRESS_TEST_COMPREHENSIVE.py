@@ -191,8 +191,8 @@ def test_config_validity():
                 issues.append(f"FAIL: {key} out of range: {val}")
             elif key == 'max_positions' and (val < 5 or val > 100):
                 issues.append(f"FAIL: {key} out of range: {val}")
-        except:
-            pass
+        except ValueError:
+            issues.append(f"FAIL: {key} has non-numeric value: {value}")
 
     conn.close()
 
