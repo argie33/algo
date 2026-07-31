@@ -917,15 +917,25 @@ class Orchestrator:
                     logger.warning(f"[PROACTIVE WAIT] Database error during poll: {db_err}. Retrying...")
                     time.sleep(poll_interval_seconds)
 
-            # Timeout expired (expected condition when data sources cap below 95%)
-            logger.warning(
-                f"[PROACTIVE WAIT] Timeout after {max_wait_seconds}s waiting for loaders to reach 95%+ completion. "
-                f"Proceeding to Phase 1 with degraded data (some symbols unavailable). "
-                f"Price data incomplete - Phase 1 will flag unavailable symbols and gates trading accordingly. "
-                f"Check: (1) yfinance availability for missing symbols, (2) EventBridge loader schedules, "
-                f"(3) ECS cluster health for stuck loaders"
+            # Timeout expired - CRITICAL: Cannot proceed with incomplete price data
+            # For real-money trading, we need COMPLETE price data to ensure accurate risk calculations
+            # and position sizing. Trading with 92.6% prices = wrong position sizes = potential losses.
+            logger.critical(
+                f"[PROACTIVE WAIT] BLOCKER: Timeout after {max_wait_seconds}s waiting for loaders to reach 95%+ completion. "
+                f"Price data is incomplete ({slowest_pct:.1f}% - missing {slowest_count - slowest_loaded} symbols). "
+                f"HALTING orchestration to prevent trading with degraded data. "
+                f"This prevents position sizing errors and risk miscalculations. "
+                f"Investigation needed: (1) Why is {slowest_name} incomplete? "
+                f"(2) yfinance availability for missing symbols, (3) EventBridge loader schedules, "
+                f"(4) ECS cluster health for stuck loaders"
             )
-            return False
+            # For real-money safety, halt instead of proceeding
+            raise RuntimeError(
+                f"[PROACTIVE WAIT] Cannot proceed: Critical loader '{slowest_name}' only {slowest_pct:.1f}% complete "
+                f"({slowest_loaded}/{slowest_count} symbols) after {max_wait_seconds}s wait. "
+                f"Incomplete price data would cause incorrect risk calculations and position sizing. "
+                f"Halting to maintain data integrity."
+            )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
             msg = f"[PROACTIVE WAIT] Infrastructure error during loader status check: {e}. Cannot proceed with uncertain loader state."
