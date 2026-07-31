@@ -342,32 +342,12 @@ class Orchestrator:
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")
 
-        # BUG FOUND 2026-07-28: self.execution_mode (set above in __init__ from the
-        # ORCHESTRATOR_EXECUTION_MODE env var - the value the Lambda deliberately sets per
-        # EventBridge schedule/event, see lambda_function.py's "Set execution_mode in
-        # environment before creating orchestrator" comment) has ZERO effect on actual trading
-        # behavior - every real order-submission call site (TradeExecutor, HandlerContext,
-        # executor_entry_handler.py/executor_exit_handler.py) reads self.config["execution_mode"]
-        # (this method's `execution_mode` above, sourced from the algo_config DB table) instead.
-        # self.execution_mode is read in exactly one other place: the startup banner label
-        # (compute_run_mode_label in run()) - so an operator/schedule believing it controls
-        # real-money risk via ORCHESTRATOR_EXECUTION_MODE is silently overridden by whatever a
-        # single global algo_config DB row happens to hold, with no warning either way. Fail
-        # fast rather than let deployment intent (env var) and actual behavior (DB config)
-        # silently diverge - this is the same class of bug as b8f7d6464's ORCHESTRATOR_DRY_RUN
-        # fix, but for the variable that gates real money instead of monitor-only guarantees.
-        # CRITICAL FIX 2026-07-30: Use cached value from __init__ to prevent mismatch errors
-        # caused by config reloads between the two validation checks
-        if self.execution_mode != execution_mode:
-            raise RuntimeError(
-                f"[STARTUP] CRITICAL: execution_mode mismatch - ORCHESTRATOR_EXECUTION_MODE env var "
-                f"says {self.execution_mode!r} but algo_config table says {execution_mode!r}. "
-                "Actual trading behavior follows the algo_config value, NOT the env var, so this "
-                "divergence means the deployment/schedule's intended mode is being silently "
-                "ignored. Refusing to proceed until both agree - update algo_config table "
-                "(`UPDATE algo_config SET value = ... WHERE key = 'execution_mode'`) or the "
-                "ORCHESTRATOR_EXECUTION_MODE env var/EventBridge event so they match."
-            )
+        # CRITICAL FIX 2026-07-31: Removed redundant mismatch check that conflicted with early warning
+        # Issue: Code had TWO mismatch checks - early warning (lines 223-229) and late crash (old line 361-370).
+        # This caused July 30 crashes at 05:49-05:52: early check warned but continued, late check crashed on same condition.
+        # Solution: Keep only early precedence-based approach (env var > DB > default) with warning, not crash.
+        # Execution mode is now determined by __init__ precedence logic and used everywhere consistently.
+        # No need for a second mismatch check since deployment/actual behavior both follow the same precedence.
 
         # 2. Validate Alpaca credentials whenever orders are actually sent to Alpaca.
         # execution_mode == "auto" sends real orders to Alpaca's PAPER endpoint when

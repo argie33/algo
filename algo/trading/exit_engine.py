@@ -731,15 +731,37 @@ class ExitEngine:
                                 # target the most-recent matching trade_id via a subquery.
                                 open_trade_statuses_close = TradeStatus.all_open()
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
+                                # CRITICAL FIX: Fetch the last known current_price from the database
+                                # Do NOT set exit_price to NULL - must preserve last known price for P&L calculation
+                                # Setting exit_price=NULL and current_price=NULL corrupts P&L records
+                                cur.execute(
+                                    """SELECT COALESCE(current_price, avg_entry_price) as last_known_price
+                                       FROM algo_trades
+                                       WHERE symbol = %s AND status IN (SELECT unnest(%s::text[]))
+                                       ORDER BY trade_date DESC LIMIT 1""",
+                                    (symbol, open_trade_statuses_close),
+                                )
+                                last_price_row = cur.fetchone()
+                                last_known_price = float(last_price_row[0]) if last_price_row and last_price_row[0] else None
+
+                                if last_known_price is None:
+                                    logger.critical(
+                                        f"[EXIT ENGINE CRITICAL] {symbol}: Cannot determine last known price for delisted position. "
+                                        f"No current_price or avg_entry_price available. Position cannot be properly closed."
+                                    )
+                                    trade_errors += 1
+                                    cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                                    continue
+
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_time = CURRENT_TIMESTAMP,
                                        exit_price = %s,
                                        profit_loss_dollars = CASE WHEN entry_price > 0
-                                         THEN (COALESCE(current_price, %s) - entry_price) * quantity
+                                         THEN (%s - entry_price) * quantity
                                          ELSE NULL END,
                                        profit_loss_pct = CASE WHEN entry_price > 0
-                                         THEN ((COALESCE(current_price, %s) - entry_price) / entry_price) * 100
+                                         THEN ((%s - entry_price) / entry_price) * 100
                                          ELSE NULL END,
                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE trade_id = (
@@ -749,9 +771,9 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
-                                        None,
-                                        None,
-                                        None,
+                                        last_known_price,
+                                        last_known_price,
+                                        last_known_price,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
@@ -762,22 +784,24 @@ class ExitEngine:
                                 # FIX: Calculate profit_loss_dollars and pct before closing position
                                 # Must calculate actual P&L: (current_price - entry_price) * quantity
                                 # And percentage: ((current_price - entry_price) / entry_price) * 100
+                                # CRITICAL FIX: Use last_known_price (already fetched above) for position closure
+                                # Do NOT override current_price with NULL - must preserve for P&L calculation
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = %s,
                                        current_price = %s,
-                                       profit_loss_dollars = (COALESCE(current_price, %s) - avg_entry_price) * quantity,
+                                       profit_loss_dollars = (%s - avg_entry_price) * quantity,
                                        profit_loss_pct = CASE WHEN avg_entry_price > 0
-                                         THEN ((COALESCE(current_price, %s) - avg_entry_price) / avg_entry_price) * 100
+                                         THEN ((%s - avg_entry_price) / avg_entry_price) * 100
                                          ELSE NULL END,
                                        unrealized_pnl = NULL,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
-                                        None,
-                                        None,
-                                        None,
+                                        last_known_price,
+                                        last_known_price,
+                                        last_known_price,
                                         symbol,
                                         *open_position_statuses_close,
                                     ),
