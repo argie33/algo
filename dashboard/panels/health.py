@@ -5,6 +5,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from algo.config.orchestrator_config import OrchestratorConfig
+
 logger = logging.getLogger(__name__)
 
 # Phase status constants to prevent shotgun surgery changes
@@ -406,28 +408,31 @@ def _build_phase_execution_panel(
                 phase_rows.append(Text.from_markup(f"      [dim]Status:[/] {validation_status}"))
 
         elif phase_num == 2:  # Circuit Breakers
-            any_triggered = phase_data.get("any_triggered", False)
-            dd = phase_data.get("drawdown_pct")
-            dl = phase_data.get("daily_loss_pct")
-            vix = phase_data.get("vix_level")
-            var95 = phase_data.get("var95")
+            if "any_triggered" not in phase_data:
+                phase_rows.append(Text.from_markup(f"      [{R}]ERROR: Missing circuit breaker status[/]"))
+            else:
+                any_triggered = phase_data["any_triggered"]
+                dd = phase_data.get("drawdown_pct")
+                dl = phase_data.get("daily_loss_pct")
+                vix = phase_data.get("vix_level")
+                var95 = phase_data.get("var95")
 
-            triggered_status = "TRIGGERED" if any_triggered else "OK"
-            triggered_color = R if any_triggered else G
-            phase_rows.append(Text.from_markup(f"      [dim]Status:[/] [{triggered_color}]{triggered_status}[/]"))
+                triggered_status = "TRIGGERED" if any_triggered else "OK"
+                triggered_color = R if any_triggered else G
+                phase_rows.append(Text.from_markup(f"      [dim]Status:[/] [{triggered_color}]{triggered_status}[/]"))
 
-            if dd is not None:
-                dd_color = R if dd >= 20 else Y if dd >= 10 else G
-                phase_rows.append(Text.from_markup(f"      [dim]Drawdown:[/] [{dd_color}]{dd:.1f}%[/]"))
-            if dl is not None:
-                dl_color = R if dl >= 2 else Y if dl >= 1 else G
-                phase_rows.append(Text.from_markup(f"      [dim]Daily Loss:[/] [{dl_color}]{dl:.1f}%[/]"))
-            if vix is not None:
-                vix_color = R if vix >= 35 else Y if vix >= 25 else CY if vix >= 15 else G
-                phase_rows.append(Text.from_markup(f"      [dim]VIX:[/] [{vix_color}]{vix:.1f}[/]"))
-            if var95 is not None:
-                var_color = R if var95 >= 4 else Y if var95 >= 2 else G
-                phase_rows.append(Text.from_markup(f"      [dim]VaR 95%:[/] [{var_color}]{var95:.2f}%[/]"))
+                if dd is not None:
+                    dd_color = R if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT else Y if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT else G
+                    phase_rows.append(Text.from_markup(f"      [dim]Drawdown:[/] [{dd_color}]{dd:.1f}%[/]"))
+                if dl is not None:
+                    dl_color = R if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT else Y if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT else G
+                    phase_rows.append(Text.from_markup(f"      [dim]Daily Loss:[/] [{dl_color}]{dl:.1f}%[/]"))
+                if vix is not None:
+                    vix_color = R if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else Y if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else CY if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_ELEVATED else G
+                    phase_rows.append(Text.from_markup(f"      [dim]VIX:[/] [{vix_color}]{vix:.1f}[/]"))
+                if var95 is not None:
+                    var_color = R if var95 >= 4 else Y if var95 >= 2 else G
+                    phase_rows.append(Text.from_markup(f"      [dim]VaR 95%:[/] [{var_color}]{var95:.2f}%[/]"))
 
         elif phase_num == 3:  # Position Monitor
             open_positions = phase_data.get("open_positions")
@@ -461,25 +466,30 @@ def _build_phase_execution_panel(
                 phase_rows.append(Text.from_markup(f"      [dim]Errors found:[/] [{R}]{errors_found}[/]"))
 
         elif phase_num == 5:  # Exposure Policy
-            market_regime = phase_data.get("market_regime")
-            entry_allowed = phase_data.get("entry_allowed")
-            halt_active = phase_data.get("halt_active", False)
-            max_new_entries = phase_data.get("max_new_entries")
-            halt_reason = phase_data.get("halt_reason")
+            required_keys = {"market_regime", "entry_allowed", "halt_active", "max_new_entries", "halt_reason"}
+            missing = required_keys - set(phase_data.keys() if phase_data else [])
+            if missing:
+                phase_rows.append(Text.from_markup(f"      [dim]ERROR:[/] [{R}]Incomplete data - missing {', '.join(sorted(missing))}[/]"))
+            else:
+                market_regime = phase_data["market_regime"]
+                entry_allowed = phase_data["entry_allowed"]
+                halt_active = phase_data["halt_active"]
+                max_new_entries = phase_data["max_new_entries"]
+                halt_reason = phase_data["halt_reason"]
 
-            if market_regime:
-                phase_rows.append(Text.from_markup(f"      [dim]Market regime:[/] {market_regime}"))
-            if entry_allowed is not None:
-                entry_status = "ALLOWED" if entry_allowed else "BLOCKED"
-                entry_color = G if entry_allowed else R
-                phase_rows.append(Text.from_markup(f"      [dim]New entries:[/] [{entry_color}]{entry_status}[/]"))
-            if max_new_entries is not None and entry_allowed:
-                phase_rows.append(Text.from_markup(f"      [dim]Max slots available:[/] {max_new_entries}"))
-            if halt_active:
-                halt_color = R if halt_active else G
-                phase_rows.append(Text.from_markup(f"      [dim]Halt status:[/] [{halt_color}]ACTIVE[/]"))
-                if halt_reason:
-                    phase_rows.append(Text.from_markup(f"      [dim]Reason:[/] {halt_reason[:60]}"))
+                if market_regime:
+                    phase_rows.append(Text.from_markup(f"      [dim]Market regime:[/] {market_regime}"))
+                if entry_allowed is not None:
+                    entry_status = "ALLOWED" if entry_allowed else "BLOCKED"
+                    entry_color = G if entry_allowed else R
+                    phase_rows.append(Text.from_markup(f"      [dim]New entries:[/] [{entry_color}]{entry_status}[/]"))
+                if max_new_entries is not None and entry_allowed:
+                    phase_rows.append(Text.from_markup(f"      [dim]Max slots available:[/] {max_new_entries}"))
+                if halt_active:
+                    halt_color = R if halt_active else G
+                    phase_rows.append(Text.from_markup(f"      [dim]Halt status:[/] [{halt_color}]ACTIVE[/]"))
+                    if halt_reason:
+                        phase_rows.append(Text.from_markup(f"      [dim]Reason:[/] {halt_reason[:60]}"))
 
         elif phase_num == 6:  # Exit Execution
             exits_executed = phase_data.get("exits_executed")
@@ -3893,24 +3903,27 @@ def _build_results_panel(
                                 target_rows.append(Text.from_markup(f"    • {tbl_name}: [{Y}]{age}[/]"))
 
                 elif phase_num == 2:  # Circuit Breakers
-                    triggered = phase_data.get("any_triggered", False)
-                    triggered_color = R if triggered else G
-                    triggered_text = "TRIGGERED" if triggered else "OK"
-                    target_rows.append(Text.from_markup(f"  Status: [{triggered_color}]{triggered_text}[/]"))
-                    if phase_data.get("drawdown_pct") is not None:
-                        dd = phase_data.get("drawdown_pct", 0)
-                        dd_color = R if dd >= 20 else Y if dd >= 10 else G
-                        dd_status = "TRIGGERED" if dd >= 20 else "CAUTION" if dd >= 10 else "OK"
+                    if "any_triggered" not in phase_data:
+                        target_rows.append(Text.from_markup(f"  [{R}]ERROR: Missing circuit breaker status[/]"))
+                    else:
+                        triggered = phase_data["any_triggered"]
+                        triggered_color = R if triggered else G
+                        triggered_text = "TRIGGERED" if triggered else "OK"
+                        target_rows.append(Text.from_markup(f"  Status: [{triggered_color}]{triggered_text}[/]"))
+                    if "drawdown_pct" in phase_data and phase_data["drawdown_pct"] is not None:
+                        dd = phase_data["drawdown_pct"]
+                        dd_color = R if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT else Y if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT else G
+                        dd_status = "TRIGGERED" if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT else "CAUTION" if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT else "OK"
                         target_rows.append(Text.from_markup(f"  Drawdown: [{dd_color}]{dd:.1f}% ({dd_status})[/]"))
-                    if phase_data.get("daily_loss_pct") is not None:
-                        dl = phase_data.get("daily_loss_pct", 0)
-                        dl_color = R if dl >= 2 else Y if dl >= 1 else G
-                        dl_status = "TRIGGERED" if dl >= 2 else "CAUTION" if dl >= 1 else "OK"
+                    if "daily_loss_pct" in phase_data and phase_data["daily_loss_pct"] is not None:
+                        dl = phase_data["daily_loss_pct"]
+                        dl_color = R if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT else Y if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT else G
+                        dl_status = "TRIGGERED" if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT else "CAUTION" if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT else "OK"
                         target_rows.append(Text.from_markup(f"  Daily Loss: [{dl_color}]{dl:.1f}% ({dl_status})[/]"))
-                    if phase_data.get("vix_level") is not None:
-                        vix = phase_data.get("vix_level", 0)
-                        vix_color = R if vix >= 35 else Y if vix >= 25 else G
-                        vix_status = "EXTREME" if vix >= 35 else "HIGH" if vix >= 25 else "NORMAL"
+                    if "vix_level" in phase_data and phase_data["vix_level"] is not None:
+                        vix = phase_data["vix_level"]
+                        vix_color = R if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else Y if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else G
+                        vix_status = "EXTREME" if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else "HIGH" if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else "NORMAL"
                         target_rows.append(Text.from_markup(f"  VIX: [{vix_color}]{vix:.1f} ({vix_status})[/]"))
                     if phase_data.get("var95") is not None:
                         var = phase_data.get("var95", 0)

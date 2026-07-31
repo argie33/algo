@@ -48,6 +48,20 @@ class OrchestratorConfig:
     # Minimum required data completeness for Phase 1 to proceed (percentage)
     MIN_DATA_COMPLETENESS_PCT = int(os.getenv("ORCH_MIN_DATA_COMPLETENESS", "80"))
 
+    # ─── Circuit Breaker & Risk Thresholds ──────────────────────────────────
+    # Drawdown thresholds (percentage)
+    CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT = float(os.getenv("ORCH_CB_DD_HALT", "20.0"))
+    CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT = float(os.getenv("ORCH_CB_DD_CAUTION", "10.0"))
+
+    # Daily loss thresholds (percentage)
+    CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT = float(os.getenv("ORCH_CB_DL_HALT", "2.0"))
+    CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT = float(os.getenv("ORCH_CB_DL_CAUTION", "1.0"))
+
+    # VIX level thresholds
+    CIRCUIT_BREAKER_VIX_EXTREME = float(os.getenv("ORCH_CB_VIX_EXTREME", "35.0"))
+    CIRCUIT_BREAKER_VIX_HIGH = float(os.getenv("ORCH_CB_VIX_HIGH", "25.0"))
+    CIRCUIT_BREAKER_VIX_ELEVATED = float(os.getenv("ORCH_CB_VIX_ELEVATED", "15.0"))
+
     # ─── Error Handling & Retries ──────────────────────────────────────────
     # Maximum database operation retries before failing
     DB_OPERATION_MAX_RETRIES = int(os.getenv("ORCH_DB_MAX_RETRIES", "3"))
