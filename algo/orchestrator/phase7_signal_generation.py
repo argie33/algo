@@ -1018,9 +1018,10 @@ def run(  # noqa: C901
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT COUNT(*) FROM signal_quality_scores WHERE date = CURRENT_DATE LIMIT 1"
+                    "SELECT COUNT(*) FROM signal_quality_scores WHERE date = CURRENT_DATE"
                 )
-                count = cur.fetchone()[0]
+                result = cur.fetchone()
+                count = result[0] if result else 0
                 today_scores_exist = count > 0
                 if today_scores_exist:
                     logger.info(f"[PHASE 7] Today's signal_quality_scores already computed ({count} rows exist)")

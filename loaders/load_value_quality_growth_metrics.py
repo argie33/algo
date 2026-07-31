@@ -203,7 +203,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     safe_table = assert_safe_table(table)
                     cur.execute(f"SELECT COUNT(*) FROM {safe_table} WHERE updated_at::date = %s", (today_iso,))
-                    today_count = cur.fetchone()[0]
+                    result = cur.fetchone()
+                    today_count = result[0] if result else 0
                     if today_count == 0:
                         raise RuntimeError(
                             f"[VALUE_QUALITY_GROWTH VERIFICATION FAILED] {table}: "

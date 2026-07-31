@@ -330,6 +330,25 @@ class Orchestrator:
         # pass nothing here, then crash inside TradeExecutor.__init__'s
         # create_execution_mode_strategy() call (which also never registered it, now fixed
         # alongside this). Added below too.
+        # CRITICAL: Verify env var execution_mode matches DB config execution_mode.
+        # Root cause (2026-07-28): env var controls the banner and initial value, but actual
+        # trading behavior uses DB config exclusively. If they disagree, operator is misled
+        # about whether this run risks real money. Must fail fast to prevent silent trading
+        # mode confusion (e.g., operator believes it's paper trading due to env var but DB
+        # is set to auto/live, so real orders execute without operator realizing).
+        env_execution_mode = self.execution_mode
+        db_execution_mode = self.config.get("execution_mode")
+        if env_execution_mode and db_execution_mode and env_execution_mode != db_execution_mode:
+            raise RuntimeError(
+                f"[STARTUP] execution_mode mismatch: "
+                f"env var (ORCHESTRATOR_EXECUTION_MODE) is '{env_execution_mode}' "
+                f"but database config is '{db_execution_mode}'. "
+                f"These must match - actual trading behavior uses the database value, "
+                f"but the banner and scheduling info use the env var. "
+                f"This mismatch risks silent real-money trading confusion. "
+                f"Set both to the same value and redeploy."
+            )
+
         # Use cached DB value from __init__ to prevent race conditions where
         # config might have been refreshed/reloaded between startup and this check
         # Fall back to config value if attribute doesn't exist (for tests with fake objects)
@@ -341,13 +360,6 @@ class Orchestrator:
                 f"Current value: {execution_mode!r}. Configure via algo_config table."
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")
-
-        # CRITICAL FIX 2026-07-31: Removed redundant mismatch check that conflicted with early warning
-        # Issue: Code had TWO mismatch checks - early warning (lines 223-229) and late crash (old line 361-370).
-        # This caused July 30 crashes at 05:49-05:52: early check warned but continued, late check crashed on same condition.
-        # Solution: Keep only early precedence-based approach (env var > DB > default) with warning, not crash.
-        # Execution mode is now determined by __init__ precedence logic and used everywhere consistently.
-        # No need for a second mismatch check since deployment/actual behavior both follow the same precedence.
 
         # 2. Validate Alpaca credentials whenever orders are actually sent to Alpaca.
         # execution_mode == "auto" sends real orders to Alpaca's PAPER endpoint when
