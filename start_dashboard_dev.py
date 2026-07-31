@@ -11,12 +11,37 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+# Configure logging early so all messages are captured
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__name__)
+
+# Load .env.local credentials BEFORE any imports
+from utils.dotenv_loader import load_env_local
+
+load_env_local()
+
+# Load Alpaca credentials from database (persistent storage, not files)
+try:
+    project_root = Path(__file__).parent
+    sys.path.insert(0, str(project_root))
+    from scripts.load_credentials import ensure_credentials_loaded
+    ensure_credentials_loaded()
+except Exception as e:
+    # Log but don't crash - credentials might come from environment
+    logger.warning(f"[CREDS] Could not load credentials from database: {e}")
+    logger.warning("[CREDS] Continuing - credentials may be in environment variables or .env.local")
 
 
 def is_port_open(port: int, timeout: float = 1.0) -> bool:
@@ -30,17 +55,66 @@ def is_port_open(port: int, timeout: float = 1.0) -> bool:
         return False
 
 
+def cleanup_orphaned_dev_servers() -> None:
+    """Kill any stuck/orphaned dev_server processes to prevent port conflicts."""
+    try:
+        if sys.platform == "win32":
+            # Windows: find PID holding port 3001 and kill it
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in result.stdout.split("\n"):
+                if "3001" in line and "LISTENING" in line:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        try:
+                            pid = int(parts[-1])
+                            logger.info(f"[STARTUP] Found process {pid} holding port 3001, killing it...")
+                            subprocess.run(
+                                ["taskkill", "/PID", str(pid), "/F"],
+                                capture_output=True,
+                                timeout=5,
+                            )
+                        except (ValueError, subprocess.TimeoutExpired):
+                            pass
+        else:
+            # Unix: use pkill to force-kill dev_server processes only
+            subprocess.run(
+                ["pkill", "-9", "-f", "dev_server.py"],
+                capture_output=True,
+                timeout=5,
+            )
+        time.sleep(1)
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            f"[STARTUP] Dev server cleanup timed out: {type(e).__name__}: {e}. "
+            "Port may still be in use by orphaned process."
+        )
+    except Exception as e:
+        logger.warning(
+            f"[STARTUP] Dev server cleanup failed: {type(e).__name__}: {e}. "
+            "Proceeding despite cleanup failure - port may conflict if orphaned process still running."
+        )
+
+
 def start_dev_server() -> subprocess.Popen:
     """Start dev_server in background and wait for it to be ready."""
-    print("[STARTUP] Checking if dev_server (localhost:3001) is already running...", flush=True)
+    print("[STARTUP] Checking if dev_server (127.0.0.1:3001) is already running...", flush=True)
 
     # Check if already running
     if is_port_open(3001):
-        print("[STARTUP] [OK] Dev server already running on localhost:3001", flush=True)
+        print("[STARTUP] [OK] Dev server already running on 127.0.0.1:3001", flush=True)
         return None
 
+    # Clean up any orphaned dev_server processes before starting fresh
+    print("[STARTUP] Cleaning up any orphaned processes...", flush=True)
+    cleanup_orphaned_dev_servers()
+
     print("[STARTUP] Dev server not responding. Starting it now...", flush=True)
-    print("[STARTUP]   Running: python3 lambda/api/dev_server.py", flush=True)
+    print("[STARTUP]   Running: python lambda/api/dev_server.py", flush=True)
 
     repo_root = Path(__file__).parent
     dev_server_path = repo_root / "lambda" / "api" / "dev_server.py"
@@ -52,6 +126,7 @@ def start_dev_server() -> subprocess.Popen:
     env = os.environ.copy()
     env["LOCAL_MODE"] = "true"
     env["ENVIRONMENT"] = "development"
+    env["ALPACA_PAPER_TRADING"] = "true"
 
     process = subprocess.Popen(
         [sys.executable, str(dev_server_path)],
@@ -68,7 +143,7 @@ def start_dev_server() -> subprocess.Popen:
     start_time = time.time()
     while time.time() - start_time < 30:
         if is_port_open(3001):
-            print("[STARTUP] [OK] Dev server started successfully on localhost:3001", flush=True)
+            print("[STARTUP] [OK] Dev server started successfully on 127.0.0.1:3001", flush=True)
             return process
         time.sleep(0.5)
 
@@ -89,14 +164,19 @@ def start_dashboard(watch_interval: int | None = None) -> int:
     repo_root = Path(__file__).parent
     os.chdir(repo_root)
 
-    dashboard_args = [sys.executable, "-m", "dashboard"]
+    # Ensure dashboard gets LOCAL_MODE env var
+    env = os.environ.copy()
+    env["LOCAL_MODE"] = "true"
+    env["ENVIRONMENT"] = "development"
+
+    dashboard_args = [sys.executable, "-m", "dashboard", "--local"]
 
     if watch_interval:
         dashboard_args.extend(["-w", str(watch_interval)])
 
     # Run dashboard in foreground (blocks until user exits)
     try:
-        return subprocess.call(dashboard_args)
+        return subprocess.call(dashboard_args, env=env)
     except KeyboardInterrupt:
         return 0
 
