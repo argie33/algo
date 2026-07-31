@@ -1904,8 +1904,13 @@ class PriceLoader(OptimalLoader):
             # Real-money trading requires 99%+ completion. 95% minimum threshold prevents:
             # - Missing 270+ symbols from 5486 expected = inaccurate position sizing/risk calc
             # - Silent degradation where orchestrator sees "ok" but data is 5% incomplete
+            min_acceptable_pct = 95.0  # Require at least 95% of expected symbols
+
             if symbols_successfully_loaded > 0 and symbols_expected > 0:
-                min_acceptable_pct = 95.0  # Require at least 95% of expected symbols
+                logger.debug(
+                    f"[{self.table_name}] Completeness check: {symbols_successfully_loaded}/{symbols_expected} = {completion_pct:.1f}% "
+                    f"(min acceptable: {min_acceptable_pct}%)"
+                )
                 if completion_pct < min_acceptable_pct:
                     logger.critical(
                         f"[{self.table_name}] FAILED: Load incomplete - {symbols_successfully_loaded} symbols "
