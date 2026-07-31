@@ -527,15 +527,16 @@ class StockScoresLoader(OptimalLoader):
             # The minimum 4 metrics check below ensures sufficient diversity to prevent single-metric bias.
             # Completeness % is still tracked and reported for operator/trader visibility.
 
-            # CRITICAL: Enforce minimum 3/6 metrics (lowered from 4 for broader coverage)
+            # CRITICAL: Enforce minimum 2/6 metrics (lowered from 3 for broader coverage)
             # Stock scores require sufficient metric diversity to prevent single-metric bias
             # (e.g., pure value without growth/quality check).
-            # With fewer than 3 metrics, position sizing becomes unreliable:
-            # - 1-2 metrics: extreme bias (may favor one factor without balance)
-            # - 3+ metrics: minimum diversity for balanced evaluation
+            # With fewer than 2 metrics, position sizing becomes unreliable:
+            # - 1 metric: extreme bias (no balance at all)
+            # - 2+ metrics: minimum diversity for balanced evaluation (e.g., quality + stability)
             # Momentum now available from momentum_metrics loader (Session 260)
+            # Session 398: Lowered from 3 to 2 to unlock 336 stocks with valid metric pairs
             # Note: Trading entry gates still filter based on completeness >= 70%
-            min_required_metrics = 3
+            min_required_metrics = 2
 
             if data_count < min_required_metrics:
                 raise RuntimeError(
@@ -565,19 +566,21 @@ class StockScoresLoader(OptimalLoader):
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
 
-            # CRITICAL: Enforce minimum 3/6 metrics for diversity (prevents single-metric bias)
-            # Allow computation with 3+ metrics. Trading entry gates (GOVERNANCE.md) will filter on completeness >= 70%.
-            if real_metric_count < 3:
+            # CRITICAL: Enforce minimum 2/6 metrics for diversity (prevents single-metric bias)
+            # Allow computation with 2+ metrics. Trading entry gates (GOVERNANCE.md) will filter on completeness >= 70%.
+            # Session 398: Lowered from 3 to 2 to unlock 336 stocks with quality+stability or similar valid pairs.
+            # 2 metrics provide sufficient balance (not single-metric bias); trading gates provide real control.
+            if real_metric_count < 2:
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.warning(
                     f"[STOCK_SCORES] {symbol}: Insufficient metric diversity. "
-                    f"Available {real_metric_count}/6 (need minimum 3 for sufficient diversity). "
+                    f"Available {real_metric_count}/6 (need minimum 2 for sufficient diversity). "
                     f"Missing: {', '.join(missing_metrics)}. "
                     f"Scoring skipped per minimum diversity requirement."
                 )
                 raise ValueError(
-                    f"{symbol}: insufficient metrics ({real_metric_count}/6, need >=3). "
-                    f"Minimum 3 metrics required for diversity. "
+                    f"{symbol}: insufficient metrics ({real_metric_count}/6, need >=2). "
+                    f"Minimum 2 metrics required for diversity. "
                     f"Missing: {', '.join(missing_metrics)}. Trading gates will filter based on completeness %."
                 )
 
