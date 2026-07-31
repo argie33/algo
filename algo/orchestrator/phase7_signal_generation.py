@@ -1051,9 +1051,10 @@ def run(  # noqa: C901
                 # respecting watermarks for older data (already scored).
                 # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
                 # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
-                # TIMEOUT FIX: Add 10-minute timeout to prevent orchestrator hangs
+                # TIMEOUT FIX: Phase 7 runs 3x daily, so loading 3 days of backfill takes ~5-8 min max
+                # Increased from 10 to 15 min to handle scenarios with high symbol volume or slow locks
                 loader_start = time.time()
-                loader_timeout_secs = 600  # 10 minutes max
+                loader_timeout_secs = 900  # 15 minutes max (was 10 min, increased for safety)
                 score_result = loader.run(
                     symbols=all_symbols,
                     parallelism=8,
