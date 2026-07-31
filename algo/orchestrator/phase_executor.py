@@ -127,6 +127,7 @@ class OrchestratorPhaseExecutor:
         - All phases have execute_fn set
         - All dependencies reference registered phases
         - No circular dependencies
+        - Dependencies are executed before dependent phases (execution order validation)
 
         Returns:
             Empty list if valid, list of error messages otherwise.
@@ -140,6 +141,14 @@ class OrchestratorPhaseExecutor:
             for dep in phase.dependencies:
                 if dep not in self.phases:
                     errors.append(f"Phase {phase_num} ({phase.phase_name}) depends on unregistered phase {dep}")
+                else:
+                    dep_index = self.execution_order.index(dep) if dep in self.execution_order else -1
+                    phase_index = self.execution_order.index(phase_num) if phase_num in self.execution_order else -1
+                    if dep_index >= 0 and phase_index >= 0 and dep_index >= phase_index:
+                        errors.append(
+                            f"Phase {phase_num} ({phase.phase_name}) depends on phase {dep} "
+                            f"but execution order has {dep} at position {dep_index} (same or after position {phase_index})"
+                        )
 
         if errors:
             logger.error(f"[PHASE VALIDATION FAILED] {len(errors)} issues found:")
