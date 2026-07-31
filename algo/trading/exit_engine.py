@@ -731,23 +731,16 @@ class ExitEngine:
                                 # target the most-recent matching trade_id via a subquery.
                                 open_trade_statuses_close = TradeStatus.all_open()
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
-                                # CRITICAL FIX: Fetch the last known current_price from the database
-                                # Do NOT set exit_price to NULL - must preserve last known price for P&L calculation
-                                # Setting exit_price=NULL and current_price=NULL corrupts P&L records
-                                cur.execute(
-                                    """SELECT COALESCE(current_price, avg_entry_price) as last_known_price
-                                       FROM algo_trades
-                                       WHERE symbol = %s AND status IN (SELECT unnest(%s::text[]))
-                                       ORDER BY trade_date DESC LIMIT 1""",
-                                    (symbol, open_trade_statuses_close),
-                                )
-                                last_price_row = cur.fetchone()
-                                last_known_price = float(last_price_row[0]) if last_price_row and last_price_row[0] else None
+                                # CRITICAL FIX: Use entry_price as fallback when market data unavailable
+                                # When delisted, we can't get current market price, so use entry price for closing
+                                # This at least preserves the actual entry point for record-keeping
+                                # until the position can be manually reviewed and priced correctly
+                                fallback_price = float(entry_price) if entry_price else None
 
-                                if last_known_price is None:
+                                if fallback_price is None or fallback_price <= 0:
                                     logger.critical(
-                                        f"[EXIT ENGINE CRITICAL] {symbol}: Cannot determine last known price for delisted position. "
-                                        f"No current_price or avg_entry_price available. Position cannot be properly closed."
+                                        f"[EXIT ENGINE CRITICAL] {symbol}: Cannot determine fallback price for delisted position. "
+                                        f"Entry price invalid: {entry_price}. Position cannot be properly closed."
                                     )
                                     trade_errors += 1
                                     cur.execute(f"RELEASE SAVEPOINT {_sp}")
@@ -771,9 +764,9 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
-                                        last_known_price,
-                                        last_known_price,
-                                        last_known_price,
+                                        fallback_price,
+                                        fallback_price,
+                                        fallback_price,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
@@ -784,8 +777,8 @@ class ExitEngine:
                                 # FIX: Calculate profit_loss_dollars and pct before closing position
                                 # Must calculate actual P&L: (current_price - entry_price) * quantity
                                 # And percentage: ((current_price - entry_price) / entry_price) * 100
-                                # CRITICAL FIX: Use last_known_price (already fetched above) for position closure
-                                # Do NOT override current_price with NULL - must preserve for P&L calculation
+                                # CRITICAL FIX: Use fallback_price for position closure when market price unavailable
+                                # Do NOT set current_price to NULL - must preserve price for P&L calculation
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = %s,
@@ -799,9 +792,9 @@ class ExitEngine:
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
-                                        last_known_price,
-                                        last_known_price,
-                                        last_known_price,
+                                        fallback_price,
+                                        fallback_price,
+                                        fallback_price,
                                         symbol,
                                         *open_position_statuses_close,
                                     ),
