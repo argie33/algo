@@ -906,6 +906,21 @@ def run(
         log_phase_result_fn(8, "entry_execution", "halt", error_msg)
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
+    # CRITICAL: Validate max_position_size_pct is configured - this is the hard cap on individual positions
+    # CRITICAL FIX (Session Date): max_position_size_pct must be present in config. This is the baseline
+    # position sizing constraint that prevents any single position from exceeding this % of portfolio.
+    # Without it, position sizer cannot enforce hard position size limits.
+    if "max_position_size_pct" not in config or config["max_position_size_pct"] is None:
+        error_msg = (
+            "[PHASE 8] CRITICAL: max_position_size_pct configuration missing. "
+            "Cannot enforce hard limit on individual position size. "
+            "Every position must have a maximum size (e.g., 6-8% of portfolio). "
+            "Set max_position_size_pct in algo_config table before trading."
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+
     # Fall back to a COPY of `config` (not `{}`) when it lacks .to_dict() - an empty dict here
     # would silently discard every actually-configured risk key (base_risk_pct, max_positions,
     # VIX thresholds) rather than the still-fail-closed PositionSizer.__init__ requiring them.

@@ -67,6 +67,14 @@ class PositionSizer:
             "vix_caution_threshold",
             "vix_max_threshold",
             "vix_caution_risk_reduction",
+            # CRITICAL FIX (Session Date): max_position_size_pct and max_concentration_pct are
+            # required for position sizing enforcement. max_position_size_pct is the hard cap
+            # on individual positions (e.g. 6-8% of portfolio). max_concentration_pct is the
+            # exposure-policy-driven limit (varies by market regime 10-20%). Missing either
+            # means position sizing constraints cannot be enforced - must fail-fast.
+            "max_position_size_pct",
+            "max_concentration_pct",
+            "max_total_invested_pct",
         ]
         missing_keys = [k for k in required_config_keys if k not in config or config[k] is None]
         if missing_keys:
