@@ -250,7 +250,11 @@ class CoverageChecker(BaseCheck):
                     )
             except Exception as e:
                 self.log("loader_contract", ERROR, tbl, f"Check failed: {e}", None)
-                cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                try:
+                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                except Exception as rollback_err:
+                    import logging
+                    logging.getLogger(__name__).error(f"Savepoint rollback failed: {rollback_err}")
             finally:
                 cur.execute(f"RELEASE SAVEPOINT {sp}")
 

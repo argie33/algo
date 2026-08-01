@@ -183,7 +183,10 @@ class QualityChecker(BaseCheck):
                         (ident_symbols,),
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    cur.execute("ROLLBACK TO SAVEPOINT mark_suspicious_ohlc")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT mark_suspicious_ohlc")
+                    except psycopg2.Error as rollback_err:
+                        logger.error(f"Savepoint rollback failed: {rollback_err}")
                     logger.warning(f"Could not mark suspicious OHLC: {e}")
 
             if ident_count > ident_threshold:
