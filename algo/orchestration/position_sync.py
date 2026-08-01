@@ -138,7 +138,12 @@ def validate_position_count(expected_approximate: int | None = None) -> bool:
         with DatabaseContext('read') as cur:
             # Count open positions
             cur.execute('SELECT COUNT(*) FROM algo_positions WHERE status = %s', ('open',))
-            open_count = cur.fetchone()[0]
+            pos_row = cur.fetchone()
+            if not pos_row:
+                raise RuntimeError(
+                    "[POSITION_SYNC_VALIDATE] COUNT query returned no rows - database error"
+                )
+            open_count = pos_row[0]
 
             # Count open trades
             cur.execute('''
