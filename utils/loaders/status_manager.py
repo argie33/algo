@@ -206,7 +206,12 @@ class LoaderStatusManager:
                         f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
                     )
                 # Archive to history table for failure pattern analysis
-                self._archive_to_history(cur, LoaderStatus.COMPLETED.value)
+                archived = self._archive_to_history(cur, LoaderStatus.COMPLETED.value)
+                if not archived:
+                    logger.warning(
+                        f"[STATUS_MANAGER] WARNING: {self.table_name} marked COMPLETED but history archiving failed. "
+                        f"Dashboard failure-pattern analysis may be incomplete."
+                    )
 
             logger.info(f"[STATUS] {self.table_name}: COMPLETED ({execution_duration_sec:.1f}s)" if execution_duration_sec else f"[STATUS] {self.table_name}: COMPLETED")
         except Exception as e:
@@ -262,7 +267,12 @@ class LoaderStatusManager:
                         f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
                     )
                 # Archive to history table for failure pattern analysis
-                self._archive_to_history(cur, LoaderStatus.FAILED.value, http_status)
+                archived = self._archive_to_history(cur, LoaderStatus.FAILED.value, http_status)
+                if not archived:
+                    logger.warning(
+                        f"[STATUS_MANAGER] WARNING: {self.table_name} marked FAILED but history archiving failed. "
+                        f"Dashboard failure-pattern analysis may be incomplete."
+                    )
 
             logger.error(f"[STATUS] {self.table_name}: FAILED - {msg[:100]}")
         except Exception as e:
@@ -295,14 +305,19 @@ class LoaderStatusManager:
                         f"rowcount={cur.rowcount}, expected 1. Status row may be missing from data_loader_status."
                     )
                 # Archive to history table for failure pattern analysis
-                self._archive_to_history(cur, LoaderStatus.TIMEOUT.value, http_status)
+                archived = self._archive_to_history(cur, LoaderStatus.TIMEOUT.value, http_status)
+                if not archived:
+                    logger.warning(
+                        f"[STATUS_MANAGER] WARNING: {self.table_name} marked TIMEOUT but history archiving failed. "
+                        f"Dashboard failure-pattern analysis may be incomplete."
+                    )
 
             logger.error(f"[STATUS] {self.table_name}: TIMEOUT - {msg}")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as TIMEOUT: {e}")
             raise
 
-    def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> None:
+    def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> bool:
         """Archive current status to history table for pattern analysis.
 
         CRITICAL: Uses SAVEPOINT to ensure archive failures don't roll back the main status update.
@@ -313,6 +328,9 @@ class LoaderStatusManager:
             cur: Database cursor
             status: Final status (COMPLETED, FAILED, TIMEOUT)
             http_status: Optional HTTP status code
+
+        Returns:
+            True if archiving succeeded, False if it failed (but main status update is still committed)
         """
         try:
             # Use a savepoint: if archive fails, the main UPDATE stays committed
@@ -358,14 +376,22 @@ class LoaderStatusManager:
                     """,
                     (self.table_name, self.table_name),
                 )
-            # Archive succeeded, release the savepoint
-            cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                # Archive succeeded, release the savepoint
+                cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                logger.info(f"[STATUS_MANAGER] Archived {self.table_name} history record: {status}")
+                return True
+            else:
+                # No status row to archive - this shouldn't happen
+                cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                logger.warning(f"[STATUS_MANAGER] No status row found to archive for {self.table_name}")
+                return False
         except Exception as e:
-            logger.debug(f"[STATUS_MANAGER] Failed to archive history for {self.table_name}: {e}")
+            logger.warning(f"[STATUS_MANAGER] ARCHIVING FAILED for {self.table_name}: {e}")
             try:
                 cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
             except Exception as rollback_err:
-                logger.debug(f"[STATUS_MANAGER] Failed to rollback savepoint for {self.table_name}: {rollback_err}")
+                logger.warning(f"[STATUS_MANAGER] Failed to rollback savepoint for {self.table_name}: {rollback_err}")
+            return False
 
     def update_final_status(
         self,
@@ -459,7 +485,12 @@ class LoaderStatusManager:
                     )
 
                 # Archive to history for pattern analysis
-                self._archive_to_history(cur, status_string, http_status)
+                archived = self._archive_to_history(cur, status_string, http_status)
+                if not archived:
+                    logger.warning(
+                        f"[STATUS_MANAGER] WARNING: {self.table_name} status updated to {status_string} "
+                        f"but history archiving failed. Dashboard failure-pattern analysis may be incomplete."
+                    )
 
             logger.info(f"[STATUS] {self.table_name}: Final update - status={status_string}, completion_pct={completion_pct}")
         except Exception as e:
