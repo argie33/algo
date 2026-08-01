@@ -221,10 +221,11 @@ class CircuitBreaker:
 
                         tb = traceback.format_exc()
                         error_type = type(e).__name__
+                        safe_tb = tb.replace("{", "{{").replace("}", "}}")
 
                         # Log full traceback for debugging
                         logger.error(f"Circuit breaker {check_name} raised {error_type}: {e}")
-                        logger.error(f"Full traceback:\n{tb}")
+                        logger.error(f"Full traceback:\n{safe_tb}")
 
                         # All check failures result in fail-closed halt.
                         # If a safety check cannot be verified, trading must halt.
