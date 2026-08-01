@@ -563,7 +563,7 @@ class DailyReconciliation:
                             SELECT MAX(position_value / %s * 100) as largest_pct,
                                    AVG(position_value / %s * 100) as avg_pct
                             FROM algo_positions
-                            WHERE status = 'open'
+                            WHERE status = 'open' AND quantity != 0
                         """, (portfolio_value, portfolio_value))
                         conc_row = cur.fetchone()
                         if conc_row and conc_row[0] is not None:
@@ -578,7 +578,20 @@ class DailyReconciliation:
                         else:
                             # Fallback: if query fails, use theoretical average (100% / position_count)
                             avg_position_size_pct_paper = 100.0 / open_position_count if open_position_count > 0 else 0.0
-                            largest_position_pct_paper = avg_position_size_pct_paper  # Unknown, use average
+                            largest_position_pct_paper = 100.0 / open_position_count  # Theoretical minimum for n equal positions, NOT average
+
+                    # Calculate Herfindahl index for concentration_risk_pct
+                    # This is the sum of squared position percentages (0-10000, where 10000 = single position)
+                    herfindahl_paper = 0.0
+                    if portfolio_value > 0:
+                        cur.execute("""
+                            SELECT position_value / %s * 100
+                            FROM algo_positions
+                            WHERE status = 'open' AND quantity != 0
+                        """, (portfolio_value,))
+                        for pos_row in cur.fetchall():
+                            pct = float(pos_row[0])
+                            herfindahl_paper += pct * pct
 
                     snapshot_params = (
                         reconcile_date,
@@ -588,7 +601,7 @@ class DailyReconciliation:
                         open_position_count,
                         largest_position_pct_paper,
                         avg_position_size_pct_paper,
-                        largest_position_pct_paper,  # concentration_risk_pct (largest position = concentration risk)
+                        herfindahl_paper,  # concentration_risk_pct (Herfindahl index)
                         realized_pnl_today,  # was hardcoded 0.0 - dashboard/reporting always showed $0 realized
                         total_unrealized_pnl,
                         unrealized_pnl_pct,
