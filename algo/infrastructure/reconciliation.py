@@ -550,16 +550,28 @@ class DailyReconciliation:
                     cumulative_return_pct = (adjusted_equity - float(initial_capital)) / float(initial_capital) * 100
 
                     # Calculate concentration metrics for paper mode
-                    # average_position_size_pct = average position as % of portfolio
-                    avg_position_size_pct_paper = (
-                        (total_invested / portfolio_value * 100)
-                        if portfolio_value > 0 and open_position_count > 0
-                        else 0.0
-                    )
-                    # Note: largest_position_pct requires querying individual positions;
-                    # for LOCAL mode paper trading, use average as approximation.
-                    # In production path, this is calculated properly via PositionAnalyzer.
-                    largest_position_pct_paper = avg_position_size_pct_paper  # approximation for paper mode
+                    # CRITICAL FIX: Use actual position data, not approximation
+                    # Previous: avg_position_size_pct = total_invested / portfolio_value was mathematically wrong
+                    # (this ratio represents cash allocation, not position concentration)
+                    largest_position_pct_paper = 0.0
+                    avg_position_size_pct_paper = 0.0
+
+                    if portfolio_value > 0 and open_position_count > 0:
+                        # Query actual largest position as percentage of portfolio
+                        cur.execute("""
+                            SELECT MAX(position_value / %s * 100) as largest_pct,
+                                   AVG(position_value / %s * 100) as avg_pct
+                            FROM algo_positions
+                            WHERE status = 'open'
+                        """, (portfolio_value, portfolio_value))
+                        conc_row = cur.fetchone()
+                        if conc_row and conc_row[0] is not None:
+                            largest_position_pct_paper = float(conc_row[0])
+                            avg_position_size_pct_paper = float(conc_row[1]) if conc_row[1] else (100.0 / open_position_count)
+                        else:
+                            # Fallback: if query fails, use theoretical average (100% / position_count)
+                            avg_position_size_pct_paper = 100.0 / open_position_count if open_position_count > 0 else 0.0
+                            largest_position_pct_paper = avg_position_size_pct_paper  # Unknown, use average
 
                     snapshot_params = (
                         reconcile_date,
