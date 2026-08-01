@@ -723,8 +723,7 @@ class ExitEngine:
                                 # method selects is always one it can also close.
                                 # SEPARATE BUG, fixed alongside the status widening above:
                                 # PostgreSQL does not support ORDER BY/LIMIT directly on an UPDATE
-                                # statement (that's a MySQL/SQLite extension) - this raised a bare
-                                # `psycopg2.errors.SyntaxError: syntax error at or near "ORDER"`
+                                # statement - this raised a bare `psycopg2.errors.SyntaxError: syntax error at or near "ORDER"`
                                 # every time this branch was reached (confirmed live against this
                                 # DB), meaning a delisted/unavailable symbol crashed the exit loop
                                 # instead of being gracefully marked for manual review. Rewritten to

@@ -40,6 +40,9 @@ _INCOME_IFRS_ALIASES = [
     ("Revenue", "revenues"),
     ("RevenueFromContractsWithCustomers", "revenue_from_contract_with_customer_excluding_assessed_tax"),
     ("RevenueFromSaleOfGoods", "sales_revenue_net"),
+    # FIXED 2026-08-01: Add IFRS alias for financial services revenue.
+    # Some IFRS-reporting banks may use this concept instead of legacy "Revenue".
+    ("RevenuesNetOfInterestExpense", "revenues_net_of_interest_expense"),
     ("CostOfSales", "cost_of_revenue"),
     ("GrossProfit", "gross_profit"),
     ("ProfitLossFromOperatingActivities", "operating_income_loss"),
@@ -123,6 +126,14 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # dropping their revenue.
         "RevenueFromContractWithCustomerIncludingAssessedTax",
         "RevenueFromContractWithCustomerExcludingAssessedTax",
+        # FIXED 2026-08-01: RevenuesNetOfInterestExpense for financial services companies.
+        # Banks (MS, WFC, etc.) switched from reporting "Revenues" (2007-2019) to
+        # "RevenuesNetOfInterestExpense" (2013+) as their primary revenue metric in 2020+.
+        # This concept has full 2020+ coverage for financial services while legacy
+        # "Revenues" concept stops updating for banks after 2019. Must be listed BEFORE
+        # SalesRevenueNet/legacy Revenues so they don't overwrite with zero values.
+        # Live-verified: MS has 2020-2026 data, WFC has 2018-2026 data.
+        "RevenuesNetOfInterestExpense",
         "CostOfRevenue",
         # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
         # as would-be operating_income fallbacks, but neither has a field_mapping entry or

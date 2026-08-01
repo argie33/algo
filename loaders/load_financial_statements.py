@@ -95,6 +95,11 @@ _INCOME_FIELD_MAPPING = {
     "sales_revenue_net": "revenue",
     "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
     "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
+    # FIXED 2026-08-01: RevenuesNetOfInterestExpense for banks (2020+ data).
+    # Maps to same "revenue" column - this is the standard revenue metric for
+    # financial services companies since 2020. Ordering in sec_statements.py
+    # ensures last-listed concept (this one for banks) wins on overwrite.
+    "revenues_net_of_interest_expense": "revenue",
     "cost_of_revenue": "cost_of_revenue",
     "gross_profit": "gross_profit",
     "operating_income_loss": "operating_income",

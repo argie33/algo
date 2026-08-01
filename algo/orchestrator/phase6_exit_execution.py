@@ -197,8 +197,9 @@ def run(
                     rebalance_actions = []
 
                     for sector, count in concentrated_sectors:
-                        over_limit = count - max_per_sector
-                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count} positions (limit {max_per_sector}, need to exit {over_limit})")
+                        count_int = int(count) if count is not None else 0
+                        over_limit = count_int - max_per_sector
+                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
                         cur.execute("""
@@ -216,7 +217,7 @@ def run(
                                 "symbol": symbol,
                                 "position_id": pos_id,
                                 "action": "force_exit",
-                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count} positions (limit {max_per_sector})",
+                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count_int} positions (limit {max_per_sector})",
                                 "trade_id": None,  # Will be fetched during execution
                             }
                             rebalance_actions.append(action)
@@ -241,7 +242,7 @@ def run(
                         "CRITICAL: max_position_size_pct config missing. "
                         "Cannot enforce position size limits. Check algo_config table."
                     )
-                max_size_pct = Decimal(str(max_size_pct_val))
+                max_size_pct_float = float(max_size_pct_val)
 
                 with DatabaseContext("read") as cur:
                     # Get total portfolio value
@@ -249,31 +250,26 @@ def run(
                     result = cur.fetchone()
                     if result is None:
                         raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
-                    total_value = Decimal(str(result[0])) if result[0] else Decimal(0)
+                    total_value_float = float(result[0]) if result[0] else 0.0
 
-                    if total_value <= 0:
+                    if total_value_float <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
                         return []
 
                     # Find positions exceeding size limit
+                    # Use float parameter to avoid PostgreSQL numeric type mixing with Decimal
                     cur.execute(f"""
                         SELECT ap.position_id, ap.symbol, ap.position_value,
                                (ap.position_value / %s * 100) as pct_of_portfolio
                         FROM algo_positions ap
                         WHERE ap.status = 'open'
                         ORDER BY ap.position_value DESC
-                    """, (total_value,))
+                    """, (total_value_float,))
 
                     oversized_positions = []
                     for pos_id, symbol, value, pct in cur.fetchall():
-                        # Ensure pct is float for safe arithmetic (Decimal from SQL can cause type mismatches)
-                        if isinstance(pct, Decimal):
-                            pct_float = float(pct)
-                        else:
-                            pct_float = float(pct) if pct else 0.0
-
-                        # Ensure max_size_pct is float for arithmetic
-                        max_size_pct_float = float(max_size_pct)
+                        # Ensure pct is float (PostgreSQL numeric -> psycopg2 Decimal -> float)
+                        pct_float = float(pct) if pct is not None else 0.0
 
                         if pct_float > max_size_pct_float:
                             exceed_amount = pct_float - max_size_pct_float

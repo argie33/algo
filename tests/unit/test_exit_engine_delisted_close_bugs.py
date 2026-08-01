@@ -4,8 +4,7 @@
 
 Bug 1 (SQL syntax error, confirmed live against Postgres): both branches ran
 `UPDATE algo_trades SET ... WHERE symbol = %s AND status = 'open' ORDER BY trade_date DESC
-LIMIT 1`. PostgreSQL does not support ORDER BY/LIMIT directly on an UPDATE statement (that's
-a MySQL/SQLite extension) - this raised a bare `psycopg2.errors.SyntaxError: syntax error at
+LIMIT 1`. PostgreSQL does not support ORDER BY/LIMIT directly on an UPDATE statement - this raised a bare `psycopg2.errors.SyntaxError: syntax error at
 or near "ORDER"` every time either branch was reached, meaning a delisted symbol or missing
 price data crashed the exit loop instead of gracefully marking the position for manual
 review. Fixed by moving the ORDER BY/LIMIT into a subquery that resolves the target trade_id.
