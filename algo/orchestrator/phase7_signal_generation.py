@@ -1607,30 +1607,83 @@ def run(  # noqa: C901
         try:
             with ThreadPoolExecutor(max_workers=_MAX_WORKERS, thread_name_prefix="phase7_liq") as executor:
                 futures = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
-                for future in as_completed(futures):
+                # CRITICAL FIX: Set timeout on entire executor to prevent indefinite hangs
+                # If any thread gets stuck, the whole executor has a hard 60-second limit before we fail-fast
+                executor_timeout = 60  # seconds
+                start_time = time.time()
+                critical_error_seen = False
+
+                for future in as_completed(futures, timeout=executor_timeout):
                     liq_checked += 1
+                    candidate_symbol = futures[future].get('symbol', 'UNKNOWN')
                     try:
                         candidate, passed = future.result(timeout=30)
                         if passed:
                             liq_passed.append(candidate)
-                    except TimeoutError:
-                        logger.error(f"[PHASE 7] Liquidity check timeout for candidate {futures[future].get('symbol', 'UNKNOWN')}")
-                        # Continue with remaining candidates
-                        continue
+                    except TimeoutError as timeout_err:
+                        msg = (
+                            f"[PHASE 7 CRITICAL] Liquidity check timeout for {candidate_symbol} "
+                            f"(exceeded 30s per-future timeout). Liquidity validation failed - "
+                            f"cannot proceed with potentially illiquid stock."
+                        )
+                        logger.critical(msg)
+                        critical_error_seen = True
+                        # Don't continue - raise to halt execution
+                        raise RuntimeError(msg) from timeout_err
+                    except ValueError as val_err:
+                        # ValueError from liquidity checks = critical config/data issue
+                        msg = (
+                            f"[PHASE 7 CRITICAL] Liquidity check validation failed for {candidate_symbol}: {val_err}. "
+                            f"This indicates critical configuration or data issues (e.g., missing config fields). "
+                            f"Cannot proceed with signal generation without valid liquidity thresholds."
+                        )
+                        logger.critical(msg)
+                        critical_error_seen = True
+                        # Don't continue - raise to halt execution
+                        raise RuntimeError(msg) from val_err
                     except Exception as future_exc:
-                        logger.error(f"[PHASE 7] Liquidity check failed for {futures[future].get('symbol', 'UNKNOWN')}: {future_exc}")
-                        # Continue with remaining candidates
-                        continue
+                        msg = (
+                            f"[PHASE 7 CRITICAL] Liquidity check failed for {candidate_symbol}: {type(future_exc).__name__}: {future_exc}. "
+                            f"Exception during liquidity validation indicates possible infrastructure failure "
+                            f"(database connection, thread pool issue, or calculation error). "
+                            f"Cannot verify liquidity safety - must halt."
+                        )
+                        logger.critical(msg)
+                        critical_error_seen = True
+                        # Don't continue - raise to halt execution
+                        raise RuntimeError(msg) from future_exc
+
+                # Check if executor timeout was exceeded
+                elapsed = time.time() - start_time
+                if elapsed >= executor_timeout:
+                    msg = (
+                        f"[PHASE 7 CRITICAL] Liquidity checks exceeded executor timeout ({elapsed:.0f}s >= {executor_timeout}s). "
+                        f"Thread pool is hung or deadlocked. Cannot proceed with unverified liquidity data. "
+                        f"Check: (1) database connection health, (2) thread pool resource constraints, "
+                        f"(3) any locks held by concurrent processes."
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg)
+        except TimeoutError as executor_timeout_err:
+            msg = (
+                f"[PHASE 7 CRITICAL] Liquidity check thread pool exceeded timeout ({executor_timeout}s). "
+                f"One or more worker threads are stuck or hung. Cannot verify liquidity for {len(to_check)} candidates. "
+                f"Liquidity checks are critical for trading safety - cannot proceed with unverified candidates."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg) from executor_timeout_err
         except Exception as executor_exc:
+            # CRITICAL FIX: Re-raise exceptions instead of silently continuing
+            # If executor setup fails or critical errors occur, halt Phase 7
             logger.critical(
-                f"[PHASE 7 CRITICAL] ThreadPoolExecutor failure during liquidity checks: {executor_exc}. "
+                f"[PHASE 7 CRITICAL] ThreadPoolExecutor failure during liquidity checks: {type(executor_exc).__name__}: {executor_exc}. "
                 f"Cannot verify liquidity for {len(to_check)} candidates. "
                 f"Liquidity checks are critical for trading safety - failing fast instead of proceeding with unverified candidates."
             )
             msg = (
-                f"[PHASE 7] Liquidity check system failure: ThreadPoolExecutor error {type(executor_exc).__name__}. "
+                f"[PHASE 7] Liquidity check system failure: {type(executor_exc).__name__}. "
                 f"Cannot proceed with signal generation without liquidity validation. "
-                f"Check system resources (thread pool, memory) and retry."
+                f"Check system resources (thread pool, memory, database connections) and retry."
             )
             raise RuntimeError(msg) from executor_exc
 

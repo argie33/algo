@@ -224,7 +224,10 @@ class PositionMonitor:
                             psycopg2.DatabaseError,
                             psycopg2.OperationalError,
                         ) as audit_e:
-                            cur.execute(f"ROLLBACK TO {sp_name}")
+                            try:
+                                cur.execute(f"ROLLBACK TO {sp_name}")
+                            except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
+                                logger.error(f"[AUDIT_FAILURE] Savepoint rollback failed: {rb_err} (transaction may be aborted)")
                             logger.critical(
                                 f"[AUDIT_FAILURE] Stale order batch transaction failed (rolled back): {audit_e}"
                             )
@@ -1122,41 +1125,41 @@ class PositionMonitor:
                         logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
                         return "neutral"
 
-                    # Use fresh context for sector ranking query
-                    with DatabaseContext("read") as ranking_cur:
-                        ranking_cur.execute(
-                            """
-                            SELECT current_rank, rank_4w_ago FROM sector_ranking
-                            WHERE sector_name = %s
-                              AND date <= %s
-                            ORDER BY date DESC LIMIT 1
-                            """,
-                            (sector, current_date),
+                    # CRITICAL FIX: Use same cursor instead of nesting a new context
+                    # Nested DatabaseContext closes the parent cursor, causing "cursor already closed" errors
+                    fresh_cur.execute(
+                        """
+                        SELECT current_rank, rank_4w_ago FROM sector_ranking
+                        WHERE sector_name = %s
+                          AND date <= %s
+                        ORDER BY date DESC LIMIT 1
+                        """,
+                        (sector, current_date),
+                    )
+                    cur_row = fresh_cur.fetchone()
+                    if not cur_row or cur_row[0] is None:
+                        raise PositionValidationError(
+                            f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
+                            f"Cannot assess sector health for {symbol} without current ranking data. "
+                            f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
+                            f"Add sector to sector_ranking table or exclude from portfolio."
                         )
-                        cur_row = ranking_cur.fetchone()
-                        if not cur_row or cur_row[0] is None:
-                            raise PositionValidationError(
-                                f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
-                                f"Cannot assess sector health for {symbol} without current ranking data. "
-                                f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
-                                f"Add sector to sector_ranking table or exclude from portfolio."
-                            )
-                        cur_rank = int(cur_row[0])
-                        old_rank = cur_row[1]
+                    cur_rank = int(cur_row[0])
+                    old_rank = cur_row[1]
 
-                        if old_rank is None:
-                            logger.warning(
-                                f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
-                                f"using current rank alone without historical trend assessment. "
-                                f"This is expected for new sectors or data gaps. Position monitoring continues."
-                            )
-                            return "neutral"
-                        old_rank = int(old_rank)
-                        if cur_rank > old_rank + 3:  # got worse by 3+ ranks
-                            return "weakening"
-                        if cur_rank < old_rank - 3:
-                            return "strengthening"
-                        return "stable"
+                    if old_rank is None:
+                        logger.warning(
+                            f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
+                            f"using current rank alone without historical trend assessment. "
+                            f"This is expected for new sectors or data gaps. Position monitoring continues."
+                        )
+                        return "neutral"
+                    old_rank = int(old_rank)
+                    if cur_rank > old_rank + 3:  # got worse by 3+ ranks
+                        return "weakening"
+                    if cur_rank < old_rank - 3:
+                        return "strengthening"
+                    return "stable"
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     raise RuntimeError(
                         f"Sector health check failed: {e}. "
@@ -1177,20 +1180,37 @@ class PositionMonitor:
                 f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
             )
 
-        # CRITICAL FIX 2026-08-01: Use fresh DatabaseContext instead of reusing passed cursor
-        # Even though reuse might seem efficient, nested contexts cause "cursor already closed" errors
-        # when the outer context closes before inner operations complete. Use fresh context for safety.
-        with DatabaseContext("read") as fresh_cur:
-            fresh_cur.execute(
-                """
-                SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
-                FROM price_daily
-                WHERE symbol = %s AND date >= %s AND date <= %s
-                AND close IS NOT NULL
-                """,
-                (symbol, trade_date, current_date),
-            )
-            row = fresh_cur.fetchone()
+        # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
+        # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
+        # This was inverted in a previous attempt - the bug was opening fresh context when cursor was passed.
+        if cur is not None:
+            try:
+                cur.execute(
+                    """
+                    SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
+                    FROM price_daily
+                    WHERE symbol = %s AND date >= %s AND date <= %s
+                    AND close IS NOT NULL
+                    """,
+                    (symbol, trade_date, current_date),
+                )
+                row = cur.fetchone()
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                raise PositionValidationError(
+                    f"Failed to fetch price data for {symbol}: {e}. Cannot calculate max unrealized gain."
+                ) from e
+        else:
+            with DatabaseContext("read") as fresh_cur:
+                fresh_cur.execute(
+                    """
+                    SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
+                    FROM price_daily
+                    WHERE symbol = %s AND date >= %s AND date <= %s
+                    AND close IS NOT NULL
+                    """,
+                    (symbol, trade_date, current_date),
+                )
+                row = fresh_cur.fetchone()
         if row is None or len(row) != 3:
             raise PositionValidationError(
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
