@@ -1687,6 +1687,8 @@ def run(
                         rs_percentile=signal.get("rs_percentile"),
                         sqs=sqs,
                         trend_score=trend_score,
+                        base_type=signal.get("base_type"),
+                        base_quality=signal.get("base_quality"),
                     )
                     logger.debug(f"[PHASE 8] {symbol}: Executed trade with sqs={sqs}, trend_score={trend_score}")
 
