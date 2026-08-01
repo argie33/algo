@@ -796,6 +796,8 @@ def run(
                 raise ValueError("Price data freshness query returned no results - price_daily table may be empty")
 
             latest_price_date = result[0]
+            if latest_price_date is None:
+                raise ValueError("Price data freshness query returned NULL - price_daily table may have no valid dates")
 
             # Determine expected last trading day - allow previous trading day's data
             # Phase 8 may run intraday (9 AM, 1 PM, 3 PM) before EOD data is available,
