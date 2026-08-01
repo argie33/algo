@@ -1219,7 +1219,11 @@ def _record_closed_positions_exits(
                             psycopg2.DatabaseError,
                             psycopg2.OperationalError,
                         ) as e:
-                            write_cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                            # Wrap savepoint rollback in try-except per transaction_abort safety rule
+                            try:
+                                write_cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                            except psycopg2.Error as rollback_err:
+                                logger.error(f"[PHASE 9] Savepoint rollback failed: {rollback_err}. Original error: {e}")
                             # CRITICAL: This SELECT is scoped to `closed_at::date = run_date` (see
                             # query above). If this write fails today, the symbol will never be
                             # re-selected by this function on a future run - algo_positions stays
