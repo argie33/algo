@@ -63,6 +63,8 @@ class TestStaleOrderAgeUsesRealSessionTimezone:
                 return_value=_mock_db(created_at_naive),
             ),
             patch("algo.infrastructure.MarketEventHandler", _mock_market_event_handler()),
+            # CRITICAL: Clear the global timezone cache between tests to prevent test ordering issues
+            patch("utils.db.timezone_utils._DB_TZ_CACHE", None),
         ):
             result = monitor.check_stale_orders()
 
@@ -85,6 +87,8 @@ class TestStaleOrderAgeUsesRealSessionTimezone:
             ),
             patch("algo.infrastructure.MarketEventHandler", _mock_market_event_handler()),
             patch.object(monitor, "_cancel_on_alpaca") as mock_cancel,
+            # CRITICAL: Clear the global timezone cache between tests to prevent test ordering issues
+            patch("utils.db.timezone_utils._DB_TZ_CACHE", None),
         ):
             result = monitor.check_stale_orders()
 
