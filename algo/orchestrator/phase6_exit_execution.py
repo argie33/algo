@@ -266,10 +266,16 @@ def run(
 
                     oversized_positions = []
                     for pos_id, symbol, value, pct in cur.fetchall():
-                        pct_decimal = Decimal(str(pct)) if pct else Decimal(0)
-                        if pct_decimal > max_size_pct:
-                            pct_float = float(pct_decimal)
-                            max_size_pct_float = float(max_size_pct)
+                        # Ensure pct is float for safe arithmetic (Decimal from SQL can cause type mismatches)
+                        if isinstance(pct, Decimal):
+                            pct_float = float(pct)
+                        else:
+                            pct_float = float(pct) if pct else 0.0
+
+                        # Ensure max_size_pct is float for arithmetic
+                        max_size_pct_float = float(max_size_pct)
+
+                        if pct_float > max_size_pct_float:
                             exceed_amount = pct_float - max_size_pct_float
                             oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {exceed_amount:.1f}%)")
