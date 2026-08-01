@@ -32,7 +32,12 @@ logger = logging.getLogger(__name__)
 
 
 class LoaderStatusManager:
-    """Manage loader status updates with validation and consistency checks."""
+    """Manage loader status updates with validation and consistency checks.
+
+    ISSUE #9 FIX: All status updates wrapped in advisory locks to prevent
+    concurrent progress updates from overwriting counts. Uses PostgreSQL
+    pg_advisory_lock() for application-level locking.
+    """
 
     def __init__(self, table_name: str) -> None:
         """Initialize status manager for a specific loader table.
@@ -42,6 +47,41 @@ class LoaderStatusManager:
         """
         self.table_name = table_name
         self._ensure_status_row_exists()
+
+    def _acquire_lock(self, timeout: int = 10) -> None:
+        """Acquire advisory lock on this loader's status.
+
+        ISSUE #9 FIX: Uses PostgreSQL advisory lock to coordinate concurrent status updates.
+        Fails fast if lock cannot be acquired within timeout.
+
+        Args:
+            timeout: Lock acquisition timeout in seconds
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                # Use hash of table_name as lock ID (deterministic, unique per table)
+                lock_id = hash(self.table_name) % (2**31)  # Keep within 32-bit range
+                cur.execute(f"SET lock_timeout = '{timeout}s'")
+                cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+                logger.debug(f"[STATUS_MANAGER] Acquired lock for {self.table_name}")
+        except Exception as e:
+            raise RuntimeError(
+                f"[STATUS_MANAGER] Failed to acquire lock for {self.table_name}: {e}. "
+                f"Cannot proceed with status update without lock protection."
+            ) from e
+
+    def _release_lock(self) -> None:
+        """Release advisory lock on this loader's status.
+
+        ISSUE #9 FIX: Releases the previously acquired advisory lock.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                lock_id = hash(self.table_name) % (2**31)
+                cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+                logger.debug(f"[STATUS_MANAGER] Released lock for {self.table_name}")
+        except Exception as e:
+            logger.warning(f"[STATUS_MANAGER] Failed to release lock for {self.table_name}: {e}")
 
     def _ensure_status_row_exists(self) -> None:
         """Create data_loader_status row if it doesn't exist.
@@ -68,9 +108,26 @@ class LoaderStatusManager:
         """Mark loader as starting execution now.
 
         Sets: status=RUNNING, execution_started=NOW
+
+        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent updates.
         """
+        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
+                # Validate monotonic increase: status must move from NOT_STARTED to RUNNING
+                cur.execute(
+                    "SELECT status FROM data_loader_status WHERE table_name = %s",
+                    (self.table_name,),
+                )
+                result = cur.fetchone()
+                if result:
+                    current_status = result[0]
+                    if current_status not in (LoaderStatus.NOT_STARTED.value, LoaderStatus.COMPLETED.value, LoaderStatus.FAILED.value, LoaderStatus.TIMEOUT.value):
+                        logger.warning(
+                            f"[STATUS_MANAGER] Unexpected status transition for {self.table_name}: "
+                            f"{current_status} -> RUNNING"
+                        )
+
                 cur.execute(
                     """
                     UPDATE data_loader_status
@@ -88,6 +145,8 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as RUNNING: {e}")
             raise
+        finally:
+            self._release_lock()
 
     def update_progress(
         self,
@@ -97,11 +156,15 @@ class LoaderStatusManager:
     ) -> None:
         """Update loader progress without changing status.
 
+        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent updates from overwriting counts.
+        Validates monotonic increase: symbols_loaded cannot decrease.
+
         Args:
             symbols_loaded: Number of symbols processed so far
             symbol_count: Total number of symbols to process
             completion_pct: Percentage complete (0-100)
         """
+        self._acquire_lock()
         try:
             updates = {"last_updated": "NOW()"}
             params: list[Any] = []
@@ -121,6 +184,22 @@ class LoaderStatusManager:
                 updates["completion_pct"] = "%s"
                 params.append(completion_pct)
 
+            # Validate monotonic increase before updating
+            if symbols_loaded is not None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbols_loaded FROM data_loader_status WHERE table_name = %s",
+                        (self.table_name,),
+                    )
+                    result = cur.fetchone()
+                    if result and result[0] is not None:
+                        old_symbols_loaded = result[0]
+                        if symbols_loaded < old_symbols_loaded:
+                            raise ValueError(
+                                f"[STATUS_MANAGER] symbols_loaded cannot decrease: {old_symbols_loaded} -> {symbols_loaded}. "
+                                f"This indicates a bug in the progress tracking logic (counts should only increase)."
+                            )
+
             params.append(self.table_name)
 
             update_clause = ", ".join([f"{k} = {v}" for k, v in updates.items()])
@@ -134,6 +213,8 @@ class LoaderStatusManager:
             logger.debug(f"[STATUS] {self.table_name}: Progress {pct_str} ({symbols_loaded}/{symbol_count})")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to update progress for {self.table_name}: {e}")
+        finally:
+            self._release_lock()
 
     def mark_completed(
         self,
@@ -149,12 +230,15 @@ class LoaderStatusManager:
         alone can't distinguish "last finished successfully" from "last finished at all",
         since it's also stamped on FAILED/TIMEOUT).
 
+        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
+
         Args:
             execution_duration_sec: Optional execution duration for performance tracking
             http_status: Optional HTTP status code from API call (200=ok)
             rate_limit_quota: Optional rate limit quota string for display
             latest_date: Optional latest date in the loaded data (for data freshness tracking)
         """
+        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
                 # Calculate throughput if we have duration and symbols
@@ -217,6 +301,8 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as COMPLETED: {e}")
             raise
+        finally:
+            self._release_lock()
 
     def mark_failed(
         self,
@@ -227,6 +313,8 @@ class LoaderStatusManager:
     ) -> None:
         """Mark loader as failed with error reason.
 
+        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
+
         Args:
             error_message: Description of what went wrong (max 1000 chars)
             completion_pct: Optional percentage completed before failure
@@ -236,6 +324,7 @@ class LoaderStatusManager:
         # Truncate message to 1000 chars to prevent DB column overflow
         msg = error_message[:1000]
 
+        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
                 if completion_pct is not None:
@@ -278,15 +367,20 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as FAILED: {e}")
             raise
+        finally:
+            self._release_lock()
 
     def mark_timeout(self, runtime_seconds: float, http_status: int | None = None) -> None:
         """Mark loader as timed out.
+
+        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
 
         Args:
             runtime_seconds: How long the loader ran before timing out
             http_status: Optional HTTP status code if the timeout was from an API call
         """
         msg = f"Timeout after {runtime_seconds:.0f} seconds"
+        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -316,6 +410,8 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as TIMEOUT: {e}")
             raise
+        finally:
+            self._release_lock()
 
     def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> bool:
         """Archive current status to history table for pattern analysis.

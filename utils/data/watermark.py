@@ -171,6 +171,22 @@ class WatermarkManager:
         Returns:
             True if watermark was updated, False if failed
         """
+        # CRITICAL FIX: Prevent watermark advancement on non-trading days with zero records
+        # Root cause: On weekends/holidays, loaders run but get 0 records, then advance watermark anyway
+        # Result: Next run (Monday) starts AFTER the weekend, missing Saturday/Sunday data forever
+        # Solution: Only advance if records_loaded > 0 (records were actually loaded)
+        # This prevents skipping dates with no market data
+        if rows_loaded == 0:
+            from algo.infrastructure import MarketCalendar
+            if not MarketCalendar.is_trading_day(new_watermark):
+                logger.warning(
+                    f"[WATERMARK] Skipping advancement for {self.table_name}/{symbol}: "
+                    f"No records loaded on non-trading day {new_watermark}. "
+                    f"Watermark will retry this date on next run to catch any delayed data. "
+                    f"This prevents the 'skip weekends forever' bug."
+                )
+                return True  # Return True (success) but don't advance - next run will retry this date
+
         try:
             with DatabaseContext("write") as cur:
                 # Handle both date and datetime objects - always extract just the date part

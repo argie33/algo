@@ -85,7 +85,8 @@ class TestEndpointsMissingData:
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
             from routes.algo_handlers.dashboard import _get_algo_positions
 
-            result = _get_algo_positions(cursor)
+            # CRITICAL: pass user_id for user isolation enforcement
+            result = _get_algo_positions(cursor, user_id="test-user-123")
 
             # Should return 200 even with no data
             assert result.get("statusCode") == 200, (

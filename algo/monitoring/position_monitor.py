@@ -102,25 +102,59 @@ class PositionMonitor:
                 ) from e
 
             if stale_orders:
+                # ISSUE #8 FIX: Dual halt check - check BOTH local halt_flag_manager and Alpaca API
                 # Filter out halted symbols (halts are normal, not actionable)
                 # Fail fast if halt check fails - don't skip filtering silently
                 try:
                     from algo.infrastructure import MarketEventHandler
+                    from algo.infrastructure.halt_flag_manager import HaltFlagManager
 
                     meh = MarketEventHandler(self.config)
+                    halt_manager = HaltFlagManager()
                     filtered_stale = []
                     halted_orders = []
                     for row in stale_orders:
                         trade_id, symbol, price, qty, created_at = row
-                        halt_check = meh.check_single_stock_halt(symbol)
-                        if halt_check and halt_check.get("error"):
-                            raise RuntimeError(
-                                f"Halt check failed for {symbol}: {halt_check.get('reason', halt_check['error'])}. "
-                                f"Cannot proceed without knowing which orders are halted."
+
+                        # Check local halt flag first (faster, no API call)
+                        local_halt = halt_manager.check_halt_flag(symbol)
+
+                        # Check Alpaca API with timeout protection
+                        alpaca_halt = False
+                        try:
+                            halt_check = meh.check_single_stock_halt(symbol, timeout=2.0)
+                            if halt_check and halt_check.get("error"):
+                                # Alpaca API error - log but don't fail if we have local halt data
+                                if not local_halt:
+                                    raise RuntimeError(
+                                        f"Halt check failed for {symbol}: {halt_check.get('reason', halt_check['error'])}. "
+                                        f"Cannot proceed without knowing which orders are halted."
+                                    )
+                                logger.warning(
+                                    f"[HALT_CHECK] Alpaca halt check failed for {symbol}, using local halt_flag instead: "
+                                    f"{halt_check.get('reason', halt_check['error'])}"
+                                )
+                            if halt_check and halt_check.get("halted"):
+                                alpaca_halt = True
+                        except TimeoutError:
+                            logger.warning(
+                                f"[HALT_CHECK] Alpaca halt check timed out for {symbol} (2s timeout). "
+                                f"Using local halt_flag status instead."
                             )
-                        if halt_check and halt_check.get("halted"):
+                            alpaca_halt = False  # Unknown, fall back to local check
+
+                        # If EITHER local OR Alpaca indicates halt, mark as halted
+                        if local_halt or alpaca_halt:
                             logger.info(f"    {trade_id} {symbol} pending (but halted, expected)")
                             halted_orders.append(row)
+                            if local_halt and alpaca_halt:
+                                logger.critical(
+                                    f"[HALT_CHECK] Symbol {symbol} is HALTED (confirmed by both local flag and Alpaca API)"
+                                )
+                            elif local_halt:
+                                logger.critical(f"[HALT_CHECK] Symbol {symbol} is HALTED (local halt flag)")
+                            else:
+                                logger.critical(f"[HALT_CHECK] Symbol {symbol} is HALTED (Alpaca API)")
                             continue
                         filtered_stale.append(row)
                     stale_orders = filtered_stale

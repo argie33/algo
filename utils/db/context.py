@@ -292,6 +292,9 @@ class DatabaseContext:
         OPTIMIZATION: Check for a pooled connection first (set by OptimalLoader).
         If available, reuse it. Otherwise, acquire from pool normally.
         This reduces connection churn from 5-10 creates per loader to 1 create.
+
+        ISSUE #10 FIX: Set statement_timeout at connection level to prevent
+        long-running queries from blocking other connections.
         """
         try:
             # OPTIMIZATION: Try to reuse a pooled connection (held by OptimalLoader)
@@ -306,6 +309,16 @@ class DatabaseContext:
                 self._externally_managed = False
 
             self.cur = self.conn.cursor(cursor_factory=self.cursor_factory)
+
+            # ISSUE #10 FIX: Set statement_timeout at connection level
+            # Prevents long-running queries from blocking other connections
+            # Use a reasonable default: 15 seconds for most operations, 30s for loaders
+            stmt_timeout = 30000 if self.correlation_id else 15000  # milliseconds
+            try:
+                self.cur.execute(f"SET statement_timeout = {stmt_timeout}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[DB_CONTEXT] Failed to set statement_timeout: {e}")
+                # Don't fail on timeout setting, just log and continue
 
             # Set application_name for PostgreSQL audit log (loaders only)
             if self.correlation_id:
@@ -389,3 +402,53 @@ class DatabaseContext:
                 self.cur = None
                 if not self._externally_managed:
                     self.conn = None
+
+    @staticmethod
+    def get_pool_status() -> dict[str, Any]:
+        """ISSUE #10 FIX: Monitor connection pool status and log warnings.
+
+        Returns:
+            Dict with pool utilization metrics:
+            - used: number of connections in use
+            - capacity: total pool capacity
+            - utilization_pct: percentage of pool in use
+        """
+        try:
+            # Get the default connection pool from get_db_connection
+            conn = get_db_connection(timeout=2)
+            if hasattr(conn, 'pool'):
+                # If connection has a pool reference, check utilization
+                db_pool = conn.pool
+                if hasattr(db_pool, '_pool'):
+                    # SimpleConnectionPool or ThreadedConnectionPool
+                    available = len(db_pool._pool) if hasattr(db_pool, '_pool') else 0
+                    capacity = db_pool._maxconn if hasattr(db_pool, '_maxconn') else 10
+                    used = max(0, capacity - available)
+                    utilization_pct = (used / capacity * 100) if capacity > 0 else 0
+
+                    status = {
+                        "used": used,
+                        "capacity": capacity,
+                        "utilization_pct": utilization_pct,
+                    }
+
+                    # Log warnings for high utilization
+                    if utilization_pct > 80:
+                        logger.warning(
+                            f"[DB_POOL_MONITOR] Connection pool utilization high: "
+                            f"{used}/{capacity} ({utilization_pct:.1f}%). "
+                            f"Potential connection leak or high concurrent load."
+                        )
+                    if used >= capacity:
+                        logger.error(
+                            f"[DB_POOL_MONITOR] Connection pool exhausted: "
+                            f"{capacity}/{capacity} connections in use. "
+                            f"Queries may be blocked waiting for available connection."
+                        )
+
+                    return status
+            # Fallback if pool structure is different
+            return {"used": 0, "capacity": 10, "utilization_pct": 0, "note": "pool structure not detected"}
+        except Exception as e:
+            logger.warning(f"[DB_POOL_MONITOR] Could not fetch pool status: {e}")
+            return {"error": str(e)}

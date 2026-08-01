@@ -121,8 +121,8 @@ class TestEndToEndTradingWorkflow:
 
         # Test all 4 endpoints return valid data
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-            # Positions endpoint
-            positions = _get_algo_positions(cursor)
+            # Positions endpoint (CRITICAL: pass user_id for user isolation)
+            positions = _get_algo_positions(cursor, user_id="test-user-123")
             assert positions["statusCode"] == 200
             assert len(positions["data"]["items"]) > 0
             assert positions["data"]["items"][0]["symbol"] == "AAPL"
@@ -187,8 +187,8 @@ class TestEndToEndTradingWorkflow:
         from routes.algo_handlers.dashboard import _get_algo_positions
 
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-            # Step 3: API returns data to dashboard
-            response = _get_algo_positions(cursor)
+            # Step 3: API returns data to dashboard (CRITICAL: pass user_id for user isolation)
+            response = _get_algo_positions(cursor, user_id="test-user-123")
 
             # Step 4: Dashboard receives and displays data
             assert response["statusCode"] == 200
