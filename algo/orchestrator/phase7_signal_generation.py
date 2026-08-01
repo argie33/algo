@@ -1094,23 +1094,37 @@ def run(  # noqa: C901
                 msg,
             )
         except Exception as e:
-            # CRITICAL: Signal quality scores are REQUIRED for Phase 8 entry gates.
-            # If computation fails, trades cannot proceed safely - must halt and investigate.
-            msg = (
-                f"[PHASE 7 CRITICAL] Signal quality score computation failed: {type(e).__name__}: {e}. "
-                f"Signal quality scores are REQUIRED for Phase 8 entry validation. "
-                f"Cannot proceed without valid signal scores. Check loader logs for details."
-            )
-            logger.critical(msg)
-            log_phase_result_fn(7, "signal_generation", "halt", msg)
-            return PhaseResult(
-                7,
-                "signal_generation",
-                "halted",
-                {"qualified_trades": [], "liquidity_passed": 0},
-                True,
-                msg,
-            )
+            # Handle LockAcquisitionError gracefully - don't halt on temporary lock contention
+            from algo.exceptions import LockAcquisitionError
+            if isinstance(e, LockAcquisitionError):
+                # Temporary lock issue - log warning but don't halt
+                msg = (
+                    f"[PHASE 7 WARNING] Signal quality score loader could not acquire lock (temporary contention). "
+                    f"Will proceed without updated scores. Trades will use previously cached scores if available."
+                )
+                logger.warning(msg)
+                log_phase_result_fn(7, "signal_generation", "degraded", msg)
+                # Return empty result - downstream Phase 8 will detect and handle gracefully
+                score_result = {"symbols_processed": 0, "symbols_failed": 0}
+            else:
+                # CRITICAL: Other errors halt Phase 7
+                # Signal quality scores are REQUIRED for Phase 8 entry gates.
+                # If computation fails, trades cannot proceed safely - must halt and investigate.
+                msg = (
+                    f"[PHASE 7 CRITICAL] Signal quality score computation failed: {type(e).__name__}: {e}. "
+                    f"Signal quality scores are REQUIRED for Phase 8 entry validation. "
+                    f"Cannot proceed without valid signal scores. Check loader logs for details."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return PhaseResult(
+                    7,
+                    "signal_generation",
+                    "halted",
+                    {"qualified_trades": [], "liquidity_passed": 0},
+                    True,
+                    msg,
+                )
 
         # CRITICAL: Validate result structure before using it
         if not isinstance(score_result, dict):
