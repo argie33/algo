@@ -313,18 +313,23 @@ def run(
                 ) from e
 
         # Add concentration rebalance actions to the exposure_actions queue
-        # CRITICAL FIX: Wrap concentration checks in try-except to prevent Phase 6 halt
-        # If concentration checks fail for any reason, continue with available actions instead of halting
+        # CRITICAL FIX: Concentration violations must halt execution, not silently continue
+        # Oversized positions create uncontrolled risk exposure that can trigger margin calls
+        # If concentration checks fail, this is a data integrity or policy failure - halt immediately
         sector_concentration_actions = []
         size_concentration_actions = []
         try:
             sector_concentration_actions = _check_sector_concentration()
         except Exception as e:
-            logger.warning(f"[PHASE 6] Sector concentration check failed (continuing without rebalance actions): {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"[PHASE 6 CRITICAL] Sector concentration check failed - cannot proceed with exits. {type(e).__name__}: {e}"
+            ) from e
         try:
             size_concentration_actions = _check_position_size_concentration()
         except Exception as e:
-            logger.warning(f"[PHASE 6] Position size concentration check failed (continuing without rebalance actions): {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"[PHASE 6 CRITICAL] Position size concentration check failed - cannot proceed with exits. {type(e).__name__}: {e}"
+            ) from e
         # Guard against None values - ensure lists are always valid
         sector_concentration_actions = sector_concentration_actions or []
         size_concentration_actions = size_concentration_actions or []

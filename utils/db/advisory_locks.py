@@ -15,6 +15,7 @@ Lock ID Assignment (ensures no conflicts):
 """
 
 import logging
+import time
 from typing import Any
 
 import psycopg2
@@ -29,20 +30,39 @@ ALGO_AUDIT_LOG_LOCK_ID = 2147483643
 ALGO_METRICS_DAILY_LOCK_ID = 2147483642
 
 
-def acquire_advisory_lock(cursor: Any, lock_id: int, table_name: str = "unknown") -> None:
-    """Acquire an advisory lock for a critical table.
+def acquire_advisory_lock(cursor: Any, lock_id: int, table_name: str = "unknown", timeout_secs: int = 30) -> None:
+    """Acquire an advisory lock for a critical table with timeout.
 
     Args:
         cursor: Database cursor from DatabaseContext
         lock_id: Advisory lock ID (see constants above)
         table_name: Human-readable table name for logging
+        timeout_secs: Lock acquisition timeout in seconds (default 30s)
 
     Raises:
-        RuntimeError: If lock cannot be acquired
+        RuntimeError: If lock cannot be acquired within timeout or on database error
     """
     try:
-        cursor.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
-        cursor.fetchone()
+        # Use pg_advisory_lock_shared with timeout via try-lock approach
+        # pg_advisory_lock blocks indefinitely, so use pg_try_advisory_lock in a loop with timeout
+        start_time = time.time()
+        acquired = False
+
+        while time.time() - start_time < timeout_secs:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))
+            result = cursor.fetchone()
+            if result and result[0]:  # Lock acquired successfully
+                acquired = True
+                break
+            # Sleep briefly before retry to avoid busy-waiting
+            time.sleep(0.1)
+
+        if not acquired:
+            raise RuntimeError(
+                f"Failed to acquire advisory lock for {table_name} within {timeout_secs}s timeout. "
+                f"Lock ID {lock_id} may be held by another process."
+            )
+
         logger.debug(f"[LOCK] Acquired advisory lock {lock_id} for {table_name}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Failed to acquire advisory lock for {table_name}: {e}") from e

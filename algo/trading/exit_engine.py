@@ -561,6 +561,10 @@ class ExitEngine:
                     # been paper mode (status='open'). Now selects every non-terminal status.
                     open_trade_statuses = TradeStatus.all_open()
                     status_placeholders = ", ".join(["%s"] * len(open_trade_statuses))
+                    # CRITICAL FIX: Add FOR UPDATE to initial position fetch to prevent TOCTOU race
+                    # If we fetch positions without lock, another transaction can modify them in the gap
+                    # between this SELECT and the FOR UPDATE recheck at line 625. This causes duplicate
+                    # exits or exits on wrong positions under concurrent load. Lock positions here.
                     cur.execute(
                         f"""SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
                                   t.target_1_price, t.target_2_price, t.target_3_price,
@@ -571,7 +575,8 @@ class ExitEngine:
                            FROM algo_trades t
                            JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                            WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
-                           ORDER BY t.trade_date ASC""",
+                           ORDER BY t.trade_date ASC
+                           FOR UPDATE OF p""",
                         (*open_trade_statuses, PositionStatus.OPEN.value),
                     )
 
@@ -732,17 +737,24 @@ class ExitEngine:
                                 # target the most-recent matching trade_id via a subquery.
                                 open_trade_statuses_close = TradeStatus.all_open()
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
-                                # CRITICAL FIX: For delisted/unavailable symbols, mark position closed WITHOUT calculating P&L
-                                # Cannot use entry_price as fallback (masks actual exit price)
-                                # Cannot use current_price fallback (no price available)
-                                # Set exit_price=NULL and profit_loss=NULL to indicate manual review needed
-                                # Position is marked closed so it stops showing in open positions list
+                                # CRITICAL FIX: For delisted/unavailable symbols, use last valid archive price
+                                # This ensures P&L is calculated with actual market exit price, not NULL
+                                archive_exit_price = self._get_last_valid_archive_price(cur, symbol, current_date)
+
+                                # Calculate P&L if we have an exit price, otherwise leave NULL for manual review
+                                profit_loss_dollars = None
+                                profit_loss_pct = None
+                                if archive_exit_price is not None:
+                                    profit_loss_dollars = float((Decimal(str(archive_exit_price)) - Decimal(str(entry_price))) * Decimal(str(_quantity)))
+                                    if entry_price > 0:
+                                        profit_loss_pct = float(((Decimal(str(archive_exit_price)) - Decimal(str(entry_price))) / Decimal(str(entry_price))) * Decimal("100"))
+
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_time = CURRENT_TIMESTAMP,
-                                       exit_price = NULL,
-                                       profit_loss_dollars = NULL,
-                                       profit_loss_pct = NULL,
+                                       exit_price = %s,
+                                       profit_loss_dollars = %s,
+                                       profit_loss_pct = %s,
                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE trade_id = (
                                            SELECT trade_id FROM algo_trades
@@ -751,6 +763,9 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
+                                        archive_exit_price,
+                                        profit_loss_dollars,
+                                        profit_loss_pct,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
@@ -758,20 +773,23 @@ class ExitEngine:
                                 )
                                 open_position_statuses_close = PositionStatus.all_active()
                                 position_status_placeholders = ", ".join(["%s"] * len(open_position_statuses_close))
-                                # CRITICAL FIX: For delisted/unavailable symbols, close position with NULL P&L
-                                # Do NOT calculate fake P&L when price is unavailable (no fallback to entry_price)
-                                # Leave current_price and profit_loss fields as NULL to indicate manual review needed
+                                # CRITICAL FIX: For delisted/unavailable symbols, close position with archive price-based P&L
+                                # Use last valid archive price to calculate actual P&L instead of leaving it NULL
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = %s,
-                                       current_price = NULL,
-                                       profit_loss_dollars = NULL,
-                                       profit_loss_pct = NULL,
-                                       unrealized_pnl = NULL,
+                                       current_price = %s,
+                                       profit_loss_dollars = %s,
+                                       profit_loss_pct = %s,
+                                       unrealized_pnl = %s,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
+                                        archive_exit_price,
+                                        profit_loss_dollars,
+                                        profit_loss_pct,
+                                        profit_loss_dollars,
                                         symbol,
                                         *open_position_statuses_close,
                                     ),
@@ -1505,6 +1523,23 @@ class ExitEngine:
                 f"day counts."
             )
         return int(row[0])
+
+    def _get_last_valid_archive_price(
+        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime
+    ) -> float | None:
+        """Fetch the most recent valid close price from price_daily archive.
+        Used when a symbol becomes delisted or price data is unavailable to close position
+        with actual market exit price instead of NULL, improving P&L accuracy.
+        Returns None if no historical price exists.
+        """
+        cur.execute(
+            """SELECT close FROM price_daily
+               WHERE symbol = %s AND date < %s
+               ORDER BY date DESC LIMIT 1""",
+            (symbol, current_date),
+        )
+        row = cur.fetchone()
+        return float(row[0]) if row and row[0] is not None else None
 
     def _is_pulling_back(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
