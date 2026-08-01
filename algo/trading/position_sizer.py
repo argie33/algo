@@ -822,16 +822,13 @@ class PositionSizer:
         if max_positions <= 0:
             raise ValueError(f"[POSITION_SIZER] max_positions must be > 0, got {max_positions}")
 
-        tolerance_buffer = max(1, int(max_positions * 0.15))
-        hard_limit = max_positions + tolerance_buffer
-
-        if active_positions >= hard_limit:
+        if active_positions >= max_positions:
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
                 "status": "no_room",
-                "reason": f"{active_positions} open positions >= {hard_limit} hard limit (target {max_positions})",
+                "reason": f"{active_positions} open positions >= {max_positions} position limit",
             }
 
         if risk_adjustment == 0:
