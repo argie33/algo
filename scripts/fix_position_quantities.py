@@ -17,6 +17,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import psycopg2
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -105,8 +107,9 @@ class PositionQuantityFixer:
                     }
                 else:
                     return {'total_trades': 0, 'expected_qty': 0}
-        except:
-            # Trade log might not exist
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, AttributeError) as e:
+            # Trade log might not exist or database error occurred
+            print(f"[DEBUG] Could not review trade history for {symbol}: {type(e).__name__}: {e}")
             return {}
 
     def fix_negative_quantity(self, position_id, symbol: str, quantity: float) -> bool:

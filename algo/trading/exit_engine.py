@@ -973,6 +973,7 @@ class ExitEngine:
                         trade_errors += 1
 
                         _audit_sp = f"{_sp}_audit"
+                        audit_failed = False
                         try:
                             cur.execute(f"SAVEPOINT {_audit_sp}")
                             cur.execute(
@@ -990,6 +991,7 @@ class ExitEngine:
                             )
                             cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
                         except Exception as _audit_err:
+                            audit_failed = True
                             try:
                                 cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
                             except psycopg2.Error as _audit_rollback_err:
@@ -1004,15 +1006,22 @@ class ExitEngine:
                                         f"Halting exit engine to prevent cascading failures."
                                     ) from _audit_rollback_err
                                 else:
-                                    # Audit savepoint rollback failed for non-abort reason
-                                    logger.critical(
-                                        f"[AUDIT] Transaction state is unrecoverable (non-abort error) - cannot write audit for {symbol}. "
-                                        f"Error: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}"
+                                    # Audit savepoint rollback failed for non-abort reason - but still log it and continue
+                                    # CRITICAL FIX: Even if savepoint rollback fails for non-abort reason, the transaction
+                                    # may still be in a bad state. Log the error but flag as failed so we skip to next position.
+                                    logger.error(
+                                        f"[AUDIT] Transaction state uncertain - savepoint rollback failed for {symbol}: "
+                                        f"{type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
+                                        f"Skipping to next position to avoid cascading failures."
                                     )
-                            else:
-                                logger.critical(
-                                    f"[AUDIT] Failed to persist exit-check error for {symbol}: {_audit_err}"
+                            if audit_failed:
+                                logger.error(
+                                    f"[AUDIT] Failed to persist error details for {symbol}: {_audit_err}. "
+                                    f"Error was counted and logged, but audit record could not be written."
                                 )
+                            # CRITICAL FIX: After audit failure, don't attempt to RELEASE the savepoint
+                            # The transaction may be in a bad state. Continue to next position.
+                            continue
 
                 logger.info(f"\n{'=' * 70}")
 

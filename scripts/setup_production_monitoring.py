@@ -20,6 +20,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import psycopg2
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -121,9 +123,12 @@ class ProductionMonitor:
                 try:
                     cur.execute(query)
                     stale_locks = cur.fetchall()
-                except:
-                    # Table might not exist (using DynamoDB)
-                    print("Status: INFO - Stale lock checking not available (using DynamoDB?)")
+                except (psycopg2.DatabaseError, psycopg2.ProgrammingError) as e:
+                    # Table might not exist (using DynamoDB) or database error
+                    if "does not exist" in str(e).lower() or "undefined table" in str(e).lower():
+                        print("Status: INFO - Stale lock checking not available (using DynamoDB?)")
+                    else:
+                        print(f"Status: DEBUG - Stale lock query failed: {type(e).__name__}: {e}")
                     return True
 
                 if not stale_locks:
@@ -225,8 +230,12 @@ class ProductionMonitor:
                 try:
                     cur.execute(query)
                     metrics = cur.fetchone()
-                except:
-                    print("Status: INFO - Portfolio metrics not available")
+                except (psycopg2.DatabaseError, psycopg2.ProgrammingError) as e:
+                    # Table might not exist or database error
+                    if "does not exist" in str(e).lower() or "undefined table" in str(e).lower():
+                        print("Status: INFO - Portfolio metrics not available")
+                    else:
+                        print(f"Status: DEBUG - Portfolio metrics query failed: {type(e).__name__}: {e}")
                     return True
 
                 if metrics:
