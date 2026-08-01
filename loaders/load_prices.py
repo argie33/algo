@@ -1987,6 +1987,19 @@ class PriceLoader(OptimalLoader):
 
             error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
 
+            # CRITICAL: Invalidate cache BEFORE updating status to prevent race condition
+            # where Phase 1 reads stale cache while orchestrator thinks data is fresh.
+            # If cache invalidation fails, we bail out here without marking status as
+            # COMPLETED - safer than the reverse (commit status then fail to invalidate).
+            try:
+                _invalidate_phase1_cache()
+            except RuntimeError as cache_err:
+                logger.critical(
+                    "[CACHE INVALIDATION] CRITICAL FAILURE before status update: %s",
+                    cache_err,
+                )
+                raise
+
             # Use LoaderStatusManager for centralized, thread-safe status updates (RACE CONDITION FIX)
             # Eliminates concurrent-write race condition where multiple loaders write data_loader_status directly.
             status_mgr = LoaderStatusManager(self.table_name)
@@ -2027,22 +2040,6 @@ class PriceLoader(OptimalLoader):
                     latest_date=latest_date,
                     execution_duration_sec=exec_duration_sec
                 )
-
-            # Archive to history for failure-pattern analysis (now done by LoaderStatusManager._archive_to_history)
-
-            try:
-                # CRITICAL FIX #5: Use proper fail-fast cache invalidation with three-tier approach
-                # (not just inline deletion with defensive silent failure)
-                _invalidate_phase1_cache()
-            except RuntimeError as cache_err:
-                # Cache invalidation failed after exhausting all retry strategies.
-                # This means Phase 1 might use stale data = data corruption risk.
-                # Must halt loader to maintain data integrity.
-                logger.critical(
-                    "[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: %s",
-                    cache_err,
-                )
-                raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(
                 f"[LOADER STATUS] CRITICAL: Failed to update data_loader_status for {self.table_name}: {e}. Orchestrator cannot detect hung loaders."
