@@ -332,8 +332,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                     # Log full stack trace for GROUP BY errors to aid diagnosis
                     if 'GROUP BY' in full_trace.upper():
+                        # Escape braces in traceback for safe f-string formatting
+                        safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
                         logger.critical(
-                            f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{full_trace}"
+                            f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{safe_trace}"
                         )
 
                     error_str = str(review_err)[:200]
