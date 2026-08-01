@@ -274,6 +274,10 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                         risk_score,
                     ),
                 )
+                # Validate that signal was actually inserted/updated
+                if cur.rowcount < 1:
+                    logger.error(f"[PERSIST SIGNALS] Failed to insert signal for {symbol}: rowcount={cur.rowcount}")
+                    raise RuntimeError(f"[PERSIST SIGNALS] Signal insert returned no rows for {symbol} on {run_date}")
                 inserted_count += 1
 
         if skipped_count:
@@ -1128,7 +1132,10 @@ def run(
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity != 0")
-            current_position_count = cur.fetchone()[0]
+            result = cur.fetchone()
+            if result is None:
+                raise RuntimeError("[PHASE 8] Query to count open positions returned NULL")
+            current_position_count = result[0] if result[0] is not None else 0
 
         if current_position_count >= max_positions:
             msg = (

@@ -145,7 +145,10 @@ def run(
             # Empty recommendations + open positions = Phase 3 silently skipped position monitoring
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status='open'")
-                open_position_count = cur.fetchone()[0]
+                result = cur.fetchone()
+                if result is None or result[0] is None:
+                    raise RuntimeError("[PHASE 6] Query to count open positions returned NULL")
+                open_position_count = result[0]
 
             if open_position_count > 0:
                 msg = (
@@ -242,7 +245,10 @@ def run(
                 with DatabaseContext("read") as cur:
                     # Get total portfolio value
                     cur.execute("SELECT SUM(position_value) FROM algo_positions WHERE status='open'")
-                    total_value = cur.fetchone()[0] or 0.0
+                    result = cur.fetchone()
+                    if result is None:
+                        raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
+                    total_value = result[0] or 0.0
 
                     if total_value <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")

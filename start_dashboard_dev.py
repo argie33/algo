@@ -65,7 +65,7 @@ def is_port_open(port: int, timeout: float = 1.0) -> bool:
             if result == 0:
                 logger.debug(f"[PORT_CHECK] Port {port} is open on {host}")
                 return True
-        except Exception as e:
+        except (socket.error, OSError) as e:
             logger.debug(
                 f"[PORT_CHECK] Port check on {host}:{port}: {type(e).__name__}: {e}"
             )

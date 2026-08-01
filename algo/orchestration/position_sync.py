@@ -100,8 +100,12 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                             errors += 1
 
                 except Exception as e:
-                    logger.error(f"[POSITION_SYNC] Error syncing {symbol}: {e}")
+                    logger.error(
+                        f"[POSITION_SYNC] Error syncing {symbol}: {type(e).__name__}: {e}",
+                        exc_info=True
+                    )
                     errors += 1
+                    # Continue to next symbol - per-symbol errors don't halt entire sync
 
     except Exception as e:
         logger.error(f"[POSITION_SYNC] CRITICAL: Failed to sync positions: {e}")
