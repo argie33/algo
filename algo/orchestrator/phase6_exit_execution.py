@@ -310,7 +310,7 @@ def run(
                     # we MUST be able to execute exit orders. Missing credentials is a hard error.
                     raise RuntimeError(f"[PHASE 6 CRITICAL] Alpaca credentials required: {e}") from e
                 else:
-                    raise
+                    raise RuntimeError(f"[PHASE 6] TradeExecutor initialization failed: {e}") from e
 
         exit_count = 0
         stop_raises = 0
@@ -425,7 +425,9 @@ def run(
                         logger.critical(
                             f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}"
                         )
-                        raise
+                        raise RuntimeError(
+                            f"[PHASE 6] Cannot fetch current price for exit execution: {e}"
+                        ) from e
                     if cur_price is not None and cur_price > 0:
                         if "exit_fraction" not in action:
                             raise ValidationError(

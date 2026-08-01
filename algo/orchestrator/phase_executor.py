@@ -340,7 +340,9 @@ class OrchestratorPhaseExecutor:
             logger.critical(
                 f"[PHASE {phase_num}] FATAL: RuntimeError indicates governance violation - re-raising to crash orchestrator: {critical_err}"
             )
-            raise
+            raise RuntimeError(
+                f"[PHASE {phase_num}] Governance violation - halting orchestrator: {critical_err}"
+            ) from critical_err
         except Exception as e:
             logger.exception(f"[PHASE {phase_num}] Exception during execution: {e}")
             error_msg = str(e)

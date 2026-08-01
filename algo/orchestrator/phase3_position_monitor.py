@@ -404,7 +404,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     log_level="critical",
                 )
                 log_phase_error(3, error, log_phase_result_fn)
-                raise
+                raise RuntimeError("[PHASE 3] Failed to fetch open positions for halt checking") from pos_e
             halts_found = []
             halt_check_errors = []
             for pos in open_positions:
@@ -537,8 +537,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
                         continue
 
-                # For non-transient errors or after retries exhausted, raise
-                raise
+                # For non-transient errors or after retries exhausted, raise with explicit context
+                raise RuntimeError(
+                    f"[PHASE 3] Position halt review failed after {max_retries} attempts: {type(review_err).__name__}"
+                ) from review_err
 
         n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
         n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")

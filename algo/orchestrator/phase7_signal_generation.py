@@ -1230,8 +1230,8 @@ def run(  # noqa: C901
                             f"Cannot backfill scores with invalid calculation logic. "
                             f"Check scorer implementation and technical data quality."
                         ) from calc_e
-                except RuntimeError:
-                    raise
+                except RuntimeError as rt_e:
+                    raise RuntimeError(f"[PHASE 7 BACKFILL] Score calculation runtime error: {rt_e}") from rt_e
                 except Exception as bf_e:
                     logger.error(
                         f"[PHASE 7 BACKFILL] Unexpected error computing score for {symbol}: {type(bf_e).__name__}: {bf_e}",
@@ -1275,8 +1275,8 @@ def run(  # noqa: C901
                     raise RuntimeError(msg) from write_bf_e
         else:
             logger.debug("[PHASE 7 BACKFILL] No orphaned signals to backfill")
-    except RuntimeError:
-        raise
+    except RuntimeError as rt_e:
+        raise RuntimeError(f"[PHASE 7 BACKFILL] Backfill process critical error: {rt_e}") from rt_e
     except Exception as bf_outer_e:
         msg = (
             f"[PHASE 7 BACKFILL] Backfill process failed: {type(bf_outer_e).__name__}: {bf_outer_e} "

@@ -286,7 +286,7 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
         return inserted_count
     except psycopg2.DatabaseError as e:
         logger.error(f"[PERSIST SIGNALS] Database error: {e}", exc_info=True)
-        raise
+        raise RuntimeError(f"[PHASE 8] Failed to persist entry signals: {e}") from e
 
 
 def _batch_fetch_technical_data(
@@ -677,8 +677,8 @@ def run(
                     "max_concentration_pct": 0.0,
                     "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
                 }
-        except ValueError:
-            raise
+        except ValueError as val_e:
+            raise RuntimeError(f"[PHASE 8] Invalid exposure constraints data: {val_e}") from val_e
         except Exception as e:
             logger.warning(f"[PHASE 8] Could not fetch Phase 7/5 data: {e}. Proceeding with available data.")
 
@@ -1122,6 +1122,38 @@ def run(
     entered_prices: list[float] = []
 
     # PROACTIVE RISK CHECK: Before entering positions, verify we won't exceed 4% risk limit
+    # CRITICAL FIX 2026-08-01: Add position count limit check (was missing - allowed 17 positions)
+    # Check position count BEFORE allowing entries
+    max_positions = 15
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity != 0")
+            current_position_count = cur.fetchone()[0]
+
+        if current_position_count >= max_positions:
+            msg = (
+                f"[PHASE 8 POSITION LIMIT] Currently holding {current_position_count} positions "
+                f"(limit: {max_positions}). Must close positions before entering new trades."
+            )
+            logger.warning(msg)
+            log_phase_result_fn(8, "entry_execution", "blocked", msg)
+            return PhaseResult(
+                8,
+                "entry_execution",
+                "blocked",
+                {"entered": 0},
+                False,
+                msg,
+            )
+    except Exception as e:
+        msg = (
+            f"[PHASE 8 CRITICAL] Position count check failed: {e}. "
+            f"Cannot verify position limit. Must halt to prevent exceeding 15-position limit."
+        )
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        raise RuntimeError(msg) from e
+
     # This is defensive - stops entries BEFORE they would push us over the limit
     # (vs circuit breaker which stops AFTER we've exceeded it)
     try:

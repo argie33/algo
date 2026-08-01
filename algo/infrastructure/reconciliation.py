@@ -588,7 +588,7 @@ class DailyReconciliation:
                         open_position_count,
                         largest_position_pct_paper,
                         avg_position_size_pct_paper,
-                        avg_position_size_pct_paper,  # concentration_risk_pct
+                        largest_position_pct_paper,  # concentration_risk_pct (largest position = concentration risk)
                         realized_pnl_today,  # was hardcoded 0.0 - dashboard/reporting always showed $0 realized
                         total_unrealized_pnl,
                         unrealized_pnl_pct,
@@ -1157,12 +1157,21 @@ class DailyReconciliation:
                     # avg_position_size_dec stores the average position VALUE in dollars (NOT a percentage)
                     # It will be converted to percentage on line 1385-1388
                     avg_position_size_dec = total_position_value / len(positions) if len(positions) > 0 else Decimal(0)
+
+                    # Calculate Herfindahl index for concentration_risk_pct (sum of squared position percentages)
+                    # This measures portfolio concentration: 1/n for equal-weight = low concentration, 100 for single position = high
+                    herfindahl_index_dec = Decimal(0)
+                    for pos_val in position_values:
+                        pos_pct = (Decimal(str(pos_val)) / total_equity_dec * Decimal(100))
+                        herfindahl_index_dec += pos_pct * pos_pct
+
                     logger.debug(
                         f"[RECONCILIATION] Concentration metrics: "
                         f"total_position_value={float(total_position_value):.2f}, "
                         f"total_equity_dec={float(total_equity_dec):.2f}, "
                         f"largest_pos={float(largest_position_dec):.2f} ({float(max_concentration_dec):.2f}%), "
-                        f"avg_pos_dollars={float(avg_position_size_dec):.2f}"
+                        f"avg_pos_dollars={float(avg_position_size_dec):.2f}, "
+                        f"herfindahl_index={float(herfindahl_index_dec):.2f}"
                     )
 
                 cur.execute("""
@@ -1428,7 +1437,7 @@ class DailyReconciliation:
                                 if total_equity_dec > 0
                                 else Decimal(0)
                             ),  # average_position_size_pct - should be avg position size as % of portfolio
-                            float(max_concentration_dec),  # concentration_risk_pct
+                            float(herfindahl_index_dec),  # concentration_risk_pct (Herfindahl index)
                             realized_pnl_today,
                             float(unrealized_pnl),
                             float(unrealized_pnl_pct_dec),

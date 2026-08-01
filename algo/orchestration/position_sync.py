@@ -75,7 +75,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                         trade_row = cur.fetchone()
                         if trade_row and trade_row[1]:
                             entry_price, position_id = trade_row
-                            # Update or insert position
+                            # Try to update position if it exists with this position_id
                             cur.execute('''
                                 UPDATE algo_positions
                                 SET quantity = %s, status = 'open', updated_at = NOW()
@@ -83,8 +83,18 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                             ''', (total_qty, position_id))
 
                             if cur.rowcount >= 1:
+                                updated += 1
+                                logger.debug(f"[POSITION_SYNC] Updated existing position {symbol}: {total_qty:.2f} shares")
+                            else:
+                                # Position doesn't exist with this position_id, insert new one
+                                cur.execute('''
+                                    INSERT INTO algo_positions (symbol, position_id, quantity, status, entry_price, updated_at, created_at)
+                                    VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                                    ON CONFLICT (position_id) DO UPDATE
+                                    SET quantity = %s, status = 'open', updated_at = NOW()
+                                ''', (symbol, position_id, total_qty, 'open', entry_price, total_qty))
                                 inserted += 1
-                                logger.debug(f"[POSITION_SYNC] Inserted {symbol}: {total_qty:.2f} shares")
+                                logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
                         else:
                             logger.warning(f"[POSITION_SYNC] Could not find position_id for {symbol}")
                             errors += 1

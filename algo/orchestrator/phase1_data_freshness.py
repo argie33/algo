@@ -358,6 +358,38 @@ def run(  # noqa: C901
                 log_phase_result_fn(1, "data_freshness", "halt", error_msg)
                 return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "no active symbols"}, True, error_msg)
             logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
+
+    # CRITICAL FIX 2026-08-01: Detect corrupted positions (status=open + closed_at IS NOT NULL)
+    # This indicates external process corruption (not orchestrator update)
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute('''
+            SELECT COUNT(*) as corrupted_count
+            FROM algo_positions
+            WHERE status = 'open' AND closed_at IS NOT NULL AND quantity != 0
+            ''')
+            corrupted_row = cur.fetchone()
+            corrupted_count = corrupted_row[0] if corrupted_row else 0
+
+            if corrupted_count > 0:
+                error_msg = (
+                    f"[PHASE 1 DATA INTEGRITY] Found {corrupted_count} positions with status='open' "
+                    f"AND closed_at IS NOT NULL. This is impossible - external process corrupted position data. "
+                    f"Positions cannot be both open AND closed. Halting to prevent cascading errors. "
+                    f"FIX: Clear closed_at field on affected positions, then re-run orchestrator."
+                )
+                logger.critical(error_msg)
+                log_phase_result_fn(1, "data_integrity", "halt", error_msg)
+                return PhaseResult(1, "data_integrity", "halted", {"corrupted_positions": corrupted_count}, True, error_msg)
+    except Exception as integrity_err:
+        error_msg = (
+            f"[PHASE 1 CRITICAL] Position integrity check failed: {integrity_err}. "
+            f"Cannot verify position data consistency. Must halt to prevent data corruption."
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "data_integrity", "halt", error_msg)
+        return PhaseResult(1, "data_integrity", "halted", {"error": str(integrity_err)}, True, error_msg)
+
     except Exception as pre_check_err:
         error_msg = (
             f"[PHASE 1 CRITICAL] Pre-flight validation failed - cannot verify stock_symbols table: {pre_check_err}. "

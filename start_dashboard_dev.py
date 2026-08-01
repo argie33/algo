@@ -53,18 +53,25 @@ except Exception as e:
 
 
 def is_port_open(port: int, timeout: float = 1.0) -> bool:
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex(("127.0.0.1", port))
-        sock.close()
-        return result == 0
-    except Exception as e:
-        logger.warning(
-            f"[PORT_CHECK] Port check failed for 127.0.0.1:{port}: "
-            f"{type(e).__name__}: {e}. Assuming port is unavailable."
-        )
-        return False
+    # Check both IPv4 and IPv6 localhost addresses to support systems with IPv6-first networking
+    localhost_addrs = [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]
+
+    for host, family in localhost_addrs:
+        try:
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                logger.debug(f"[PORT_CHECK] Port {port} is open on {host}")
+                return True
+        except Exception as e:
+            logger.debug(
+                f"[PORT_CHECK] Port check on {host}:{port}: {type(e).__name__}: {e}"
+            )
+            continue
+
+    return False
 
 
 def cleanup_orphaned_dev_servers() -> None:

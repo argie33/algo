@@ -62,7 +62,9 @@ def _run_reconciliation_step(
                 f"Check Alpaca credentials in AWS Secrets Manager or database sync state."
             ) from e
         else:
-            raise
+            raise RuntimeError(
+                f"[PHASE 9] Paper mode reconciliation failed: {type(e).__name__}: {str(e)[:200]}"
+            ) from e
 
     if "success" not in result:
         raise ValueError(
@@ -632,11 +634,11 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
             )
             logger.critical(msg)
             raise RuntimeError(msg)
-    except (RuntimeError, ValueError):
+    except (RuntimeError, ValueError) as rv_e:
         # CRITICAL: RuntimeError/ValueError indicate data quality issues (insufficient history, etc).
         # These MUST propagate to halt Phase 9 per GOVERNANCE (fail-fast).
         # Never silently degrade on data quality failures.
-        raise
+        raise RuntimeError(f"[PHASE 9] Data quality error in performance metrics: {rv_e}") from rv_e
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error_msg = (
             f"[PHASE 9 CRITICAL] Performance metrics database error: {e}. "
@@ -1300,7 +1302,7 @@ def run(
                     f"Error: {e}"
                 ) from e
             else:
-                raise
+                raise RuntimeError(f"[PHASE 9] DailyReconciliation initialization failed: {e}") from e
         reconciliation_succeeded, result = _run_reconciliation_step(config, run_date, log_phase_result_fn, dry_run)
 
         # CRITICAL: Validate that local P&L matches Broker P&L
