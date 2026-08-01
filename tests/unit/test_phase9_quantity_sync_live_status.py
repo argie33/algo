@@ -23,6 +23,9 @@ def test_quantity_sync_query_params_include_live_broker_statuses():
     statuses a real Alpaca fill is recorded with - not just 'open'."""
     mock_cur = MagicMock()
     mock_cur.rowcount = 0
+    # Mock fetchone() to return validation query result (COUNT, STRING_AGG)
+    # (0 invalid trades, None for trade_ids)
+    mock_cur.fetchone.return_value = (0, None)
 
     mock_ctx = MagicMock()
     mock_ctx.__enter__.return_value = mock_cur
