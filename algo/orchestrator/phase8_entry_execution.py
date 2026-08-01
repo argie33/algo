@@ -137,6 +137,23 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
             current_risk_pct = (total_risk_dollars / portfolio_value * 100.0) if portfolio_value > 0 else 0.0
             available_risk_pct = max_risk_limit_pct - current_risk_pct
 
+            # MEDIUM FIX: Add bounds checking for risk percentages
+            # Ensure percentages stay within 0-100% range to prevent calculation errors
+            if current_risk_pct < 0 or current_risk_pct > 100:
+                logger.critical(
+                    f"[RISK CHECK INVALID] Risk percentage {current_risk_pct:.2f}% outside valid range [0,100]. "
+                    f"Portfolio value: {portfolio_value}, Total risk: {total_risk_dollars}. "
+                    f"This indicates a data integrity issue or calculation error."
+                )
+                # Clamp to valid range to prevent cascading errors
+                current_risk_pct = max(0.0, min(100.0, current_risk_pct))
+
+            if available_risk_pct < 0:
+                logger.warning(
+                    f"[RISK CHECK] Available capacity {available_risk_pct:.2f}% is negative. "
+                    f"Current risk {current_risk_pct:.2f}% exceeds limit {max_risk_limit_pct}%."
+                )
+
             logger.info(
                 f"[RISK CHECK] Total open risk: {current_risk_pct:.2f}% ({open_count} positions), "
                 f"Available capacity: {available_risk_pct:.2f}% (limit: {max_risk_limit_pct}%)"
