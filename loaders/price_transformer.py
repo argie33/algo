@@ -233,7 +233,19 @@ class PriceTransformer:
         volume_val: int | None = row["volume"] if "volume" in row else None
 
         if open_val is None or high_val is None or low_val is None or close_val is None or volume_val is None:
-            return False, None
+            missing_fields = []
+            if open_val is None:
+                missing_fields.append("open")
+            if high_val is None:
+                missing_fields.append("high")
+            if low_val is None:
+                missing_fields.append("low")
+            if close_val is None:
+                missing_fields.append("close")
+            if volume_val is None:
+                missing_fields.append("volume")
+            error_msg = f"NULL field(s) in OHLCV: {', '.join(missing_fields)}"
+            return False, error_msg
 
         if symbol is None:
             return False, None

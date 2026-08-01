@@ -1564,6 +1564,25 @@ def run(
                 skipped_count += 1
                 continue
 
+            # CRITICAL FIX: Validate entry_price > stop_loss to prevent negative risk
+            # If stops are inverted, risk becomes negative, masking overexposure
+            if entry_price <= stop_loss:
+                logger.error(
+                    f"[PHASE 8 CRITICAL] {symbol}: Inverted stops detected - "
+                    f"entry ${entry_price:.2f} <= stop ${stop_loss:.2f}. "
+                    "This indicates malformed data or stop-loss calculation error."
+                )
+                _log_signal_rejection(
+                    symbol,
+                    "inverted_stops",
+                    f"Entry ${entry_price:.2f} <= stop ${stop_loss:.2f}",
+                    run_date,
+                    entry_price,
+                    None,
+                )
+                skipped_count += 1
+                continue
+
             risk_pct = (entry_price - stop_loss) / entry_price * 100
 
             if risk_pct < 1.5:

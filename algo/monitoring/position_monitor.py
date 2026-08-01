@@ -319,194 +319,191 @@ class PositionMonitor:
                         f"Cannot proceed with position monitoring without valid concentration metrics."
                     ) from e
 
-    def review_positions(self, current_date: _date | None = None) -> list[dict[str, Any]]:
-        """Review every open position. Returns list of recommendations."""
+    def review_positions(self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None) -> list[dict[str, Any]]:
+        """Review every open position. Returns list of recommendations.
+
+        Args:
+            current_date: Date to review positions for (defaults to today)
+            cur: Optional database cursor. If provided, uses it instead of opening new context (prevents nested context exhaustion).
+        """
         if current_date is None:
             current_date = _date.today()
 
-        recs = []
+        def _review_with_cursor(cursor: PsycopgCursor[Any]) -> list[dict[str, Any]]:
+            recs = []
+            logger.info("[POSITION_MONITOR] review_positions: cursor acquired")
+            try:
+                cursor.execute("""
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
+                eq_row = cursor.fetchone()
 
-        # CRITICAL: Wrap entire operation with detailed error logging for intermittent GROUP BY errors
-        # These occur randomly despite correct SQL, likely environmental - capture full diagnostic
-        try:
-            with DatabaseContext("write") as cur:
-                logger.info("[POSITION_MONITOR] review_positions: Entered DatabaseContext, cursor acquired")
-                # Issue #24: Check margin utilization and warn/halt if excessive
-                try:
-                    cur.execute("""
-                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                        ORDER BY snapshot_date DESC LIMIT 1
-                    """)
-                    eq_row = cur.fetchone()
-
-                    if eq_row is None or eq_row[0] is None:
-                        # CRITICAL FAIL-FAST: Portfolio snapshot is mandatory for position monitoring
-                        # Cannot use fallback estimates (dummy $100k, rough 1.5x multiplier) for equity calculations
-                        # Margin checks depend on accurate account data from Phase 9 reconciliation
-                        # If Phase 9 hasn't completed, position monitoring must halt and retry next run
-                        raise PositionValidationError(
-                            "[POSITION_MONITOR CRITICAL] Portfolio snapshot unavailable. "
-                            "Cannot monitor positions without accurate account equity from Phase 9 reconciliation. "
-                            "Fallback estimates ($100k dummy, position-value extrapolation) violate fail-fast principle. "
-                            "Position monitoring depends on real broker account data, not guesses. "
-                            "Verify Phase 9 (reconciliation) completed successfully, then retry this orchestrator run."
-                        )
-                    else:
-                        total_equity = float(eq_row[0])
-                    if total_equity <= 0:
-                        raise PositionValidationError(
-                            f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
-                        )
-
-                    # Compute margin usage = (equity - buying_power) / equity
-                    # Using proxy: if total open position value > 90% of equity, halt new entries
-                    cur.execute("""
-                        SELECT COUNT(*), SUM(position_value) FROM algo_positions WHERE status = 'open'
-                    """)
-                    count_row = cur.fetchone()
-                    if count_row is None:
-                        raise PositionValidationError("Query for open positions returned None - database error")
-                    position_count = count_row[0]
-                    pos_value_sum = count_row[1] if len(count_row) > 1 else None
-
-                    # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
-                    if position_count > 0 and pos_value_sum is None:
-                        raise PositionValidationError(
-                            f"CRITICAL: {position_count} open positions exist but SUM(position_value) is NULL. "
-                            "Database corruption detected. Margin calculation halted."
-                        )
-
-                    # NULL sum means no open positions (SUM of empty set is NULL, not 0)
-                    pos_value = float(pos_value_sum) if pos_value_sum is not None else 0.0
-                    if pos_value < 0:
-                        # Negative total may be caused by a short position written during
-                        # an Alpaca sync anomaly. Log at ERROR but do not halt - Phase 4
-                        # reconciliation will close any short positions in DB. A true
-                        # corruption scenario (negative equity from math error) is caught
-                        # by the total_equity <= 0 check above.
-                        logger.error(
-                            f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 - "
-                            "likely stale short position in algo_positions. "
-                            "Reconciliation (Phase 4) will close it. Continuing with pos_value=0."
-                        )
-                        pos_value = 0.0
-
-                    margin_util_pct = pos_value / total_equity * 100
-                    if margin_util_pct > 90:
-                        logger.critical(
-                            f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity - liquidation risk imminent"
-                        )
-                        raise PositionValidationError(
-                            f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
-                        )
-                    elif margin_util_pct > 80:
-                        logger.warning(f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%")
-                except PositionValidationError:
-                    raise
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as margin_e:
+                if eq_row is None or eq_row[0] is None:
                     raise PositionValidationError(
-                        f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
-                    ) from margin_e
-
-                try:
-                    logger.info("[POSITION_MONITOR] Calling check_sector_concentration with shared cursor (cursor lifecycle fix)")
-                    # CRITICAL FIX: Pass cursor to avoid nested DatabaseContext closing our cursor
-                    conc = self.check_sector_concentration(current_date, cur=cur)
-
-                    if conc["status"] == "HIGH_CONCENTRATION":
-                        logger.info("  [WARNING]  Portfolio concentration risk detected")
-                except RuntimeError as conc_e:
+                        "[POSITION_MONITOR CRITICAL] Portfolio snapshot unavailable. "
+                        "Cannot monitor positions without accurate account equity from Phase 9 reconciliation. "
+                        "Fallback estimates ($100k dummy, position-value extrapolation) violate fail-fast principle. "
+                        "Position monitoring depends on real broker account data, not guesses. "
+                        "Verify Phase 9 (reconciliation) completed successfully, then retry this orchestrator run."
+                    )
+                else:
+                    total_equity = float(eq_row[0])
+                if total_equity <= 0:
                     raise PositionValidationError(
-                        f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
-                    ) from conc_e
-
-                # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
-                # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
-                # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
-                # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
-                open_statuses = TradeStatus.all_open()
-                status_placeholders = ", ".join(["%s"] * len(open_statuses))
-                cur.execute(
-                    f"""
-                    SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                           t.target_1_price, t.target_2_price, t.target_3_price,
-                           t.trade_date, t.signal_date,
-                           p.position_id, p.quantity, p.target_levels_hit,
-                           p.current_stop_price, p.current_price
-                    FROM algo_trades t
-                    JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                    WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
-                      AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
-                    """,
-                    tuple(open_statuses),
-                )
-                positions = cur.fetchall()
-
-                logger.info(f"\n{'=' * 70}")
-                logger.info(f"POSITION MONITOR - {current_date}")
-                logger.info(f"{'=' * 70}")
-                logger.info(f"Reviewing {len(positions)} open position(s)\n")
-
-                validation_errors = []
-                for i, row in enumerate(positions):
-                    try:
-                        rec = self._evaluate_position(row, current_date, cur=cur)
-                    except PositionValidationError as e:
-                        # SAFETY: Validate row structure before accessing indices
-                        # The SELECT query returns 14 columns (indices 0-13), so row must have exactly 14 elements
-                        if len(row) != 14:
-                            logger.error(
-                                f"[PHASE 3] Row has incorrect column count ({len(row)}, expected 14). "
-                                f"Cannot extract position data. Possible database query result corruption or schema drift."
-                            )
-                            raise RuntimeError(
-                                f"Position row has {len(row)} columns, expected 14. "
-                                f"Cannot extract position data. This may indicate database connection issues or schema mismatch."
-                            ) from e
-                        symbol = row[1]  # symbol is at index 1 in the row tuple
-                        trade_id = row[0]
-                        position_id = row[9]
-                        error_msg = str(e)
-                        validation_errors.append((symbol, error_msg))
-                        # Include failed position in results so orchestrator has complete visibility
-                        recs.append(
-                            {
-                                "trade_id": trade_id,
-                                "symbol": symbol,
-                                "position_id": position_id,
-                                "action": "FAILED_VALIDATION",
-                                "error": error_msg,
-                            }
-                        )
-                        # CRITICAL FIX: Escape error message that may contain curly braces to prevent f-string format error
-                        safe_error_msg = error_msg.replace("{", "{{").replace("}", "}}")
-                        logger.warning(f"  Validation failed for {symbol}: {safe_error_msg}")
-                        continue
-
-                    recs.append(rec)
-                    self._print_recommendation(rec)
-                    try:
-                        sp_name = f"sp_pos_{i}"
-                        cur.execute(f"SAVEPOINT {sp_name}")
-                        self._persist_review(rec, cur, i)
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        # CRITICAL FIX: Escape exception message to prevent f-string format error
-                        safe_error = str(e).replace("{", "{{").replace("}", "}}")
-                        logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
-                        try:
-                            cur.execute(f"ROLLBACK TO {sp_name}")
-                        except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
-                            logger.warning(f"[POSITION_MONITOR] Could not rollback savepoint {sp_name}: {rb_err} - continuing")
-                        continue
-
-                # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
-                if validation_errors:
-                    logger.warning(
-                        f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
+                        f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
                     )
 
-                return recs
+                # Compute margin usage = (equity - buying_power) / equity
+                # Using proxy: if total open position value > 90% of equity, halt new entries
+                cursor.execute("""
+                    SELECT COUNT(*), SUM(position_value) FROM algo_positions WHERE status = 'open'
+                """)
+                count_row = cursor.fetchone()
+                if count_row is None:
+                    raise PositionValidationError("Query for open positions returned None - database error")
+                position_count = count_row[0]
+                pos_value_sum = count_row[1] if len(count_row) > 1 else None
 
+                # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
+                if position_count > 0 and pos_value_sum is None:
+                    raise PositionValidationError(
+                        f"CRITICAL: {position_count} open positions exist but SUM(position_value) is NULL. "
+                        "Database corruption detected. Margin calculation halted."
+                    )
+
+                # NULL sum means no open positions (SUM of empty set is NULL, not 0)
+                pos_value = float(pos_value_sum) if pos_value_sum is not None else 0.0
+                if pos_value < 0:
+                    logger.error(
+                        f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 - "
+                        "likely stale short position in algo_positions. "
+                        "Reconciliation (Phase 4) will close it. Continuing with pos_value=0."
+                    )
+                    pos_value = 0.0
+
+                margin_util_pct = pos_value / total_equity * 100
+                if margin_util_pct > 90:
+                    logger.critical(
+                        f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity - liquidation risk imminent"
+                    )
+                    raise PositionValidationError(
+                        f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
+                    )
+                elif margin_util_pct > 80:
+                    logger.warning(f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%")
+            except PositionValidationError:
+                raise
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as margin_e:
+                raise PositionValidationError(
+                    f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
+                ) from margin_e
+
+            try:
+                logger.info("[POSITION_MONITOR] Calling check_sector_concentration with shared cursor (cursor lifecycle fix)")
+                # CRITICAL FIX: Pass cursor to avoid nested DatabaseContext closing our cursor
+                conc = self.check_sector_concentration(current_date, cur=cursor)
+
+                if conc["status"] == "HIGH_CONCENTRATION":
+                    logger.info("  [WARNING]  Portfolio concentration risk detected")
+            except RuntimeError as conc_e:
+                raise PositionValidationError(
+                    f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
+                ) from conc_e
+
+            # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
+            # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
+            # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
+            # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
+            open_statuses = TradeStatus.all_open()
+            status_placeholders = ", ".join(["%s"] * len(open_statuses))
+            cursor.execute(
+                f"""
+                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                       t.target_1_price, t.target_2_price, t.target_3_price,
+                       t.trade_date, t.signal_date,
+                       p.position_id, p.quantity, p.target_levels_hit,
+                       p.current_stop_price, p.current_price
+                FROM algo_trades t
+                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
+                  AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
+                """,
+                tuple(open_statuses),
+            )
+            positions = cursor.fetchall()
+
+            logger.info(f"\n{'=' * 70}")
+            logger.info(f"POSITION MONITOR - {current_date}")
+            logger.info(f"{'=' * 70}")
+            logger.info(f"Reviewing {len(positions)} open position(s)\n")
+
+            validation_errors = []
+            for i, row in enumerate(positions):
+                try:
+                    rec = self._evaluate_position(row, current_date, cur=cursor)
+                except PositionValidationError as e:
+                    # SAFETY: Validate row structure before accessing indices
+                    # The SELECT query returns 14 columns (indices 0-13), so row must have exactly 14 elements
+                    if len(row) != 14:
+                        logger.error(
+                            f"[PHASE 3] Row has incorrect column count ({len(row)}, expected 14). "
+                            f"Cannot extract position data. Possible database query result corruption or schema drift."
+                        )
+                        raise RuntimeError(
+                            f"Position row has {len(row)} columns, expected 14. "
+                            f"Cannot extract position data. This may indicate database connection issues or schema mismatch."
+                        ) from e
+                    symbol = row[1]  # symbol is at index 1 in the row tuple
+                    trade_id = row[0]
+                    position_id = row[9]
+                    error_msg = str(e)
+                    validation_errors.append((symbol, error_msg))
+                    # Include failed position in results so orchestrator has complete visibility
+                    recs.append(
+                        {
+                            "trade_id": trade_id,
+                            "symbol": symbol,
+                            "position_id": position_id,
+                            "action": "FAILED_VALIDATION",
+                            "error": error_msg,
+                        }
+                    )
+                    # CRITICAL FIX: Escape error message that may contain curly braces to prevent f-string format error
+                    safe_error_msg = error_msg.replace("{", "{{").replace("}", "}}")
+                    logger.warning(f"  Validation failed for {symbol}: {safe_error_msg}")
+                    continue
+
+                recs.append(rec)
+                self._print_recommendation(rec)
+                try:
+                    sp_name = f"sp_pos_{i}"
+                    cursor.execute(f"SAVEPOINT {sp_name}")
+                    self._persist_review(rec, cursor, i)
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    # CRITICAL FIX: Escape exception message to prevent f-string format error
+                    safe_error = str(e).replace("{", "{{").replace("}", "}}")
+                    logger.error(f"Failed to persist review for {rec['symbol']}: {safe_error}")
+                    try:
+                        cursor.execute(f"ROLLBACK TO {sp_name}")
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
+                        logger.warning(f"[POSITION_MONITOR] Could not rollback savepoint {sp_name}: {rb_err} - continuing")
+                    continue
+
+            # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
+            if validation_errors:
+                logger.warning(
+                    f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
+                )
+
+            return recs
+
+        try:
+            if cur is not None:
+                return _review_with_cursor(cur)
+            else:
+                with DatabaseContext("write") as new_cursor:
+                    return _review_with_cursor(new_cursor)
         except psycopg2.errors.GroupingError as group_err:
             # FAIL-FAST: GROUP BY errors indicate data integrity issues.
             # Cannot safely evaluate positions without proper aggregation.
