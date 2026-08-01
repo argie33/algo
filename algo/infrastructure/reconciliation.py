@@ -558,6 +558,7 @@ class DailyReconciliation:
 
                     if portfolio_value > 0 and open_position_count > 0:
                         # Query actual largest position as percentage of portfolio
+                        # Use portfolio_value for consistency with cash/equity calculations
                         cur.execute("""
                             SELECT MAX(position_value / %s * 100) as largest_pct,
                                    AVG(position_value / %s * 100) as avg_pct
@@ -568,6 +569,12 @@ class DailyReconciliation:
                         if conc_row and conc_row[0] is not None:
                             largest_position_pct_paper = float(conc_row[0])
                             avg_position_size_pct_paper = float(conc_row[1]) if conc_row[1] else (100.0 / open_position_count)
+                            logger.debug(
+                                f"[RECONCILIATION] Paper mode concentration metrics: "
+                                f"portfolio_value=${portfolio_value:.2f}, "
+                                f"largest_pct={largest_position_pct_paper:.2f}%, "
+                                f"avg_pct={avg_position_size_pct_paper:.2f}%"
+                            )
                         else:
                             # Fallback: if query fails, use theoretical average (100% / position_count)
                             avg_position_size_pct_paper = 100.0 / open_position_count if open_position_count > 0 else 0.0
