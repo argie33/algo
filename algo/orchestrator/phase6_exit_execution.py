@@ -242,7 +242,11 @@ def run(
                         "CRITICAL: max_position_size_pct config missing. "
                         "Cannot enforce position size limits. Check algo_config table."
                     )
-                max_size_pct_float = float(max_size_pct_val)
+                # Explicitly convert to float to handle Decimal types from config
+                try:
+                    max_size_pct_float = float(max_size_pct_val)
+                except (TypeError, ValueError) as te:
+                    raise ValueError(f"max_position_size_pct must be numeric, got {type(max_size_pct_val).__name__}: {max_size_pct_val}") from te
 
                 with DatabaseContext("read") as cur:
                     # Get total portfolio value
@@ -269,9 +273,15 @@ def run(
                     oversized_positions = []
                     for pos_id, symbol, value, pct in cur.fetchall():
                         # Ensure pct is float (PostgreSQL numeric -> psycopg2 Decimal -> float)
-                        pct_float = float(pct) if pct is not None else 0.0
+                        # Handle both Decimal and float types explicitly
+                        try:
+                            pct_float = float(pct) if pct is not None else 0.0
+                        except (TypeError, ValueError) as te:
+                            logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to convert percentage {pct} ({type(pct).__name__}) to float: {te}")
+                            continue
 
                         if pct_float > max_size_pct_float:
+                            # Both operands guaranteed to be float after conversion above
                             exceed_amount = pct_float - max_size_pct_float
                             oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {exceed_amount:.1f}%)")
@@ -303,11 +313,14 @@ def run(
         try:
             sector_concentration_actions = _check_sector_concentration()
         except Exception as e:
-            logger.warning(f"[PHASE 6] Sector concentration check failed, continuing without it: {e}")
+            logger.warning(f"[PHASE 6] Sector concentration check failed (continuing without rebalance actions): {type(e).__name__}: {e}")
         try:
             size_concentration_actions = _check_position_size_concentration()
         except Exception as e:
-            logger.warning(f"[PHASE 6] Position size concentration check failed, continuing without it: {e}")
+            logger.warning(f"[PHASE 6] Position size concentration check failed (continuing without rebalance actions): {type(e).__name__}: {e}")
+        # Guard against None values - ensure lists are always valid
+        sector_concentration_actions = sector_concentration_actions or []
+        size_concentration_actions = size_concentration_actions or []
         all_actions = sector_concentration_actions + size_concentration_actions + exposure_actions
 
         # DRY-RUN: Process counts of what WOULD happen, then skip actual execution
