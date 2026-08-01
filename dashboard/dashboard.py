@@ -60,16 +60,20 @@ from urllib.parse import urlparse
 
 
 def _is_dev_server_available() -> bool:
-    """Check if dev server is running on localhost:3001."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.5)
-        result = sock.connect_ex(("127.0.0.1", 3001))
-        sock.close()
-        return result == 0
-    except Exception as e:
-        logger.debug(f"[DEBUG] localhost:3001 connectivity check failed: {type(e).__name__}: {e}")
-        return False
+    """Check if dev server is running on localhost:3001 (supports both IPv4 and IPv6)."""
+    # Try IPv6 first (::1), then fall back to IPv4 (127.0.0.1)
+    # This prevents 30+ second hangs on IPv6-first systems
+    for host in ["::1", "127.0.0.1"]:
+        try:
+            sock = socket.socket(socket.AF_INET6 if host == "::1" else socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            result = sock.connect_ex((host, 3001))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception as e:
+            logger.debug(f"[DEBUG] localhost:3001 connectivity check ({host}): {type(e).__name__}")
+    return False
 
 
 # Parse --local flag early before any dashboard/API modules are imported
@@ -80,7 +84,7 @@ _temp_args, _ = _args_temp.parse_known_args()
 # FORCE LOCAL MODE EARLY: If --local is passed, clear AWS credentials immediately
 # This must happen BEFORE any modules import and cache these env vars
 if _temp_args.local:
-    _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
+    _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
     _os_auto.environ["LOCAL_MODE"] = "true"
     _os_auto.environ.pop("COGNITO_USERNAME", None)
     _os_auto.environ.pop("COGNITO_PASSWORD", None)
@@ -95,7 +99,7 @@ else:
     # Enable local mode if:
     # Dev server is running on localhost:3001 AND no AWS config is explicitly set
     if _is_dev_server_available() and not _has_aws_config:
-        _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
+        _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
         _os_auto.environ["LOCAL_MODE"] = "true"
 
 try:
@@ -652,41 +656,47 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 def _setup_local_api() -> str:
     """Setup local API mode.
 
-    Checks if dev_server is running on localhost:3001. If not, provides
-    helpful instructions to start it. Does NOT auto-start to avoid
+    Checks if dev_server is running on localhost:3001 (supports both IPv4 and IPv6).
+    If not, provides helpful instructions to start it. Does NOT auto-start to avoid
     unexpected background processes.
     """
-    local_url = "http://127.0.0.1:3001"
+    local_url = "http://localhost:3001"
     if not _validate_api_url(local_url):
         logger.error(f"Invalid local API URL: {local_url}")
         sys.exit(1)
 
-    # Check if dev_server is actually running
+    # Check if dev_server is actually running (try IPv6 first, then IPv4)
     import socket
 
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        result = sock.connect_ex(("127.0.0.1", 3001))
-        sock.close()
-        if result != 0:
-            # Dev server not running
-            logger.error("[FATAL] Dev server not running on localhost:3001 - dashboard requires it for local mode")
-            try:
-                CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on localhost:3001[/]")
-                CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")
-                CONSOLE.print("[bold cyan]STEP 1: Start the API server (in a NEW terminal):[/]")
-                CONSOLE.print("  [bright_black]$[/] python3 lambda/api/dev_server.py\n")
-                CONSOLE.print("[bold cyan]STEP 2: Wait for this message:[/]")
-                CONSOLE.print("  [bright_green][INFO] Starting API dev server on http://localhost:3001[/]\n")
-                CONSOLE.print("[bold cyan]STEP 3: Start dashboard (in this terminal):[/]")
-                CONSOLE.print("  [bright_black]$[/] python3 -m dashboard\n")
-                CONSOLE.print("[dim]Note: Dashboard auto-detects dev_server, no --local flag needed[/]\n")
-            except Exception as display_err:
-                logger.error(f"Failed to display error: {type(display_err).__name__}: {display_err}")
-            sys.exit(1)
-    except Exception as e:
-        logger.warning(f"Failed to check dev_server availability: {e}")
+    dev_server_running = False
+    for host in ["::1", "127.0.0.1"]:
+        try:
+            sock = socket.socket(socket.AF_INET6 if host == "::1" else socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((host, 3001))
+            sock.close()
+            if result == 0:
+                dev_server_running = True
+                break
+        except Exception as e:
+            logger.debug(f"Failed to check {host}:3001: {type(e).__name__}")
+
+    if not dev_server_running:
+        # Dev server not running
+        logger.error("[FATAL] Dev server not running on localhost:3001 - dashboard requires it for local mode")
+        try:
+            CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on localhost:3001[/]")
+            CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")
+            CONSOLE.print("[bold cyan]STEP 1: Start the API server (in a NEW terminal):[/]")
+            CONSOLE.print("  [bright_black]$[/] python3 lambda/api/dev_server.py\n")
+            CONSOLE.print("[bold cyan]STEP 2: Wait for this message:[/]")
+            CONSOLE.print("  [bright_green][INFO] Starting API dev server on http://localhost:3001[/]\n")
+            CONSOLE.print("[bold cyan]STEP 3: Start dashboard (in this terminal):[/]")
+            CONSOLE.print("  [bright_black]$[/] python3 -m dashboard\n")
+            CONSOLE.print("[dim]Note: Dashboard auto-detects dev_server, no --local flag needed[/]\n")
+        except Exception as display_err:
+            logger.error(f"Failed to display error: {type(display_err).__name__}: {display_err}")
+        sys.exit(1)
 
     # Only call set_api_url() if URL actually changed (avoid spurious [API_RUNTIME_CHANGE] warnings)
     if get_api_url() != local_url:

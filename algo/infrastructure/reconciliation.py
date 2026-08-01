@@ -1388,7 +1388,7 @@ class DailyReconciliation:
                         f"  Total Equity: ${float(total_equity_dec):,.2f}\n"
                         f"  Largest Position: ${float(largest_position_dec):,.2f} = {float(max_concentration_dec):.2f}%\n"
                         f"  Average Position: ${float(avg_position_size_dec):,.2f} = {float(avg_pct_calc):.2f}%\n"
-                        f"  Concentration Risk: {float(max_concentration_dec):.2f}%"
+                        f"  Concentration Risk (Herfindahl): {float(herfindahl_index_dec):.2f}"
                     )
 
                     cur.execute(
