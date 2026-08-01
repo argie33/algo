@@ -1177,9 +1177,11 @@ class PositionMonitor:
                 f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
             )
 
-        # CRITICAL FIX: Reuse passed cursor if available to avoid nested DatabaseContext causing "cursor already closed"
-        if cur is not None:
-            cur.execute(
+        # CRITICAL FIX 2026-08-01: Use fresh DatabaseContext instead of reusing passed cursor
+        # Even though reuse might seem efficient, nested contexts cause "cursor already closed" errors
+        # when the outer context closes before inner operations complete. Use fresh context for safety.
+        with DatabaseContext("read") as fresh_cur:
+            fresh_cur.execute(
                 """
                 SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
                 FROM price_daily
@@ -1188,7 +1190,7 @@ class PositionMonitor:
                 """,
                 (symbol, trade_date, current_date),
             )
-            row = cur.fetchone()
+            row = fresh_cur.fetchone()
         if row is None or len(row) != 3:
             raise PositionValidationError(
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
