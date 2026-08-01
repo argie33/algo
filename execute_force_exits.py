@@ -92,12 +92,54 @@ def execute_force_exits():
             print("  ERROR: Could not build trade list for any oversized position")
             return False
 
-        print(f"\nExecuting force exits for {len(trades_to_exit)} positions...\n")
+        print(f"\nExecuting FULL exits for {len(trades_to_exit)} oversized positions...\n")
 
-        # Execute exits
-        exits_executed, stop_raises, errors, forced_closes = exit_engine.check_and_execute_exits(
-            current_date=_date.today()
-        )
+        # CRITICAL: Execute FULL exits (100%) for oversized positions, not partial exits
+        # The standard exit engine applies distribution rules (50% reduction), but for
+        # oversized positions we need to force FULL exits regardless of distribution days
+        from algo.trading import TradeExecutor
+
+        executor = TradeExecutor(config)
+        exits_executed = 0
+        stop_raises = 0
+        errors = 0
+        forced_closes = 0
+
+        # Build a map of trade_id to current_price for all oversized positions
+        position_prices = {}
+        for pos_id, symbol, qty, price, pct, trade_ids in oversized:
+            if trade_ids and isinstance(trade_ids, list) and trade_ids:
+                position_prices[trade_ids[0]] = float(price)
+
+        for trade in trades_to_exit:
+            try:
+                # Get current market price for this symbol
+                current_price = position_prices.get(trade['trade_id'], None)
+                if current_price is None:
+                    # Fallback: use the stop price as a conservative estimate
+                    current_price = trade['stop_loss_price'] * 1.05
+
+                # FULL EXIT (100%) for oversized position - ignore normal exit rules
+                result = executor.exit_trade(
+                    trade_id=trade['trade_id'],
+                    exit_price=current_price,
+                    exit_reason=f'FORCE_EXIT: Position exceeds 6% concentration limit',
+                    exit_fraction=1.0,  # FULL EXIT - 100% of remaining shares
+                    exit_stage=None,  # No target stage, pure force close
+                )
+
+                if result.get('success'):
+                    exits_executed += 1
+                    if result.get('shares_exited', 0) > 0:
+                        forced_closes += 1
+                    print(f"  ✓ {trade['symbol']}: Forced exit {result.get('shares_exited', 0):.0f}sh @ ${result.get('exit_price', current_price):.2f}")
+                else:
+                    errors += 1
+                    print(f"  ✗ {trade['symbol']}: Force exit failed - {result.get('message', 'unknown error')}")
+            except Exception as e:
+                errors += 1
+                logger.error(f"Force exit error for {trade['symbol']}: {e}")
+                print(f"  ✗ {trade['symbol']}: Exception during force exit - {e}")
 
         print(f"\n" + "=" * 70)
         print(f"RESULTS:")
