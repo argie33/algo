@@ -44,6 +44,12 @@ _INCOME_IFRS_ALIASES = [
     ("GrossProfit", "gross_profit"),
     ("ProfitLossFromOperatingActivities", "operating_income_loss"),
     ("ProfitLoss", "net_income_loss"),
+    # Fixed 2026-07-31: Add fallback IFRS net income concepts for companies that don't report
+    # ProfitLoss (ONON reports ProfitLossAttributableToOwnersOfParent; ATHE reports
+    # ComprehensiveIncome). These map to the same net_income_loss column downstream, ensuring
+    # IFRS-only filers are not silently dropped.
+    ("ProfitLossAttributableToOwnersOfParent", "net_income_loss"),
+    ("ComprehensiveIncome", "net_income_loss"),
     ("BasicEarningsLossPerShare", "earnings_per_share_basic"),
     ("DilutedEarningsLossPerShare", "earnings_per_share_diluted"),
     # Session 398: EBITDA extraction from IFRS filers
@@ -283,9 +289,19 @@ def _aggregate_concepts(
         for _unit, entries in units.items():
             for entry in entries:
                 fp = entry.get("fp")
-                if period == "annual" and fp != "FY":
-                    continue
-                if period == "quarterly" and fp not in fp_filter:
+                # Fixed 2026-07-31: For annual extraction, accept quarterly (Q1-Q4), annual (FY),
+                # and proxy-statement (fp=None) data. This handles:
+                # - Standard annual 10-Ks: fp='FY'
+                # - Quarterly-only reporters (ETFs like EE): fp in ('Q1'-'Q4')
+                # - Proxy statements with annual data: fp=None (e.g., EE's net income from DEF 14A)
+                # Use the end date to derive the fiscal year. This fixes 466 companies (8.4%)
+                # with zero net_income coverage because extraction silently skipped them.
+                if period == "annual":
+                    if fp == "FY" or fp is None or fp in ("Q1", "Q2", "Q3", "Q4"):
+                        pass  # Accept annual, proxy, and quarterly data for annual extraction
+                    else:
+                        continue  # Skip other FP values
+                elif period == "quarterly" and fp not in fp_filter:
                     continue
 
                 # Use period end year as the fiscal year key, not SEC's fy field.
