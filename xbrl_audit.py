@@ -39,12 +39,12 @@ def audit_company(client: SecEdgarClient, symbol: str):
     # Get all facts
     try:
         all_facts = client.get_company_facts(cik)
-        print(f"✓ Got company facts")
+        print(f"[OK] Got company facts")
     except FileNotFoundError:
-        print(f"✗ No XBRL filings found (company doesn't file XBRL)")
+        print(f"[NO] No XBRL filings found (company doesn't file XBRL)")
         return
     except Exception as e:
-        print(f"✗ Error fetching facts: {e}")
+        print(f"[ERR] Error fetching facts: {e}")
         return
 
     facts = all_facts.get("facts", {})
@@ -72,20 +72,20 @@ def audit_company(client: SecEdgarClient, symbol: str):
         if concept in us_gaap:
             units = us_gaap[concept].get("units", {})
             filing_count = sum(len(v) for v in units.values())
-            print(f"  ✓ {concept:45} (us-gaap): {filing_count:3} filings")
+            print(f"  [Y] {concept:45} (us-gaap): {filing_count:3} filings")
             if filing_count > 0:
                 found_net_income = True
         elif concept in ifrs:
             units = ifrs[concept].get("units", {})
             filing_count = sum(len(v) for v in units.values())
-            print(f"  ✓ {concept:45} (ifrs-full): {filing_count:3} filings")
+            print(f"  [Y] {concept:45} (ifrs-full): {filing_count:3} filings")
             if filing_count > 0:
                 found_net_income = True
         else:
-            print(f"  ✗ {concept:45} (not found)")
+            print(f"  [N] {concept:45} (not found)")
 
     if not found_net_income:
-        print(f"\n  ⚠️  NO NET INCOME CONCEPTS FOUND!")
+        print(f"\n  [WARN] NO NET INCOME CONCEPTS FOUND!")
 
         # Look for revenue as alternative
         print(f"\n  Checking for revenue concepts:")
@@ -94,11 +94,11 @@ def audit_company(client: SecEdgarClient, symbol: str):
             if concept in us_gaap:
                 units = us_gaap[concept].get("units", {})
                 filing_count = sum(len(v) for v in units.values())
-                print(f"    ✓ {concept:40} (us-gaap): {filing_count:3} filings")
+                print(f"    [Y] {concept:40} (us-gaap): {filing_count:3} filings")
             elif concept in ifrs:
                 units = ifrs[concept].get("units", {})
                 filing_count = sum(len(v) for v in units.values())
-                print(f"    ✓ {concept:40} (ifrs-full): {filing_count:3} filings")
+                print(f"    [Y] {concept:40} (ifrs-full): {filing_count:3} filings")
 
     # Check entity type
     entity_data = all_facts.get("entity", {})
@@ -109,7 +109,7 @@ def audit_company(client: SecEdgarClient, symbol: str):
     print(f"\nTesting get_income_statement():")
     try:
         statements = get_income_statement(client, symbol, period="annual")
-        print(f"  ✓ Got {len(statements)} annual income statements")
+        print(f"  [OK] Got {len(statements)} annual income statements")
         if statements:
             latest = statements[-1]
             net_income = latest.get("net_income_loss")
@@ -118,9 +118,9 @@ def audit_company(client: SecEdgarClient, symbol: str):
             print(f"      - net_income_loss: {net_income}")
             print(f"      - revenues: {revenues}")
     except ValueError as e:
-        print(f"  ✗ ValueError: {e}")
+        print(f"  [ERR] ValueError: {e}")
     except Exception as e:
-        print(f"  ✗ Exception: {e}")
+        print(f"  [ERR] Exception: {e}")
 
 
 def main():
