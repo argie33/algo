@@ -16,7 +16,8 @@ from loaders.load_trend_analysis import _update_loader_status
 class TestTrendAnalysisStatusHistoryArchiving:
     def test_completed_status_archives_to_history(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (None, None, 500, 100.0, 10, 10)
+        # SELECT returns: execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
+        cur.fetchone.return_value = (None, None, None, 500, 100.0, 10, 10)
         cur.rowcount = 1  # Status manager checks rowcount
 
         with patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx:
@@ -24,15 +25,16 @@ class TestTrendAnalysisStatusHistoryArchiving:
             _update_loader_status("COMPLETED")
 
         executed = [call.args[0] for call in cur.execute.call_args_list]
-        assert any("SAVEPOINT archive_trend_history" in sql for sql in executed)
+        assert any("SAVEPOINT archive_trend_template_data_history" in sql for sql in executed)
         assert any("INSERT INTO data_loader_status_history" in sql for sql in executed)
         assert any("DELETE FROM data_loader_status_history" in sql for sql in executed)
-        assert any("RELEASE SAVEPOINT archive_trend_history" in sql for sql in executed)
+        assert any("RELEASE SAVEPOINT archive_trend_template_data_history" in sql for sql in executed)
         assert any("UPDATE data_loader_status SET status" in sql for sql in executed)
 
     def test_failed_status_archives_to_history(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (None, None, 0, 0.0, 0, 10)
+        # SELECT returns: execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
+        cur.fetchone.return_value = (None, None, "error", 0, 0.0, 0, 10)
         cur.rowcount = 1  # Status manager checks rowcount
 
         with patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx:
@@ -57,7 +59,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
             _update_loader_status("COMPLETED")  # must not raise
 
         executed = [call.args[0] for call in cur.execute.call_args_list]
-        assert any("ROLLBACK TO SAVEPOINT archive_trend_history" in sql for sql in executed)
+        assert any("ROLLBACK TO SAVEPOINT archive_trend_template_data_history" in sql for sql in executed)
         assert any("UPDATE data_loader_status SET status" in sql for sql in executed)
 
     def test_running_status_does_not_touch_history(self):

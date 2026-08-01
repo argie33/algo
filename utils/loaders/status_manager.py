@@ -305,12 +305,22 @@ class LoaderStatusManager:
     def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> None:
         """Archive current status to history table for pattern analysis.
 
+        CRITICAL: Uses SAVEPOINT to ensure archive failures don't roll back the main status update.
+        If archiving fails (e.g., history table full, permissions), we've already updated the main
+        status table, so rolling back would leave the system in an inconsistent state.
+
         Args:
             cur: Database cursor
             status: Final status (COMPLETED, FAILED, TIMEOUT)
             http_status: Optional HTTP status code
         """
         try:
+            # Use a savepoint: if archive fails, the main UPDATE stays committed
+            # Sanitize table name for use in savepoint (max 63 chars, no special chars)
+            sanitized_name = self.table_name.replace("-", "_")[:50]
+            savepoint_name = f"archive_{sanitized_name}_history"
+            cur.execute(f"SAVEPOINT {savepoint_name}")
+
             # Fetch current status values
             cur.execute(
                 """
@@ -348,8 +358,14 @@ class LoaderStatusManager:
                     """,
                     (self.table_name, self.table_name),
                 )
+            # Archive succeeded, release the savepoint
+            cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
         except Exception as e:
             logger.debug(f"[STATUS_MANAGER] Failed to archive history for {self.table_name}: {e}")
+            try:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            except Exception as rollback_err:
+                logger.debug(f"[STATUS_MANAGER] Failed to rollback savepoint for {self.table_name}: {rollback_err}")
 
     def update_final_status(
         self,

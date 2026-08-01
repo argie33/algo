@@ -225,9 +225,67 @@ def run(
                     f"[PHASE 6] Cannot proceed with exit execution: sector concentration check failed. {e}"
                 ) from e
 
+        # Check for position size concentration and add force-exit recommendations for oversized positions
+        # Position size limit: configured via max_position_size_pct (default 6%)
+        # CRITICAL: Oversized positions violate risk management rules and must be force-exited
+        def _check_position_size_concentration():
+            """Identify oversized positions and add force-exit recommendations."""
+            try:
+                max_size_pct_val = config.get("max_position_size_pct")
+                if max_size_pct_val is None:
+                    raise ValueError(
+                        "CRITICAL: max_position_size_pct config missing. "
+                        "Cannot enforce position size limits. Check algo_config table."
+                    )
+                max_size_pct = float(max_size_pct_val)
+
+                with DatabaseContext("read") as cur:
+                    # Get total portfolio value
+                    cur.execute("SELECT SUM(position_value) FROM algo_positions WHERE status='open'")
+                    total_value = cur.fetchone()[0] or 0.0
+
+                    if total_value <= 0:
+                        logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
+                        return []
+
+                    # Find positions exceeding size limit
+                    cur.execute(f"""
+                        SELECT ap.position_id, ap.symbol, ap.position_value,
+                               (ap.position_value / %s * 100) as pct_of_portfolio
+                        FROM algo_positions ap
+                        WHERE ap.status = 'open'
+                        ORDER BY ap.position_value DESC
+                    """, (total_value,))
+
+                    oversized_positions = []
+                    for pos_id, symbol, value, pct in cur.fetchall():
+                        if pct > max_size_pct:
+                            oversized_positions.append((pos_id, symbol, pct, max_size_pct))
+                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct:.1f}% (limit {max_size_pct:.0f}%, exceeds by {pct - max_size_pct:.1f}%)")
+
+                    rebalance_actions = []
+                    for pos_id, symbol, pct, limit in oversized_positions:
+                        action = {
+                            "symbol": symbol,
+                            "position_id": pos_id,
+                            "action": "force_exit",
+                            "reason": f"POSITION_SIZE_CONCENTRATION: {pct:.1f}% > {limit:.0f}% limit",
+                            "trade_id": None,  # Will be fetched during execution
+                        }
+                        rebalance_actions.append(action)
+                        logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (position size {pct:.1f}% exceeds {limit:.0f}% limit)")
+
+                    return rebalance_actions
+            except Exception as e:
+                logger.error(f"[PHASE 6] Position size concentration check failed: {e}")
+                raise RuntimeError(
+                    f"[PHASE 6] Cannot proceed with exit execution: position size concentration check failed. {e}"
+                ) from e
+
         # Add concentration rebalance actions to the exposure_actions queue
-        concentration_actions = _check_sector_concentration()
-        all_actions = concentration_actions + exposure_actions
+        sector_concentration_actions = _check_sector_concentration()
+        size_concentration_actions = _check_position_size_concentration()
+        all_actions = sector_concentration_actions + size_concentration_actions + exposure_actions
 
         # DRY-RUN: Process counts of what WOULD happen, then skip actual execution
         # (Don't return early - we still need to count exits for logging/dashboard visibility)
