@@ -371,7 +371,8 @@ def _get_candidates_from_buysell(
                         bsd.strength AS signal_strength,
                         bsd.volume_surge_pct,
                         bsd.market_stage,
-                        bsd.date AS signal_date
+                        bsd.date AS signal_date,
+                        bsd.base_type
                     FROM (
                         SELECT DISTINCT ON (symbol) *
                         FROM buy_sell_daily
@@ -536,6 +537,7 @@ def _get_candidates_from_buysell(
                     "volume_surge_pct": float(r[16]) if r[16] is not None else None,
                     "market_stage": r[17] if r[17] is not None else "unknown",
                     "signal_date": str(r[18]) if r[18] is not None else None,
+                    "base_type": r[19] if len(r) > 19 and r[19] is not None else None,
                     "risk_score": risk_score,
                 }
             )
