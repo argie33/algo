@@ -1215,11 +1215,13 @@ def run(  # noqa: C901
             backfill_scores = []
             scorer = get_signal_scorer("BUY")
 
-            for symbol, signal_date in backfill_rows:
-                try:
-                    with DatabaseContext("read") as cur_tech:
+            # CRITICAL FIX: Move DatabaseContext outside the for loop to prevent connection leaks
+            # Opening a new context for each iteration exhausts the connection pool
+            with DatabaseContext("read") as cur_tech_shared:
+                for symbol, signal_date in backfill_rows:
+                    try:
                         # Fetch technical data AND trend template data for full score computation
-                        cur_tech.execute(
+                        cur_tech_shared.execute(
                             """
                             SELECT
                               t.rsi, t.macd, t.macd_signal,
@@ -1230,45 +1232,45 @@ def run(  # noqa: C901
                         """,
                             (symbol, signal_date),
                         )
-                        tech_row = cur_tech.fetchone()
+                        tech_row = cur_tech_shared.fetchone()
 
-                    if not tech_row:
-                        logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
-                        continue
+                        if not tech_row:
+                            logger.debug(f"[PHASE 7 BACKFILL] {symbol}: No technical data for {signal_date}, skipping")
+                            continue
 
-                    rsi, macd, macd_signal, minervini, weinstein = tech_row
-                    # Compute score using same logic as inline scorer (with trend data)
-                    try:
-                        base_score = scorer.calculate_base_quality_score()
-                        if base_score is None or base_score < 0:
-                            raise ValueError(f"Base score calculation failed: got {base_score} (expected 0-100 range)")
-                        volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-                        if volume_score is None:
-                            raise ValueError(f"Volume score calculation failed: got None for {symbol} {signal_date}")
-                        trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
-                        if trend_score is None:
-                            raise ValueError(f"Trend score calculation failed: got None for {symbol} {signal_date}")
-                        composite_sqs = min(100, int(base_score + volume_score + trend_score))
-                        if composite_sqs < 0 or composite_sqs > 100:
-                            raise ValueError(f"Composite SQS out of range: {composite_sqs} (expected 0-100)")
-                        backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
-                        logger.debug(f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Computed score={composite_sqs}")
-                    except ValueError as calc_e:
+                        rsi, macd, macd_signal, minervini, weinstein = tech_row
+                        # Compute score using same logic as inline scorer (with trend data)
+                        try:
+                            base_score = scorer.calculate_base_quality_score()
+                            if base_score is None or base_score < 0:
+                                raise ValueError(f"Base score calculation failed: got {base_score} (expected 0-100 range)")
+                            volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
+                            if volume_score is None:
+                                raise ValueError(f"Volume score calculation failed: got None for {symbol} {signal_date}")
+                            trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
+                            if trend_score is None:
+                                raise ValueError(f"Trend score calculation failed: got None for {symbol} {signal_date}")
+                            composite_sqs = min(100, int(base_score + volume_score + trend_score))
+                            if composite_sqs < 0 or composite_sqs > 100:
+                                raise ValueError(f"Composite SQS out of range: {composite_sqs} (expected 0-100)")
+                            backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
+                            logger.debug(f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Computed score={composite_sqs}")
+                        except ValueError as calc_e:
+                            raise RuntimeError(
+                                f"[PHASE 7 BACKFILL] Score calculation failed for {symbol} {signal_date}: {calc_e} "
+                                f"Cannot backfill scores with invalid calculation logic. "
+                                f"Check scorer implementation and technical data quality."
+                            ) from calc_e
+                    except RuntimeError as rt_e:
+                        raise RuntimeError(f"[PHASE 7 BACKFILL] Score calculation runtime error: {rt_e}") from rt_e
+                    except Exception as bf_e:
+                        logger.error(
+                            f"[PHASE 7 BACKFILL] Unexpected error computing score for {symbol}: {type(bf_e).__name__}: {bf_e}",
+                            exc_info=True,
+                        )
                         raise RuntimeError(
-                            f"[PHASE 7 BACKFILL] Score calculation failed for {symbol} {signal_date}: {calc_e} "
-                            f"Cannot backfill scores with invalid calculation logic. "
-                            f"Check scorer implementation and technical data quality."
-                        ) from calc_e
-                except RuntimeError as rt_e:
-                    raise RuntimeError(f"[PHASE 7 BACKFILL] Score calculation runtime error: {rt_e}") from rt_e
-                except Exception as bf_e:
-                    logger.error(
-                        f"[PHASE 7 BACKFILL] Unexpected error computing score for {symbol}: {type(bf_e).__name__}: {bf_e}",
-                        exc_info=True,
-                    )
-                    raise RuntimeError(
-                        f"[PHASE 7 BACKFILL] Failed to compute score for {symbol} {signal_date}: {type(bf_e).__name__}: {bf_e}"
-                    ) from bf_e
+                            f"[PHASE 7 BACKFILL] Failed to compute score for {symbol} {signal_date}: {type(bf_e).__name__}: {bf_e}"
+                        ) from bf_e
 
             # Write backfill scores
             if backfill_scores:
