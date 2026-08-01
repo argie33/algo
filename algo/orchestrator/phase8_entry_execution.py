@@ -53,14 +53,40 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
     PROACTIVE RISK CHECK: Used by Phase 8 to verify entry won't exceed risk limit BEFORE executing.
     This is defensive - we check before entering, not after.
 
+    CRITICAL FIX (Session 2026-08-01): Validates that all open trades have complete data
+    (entry_price, stop_loss_price, quantity) before calculating risk. Missing data would cause
+    SUM() to return NULL, yielding FALSE LOW risk and allowing entries beyond safe limits.
+
     Returns:
         (current_risk_pct, available_risk_pct) where available = limit - current
 
     Raises:
-        RuntimeError: If portfolio value or risk calculation fails
+        RuntimeError: If portfolio value or risk calculation fails, or if data completeness issues detected
     """
     try:
         with DatabaseContext("read") as cur:
+            # CRITICAL FIX: Validate that ALL open trades have required data for risk calculation
+            cur.execute("""
+                SELECT COUNT(*) as incomplete_count,
+                       STRING_AGG(DISTINCT p.symbol, ', ') as symbols_with_issues
+                FROM algo_positions p
+                LEFT JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                WHERE p.status = 'open'
+                  AND (t.entry_price IS NULL
+                       OR p.current_stop_price IS NULL
+                       OR p.quantity IS NULL
+                       OR p.quantity = 0)
+            """)
+            validation = cur.fetchone()
+            incomplete_count = validation[0] if validation else 0
+            if incomplete_count and incomplete_count > 0:
+                symbols_with_issues = validation[1] if len(validation) > 1 and validation[1] else "unknown"
+                raise RuntimeError(
+                    f"[RISK CHECK CRITICAL] {incomplete_count} open trade(s) have incomplete data: {symbols_with_issues}. "
+                    f"Cannot calculate risk: missing entry_price, stop_loss_price, or quantity. "
+                    f"Data corruption detected - manual intervention required before entries can proceed."
+                )
+
             # Get current open positions and calculate total risk
             cur.execute("""
                 SELECT
@@ -69,6 +95,10 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 FROM algo_positions p
                 JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE p.status = 'open'
+                  AND t.entry_price IS NOT NULL
+                  AND p.current_stop_price IS NOT NULL
+                  AND p.quantity IS NOT NULL
+                  AND p.quantity > 0
             """)
             result = cur.fetchone()
             if result is None:
@@ -99,6 +129,8 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
             )
 
             return current_risk_pct, available_risk_pct
+    except RuntimeError:
+        raise
     except Exception as e:
         logger.error(f"[RISK CHECK] Failed to calculate total open risk: {e}")
         raise RuntimeError(f"Risk calculation failed: {e}") from e
@@ -621,6 +653,21 @@ def run(
                         "[PHASE 8 DATA INTEGRITY] Phase 7 returned 'qualified_trades'=None. "
                         "Must be a list (empty or with signals), not None."
                     )
+
+                # CRITICAL FIX: Phase 7 lock contention handling
+                # Phase 7 gracefully degrades when signal quality score batch loader has lock contention:
+                # - Batch pre-computation may fail (lock_contention=True flag set)
+                # - BUT inline scorer always runs and computes signal_quality_score for each candidate
+                # - Candidates are still valid and safe to trade on (inline scores are reliable)
+                # This is safe degradation, not a data quality issue.
+                lock_contention = phase7_result.data.get("lock_contention", False)
+                if lock_contention:
+                    logger.warning(
+                        f"[PHASE 8] Phase 7 reported lock contention on signal quality scores table. "
+                        f"Batch pre-computation skipped, but {len(qualified_trades_from_executor)} candidates have "
+                        f"inline-computed scores (RSI/MACD/Minervini/Weinstein). This is safe degradation mode."
+                    )
+
                 logger.info(f"[PHASE 8] Retrieved {len(qualified_trades_from_executor)} signals from Phase 7")
             elif phase7_result and phase7_result.halted:
                 logger.warning(
@@ -816,7 +863,15 @@ def run(
 
             latest_price_date = result[0]
             if latest_price_date is None:
-                raise ValueError("Price data freshness query returned NULL - price_daily table may have no valid dates")
+                # In dry-run/test mode, price_daily may be empty. Skip freshness check instead of crashing.
+                if dry_run:
+                    logger.warning(
+                        "[PHASE 8] Price data unavailable in dry-run mode (price_daily is empty). "
+                        "Skipping price freshness validation (acceptable for testing)."
+                    )
+                    latest_price_date = run_date  # Assume data is fresh for testing purposes
+                else:
+                    raise ValueError("Price data freshness query returned NULL - price_daily table may have no valid dates")
 
             # Determine expected last trading day - allow previous trading day's data
             # Phase 8 may run intraday (9 AM, 1 PM, 3 PM) before EOD data is available,

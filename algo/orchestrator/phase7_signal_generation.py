@@ -1713,6 +1713,10 @@ def run(  # noqa: C901
         "sell_signals": 0,
         "avg_strength": (sum(strength_vals) / len(strength_vals)) if strength_vals else None,
         "symbols_with_signals": [s["symbol"] for s in liq_passed if s.get("symbol")],
+        # CRITICAL FIX: Include lock_contention flag so Phase 8 knows if signal quality score
+        # batch pre-computation had contention. This is safe degradation (inline scores still computed)
+        # but Phase 8 should log it for visibility.
+        "lock_contention": score_result.get("lock_contention", False),
     }
     validate_phase_data(7, phase_data)
     return PhaseResult(
