@@ -44,6 +44,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
 
     def test_archive_failure_rolls_back_savepoint_without_raising(self):
         cur = MagicMock()
+        cur.rowcount = 1  # Status manager checks rowcount
 
         def _execute(sql, *args, **kwargs):
             if "INSERT INTO data_loader_status_history" in sql:
