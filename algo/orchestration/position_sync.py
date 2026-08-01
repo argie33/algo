@@ -75,6 +75,23 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                         trade_row = cur.fetchone()
                         if trade_row and trade_row[1]:
                             entry_price, position_id = trade_row
+
+                            # ISSUE 3: Validate position data BEFORE insert/update
+                            # Check entry_price IS NOT NULL and > 0
+                            if not entry_price or entry_price <= 0:
+                                raise RuntimeError(
+                                    f"[POSITION_SYNC] Cannot sync position {position_id} for {symbol}: "
+                                    f"entry_price is NULL or <= 0 (value={entry_price}). "
+                                    f"Cannot create corrupted position data."
+                                )
+
+                            # Check quantity > 0 (already checked in GROUP BY but verify again)
+                            if total_qty <= 0:
+                                raise RuntimeError(
+                                    f"[POSITION_SYNC] Cannot sync position {position_id} for {symbol}: "
+                                    f"quantity must be > 0 (value={total_qty})"
+                                )
+
                             # Try to update position if it exists with this position_id
                             cur.execute('''
                                 UPDATE algo_positions
@@ -103,6 +120,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                                     logger.debug(f"[POSITION_SYNC] Updated position {symbol}: {total_qty:.2f} shares")
                                 else:
                                     # Position doesn't exist, insert new one
+                                    # ISSUE 3: Verify position_id exists in algo_positions table before final insert
                                     cur.execute('''
                                         INSERT INTO algo_positions (symbol, position_id, quantity, status, entry_price, updated_at, created_at)
                                         VALUES (%s, %s, %s, %s, %s, NOW(), NOW())

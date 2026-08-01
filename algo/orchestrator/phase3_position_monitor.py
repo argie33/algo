@@ -333,6 +333,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # These indicate transient connection/cursor lifecycle issues
                 max_retries = 3
                 last_error = None
+                paper_mode_degraded = False
 
                 for attempt in range(max_retries):
                     try:
@@ -357,7 +358,16 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
                                 continue
 
-                        # For non-transient errors or after retries exhausted, log and halt
+                        # For cursor errors after retries exhausted, enter degraded mode
+                        if attempt >= max_retries - 1 and "cursor already closed" in error_str.lower():
+                            logger.warning(
+                                f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode."
+                            )
+                            recommendations = []
+                            paper_mode_degraded = True
+                            break
+
+                        # For non-transient errors, log and halt
                         import traceback
                         full_trace = traceback.format_exc()
 
@@ -380,8 +390,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         logger.critical(error_msg)
                         raise RuntimeError(error_msg) from review_err
 
-                # Check if we exhausted retries
-                if last_error is not None and not recommendations:
+                # Check if we exhausted retries and are NOT in degraded mode (degraded mode is handled above)
+                if last_error is not None and not recommendations and not paper_mode_degraded:
                     error_msg = (
                         "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed after retries. "
                         "Cannot generate exit recommendations without proper position analysis. "
@@ -570,17 +580,37 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
                         continue
 
-                # For non-transient errors or after retries exhausted, raise with explicit context
-                raise RuntimeError(
-                    f"[PHASE 3] Position halt review failed after {max_retries} attempts: {type(review_err).__name__}"
-                ) from review_err
+                # For non-transient errors or after retries exhausted, enter degraded mode
+                if attempt >= max_retries - 1:
+                    logger.warning(
+                        f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode."
+                    )
+                    # Return partial result: just price updates, skip analysis
+                    # Return early with PhaseResult(status='completed_degraded', recommendations=[])
+                    recommendations = []
+                    break
+                else:
+                    # Non-transient error - raise with explicit context
+                    raise RuntimeError(
+                        f"[PHASE 3] Position halt review failed: {type(review_err).__name__}"
+                    ) from review_err
+
+        # ISSUE 5: Handle degraded mode where recommendations is empty due to retry exhaustion
+        if recommendations is None:
+            logger.critical("[PHASE 3] Position review failed completely")
+            raise RuntimeError("[PHASE 3] Position review failed after all retries") from last_review_error
 
         n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
         n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
         n_hold = sum(1 for r in recommendations if r["action"] == "HOLD")
         n_failed = sum(1 for r in recommendations if r["action"] == "FAILED_VALIDATION")
 
+        # Determine phase status based on whether we entered degraded mode
+        phase_status = "completed_degraded" if (recommendations is not None and len(recommendations) == 0 and last_review_error) else "ok"
+
         summary = f"{len(recommendations)} positions reviewed"
+        if phase_status == "completed_degraded":
+            summary += " (degraded mode - cursor retries exhausted)"
         if n_hold > 0:
             summary += f"; {n_hold} hold"
         if n_raise_stop > 0:
@@ -593,7 +623,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         log_phase_result_fn(
             3,
             "position_monitor",
-            "success",
+            phase_status,
             summary,
         )
         # Surface the summary metrics the health dashboard (dashboard/panels/health.py,
@@ -618,7 +648,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         return PhaseResult(
             3,
             "position_monitor",
-            "ok",
+            phase_status,
             phase_data,
             False,
             None,

@@ -165,7 +165,8 @@ class TestDashboardAPIVerification:
         cursor.connection.rollback = MagicMock()
 
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-            response = _get_algo_positions(cursor)
+            # CRITICAL: Pass user_id for user isolation enforcement
+            response = _get_algo_positions(cursor, user_id="test-user-123")
 
             assert response["statusCode"] == 200, "Dashboard positions endpoint should work"
 

@@ -717,16 +717,19 @@ def run(
                 # Phase 8 MUST use these halt constraints, not ignore them.
                 exposure_constraints_from_executor = phase5_result.data.get("constraints")
 
-                # CRITICAL FIX: Validate Phase 5 constraints have ALL required fields
+                # CHECKPOINT 1: Validate Phase 5 constraints have ALL required fields (around line 685-710)
                 # If any required field is missing, use safe defaults instead
                 required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
                 if exposure_constraints_from_executor:
                     missing_in_phase5 = [k for k in required_fields if k not in exposure_constraints_from_executor]
                     if missing_in_phase5:
                         logger.warning(
-                            f"[PHASE 8] Phase 5 constraints incomplete (missing: {missing_in_phase5}). "
-                            f"Using safe halt defaults instead."
+                            f"[PHASE 8 CONSTRAINT VALIDATION] Phase 5 constraints incomplete at extraction point "
+                            f"(missing: {missing_in_phase5}). Using safe halt defaults instead."
                         )
+                        # Fail-fast: Log which keys are missing for diagnostics
+                        for missing_key in missing_in_phase5:
+                            logger.error(f"[PHASE 8] CONSTRAINT MISSING: '{missing_key}' required for entry validation")
                         exposure_constraints_from_executor = None  # Trigger safe defaults below
                     else:
                         constraint_keys = list(exposure_constraints_from_executor.keys())
@@ -766,6 +769,17 @@ def run(
             "max_concentration_pct": 0.0,
             "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
         }
+
+        # CHECKPOINT 3: Validate safe defaults have all required fields (fallback path)
+        required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
+        missing_in_defaults = [k for k in required_fields if k not in exposure_constraints_from_executor]
+        if missing_in_defaults:
+            error_msg = (
+                f"[PHASE 8 CRITICAL] Safe default constraints incomplete: missing {missing_in_defaults}. "
+                f"Cannot proceed - default constraints must have all required fields."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
 
     # Override with executor data if available, else use passed-in data
     if qualified_trades_from_executor is not None:
@@ -1398,6 +1412,59 @@ def run(
             logger.warning(f"[PHASE 8] {sym}: close={close} has type {type(close).__name__}")
 
         precomputed_count += 1
+
+    # CHECKPOINT 2: Final constraint validation before trade execution loop (around line 1402)
+    # Fail-fast if any required constraint field is still missing after all processing
+    required_constraint_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
+    missing_keys_final = [k for k in required_constraint_keys if k not in exposure_constraints]
+    if missing_keys_final:
+        error_msg = (
+            f"[PHASE 8 CRITICAL] Constraint validation failed before trade loop: "
+            f"missing keys {missing_keys_final}. "
+            f"Available fields: {list(exposure_constraints.keys())}. "
+            f"Cannot proceed with trade execution without complete constraints."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+
+    # ISSUE 2: Explicit halt flag check before inline scorer/trade execution loop
+    # If halt is set, skip qualified_trades processing entirely to prevent unguarded entries
+    if check_halt_flag and check_halt_flag():
+        logger.warning("[PHASE 8] Halt flag set - skipping inline scorer and trade execution loop")
+        qualified_trades = []
+
+    # ISSUE 4: Data quality edge cases validation - validate ATR and SMA before trade processing
+    # Check technical data quality for all symbols in qualified_trades
+    validated_trades = []
+    for signal in qualified_trades:
+        symbol = signal.get("symbol")
+        if not symbol:
+            logger.warning("[PHASE 8] Signal missing symbol - skipping")
+            continue
+
+        tech = merged_technical_data.get(str(symbol))
+        if not tech:
+            logger.error(f"[PHASE 8] {symbol}: Technical data not found in cache - skipping")
+            continue
+
+        atr = tech.get("atr_14")
+        sma_50 = tech.get("sma_50")
+
+        # Validate ATR >= 0.01 (minimum 1 cent volatility)
+        if atr is not None and float(atr) < 0.01:
+            logger.error(f"[PHASE 8] {symbol}: Invalid ATR {atr} (must be >= 0.01) - skipping trade")
+            continue
+
+        # Validate SMA_50 > 0
+        if sma_50 is not None and float(sma_50) <= 0:
+            logger.error(f"[PHASE 8] {symbol}: Invalid SMA_50 {sma_50} (must be > 0) - skipping trade")
+            continue
+
+        # Trade passed data quality checks, add to validated list
+        validated_trades.append(signal)
+
+    # Use validated trades for execution
+    qualified_trades = validated_trades
 
     for signal in qualified_trades:
         try:

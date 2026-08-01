@@ -64,7 +64,7 @@ def require_user(jwt_claims: dict[str, Any] | None) -> str:
     return get_user_id(jwt_claims)
 
 
-def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple[str, dict[str, Any]]:
+def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple[str, tuple[str]]:
     """Add user scoping WHERE clause to SQL query.
 
     For queries that select from tables with cognito_sub column, automatically
@@ -78,12 +78,12 @@ def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple
                     If None, uses 'cognito_sub' directly
 
     Returns:
-        (scoped_sql: str, params: dict) - SQL with user filter added and params dict
+        (scoped_sql: str, params: tuple) - SQL with user filter added and params tuple for positional binding
 
     Example:
         >>> sql = "SELECT * FROM algo_positions WHERE symbol = %s"
         >>> scoped_sql, params = scope_query(sql, user_id, table_alias='ap')
-        >>> # Result: "SELECT * FROM algo_positions ap WHERE symbol = %s AND ap.cognito_sub = %s"
+        >>> # Result: ("SELECT * FROM algo_positions ap WHERE symbol = %s AND ap.cognito_sub = %s", (user_id,))
     """
     if table_alias:
         user_filter = f" AND {table_alias}.cognito_sub = %s"
@@ -96,7 +96,7 @@ def scope_query(sql: str, user_id: str, table_alias: str | None = None) -> tuple
     else:
         scoped_sql = sql + " WHERE cognito_sub = %s"
 
-    return scoped_sql, {"user_id": user_id}
+    return scoped_sql, (user_id,)
 
 
 def _validate_credentials_structure(creds: Any) -> bool:

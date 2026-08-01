@@ -177,6 +177,7 @@ def run(
                         "CRITICAL: max_positions_per_sector config missing. "
                         "Cannot enforce sector concentration limits. Check algo_config table."
                     )
+                # CRITICAL: ensure max_per_sector is native Python int, not Decimal from psycopg2
                 max_per_sector = int(max_sector_val)
 
                 with DatabaseContext("read") as cur:
@@ -198,8 +199,10 @@ def run(
 
                     for sector, count in concentrated_sectors:
                         count_int = int(count) if count is not None else 0
-                        over_limit = count_int - max_per_sector
-                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector}, need to exit {over_limit})")
+                        # CRITICAL: re-ensure max_per_sector is int for subtraction
+                        max_per_sector_int = int(max_per_sector)
+                        over_limit = count_int - max_per_sector_int
+                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector_int}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
                         cur.execute("""
@@ -242,7 +245,7 @@ def run(
                         "CRITICAL: max_position_size_pct config missing. "
                         "Cannot enforce position size limits. Check algo_config table."
                     )
-                # Explicitly convert to float to handle Decimal types from config
+                # Explicitly convert to float to handle Decimal types from config (psycopg2 returns Decimal)
                 try:
                     max_size_pct_float = float(max_size_pct_val)
                 except (TypeError, ValueError) as te:
@@ -280,11 +283,15 @@ def run(
                             logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to convert percentage {pct} ({type(pct).__name__}) to float: {te}")
                             continue
 
-                        if pct_float > max_size_pct_float:
+                        # CRITICAL: Convert max_size_pct_float to ensure it's a native Python float before arithmetic
+                        # This handles Decimal types that may have been returned by config.get()
+                        limit_for_comparison = float(max_size_pct_float)
+
+                        if pct_float > limit_for_comparison:
                             # Both operands guaranteed to be float after conversion above
-                            exceed_amount = pct_float - max_size_pct_float
-                            oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
-                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                            exceed_amount = pct_float - limit_for_comparison
+                            oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
+                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:

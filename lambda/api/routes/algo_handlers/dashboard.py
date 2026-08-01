@@ -100,12 +100,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # NOTE: query errors (including statement_timeout) are intentionally NOT caught here -
     # they must propagate to @db_route_handler so it can return a real 5xx instead of a
     # false "zero positions" 200 OK.
+    # CRITICAL: Filter by user_id (cognito_sub) to prevent user A from seeing user B's positions
+    if not user_id:
+        raise ValueError("[AUTH CRITICAL] user_id (cognito_sub) required for positions query - authentication missing")
     cur.execute("""
         SELECT * FROM algo_positions
-        WHERE status = 'open'
+        WHERE status = 'open' AND cognito_sub = %s
         ORDER BY position_value DESC NULLS LAST
         LIMIT 1000
-    """)
+    """, (user_id,))
     positions = cur.fetchall()
     logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
 
@@ -117,7 +120,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         # asset_id-as-position_id created duplicate NULL-stop records that tripped the
         # circuit breaker. Distinguish that expected case from a genuine sync problem by
         # checking if algo_untracked_positions has any rows (LIVE COUNT, not stale snapshot).
-        cur.execute("SELECT COUNT(*) FROM algo_untracked_positions")
+        # CRITICAL: Filter by user_id to count only this user's untracked positions
+        cur.execute("SELECT COUNT(*) FROM algo_untracked_positions WHERE cognito_sub = %s", (user_id,))
         untracked_count_row = cur.fetchone()
         broker_position_count = untracked_count_row[0] if untracked_count_row and untracked_count_row[0] else None
         if broker_position_count:
@@ -528,12 +532,14 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # Fetch untracked positions (broker-held, not entered by algo)
     untracked_items: list[dict[str, Any]] = []
     try:
+        # CRITICAL: Filter by user_id to prevent user A from seeing user B's untracked positions
         cur.execute("""
             SELECT id, symbol, quantity, current_price, position_value, detected_at, last_seen_at
             FROM algo_untracked_positions
+            WHERE cognito_sub = %s
             ORDER BY position_value DESC NULLS LAST
             LIMIT 1000
-        """)
+        """, (user_id,))
         untracked_positions = cur.fetchall()
         logger.info(f"[UNTRACKED POSITIONS] Found {len(untracked_positions)} untracked positions")
 
