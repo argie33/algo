@@ -51,7 +51,8 @@ class TestPriceLoaderStatusHistoryArchiving:
     def test_archive_failure_rolls_back_savepoint_without_raising(self):
         loader = _make_loader()
         cur = MagicMock()
-        cur.fetchone.side_effect = [(500, "2026-07-27"), (10,)]
+        # Mock returns for SELECT queries
+        cur.fetchone.side_effect = [(None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         def _execute(sql, *args, **kwargs):
@@ -67,6 +68,6 @@ class TestPriceLoaderStatusHistoryArchiving:
             loader._update_loader_status()  # must not raise
 
         executed = [call.args[0] for call in cur.execute.call_args_list]
-        assert any("ROLLBACK TO SAVEPOINT archive_price_history" in sql for sql in executed)
+        assert any("ROLLBACK TO SAVEPOINT archive_price_daily_history" in sql for sql in executed)
         # the real status UPSERT (issued before the archive block) must still have happened
         assert any("INSERT INTO data_loader_status " in sql for sql in executed)
