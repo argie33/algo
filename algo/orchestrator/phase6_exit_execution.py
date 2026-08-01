@@ -296,8 +296,18 @@ def run(
                 ) from e
 
         # Add concentration rebalance actions to the exposure_actions queue
-        sector_concentration_actions = _check_sector_concentration()
-        size_concentration_actions = _check_position_size_concentration()
+        # CRITICAL FIX: Wrap concentration checks in try-except to prevent Phase 6 halt
+        # If concentration checks fail for any reason, continue with available actions instead of halting
+        sector_concentration_actions = []
+        size_concentration_actions = []
+        try:
+            sector_concentration_actions = _check_sector_concentration()
+        except Exception as e:
+            logger.warning(f"[PHASE 6] Sector concentration check failed, continuing without it: {e}")
+        try:
+            size_concentration_actions = _check_position_size_concentration()
+        except Exception as e:
+            logger.warning(f"[PHASE 6] Position size concentration check failed, continuing without it: {e}")
         all_actions = sector_concentration_actions + size_concentration_actions + exposure_actions
 
         # DRY-RUN: Process counts of what WOULD happen, then skip actual execution

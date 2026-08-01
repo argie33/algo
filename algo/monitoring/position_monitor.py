@@ -697,7 +697,7 @@ class PositionMonitor:
             flags.append("SECTOR_WEAK")
 
         # 3c. Giving back gains (>33% retrace from peak)?
-        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price)
+        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price, cur=cur)
         if peak_pct > 5 and unrealized_pct < peak_pct * 0.66:
             flags.append("GIVING_BACK_GAINS")
 
@@ -1169,6 +1169,7 @@ class PositionMonitor:
         trade_date: _date,
         current_date: _date | datetime,
         entry_price: float,
+        cur: PsycopgCursor[Any] | None = None,
     ) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:
@@ -1176,9 +1177,9 @@ class PositionMonitor:
                 f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
             )
 
-        # FIX 2026-07-31: Use fresh DatabaseContext for independent read query
-        with DatabaseContext("read") as fresh_cur:
-            fresh_cur.execute(
+        # CRITICAL FIX: Reuse passed cursor if available to avoid nested DatabaseContext causing "cursor already closed"
+        if cur is not None:
+            cur.execute(
                 """
                 SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
                 FROM price_daily
@@ -1187,7 +1188,7 @@ class PositionMonitor:
                 """,
                 (symbol, trade_date, current_date),
             )
-            row = fresh_cur.fetchone()
+            row = cur.fetchone()
         if row is None or len(row) != 3:
             raise PositionValidationError(
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
