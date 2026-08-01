@@ -74,7 +74,7 @@ _LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDI
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
-_SIGNAL_COUNT_ANOMALY_THRESHOLD = 50  # Minimum signals for a day to be considered normal (historical median 400-800)
+_SIGNAL_COUNT_ANOMALY_THRESHOLD = 200  # Minimum signals for a day to be considered normal (historical median 400-800, so 200 = ~25% of median)
 
 
 def _buysell_lookback_start_date(run_date: _date) -> _date:

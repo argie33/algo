@@ -482,7 +482,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # DEBUG: Check quality_row structure
         if not isinstance(quality_row, (tuple, list)):
             logger.error(
-                f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row is {type(quality_row)}, not tuple/list. This is a CRITICAL BUG"
+                f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row is {type(quality_row)}, not tuple/list. This is a CRITICAL BUG. "
+                f"Upstream transformation (cur.fetchone() from annual_balance_sheet JOIN) failed to return tuple. "
+                f"Data structure: {repr(quality_row)[:200]}. "
+                f"Check: (1) DatabaseContext cursor type, (2) Connection pool configuration, (3) Database driver version. "
+                f"Recovery: Mark symbol unavailable and skip quality metrics for this run."
             )
             return self._unavailable_marker("quality_metrics", symbol)
 

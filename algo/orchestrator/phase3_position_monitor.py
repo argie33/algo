@@ -77,10 +77,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 logger.info(f"[PHASE 3] Found {len(positions)} open positions to update")
 
                 # CRITICAL: Validate tuple structure before indexing to prevent tuple index errors
-                if positions and len(positions[0]) < 7:
+                if positions and len(positions[0]) != 7:
                     raise RuntimeError(
-                        f"[PHASE 3] Position query returned {len(positions[0])} columns, expected >= 7. "
-                        f"Schema drift detected - cannot extract all position fields."
+                        f"[PHASE 3] Position query returned {len(positions[0])} columns, expected exactly 7. "
+                        f"Schema drift detected - cannot extract all position fields. "
+                        f"Query must return: (position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price)"
                     )
 
                 # Get latest prices from price_daily table for all open symbols
@@ -103,6 +104,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         (open_symbols,),
                     )
                     price_rows = cur.fetchall()
+
+                    # CRITICAL: Validate that ALL open symbols got price data (fail-fast if silent gap)
+                    if len(price_rows) != len(open_symbols):
+                        missing_symbols = set(open_symbols) - {row[0] for row in price_rows}
+                        raise RuntimeError(
+                            f"[PHASE 3 CRITICAL] Silent price data loss detected: {len(missing_symbols)} symbols missing prices. "
+                            f"Expected {len(open_symbols)} prices, got {len(price_rows)}. "
+                            f"Missing symbols: {sorted(missing_symbols)}. "
+                            f"Cannot monitor positions without current prices. "
+                            f"Check price_daily loader and data_unavailable flags."
+                        )
 
                     # GOVERNANCE COMPLIANCE: Check data_unavailable flag for each price
                     for row in price_rows:
