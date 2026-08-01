@@ -867,16 +867,45 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         return super().fetch_incremental(symbol, since)
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Transform to schema format and add data_unavailable/reason flags."""
+        """Transform to schema format and add data_unavailable/reason flags.
+
+        CRITICAL FIX (2026-08-01): Detect spinoff/incomplete SEC filings.
+        When fiscal_year exists but ALL financial metrics are NULL, mark as data_unavailable
+        instead of creating useless records (e.g., HONA/FDXF recent spinoffs).
+        """
         transformed = super().transform(rows)
+
+        # Define metric fields that must have at least one non-NULL value
+        # (excluding identifier/date fields and markers)
+        metric_fields = {
+            "income": {"revenue", "cost_of_revenue", "gross_profit", "operating_income", "net_income", "earnings_per_share"},
+            "balance": {"total_assets", "current_assets", "total_liabilities", "stockholders_equity", "cash_and_equivalents"},
+            "cashflow": {"operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "capex"},
+        }
+
+        # Get metrics for current statement type
+        required_metrics = metric_fields.get(self.statement_type, set())
 
         result = []
         for row in transformed:
             if row.get("data_unavailable"):
                 result.append(row)
             else:
-                row["data_unavailable"] = False
-                row["reason"] = None
+                # Check if all metrics are NULL (indicates incomplete SEC data)
+                has_metrics = any(row.get(field) is not None for field in required_metrics)
+                if not has_metrics and required_metrics:
+                    # All financial metrics are NULL - mark as unavailable
+                    symbol = row.get("symbol", "?")
+                    fiscal_year = row.get("fiscal_year", "?")
+                    logger.warning(
+                        f"[{self.table_name}] SPINOFF/INCOMPLETE DATA: {symbol} FY{fiscal_year} "
+                        f"has no {self.statement_type} metrics (likely recent spinoff or incomplete SEC filing)"
+                    )
+                    row["data_unavailable"] = True
+                    row["reason"] = f"incomplete_sec_filing_{self.statement_type}"
+                else:
+                    row["data_unavailable"] = False
+                    row["reason"] = None
                 result.append(row)
 
         return result
