@@ -400,16 +400,21 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     logger.critical(error_msg)
                     raise RuntimeError(error_msg) from last_error
 
+                # Determine paper mode phase status based on whether we entered degraded mode
+                paper_phase_status = "completed_degraded" if paper_mode_degraded else "ok"
+                paper_log_status = "success" if not paper_mode_degraded else "success_degraded"
+
                 log_phase_result_fn(
                     3,
                     "position_monitor",
-                    "success",
-                    f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated",
+                    paper_log_status,
+                    f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated" +
+                    (" (degraded mode)" if paper_mode_degraded else ""),
                 )
                 return PhaseResult(
                     3,
                     "position_monitor",
-                    "ok",
+                    paper_phase_status,
                     {"recommendations": recommendations, "count": updated_count},
                     False,
                     None,
