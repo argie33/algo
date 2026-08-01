@@ -2,7 +2,7 @@
 """Algo Ops Terminal Dashboard
 
 Usage (LOCAL DEVELOPMENT - RECOMMENDED):
-  python dashboard/dashboard.py --local               # use local API (localhost:3001)
+  python dashboard/dashboard.py --local               # use local API (127.0.0.1:3001)
   python dashboard/dashboard.py --local -w 30         # watch mode, auto-refresh every 30s
 
 Usage (AWS/Production - requires Cognito):
@@ -60,10 +60,10 @@ from urllib.parse import urlparse
 
 
 def _is_dev_server_available() -> bool:
-    """Check if dev server is running on localhost:3001 (supports both IPv4 and IPv6)."""
-    # Try IPv6 first (::1), then fall back to IPv4 (127.0.0.1)
-    # This prevents 30+ second hangs on IPv6-first systems
-    for host in ["::1", "127.0.0.1"]:
+    """Check if dev server is running on 127.0.0.1:3001 (IPv4-only for fast resolution)."""
+    # Check IPv4-only (127.0.0.1) to avoid ~2s delays on IPv6-first Windows systems
+    # Windows resolves 'localhost' to IPv6 (::1) first, causing stalls on IPv4-only servers
+    for host in ["127.0.0.1"]:
         try:
             sock = socket.socket(socket.AF_INET6 if host == "::1" else socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(0.5)
@@ -78,13 +78,13 @@ def _is_dev_server_available() -> bool:
 
 # Parse --local flag early before any dashboard/API modules are imported
 _args_temp = argparse.ArgumentParser(add_help=False)
-_args_temp.add_argument("--local", action="store_true", help="Use local API (localhost:3001)")
+_args_temp.add_argument("--local", action="store_true", help="Use local API (127.0.0.1:3001)")
 _temp_args, _ = _args_temp.parse_known_args()
 
 # FORCE LOCAL MODE EARLY: If --local is passed, clear AWS credentials immediately
 # This must happen BEFORE any modules import and cache these env vars
 if _temp_args.local:
-    _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+    _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
     _os_auto.environ["LOCAL_MODE"] = "true"
     _os_auto.environ.pop("COGNITO_USERNAME", None)
     _os_auto.environ.pop("COGNITO_PASSWORD", None)
@@ -97,9 +97,9 @@ else:
     _has_aws_config = _os_auto.environ.get("DASHBOARD_API_URL") is not None
 
     # Enable local mode if:
-    # Dev server is running on localhost:3001 AND no AWS config is explicitly set
+    # Dev server is running on 127.0.0.1:3001 AND no AWS config is explicitly set
     if _is_dev_server_available() and not _has_aws_config:
-        _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+        _os_auto.environ["DASHBOARD_API_URL"] = "http://127.0.0.1:3001"
         _os_auto.environ["LOCAL_MODE"] = "true"
 
 try:
@@ -656,22 +656,22 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 def _setup_local_api() -> str:
     """Setup local API mode.
 
-    Checks if dev_server is running on localhost:3001 (supports both IPv4 and IPv6).
+    Checks if dev_server is running on 127.0.0.1:3001 (IPv4-only for fast resolution).
     If not, provides helpful instructions to start it. Does NOT auto-start to avoid
     unexpected background processes.
     """
-    local_url = "http://localhost:3001"
+    local_url = "http://127.0.0.1:3001"
     if not _validate_api_url(local_url):
         logger.error(f"Invalid local API URL: {local_url}")
         sys.exit(1)
 
-    # Check if dev_server is actually running (try IPv6 first, then IPv4)
+    # Check if dev_server is actually running on 127.0.0.1:3001 (IPv4-only)
     import socket
 
     dev_server_running = False
-    for host in ["::1", "127.0.0.1"]:
+    for host in ["127.0.0.1"]:
         try:
-            sock = socket.socket(socket.AF_INET6 if host == "::1" else socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
             result = sock.connect_ex((host, 3001))
             sock.close()
@@ -683,14 +683,14 @@ def _setup_local_api() -> str:
 
     if not dev_server_running:
         # Dev server not running
-        logger.error("[FATAL] Dev server not running on localhost:3001 - dashboard requires it for local mode")
+        logger.error("[FATAL] Dev server not running on 127.0.0.1:3001 - dashboard requires it for local mode")
         try:
-            CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on localhost:3001[/]")
+            CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on 127.0.0.1:3001[/]")
             CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")
             CONSOLE.print("[bold cyan]STEP 1: Start the API server (in a NEW terminal):[/]")
             CONSOLE.print("  [bright_black]$[/] python3 lambda/api/dev_server.py\n")
             CONSOLE.print("[bold cyan]STEP 2: Wait for this message:[/]")
-            CONSOLE.print("  [bright_green][INFO] Starting API dev server on http://localhost:3001[/]\n")
+            CONSOLE.print("  [bright_green][INFO] Starting API dev server on http://127.0.0.1:3001[/]\n")
             CONSOLE.print("[bold cyan]STEP 3: Start dashboard (in this terminal):[/]")
             CONSOLE.print("  [bright_black]$[/] python3 -m dashboard\n")
             CONSOLE.print("[dim]Note: Dashboard auto-detects dev_server, no --local flag needed[/]\n")
