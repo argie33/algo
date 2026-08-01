@@ -5,7 +5,6 @@ Identifies which tradable symbols have no price data and categorizes them.
 """
 
 import logging
-from datetime import datetime, timedelta
 from utils.db.context import DatabaseContext
 
 logging.basicConfig(level=logging.INFO)
@@ -16,74 +15,62 @@ def audit_missing_symbols() -> None:
     """Audit missing symbols and categorize root causes."""
 
     with DatabaseContext("read") as cur:
-        # Query 1: Which active symbols in stock_symbols have NO recent price_daily data?
-        logger.info("[AUDIT] Query 1: Identifying symbols with missing price data...")
+        # Query 1: Get all active symbols
+        logger.info("[AUDIT] Query 1: Counting all active symbols...")
+        cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = TRUE")
+        total_active = cur.fetchone()[0]
+        logger.info(f"[AUDIT] Total active symbols: {total_active}")
+
+        # Query 2: Which active symbols have NO recent price_daily data?
+        logger.info("[AUDIT] Query 2: Identifying symbols with missing price data...")
         cur.execute("""
-            SELECT ss.symbol, ss.exchange, ss.active
+            SELECT COUNT(*) as missing_count
             FROM stock_symbols ss
             LEFT JOIN price_daily pd ON ss.symbol = pd.symbol
                 AND pd.date >= CURRENT_DATE - INTERVAL '30 days'
             WHERE pd.symbol IS NULL
             AND ss.active = TRUE
-            ORDER BY ss.exchange, ss.symbol
         """)
+        result = cur.fetchone()
+        missing_count = result[0] if result else 0
+        logger.info(f"[AUDIT] Symbols with NO recent price data: {missing_count}")
 
-        missing_active = cur.fetchall()
-        logger.info(f"[AUDIT] Found {len(missing_active)} active symbols with no recent price data")
-
-        # Query 2: Check if they're marked as delisted
-        logger.info("[AUDIT] Query 2: Checking for delisted status...")
+        # Query 3: Coverage by exchange
+        logger.info("[AUDIT] Query 3: Coverage by exchange...")
         cur.execute("""
-            SELECT ss.symbol, ss.exchange, cis.delisting_date, cis.status
-            FROM stock_symbols ss
-            LEFT JOIN company_info_sec cis ON ss.symbol = cis.ticker
-            WHERE ss.symbol IN (
-                SELECT ss2.symbol
-                FROM stock_symbols ss2
-                LEFT JOIN price_daily pd ON ss2.symbol = pd.symbol
-                    AND pd.date >= CURRENT_DATE - INTERVAL '30 days'
-                WHERE pd.symbol IS NULL
-                AND ss2.active = TRUE
-            )
-            ORDER BY ss.exchange, ss.symbol
-        """)
-
-        delisting_info = cur.fetchall()
-        delisted_count = sum(1 for row in delisting_info if row[2] is not None)
-        logger.info(f"[AUDIT] Of these, {delisted_count} have delisting_date in company_info_sec")
-
-        # Query 3: Check technical_data_daily coverage
-        logger.info("[AUDIT] Query 3: Checking technical_data_daily coverage...")
-        cur.execute("""
-            SELECT COUNT(DISTINCT symbol) as symbols_with_technical_data
-            FROM technical_data_daily
-            WHERE date >= CURRENT_DATE - INTERVAL '5 days'
-        """)
-        technical_coverage = cur.fetchone()
-        logger.info(f"[AUDIT] technical_data_daily has {technical_coverage[0]} symbols with recent data")
-
-        # Query 4: Coverage by exchange
-        logger.info("[AUDIT] Query 4: Missing symbols by exchange...")
-        cur.execute("""
-            SELECT ss.exchange, COUNT(*) as missing_count,
-                   COUNT(CASE WHEN cis.delisting_date IS NOT NULL THEN 1 END) as delisted
+            SELECT ss.exchange, COUNT(*) as total,
+                   SUM(CASE WHEN pd.symbol IS NULL THEN 1 ELSE 0 END) as missing
             FROM stock_symbols ss
             LEFT JOIN price_daily pd ON ss.symbol = pd.symbol
                 AND pd.date >= CURRENT_DATE - INTERVAL '30 days'
-            LEFT JOIN company_info_sec cis ON ss.symbol = cis.ticker
-            WHERE pd.symbol IS NULL
-            AND ss.active = TRUE
+            WHERE ss.active = TRUE
             GROUP BY ss.exchange
-            ORDER BY missing_count DESC
+            ORDER BY missing DESC
         """)
+        exchange_stats = cur.fetchall()
+        logger.info("[AUDIT] Coverage by exchange:")
+        for exchange, total, missing in exchange_stats:
+            coverage_pct = 100 * (total - missing) / total if total > 0 else 0
+            logger.info(f"  {exchange}: {total - missing}/{total} ({coverage_pct:.1f}%)")
 
-        exchange_summary = cur.fetchall()
-        logger.info("[AUDIT] Missing symbols by exchange:")
-        for exchange, total, delisted in exchange_summary:
-            logger.info(f"  {exchange}: {total} missing ({delisted} delisted)")
+        # Query 4: Get sample of missing symbols
+        logger.info("[AUDIT] Query 4: Sample of 20 missing symbols...")
+        cur.execute("""
+            SELECT ss.symbol, ss.exchange
+            FROM stock_symbols ss
+            LEFT JOIN price_daily pd ON ss.symbol = pd.symbol
+                AND pd.date >= CURRENT_DATE - INTERVAL '30 days'
+            WHERE pd.symbol IS NULL
+            AND ss.active = TRUE
+            ORDER BY ss.symbol
+            LIMIT 20
+        """)
+        missing_symbols = cur.fetchall()
+        for symbol, exchange in missing_symbols:
+            logger.info(f"  {symbol} ({exchange})")
 
-        # Query 5: Check if symbols appear in historical price_daily (older than 30 days)
-        logger.info("[AUDIT] Query 5: Checking for stale historical data...")
+        # Query 5: Check if any symbols have historical data
+        logger.info("[AUDIT] Query 5: Symbols with stale historical data...")
         cur.execute("""
             SELECT COUNT(DISTINCT ss.symbol) as stale_historical_count
             FROM stock_symbols ss
@@ -95,24 +82,19 @@ def audit_missing_symbols() -> None:
                 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
             )
         """)
-
-        stale_count = cur.fetchone()[0]
-        logger.info(f"[AUDIT] {stale_count} symbols have stale historical data (>30 days old, no recent)")
+        stale_result = cur.fetchone()
+        stale_count = stale_result[0] if stale_result else 0
+        logger.info(f"[AUDIT] Symbols with stale historical data (>30 days old, no recent): {stale_count}")
 
         # Summary
-        total_active = cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = TRUE")
-        total_active_result = cur.fetchone()
-        total_active_count = total_active_result[0] if total_active_result else 0
-
-        coverage_pct = 100 * (1 - len(missing_active) / total_active_count) if total_active_count > 0 else 0
+        coverage_pct = 100 * (total_active - missing_count) / total_active if total_active > 0 else 0
         logger.info(f"\n[AUDIT] SUMMARY:")
-        logger.info(f"  Total active symbols: {total_active_count}")
-        logger.info(f"  Symbols with recent price data: {total_active_count - len(missing_active)}")
+        logger.info(f"  Total active symbols: {total_active}")
+        logger.info(f"  Symbols with recent price data: {total_active - missing_count}")
         logger.info(f"  Coverage: {coverage_pct:.1f}%")
-        logger.info(f"  Delisted: {delisted_count}")
-        logger.info(f"  Stale historical: {stale_count}")
+        logger.info(f"  Symbols with stale historical data: {stale_count}")
 
 
 if __name__ == "__main__":
     audit_missing_symbols()
-    logger.info("[AUDIT] Complete - results logged above")
+    logger.info("[AUDIT] Complete")
