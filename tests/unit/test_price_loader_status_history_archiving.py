@@ -29,15 +29,19 @@ class TestPriceLoaderStatusHistoryArchiving:
     def test_update_loader_status_archives_to_history(self):
         loader = _make_loader()
         cur = MagicMock()
-        # Mock returns for SELECT queries: (execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count)
-        cur.fetchone.side_effect = [(None, None, None, 500, 100.0, 10, 10)]
+        # First SELECT: COUNT(*), MAX(date) from price_daily
+        # Second SELECT: COUNT(DISTINCT symbol) from latest date
+        # Third SELECT (in archive): execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
+        cur.fetchone.side_effect = [(500, "2026-07-31"), (10,), (None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         with (
-            patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx,
+            patch("loaders.load_prices.DatabaseContext") as mock_ctx,
+            patch("utils.loaders.status_manager.DatabaseContext") as mock_status_ctx,
             patch("loaders.load_prices._invalidate_phase1_cache"),
         ):
             mock_ctx.return_value.__enter__.return_value = cur
+            mock_status_ctx.return_value.__enter__.return_value = cur
             loader._update_loader_status()
 
         executed = [call.args[0] for call in cur.execute.call_args_list]
@@ -51,8 +55,10 @@ class TestPriceLoaderStatusHistoryArchiving:
     def test_archive_failure_rolls_back_savepoint_without_raising(self):
         loader = _make_loader()
         cur = MagicMock()
-        # Mock returns for SELECT queries
-        cur.fetchone.side_effect = [(None, None, None, 500, 100.0, 10, 10)]
+        # First SELECT: COUNT(*), MAX(date) from price_daily
+        # Second SELECT: COUNT(DISTINCT symbol) from latest date
+        # Third SELECT (in archive): execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
+        cur.fetchone.side_effect = [(500, "2026-07-31"), (10,), (None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         def _execute(sql, *args, **kwargs):
@@ -60,10 +66,12 @@ class TestPriceLoaderStatusHistoryArchiving:
                 raise Exception("boom")
 
         with (
-            patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx,
+            patch("loaders.load_prices.DatabaseContext") as mock_ctx,
+            patch("utils.loaders.status_manager.DatabaseContext") as mock_status_ctx,
             patch("loaders.load_prices._invalidate_phase1_cache"),
         ):
             mock_ctx.return_value.__enter__.return_value = cur
+            mock_status_ctx.return_value.__enter__.return_value = cur
             cur.execute.side_effect = _execute
             loader._update_loader_status()  # must not raise
 
