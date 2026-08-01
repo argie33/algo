@@ -245,6 +245,29 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
         open_statuses = TradeStatus.all_open()
         status_placeholders = ", ".join(["%s"] * len(open_statuses))
         with DatabaseContext("write") as cur:
+            # ISSUE 12 FIX: Pre-update validation - ensure entry_quantity is valid
+            cur.execute(
+                f"""
+                SELECT COUNT(*) as invalid_count, STRING_AGG(DISTINCT trade_id::text, ',') as trade_ids
+                FROM algo_trades
+                WHERE status IN ({status_placeholders})
+                  AND (entry_quantity IS NULL OR entry_quantity <= 0)
+                """,
+                tuple(open_statuses),
+            )
+            validation = cur.fetchone()
+            invalid_count = validation[0] if validation else 0
+            if invalid_count and invalid_count > 0:
+                invalid_trades = validation[1] if len(validation) > 1 else "unknown"
+                logger.error(
+                    f"[PHASE 9] Cannot sync position quantities: {invalid_count} open trade(s) have invalid entry_quantity "
+                    f"(NULL or <= 0): {invalid_trades}. Data integrity issue detected."
+                )
+                raise ValueError(
+                    f"Position quantity sync aborted: {invalid_count} trades have invalid entry_quantity. "
+                    f"Cannot proceed with sync when source data is corrupted."
+                )
+
             cur.execute(
                 f"""
                 UPDATE algo_trades
@@ -254,8 +277,41 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
                 tuple(open_statuses),
             )
             synced_count = cur.rowcount
+
+            # ISSUE 12 FIX: Verify the update actually worked
             if synced_count > 0:
+                cur.execute(
+                    f"""
+                    SELECT trade_id, quantity, entry_quantity
+                    FROM algo_trades
+                    WHERE status IN ({status_placeholders})
+                      AND (quantity IS NULL OR quantity != entry_quantity)
+                    LIMIT 10
+                    """,
+                    tuple(open_statuses),
+                )
+                verification_rows = cur.fetchall()
+                mismatches = [
+                    (row[0], row[1], row[2]) for row in verification_rows
+                    if row[1] != row[2]
+                ]
+
+                if mismatches:
+                    logger.critical(
+                        f"[PHASE 9] Position quantity sync verification FAILED: {len(mismatches)} mismatches detected. "
+                        f"UPDATE statement did not properly sync quantities."
+                    )
+                    for trade_id, qty, entry_qty in mismatches[:5]:
+                        logger.error(
+                            f"  Trade {trade_id}: quantity={qty}, entry_quantity={entry_qty} (expected to match)"
+                        )
+                    raise RuntimeError(
+                        f"Position quantity sync verification failed: {len(mismatches)} trades still have mismatched quantities "
+                        f"after UPDATE. Database may be in an inconsistent state."
+                    )
+
                 logger.info(f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)")
+                logger.info(f"[PHASE 9] Verification PASSED: All {synced_count} positions synced correctly")
             else:
                 logger.debug("[PHASE 9] No quantity sync needed - all open positions have quantity set")
         log_phase_result_fn(
@@ -267,6 +323,9 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
         log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")
+    except (ValueError, RuntimeError) as e:
+        logger.error(f"[PHASE 9] CRITICAL: Position quantity sync validation failed: {e}")
+        log_phase_result_fn(9, "quantity_sync", "error", f"validation failed: {str(e)[:60]}")
 
 
 def _refresh_positions_with_risk_view(log_phase_result_fn: Callable[..., Any]) -> None:

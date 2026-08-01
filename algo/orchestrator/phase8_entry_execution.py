@@ -60,6 +60,55 @@ from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
 
+# ISSUE 15 FIX: Define valid constraint values for Phase 8 validation
+VALID_REGIMES = ["expansion", "correction", "caution"]
+
+
+def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> None:
+    """ISSUE 15 FIX: Validate exposure constraints before using in Phase 8 entry execution.
+
+    Ensures all required constraint fields have valid values. Fail-fast if invalid.
+
+    Raises:
+        ValueError: If any constraint is invalid or missing
+    """
+    if not isinstance(exposure_constraints, dict):
+        raise TypeError(f"exposure_constraints must be dict, got {type(exposure_constraints).__name__}")
+
+    errors = []
+
+    # Check required keys exist
+    required_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct", "regime"]
+    for key in required_keys:
+        if key not in exposure_constraints:
+            errors.append(f"Missing required key: {key}")
+
+    # Validate individual field values
+    if "halt_new_entries" in exposure_constraints:
+        val = exposure_constraints.get("halt_new_entries")
+        if not isinstance(val, bool):
+            errors.append(f"halt_new_entries must be bool, got {type(val).__name__}")
+
+    if "max_new_positions_today" in exposure_constraints:
+        val = exposure_constraints.get("max_new_positions_today")
+        if not isinstance(val, int) or val < 0:
+            errors.append(f"max_new_positions_today must be int >= 0, got {val}")
+
+    if "max_concentration_pct" in exposure_constraints:
+        val = exposure_constraints.get("max_concentration_pct")
+        if not isinstance(val, (int, float)) or not (0.0 <= val <= 100.0):
+            errors.append(f"max_concentration_pct must be 0.0-100.0, got {val}")
+
+    if "regime" in exposure_constraints:
+        regime = exposure_constraints.get("regime", "").lower()
+        if regime not in VALID_REGIMES:
+            errors.append(f"regime must be one of {VALID_REGIMES}, got '{regime}'")
+
+    if errors:
+        error_msg = f"Invalid exposure constraints for Phase 8: {'; '.join(errors)}"
+        logger.error(f"[PHASE 8] {error_msg}")
+        raise ValueError(error_msg)
+
 
 def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[float, float]:
     """Calculate total open risk as percentage of portfolio.
@@ -890,6 +939,15 @@ def run(
             f"Fields present: {list(exposure_constraints.keys())}"
         )
 
+    # ISSUE 15 FIX: Validate constraints before using in Phase 8
+    try:
+        _validate_constraints_for_phase8(exposure_constraints)
+    except ValueError as e:
+        error_msg = f"[PHASE 8 CRITICAL] Constraint validation failed: {e}. Cannot proceed with trade execution."
+        logger.critical(error_msg)
+        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+        raise RuntimeError(error_msg) from e
+
     # CRITICAL: Verify data freshness before executing trades
 
     # Trades execute on EOD (after market close), so expect:
@@ -1466,6 +1524,10 @@ def run(
     # Use validated trades for execution
     qualified_trades = validated_trades
 
+    # ISSUE 14 FIX: Track per-trade execution with resource cleanup
+    successfully_entered = 0
+    failed_entries = []
+
     for signal in qualified_trades:
         try:
             symbol = signal.get("symbol")
@@ -1857,83 +1919,87 @@ def run(
             )
 
             if not dry_run:
+                # ISSUE 14 FIX: Execute each trade with fresh database context to prevent connection corruption
+                # If one trade corrupts the connection, the next trade gets a fresh connection from the pool
                 try:
-                    # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
-                    # OPTIONAL: sector, industry (enrichment data, may be None if data unavailable)
-                    # SESSION 367 FIX: Pass signal quality scores for trade entry validation
-                    # CRITICAL FIX: Ensure sqs is passed to trade executor to be stored in database
-                    # Phase 7 computes signal_quality_score and passes it via qualified_trades
-                    # Phase 8 must extract and pass it through to TradeContext
-                    # Session 379 fix: Verified sqs value before passing
-                    trade_result = trade_executor.execute_trade(
-                        symbol=symbol,
-                        entry_price=entry_price,
-                        shares=shares,
-                        stop_loss_price=stop_loss,
-                        signal_date=run_date,
-                        entry_date=run_date,
-                        composite_score=composite_score,
-                        sector=signal.get("sector"),
-                        industry=signal.get("industry"),
-                        rs_percentile=signal.get("rs_percentile"),
-                        sqs=sqs,
-                        trend_score=trend_score,
-                        base_type=signal.get("base_type"),
-                        base_quality=signal.get("base_quality"),
-                    )
-                    logger.debug(f"[PHASE 8] {symbol}: Executed trade with sqs={sqs}, trend_score={trend_score}")
-
-                    if "success" not in trade_result or trade_result["success"] is None:
-                        raise RuntimeError(
-                            f"Trade executor returned invalid result for {symbol}: missing 'success' field. "
-                            f"Response: {trade_result}"
+                    with DatabaseContext("write") as cur:
+                        # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
+                        # OPTIONAL: sector, industry (enrichment data, may be None if data unavailable)
+                        # SESSION 367 FIX: Pass signal quality scores for trade entry validation
+                        # CRITICAL FIX: Ensure sqs is passed to trade executor to be stored in database
+                        # Phase 7 computes signal_quality_score and passes it via qualified_trades
+                        # Phase 8 must extract and pass it through to TradeContext
+                        # Session 379 fix: Verified sqs value before passing
+                        trade_result = trade_executor.execute_trade(
+                            symbol=symbol,
+                            entry_price=entry_price,
+                            shares=shares,
+                            stop_loss_price=stop_loss,
+                            signal_date=run_date,
+                            entry_date=run_date,
+                            composite_score=composite_score,
+                            sector=signal.get("sector"),
+                            industry=signal.get("industry"),
+                            rs_percentile=signal.get("rs_percentile"),
+                            sqs=sqs,
+                            trend_score=trend_score,
+                            base_type=signal.get("base_type"),
+                            base_quality=signal.get("base_quality"),
                         )
+                        logger.debug(f"[PHASE 8] {symbol}: Executed trade with sqs={sqs}, trend_score={trend_score}")
 
-                    if trade_result["success"]:
-                        if "trade_id" not in trade_result:
+                        if "success" not in trade_result or trade_result["success"] is None:
                             raise RuntimeError(
-                                f"Trade succeeded for {symbol} but missing 'trade_id' field. Response: {trade_result}"
+                                f"Trade executor returned invalid result for {symbol}: missing 'success' field. "
+                                f"Response: {trade_result}"
                             )
 
-                        executed_count += 1
-                        entered_symbols.append(symbol)
-                        entered_prices.append(entry_price)
+                        if trade_result["success"]:
+                            if "trade_id" not in trade_result:
+                                raise RuntimeError(
+                                    f"Trade succeeded for {symbol} but missing 'trade_id' field. Response: {trade_result}"
+                                )
 
-                        logger.info(
-                            f"[PHASE 8] {symbol}: ENTERED trade_id={trade_result['trade_id']} "
-                            f"alpaca_order_id={trade_result['alpaca_order_id']} "
-                            f"status={trade_result['status']}"
-                        )
+                            executed_count += 1
+                            entered_symbols.append(symbol)
+                            entered_prices.append(entry_price)
+                            successfully_entered += 1
 
-                        if max_entries and executed_count >= max_entries:
-                            logger.info(f"[PHASE 8] Reached max_new_positions_today={max_entries}, stopping")
+                            logger.info(
+                                f"[PHASE 8] {symbol}: ENTERED trade_id={trade_result['trade_id']} "
+                                f"alpaca_order_id={trade_result['alpaca_order_id']} "
+                                f"status={trade_result['status']}"
+                            )
 
-                            break
+                            if max_entries and executed_count >= max_entries:
+                                logger.info(f"[PHASE 8] Reached max_new_positions_today={max_entries}, stopping")
 
-                    else:
-                        message = trade_result["message"]
-                        status = trade_result["status"]
-                        if status in _POLICY_REJECTION_STATUSES:
-                            logger.info(f"[PHASE 8] {symbol}: SKIPPED (policy) - {message} (status={status})")
-                            _log_signal_rejection(symbol, status, message, run_date, entry_price, risk_pct)
-                            skipped_count += 1
+                                break
+
                         else:
-                            logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
-                            # Persist the failure reason - previously this only went to logger.error(),
-                            # which is lost once the process exits. Skipped/rejected signals were already
-                            # audited via _log_signal_rejection() below in this same function; actual
-                            # broker-execution failures were the one path with no queryable audit trail,
-                            # making them undiagnosable in production without live log access.
-                            _log_signal_rejection(
-                                symbol,
-                                "execution_failed",
-                                f"{message} (status={status})",
-                                run_date,
-                                entry_price,
-                                risk_pct,
-                            )
+                            message = trade_result["message"]
+                            status = trade_result["status"]
+                            if status in _POLICY_REJECTION_STATUSES:
+                                logger.info(f"[PHASE 8] {symbol}: SKIPPED (policy) - {message} (status={status})")
+                                _log_signal_rejection(symbol, status, message, run_date, entry_price, risk_pct)
+                                skipped_count += 1
+                            else:
+                                logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
+                                # Persist the failure reason - previously this only went to logger.error(),
+                                # which is lost once the process exits. Skipped/rejected signals were already
+                                # audited via _log_signal_rejection() below in this same function; actual
+                                # broker-execution failures were the one path with no queryable audit trail,
+                                # making them undiagnosable in production without live log access.
+                                _log_signal_rejection(
+                                    symbol,
+                                    "execution_failed",
+                                    f"{message} (status={status})",
+                                    run_date,
+                                    entry_price,
+                                    risk_pct,
+                                )
 
-                            failed_count += 1
+                                failed_count += 1
 
                 except (ValueError, ZeroDivisionError, TypeError, DatabaseError) as exec_err:
                     logger.error(
@@ -1941,7 +2007,14 @@ def run(
                         exc_info=True,
                     )
                     _log_signal_rejection(symbol, "execution_error", str(exec_err), run_date, entry_price, risk_pct)
+                    failed_entries.append((symbol, str(exec_err)))
 
+                    failed_count += 1
+                except psycopg2.DatabaseError as db_err:
+                    # ISSUE 14 FIX: Database corruption - skip this trade and continue with fresh connection
+                    logger.error(f"[PHASE 8] {symbol}: Database error during trade execution, skipping: {db_err}")
+                    _log_signal_rejection(symbol, "database_error", str(db_err), run_date, entry_price, risk_pct)
+                    failed_entries.append((symbol, "database_error"))
                     failed_count += 1
 
             else:
@@ -1987,6 +2060,13 @@ def run(
     logger.info(
         f"[PHASE 8] Done in {elapsed:.1f}s: {executed_count} executed, {skipped_count} skipped, {failed_count} failed"
     )
+
+    # ISSUE 14 FIX: Log resource cleanup summary
+    if failed_entries:
+        logger.warning(
+            f"[PHASE 8] Trade execution summary: {successfully_entered} entered, {len(failed_entries)} failed. "
+            f"Failed entries: {failed_entries}"
+        )
 
     # Calculate execution rejection rate for observability
     total_evaluated = executed_count + skipped_count + failed_count

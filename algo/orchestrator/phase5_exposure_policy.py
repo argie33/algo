@@ -11,6 +11,75 @@ from algo.reporting import AlertManager
 
 logger = logging.getLogger(__name__)
 
+# ISSUE 15 FIX: Define valid constraint values
+VALID_REGIMES = ["expansion", "correction", "caution"]
+VALID_CONSTRAINT_KEYS = [
+    "halt_new_entries",
+    "halt_reason",
+    "max_new_positions_today",
+    "max_concentration_pct",
+    "regime",
+    "risk_multiplier",
+    "tier_name",
+    "description",
+    "min_composite_score",
+]
+
+
+def validate_constraint_dict(constraints: dict[str, Any]) -> None:
+    """ISSUE 15 FIX: Validate constraint dict values, not just keys.
+
+    Ensures all required constraint fields have valid values before trading.
+    Fail-fast if any constraint is invalid or missing.
+
+    Raises:
+        ValueError: If any constraint is invalid or missing
+    """
+    if not isinstance(constraints, dict):
+        raise TypeError(f"constraints must be dict, got {type(constraints).__name__}")
+
+    errors = []
+
+    # Check required keys exist
+    required_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct", "regime"]
+    for key in required_keys:
+        if key not in constraints:
+            errors.append(f"Missing required key: {key}")
+
+    # Validate individual field values
+    if "halt_new_entries" in constraints:
+        if not isinstance(constraints["halt_new_entries"], bool):
+            errors.append(
+                f"halt_new_entries must be bool, got {type(constraints.get('halt_new_entries')).__name__}"
+            )
+        elif constraints["halt_new_entries"] and not constraints.get("halt_reason"):
+            errors.append("halt_reason required when halt_new_entries=True")
+
+    if "max_new_positions_today" in constraints:
+        val = constraints.get("max_new_positions_today")
+        if not isinstance(val, int) or val < 0:
+            errors.append(f"max_new_positions_today must be int >= 0, got {val}")
+
+    if "max_concentration_pct" in constraints:
+        val = constraints.get("max_concentration_pct")
+        if not isinstance(val, (int, float)) or not (0.0 <= val <= 100.0):
+            errors.append(f"max_concentration_pct must be 0.0-100.0, got {val}")
+
+    if "regime" in constraints:
+        regime = constraints.get("regime", "").lower()
+        if regime not in VALID_REGIMES:
+            errors.append(f"regime must be one of {VALID_REGIMES}, got '{regime}'")
+
+    if "risk_multiplier" in constraints:
+        risk_mult = constraints.get("risk_multiplier")
+        if risk_mult is not None and (not isinstance(risk_mult, (int, float)) or not (0.0 <= risk_mult <= 1.0)):
+            errors.append(f"risk_multiplier must be 0.0-1.0, got {risk_mult}")
+
+    if errors:
+        error_msg = f"Invalid constraints: {'; '.join(errors)}"
+        logger.error(f"[PHASE 5] {error_msg}")
+        raise ValueError(error_msg)
+
 
 def _health_panel_fields(constraints: dict[str, Any]) -> dict[str, Any]:
     """Map ExposurePolicy constraint keys to the exact keys the health dashboard
@@ -81,6 +150,8 @@ def run(
                 "max_concentration_pct": 0.0,
                 "halt_reason": error_msg,
             }
+            # ISSUE 15 FIX: Validate halt constraints before returning
+            validate_constraint_dict(fail_halt_constraints)
             validate_phase_5_constraints(fail_halt_constraints)
             return PhaseResult(
                 5,
@@ -155,6 +226,8 @@ def run(
                 "success",
                 f"tier={constraints['tier_name']}, no actions",
             )
+            # ISSUE 15 FIX: Validate constraints before returning
+            validate_constraint_dict(constraints)
             # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
             validate_phase_5_constraints(constraints)
             return PhaseResult(
@@ -213,6 +286,8 @@ def run(
 
         phase_data = {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)}
         validate_phase_data(5, phase_data)
+        # ISSUE 15 FIX: Validate constraints before returning
+        validate_constraint_dict(constraints)
         # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
         validate_phase_5_constraints(constraints)
         return PhaseResult(
@@ -242,6 +317,8 @@ def run(
             "max_concentration_pct": 0.0,
             "halt_reason": f"Market exposure data missing: {str(e)[:80]}",
         }
+        # ISSUE 15 FIX: Validate halt constraints before returning
+        validate_constraint_dict(fail_halt_constraints)
         validate_phase_5_constraints(fail_halt_constraints)
         log_phase_result_fn(
             5,
@@ -276,6 +353,8 @@ def run(
             "max_concentration_pct": 0.0,
             "halt_reason": f"Exposure policy error: {str(e)[:100]}. No entries allowed until resolved.",
         }
+        # ISSUE 15 FIX: Validate halt constraints before returning
+        validate_constraint_dict(fail_halt_constraints)
         validate_phase_5_constraints(fail_halt_constraints)
         log_phase_result_fn(
             5,

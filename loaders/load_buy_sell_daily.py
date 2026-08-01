@@ -1105,7 +1105,8 @@ def main() -> int:  # noqa: C901
     loader = SignalsDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
-        logger.info("[LOADER] Daily signals load completed successfully. Exit code 0 (SUCCESS).")
+        rows_inserted = result.get("rows_inserted", 0)
+        logger.info(f"[LOADER] Daily signals load completed: {rows_inserted} rows inserted. Exit code 0 (SUCCESS).")
 
         # CLARIFICATION (Session 438): Technical data enrichment is TRULY OPTIONAL.
         # Technical indicators (SMA, ATR, RSI, MACD, etc.) are populated by load_technical_indicators.py,
@@ -1140,28 +1141,38 @@ def main() -> int:  # noqa: C901
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as sanity_check_err:
             logger.warning(f"[SANITY_CHECK] Could not validate signal count: {sanity_check_err}. Continuing.")
 
-        # CRITICAL FIX: Update loader status to COMPLETED with actual latest_date from table
-        # Bug fix: Use MAX(date) from buy_sell_daily, not calendar date (today_et)
-        # Root cause: Reporting today's calendar date when signals may only be generated through yesterday
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute("SET statement_timeout = 0")
-                # Get actual maximum date from buy_sell_daily (signals generated up to this date)
-                cur.execute("SELECT COALESCE(MAX(date), %s) FROM buy_sell_daily", (today_et,))
-                date_result = cur.fetchone()
-                if not date_result:
-                    raise RuntimeError("CRITICAL: Failed to query max date from buy_sell_daily")
-                actual_max_date = date_result[0]
+        # CRITICAL FIX: Only advance watermark if records were actually loaded
+        # BLOCKER #3 FIX: Prevent watermark advancement on zero-record days (weekends/holidays)
+        # If rows_inserted=0, we loaded zero signals (weekend/holiday), so don't mark as completed
+        # This prevents watermark from advancing and skipping the next trading day's signals
+        if rows_inserted > 0:
+            # CRITICAL FIX: Update loader status to COMPLETED with actual latest_date from table
+            # Bug fix: Use MAX(date) from buy_sell_daily, not calendar date (today_et)
+            # Root cause: Reporting today's calendar date when signals may only be generated through yesterday
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("SET statement_timeout = 0")
+                    # Get actual maximum date from buy_sell_daily (signals generated up to this date)
+                    cur.execute("SELECT COALESCE(MAX(date), %s) FROM buy_sell_daily", (today_et,))
+                    date_result = cur.fetchone()
+                    if not date_result:
+                        raise RuntimeError("CRITICAL: Failed to query max date from buy_sell_daily")
+                    actual_max_date = date_result[0]
 
-            # Use LoaderStatusManager to consolidate status writes
-            status_manager = LoaderStatusManager(table_name="buy_sell_daily")
-            status_manager.mark_completed(latest_date=actual_max_date)
+                # Use LoaderStatusManager to consolidate status writes
+                status_manager = LoaderStatusManager(table_name="buy_sell_daily")
+                status_manager.mark_completed(latest_date=actual_max_date)
+                logger.info(
+                    f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
+                )
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
+                logger.error(f"[STATUS] Could not update loader status: {status_err}")
+                return 1
+        else:
             logger.info(
-                f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
+                f"[STATUS] Skipping watermark advance: zero signals loaded on {today_et} (likely weekend/holiday). "
+                f"Watermark will NOT advance, next run will retry this date."
             )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-            logger.error(f"[STATUS] Could not update loader status: {status_err}")
-            return 1
 
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

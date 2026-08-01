@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from datetime import date as _date
 from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
@@ -612,7 +613,8 @@ class ExitEngine:
                         partial_exits_log,
                     ) = row
 
-                    _sp = f"sp_exit_{_idx}"
+                    # ISSUE 11 FIX: Use unique savepoint names to prevent collision on retry
+                    _sp = f"sp_exit_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
                     cur.execute(f"SAVEPOINT {_sp}")
                     try:
                         # Issue #22: Lock position row to prevent concurrent exits (TOCTOU race)
@@ -791,7 +793,8 @@ class ExitEngine:
                             # Do NOT fall back to entry_price (masks actual market exit prices)
                             # Skip this position, log error, then increment counter only if logged
                             _missing_price_err = RuntimeError(f"No price data available for {symbol}")
-                            _audit_sp = f"{_sp}_missing_price"
+                            # ISSUE 11 FIX: Use unique savepoint name for audit to prevent collision
+                            _audit_sp = f"sp_audit_missing_price_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
                             trade_errors += 1
                             try:
                                 cur.execute(f"SAVEPOINT {_audit_sp}")

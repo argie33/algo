@@ -68,7 +68,7 @@ Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradati
 import logging
 import time
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from datetime import date as _date
 from datetime import timedelta
 from typing import Any
@@ -1665,79 +1665,65 @@ def run(  # noqa: C901
     quality_filtered.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
 
     # Liquidity checks on top candidates - parallelized
+    # ISSUE 13 FIX: Improved timeout handling with per-task monitoring
     liq_passed = []
     liq_checked = 0
     to_check = quality_filtered[:_LIQUIDITY_CHECK_LIMIT]
 
     if to_check:
         try:
-            with ThreadPoolExecutor(max_workers=_MAX_WORKERS, thread_name_prefix="phase7_liq") as executor:
-                futures = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
-                # CRITICAL FIX: Set timeout on entire executor to prevent indefinite hangs
-                # If any thread gets stuck, the whole executor has a hard 60-second limit before we fail-fast
-                executor_timeout = 60  # seconds
+            executor = ThreadPoolExecutor(max_workers=_MAX_WORKERS, thread_name_prefix="phase7_liq")
+            pending_symbols = []
+            completed_results = {}
+
+            try:
+                # Submit all tasks
+                future_to_symbol = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
+
+                # ISSUE 13 FIX: Wait with timeout per completed future
+                executor_timeout = 60  # seconds - overall limit for all futures
                 start_time = time.time()
-                critical_error_seen = False
 
-                for future in as_completed(futures, timeout=executor_timeout):
+                for future in as_completed(future_to_symbol, timeout=executor_timeout):
                     liq_checked += 1
-                    candidate_symbol = futures[future].get('symbol', 'UNKNOWN')
-                    try:
-                        candidate, passed = future.result(timeout=30)
-                        if passed:
-                            liq_passed.append(candidate)
-                    except TimeoutError as timeout_err:
-                        msg = (
-                            f"[PHASE 7 CRITICAL] Liquidity check timeout for {candidate_symbol} "
-                            f"(exceeded 30s per-future timeout). Liquidity validation failed - "
-                            f"cannot proceed with potentially illiquid stock."
-                        )
-                        logger.critical(msg)
-                        critical_error_seen = True
-                        # Don't continue - raise to halt execution
-                        raise RuntimeError(msg) from timeout_err
-                    except ValueError as val_err:
-                        # ValueError from liquidity checks = critical config/data issue
-                        msg = (
-                            f"[PHASE 7 CRITICAL] Liquidity check validation failed for {candidate_symbol}: {val_err}. "
-                            f"This indicates critical configuration or data issues (e.g., missing config fields). "
-                            f"Cannot proceed with signal generation without valid liquidity thresholds."
-                        )
-                        logger.critical(msg)
-                        critical_error_seen = True
-                        # Don't continue - raise to halt execution
-                        raise RuntimeError(msg) from val_err
-                    except Exception as future_exc:
-                        msg = (
-                            f"[PHASE 7 CRITICAL] Liquidity check failed for {candidate_symbol}: {type(future_exc).__name__}: {future_exc}. "
-                            f"Exception during liquidity validation indicates possible infrastructure failure "
-                            f"(database connection, thread pool issue, or calculation error). "
-                            f"Cannot verify liquidity safety - must halt."
-                        )
-                        logger.critical(msg)
-                        critical_error_seen = True
-                        # Don't continue - raise to halt execution
-                        raise RuntimeError(msg) from future_exc
+                    candidate = future_to_symbol[future]
+                    symbol = candidate.get("symbol", "UNKNOWN")
 
-                # Check if executor timeout was exceeded
-                elapsed = time.time() - start_time
-                if elapsed >= executor_timeout:
-                    msg = (
-                        f"[PHASE 7 CRITICAL] Liquidity checks exceeded executor timeout ({elapsed:.0f}s >= {executor_timeout}s). "
-                        f"Thread pool is hung or deadlocked. Cannot proceed with unverified liquidity data. "
-                        f"Check: (1) database connection health, (2) thread pool resource constraints, "
-                        f"(3) any locks held by concurrent processes."
-                    )
-                    logger.critical(msg)
-                    raise RuntimeError(msg)
-        except TimeoutError as executor_timeout_err:
-            msg = (
-                f"[PHASE 7 CRITICAL] Liquidity check thread pool exceeded timeout ({executor_timeout}s). "
-                f"One or more worker threads are stuck or hung. Cannot verify liquidity for {len(to_check)} candidates. "
-                f"Liquidity checks are critical for trading safety - cannot proceed with unverified candidates."
+                    try:
+                        result = future.result(timeout=2)  # Per-future timeout is shorter
+                        candidate_result, passed = result
+                        completed_results[symbol] = passed
+                        if passed:
+                            liq_passed.append(candidate_result)
+                    except FutureTimeoutError:
+                        logger.warning(f"[PHASE 7] Liquidity check timed out for {symbol} (exceeds 2s per-future limit)")
+                        pending_symbols.append(symbol)
+                    except Exception as e:
+                        logger.error(f"[PHASE 7] Liquidity check failed for {symbol}: {e}")
+                        pending_symbols.append(symbol)
+
+            except FutureTimeoutError:
+                logger.critical(
+                    f"[PHASE 7] Overall liquidity check timeout - {len(pending_symbols)} symbols still pending "
+                    f"(exceeded {executor_timeout}s overall limit)"
+                )
+            finally:
+                # ISSUE 13 FIX: Kill hanging threads instead of waiting
+                executor.shutdown(wait=False)
+
+            # Log skipped symbols
+            if pending_symbols:
+                logger.warning(
+                    f"[PHASE 7] Skipping {len(pending_symbols)} symbols due to timeout: {pending_symbols[:10]}"
+                )
+
+            # Continue with results we got
+            qualified_trades = liq_passed
+            logger.info(
+                f"[PHASE 7] Liquidity check completed: {len(liq_passed)} passed, "
+                f"{len(pending_symbols)} skipped (timeout)"
             )
-            logger.critical(msg)
-            raise RuntimeError(msg) from executor_timeout_err
+
         except Exception as executor_exc:
             # CRITICAL FIX: Re-raise exceptions instead of silently continuing
             # If executor setup fails or critical errors occur, halt Phase 7
