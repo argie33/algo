@@ -12,6 +12,7 @@ def test_phase6_dry_run_counts_exits():
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
         "max_positions_per_sector": 10,
+        "max_position_size_pct": 6.0,
     }
 
     # Mock position recs with EARLY_EXIT actions

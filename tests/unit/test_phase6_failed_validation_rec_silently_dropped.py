@@ -26,6 +26,7 @@ def _make_config():
 def test_failed_validation_rec_counted_as_error_not_silently_dropped():
     config = _make_config()
     config["max_positions_per_sector"] = 10  # Add required config
+    config["max_position_size_pct"] = 6.0  # Add required config
     config["max_exposure_pct"] = 100
 
     position_recs = [
@@ -41,12 +42,19 @@ def test_failed_validation_rec_counted_as_error_not_silently_dropped():
     with (
         patch("algo.trading.executor.TradeExecutor") as mock_executor_cls,
         patch("algo.trading.ExitEngine") as mock_engine_cls,
-        patch("algo.orchestrator.phase6_exit_execution.DatabaseContext"),
+        patch("algo.orchestrator.phase6_exit_execution.DatabaseContext") as mock_db_ctx,
     ):
         mock_executor_cls.return_value = MagicMock()
         mock_engine = MagicMock()
         mock_engine.check_and_execute_exits.return_value = (0, 0, 0, 0)
         mock_engine_cls.return_value = mock_engine
+
+        # Mock DatabaseContext to return proper values for position sizing checks
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = []  # No sectors over limit
+        mock_cur.fetchone.return_value = (0,)  # No open positions, so total_value = 0
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
 
         result = p6.run(
             config=config,

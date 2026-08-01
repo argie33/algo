@@ -20,6 +20,7 @@ def _make_config():
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
         "max_positions_per_sector": 10,
+        "max_position_size_pct": 6.0,
         "max_exposure_pct": 100,
     }
 
