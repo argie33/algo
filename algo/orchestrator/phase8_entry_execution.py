@@ -755,12 +755,22 @@ def run(
         "max_concentration_pct",
     ]
     missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
+
+    # Add diagnostic logging to help debug incomplete constraints
+    if exposure_constraints:
+        logger.info(
+            f"[PHASE 8 DIAGNOSTIC] Exposure constraints status: "
+            f"has {len(exposure_constraints)} fields, requires {len(required_constraint_keys)}. "
+            f"Fields present: {list(exposure_constraints.keys())}"
+        )
+
     if missing_keys:
         # CRITICAL: Phase 5 must return complete constraints. Incomplete data is a system error.
         # Do NOT silently default to halt constraints - that masks upstream failures.
         # Fail-fast to surface the problem so Phase 5 can be debugged.
         msg = (
             f"[PHASE 8 CRITICAL] Exposure constraints incomplete from Phase 5: missing keys {missing_keys}. "
+            f"Available fields: {list(exposure_constraints.keys()) if exposure_constraints else 'constraints is empty'}. "
             f"Phase 5 (Exposure Policy) must provide complete constraint data. "
             f"Incomplete data indicates upstream failure that must be surfaced, not masked with defaults. "
             f"Cannot proceed with entry execution - halting."
