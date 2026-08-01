@@ -509,9 +509,11 @@ class PositionMonitor:
             # Cannot safely evaluate positions without proper aggregation.
             # Orchestrator is designed to halt on this exception.
             import traceback
+            full_trace = traceback.format_exc()
+            safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
             error_msg = (
                 f"[POSITION_MONITOR CRITICAL] GROUP BY error in review_positions: {group_err}\n"
-                f"Full traceback: {traceback.format_exc()}"
+                f"Full traceback: {safe_trace}"
             )
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from group_err
@@ -520,9 +522,11 @@ class PositionMonitor:
             # Cannot generate recommendations without position data.
             # Orchestrator is designed to halt on this exception.
             import traceback
+            full_trace = traceback.format_exc()
+            safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
             error_msg = (
                 f"[POSITION_MONITOR CRITICAL] Database error in review_positions: {db_err}\n"
-                f"Full traceback: {traceback.format_exc()}"
+                f"Full traceback: {safe_trace}"
             )
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_err
