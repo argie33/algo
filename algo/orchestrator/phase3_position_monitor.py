@@ -37,6 +37,25 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     Gracefully skipping positions due to missing data hides data quality issues
     and leaves positions unmonitored, which violates fail-fast governance.
 
+    CURSOR LIFECYCLE (CRITICAL FIX - Session 2026-08-01):
+    Do NOT open nested DatabaseContext() calls within this phase. Opening a new context
+    closes any existing database connection, breaking the cursor for the caller.
+    Nested contexts manifest as "cursor already closed" errors in Python, which is
+    misleading because the root cause is connection closure, not cursor state.
+
+    If a caller has an open DatabaseContext and passes a cursor to this phase,
+    this phase MUST use that cursor for all database operations and NEVER open
+    a new DatabaseContext. Violating this rule will break the caller's context.
+
+    Example of what NOT to do:
+    ```python
+    with DatabaseContext("read") as caller_cursor:
+        result = phase3_monitor(cursor=caller_cursor)  # Good - pass cursor
+        # WRONG: Inside phase3, opening nested context closes caller_cursor's connection
+        with DatabaseContext("read") as nested_cursor:  # BUG - closes caller_cursor
+            nested_cursor.execute(...)
+    ```
+
     Args:
         config: Configuration object
         get_conn: Function to get database connection

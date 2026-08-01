@@ -234,12 +234,14 @@ class EntryHandler:
             logger.error(f"Failed to check for idempotent duplicate: {e}")
             raise
 
-        # Generate idempotency key (symbol|signal_date only, to match validator logic)
-        # CRITICAL FIX 2026-07-31: Use ONLY symbol + signal_date to match check_idempotent_duplicate
-        # Previous code included entry_price/stop_loss_price, allowing different prices to bypass check
+        # Generate deterministic idempotency key for Alpaca order deduplication.
+        # CRITICAL FIX 2026-08-01: Include entry_price, stop_loss_price to differentiate retry
+        # attempts with different parameters (network retries should reuse same price/stop).
+        # Alpaca uses client_order_id to prevent duplicate orders on network retries.
+        # Using only symbol+signal_date would incorrectly deduplicate different trade parameters.
         import hashlib
 
-        key_source = f"{symbol}|{signal_date}"
+        key_source = f"{symbol}_{entry_price}_{stop_loss_price}_{signal_date}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks

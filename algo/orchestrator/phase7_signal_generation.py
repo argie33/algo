@@ -35,6 +35,21 @@ CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipel
 If buy_sell_daily unexpectedly has zero signals, Phase 7 halts (fail-closed) to surface
 upstream data quality issues rather than silently degrading.
 
+UNIVERSE LIMITATION (Session 247, Session 365+):
+Only ~4,700 of ~10,600 trading symbols (NASDAQ, NYSE, AMEX) have sufficient metric coverage
+for stock_scores ranking. This means Phase 7 can ONLY generate signals for this subset.
+Why? stock_scores requires INNER JOIN on:
+- quality_metrics (ROE, margins, ratios)
+- growth_metrics (revenue/EPS growth)
+- value_metrics (P/E, P/B, etc.)
+- positioning_metrics (insider, institutional ownership)
+- stability_metrics (beta, volatility)
+
+Symbols without ANY of these metrics are silently excluded from signal generation.
+Impact: 55% of tradable universe never receives signals, even if buy_sell_daily has
+qualifying technical setup. To expand coverage: improve metric loaders (SEC parsing,
+yfinance reliability). For now, signals constrained to well-covered tiers.
+
 Why no fallback to computed scores? Using COALESCE(composite_score, strength*50) would:
 - Create silent data quality degradation (when stock_scores missing for a symbol)
 - Hide universe gap issues (which symbols lack score coverage)
@@ -48,9 +63,6 @@ Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
 positioning 15%, stability 12%, momentum 8%).
 
 Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradation mode).
-Universe constraint: Only ~4,700 of ~10,600 trading symbols have sufficient metrics for
-stock_scores. Phase 7 can only generate signals for scored symbols. To expand: improve
-metric loaders to cover broader universe (see Session 247 universe gap analysis).
 """
 
 import logging

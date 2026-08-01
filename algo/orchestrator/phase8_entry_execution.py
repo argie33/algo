@@ -16,6 +16,20 @@ For each qualified signal from Phase 5:
 8. Run PreTradeChecks (size cap, duplicate prevention, minimum order)
 9. Execute trade
 
+CRITICAL DATA FRESHNESS ASSUMPTIONS (Session 2026-08-01):
+Phase 1 validates price_daily and market_exposure_daily freshness at orchestrator start.
+But Phase 8 may run HOURS later. Between Phase 1 and Phase 8:
+- Market may close early (half-day)
+- Data pipeline may stall after Phase 1 completes
+- EOD loaders (load_market_status_daily at 4:05 PM) may fail for afternoon runs
+
+Phase 8 should NOT assume data from Phase 1 is still valid:
+- Morning run: Phase 1 at 9:00 AM, Phase 8 at 1:00 PM → price data is TODAY's, OK
+- Afternoon run: Phase 1 at 1:00 PM, Phase 8 at 3:00 PM → price_daily may lack today's close
+- Evening run: Phase 1 at 5:00 PM, Phase 8 at 5:30 PM → price_daily may lack today's EOD
+
+Recommendation: Add re-validation in Phase 8 for afternoon/evening runs (see _calculate_current_total_risk_pct).
+
 TIMEZONE REQUIREMENT: run_date parameter is always ET (Eastern Time), not UTC.
 Market trading hours are 9:30 AM - 4:00 PM ET. Do NOT convert run_date to UTC or query
 CURRENT_DATE/CURRENT_TIMESTAMP directly for trading decisions. All database queries should
