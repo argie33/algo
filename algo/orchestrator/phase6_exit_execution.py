@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Callable
 from datetime import date as _date
+from decimal import Decimal
 from typing import Any
 
 import psycopg2
@@ -240,7 +241,7 @@ def run(
                         "CRITICAL: max_position_size_pct config missing. "
                         "Cannot enforce position size limits. Check algo_config table."
                     )
-                max_size_pct = float(max_size_pct_val)
+                max_size_pct = Decimal(str(max_size_pct_val))
 
                 with DatabaseContext("read") as cur:
                     # Get total portfolio value
@@ -248,7 +249,7 @@ def run(
                     result = cur.fetchone()
                     if result is None:
                         raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
-                    total_value = result[0] or 0.0
+                    total_value = Decimal(str(result[0])) if result[0] else Decimal(0)
 
                     if total_value <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
@@ -265,9 +266,12 @@ def run(
 
                     oversized_positions = []
                     for pos_id, symbol, value, pct in cur.fetchall():
-                        if pct > max_size_pct:
-                            oversized_positions.append((pos_id, symbol, pct, max_size_pct))
-                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct:.1f}% (limit {max_size_pct:.0f}%, exceeds by {pct - max_size_pct:.1f}%)")
+                        pct_decimal = Decimal(str(pct)) if pct else Decimal(0)
+                        if pct_decimal > max_size_pct:
+                            pct_float = float(pct_decimal)
+                            max_size_pct_float = float(max_size_pct)
+                            oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
+                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {pct_float - max_size_pct_float:.1f}%)")
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:
