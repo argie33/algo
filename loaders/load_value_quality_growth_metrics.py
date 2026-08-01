@@ -1509,6 +1509,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "held_percent_institutions_unavailable_reason": None,
                 "data_unavailable": True,
                 "data_source": "none",
+                "reason": "Insufficient SEC valuation data",
                 "updated_at": date.today().isoformat(),
             }
         elif table == "quality_metrics":
@@ -1567,6 +1568,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "revenue_growth_yoy_unavailable_reason": "missing_sec_data",
                 "data_unavailable": True,
                 "data_source": "none",
+                "reason": "Insufficient SEC financial data",
                 "updated_at": date.today().isoformat(),
             }
         else:  # growth_metrics
