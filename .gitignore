@@ -27,9 +27,7 @@ lambda-deployment.tar.gz
 # not tracked in git to avoid push timeouts. Deploy via: gh workflow run build-lambda-layer.yml
 lambda/shared-deps-layer.zip
 
-# Database
-*.db
-*.sqlite
+# Database (PostgreSQL only)
 *.sql
 !init_db.sql
 !terraform/modules/database/init.sql
