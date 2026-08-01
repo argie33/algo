@@ -664,27 +664,30 @@ def run(
                         f"[PHASE 8] Phase 5 returned {phase5_result.status} but constraints dict is empty. "
                         f"This is a data contract violation - Phase 5 must always return constraints."
                     )
-
-            # Apply safe defaults if constraints are missing or incomplete
-            if exposure_constraints_from_executor is None:
-                logger.warning(
-                    "[PHASE 8] Exposure constraints unavailable or incomplete - using safe halt constraints. "
-                    "Position entry will be blocked until valid constraints are available."
-                )
-                exposure_constraints_from_executor = {
-                    "regime": "correction",
-                    "tier_name": "CORRECTION",
-                    "description": "Safe halt defaults (constraints unavailable)",
-                    "risk_multiplier": 0.0,
-                    "max_new_positions_today": 0,
-                    "halt_new_entries": True,
-                    "max_concentration_pct": 0.0,
-                    "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
-                }
         except ValueError as val_e:
             raise RuntimeError(f"[PHASE 8] Invalid exposure constraints data: {val_e}") from val_e
         except Exception as e:
             logger.warning(f"[PHASE 8] Could not fetch Phase 7/5 data: {e}. Proceeding with available data.")
+
+    # CRITICAL FIX: Apply safe defaults OUTSIDE try-except block so they ALWAYS run
+    # even if an exception occurs when fetching Phase 5/7 data.
+    # Previously, exceptions could skip the safe defaults, leaving exposure_constraints_from_executor=None
+    # which would cause Phase 8 to halt with "missing max_concentration_pct" later.
+    if exposure_constraints_from_executor is None:
+        logger.warning(
+            "[PHASE 8] Exposure constraints unavailable or incomplete - using safe halt constraints. "
+            "Position entry will be blocked until valid constraints are available."
+        )
+        exposure_constraints_from_executor = {
+            "regime": "correction",
+            "tier_name": "CORRECTION",
+            "description": "Safe halt defaults (constraints unavailable)",
+            "risk_multiplier": 0.0,
+            "max_new_positions_today": 0,
+            "halt_new_entries": True,
+            "max_concentration_pct": 0.0,
+            "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
+        }
 
     # Override with executor data if available, else use passed-in data
     if qualified_trades_from_executor is not None:
