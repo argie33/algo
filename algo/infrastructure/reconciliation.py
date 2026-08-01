@@ -1343,19 +1343,30 @@ class DailyReconciliation:
                 cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
                 cur.fetchone()
                 try:
-                    # Log calculated metrics before insert for debugging
+                    # CRITICAL: Verify that metrics are being calculated correctly
+                    # The snapshot should show realistic concentration percentages
                     avg_pct_calc = (
                         (avg_position_size_dec / total_equity_dec * Decimal(100))
                         if total_equity_dec > 0
                         else Decimal(0)
                     )
+
+                    # Sanity check: largest_position_pct should be >= avg_position_size_pct (largest >= average)
+                    if max_concentration_dec < avg_pct_calc:
+                        logger.warning(
+                            f"[RECONCILIATION SANITY CHECK] Largest position % ({float(max_concentration_dec):.2f}%) "
+                            f"< average % ({float(avg_pct_calc):.2f}%) - this is mathematically impossible. "
+                            f"Check calculation logic in reconciliation.py"
+                        )
+
                     logger.info(
                         f"[RECONCILIATION INSERT] Snapshot metrics for {reconcile_date}:\n"
-                        f"  largest_position_pct = {float(max_concentration_dec):.2f}% "
-                        f"(largest ${float(largest_position_dec):.2f} / total equity ${float(total_equity_dec):,.2f})\n"
-                        f"  average_position_size_pct = {float(avg_pct_calc):.2f}% "
-                        f"(avg pos ${float(avg_position_size_dec):.2f} / total equity ${float(total_equity_dec):,.2f})\n"
-                        f"  concentration_risk_pct = {float(max_concentration_dec):.2f}%"
+                        f"  Total Positions: {len(positions)}\n"
+                        f"  Total Position Value: ${float(total_position_value):,.2f}\n"
+                        f"  Total Equity: ${float(total_equity_dec):,.2f}\n"
+                        f"  Largest Position: ${float(largest_position_dec):,.2f} = {float(max_concentration_dec):.2f}%\n"
+                        f"  Average Position: ${float(avg_position_size_dec):,.2f} = {float(avg_pct_calc):.2f}%\n"
+                        f"  Concentration Risk: {float(max_concentration_dec):.2f}%"
                     )
 
                     cur.execute(
