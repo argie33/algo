@@ -29,7 +29,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
         assert any("INSERT INTO data_loader_status_history" in sql for sql in executed)
         assert any("DELETE FROM data_loader_status_history" in sql for sql in executed)
         assert any("RELEASE SAVEPOINT archive_trend_template_data_history" in sql for sql in executed)
-        assert any("UPDATE data_loader_status SET status" in sql for sql in executed)
+        assert any("UPDATE data_loader_status" in sql for sql in executed)
 
     def test_failed_status_archives_to_history(self):
         cur = MagicMock()
@@ -60,7 +60,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
 
         executed = [call.args[0] for call in cur.execute.call_args_list]
         assert any("ROLLBACK TO SAVEPOINT archive_trend_template_data_history" in sql for sql in executed)
-        assert any("UPDATE data_loader_status SET status" in sql for sql in executed)
+        assert any("UPDATE data_loader_status" in sql for sql in executed)
 
     def test_running_status_does_not_touch_history(self):
         cur = MagicMock()

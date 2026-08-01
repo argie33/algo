@@ -29,8 +29,8 @@ class TestPriceLoaderStatusHistoryArchiving:
     def test_update_loader_status_archives_to_history(self):
         loader = _make_loader()
         cur = MagicMock()
-        # First DatabaseContext("read"): COUNT(*), MAX(date). Second: symbol count.
-        cur.fetchone.side_effect = [(500, "2026-07-27"), (10,)]
+        # Mock returns for SELECT queries: (execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count)
+        cur.fetchone.side_effect = [(None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         with (
@@ -41,10 +41,10 @@ class TestPriceLoaderStatusHistoryArchiving:
             loader._update_loader_status()
 
         executed = [call.args[0] for call in cur.execute.call_args_list]
-        assert any("SAVEPOINT archive_price_history" in sql for sql in executed)
+        assert any("SAVEPOINT archive_price_daily_history" in sql for sql in executed)
         assert any("INSERT INTO data_loader_status_history" in sql for sql in executed)
         assert any("DELETE FROM data_loader_status_history" in sql for sql in executed)
-        assert any("RELEASE SAVEPOINT archive_price_history" in sql for sql in executed)
+        assert any("RELEASE SAVEPOINT archive_price_daily_history" in sql for sql in executed)
         # the real status UPSERT (issued before the archive block) must still have happened
         assert any("INSERT INTO data_loader_status " in sql for sql in executed)
 
