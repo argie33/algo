@@ -48,6 +48,7 @@ from algo.orchestrator.phase8_entry_execution import run as run_phase8
 from algo.orchestrator.phase9_reconciliation import run as run_phase9
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
+from algo.orchestration.position_sync import sync_positions_from_trades, validate_position_count
 from algo.reporting import AlertManager
 from monitoring.metrics_context import (
     TimeBlock,
@@ -1627,7 +1628,28 @@ class Orchestrator:
         return executor
 
     def _executor_phase_1(self, **kwargs: Any) -> Any:
-        """Executor wrapper for Phase 1."""
+        """Executor wrapper for Phase 1.
+
+        CRITICAL FIX (2026-08-01): Sync positions from trades before Phase 1.
+        Ensures algo_positions table stays in sync with actual trades throughout the day.
+        Without this, positions go stale between midnight loader runs.
+        """
+        # CRITICAL: Sync positions from trades BEFORE Phase 1
+        # This ensures algo_positions is fresh for Phase 3/8/9
+        try:
+            inserted, updated, errors = sync_positions_from_trades()
+            if errors > 0:
+                logger.warning(f"[POSITION_SYNC] Completed with {errors} errors during sync")
+            else:
+                logger.info(f"[POSITION_SYNC] Completed: {inserted} inserted, {updated} updated")
+
+            # Validate position counts are sane
+            if not validate_position_count():
+                logger.warning("[POSITION_SYNC_VALIDATE] Position count validation failed - possible data mismatch")
+        except RuntimeError as e:
+            logger.error(f"[POSITION_SYNC] CRITICAL: {e}")
+            raise
+
         self.phase_1_data_freshness()
         if not hasattr(self, "_phase1_result"):
             raise RuntimeError("[PHASE 1] phase_1_data_freshness() did not set _phase1_result")

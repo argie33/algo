@@ -1147,7 +1147,16 @@ class DailyReconciliation:
                             f"CRITICAL: Total equity invalid ({total_equity_dec}) - cannot calculate concentration"
                         )
                     max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
+                    # avg_position_size_dec stores the average position VALUE in dollars (NOT a percentage)
+                    # It will be converted to percentage on line 1385-1388
                     avg_position_size_dec = total_position_value / len(positions) if len(positions) > 0 else Decimal(0)
+                    logger.debug(
+                        f"[RECONCILIATION] Concentration metrics: "
+                        f"total_position_value={float(total_position_value):.2f}, "
+                        f"total_equity_dec={float(total_equity_dec):.2f}, "
+                        f"largest_pos={float(largest_position_dec):.2f} ({float(max_concentration_dec):.2f}%), "
+                        f"avg_pos_dollars={float(avg_position_size_dec):.2f}"
+                    )
 
                 cur.execute("""
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -1327,6 +1336,21 @@ class DailyReconciliation:
                 cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
                 cur.fetchone()
                 try:
+                    # Log calculated metrics before insert for debugging
+                    avg_pct_calc = (
+                        (avg_position_size_dec / total_equity_dec * Decimal(100))
+                        if total_equity_dec > 0
+                        else Decimal(0)
+                    )
+                    logger.info(
+                        f"[RECONCILIATION INSERT] Snapshot metrics for {reconcile_date}:\n"
+                        f"  largest_position_pct = {float(max_concentration_dec):.2f}% "
+                        f"(largest ${float(largest_position_dec):.2f} / total equity ${float(total_equity_dec):,.2f})\n"
+                        f"  average_position_size_pct = {float(avg_pct_calc):.2f}% "
+                        f"(avg pos ${float(avg_position_size_dec):.2f} / total equity ${float(total_equity_dec):,.2f})\n"
+                        f"  concentration_risk_pct = {float(max_concentration_dec):.2f}%"
+                    )
+
                     cur.execute(
                         """
                         INSERT INTO algo_portfolio_snapshots (
@@ -1385,7 +1409,7 @@ class DailyReconciliation:
                                 (avg_position_size_dec / total_equity_dec * Decimal(100))
                                 if total_equity_dec > 0
                                 else Decimal(0)
-                            ),  # average_position_size_pct
+                            ),  # average_position_size_pct - should be avg position size as % of portfolio
                             float(max_concentration_dec),  # concentration_risk_pct
                             realized_pnl_today,
                             float(unrealized_pnl),
