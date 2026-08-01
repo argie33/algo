@@ -270,8 +270,9 @@ def run(
                         if pct_decimal > max_size_pct:
                             pct_float = float(pct_decimal)
                             max_size_pct_float = float(max_size_pct)
+                            exceed_amount = pct_float - max_size_pct_float
                             oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
-                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {pct_float - max_size_pct_float:.1f}%)")
+                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {exceed_amount:.1f}%)")
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:

@@ -24,6 +24,7 @@ class TestPositionSizer:
             "max_position_size_pct": 6.3,
             "max_positions": 15,
             "max_concentration_pct": 50.0,
+            "max_total_invested_pct": 90.0,
             "risk_reduction_at_minus_5": 0.75,
             "risk_reduction_at_minus_10": 0.5,
             "risk_reduction_at_minus_15": 0.25,
