@@ -275,7 +275,7 @@ class PositionMonitor:
                     WHERE ap.status = 'open' AND ap.quantity > 0
                     GROUP BY cp.sector
                     HAVING COUNT(DISTINCT ap.symbol) > 3
-                    ORDER BY position_count DESC
+                    ORDER BY COUNT(DISTINCT ap.symbol) DESC
                 """)
                 concentrated = cur.fetchall()
                 if concentrated:
@@ -301,7 +301,7 @@ class PositionMonitor:
                         WHERE ap.status = 'open' AND ap.quantity > 0
                         GROUP BY cp.sector
                         HAVING COUNT(DISTINCT ap.symbol) > 3
-                        ORDER BY position_count DESC
+                        ORDER BY COUNT(DISTINCT ap.symbol) DESC
                     """)
                     concentrated = ctx.fetchall()
                     if concentrated:
