@@ -17,8 +17,9 @@ class TestTrendAnalysisStatusHistoryArchiving:
     def test_completed_status_archives_to_history(self):
         cur = MagicMock()
         cur.fetchone.return_value = (None, None, 500, 100.0, 10, 10)
+        cur.rowcount = 1  # Status manager checks rowcount
 
-        with patch("loaders.load_trend_analysis.DatabaseContext") as mock_ctx:
+        with patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = cur
             _update_loader_status("COMPLETED")
 
@@ -32,8 +33,9 @@ class TestTrendAnalysisStatusHistoryArchiving:
     def test_failed_status_archives_to_history(self):
         cur = MagicMock()
         cur.fetchone.return_value = (None, None, 0, 0.0, 0, 10)
+        cur.rowcount = 1  # Status manager checks rowcount
 
-        with patch("loaders.load_trend_analysis.DatabaseContext") as mock_ctx:
+        with patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = cur
             _update_loader_status("FAILED", error_message="upstream timeout")
 
@@ -49,7 +51,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
 
         cur.execute.side_effect = _execute
 
-        with patch("loaders.load_trend_analysis.DatabaseContext") as mock_ctx:
+        with patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = cur
             _update_loader_status("COMPLETED")  # must not raise
 
@@ -61,7 +63,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
         cur = MagicMock()
         cur.rowcount = 1
 
-        with patch("loaders.load_trend_analysis.DatabaseContext") as mock_ctx:
+        with patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx:
             mock_ctx.return_value.__enter__.return_value = cur
             _update_loader_status("RUNNING")
 
@@ -69,7 +71,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
         assert not any("data_loader_status_history" in sql for sql in executed)
 
     def test_invalid_status_raises(self):
-        with patch("loaders.load_trend_analysis.DatabaseContext"):
+        with patch("utils.loaders.status_manager.DatabaseContext"):
             try:
                 _update_loader_status("BOGUS")
                 raise AssertionError("expected ValueError")

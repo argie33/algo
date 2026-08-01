@@ -31,9 +31,10 @@ class TestPriceLoaderStatusHistoryArchiving:
         cur = MagicMock()
         # First DatabaseContext("read"): COUNT(*), MAX(date). Second: symbol count.
         cur.fetchone.side_effect = [(500, "2026-07-27"), (10,)]
+        cur.rowcount = 1  # Status manager checks rowcount
 
         with (
-            patch("loaders.load_prices.DatabaseContext") as mock_ctx,
+            patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx,
             patch("loaders.load_prices._invalidate_phase1_cache"),
         ):
             mock_ctx.return_value.__enter__.return_value = cur
@@ -51,13 +52,14 @@ class TestPriceLoaderStatusHistoryArchiving:
         loader = _make_loader()
         cur = MagicMock()
         cur.fetchone.side_effect = [(500, "2026-07-27"), (10,)]
+        cur.rowcount = 1  # Status manager checks rowcount
 
         def _execute(sql, *args, **kwargs):
             if "INSERT INTO data_loader_status_history" in sql:
                 raise Exception("boom")
 
         with (
-            patch("loaders.load_prices.DatabaseContext") as mock_ctx,
+            patch("utils.loaders.status_manager.DatabaseContext") as mock_ctx,
             patch("loaders.load_prices._invalidate_phase1_cache"),
         ):
             mock_ctx.return_value.__enter__.return_value = cur
