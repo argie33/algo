@@ -294,12 +294,12 @@ class SignalPatternsMixin:
             closes = [float(r[3]) for r in rows]
 
             # CRITICAL: Validate all required pattern fields are present
+            # NOTE: volume_dryup CAN be None for stocks with <50 bars history (new symbols)
             required_fields = {
                 "base_depth_pct": "base depth percentage",
                 "weeks_in_base": "weeks in base duration",
                 "pivot_high": "pivot high price",
                 "breakout_imminent": "breakout imminent flag",
-                "volume_dryup": "volume dry-up indicator",
             }
             missing_fields = [field for field in required_fields if field not in base_info or base_info[field] is None]
             if missing_fields:
@@ -310,6 +310,12 @@ class SignalPatternsMixin:
                     f"Verify load_base_patterns has run and all technical indicators are available."
                 )
 
+            # GRACEFUL: Allow volume_dryup to be None if insufficient history (new stocks with <50 bars)
+            if base_info.get("volume_dryup") is None:
+                volume_dryup = False  # Default to False if insufficient data
+            else:
+                volume_dryup = base_info["volume_dryup"]
+
             depth = base_info["base_depth_pct"]
             duration = base_info["weeks_in_base"]
 
@@ -318,7 +324,7 @@ class SignalPatternsMixin:
                 "duration_weeks": duration,
                 "pivot_high": base_info["pivot_high"],
                 "breakout_imminent": base_info["breakout_imminent"],
-                "volume_dryup": base_info["volume_dryup"],
+                "volume_dryup": volume_dryup,
             }
 
             if depth > 35:
