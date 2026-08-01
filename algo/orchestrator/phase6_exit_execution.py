@@ -140,9 +140,26 @@ def run(
                     "DRY-RUN: No position monitor recommendations",
                 )
 
-            # In live mode, empty position_recs is normal: Phase 3 ran and found no actions needed
-            # This can happen when all positions are healthy, in paper mode, or during normal market conditions
-            logger.info("[PHASE 6] Position monitor returned no exit recommendations (normal case). Proceeding with zero exits.")
+            # CRITICAL: Check if we have open positions but no recommendations
+            # Phase 3 MUST generate recommendations for all open positions (or halt if it can't)
+            # Empty recommendations + open positions = Phase 3 silently skipped position monitoring
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status='open'")
+                open_position_count = cur.fetchone()[0]
+
+            if open_position_count > 0:
+                msg = (
+                    f"[PHASE 6 CRITICAL] Phase 3 generated no recommendations but {open_position_count} positions are open. "
+                    f"This violates fail-fast position monitoring: Phase 3 must either generate recommendations or halt. "
+                    f"Cannot proceed with unmonitored positions - cannot determine exit conditions or P&L. "
+                    f"This indicates Phase 3 silently skipped position analysis (data integrity violation)."
+                )
+                logger.critical(msg)
+                raise RuntimeError(msg)
+
+            # Empty recommendations + no open positions = normal case
+            # All positions are closed or healthy
+            logger.info("[PHASE 6] Position monitor returned no exit recommendations (normal case - no open positions). Proceeding with zero exits.")
 
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
         # Sector concentration limit: configured via max_positions_per_sector (default 10)
