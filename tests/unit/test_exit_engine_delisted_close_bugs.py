@@ -74,7 +74,14 @@ def _run_with_fetch_recent_prices(mock_config, **fetch_kwargs):
     mock_cur = MagicMock()
     mock_cur.fetchall.return_value = [_make_trade_row(current_date)]
     # FOR UPDATE re-fetch of position status: still open, same quantity/stop
-    mock_cur.fetchone.return_value = ("open", 10, 90.0)
+    # Archive price lookup: returns (price,) - previous trading day close price
+    # Multiple fetchone() calls need different return values:
+    # 1. FOR UPDATE position recheck -> ("open", 10, 90.0)
+    # 2. Archive price lookup -> (95.0,) (last valid archive price before delisting)
+    mock_cur.fetchone.side_effect = [
+        ("open", 10, 90.0),  # FOR UPDATE position recheck
+        (95.0,),             # Archive price lookup
+    ]
 
     mock_ctx = MagicMock()
     mock_ctx.__enter__.return_value = mock_cur
