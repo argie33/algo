@@ -737,15 +737,21 @@ class ExitEngine:
                                 # target the most-recent matching trade_id via a subquery.
                                 open_trade_statuses_close = TradeStatus.all_open()
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
-                                # CRITICAL FIX: For delisted/unavailable symbols, close position with NULL P&L
-                                # Do NOT calculate fake P&L when price is unavailable (no fallback to entry_price)
-                                # Leave current_price and profit_loss fields as NULL to indicate manual review needed
+                                # CRITICAL FIX: For delisted/unavailable symbols, use archive price
+                                # This ensures P&L is calculated with last known market price, not NULL
+                                archive_exit_price = self._get_last_valid_archive_price(cur, symbol, current_date)
+                                profit_loss_dollars = None
+                                profit_loss_pct = None
+                                if archive_exit_price is not None:
+                                    profit_loss_dollars = float((Decimal(str(archive_exit_price)) - Decimal(str(entry_price))) * Decimal(str(_quantity)))
+                                    if entry_price > 0:
+                                        profit_loss_pct = float(((Decimal(str(archive_exit_price)) - Decimal(str(entry_price))) / Decimal(str(entry_price))) * Decimal("100"))
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_time = CURRENT_TIMESTAMP,
-                                       exit_price = NULL,
-                                       profit_loss_dollars = NULL,
-                                       profit_loss_pct = NULL,
+                                       exit_price = %s,
+                                       profit_loss_dollars = %s,
+                                       profit_loss_pct = %s,
                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
                                        WHERE trade_id = (
                                            SELECT trade_id FROM algo_trades
@@ -754,6 +760,9 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
+                                        archive_exit_price,
+                                        profit_loss_dollars,
+                                        profit_loss_pct,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
@@ -761,20 +770,22 @@ class ExitEngine:
                                 )
                                 open_position_statuses_close = PositionStatus.all_active()
                                 position_status_placeholders = ", ".join(["%s"] * len(open_position_statuses_close))
-                                # CRITICAL FIX: For delisted/unavailable symbols, close position with NULL P&L
-                                # Do NOT calculate fake P&L when price is unavailable (no fallback to entry_price)
-                                # Leave current_price and profit_loss fields as NULL to indicate manual review needed
+                                # CRITICAL FIX: For delisted/unavailable symbols, use archive price
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = %s,
-                                       current_price = NULL,
-                                       profit_loss_dollars = NULL,
-                                       profit_loss_pct = NULL,
-                                       unrealized_pnl = NULL,
+                                       current_price = %s,
+                                       profit_loss_dollars = %s,
+                                       profit_loss_pct = %s,
+                                       unrealized_pnl = %s,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
+                                        archive_exit_price,
+                                        profit_loss_dollars,
+                                        profit_loss_pct,
+                                        profit_loss_dollars,
                                         symbol,
                                         *open_position_statuses_close,
                                     ),
