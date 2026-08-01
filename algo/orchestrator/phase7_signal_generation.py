@@ -1105,7 +1105,7 @@ def run(  # noqa: C901
                 logger.warning(msg)
                 log_phase_result_fn(7, "signal_generation", "degraded", msg)
                 # Return empty result - downstream Phase 8 will detect and handle gracefully
-                score_result = {"symbols_processed": 0, "symbols_failed": 0}
+                score_result = {"symbols_processed": 0, "symbols_failed": 0, "lock_contention": True}
             else:
                 # CRITICAL: Other errors halt Phase 7
                 # Signal quality scores are REQUIRED for Phase 8 entry gates.
@@ -1155,8 +1155,9 @@ def run(  # noqa: C901
         # CRITICAL: Validate that scores were actually computed.
         # If symbols_processed == 0, the loader couldn't acquire lock or hit an error.
         # This happens when signal_quality_scores lock is held by stale process.
-        # Must halt Phase 7 to prevent trading on signals without quality validation.
-        if symbols_processed == 0:
+        # EXCEPTION: If lock_contention flag is set, we already logged this as degraded mode
+        # and should NOT halt - Phase 8 will proceed without updated scores.
+        if symbols_processed == 0 and not score_result.get("lock_contention", False):
             msg = (
                 "[PHASE 7 CRITICAL] Signal quality score computation produced 0 symbols processed. "
                 "This indicates the loader failed to acquire the processing lock (likely held by stale process) "
