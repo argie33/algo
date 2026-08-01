@@ -711,6 +711,62 @@ def _get_candidates_from_buysell(
         ) from e
 
 
+def _check_per_day_signal_counts(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> tuple[bool, str | None]:
+    """ISSUE #7 FIX: Validate signal counts for EACH trading day individually.
+
+    Prevents accepting degraded data where one day has insufficient signals (e.g., 100 signals)
+    while another day has enough (e.g., 300), masking the underlying data quality issue.
+
+    Returns: (is_ok: bool, error_message: str | None)
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SET LOCAL statement_timeout = '10000ms'")
+            lookback_start = _buysell_lookback_start_date(run_date)
+
+            # Get signal count for each trading day in lookback window
+            cur.execute(
+                """
+                SELECT date, COUNT(*) as signal_count
+                FROM buy_sell_daily
+                WHERE signal = 'BUY' AND date >= %s AND date <= %s
+                GROUP BY date
+                ORDER BY date DESC
+                """,
+                (lookback_start, run_date),
+            )
+            daily_counts = cur.fetchall()
+
+            if not daily_counts:
+                return True, None  # No signals at all is caught by other checks
+
+            # Check each day individually (threshold of 200 per-day to catch gaps)
+            # Historical median is 300-1000+ per day, so 200 is ~20-30% of median
+            for day_row in daily_counts:
+                signal_date = day_row[0]
+                day_signal_count = day_row[1]
+
+                if day_signal_count < 200:  # Per-day threshold
+                    msg = (
+                        f"[PHASE 7 CRITICAL HALT] buy_sell_daily for {signal_date} has only {day_signal_count} signals "
+                        f"(< per-day threshold of 200). This indicates a data quality gap for that specific day. "
+                        f"Historical normal: 300-1000+ signals per day. "
+                        f"Check: (1) technical_data_daily status for {signal_date}, "
+                        f"(2) buy_sell_daily loader execution for {signal_date}, "
+                        f"(3) price_daily completeness. DO NOT accept degraded data per individual day."
+                    )
+                    logger.critical(msg)
+                    log_phase_result_fn(7, "signal_generation", "halt", msg)
+                    return False, msg
+
+            return True, None
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        msg = f"[PHASE 7 CRITICAL] Could not validate per-day signal counts: {e}"
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(7, "signal_generation", "halt", msg)
+        return False, msg
+
+
 def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> tuple[bool, str | None]:
     """Check all critical dependencies for Phase 7 BEFORE attempting signal generation.
 
@@ -1012,6 +1068,14 @@ def run(  # noqa: C901
     if not ok:
         return PhaseResult(
             7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, dep_error
+        )
+
+    # ISSUE #7 FIX: Check per-day signal counts to catch individual day degradation
+    # Prevents accepting 250 total signals (150 Fri + 100 Mon) when Friday had a data gap
+    ok_per_day, per_day_error = _check_per_day_signal_counts(run_date, log_phase_result_fn)
+    if not ok_per_day:
+        return PhaseResult(
+            7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, per_day_error
         )
 
     # SESSION 367 FIX: Compute signal quality scores BEFORE Phase 8 entry
