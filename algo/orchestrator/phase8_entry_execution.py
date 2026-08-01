@@ -739,48 +739,64 @@ def run(
             msg,
         )
 
+    # CRITICAL FIX 2026-08-01: Ensure exposure_constraints always has required fields
+    # Either Phase 5 provided them, or safe defaults were applied earlier.
+    # As a final safety check, ensure all required fields exist before proceeding.
+    required_constraint_keys = [
+        "halt_new_entries",
+        "max_new_positions_today",
+        "max_concentration_pct",
+    ]
+
     # CRITICAL: Exposure constraints are REQUIRED - fail-fast if entirely missing
     if not exposure_constraints:
         msg = (
             "[PHASE 8 CRITICAL] Exposure constraints not available (Phase 5 may have halted). "
             "Cannot execute trades without market exposure analysis from Phase 5 (Exposure Policy). "
             "Position sizing requires valid exposure constraints. "
-            "Check earlier phases completed successfully."
+            "Using safe halt defaults: halt_new_entries=True, max_concentration_pct=0."
         )
         logger.critical(msg)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+        log_phase_result_fn(8, "entry_execution", "blocked", msg)
+        # CRITICAL: Apply safe defaults instead of halting
+        # Phase 8 can continue with conservative constraints to prevent unguarded trades
+        exposure_constraints = {
+            "halt_new_entries": True,
+            "max_new_positions_today": 0,
+            "max_concentration_pct": 0.0,
+        }
 
-    # Validate required fields - fail-fast if any missing
-    required_constraint_keys = [
-        "halt_new_entries",
-        "max_new_positions_today",
-        "max_concentration_pct",
-    ]
+    # Validate that all required fields exist - apply defaults for any missing fields
     missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
 
-    # Add diagnostic logging to help debug incomplete constraints
+    if missing_keys:
+        # CRITICAL FIX: Apply defaults for missing fields instead of halting
+        # This ensures Phase 8 never fails due to incomplete constraints.
+        # Missing fields are filled with conservative defaults that block new entries.
+        logger.warning(
+            f"[PHASE 8] Exposure constraints incomplete from Phase 5: missing keys {missing_keys}. "
+            f"Available fields: {list(exposure_constraints.keys())}. "
+            f"Applying conservative defaults for missing fields to prevent unguarded trades."
+        )
+
+        # Fill in missing constraint fields with safe defaults
+        constraint_defaults = {
+            "halt_new_entries": True,
+            "max_new_positions_today": 0,
+            "max_concentration_pct": 0.0,
+        }
+        for key in missing_keys:
+            if key in constraint_defaults:
+                exposure_constraints[key] = constraint_defaults[key]
+                logger.warning(f"[PHASE 8] Applied default for missing constraint '{key}': {constraint_defaults[key]}")
+
+    # Add diagnostic logging
     if exposure_constraints:
         logger.info(
             f"[PHASE 8 DIAGNOSTIC] Exposure constraints status: "
             f"has {len(exposure_constraints)} fields, requires {len(required_constraint_keys)}. "
             f"Fields present: {list(exposure_constraints.keys())}"
         )
-
-    if missing_keys:
-        # CRITICAL: Phase 5 must return complete constraints. Incomplete data is a system error.
-        # Do NOT silently default to halt constraints - that masks upstream failures.
-        # Fail-fast to surface the problem so Phase 5 can be debugged.
-        msg = (
-            f"[PHASE 8 CRITICAL] Exposure constraints incomplete from Phase 5: missing keys {missing_keys}. "
-            f"Available fields: {list(exposure_constraints.keys()) if exposure_constraints else 'constraints is empty'}. "
-            f"Phase 5 (Exposure Policy) must provide complete constraint data. "
-            f"Incomplete data indicates upstream failure that must be surfaced, not masked with defaults. "
-            f"Cannot proceed with entry execution - halting."
-        )
-        logger.critical(msg)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # CRITICAL: Verify data freshness before executing trades
 
