@@ -689,7 +689,7 @@ class PositionMonitor:
         flags = []
 
         # 3a. Relative strength vs SPY (degrading?)
-        rs_state = self._check_relative_strength(symbol, current_date)
+        rs_state = self._check_relative_strength(symbol, current_date, cur=cur)
         if rs_state == "weakening":
             flags.append("RS_WEAKENING")
         rs_label = rs_state
@@ -712,7 +712,7 @@ class PositionMonitor:
         # Try to fetch earnings data, but continue without it if unavailable (new IPOs may not have earnings scheduled)
         days_to_earn: int | None = None
         try:
-            days_to_earn = self._days_to_earnings(symbol, current_date)
+            days_to_earn = self._days_to_earnings(symbol, current_date, cur=cur)
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
         except (ValueError, RuntimeError) as e:
@@ -724,7 +724,7 @@ class PositionMonitor:
         # 3f. Distribution-day stress (graceful degradation on early-day NULL data)
         market_dist_days: int | None = None
         try:
-            market_dist_days = self._fetch_market_dist_days(current_date)
+            market_dist_days = self._fetch_market_dist_days(current_date, cur=cur)
         except (ValueError, RuntimeError) as e:
             # Graceful degradation: distribution data may be NULL early in the trading day
             # before market_exposure_daily loader has run. Continue without this check.
@@ -993,10 +993,18 @@ class PositionMonitor:
         final_stop = max(new_stop, active_stop)
         return float(Decimal(str(final_stop)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-    def _check_relative_strength(self, symbol: str, current_date: _date | datetime) -> str:
-        """20-day relative return vs SPY: weakening / neutral / strong."""
+    def _check_relative_strength(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> str:
+        """20-day relative return vs SPY: weakening / neutral / strong.
+
+        Args:
+            symbol: Stock symbol to check
+            current_date: Date to check from
+            cur: Optional cursor to use. If None, opens new DatabaseContext.
+                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+                 to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
+        """
         try:
-            stock = self._period_return(symbol, current_date, 20)
+            stock = self._period_return(symbol, current_date, 20, cur=cur)
         except (ValueError, RuntimeError) as e:
             raise PositionValidationError(
                 f"[RS_CALCULATION_FAILED] Cannot evaluate relative strength for {symbol}: {e}. "
@@ -1004,7 +1012,7 @@ class PositionMonitor:
             ) from e
 
         try:
-            spy = self._period_return("SPY", current_date, 20)
+            spy = self._period_return("SPY", current_date, 20, cur=cur)
         except (ValueError, RuntimeError) as e:
             raise PositionValidationError(
                 f"[RS_CALCULATION_FAILED] Cannot evaluate market baseline (SPY) for RS: {e}. "
@@ -1247,8 +1255,15 @@ class PositionMonitor:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
 
-    def _days_to_earnings(self, symbol: str, current_date: _date | datetime) -> int:
+    def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> int:
         """Get days until next earnings from earnings_calendar.
+
+        Args:
+            symbol: Stock symbol to check
+            current_date: Date to check from
+            cur: Optional cursor to use. If None, opens new DatabaseContext.
+                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+                 to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
 
         Raises:
             ValueError: If earnings data unavailable for symbol (fail-fast consistency with advanced_filters)
@@ -1258,15 +1273,25 @@ class PositionMonitor:
         which also raises ValueError when earnings data missing.
         """
         try:
-            # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
-            with DatabaseContext("read") as fresh_cur:
-                fresh_cur.execute(
+            # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
+            # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
+            if cur is not None:
+                cur.execute(
                     """SELECT earnings_date FROM earnings_calendar
                        WHERE symbol = %s AND earnings_date >= %s
                        ORDER BY earnings_date ASC LIMIT 1""",
                     (symbol, current_date),
                 )
-                row = fresh_cur.fetchone()
+                row = cur.fetchone()
+            else:
+                with DatabaseContext("read") as fresh_cur:
+                    fresh_cur.execute(
+                        """SELECT earnings_date FROM earnings_calendar
+                           WHERE symbol = %s AND earnings_date >= %s
+                           ORDER BY earnings_date ASC LIMIT 1""",
+                        (symbol, current_date),
+                    )
+                    row = fresh_cur.fetchone()
             if row is None or row[0] is None:
                 raise ValueError(
                     f"Earnings data unavailable for {symbol}: no future earnings date found in earnings_calendar"
@@ -1277,8 +1302,14 @@ class PositionMonitor:
                 f"Earnings query failed for {symbol}: {e}. Cannot proceed without earnings data for position monitoring."
             ) from e
 
-    def _fetch_market_dist_days(self, current_date: _date | datetime) -> int:
+    def _fetch_market_dist_days(self, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> int:
         """Get market distribution days from health data.
+
+        Args:
+            current_date: Date to check
+            cur: Optional cursor to use. If None, opens new DatabaseContext.
+                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+                 to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
 
         Raises:
             ValueError: If market health data is unavailable for the date
@@ -1295,14 +1326,23 @@ class PositionMonitor:
         # the equivalent for execution_mode='auto' (Phase 3 short-circuits before reaching it
         # in paper mode, so this path is currently dormant but will hit the same crash the
         # moment auto/live mode runs with an open position).
-        # CRITICAL FIX 2026-07-30: Use fresh DatabaseContext instead of reusing passed cursor
-        with DatabaseContext("read") as fresh_cur:
-            fresh_cur.execute(
+        # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
+        # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
+        if cur is not None:
+            cur.execute(
                 "SELECT distribution_days, data_unavailable, reason FROM market_exposure_daily "
                 "WHERE date <= %s AND distribution_days IS NOT NULL ORDER BY date DESC LIMIT 1",
                 (current_date,),
             )
-            row = fresh_cur.fetchone()
+            row = cur.fetchone()
+        else:
+            with DatabaseContext("read") as fresh_cur:
+                fresh_cur.execute(
+                    "SELECT distribution_days, data_unavailable, reason FROM market_exposure_daily "
+                    "WHERE date <= %s AND distribution_days IS NOT NULL ORDER BY date DESC LIMIT 1",
+                    (current_date,),
+                )
+                row = fresh_cur.fetchone()
         if not row:
             raise ValueError(
                 f"Market distribution days not available for {current_date} - market_exposure_daily table missing or empty"
@@ -1323,8 +1363,16 @@ class PositionMonitor:
 
         return int(row[0])
 
-    def _period_return(self, symbol: str, end_date: _date, lookback_days: int) -> float:
+    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: PsycopgCursor[Any] | None = None) -> float:
         """Compute simple return over a lookback period.
+
+        Args:
+            symbol: Stock symbol to check
+            end_date: End date for period
+            lookback_days: Number of days to look back
+            cur: Optional cursor to use. If None, opens new DatabaseContext.
+                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+                 to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
 
         Raises:
             ValueError: If price data is missing or invalid for the period
@@ -1332,10 +1380,10 @@ class PositionMonitor:
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_1d = get_interval_sql("1d")
-        # FIX 2026-07-31: Use fresh DatabaseContext for independent read query
-        # Each calculation manages its own database context
-        with DatabaseContext("read") as fresh_cur:
-            fresh_cur.execute(
+        # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
+        # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
+        if cur is not None:
+            cur.execute(
                 f"""
                 WITH bracket AS (
                     SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
@@ -1349,7 +1397,24 @@ class PositionMonitor:
                 """,
                 (symbol, end_date, end_date, lookback_days + 5),
             )
-            row = fresh_cur.fetchone()
+            row = cur.fetchone()
+        else:
+            with DatabaseContext("read") as fresh_cur:
+                fresh_cur.execute(
+                    f"""
+                    WITH bracket AS (
+                        SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE symbol = %s AND date <= %s
+                          AND date >= %s::date - (%s * {interval_1d})
+                    )
+                    SELECT
+                        (SELECT close FROM bracket WHERE rn = 1),
+                        (SELECT close FROM bracket ORDER BY rn DESC LIMIT 1)
+                    """,
+                    (symbol, end_date, end_date, lookback_days + 5),
+                )
+                row = fresh_cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(
                 f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) - insufficient price history"
