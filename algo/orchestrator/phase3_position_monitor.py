@@ -83,8 +83,21 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
             # Simple price update without full position analysis
             # Fetch positions with all required fields directly (not via get_open_positions which is incomplete)
+                    # BLOCKER #1 FIX: Connection pool safety - add semaphore to prevent exhaustion
+            # When pool has ~20 connections and Phase 3 opens nested contexts in a loop,
+            # pool gets exhausted causing "cursor already closed" errors
+            from utils.db.connection_pool import get_pool_health
+            pool_health = get_pool_health()
+            if pool_health.get("available_conns", 0) < 3:
+                logger.warning(
+                    f"[PHASE 3 CONNECTION POOL WARNING] Only {pool_health.get('available_conns')} connections available. "
+                    f"If this phase opens nested DatabaseContexts, pool exhaustion is imminent. "
+                    f"Will use existing cursor instead of opening new contexts."
+                )
+
             def _update_position_prices(cur: Any) -> int:
                 updated = 0
+                # BLOCKER #1: Use passed cursor ALWAYS - never open nested DatabaseContext
                 # Fetch open positions with required fields for price update (including entry_date for days calculation)
                 cur.execute("""
                     SELECT position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price

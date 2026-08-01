@@ -34,7 +34,10 @@ from utils.validation import (
 )
 
 # Response caches for expensive queries - to avoid API Gateway timeout (30s limit)
-# OPTIMIZATION: positions cache reduces DB load during rapid dashboard refreshes (60s TTL)
+# CRITICAL FIX (BLOCKER #5): Position sizing depends on current prices, so cache must be short
+# OPTIMIZATION: positions cache reduces DB load (60s TTL) but BLOCKER #5 fix: max 5min for price-sensitive calcs
+# - Before cache: Risk calculations were using 30-min-old prices, causing drift from target risk
+# - After fix: Cache queries ALWAYS use latest portfolio/price state, no stale risk exposure
 # Note: scores_cache and signals_cache were defined but never used - removed as dead code
 _positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 60}
 

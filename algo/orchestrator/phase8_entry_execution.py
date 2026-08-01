@@ -1,17 +1,47 @@
 #!/usr/bin/env python3
 
-"""
+"""PHASE 8: ENTRY EXECUTION - Transform signals into positions with strict validation.
 
-PHASE 8: ENTRY EXECUTION
+Core responsibility: Execute buy signals from Phase 7 while enforcing multiple safety gates
+and data quality checks. Phase 8 transforms qualified signals into actual positions with
+rigorous risk management.
 
-For each qualified signal from Phase 5:
+CONSTRAINT VALIDATION STRATEGY (AUDIT ISSUE #15):
+Phase 8 receives exposure constraints from Phase 5 (ExposurePolicy tier settings).
+These constraints must be validated BEFORE any trade execution:
+- All required keys present (halt_new_entries, max_new_positions_today, max_concentration_pct, regime)
+- All values have correct types (bool, int, float, string)
+- All values within valid ranges (concentration 0-100%, regime = expansion/correction/caution)
+- If invalid: Phase 8 halts with clear error message
+See: _validate_constraints_for_phase8() for implementation.
+
+HALT FLAG PROPAGATION (AUDIT ISSUE #7):
+When Phase 7 halts (due to missing signal data):
+- qualified_trades is empty or None
+- Phase 8 gracefully handles this (no entries, not fatal)
+- Phase 7 status propagates to Phase 8's risk checks via executor.get_result(7)
+
+DATA QUALITY VALIDATION (AUDIT ISSUE #4):
+Before any trade execution:
+- Technical data: ATR >= 0.01 (not frozen), SMA_50 > 0 (valid data)
+- Prices: entry_price > 0, stop_loss > 0 and < entry_price
+- Quantities: must be positive integers
+Invalid data skipped per-signal with logging, not fatal.
+
+POSITION SYNC VALIDATION (AUDIT ISSUE #3):
+Position synchronization from trades to algo_positions:
+- Validates: entry_price NOT NULL and > 0, quantity > 0
+- Prevents corrupted records
+See: algo/orchestration/position_sync.py for implementation.
+
+EXECUTION PIPELINE for each qualified signal from Phase 7:
 
 1. Check halt flag before any entry
-2. Check exposure constraints from Phase 3b
+2. Check exposure constraints from Phase 5 (ExposurePolicy tier)
 3. Run liquidity checks (ADV, dollar volume, price history age)
 4. Compute true ATR (max of H-L, |H-prev_C|, |L-prev_C|) anchored to run_date
 5. Compute SMA_50 anchored to run_date
-6. Stop loss: min(SMA_50 - ATR, entry - 2*ATR) - lower stop = more room for the trade
+6. Stop loss: min(SMA_50 - ATR, entry - 1.2*ATR) - lower stop = more room for the trade
 7. Use PositionSizer for regime-aware, drawdown-adjusted sizing
 8. Run PreTradeChecks (size cap, duplicate prevention, minimum order)
 9. Execute trade
@@ -65,49 +95,87 @@ VALID_REGIMES = ["expansion", "correction", "caution"]
 
 
 def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> None:
-    """ISSUE 15 FIX: Validate exposure constraints before using in Phase 8 entry execution.
+    """AUDIT ISSUE #15 FIX: Validate exposure constraints before using in Phase 8 entry execution.
 
     Ensures all required constraint fields have valid values. Fail-fast if invalid.
+    This validation is CRITICAL because exposure constraints control position sizing,
+    concentration limits, and entry blocking - incorrect values could lead to oversized
+    positions or entries outside policy.
+
+    RATIONALE: Data integrity first. Phase 5 (ExposurePolicy) generates these constraints
+    from market regime, volatility, and drawdown metrics. If Phase 5 produces invalid
+    constraints due to data corruption or logic error, Phase 8 must catch it BEFORE
+    attempting any trades, not after position sizing causes damage.
+
+    Validation checkpoints:
+    1. Constraint dict exists and is proper type
+    2. All required keys are present
+    3. Each value has correct type
+    4. Each value is within valid range
+    5. Enum values (regime) are from allowed list
+
+    If any check fails, Phase 8 halts with clear error message explaining which field
+    failed and why. Operator can then investigate Phase 5 output.
 
     Raises:
-        ValueError: If any constraint is invalid or missing
+        TypeError: If exposure_constraints is not a dict
+        ValueError: If any constraint is invalid or missing (includes all details)
     """
     if not isinstance(exposure_constraints, dict):
         raise TypeError(f"exposure_constraints must be dict, got {type(exposure_constraints).__name__}")
 
     errors = []
 
-    # Check required keys exist
+    # CHECKPOINT 1: All required keys must be present
+    # These fields are mandatory for Phase 8 to make safe trading decisions
     required_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct", "regime"]
     for key in required_keys:
         if key not in exposure_constraints:
             errors.append(f"Missing required key: {key}")
 
-    # Validate individual field values
+    # CHECKPOINT 2-5: Validate individual field values
+    # Each validation includes type check and range check (if applicable)
+
     if "halt_new_entries" in exposure_constraints:
+        # AUDIT ISSUE #15: bool type required (not truthy/falsy string)
         val = exposure_constraints.get("halt_new_entries")
         if not isinstance(val, bool):
             errors.append(f"halt_new_entries must be bool, got {type(val).__name__}")
 
     if "max_new_positions_today" in exposure_constraints:
+        # AUDIT ISSUE #15: int >= 0 required (prevents negative or fractional positions)
         val = exposure_constraints.get("max_new_positions_today")
         if not isinstance(val, int) or val < 0:
             errors.append(f"max_new_positions_today must be int >= 0, got {val}")
 
     if "max_concentration_pct" in exposure_constraints:
+        # AUDIT ISSUE #15: percentage must be 0-100 (valid range for concentration)
+        # Allows 0% (no single-stock limit) to 100% (entire portfolio in one stock, not recommended)
         val = exposure_constraints.get("max_concentration_pct")
         if not isinstance(val, (int, float)) or not (0.0 <= val <= 100.0):
             errors.append(f"max_concentration_pct must be 0.0-100.0, got {val}")
 
     if "regime" in exposure_constraints:
+        # AUDIT ISSUE #15: regime must be from defined set (expansion/correction/caution)
+        # Maps to market conditions and position sizing tier in ExposurePolicy
         regime = exposure_constraints.get("regime", "").lower()
         if regime not in VALID_REGIMES:
             errors.append(f"regime must be one of {VALID_REGIMES}, got '{regime}'")
 
+    # If any validation failed, halt with comprehensive error message
     if errors:
         error_msg = f"Invalid exposure constraints for Phase 8: {'; '.join(errors)}"
         logger.error(f"[PHASE 8] {error_msg}")
         raise ValueError(error_msg)
+
+    # AUDIT TRAIL: Log successful constraint validation for monitoring and audit
+    logger.info(
+        f"[PHASE 8 AUDIT] Constraint validation passed: "
+        f"halt_new_entries={exposure_constraints.get('halt_new_entries')}, "
+        f"max_new_positions={exposure_constraints.get('max_new_positions_today')}, "
+        f"max_concentration={exposure_constraints.get('max_concentration_pct')}%, "
+        f"regime={exposure_constraints.get('regime')}"
+    )
 
 
 def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[float, float]:
@@ -1491,35 +1559,54 @@ def run(
         logger.warning("[PHASE 8] Halt flag set - skipping inline scorer and trade execution loop")
         qualified_trades = []
 
-    # ISSUE 4: Data quality edge cases validation - validate ATR and SMA before trade processing
+    # ISSUE 4 FIX: Data quality edge cases validation - validate ATR and SMA before trade processing
+    # AUDIT TRAIL: Log successful validation passes for audit trail and monitoring
     # Check technical data quality for all symbols in qualified_trades
     validated_trades = []
+    data_quality_failures = {}
+
     for signal in qualified_trades:
         symbol = signal.get("symbol")
         if not symbol:
             logger.warning("[PHASE 8] Signal missing symbol - skipping")
+            data_quality_failures[symbol or "unknown"] = "missing_symbol"
             continue
 
         tech = merged_technical_data.get(str(symbol))
         if not tech:
             logger.error(f"[PHASE 8] {symbol}: Technical data not found in cache - skipping")
+            data_quality_failures[symbol] = "technical_data_not_found"
             continue
 
         atr = tech.get("atr_14")
         sma_50 = tech.get("sma_50")
 
-        # Validate ATR >= 0.01 (minimum 1 cent volatility)
+        # AUDIT ISSUE #4: Validate ATR >= 0.01 (minimum 1 cent volatility)
+        # WHY: ATR < 0.01 indicates frozen/stale data or penny stock with zero recent movement
+        # RATIONALE: Prevents position sizing errors on stocks with no volatility
         if atr is not None and float(atr) < 0.01:
-            logger.error(f"[PHASE 8] {symbol}: Invalid ATR {atr} (must be >= 0.01) - skipping trade")
+            logger.error(f"[PHASE 8 DATA QUALITY] {symbol}: Invalid ATR {atr} (must be >= 0.01) - skipping trade")
+            data_quality_failures[symbol] = f"invalid_atr_{atr}"
             continue
 
-        # Validate SMA_50 > 0
+        # AUDIT ISSUE #4: Validate SMA_50 > 0
+        # WHY: SMA_50 <= 0 is impossible for positive prices; indicates data corruption
+        # RATIONALE: Catches corrupted technical data before position sizing
         if sma_50 is not None and float(sma_50) <= 0:
-            logger.error(f"[PHASE 8] {symbol}: Invalid SMA_50 {sma_50} (must be > 0) - skipping trade")
+            logger.error(f"[PHASE 8 DATA QUALITY] {symbol}: Invalid SMA_50 {sma_50} (must be > 0) - skipping trade")
+            data_quality_failures[symbol] = f"invalid_sma50_{sma_50}"
             continue
 
-        # Trade passed data quality checks, add to validated list
+        # AUDIT TRAIL: Trade passed all data quality checks
+        logger.info(f"[PHASE 8 DATA QUALITY] {symbol}: Technical data validated (ATR={atr:.2f}, SMA_50={sma_50:.2f})")
         validated_trades.append(signal)
+
+    # Log data quality metrics
+    if data_quality_failures:
+        logger.warning(
+            f"[PHASE 8 AUDIT] Data quality validation: {len(validated_trades)} passed, "
+            f"{len(data_quality_failures)} rejected. Failures: {data_quality_failures}"
+        )
 
     # Use validated trades for execution
     qualified_trades = validated_trades

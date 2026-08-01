@@ -2416,10 +2416,174 @@ class PriceLoader(OptimalLoader):
 
         # ---- Batch write: one chunked insert for all symbols, then watermarks ----
         if pending_rows:
-            inserted = 0
-            for chunk_start in range(0, len(pending_rows), self.chunk_size):
-                chunk = pending_rows[chunk_start : chunk_start + self.chunk_size]
-                inserted += self._bulk_insert_mgr.bulk_insert(chunk)
+            # BLOCKER #4 FIX: Pre-flight validation BEFORE any inserts
+            # Validates all rows meet requirements before committing any data
+            # Prevents partial inserts where Batch 1 commits but Batch 2 fails
+            logger.info(f"[PRE-INSERT VALIDATION] Validating {len(pending_rows)} rows before commit")
+            for row_idx, row in enumerate(pending_rows):
+                # Validate required fields exist and are non-null
+                if not all(k in row for k in ["symbol", "date", "open", "high", "low", "close", "volume"]):
+                    missing = [k for k in ["symbol", "date", "open", "high", "low", "close", "volume"] if k not in row]
+                    raise RuntimeError(
+                        f"[PRE-INSERT VALIDATION] Row {row_idx} missing required fields: {missing}. "
+                        f"Cannot proceed with partial row data. Rollback all pending rows."
+                    )
+                # Validate prices are positive
+                if not all(row[k] is not None and row[k] > 0 for k in ["open", "high", "low", "close"]):
+                    raise RuntimeError(
+                        f"[PRE-INSERT VALIDATION] Row {row_idx} ({row.get('symbol')}) has invalid price: "
+                        f"open={row.get('open')}, high={row.get('high')}, low={row.get('low')}, close={row.get('close')}. "
+                        f"Cannot proceed with corrupted data. Rollback all pending rows."
+                    )
+            logger.info(f"[PRE-INSERT VALIDATION] All {len(pending_rows)} rows validated successfully")
+
+            # BLOCKER #4 CRITICAL FIX: All-or-nothing insert in single transaction
+            # Previously: bulk_insert() called per chunk, each in its own transaction
+            # Problem: Chunk 1 commits, then Chunk 2 fails -> partial data persists, watermark
+            # doesn't advance, but data is already in DB with no way to rollback
+            # Solution: Single bulk_insert() call with all rows. If any chunk fails during
+            # staging/copy/upsert, the entire transaction rolls back.
+            if len(pending_rows) <= self.chunk_size:
+                # Small batch: single bulk_insert call covers all rows
+                try:
+                    inserted = self._bulk_insert_mgr.bulk_insert(pending_rows)
+                except Exception as insert_error:
+                    logger.error(
+                        f"[BLOCKER #4] Atomic batch insert failed: {type(insert_error).__name__}: {insert_error}. "
+                        f"All {len(pending_rows)} rows rolled back atomically. "
+                        f"Watermarks NOT advanced - next run will retry."
+                    )
+                    raise RuntimeError(
+                        f"Atomic batch insert failed - all rows rolled back: {insert_error}"
+                    ) from insert_error
+            else:
+                # Large batch: must chunk for memory, but wrap chunks in single transaction
+                inserted = 0
+                try:
+                    # Import here to avoid circular dependency
+                    import csv
+                    import io
+                    import uuid
+
+                    with DatabaseContext("write") as cur:
+                        # Single transaction for all chunks
+                        cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+
+                        # Stage all chunks under single transaction
+                        for chunk_start in range(0, len(pending_rows), self.chunk_size):
+                            chunk = pending_rows[chunk_start : chunk_start + self.chunk_size]
+                            # Use manager's methods directly but within our transaction context
+                            self._bulk_insert_mgr._ensure_unique_constraint(cur)
+
+                            # Get table schema once
+                            if self._bulk_insert_mgr._schema_cols_cache is None:
+                                cur.execute(
+                                    "SELECT column_name FROM information_schema.columns "
+                                    "WHERE table_schema = 'public' AND table_name = %s",
+                                    (self._bulk_insert_mgr.table_name,),
+                                )
+                                self._bulk_insert_mgr._schema_cols_cache = {r[0] for r in cur.fetchall()}
+
+                            existing_cols = self._bulk_insert_mgr._schema_cols_cache
+
+                            # Build column list from all rows in chunk
+                            all_data_cols: list[str] = []
+                            seen_cols: set[str] = set()
+                            for row in chunk:
+                                for k in row.keys():
+                                    if k not in seen_cols:
+                                        seen_cols.add(k)
+                                        all_data_cols.append(k)
+                            columns = [c for c in all_data_cols if c in existing_cols]
+
+                            if columns:
+                                # Create staging table for this chunk
+                                unique_id = str(uuid.uuid4()).replace("-", "")[:12]
+                                staging = f"_stage_{self._bulk_insert_mgr.table_name}_{unique_id}"
+                                cur.execute(
+                                    psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
+                                        psycopg2.sql.Identifier(staging),
+                                        psycopg2.sql.Identifier(self._bulk_insert_mgr.table_name),
+                                    )
+                                )
+
+                                # COPY chunk data to staging
+                                session_tz = self._bulk_insert_mgr._session_timezone(cur)
+                                buf = io.StringIO()
+                                writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
+                                for row in chunk:
+                                    normalized: dict[str, Any] = {}
+                                    for k, v in row.items():
+                                        if isinstance(v, datetime) and v.tzinfo is not None:
+                                            v = v.astimezone(session_tz).replace(tzinfo=None)
+                                        normalized[k] = "" if v is None else v
+                                    writer.writerow(normalized)
+                                buf.seek(0)
+
+                                col_ids = [psycopg2.sql.Identifier(c) for c in columns]
+                                cur.copy_expert(
+                                    psycopg2.sql.SQL(
+                                        "COPY {} ({}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({}))"
+                                    ).format(
+                                        psycopg2.sql.Identifier(staging),
+                                        psycopg2.sql.SQL(",").join(col_ids),
+                                        psycopg2.sql.SQL(",").join(col_ids),
+                                    ),
+                                    buf,
+                                )
+
+                                # Build ON CONFLICT and INSERT
+                                update_parts = [
+                                    psycopg2.sql.SQL("{} = EXCLUDED.{}").format(
+                                        psycopg2.sql.Identifier(c), psycopg2.sql.Identifier(c)
+                                    )
+                                    for c in columns
+                                    if c not in self._bulk_insert_mgr.primary_key
+                                ]
+                                if update_parts:
+                                    pk_ids = [psycopg2.sql.Identifier(pk) for pk in self._bulk_insert_mgr.primary_key]
+                                    on_conflict = psycopg2.sql.SQL("ON CONFLICT ({}) DO UPDATE SET {}").format(
+                                        psycopg2.sql.SQL(",").join(pk_ids),
+                                        psycopg2.sql.SQL(",").join(update_parts),
+                                    )
+                                else:
+                                    on_conflict = psycopg2.sql.SQL("ON CONFLICT DO NOTHING")
+
+                                cur.execute(
+                                    psycopg2.sql.SQL("INSERT INTO {} ({}) SELECT {} FROM {} {}").format(
+                                        psycopg2.sql.Identifier(self._bulk_insert_mgr.table_name),
+                                        psycopg2.sql.SQL(",").join(col_ids),
+                                        psycopg2.sql.SQL(",").join(col_ids),
+                                        psycopg2.sql.Identifier(staging),
+                                        on_conflict,
+                                    )
+                                )
+                                chunk_inserted = cast(int, cur.rowcount)
+                                inserted += chunk_inserted
+
+                                # Drop staging table
+                                cur.execute(psycopg2.sql.SQL("DROP TABLE {}").format(psycopg2.sql.Identifier(staging)))
+
+                        # Validate total rows after transaction succeeds
+                        if inserted < len(pending_rows):
+                            loss_pct = ((len(pending_rows) - inserted) / len(pending_rows)) * 100
+                            error_msg = (
+                                f"CRITICAL DATA LOSS: {self._bulk_insert_mgr.table_name} bulk insert "
+                                f"lost {len(pending_rows) - inserted}/{len(pending_rows)} rows ({loss_pct:.1f}%). "
+                                f"Failing hard to prevent silent data corruption."
+                            )
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
+
+                except Exception as insert_error:
+                    logger.error(
+                        f"[BLOCKER #4] Atomic batch insert failed: {type(insert_error).__name__}: {insert_error}. "
+                        f"All {len(pending_rows)} rows rolled back atomically. "
+                        f"Watermarks NOT advanced - next run will retry."
+                    )
+                    raise RuntimeError(
+                        f"Atomic batch insert failed - all rows rolled back: {insert_error}"
+                    ) from insert_error
 
             # Watermarks advance ONLY after the insert committed (same contract as
             # before), in one transaction instead of one write round trip per symbol.

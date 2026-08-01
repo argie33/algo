@@ -1,10 +1,31 @@
 #!/usr/bin/env python3
 """Intraday position synchronization from trades to algo_positions.
 
+DATA VALIDATION STRATEGY (AUDIT ISSUE #3):
+This module synchronizes position data from the trades table to the algo_positions table,
+ensuring position tracking stays accurate throughout intraday trading. Critical data
+validation ensures corrupted or incomplete position records never enter algo_positions:
+
+1. Entry price validation:
+   - REQUIRED: entry_price NOT NULL (prevents orphaned positions)
+   - REQUIRED: entry_price > 0 (prevents negative/zero prices)
+   - RATIONALE: Entry price is essential for P&L calculation, position sizing,
+     and risk metrics. NULL or invalid entry prices mask position data problems.
+
+2. Quantity validation:
+   - REQUIRED: quantity > 0 (prevents zero/negative quantities)
+   - RATIONALE: Position size must be positive. Zero quantity = no position.
+     Negative quantity = position corrupted (double-sell or sync error).
+
+3. Position ID validation:
+   - REQUIRED: position_id exists before insert/update
+   - RATIONALE: Ensures referential integrity with trades table
+
 This ensures position data stays in sync with actual trades throughout the day,
 not just at the midnight loader refresh.
 
 Used by: Phase 1 (after data validation) to ensure positions are fresh
+See also: algo/orchestrator/phase8_entry_execution.py for related position tracking
 """
 
 import logging
@@ -76,20 +97,32 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                         if trade_row and trade_row[1]:
                             entry_price, position_id = trade_row
 
-                            # ISSUE 3: Validate position data BEFORE insert/update
-                            # Check entry_price IS NOT NULL and > 0
+                            # AUDIT ISSUE #3 FIX: Validate position data BEFORE insert/update
+                            # CHECKPOINT 1: Check entry_price IS NOT NULL and > 0
+                            # WHY: Entry price is mandatory for P&L calculation, stop loss placement,
+                            # and risk metrics. NULL entry_price creates orphaned positions that:
+                            # - Cannot calculate realized/unrealized P&L
+                            # - Cannot place valid stop losses
+                            # - Corrupt portfolio risk calculations (SUM ignores NULL)
+                            # FAIL-FAST: Reject position rather than insert corrupted data
                             if not entry_price or entry_price <= 0:
                                 raise RuntimeError(
                                     f"[POSITION_SYNC] Cannot sync position {position_id} for {symbol}: "
                                     f"entry_price is NULL or <= 0 (value={entry_price}). "
-                                    f"Cannot create corrupted position data."
+                                    f"Cannot create corrupted position data. "
+                                    f"Verify trade entry_price was recorded correctly."
                                 )
 
-                            # Check quantity > 0 (already checked in GROUP BY but verify again)
+                            # CHECKPOINT 2: Check quantity > 0 (already checked in GROUP BY but verify again)
+                            # WHY: Quantity must be positive. Zero quantity = no position (shouldn't exist).
+                            # Negative quantity = position corrupted (double-sold or sync error).
+                            # Verify defensive: GROUP BY HAVING enforces this, but double-check here
+                            # in case SQL execution or sync state changed between GROUP BY and this point.
                             if total_qty <= 0:
                                 raise RuntimeError(
                                     f"[POSITION_SYNC] Cannot sync position {position_id} for {symbol}: "
-                                    f"quantity must be > 0 (value={total_qty})"
+                                    f"quantity must be > 0 (value={total_qty}). "
+                                    f"Zero/negative quantity indicates corrupted trade record."
                                 )
 
                             # Try to update position if it exists with this position_id

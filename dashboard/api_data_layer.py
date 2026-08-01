@@ -190,9 +190,11 @@ logger.info(f"[API_STARTUP] Initialized API_BASE_URL from {_initial_source}: {_i
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
-# ISSUE #10 FIX: Cache freshness threshold (in seconds) - read from environment or default to 30 minutes
+# CRITICAL FIX (BLOCKER #5): Cache freshness threshold - position sizing depends on current prices
+# Changed from 30 min (1800s) to 5 min (300s). Risk calculations drift if prices are stale.
+# Position-sensitive operations (risk calc, position sizing) must use fresh price data.
 # This allows configuring cache staleness tolerance based on deployment environment
-API_CACHE_MAX_AGE_SECONDS = int(os.environ.get("DASHBOARD_CACHE_MAX_AGE_SECONDS", "1800"))  # default 30 min
+API_CACHE_MAX_AGE_SECONDS = int(os.environ.get("DASHBOARD_CACHE_MAX_AGE_SECONDS", "300"))  # default 5 min
 
 
 def _validate_api_url_at_startup() -> None:

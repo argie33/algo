@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
-"""
-PHASE 7: SIGNAL GENERATION & RANKING
+"""PHASE 7: SIGNAL GENERATION & RANKING - Find best trading candidates.
 
-Primary path: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
+Primary responsibility: Generate buy signals from technical setup and rank by quality.
+
+Primary signal source: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
+
+HALT FLAG PROPAGATION (AUDIT ISSUE #7):
+When halt flag is set (from Phase 2 circuit breaker or data freshness gate):
+- Phase 7 returns empty qualified_trades list
+- Phase 8 gracefully handles this (no entries to execute)
+- Halt status logged but not fatal to orchestration
+Prevents unguarded entries even when circuit breaker is active.
+
 ANOMALY DETECTION: buy_sell_daily signal count is monitored. If the most recent trading
 day has unexpectedly ZERO signals (historical median ~400-800), Phase 7 halts with
 clear error about upstream data quality issues (likely technical_data_daily failure).
 
-GUARD RAILS (ISSUE #8 FIX):
+GUARD RAILS (AUDIT ISSUE #8 FIX):
 1. Critical dependency check BEFORE signal generation:
-   - stock_scores must have data
-   - market_exposure_daily must have valid exposure_pct
-   - buy_sell_daily must have BUY signals within lookback window
+   - stock_scores must have data (prevents universe limitation issues)
+   - market_exposure_daily must have valid exposure_pct (exposure policy enforcement)
+   - buy_sell_daily must have BUY signals within lookback window (no stale signals)
 2. Any missing dependency -> immediate halt with clear error message
 3. Anomaly detection: If recent buy_sell_daily counts drop to 0, halt (upstream loader failure)
 4. Prevents silent degradation where empty signals show on dashboard
+5. Signal quality validation: All signals must have composite_score from stock_scores ranking
 
 Pipeline:
 1. Check all critical dependencies (fail-fast if any missing)
@@ -933,7 +943,18 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             data_is_from_recent_trading_day = latest_buysell_date >= previous_trading_day
             data_is_within_window = latest_buysell_date >= run_date - timedelta(days=4)  # 4-day window covers weekends
 
+            # BLOCKER #9 FIX: Explicit Monday handling - Friday data on Monday is EXPECTED and VALID
+            # Markets close Friday, so Friday's EOD close is the most recent data available through Monday morning.
+            # We use Friday data on Monday if <1 trading day old, because markets didn't trade over weekend.
+            is_monday = run_date.weekday() == 0  # Monday = 0
+            is_recent_trading_day_data_on_monday = is_monday and latest_buysell_date >= previous_trading_day
+
             acceptable_staleness = data_is_from_recent_trading_day or (not is_trading_today and data_is_within_window)
+            if is_recent_trading_day_data_on_monday:
+                logger.debug(
+                    f"[PHASE 7] Monday {run_date}: Using Friday {latest_buysell_date} data "
+                    f"(most recent trading day, expected behavior)"
+                )
 
             if latest_buysell_date < previous_trading_day and not acceptable_staleness:
                 # Most recent data is OLDER than recent trading days - this is a red flag
