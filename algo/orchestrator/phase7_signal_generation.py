@@ -1173,7 +1173,27 @@ def run(  # noqa: C901
     # Adapts to universe size so the threshold is always ~1/3 of recent median
     anomaly_threshold = _calculate_dynamic_anomaly_threshold()
 
-    min_composite_score = float(config["phase7_min_composite_score"])
+    # TUNING FIX (2026-08-02): Enforce regime-based minimum composite scores.
+    # Old: hard-coded min_composite_score=30 (below median 32.75, rejected only 60% of universe)
+    # New: Use market regime tier's minimum (uptrend=50, pressure=60, caution=70, correction=80)
+    # This dramatically raises entry quality by filtering weak signals in all market conditions.
+    from algo.risk.exposure_policy import tier_for_exposure, read_market_regime
+
+    try:
+        market_regime = read_market_regime(run_date)
+        exposure_tier = tier_for_exposure(market_regime["exposure_pct"])
+        min_composite_score = float(exposure_tier["min_composite_score"])
+        logger.info(
+            f"[PHASE 7 TUNING] Using regime-based min_composite_score={min_composite_score:.0f} "
+            f"(tier={exposure_tier['name']}, exposure={market_regime['exposure_pct']}%)"
+        )
+    except Exception as e:
+        # Fallback to config value if regime lookup fails
+        logger.warning(
+            f"[PHASE 7] Could not get regime-based min score: {e}. "
+            f"Falling back to config value."
+        )
+        min_composite_score = float(config["phase7_min_composite_score"])
 
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
