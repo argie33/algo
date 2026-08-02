@@ -53,10 +53,34 @@ class PositionValidationError(Exception):
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
 
-    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any], mode: str = "read") -> Any:
-        """Execute operation with cursor via DatabaseContext."""
-        with DatabaseContext(mode) as cur:
+    def _with_cursor(
+        self,
+        operation: Callable[[PsycopgCursor[Any]], Any],
+        mode: str = "read",
+        cur: PsycopgCursor[Any] | None = None,
+    ) -> Any:
+        """Execute operation with cursor via DatabaseContext or passed cursor.
+
+        CRITICAL: If cur is passed by caller, NEVER open a new DatabaseContext.
+        Opening a new context closes the caller's connection and breaks their cursor.
+        This helper must be context-aware: if a cursor was passed, use it.
+        If not passed (None), create a new context as fallback.
+
+        Args:
+            operation: Function to execute with cursor
+            mode: Database mode ("read" or "write") - only used if creating new context
+            cur: Optional cursor from caller. If provided, use this instead of creating new.
+
+        Returns:
+            Result from operation
+        """
+        if cur is not None:
+            # Caller passed a cursor - use it directly, never open new context
             return operation(cur)
+        else:
+            # No cursor passed - create new context (safe fallback for standalone calls)
+            with DatabaseContext(mode) as new_cur:
+                return operation(new_cur)
 
     def __init__(self, config: AlgoConfig) -> None:
         self.config = config
