@@ -751,7 +751,13 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     cache_response(endpoint, data)
                 return validated
             except ResponseValidationError as e:
-                logger.error(f"API response validation failed for {endpoint}: {e}")
+                error_details = str(e)
+                if "Missing critical fields" in error_details:
+                    logger.error(f"API {endpoint} response validation FAILED: {error_details}")
+                elif "response not a dict" in error_details.lower():
+                    logger.error(f"API {endpoint} response validation FAILED - invalid type: {error_details}")
+                else:
+                    logger.error(f"API {endpoint} response validation FAILED: {error_details}")
                 # DO NOT cache invalid response - next request will retry fresh
                 # Return error response so callers can handle validation failures explicitly
                 _record_api_failure()

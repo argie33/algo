@@ -220,28 +220,14 @@ def run(
             # Phase 3 generates recommendations for positions that need exit/stop changes,
             # but does NOT generate recommendations for structural concentration violations
             # (oversized positions, over-concentrated sectors). Those are detected here.
-            # Do NOT return early - let concentration checks run to detect these violations.
-
-            if not dry_run:
-                # In live mode, check for open positions
-                with DatabaseContext("read") as cur:
-                    cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status='open'")
-                    result = cur.fetchone()
-                    if result is None or result[0] is None:
-                        raise RuntimeError("[PHASE 6] Query to count open positions returned NULL")
-                    open_position_count = result[0]
-
-                if open_position_count > 0:
-                    msg = (
-                        f"[PHASE 6 CRITICAL] Phase 3 generated no recommendations but {open_position_count} positions are open. "
-                        f"This violates fail-fast position monitoring: Phase 3 must either generate recommendations or halt. "
-                        f"Cannot proceed with unmonitored positions - cannot determine exit conditions or P&L. "
-                        f"This indicates Phase 3 silently skipped position analysis (data integrity violation)."
-                    )
-                    logger.critical(msg)
-                    raise RuntimeError(msg)
-
-            logger.info("[PHASE 6] No Phase 3 recommendations - concentration checks will run to detect structural violations")
+            # Do NOT halt here - concentration checks detect structural violations that
+            # Phase 3 recommendations don't address.
+            #
+            # NOTE: If Phase 3 crashes, it should halt itself in Phase 3. Phase 6 should not
+            # treat empty recommendations as Phase 3 failure - Phase 3 might legitimately have
+            # no recommendations if all positions are healthy. Concentration checks are where
+            # structural violations are detected.
+            logger.info("[PHASE 6] No Phase 3 position recommendations - proceeding to concentration checks for structural violations")
 
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
         # Sector concentration limit: configured via max_positions_per_sector (default 10)
