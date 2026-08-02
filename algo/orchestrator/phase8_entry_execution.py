@@ -333,6 +333,60 @@ _POLICY_REJECTION_STATUSES = {
 }
 
 
+def _cleanup_orphaned_positions() -> int:
+    """Clean up orphaned positions with quantity=0 but status='open'.
+
+    AUDIT ISSUE #6: Positions with quantity=0 but status='open' can occur when:
+    - Phase 6 exit clears the position (quantity→0) but status update fails
+    - Trade data is corrupted upstream and quantity was never set properly
+
+    These orphaned positions:
+    - Shouldn't exist in the 'open' state (they're fully exited)
+    - Will fail risk validation if found during _calculate_current_total_risk_pct()
+    - Should be cleaned up proactively instead of causing Phase 8 failures
+
+    This function marks them as 'closed' with a cleanup annotation so they
+    don't accumulate and corrupt the database over time.
+
+    Returns:
+        Number of positions cleaned up
+    """
+    try:
+        with DatabaseContext("write") as cur:
+            # Find positions with quantity=0 but still marked 'open'
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM algo_positions
+                WHERE quantity = 0 AND status = 'open'
+                """
+            )
+            orphaned_count = cur.fetchone()[0] if cur.fetchone() else 0
+
+            if orphaned_count > 0:
+                # Mark them as closed with cleanup annotation
+                cur.execute(
+                    """
+                    UPDATE algo_positions
+                    SET status = 'closed',
+                        exit_date = %s,
+                        exit_reason = 'Phase8_cleanup_orphaned_position'
+                    WHERE quantity = 0 AND status = 'open'
+                    """,
+                    (_date.today(),),
+                )
+                logger.warning(
+                    f"[PHASE 8 CLEANUP] Cleaned up {orphaned_count} orphaned positions "
+                    f"(quantity=0, status was 'open'). These should not exist and indicate "
+                    f"prior Phase 6 exit or data issue."
+                )
+                return orphaned_count
+            return 0
+    except Exception as e:
+        logger.error(f"[PHASE 8 CLEANUP] Failed to clean up orphaned positions: {e}")
+        # Don't fail Phase 8 over cleanup failure - log and continue
+        return 0
+
+
 def _log_signal_rejection(
     symbol: str,
     rejection_stage: str,
@@ -938,6 +992,14 @@ def run(
         logger.info("[PHASE 8] No qualified trades from Phase 7 (empty list)")
         # Don't return here - continue to run proactive risk check
         # This allows Phase 8's proactive risk enforcement to run even without new signals
+
+    # CRITICAL: Clean up orphaned positions before risk calculation
+    # Positions with quantity=0 but status='open' will cause risk validation to fail
+    # AUDIT ISSUE #6: Proactive cleanup prevents Phase 8 failures from prior Phase 6 exit issues
+    if not dry_run:
+        cleanup_count = _cleanup_orphaned_positions()
+        if cleanup_count > 0:
+            logger.warning(f"[PHASE 8] Cleaned up {cleanup_count} orphaned positions during initialization")
 
     # CRITICAL: Persist signals to database (previously missing - this caused zero signals in dashboard)
     # This is the essential link between Phase 7 signal generation and dashboard display

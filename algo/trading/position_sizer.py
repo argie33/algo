@@ -255,11 +255,11 @@ class PositionSizer:
         # reconciliation last ran, not reflecting same-day trading activity or capital flows).
         # Position sizing for real money was computed off stale data on every single live trade.
         # Same bug class, same fix, as executor_entry_handler.py's order-rejection fix this
-        # session - scope the DB-snapshot fallback to execution_mode == "paper" only. Auto mode
-        # now correctly reaches the real Alpaca API call below regardless of whether the
+        # session - scope the DB-snapshot fallback to paper/dry modes only. review/auto modes
+        # now correctly reach the real Alpaca API call below regardless of whether the
         # configured Alpaca account itself is live or Alpaca's own paper-trading endpoint (that
         # is controlled by credentials/base URL, a separate concern from execution_mode).
-        if execution_mode == "paper":
+        if execution_mode in ("paper", "dry"):
             try:
                 from utils.db.context import DatabaseContext
 
