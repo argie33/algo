@@ -205,6 +205,7 @@ def run(
                         logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector_int}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
+                        # Ensure over_limit is an int for the LIMIT clause
                         cur.execute("""
                             SELECT ap.position_id, ap.symbol
                             FROM algo_positions ap
@@ -212,7 +213,7 @@ def run(
                             WHERE ap.status = 'open' AND cs.sector = %s
                             ORDER BY ap.unrealized_pnl ASC
                             LIMIT %s
-                        """, (sector, over_limit))
+                        """, (sector, int(over_limit)))
 
                         weak_positions = cur.fetchall()
                         for pos_id, symbol in weak_positions:
@@ -257,21 +258,25 @@ def run(
                     result = cur.fetchone()
                     if result is None:
                         raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
-                    total_value_float = float(result[0]) if result[0] else 0.0
+                    total_value = result[0]
+                    if total_value is None:
+                        total_value_float = 0.0
+                    else:
+                        total_value_float = float(total_value)
 
                     if total_value_float <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
                         return []
 
                     # Find positions exceeding size limit
-                    # Use float parameter to avoid PostgreSQL numeric type mixing with Decimal
+                    # Cast total_value_float to ensure it's native Python float for parameter
                     cur.execute(f"""
                         SELECT ap.position_id, ap.symbol, ap.position_value,
                                (ap.position_value / %s * 100) as pct_of_portfolio
                         FROM algo_positions ap
                         WHERE ap.status = 'open'
                         ORDER BY ap.position_value DESC
-                    """, (total_value_float,))
+                    """, (float(total_value_float),))
 
                     oversized_positions = []
                     for pos_id, symbol, value, pct in cur.fetchall():
@@ -283,12 +288,13 @@ def run(
                             logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to convert percentage {pct} ({type(pct).__name__}) to float: {te}")
                             continue
 
-                        # CRITICAL: Convert max_size_pct_float to ensure it's a native Python float before arithmetic
-                        # This handles Decimal types that may have been returned by config.get()
+                        # CRITICAL: Ensure both operands are Python native float before arithmetic to prevent Decimal/float mixing
                         limit_for_comparison = float(max_size_pct_float)
+                        # Force-convert pct_float to native float to eliminate any Decimal remnants
+                        pct_float = float(pct_float)
 
                         if pct_float > limit_for_comparison:
-                            # Both operands guaranteed to be float after conversion above
+                            # Both operands guaranteed to be native Python float after conversion above
                             exceed_amount = pct_float - limit_for_comparison
                             oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")

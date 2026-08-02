@@ -295,6 +295,9 @@ class DatabaseContext:
 
         ISSUE #10 FIX: Set statement_timeout at connection level to prevent
         long-running queries from blocking other connections.
+
+        ISSUE #13 FIX: Set isolation level for critical reads to prevent dirty reads.
+        Risk calculations and position sizing must see consistent data.
         """
         try:
             # OPTIMIZATION: Try to reuse a pooled connection (held by OptimalLoader)
@@ -309,6 +312,18 @@ class DatabaseContext:
                 self._externally_managed = False
 
             self.cur = self.conn.cursor(cursor_factory=self.cursor_factory)
+
+            # ISSUE #13 FIX: Set isolation level for critical reads
+            # Use SERIALIZABLE for critical financial calculations (risk, position sizing)
+            # Use READ_COMMITTED for loaders and API reads (higher concurrency)
+            isolation_level = "SERIALIZABLE" if self.role == "read" and not self.correlation_id else "READ_COMMITTED"
+            try:
+                self.conn.set_isolation_level(
+                    2 if isolation_level == "SERIALIZABLE" else 1  # 2=SERIALIZABLE, 1=READ_COMMITTED
+                )
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[DB_CONTEXT] Failed to set isolation level to {isolation_level}: {e}")
+                # Don't fail on isolation setting, just log and continue
 
             # ISSUE #10 FIX: Set statement_timeout at connection level
             # Prevents long-running queries from blocking other connections
