@@ -83,17 +83,25 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
             # Simple price update without full position analysis
             # Fetch positions with all required fields directly (not via get_open_positions which is incomplete)
-                    # BLOCKER #1 FIX: Connection pool safety - add semaphore to prevent exhaustion
+            # BLOCKER #1 FIX: Connection pool safety - add actual circuit breaker to prevent exhaustion
             # When pool has ~20 connections and Phase 3 opens nested contexts in a loop,
             # pool gets exhausted causing "cursor already closed" errors
             from utils.db.connection_pool import get_pool_health
             pool_health = get_pool_health()
-            if pool_health.get("available_conns", 0) < 3:
-                logger.warning(
-                    f"[PHASE 3 CONNECTION POOL WARNING] Only {pool_health.get('available_conns')} connections available. "
-                    f"If this phase opens nested DatabaseContexts, pool exhaustion is imminent. "
-                    f"Will use existing cursor instead of opening new contexts."
+            available_conns = pool_health.get("available_conns", 0)
+            if available_conns < 3:
+                error_msg = (
+                    f"[PHASE 3] CONNECTION POOL EXHAUSTION DETECTED: Only {available_conns} connections available. "
+                    f"Cannot proceed with position monitoring - risk of 'cursor already closed' errors is too high. "
+                    f"This indicates either: (1) Another process is hogging connections, "
+                    f"(2) DatabaseContext cleanup is failing, or (3) Connection pool is undersized. "
+                    f"Halting Phase 3 to prevent cascade failures. "
+                    f"Check: (1) Active database connections via 'SELECT COUNT(*) FROM pg_stat_activity', "
+                    f"(2) Connection pool configuration (current: {pool_health.get('size', 'unknown')} max), "
+                    f"(3) Long-running queries blocking releases."
                 )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             def _update_position_prices(cur: Any) -> int:
                 updated = 0
