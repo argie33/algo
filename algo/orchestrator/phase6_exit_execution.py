@@ -287,7 +287,7 @@ def run(
                         "Cannot enforce sector concentration limits. Check algo_config table."
                     )
                 # CRITICAL: ensure max_per_sector is native Python int, not Decimal from psycopg2
-                max_per_sector = int(max_sector_val)
+                max_per_sector = _ensure_int(max_sector_val, "max_positions_per_sector")
 
                 with DatabaseContext("read") as cur:
                     cur.execute(
@@ -376,10 +376,7 @@ def run(
                         "Cannot enforce position size limits. Check algo_config table."
                     )
                 # Explicitly convert to float to handle Decimal types from config (psycopg2 returns Decimal)
-                try:
-                    max_size_pct_float = float(max_size_pct_val)
-                except (TypeError, ValueError) as te:
-                    raise ValueError(f"max_position_size_pct must be numeric, got {type(max_size_pct_val).__name__}: {max_size_pct_val}") from te
+                max_size_pct_float = _ensure_float(max_size_pct_val, "max_position_size_pct")
 
                 with DatabaseContext("read") as cur:
                     # CRITICAL: Check for NULL position_value entries which would corrupt SUM()
