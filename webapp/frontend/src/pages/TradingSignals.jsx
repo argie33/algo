@@ -1389,6 +1389,10 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
         </span>
         <span>
           {" "}
+          • RS % = Relative strength percentile (0-99)
+        </span>
+        <span>
+          {" "}
           • Gates = Algo qualification (PASS/FAIL with grade, or "—" if
           unevaluated)
         </span>
@@ -1407,6 +1411,7 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
               <th className="num">R/R</th>
               <th className="num">SQS</th>
               <th className="num">RSI</th>
+              <th className="num">RS %</th>
               <th className="num">Vol Surge</th>
               <th>Base</th>
               <th>Stage</th>
@@ -1496,6 +1501,15 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                       )}
                     </td>
                     <td className="num">
+                      {r.rs_rating == null ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <span className="mono tnum">
+                          {Number(r.rs_rating).toFixed(0)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="num">
                       {r.volume_surge_pct == null ||
                       isNaN(Number(r.volume_surge_pct)) ? (
                         <span className="muted">—</span>
@@ -1563,7 +1577,7 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                   {expanded && (
                     <tr>
                       <td
-                        colSpan={13}
+                        colSpan={14}
                         style={{
                           background: "var(--bg-2)",
                           padding: "var(--space-4)",
