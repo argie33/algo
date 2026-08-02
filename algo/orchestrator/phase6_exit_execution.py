@@ -31,8 +31,9 @@ def _ensure_int(val: Any, field_name: str = "value") -> int:
         raise ValueError(f"Cannot convert None {field_name} to int")
     try:
         # Convert to int first, then ensure it's a native Python int (not numpy.int64, etc.)
+        # For Decimal, convert via string to ensure clean break from Decimal type
         if isinstance(val, Decimal):
-            result = int(val)
+            result = int(str(val))
         elif isinstance(val, int) and not isinstance(val, bool):
             result = val
         else:
@@ -321,6 +322,14 @@ def run(
                         except (TypeError, ValueError) as conv_err:
                             logger.error(f"[PHASE 6] Failed to convert ints for arithmetic: {conv_err}")
                             continue
+                        # Verify types before arithmetic
+                        if not isinstance(count_int_native, int) or not isinstance(max_sector_native, int):
+                            logger.error(
+                                f"[PHASE 6] Sector arithmetic type check failed: sector={sector}, "
+                                f"count_int_native={type(count_int_native).__name__}, "
+                                f"max_sector_native={type(max_sector_native).__name__}"
+                            )
+                            continue
                         # CRITICAL: Subtraction with guaranteed native Python ints
                         over_limit = count_int_native - max_sector_native
                         logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int_native} positions (limit {max_sector_native}, need to exit {over_limit})")
@@ -506,8 +515,16 @@ def run(
 
                             if pct_float_safe > max_size_pct_float_safe:
                                 # CRITICAL: _ensure_float guarantees native Python float - safe for arithmetic
-                                pct_final = pct_float_safe
-                                max_pct_final = max_size_pct_float_safe
+                                # Force to native float one more time before arithmetic to eliminate any Decimal remnants
+                                pct_final = float(float(pct_float_safe))
+                                max_pct_final = float(float(max_size_pct_float_safe))
+                                # Verify types before arithmetic
+                                if not isinstance(pct_final, float) or not isinstance(max_pct_final, float):
+                                    raise TypeError(
+                                        f"[PHASE 6] Arithmetic operand type check failed for {symbol}: "
+                                        f"pct_final={type(pct_final).__name__}, max_pct_final={type(max_pct_final).__name__}. "
+                                        f"Cannot proceed with concentration check."
+                                    )
                                 exceed_amount = pct_final - max_pct_final
                                 oversized_positions.append((pos_id, symbol, pct_final, max_pct_final))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_pct_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
