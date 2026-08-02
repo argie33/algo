@@ -1440,7 +1440,7 @@ class AlgoConfig:
                 t_conn_done = time.time()
                 logger.info(f"[AlgoConfig] database connection took {t_conn_done - t_conn_start:.2f}s")
 
-                cur.execute("SELECT key, value, value_type FROM algo_config")
+                cur.execute("SELECT key, value, data_type FROM algo_config")
                 rows = cur.fetchall()
                 logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
@@ -1456,7 +1456,7 @@ class AlgoConfig:
                         )
                     key = row["key"]
                     value = row["value"]
-                    dtype = row.get("value_type")
+                    dtype = row.get("data_type")
                     if value is not None:
                         try:
                             # Use value_type if set, otherwise normalize PostgreSQL type or infer from content
@@ -2215,11 +2215,11 @@ class AlgoConfig:
                 # Upsert config value (use final_value which may be fail-closed default)
                 cur.execute(
                     """
-                    INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
+                    INSERT INTO algo_config (key, value, data_type, description, updated_at, updated_by)
                     VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
                     ON CONFLICT (key) DO UPDATE SET
                         value = EXCLUDED.value,
-                        value_type = EXCLUDED.value_type,
+                        data_type = EXCLUDED.data_type,
                         description = EXCLUDED.description,
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by
