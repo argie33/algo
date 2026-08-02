@@ -583,7 +583,8 @@ def run(
                         if verbose:
                             logger.info(f"  [DRY-RUN] EXPOSURE FORCE-EXIT: {action['symbol']}")
                     else:
-                        result = executor.exit_trade(
+                        result = _retry_exit_trade(
+                            executor,
                             trade_id=action["trade_id"],
                             exit_price=cur_price,
                             exit_reason=action["reason"],
@@ -602,8 +603,15 @@ def run(
                             logger.error(
                                 f"  FORCE-EXIT FAILED: {action['symbol']} (reason: {action['reason']}). "
                                 f"Error: {result.get('message', 'Unknown error')}. "
-                                f"Trade ID: {action.get('trade_id', 'UNKNOWN')}"
+                                f"Trade ID: {action.get('trade_id', 'UNKNOWN')}. "
+                                f"Position will remain open - manual intervention may be required."
                             )
+                            # ESCALATE on too many consecutive failures
+                            if errors >= 3:
+                                raise RuntimeError(
+                                    f"[PHASE 6 CRITICAL] Too many exit failures ({errors}). "
+                                    f"Halting Phase 6 to prevent cascade. First failures: exposure_force_exit"
+                                )
 
                 elif action["action"] == "partial_exit":
                     # Need current price - fetch
@@ -641,7 +649,8 @@ def run(
                             if verbose:
                                 logger.info(f"  [DRY-RUN] EXPOSURE PARTIAL: {action['symbol']}")
                         else:
-                            result = executor.exit_trade(
+                            result = _retry_exit_trade(
+                                executor,
                                 trade_id=action["trade_id"],
                                 exit_price=cur_price,
                                 exit_reason=action["reason"],
@@ -662,8 +671,15 @@ def run(
                                     f"  PARTIAL-EXIT FAILED: {action['symbol']} (fraction: {action.get('exit_fraction', '?')}). "
                                     f"Reason: {action['reason']}. "
                                     f"Error: {result.get('message', 'Unknown error')}. "
-                                    f"Trade ID: {action.get('trade_id', 'UNKNOWN')}"
+                                    f"Trade ID: {action.get('trade_id', 'UNKNOWN')}. "
+                                    f"Position will remain open - manual intervention may be required."
                                 )
+                                # ESCALATE on too many consecutive failures
+                                if errors >= 3:
+                                    raise RuntimeError(
+                                        f"[PHASE 6 CRITICAL] Too many exit failures ({errors}). "
+                                        f"Halting Phase 6 to prevent cascade. First failures: exposure_partial"
+                                    )
 
                 elif action["action"] == "tighten_stop":
                     if dry_run:
