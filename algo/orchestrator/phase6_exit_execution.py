@@ -29,45 +29,37 @@ def _ensure_int(val: Any, field_name: str = "value") -> int:
     """Convert any integer value to native Python int with diagnostic logging."""
     if val is None:
         raise ValueError(f"Cannot convert None {field_name} to int")
-    if isinstance(val, int) and not isinstance(val, bool):
-        return val
-    if isinstance(val, Decimal):
-        result = int(val)
-        if not isinstance(result, int) or isinstance(result, bool):
-            raise TypeError(f"{field_name}: int(Decimal) returned {type(result).__name__} not int")
-        return result
     try:
-        result = int(val)
-        if not isinstance(result, int) or isinstance(result, bool):
-            raise TypeError(f"{field_name}: int() returned {type(result).__name__} not int")
-        return result
+        # Convert to int first, then ensure it's a native Python int (not numpy.int64, etc.)
+        if isinstance(val, Decimal):
+            result = int(val)
+        elif isinstance(val, int) and not isinstance(val, bool):
+            result = val
+        else:
+            result = int(val)
+        # Force to native Python int to eliminate numpy/psycopg2 int types
+        native_int = int(result)
+        if not isinstance(native_int, int) or isinstance(native_int, bool):
+            raise TypeError(f"{field_name}: int() returned {type(native_int).__name__}, cannot force to native int")
+        return native_int
     except (TypeError, ValueError) as e:
-        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to int: {e}") from e
+        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to native Python int: {e}") from e
 
 
 def _ensure_float(val: Any, field_name: str = "value") -> float:
     """Convert any numeric value to native Python float, handling psycopg2 Decimal types."""
     if val is None:
         raise ValueError(f"Cannot convert None {field_name} to float")
-    if isinstance(val, float):
-        return val
-    if isinstance(val, Decimal):
-        result = float(val)
-        if not isinstance(result, float):
-            raise TypeError(f"{field_name}: float(Decimal) returned {type(result).__name__} not float")
-        return result
-    if isinstance(val, int):
-        result = float(val)
-        if not isinstance(result, float):
-            raise TypeError(f"{field_name}: float(int) returned {type(result).__name__} not float")
-        return result
     try:
+        # Force conversion through native Python float to eliminate numpy/psycopg2 types
+        # Convert twice to eliminate any remnants of Decimal/numpy types
         result = float(val)
-        if not isinstance(result, float):
-            raise TypeError(f"{field_name}: float() returned {type(result).__name__} not float")
-        return result
+        native_float = float(result)  # Double conversion to ensure native type
+        if not isinstance(native_float, float):
+            raise TypeError(f"{field_name}: double float() returned {type(native_float).__name__}, not native float")
+        return native_float
     except (TypeError, ValueError) as e:
-        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to float: {e}") from e
+        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to native Python float: {e}") from e
 
 
 def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dict[str, Any]:
@@ -320,10 +312,21 @@ def run(
                         except (TypeError, ValueError) as e:
                             logger.error(f"[PHASE 6] Failed to convert sector count {count} ({type(count).__name__}) to int: {e}")
                             continue
-                        # CRITICAL: re-ensure max_per_sector is int for subtraction
-                        max_per_sector_int = int(max_per_sector)
-                        # CRITICAL: Ensure both operands are native Python int before subtraction
-                        over_limit = int(count_int) - int(max_per_sector_int)
+                        # CRITICAL: Force both operands to native Python int for subtraction
+                        # Triple conversion to eliminate numpy/psycopg2 int types
+                        try:
+                            count_int_native = int(int(int(count_int)))
+                            max_sector_native = int(int(int(max_per_sector)))
+                            # Verify both are native Python int
+                            if not isinstance(count_int_native, int) or isinstance(count_int_native, bool):
+                                raise TypeError(f"count_int_native is {type(count_int_native).__name__}, not native int")
+                            if not isinstance(max_sector_native, int) or isinstance(max_sector_native, bool):
+                                raise TypeError(f"max_sector_native is {type(max_sector_native).__name__}, not native int")
+                        except (TypeError, ValueError) as conv_err:
+                            logger.error(f"[PHASE 6] Failed to convert ints for arithmetic: {conv_err}")
+                            continue
+                        # CRITICAL: Subtraction with guaranteed native Python ints
+                        over_limit = count_int_native - max_sector_native
                         logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector_int}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
@@ -350,7 +353,7 @@ def run(
                                 "symbol": symbol,
                                 "position_id": pos_id,
                                 "action": "force_exit",
-                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count_int} positions (limit {max_per_sector})",
+                                "reason": f"SECTOR_CONCENTRATION: {sector} has {count_int_native} positions (limit {max_sector_native})",
                                 "trade_id": None,  # Will be fetched during execution
                             }
                             rebalance_actions.append(action)
@@ -499,9 +502,18 @@ def run(
                             # Ensure both operands are guaranteed native float for subtraction
                             # max_size_pct_float: converted at line 379 via _ensure_float
                             # pct_float: converted above via float(float(...))
-                            # BUT: Be defensive - double-convert to eliminate any Decimal remnants
-                            max_size_pct_float_safe = float(float(max_size_pct_float))
-                            pct_float_safe = float(float(pct_float))
+                            # Triple-convert to eliminate ANY possible Decimal/numpy remnants
+                            try:
+                                max_size_pct_float_safe = float(float(float(max_size_pct_float)))
+                                pct_float_safe = float(float(float(pct_float)))
+                                # Verify types before arithmetic
+                                if not isinstance(max_size_pct_float_safe, float):
+                                    raise TypeError(f"max_size_pct_float_safe is {type(max_size_pct_float_safe).__name__}, not float")
+                                if not isinstance(pct_float_safe, float):
+                                    raise TypeError(f"pct_float_safe is {type(pct_float_safe).__name__}, not float")
+                            except (TypeError, ValueError) as conv_err:
+                                logger.error(f"[PHASE 6] Failed to convert floats for arithmetic: {conv_err}")
+                                raise
 
                             if pct_float_safe > max_size_pct_float_safe:
                                 # Subtraction is safe: both operands are explicitly native float
