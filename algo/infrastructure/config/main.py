@@ -1440,15 +1440,15 @@ class AlgoConfig:
                 t_conn_done = time.time()
                 logger.info(f"[AlgoConfig] database connection took {t_conn_done - t_conn_start:.2f}s")
 
-                # CRITICAL FIX: Check if data_type column exists in old schemas
-                # Some test environments may use old algo_config schema without data_type
+                # CRITICAL FIX: Use value_type column (renamed from data_type in schema)
+                # Fallback for old schemas that lack value_type column entirely
                 try:
-                    cur.execute("SELECT key, value, data_type FROM algo_config")
+                    cur.execute("SELECT key, value, value_type FROM algo_config")
                 except psycopg2.ProgrammingError:
-                    # data_type column doesn't exist - use fallback query
+                    # value_type column doesn't exist in very old schemas - use fallback
                     # CRITICAL: Must rollback transaction before retrying (PostgreSQL aborts on failed queries)
                     cur.connection.rollback()
-                    cur.execute("SELECT key, value, NULL::VARCHAR as data_type FROM algo_config")
+                    cur.execute("SELECT key, value, NULL::VARCHAR as value_type FROM algo_config")
                 rows = cur.fetchall()
                 logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
@@ -1464,7 +1464,7 @@ class AlgoConfig:
                         )
                     key = row["key"]
                     value = row["value"]
-                    dtype = row.get("data_type")
+                    dtype = row.get("value_type")
                     if value is not None:
                         try:
                             # Use value_type if set, otherwise normalize PostgreSQL type or infer from content
