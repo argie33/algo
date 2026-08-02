@@ -249,7 +249,7 @@ DASHBOARD_ENDPOINTS = {
                 "cumulative_return_pct": (float, int, str, type(None)),
                 "max_drawdown_pct": (float, int, str, type(None)),
                 "largest_position_pct": (float, int, str, type(None)),
-                "data_age_seconds": int,
+                "data_age_seconds": (int, type(None)),
             },
             description="Portfolio value, cash, positions",
         ),

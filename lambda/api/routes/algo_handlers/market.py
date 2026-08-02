@@ -389,9 +389,13 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM equity_curve_daily",
             ),
             # Phase 9: Daily performance metrics
+            # CRITICAL FIX: Use MAX(updated_at) not MAX(report_date) for freshness
+            # report_date is DATE-only (midnight); updated_at reflects actual last write time
+            # API endpoint (_get_algo_performance) calculates data_age_seconds from updated_at,
+            # so health panel must use same column or staleness checks diverge
             (
                 "algo_performance_daily",
-                "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_performance_daily",
+                "SELECT COUNT(*) AS row_count, MAX(updated_at) AS last_updated FROM algo_performance_daily",
             ),
             # Phase 9: Daily risk metrics
             (
