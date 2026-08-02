@@ -304,10 +304,16 @@ def run(
                             )
                             continue
                         sector, count = row[0], row[1]
-                        count_int = int(count) if count is not None else 0
+                        # CRITICAL: Handle Decimal types from psycopg2 - convert to int BEFORE arithmetic
+                        try:
+                            count_int = int(count) if count is not None else 0
+                        except (TypeError, ValueError) as e:
+                            logger.error(f"[PHASE 6] Failed to convert sector count {count} ({type(count).__name__}) to int: {e}")
+                            continue
                         # CRITICAL: re-ensure max_per_sector is int for subtraction
                         max_per_sector_int = int(max_per_sector)
-                        over_limit = count_int - max_per_sector_int
+                        # CRITICAL: Ensure both operands are native Python int before subtraction
+                        over_limit = int(count_int) - int(max_per_sector_int)
                         logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector_int}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
@@ -470,20 +476,32 @@ def run(
                                 value_float = float(value)
                                 # Ensure division uses native floats, not Decimals
                                 total_value_for_division = float(total_value_float)
-                                pct_float = (value_float / total_value_for_division * 100) if total_value_for_division > 0 else 0.0
-                                # Force to native float in case division returned Decimal
-                                pct_float = float(float(pct_float))
+                                # Perform division with native floats
+                                pct_value = value_float / total_value_for_division * 100 if total_value_for_division > 0 else 0.0
+                                # CRITICAL: Force to native float - convert twice to eliminate any Decimal remnants
+                                pct_float = float(float(pct_value))
+                                # Verify type after conversion
+                                if not isinstance(pct_float, float):
+                                    logger.warning(f"[PHASE 6] pct_float is {type(pct_float).__name__} instead of float, converting: {pct_float}")
+                                    pct_float = float(pct_float)
                             except (TypeError, ValueError, ZeroDivisionError) as te:
                                 logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                                 continue
 
                             # CRITICAL: Ensure both operands are Python native float before arithmetic
                             limit_for_comparison = float(max_size_pct_float)
+                            # Verify type before use
+                            if not isinstance(limit_for_comparison, float):
+                                logger.error(f"[PHASE 6] limit_for_comparison is {type(limit_for_comparison).__name__} not float")
+                                limit_for_comparison = float(limit_for_comparison)
 
-                            if pct_float > limit_for_comparison:
-                                # Both operands guaranteed to be native Python float after explicit conversion above
-                                # CRITICAL FIX: Convert to float again immediately before subtraction to handle Decimal propagation
-                                exceed_amount = float(pct_float) - float(limit_for_comparison)
+                            # Check comparison and compute excess amount with type safety
+                            if float(pct_float) > float(limit_for_comparison):
+                                # CRITICAL FIX: Convert to float immediately before subtraction to handle Decimal propagation
+                                # Do NOT use pct_float or limit_for_comparison directly - always cast
+                                pct_for_math = float(pct_float)
+                                limit_for_math = float(limit_for_comparison)
+                                exceed_amount = pct_for_math - limit_for_math
                                 oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
