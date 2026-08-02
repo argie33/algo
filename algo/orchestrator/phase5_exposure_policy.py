@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -128,6 +129,8 @@ def run(
         PhaseResult with status 'ok', data containing exposure constraints and actions
     """
     try:
+        validate_phase_config(config, "phase_5_exposure_policy")
+
         # CRITICAL FIX: Re-validate halt flag before proceeding
         # Phase 1 may have detected stale data and set halt flag
         # But if Phase 5 runs before halt flag is checked, we generate signals with stale data

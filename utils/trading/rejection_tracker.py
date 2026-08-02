@@ -151,7 +151,7 @@ class RejectionTracker:
                 SELECT
                     {col_name} as reason,
                     COUNT(*) as count,
-                    ARRAY_AGG(symbol ORDER BY symbol) FILTER (WHERE symbol IS NOT NULL) as symbols
+                    COALESCE(ARRAY_AGG(symbol ORDER BY symbol) FILTER (WHERE symbol IS NOT NULL), ARRAY[]::text[]) as symbols
                 FROM filter_rejection_log
                 WHERE eval_date = %s AND {col_name} IS NOT NULL AND {col_name} != ''
                 GROUP BY reason
@@ -163,12 +163,13 @@ class RejectionTracker:
 
             results: list[dict[str, Any]] = []
             for row in cur.fetchall():
+                symbols_array = row[2] if row[2] is not None else []
                 results.append(
                     {
                         "reason": row[0],
                         "count": row[1],
-                        "symbols": row[2][:5],
-                        "total_symbols": len(row[2]),
+                        "symbols": symbols_array[:5],
+                        "total_symbols": len(symbols_array),
                     }
                 )
 

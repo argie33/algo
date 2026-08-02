@@ -453,22 +453,13 @@ def run(
                                 logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                                 continue
 
-                            # CRITICAL: Ensure both operands are Python native float before arithmetic
-                            limit_for_comparison = float(max_size_pct_float)
-                            # Verify type before use
-                            if not isinstance(limit_for_comparison, float):
-                                logger.error(f"[PHASE 6] limit_for_comparison is {type(limit_for_comparison).__name__} not float")
-                                limit_for_comparison = float(limit_for_comparison)
-
-                            # Check comparison and compute excess amount with type safety
-                            if float(pct_float) > float(limit_for_comparison):
-                                # CRITICAL FIX: Convert to float immediately before subtraction to handle Decimal propagation
-                                # Do NOT use pct_float or limit_for_comparison directly - always cast
-                                pct_for_math = float(pct_float)
-                                limit_for_math = float(limit_for_comparison)
-                                exceed_amount = pct_for_math - limit_for_math
-                                oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                            # max_size_pct_float is already verified as native float by _ensure_float()
+                            # pct_float is also verified as native float above
+                            if pct_float > max_size_pct_float:
+                                # Subtraction is safe: both operands are guaranteed to be native float
+                                exceed_amount = pct_float - max_size_pct_float
+                                oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue
