@@ -812,6 +812,12 @@ def run(
                             errors += 1
                             logger.error(f"  Tighten failed for {action['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
+                # CRITICAL: Check if this is a halt exception and re-raise without incrementing errors
+                # Halt exceptions (Too many exit failures) should not be double-counted
+                if "Too many exit failures" in str(e) or "PHASE 6 CRITICAL" in str(e):
+                    logger.critical(f"[PHASE 6] Halting exposure action processing: {e}")
+                    raise
+
                 errors += 1
                 if "symbol" not in action:
                     logger.critical(
