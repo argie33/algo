@@ -2215,16 +2215,15 @@ class AlgoConfig:
                 # Upsert config value (use final_value which may be fail-closed default)
                 cur.execute(
                     """
-                    INSERT INTO algo_config (key, value, data_type, description, updated_at, updated_by)
-                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                    INSERT INTO algo_config (key, value, data_type, updated_at, updated_by)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
                     ON CONFLICT (key) DO UPDATE SET
                         value = EXCLUDED.value,
                         data_type = EXCLUDED.data_type,
-                        description = EXCLUDED.description,
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by
                 """,
-                    (key, str(final_value), value_type, description, changed_by),
+                    (key, str(final_value), value_type, changed_by),
                 )
 
                 # Write audit trail (note: include original requested value if fail-closed)
