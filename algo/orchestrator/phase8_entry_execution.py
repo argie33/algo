@@ -711,6 +711,56 @@ def _batch_fetch_technical_data(
         raise RuntimeError(f"Batch fetch technical data failed: {e}") from e
 
 
+def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
+    """Validate price_daily data is fresh enough for Phase 8 entry execution.
+
+    CRITICAL DATA FRESHNESS GUARD (Phase 8 revalidation):
+    Phase 1 validates price freshness at orchestrator start (9:00 AM), but Phase 8
+    may run HOURS later (1-5 PM). Between Phase 1 and Phase 8:
+    - Price loader may fail (network issue, data source down)
+    - EOD loaders may stall (4:05 PM market_status/market_exposure updates)
+    - Morning price_daily could be STALE by afternoon/evening runs
+
+    This guard ensures price_daily.max(date) >= run_date before Phase 8 executes.
+
+    Risk scenario (without this check):
+    - 9:00 AM: Phase 1 validates today's close price (ok at that time)
+    - 1:00 PM: Price loader fails (network issue)
+    - 1:05 PM: Phase 8 executes trades on STALE 9 AM prices
+    - Result: Trades executed on morning prices, not intraday closes
+
+    Returns:
+        (is_fresh, message) - is_fresh=True if price_daily is current
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            # Check if price_daily has TODAY's close prices
+            cur.execute("""
+                SELECT MAX(date) as latest_price_date
+                FROM price_daily
+            """)
+            result = cur.fetchone()
+            if not result or result[0] is None:
+                return False, "No price_daily data available"
+
+            latest_price_date = result[0]
+
+            # Price data must be >= run_date (same day or later)
+            # run_date is ET-based trading date; we need TODAY's closes
+            if latest_price_date < run_date:
+                return False, (
+                    f"price_daily is stale: max(date)={latest_price_date} is BEFORE run_date={run_date}. "
+                    f"Price loader may have failed between Phase 1 and Phase 8. "
+                    f"Cannot execute entries on stale intraday prices."
+                )
+
+            logger.info(f"[PHASE 8 PRICE CHECK] price_daily is current: max(date)={latest_price_date} >= run_date={run_date}")
+            return True, f"Price data is fresh (max_date={latest_price_date})"
+
+    except Exception as e:
+        return False, f"Could not verify price freshness: {e}"
+
+
 def run(
     config: Any,
     run_date: _date,
@@ -847,6 +897,24 @@ def run(
         logger.critical(msg, exc_info=True)
         log_phase_result_fn(8, "entry_execution", "halt", msg)
         raise RuntimeError(msg) from e
+
+    # PRICE DATA FRESHNESS GUARD: Re-validate that price_daily is fresh for afternoon/evening runs
+    # Phase 1 validates at 9:00 AM, but Phase 8 may run at 1-5 PM. Price loader may fail between phases.
+    # Without this check: trades execute on stale morning prices (risk: wrong entry prices, no intraday updates)
+    price_fresh, price_msg = _check_price_data_freshness(run_date)
+    if not price_fresh:
+        msg = f"[PHASE 8 PRICE FRESHNESS GUARD] Blocking Phase 8: {price_msg}"
+        logger.critical(msg)
+        log_phase_result_fn(8, "entry_execution", "blocked", msg)
+        result = PhaseResult(
+            8,
+            "entry_execution",
+            "blocked",
+            {"entered": 0},
+            False,  # halted=False: guard is just blocking entries, not halting orchestration
+            msg,
+        )
+        return result
 
     # SESSION 396 FIX: PROACTIVE RISK ENFORCEMENT
     # Phase 8 now ALWAYS runs (always_run=True) to enforce proactive risk checks

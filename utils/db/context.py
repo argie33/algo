@@ -439,6 +439,7 @@ class DatabaseContext:
         if exc_type is not None:
             # An exception occurred in the with block - let it propagate after cleanup
             return False  # Explicitly return False to NOT suppress the exception
+        return None  # type: ignore[return-value]
 
     @staticmethod
     def get_pool_status() -> dict[str, Any]:

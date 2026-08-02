@@ -75,7 +75,7 @@ class HaltFlagManager:
 
         # Fall back to RDS if DynamoDB unavailable (log only once per run)
         if not HaltFlagManager._dynamodb_unavailable_logged:
-            logger.warning("[HALT_FLAG] DynamoDB unavailable, falling back to RDS")
+            logger.critical("[HALT_FLAG] DynamoDB unavailable, falling back to RDS for halt flag read")
             HaltFlagManager._dynamodb_unavailable_logged = True
 
         rds_result = self._check_halt_flag_rds()

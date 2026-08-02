@@ -140,6 +140,7 @@ class MarketEventHandler:
                     continue
                 break
 
+            assert resp is not None, "Response should be set after loop"
             if resp.status_code != 200:
                 raise RuntimeError(
                     f"Cannot verify halt status for {symbol}: API returned {resp.status_code}. "
@@ -280,6 +281,7 @@ class MarketEventHandler:
                             time.sleep(wait_time)
                             continue
                         break
+                    assert resp is not None, "Response should be set after loop"
                     if resp.status_code != 200:
                         raise RuntimeError(f"Quotes API error: status {resp.status_code}")
                     data = resp.json()
@@ -337,6 +339,7 @@ class MarketEventHandler:
                             time.sleep(wait_time)
                             continue
                         break
+                    assert resp is not None, "Response should be set after loop"
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
                     data = resp.json()
@@ -657,6 +660,7 @@ class MarketEventHandler:
                     continue
                 break
 
+            assert resp is not None, "Response should be set after loop"
             if resp.status_code != 200:
                 # CRITICAL: Cannot determine delisting status - must fail fast
                 raise RuntimeError(

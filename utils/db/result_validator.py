@@ -6,7 +6,7 @@ Prevents IndexError and makes code more readable by replacing magic indices
 with named field access.
 """
 
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, cast
 
 T = TypeVar("T")
 
@@ -156,16 +156,16 @@ class RowAccessor:
 
     def get_str(self, index: int, allow_none: bool = False) -> str | None:
         """Get string column."""
-        return self.get(index, str, allow_none)
+        return cast(str | None, self.get(index, str, allow_none))
 
     def get_int(self, index: int, allow_none: bool = False) -> int | None:
         """Get integer column."""
-        return self.get(index, int, allow_none)
+        return cast(int | None, self.get(index, int, allow_none))
 
     def get_float(self, index: int, allow_none: bool = False) -> float | None:
         """Get float column (int and float accepted)."""
-        return self.get(index, (int, float), allow_none)
+        return cast(float | None, self.get(index, (int, float), allow_none))
 
     def get_bool(self, index: int, allow_none: bool = False) -> bool | None:
         """Get boolean column."""
-        return self.get(index, bool, allow_none)
+        return cast(bool | None, self.get(index, bool, allow_none))

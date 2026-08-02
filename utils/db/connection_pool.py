@@ -4,7 +4,7 @@
 from utils.db.pool_monitor import RDSPoolMonitor
 
 
-def get_pool_health() -> dict[str, int]:
+def get_pool_health() -> dict[str, int | str | None]:
     """Get current connection pool health status.
 
     Returns:

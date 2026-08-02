@@ -37,7 +37,7 @@ from utils.db import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def sync_positions_from_trades() -> Tuple[int, int, int]:
+def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
     """Synchronize algo_positions table with current trades data.
 
     For each symbol with net quantity > 0 in trades:
@@ -45,11 +45,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
     - If position doesn't exist: insert new position
 
     Returns:
-        (inserted_count, updated_count, error_count)
+        (inserted_count, updated_count, error_count, error_details)
+        where error_details is list of {symbol: str, reason: str} dicts
     """
     inserted = 0
     updated = 0
     errors = 0
+    error_details: list[dict[str, str]] = []
 
     try:
         with DatabaseContext('write') as cur:
@@ -133,66 +135,100 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                             inserted += 1
                             logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
                         else:
+                            error_reason = f"No entry_price found in trades"
                             logger.warning(f"[POSITION_SYNC] Could not find entry_price for {symbol}")
                             errors += 1
+                            error_details.append({"symbol": symbol, "reason": error_reason})
 
                 except Exception as e:
+                    error_reason = f"{type(e).__name__}: {str(e)[:100]}"
                     logger.error(
                         f"[POSITION_SYNC] Error syncing {symbol}: {type(e).__name__}: {e}",
                         exc_info=True
                     )
                     errors += 1
+                    error_details.append({"symbol": symbol, "reason": error_reason})
                     # Continue to next symbol - per-symbol errors don't halt entire sync
 
     except Exception as e:
         logger.error(f"[POSITION_SYNC] CRITICAL: Failed to sync positions: {e}")
         raise RuntimeError(f"Position sync failed: {e}")
 
+    if error_details:
+        logger.warning(
+            f"[POSITION_SYNC] Sync errors for {len(error_details)} symbols: "
+            f"{', '.join(f\"{d['symbol']}({d['reason'][:30]})\" for d in error_details[:5])}"
+            f"{' ... and ' + str(len(error_details) - 5) + ' more' if len(error_details) > 5 else ''}"
+        )
     logger.info(f"[POSITION_SYNC] Completed: {inserted} inserted, {updated} updated, {errors} errors")
-    return inserted, updated, errors
+    return inserted, updated, errors, error_details
 
 
 def validate_position_count(expected_approximate: int | None = None) -> bool:
-    """Validate that position count is reasonable.
+    """Validate that position count and symbols match exactly (no silent position loss).
 
-    Returns True if position count looks healthy, False if mismatched.
+    CRITICAL FIX (Session 2026-08-02): Previous percentage-based check allowed 5% mismatch,
+    which could silently lose hundreds of positions. Example: 100 positions tracked, 95 synced
+    = "healthy" by percentage, but 5 positions ($100K each) lost silently.
+
+    New approach: STRICT validation with detailed mismatch reporting.
+    - Every symbol in trades MUST have a matching position
+    - Every position MUST have corresponding trades
+    - Zero tolerance for discrepancies beyond expected race conditions
+
+    Returns True only if positions and trades match perfectly or with explained variance.
     """
     try:
         with DatabaseContext('read') as cur:
-            # Count open positions
-            cur.execute('SELECT COUNT(*) FROM algo_positions WHERE status = %s', ('open',))
-            pos_row = cur.fetchone()
-            if not pos_row:
-                raise RuntimeError(
-                    "[POSITION_SYNC_VALIDATE] COUNT query returned no rows - database error"
-                )
-            open_count = int(pos_row[0])
-
-            # Count open trades
+            # Get all open positions by symbol
             cur.execute('''
-                SELECT COUNT(DISTINCT symbol) FROM algo_trades
+                SELECT symbol, COUNT(*) as pos_count
+                FROM algo_positions
+                WHERE status = %s
+                GROUP BY symbol
+            ''', ('open',))
+            position_symbols = {row[0]: row[1] for row in cur.fetchall()}
+            open_count = sum(position_symbols.values())
+
+            # Get all symbols with open trades and positive quantity
+            cur.execute('''
+                SELECT symbol, SUM(quantity) as total_qty
+                FROM algo_trades
                 WHERE status IN ('filled', 'open')
-                GROUP BY symbol HAVING SUM(quantity) > 0
+                GROUP BY symbol
+                HAVING SUM(quantity) > 0
             ''')
+            trade_symbols = {row[0]: row[1] for row in cur.fetchall()}
 
-            trade_symbols = len(cur.fetchall())
+            # STRICT VALIDATION: Check for discrepancies
+            missing_in_positions = set(trade_symbols.keys()) - set(position_symbols.keys())
+            orphaned_in_positions = set(position_symbols.keys()) - set(trade_symbols.keys())
 
-            # Allow 5% mismatch (rounding, pending closes, etc)
-            if trade_symbols == 0:
-                is_valid: bool = open_count == 0
-            else:
-                mismatch_pct = abs(open_count - trade_symbols) / trade_symbols * 100
-                is_valid = mismatch_pct < 5
+            is_valid = len(missing_in_positions) == 0 and len(orphaned_in_positions) == 0
 
-            if not is_valid:
-                logger.warning(
-                    f"[POSITION_SYNC_VALIDATE] Mismatch: "
-                    f"algo_positions={open_count}, trades={trade_symbols} ({mismatch_pct:.1f}% diff)"
+            if missing_in_positions:
+                logger.error(
+                    f"[POSITION_SYNC_VALIDATE] CRITICAL: {len(missing_in_positions)} symbols have trades but NO position: "
+                    f"{', '.join(sorted(missing_in_positions)[:10])}{'...' if len(missing_in_positions) > 10 else ''}. "
+                    f"Positions were lost during sync or entry execution."
+                )
+
+            if orphaned_in_positions:
+                logger.error(
+                    f"[POSITION_SYNC_VALIDATE] CRITICAL: {len(orphaned_in_positions)} symbols have positions but NO trades: "
+                    f"{', '.join(sorted(orphaned_in_positions)[:10])}{'...' if len(orphaned_in_positions) > 10 else ''}. "
+                    f"Positions orphaned from trades (data integrity issue)."
+                )
+
+            if is_valid:
+                logger.info(
+                    f"[POSITION_SYNC_VALIDATE] Positions validated: "
+                    f"{len(position_symbols)} symbols, {open_count} total positions match trades perfectly"
                 )
             else:
-                logger.info(
-                    f"[POSITION_SYNC_VALIDATE] Position counts healthy: "
-                    f"algo_positions={open_count}, trades={trade_symbols}"
+                logger.critical(
+                    f"[POSITION_SYNC_VALIDATE] VALIDATION FAILED: "
+                    f"Missing positions: {len(missing_in_positions)}, Orphaned positions: {len(orphaned_in_positions)}"
                 )
 
             return is_valid
