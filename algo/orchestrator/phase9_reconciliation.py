@@ -12,6 +12,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
 from utils.db.advisory_locks import (
     ALGO_AUDIT_LOG_LOCK_ID,
@@ -1346,6 +1347,8 @@ def run(
         degraded PhaseResult. All critical reconciliation steps fail-fast to halt trading
         if broker state cannot be verified.
     """
+    validate_phase_config(config, "phase_9_reconciliation")
+
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
 

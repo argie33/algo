@@ -432,6 +432,10 @@ class PositionMonitor:
             # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
             open_statuses = TradeStatus.all_open()
             status_placeholders = ", ".join(["%s"] * len(open_statuses))
+            # CRITICAL FIX 2026-08-02: Add FOR UPDATE locking to prevent TOCTOU race with Phase 6
+            # If Phase 6 (exit_engine) runs concurrently in Lambda/ECS:
+            # Without lock: Phase 3 reads -> Phase 6 modifies -> Phase 3 evaluates stale data
+            # With lock: Phase 3 locks positions -> Phase 6 must wait -> reads current state
             cursor.execute(
                 f"""
                 SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
@@ -443,6 +447,7 @@ class PositionMonitor:
                 JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
                   AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
+                FOR UPDATE OF p, t
                 """,
                 tuple(open_statuses),
             )

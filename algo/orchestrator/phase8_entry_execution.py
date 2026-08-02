@@ -78,6 +78,7 @@ from typing import Any, cast
 import psycopg2
 
 from algo.infrastructure.market_calendar import MarketCalendar
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
@@ -651,6 +652,7 @@ def run(
     and Phase 5 (exposure constraints). If executor is provided, dependencies are
     fetched via validated contract. Otherwise, data must be passed directly (legacy API).
     """
+    validate_phase_config(config, "phase_8_entry_execution")
 
     phase_start = time.time()
 
