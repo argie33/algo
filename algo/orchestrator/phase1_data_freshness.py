@@ -798,12 +798,14 @@ def run(  # noqa: C901
             # - market_health_daily: Market breadth/regime (VIX, advance/decline, market breadth)
             # - market_exposure_daily: Market exposure policy limits (when to trade, position sizing)
             # - earnings_calendar: Earnings dates for trading blackout windows
+            # - buy_sell_daily: Technical signals required by Phase 7 (MUST have today's signals)
             # NOTE: Metric enrichments (growth, quality, value, positioning, stability) are NOT
             # halt-critical. They're used for website display and portfolio analysis, not core signals.
             # Core signals come from price_daily + technical_data_daily. See Session 221.
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
+                "buy_sell_daily": "Buy/sell signals (CRITICAL for Phase 7 signal generation)",
             }
             # Warning-only tables: enrichments + auxiliary data. Stale -> logged, trading continues.
             # Moved metric tables here (Session 221): they're website enrichments, not core to signals.
@@ -925,6 +927,7 @@ def run(  # noqa: C901
                 "price_daily": run_date,
                 "technical_data_daily": run_date,
                 "stock_scores": run_date,
+                "buy_sell_daily": run_date,  # Must have today's signals for Phase 7
                 "trend_template_data": run_date,
                 "sector_ranking": run_date,
                 "growth_metrics": run_date,

@@ -2,11 +2,17 @@
 """Consolidated Economic Data Loader - US economic indicators + currency.
 
 Fetches and stores:
-- FRED Series: T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA (daily via FRED API)
+- FRED Series: T10Y2Y, SOFR, BAMLH0A0HYM2, ICSA (daily via FRED API)
 - DXY: USD Dollar Index proxy from FRED (DEXUSEU - EUR/USD exchange rate, inverted)
 
 CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py into single loader
 to eliminate race condition (both were writing economic_data table with different schedules).
+
+CRITICAL FIX (Session 212): Replaced FEDFUNDS with SOFR (Secured Overnight Financing Rate).
+FEDFUNDS in FRED is monthly data with gaps (only 6-12 observations per year). SOFR is:
+- Fed's official overnight benchmark rate (replaced LIBOR)
+- Published daily with complete coverage (~150+ observations)
+- More relevant for modern trading (Fed Funds target implemented via SOFR since 2023)
 
 CRITICAL FIX (Session 211): Eliminated yfinance dependency for DXY.
 Now uses FRED DEXUSEU (EUR/USD) as proxy for dollar strength. EUR/USD represents 57.6%
@@ -45,7 +51,7 @@ configure_socket_timeout(30)
 # FRED series to fetch
 FRED_SERIES = [
     "T10Y2Y",  # 10Y-2Y spread (recession indicator)
-    "FEDFUNDS",  # Federal Funds Rate
+    "SOFR",  # Secured Overnight Financing Rate (daily benchmark, replaces FEDFUNDS monthly data)
     "BAMLH0A0HYM2",  # High Yield OAS
     "ICSA",  # Initial Claims
 ]
