@@ -128,20 +128,34 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 logger.info(f"[PHASE 3] Found {len(positions)} open positions to update")
 
                 # CRITICAL: Validate tuple structure before indexing to prevent tuple index errors
-                if positions and len(positions[0]) != 7:
-                    raise RuntimeError(
-                        f"[PHASE 3] Position query returned {len(positions[0])} columns, expected exactly 7. "
-                        f"Schema drift detected - cannot extract all position fields. "
-                        f"Query must return: (position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price)"
-                    )
+                if positions:
+                    if len(positions[0]) != 7:
+                        raise RuntimeError(
+                            f"[PHASE 3] Position query returned {len(positions[0])} columns, expected exactly 7. "
+                            f"Schema drift detected - cannot extract all position fields. "
+                            f"Query must return: (position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price)"
+                        )
+                    # Validate that ALL positions have the same structure
+                    for idx, row in enumerate(positions):
+                        if len(row) != 7:
+                            raise RuntimeError(
+                                f"[PHASE 3] Position row {idx} has {len(row)} columns, expected 7. "
+                                f"Inconsistent result structure detected - cannot safely extract all position fields."
+                            )
 
                 # Get latest prices from price_daily table for all open symbols
                 # Use RowAccessor for type-safe column access instead of magic indices
                 position_columns = ["position_id", "symbol", "quantity", "current_price", "entry_date", "stop_loss_price", "avg_entry_price"]
-                open_symbols = [
-                    RowAccessor(row, position_columns, "position_fetch").get_str(1)  # symbol at index 1
-                    for row in positions
-                ]
+                try:
+                    open_symbols = [
+                        RowAccessor(row, position_columns, "position_fetch").get_str(1)  # symbol at index 1
+                        for row in positions
+                    ]
+                except (IndexError, KeyError, ValueError) as row_err:
+                    raise RuntimeError(
+                        f"[PHASE 3] Failed to extract symbol from position row: {row_err}. "
+                        f"Position data structure may be corrupted."
+                    ) from row_err
                 prices: dict[str, float | None] = {}
 
                 if open_symbols:
@@ -179,7 +193,18 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                     # GOVERNANCE COMPLIANCE: Check data_unavailable flag for each price
                     price_columns = ["symbol", "close", "data_unavailable", "data_unavailable_reason"]
-                    for row in price_rows:
+                    for price_idx, row in enumerate(price_rows):
+                        # Validate row structure before accessing with RowAccessor
+                        if row is None or not isinstance(row, (tuple, list)):
+                            raise RuntimeError(
+                                f"[PHASE 3] Price row {price_idx} is invalid type {type(row).__name__}. "
+                                f"Expected tuple or list. Database query may have returned corrupted data."
+                            )
+                        if len(row) != 4:
+                            raise RuntimeError(
+                                f"[PHASE 3] Price row {price_idx} has {len(row)} columns, expected 4. "
+                                f"Schema drift detected in price_daily query result."
+                            )
                         accessor = RowAccessor(row, price_columns, "price_fetch")
                         symbol = accessor.get_str(0)
                         close_price = accessor.get_float(1)
@@ -206,7 +231,26 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         prices[symbol] = float(close_price) if close_price is not None else None
 
                 update_errors = []
-                for update_idx, (position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry) in enumerate(positions):
+                for update_idx, row in enumerate(positions):
+                    # CRITICAL: Validate row structure before unpacking to prevent tuple index errors
+                    if row is None or not isinstance(row, (tuple, list)):
+                        logger.error(f"[PHASE 3] Position row {update_idx} is None or invalid type - skipping")
+                        update_errors.append(("UNKNOWN", f"Row {update_idx} is invalid type {type(row).__name__}"))
+                        continue
+                    if len(row) != 7:
+                        logger.error(
+                            f"[PHASE 3] Position row {update_idx} has {len(row)} columns, expected 7 - skipping. "
+                            f"Possible database connection issue or schema change."
+                        )
+                        update_errors.append(("UNKNOWN", f"Row {update_idx} has {len(row)} columns, expected 7"))
+                        continue
+                    try:
+                        position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry = row
+                    except (ValueError, TypeError) as unpack_err:
+                        logger.error(f"[PHASE 3] Failed to unpack position row {update_idx}: {unpack_err}")
+                        update_errors.append(("UNKNOWN", f"Row {update_idx} unpack failed: {str(unpack_err)[:50]}"))
+                        continue
+
                     # CRITICAL: Periodic pool health check during long-running position updates
                     # If Phase 3 processes many positions (30+ seconds), other processes may consume connections
                     # CRITICAL FIX 2026-08-02: Check pool every 30 positions (was every 5, high overhead)

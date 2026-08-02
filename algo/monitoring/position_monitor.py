@@ -377,8 +377,13 @@ class PositionMonitor:
                 count_row = cursor.fetchone()
                 if count_row is None:
                     raise PositionValidationError("Query for open positions returned None - database error")
+                if len(count_row) < 2:
+                    raise PositionValidationError(
+                        f"Position count query returned {len(count_row)} columns, expected 2 (COUNT, SUM). "
+                        "Database schema or query result structure corruption detected."
+                    )
                 position_count = count_row[0]
-                pos_value_sum = count_row[1] if len(count_row) > 1 else None
+                pos_value_sum = count_row[1]
 
                 # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
                 if position_count > 0 and pos_value_sum is None:
@@ -465,6 +470,24 @@ class PositionMonitor:
                 except PositionValidationError as e:
                     # SAFETY: Validate row structure before accessing indices
                     # The SELECT query returns 14 columns (indices 0-13), so row must have exactly 14 elements
+                    if row is None or not isinstance(row, (tuple, list)):
+                        logger.error(
+                            f"[PHASE 3] Row is None or not a tuple/list. Got {type(row).__name__}. "
+                            f"Cannot extract position data. Database connection may be broken."
+                        )
+                        raise RuntimeError(
+                            f"Position row is invalid type {type(row).__name__}. "
+                            f"Database query may have failed or returned corrupted data."
+                        ) from e
+                    if len(row) < 10:  # Minimum needed: indices 0, 1, 9
+                        logger.error(
+                            f"[PHASE 3] Row has insufficient columns ({len(row)}, need at least 10 for indices 0,1,9). "
+                            f"Cannot extract position data. Possible database query result corruption or schema drift."
+                        )
+                        raise RuntimeError(
+                            f"Position row has {len(row)} columns, expected at least 10. "
+                            f"Cannot extract position data. This may indicate database connection issues or schema mismatch."
+                        ) from e
                     if len(row) != 14:
                         logger.error(
                             f"[PHASE 3] Row has incorrect column count ({len(row)}, expected 14). "
