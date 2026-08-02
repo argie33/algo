@@ -440,7 +440,14 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 for attempt in range(max_retries):
                     try:
                         monitor = PositionMonitor(config)
-                        recommendations = monitor.review_positions(run_date, cur=cur)
+                        # CRITICAL: Don't reuse the same cursor across retries - if it fails,
+                        # it becomes unusable (aborted transaction state). Create fresh cursor for each retry.
+                        if attempt == 0:
+                            # First attempt: use provided cursor to avoid nested context
+                            recommendations = monitor.review_positions(run_date, cur=cur)
+                        else:
+                            # Retry attempts: use fresh cursor (don't pass the poisoned one)
+                            recommendations = monitor.review_positions(run_date, cur=None)
                         n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
                         n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
                         logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises",
@@ -454,16 +461,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
                             if attempt < max_retries - 1:
                                 logger.warning(
-                                    f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:100]}"
+                                    f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying with fresh cursor: {error_str[:100]}"
                                 )
-                                # CRITICAL FIX: After a transaction abort, the cursor is unusable.
-                                # Must issue ROLLBACK to reset transaction state before retrying.
-                                # Without this, retry attempts fail immediately with "cursor already closed".
-                                try:
-                                    cur.execute("ROLLBACK")
-                                    logger.debug("[PHASE 3] Issued ROLLBACK after transaction abort")
-                                except Exception as rollback_err:
-                                    logger.warning(f"[PHASE 3] ROLLBACK failed: {rollback_err}. Retrying anyway.")
+                                # CRITICAL FIX: Don't try to ROLLBACK the poisoned cursor - it won't work.
+                                # Instead, next iteration will use a fresh cursor via DatabaseContext.
+                                # The old cursor is left for DatabaseContext.__exit__ to clean up properly.
 
                                 import time
                                 time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
