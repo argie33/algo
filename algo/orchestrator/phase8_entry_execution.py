@@ -126,6 +126,7 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
         raise TypeError(f"exposure_constraints must be dict, got {type(exposure_constraints).__name__}")
 
     errors = []
+    tier_name = exposure_constraints.get("tier_name", "UNKNOWN_TIER")
 
     # CHECKPOINT 1: All required keys must be present
     # These fields are mandatory for Phase 8 to make safe trading decisions
@@ -163,7 +164,7 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
         if regime not in VALID_REGIMES:
             errors.append(f"regime must be one of {VALID_REGIMES}, got '{regime}'")
 
-    # CRITICAL: Check for contradictory constraints (HIGH ISSUE #5 FIX)
+    # CRITICAL: Check for contradictory constraints (HIGH ISSUE #1 FIX)
     # Contradictory constraints indicate configuration error that would cause unexpected behavior
     if exposure_constraints.get("halt_new_entries") is False:
         # If entries are NOT halted, at least one entry constraint must allow entries
@@ -172,25 +173,27 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
 
         if max_positions == 0:
             errors.append(
-                "Contradictory: halt_new_entries=False but max_new_positions_today=0. "
-                "Either halt entries (halt_new_entries=True) or allow entries (max_new_positions_today > 0)."
+                f"Contradictory [{tier_name}]: halt_new_entries=False but max_new_positions_today=0. "
+                "Either halt entries (halt_new_entries=True) or allow entries (max_new_positions_today > 0). "
+                f"Investigate ExposurePolicy tier {tier_name} in Phase 5."
             )
 
         if max_concentration == 0:
             errors.append(
-                "Contradictory: halt_new_entries=False but max_concentration_pct=0.0. "
-                "Either halt entries (halt_new_entries=True) or allow positions (max_concentration_pct > 0)."
+                f"Contradictory [{tier_name}]: halt_new_entries=False but max_concentration_pct=0.0. "
+                "Either halt entries (halt_new_entries=True) or allow positions (max_concentration_pct > 0). "
+                f"Investigate ExposurePolicy tier {tier_name} in Phase 5."
             )
 
     # If any validation failed, halt with comprehensive error message
     if errors:
-        error_msg = f"Invalid exposure constraints for Phase 8: {'; '.join(errors)}"
+        error_msg = f"Invalid exposure constraints from tier [{tier_name}]: {'; '.join(errors)}"
         logger.error(f"[PHASE 8] {error_msg}")
         raise ValueError(error_msg)
 
     # AUDIT TRAIL: Log successful constraint validation for monitoring and audit
     logger.info(
-        f"[PHASE 8 AUDIT] Constraint validation passed: "
+        f"[PHASE 8 AUDIT] Constraint validation passed [{tier_name}]: "
         f"halt_new_entries={exposure_constraints.get('halt_new_entries')}, "
         f"max_new_positions={exposure_constraints.get('max_new_positions_today')}, "
         f"max_concentration={exposure_constraints.get('max_concentration_pct')}%, "

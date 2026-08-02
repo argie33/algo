@@ -1328,6 +1328,91 @@ def _record_closed_positions_exits(
         ) from e
 
 
+def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None:
+    """FINDING #6 FIX: Clean up positions with quantity=0 but status='open'.
+
+    These orphaned positions occur when Phase 6 (exit_engine) reduces quantity to 0 but
+    fails to update status to 'closed' due to:
+    - Concurrent Phase 6 exits in multiple Lambda/ECS tasks (race condition)
+    - Transaction rollback after quantity update but before status update
+    - Database connection loss mid-update
+
+    This maintenance step runs weekly or on-demand to prevent these orphans from:
+    - Blocking risk calculations (they have quantity=0, shouldn't count but do if status='open')
+    - Confusing position monitoring (appear open but are actually exited)
+    - Skewing performance metrics (cash freed by exit but position still appears open)
+
+    GOVERNANCE: Only closes positions that are truly exited (quantity=0). Validates
+    that position truly has zero shares before marking closed. Logs all closures for audit.
+    """
+    try:
+        with DatabaseContext("write") as cur:
+            # Find positions with quantity=0 but status='open' (orphaned exits)
+            cur.execute(
+                """
+                SELECT id, symbol, quantity, status, updated_at
+                FROM algo_positions
+                WHERE quantity = 0 AND status = 'open'
+                ORDER BY updated_at DESC
+                LIMIT 100
+                """
+            )
+            orphaned_rows = cur.fetchall()
+
+            if not orphaned_rows:
+                logger.info("[PHASE 9 MAINTENANCE] No orphaned positions found (quantity=0 with status='open')")
+                return
+
+            logger.warning(
+                f"[PHASE 9 MAINTENANCE] Found {len(orphaned_rows)} orphaned positions "
+                f"(quantity=0 but status='open'). Closing them now..."
+            )
+
+            # Close all orphaned positions atomically
+            cur.execute(
+                """
+                UPDATE algo_positions
+                SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                    exit_reason = 'orphan_cleanup|quantity_zero_but_status_open',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE quantity = 0 AND status = 'open'
+                """
+            )
+            closed_count = cur.rowcount
+
+            # Log closure details for audit
+            for row in orphaned_rows:
+                try:
+                    pos_id, symbol, qty, status, updated_at = row
+                    logger.info(
+                        f"[PHASE 9 CLEANUP] Closed orphaned position {pos_id} ({symbol}): "
+                        f"quantity={qty}, previous_status={status}, last_updated={updated_at}"
+                    )
+                except Exception as row_err:
+                    logger.warning(f"[PHASE 9 CLEANUP] Failed to unpack orphan row for logging: {row_err}")
+
+            logger.info(f"[PHASE 9 MAINTENANCE] Closed {closed_count} orphaned positions")
+            try:
+                log_phase_result_fn(
+                    9,
+                    "orphan_cleanup",
+                    "success" if closed_count > 0 else "info",
+                    f"cleaned up {closed_count} positions with quantity=0",
+                )
+            except Exception as log_err:
+                logger.warning(f"[PHASE 9] Failed to log orphan cleanup status: {log_err}")
+
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(
+            f"[PHASE 9] Orphan position cleanup failed (non-critical): {e}. "
+            "Positions will be retried on next reconciliation run."
+        )
+        try:
+            log_phase_result_fn(9, "orphan_cleanup", "warn", f"failed: {str(e)[:100]}")
+        except Exception as log_err:
+            logger.warning(f"[PHASE 9] Failed to log orphan cleanup warning: {log_err}")
+
+
 def run(
     config: Any,
     run_date: _date,
@@ -1348,6 +1433,14 @@ def run(
         if broker state cannot be verified.
     """
     validate_phase_config(config, "phase_9_reconciliation")
+
+    # MAINTENANCE: Clean up orphaned positions before reconciliation
+    # This prevents orphans (quantity=0 but status='open') from skewing metrics
+    try:
+        _cleanup_orphaned_positions(log_phase_result_fn)
+    except Exception as cleanup_err:
+        logger.warning(f"[PHASE 9] Orphan cleanup step encountered unexpected error: {cleanup_err}", exc_info=True)
+        # Don't halt Phase 9 for cleanup failures - proceed with reconciliation
 
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
