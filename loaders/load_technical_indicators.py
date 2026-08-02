@@ -481,6 +481,15 @@ class VectorizedTechnicalLoader:
                             if spy_aligned.isna().any():
                                 # If ffill didn't work, use bfill as fallback
                                 spy_aligned = spy_aligned.bfill()
+                                # CRITICAL: Validate that bfill actually filled the gaps
+                                if spy_aligned.isna().any():
+                                    remaining_nans = spy_aligned.isna().sum()
+                                    raise RuntimeError(
+                                        f"[MANSFIELD_RS] SPY alignment failed for {symbol}: "
+                                        f"ffill+bfill left {remaining_nans} NaN values. "
+                                        f"Cannot compute relative strength with missing SPY prices. "
+                                        f"Reason: possibly all-NaN period at start/end of data range."
+                                    )
 
                     rs_line = symbol_df["close"].values / spy_aligned.values
                     rs_line_s = pd.Series(rs_line, index=symbol_df.index)
