@@ -59,6 +59,7 @@ class SecValuationsLoader(OptimalLoader):
                 # Get income statement data from most recent annual filing
                 # CRITICAL: Use NULL checks instead of COALESCE(col, 0) to detect missing financial data
                 # Defaulting to 0 for revenue/EPS would cause wrong valuations (zero division, phantom metrics)
+                # NOTE: Removed data_unavailable = FALSE filter to prevent premature early exit
                 cur.execute(
                     """
                     SELECT
@@ -70,7 +71,7 @@ class SecValuationsLoader(OptimalLoader):
                         amortization_expense,
                         shares_outstanding_basic
                     FROM annual_income_statement
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 2
                     """,
                     (symbol,),
@@ -163,11 +164,12 @@ class SecValuationsLoader(OptimalLoader):
                     return [self._unavailable_marker(symbol, "invalid_price")]
 
                 # Get latest balance sheet (book value - optional, may not exist for all companies)
+                # NOTE: Removed data_unavailable = FALSE filter to allow fallback computation
                 cur.execute(
                     """
                     SELECT stockholders_equity
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -177,6 +179,7 @@ class SecValuationsLoader(OptimalLoader):
                 # Note: book_value can be None for companies without balance sheets - PB ratio will be NULL
 
                 # Get latest cash flow (for FCF - optional, may not exist for all companies)
+                # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
                 cur.execute(
                     """
                     SELECT
@@ -184,7 +187,7 @@ class SecValuationsLoader(OptimalLoader):
                         capex,
                         dividends_paid
                     FROM annual_cash_flow
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -194,13 +197,14 @@ class SecValuationsLoader(OptimalLoader):
                 # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
 
                 # Get debt and cash from balance sheet (for Enterprise Value)
+                # NOTE: Removed data_unavailable = FALSE filter to allow partial computation
                 cur.execute(
                     """
                     SELECT
                         total_liabilities,
                         cash_and_equivalents
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),

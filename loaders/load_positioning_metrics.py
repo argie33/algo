@@ -66,11 +66,13 @@ class PositioningMetricsLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 # Fetch last 252 days of OHLCV data for A/D calculation
+                # NOTE: Removed data_unavailable = FALSE filter to allow computation
+                # even if price_daily may have some unavailable flags
                 cur.execute(
                     """
                     SELECT date, high, low, close, volume
                     FROM price_daily
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY date ASC
                     """,
                     (symbol,),
@@ -128,11 +130,13 @@ class PositioningMetricsLoader(OptimalLoader):
                 # in this table - fetching 2 rows lets us derive shares_short_prior_month
                 # and short_interest_trend (both existing positioning_metrics columns that
                 # no loader had ever populated) with no new data source needed.
+                # NOTE: Removed data_unavailable = FALSE filter to allow processing
+                # even if upstream FINRA loader hasn't marked data available yet
                 cur.execute(
                     """
                     SELECT short_pct, short_shares, settlement_date, days_to_cover, avg_daily_volume
                     FROM short_interest_finra
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY settlement_date DESC LIMIT 2
                     """,
                     (symbol,),
@@ -169,10 +173,12 @@ class PositioningMetricsLoader(OptimalLoader):
             if short_rows and short_rows[0][1] is not None:  # short_shares
                 try:
                     with DatabaseContext("read") as cur:
+                        # NOTE: Removed data_unavailable = FALSE filter to allow fetching
+                        # shares_outstanding even if company_info_sec is marked unavailable
                         cur.execute(
                             """
                             SELECT shares_outstanding FROM company_info_sec
-                            WHERE symbol = %s AND data_unavailable = FALSE
+                            WHERE symbol = %s
                             ORDER BY filing_date DESC LIMIT 1
                             """,
                             (symbol,),
@@ -195,11 +201,13 @@ class PositioningMetricsLoader(OptimalLoader):
         institutional_source = None
 
         with DatabaseContext("read") as cur:
+            # NOTE: Removed data_unavailable = FALSE filter to allow processing
+            # even if upstream 13F loader hasn't marked data available yet
             cur.execute(
                 """
                 SELECT institutional_ownership_pct, data_unavailable, reason
                 FROM institutional_holdings_13f
-                WHERE symbol = %s AND data_unavailable = FALSE
+                WHERE symbol = %s
                 ORDER BY filing_date DESC LIMIT 1
                 """,
                 (symbol,),
@@ -217,11 +225,13 @@ class PositioningMetricsLoader(OptimalLoader):
         insider_source = None
 
         with DatabaseContext("read") as cur:
+            # NOTE: Removed data_unavailable = FALSE filter to allow processing
+            # even if upstream insider holdings loader hasn't marked data available yet
             cur.execute(
                 """
                 SELECT insider_ownership_pct, data_unavailable, reason
                 FROM insider_holdings_sec
-                WHERE symbol = %s AND data_unavailable = FALSE
+                WHERE symbol = %s
                 ORDER BY filing_date DESC LIMIT 1
                 """,
                 (symbol,),

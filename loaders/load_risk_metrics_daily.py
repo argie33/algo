@@ -247,8 +247,10 @@ class RiskMetricsLoader(OptimalLoader):
         """
         try:
             with DatabaseContext("read") as cur:
+                # NOTE: Removed data_unavailable = FALSE filter to allow fetching debt_to_assets
+                # even if quality_metrics is marked unavailable for other reasons
                 cur.execute(
-                    "SELECT debt_to_assets FROM quality_metrics WHERE symbol = %s AND data_unavailable = FALSE",
+                    "SELECT debt_to_assets FROM quality_metrics WHERE symbol = %s",
                     (symbol,),
                 )
                 row = cur.fetchone()

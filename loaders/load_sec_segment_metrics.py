@@ -79,6 +79,8 @@ class SecSegmentMetricsLoader(OptimalLoader):
                 # Query segment information table
                 # This table is populated during financial statement processing
                 # and contains parsed segment disclosures from 10-K Item 8 / 10-Q
+                # NOTE: Removed data_unavailable = FALSE filter to prevent premature early exit
+                # if upstream loader hasn't completed. Query all rows and check flags after fetching.
                 cur.execute(
                     """
                     SELECT
@@ -89,7 +91,7 @@ class SecSegmentMetricsLoader(OptimalLoader):
                         data_unavailable,
                         reason
                     FROM sec_segment_info
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -103,8 +105,12 @@ class SecSegmentMetricsLoader(OptimalLoader):
 
             segment_count, largest_segment_pct, hhi, has_data, unavailable, reason = segment_row
 
-            if unavailable or not has_data:
+            # If upstream marked data unavailable with a legitimate reason, respect that
+            # (e.g., "single_segment_only" is legitimate, but "data_not_yet_fetched" means retry)
+            if unavailable and reason and any(x in reason.lower() for x in ["single_segment", "no_segment"]):
                 return [_unavailable_marker(symbol, reason or "segment_data_unavailable")]
+
+            # For other unavailable markers, try to proceed anyway (upstream may not be ready yet)
 
             # Parse metrics
             seg_count = int(segment_count) if segment_count else None

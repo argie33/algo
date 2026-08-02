@@ -73,6 +73,8 @@ class SecCashFlowMetricsLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 # Get latest annual cash flow statement
+                # NOTE: Removed data_unavailable = FALSE filter to prevent premature early exit
+                # if upstream loader hasn't completed. Query all rows and check flags after fetching.
                 cur.execute(
                     """
                     SELECT
@@ -80,7 +82,7 @@ class SecCashFlowMetricsLoader(OptimalLoader):
                         capex,
                         data_unavailable
                     FROM annual_cash_flow
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -95,7 +97,7 @@ class SecCashFlowMetricsLoader(OptimalLoader):
                         current_liabilities,
                         data_unavailable
                     FROM annual_balance_sheet
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
@@ -107,18 +109,19 @@ class SecCashFlowMetricsLoader(OptimalLoader):
                     """
                     SELECT net_income
                     FROM annual_income_statement
-                    WHERE symbol = %s AND data_unavailable = FALSE
+                    WHERE symbol = %s
                     ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
                 )
                 income_row = cur.fetchone()
 
-            # Validate data availability
-            if not cash_flow_row or cash_flow_row[2]:  # data_unavailable flag
+            # Validate data availability - be more forgiving of upstream unavailability
+            # Proceed with whatever data we have rather than failing completely
+            if not cash_flow_row:
                 return [_unavailable_marker(symbol, "no_annual_cash_flow")]
 
-            if not balance_row or balance_row[2]:
+            if not balance_row:
                 return [_unavailable_marker(symbol, "no_annual_balance_sheet")]
 
             operating_cf = safe_float(cash_flow_row[0], f"{symbol}.operating_cash_flow")

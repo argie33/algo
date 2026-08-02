@@ -106,11 +106,14 @@ class InsiderHoldingsSECLoader(OptimalLoader):
     @staticmethod
     def _get_shares_outstanding(symbol: str) -> int | None:
         with DatabaseContext("read") as cur:
+            # NOTE: Removed data_unavailable = FALSE filter to allow fetching shares_outstanding
+            # even if company_info_sec is marked unavailable for other reasons.
+            # We only care about the shares_outstanding value, not the overall unavailable flag.
             cur.execute(
                 """
                 SELECT shares_outstanding
                 FROM company_info_sec
-                WHERE symbol = %s AND data_unavailable = FALSE AND shares_outstanding IS NOT NULL
+                WHERE symbol = %s AND shares_outstanding IS NOT NULL
                 ORDER BY filing_date DESC LIMIT 1
                 """,
                 (symbol,),
