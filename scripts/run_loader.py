@@ -256,6 +256,36 @@ def run_stock_scores_loader(limit=None):
     return result
 
 
+def run_buy_sell_daily_loader():
+    """Run daily buy/sell signals loader (depends on stock_scores and price_daily).
+
+    CRITICAL FIX (2026-08-02): This loader was missing from the signals pipeline,
+    causing buy_sell_daily to stale 3+ days. Added to local_loader_scheduler.py
+    "signals" pipeline to ensure daily signal generation runs.
+    """
+    import psycopg2
+
+    from loaders.load_buy_sell_daily import SignalsDailyLoader
+
+    # Fetch universe symbols from stock_symbols table
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for buy/sell daily signals")
+    except Exception as e:
+        logger.warning(f"Could not load universe: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+
+    loader = SignalsDailyLoader()
+    result = loader.run(symbols=symbols)
+    logger.info(f"Buy/sell daily signals loader result: {result}")
+    return result
+
+
 def run_positioning_metrics_loader():
     """Run positioning metrics loader (institutional/insider/short interest data)."""
     import psycopg2
@@ -310,7 +340,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
         "loader",
-        choices=["prices", "technical", "scores", "market_status", "value_quality_growth", "positioning_metrics", "stability_metrics"],
+        choices=["prices", "technical", "scores", "buy_sell", "market_status", "value_quality_growth", "positioning_metrics", "stability_metrics"],
         help="Loader to run (use consolidated loader names)"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
@@ -337,6 +367,7 @@ def main():
             "market_status": ["market_health_daily"],
             "value_quality_growth": ["value_metrics", "quality_metrics", "growth_metrics"],
             "scores": ["stock_scores"],
+            "buy_sell": ["buy_sell_daily"],
             "positioning_metrics": ["positioning_metrics"],
             "stability_metrics": ["stability_metrics"],
         }
@@ -380,6 +411,9 @@ def main():
 
         elif args.loader == "scores":
             run_stock_scores_loader(limit=args.limit)
+
+        elif args.loader == "buy_sell":
+            run_buy_sell_daily_loader()
 
         elif args.loader == "positioning_metrics":
             run_positioning_metrics_loader()

@@ -32,6 +32,7 @@ PIPELINES = {
         "prices",
         "technical",
         "scores",
+        "buy_sell",
     ],
 }
 
