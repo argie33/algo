@@ -1446,6 +1446,8 @@ class AlgoConfig:
                     cur.execute("SELECT key, value, data_type FROM algo_config")
                 except psycopg2.ProgrammingError:
                     # data_type column doesn't exist - use fallback query
+                    # CRITICAL: Must rollback transaction before retrying (PostgreSQL aborts on failed queries)
+                    cur.connection.rollback()
                     cur.execute("SELECT key, value, NULL::VARCHAR as data_type FROM algo_config")
                 rows = cur.fetchall()
                 logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
