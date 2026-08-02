@@ -286,112 +286,132 @@ class HaltFlagManager:
                 return True
 
     def _check_halt_flag_rds(self) -> bool | None:
-        """Check halt flag in RDS. Returns True/False if successful, None if unavailable."""
+        """Check halt flag in RDS. Returns True/False if successful, None if unavailable.
+
+        RACE CONDITION FIX: Use advisory lock to serialize halt flag access across
+        concurrent orchestrator instances. Without this lock, instance A could check
+        halt state, find it clear, then instance B modifies it, leaving A with stale info.
+        Advisory lock ensures atomic read-modify-write sequence.
+        """
         try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT halt_flag, halt_reason, halt_triggered_at
-                    FROM algo_runtime_state
-                    WHERE state_key = %s
-                    """,
-                    (self.HALT_FLAG_DYNAMODB_KEY,),
-                )
-                result = cur.fetchone()
+            with DatabaseContext("write") as cur:
+                # Use advisory lock to serialize access to halt flag across concurrent instances
+                # Lock ID is deterministic (hash of state key) so all instances wait on same lock
+                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)  # Ensure within PostgreSQL int32 range
 
-                if not result:
-                    logger.debug("[HALT_FLAG] No halt flag in RDS (not set)")
-                    return False
+                try:
+                    # Acquire exclusive lock (blocks other instances until we release)
+                    cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
 
-                halt_flag, reason, triggered_at = result
+                    # Now read halt flag - guaranteed no concurrent modifications during our read
+                    cur.execute(
+                        """
+                        SELECT halt_flag, halt_reason, halt_triggered_at
+                        FROM algo_runtime_state
+                        WHERE state_key = %s
+                        """,
+                        (self.HALT_FLAG_DYNAMODB_KEY,),
+                    )
+                    result = cur.fetchone()
 
-                if not halt_flag:
-                    return False
+                    if not result:
+                        logger.debug("[HALT_FLAG] No halt flag in RDS (not set)")
+                        return False
 
-                # Check if halt is from previous trading day (auto-expiry)
-                if triggered_at:
-                    try:
-                        trigger_dt = datetime.fromisoformat(
-                            triggered_at.isoformat() if hasattr(triggered_at, "isoformat") else triggered_at
-                        )
-                        now_utc = datetime.now(timezone.utc)
+                    halt_flag, reason, triggered_at = result
 
-                        # _set_halt_flag_rds writes halt_triggered_at as now_utc.isoformat() - a
-                        # genuinely UTC value - into a `timestamp without time zone` column.
-                        # Confirmed live: Postgres's cast from a tz-aware ISO string into that
-                        # column type drops the offset but keeps the wall-clock digits as-is
-                        # (does NOT convert via the session timezone), so the naive value read
-                        # back here is UTC digits, not Eastern. Mislabeling it as Eastern via
-                        # .replace(tzinfo=EASTERN_TZ) shifted the interpreted instant by the
-                        # ET-UTC offset (4-5h) - enough to misclassify trigger_date near
-                        # midnight ET. It also left `trigger_dt` itself naive, so the
-                        # now_utc - trigger_dt subtraction below crashed with TypeError on every
-                        # same-day active halt (confirmed live), caught by the broad except
-                        # below and silently dropping the halt's real reason/duration from the
-                        # CRITICAL log in favor of a generic "could not parse timestamp" warning.
-                        trigger_dt = trigger_dt if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=timezone.utc)
-                        trigger_et = trigger_dt.astimezone(EASTERN_TZ)
-                        now_et = now_utc.astimezone(EASTERN_TZ)
+                    if not halt_flag:
+                        return False
 
-                        trigger_date = trigger_et.date()
-                        now_date_et = now_et.date()
-
-                        if trigger_date < now_date_et:
-                            market_open_et = now_et.replace(
-                                hour=MARKET_OPEN_HOUR,
-                                minute=MARKET_OPEN_MINUTE,
-                                second=0,
-                                microsecond=0,
+                    # Check if halt is from previous trading day (auto-expiry)
+                    if triggered_at:
+                        try:
+                            trigger_dt = datetime.fromisoformat(
+                                triggered_at.isoformat() if hasattr(triggered_at, "isoformat") else triggered_at
                             )
-                            market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+                            now_utc = datetime.now(timezone.utc)
 
-                            if now_et >= market_open_et:
-                                time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({time_str} ET) "
-                                    f"on {now_date_et} - auto-clearing via RDS"
+                            # _set_halt_flag_rds writes halt_triggered_at as now_utc.isoformat() - a
+                            # genuinely UTC value - into a `timestamp without time zone` column.
+                            # Confirmed live: Postgres's cast from a tz-aware ISO string into that
+                            # column type drops the offset but keeps the wall-clock digits as-is
+                            # (does NOT convert via the session timezone), so the naive value read
+                            # back here is UTC digits, not Eastern. Mislabeling it as Eastern via
+                            # .replace(tzinfo=EASTERN_TZ) shifted the interpreted instant by the
+                            # ET-UTC offset (4-5h) - enough to misclassify trigger_date near
+                            # midnight ET. It also left `trigger_dt` itself naive, so the
+                            # now_utc - trigger_dt subtraction below crashed with TypeError on every
+                            # same-day active halt (confirmed live), caught by the broad except
+                            # below and silently dropping the halt's real reason/duration from the
+                            # CRITICAL log in favor of a generic "could not parse timestamp" warning.
+                            trigger_dt = trigger_dt if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=timezone.utc)
+                            trigger_et = trigger_dt.astimezone(EASTERN_TZ)
+                            now_et = now_utc.astimezone(EASTERN_TZ)
+
+                            trigger_date = trigger_et.date()
+                            now_date_et = now_et.date()
+
+                            if trigger_date < now_date_et:
+                                market_open_et = now_et.replace(
+                                    hour=MARKET_OPEN_HOUR,
+                                    minute=MARKET_OPEN_MINUTE,
+                                    second=0,
+                                    microsecond=0,
                                 )
-                                # Clear halt flag in RDS
-                                try:
-                                    clear_cur = DatabaseContext("write")
-                                    with clear_cur as cur2:
-                                        cur2.execute(
+                                market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                                if now_et >= market_open_et:
+                                    time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
+                                    logger.info(
+                                        f"[HALT_FLAG] Halt from {trigger_date} past market open ({time_str} ET) "
+                                        f"on {now_date_et} - auto-clearing via RDS"
+                                    )
+                                    # Clear halt flag in RDS (still holding advisory lock - atomic operation)
+                                    try:
+                                        cur.execute(
                                             """UPDATE algo_runtime_state SET halt_flag = FALSE, halt_count = 0
                                                WHERE state_key = %s""",
                                             (self.HALT_FLAG_DYNAMODB_KEY,),
                                         )
-                                except Exception as clear_err:
-                                    logger.warning(f"[HALT_FLAG] Could not auto-clear halt in RDS: {clear_err}")
-                                return False
-                            else:
+                                    except Exception as clear_err:
+                                        logger.warning(f"[HALT_FLAG] Could not auto-clear halt in RDS: {clear_err}")
+                                    return False
+                                else:
+                                    hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                                    logger.critical(
+                                        f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et} "
+                                        f"(triggered prior trading day, still before {MARKET_OPEN_HOUR}:"
+                                        f"{MARKET_OPEN_MINUTE:02d} ET open). Triggered {hours_halted:.1f}h ago "
+                                        f"at {trigger_et.strftime('%H:%M ET')} on {trigger_date}. "
+                                        f"Reason: {reason[:150] if reason else 'N/A'}"
+                                    )
+                                    return True
+
+                            if trigger_date == now_date_et:
                                 hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
                                 logger.critical(
-                                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et} "
-                                    f"(triggered prior trading day, still before {MARKET_OPEN_HOUR}:"
-                                    f"{MARKET_OPEN_MINUTE:02d} ET open). Triggered {hours_halted:.1f}h ago "
-                                    f"at {trigger_et.strftime('%H:%M ET')} on {trigger_date}. "
+                                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et}. "
+                                    f"Triggered {hours_halted:.1f}h ago. "
                                     f"Reason: {reason[:150] if reason else 'N/A'}"
                                 )
                                 return True
 
-                        if trigger_date == now_date_et:
-                            hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
-                            logger.critical(
-                                f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et}. "
-                                f"Triggered {hours_halted:.1f}h ago. "
-                                f"Reason: {reason[:150] if reason else 'N/A'}"
-                            )
-                            return True
+                        except (ValueError, KeyError, TypeError) as parse_err:
+                            logger.warning(f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}")
 
-                    except (ValueError, KeyError, TypeError) as parse_err:
-                        logger.warning(f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}")
+                    if reason:
+                        logger.critical(
+                            f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS, could not parse timestamp). "
+                            f"Reason: {reason[:150]}"
+                        )
+                    return True
 
-                if reason:
-                    logger.critical(
-                        f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS, could not parse timestamp). "
-                        f"Reason: {reason[:150]}"
-                    )
-                return True
+                finally:
+                    # Always release advisory lock, even if exception occurred
+                    try:
+                        cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+                    except Exception as unlock_err:
+                        logger.warning(f"[HALT_FLAG] Could not release advisory lock: {unlock_err}")
 
         except Exception as e:
             logger.debug(f"[HALT_FLAG] RDS check failed: {e}. Both DynamoDB and RDS unavailable.")
@@ -555,37 +575,53 @@ class HaltFlagManager:
         raise RuntimeError(error_msg)
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
-        """Set halt flag in RDS. Returns True if successfully set."""
+        """Set halt flag in RDS. Returns True if successfully set.
+
+        RACE CONDITION FIX: Use advisory lock to serialize halt flag updates across
+        concurrent orchestrator instances. Ensures halt_count increment is atomic.
+        """
         import json
 
         try:
             with DatabaseContext("write") as cur:
-                state_value = json.dumps({"halt_triggered_by": "orchestrator", "reason": reason or "Phase 1 degraded"})
-                cur.execute(
-                    """
-                    INSERT INTO algo_runtime_state (
-                        state_key, state_value, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (state_key) DO UPDATE SET
-                        state_value = EXCLUDED.state_value,
-                        halt_flag = EXCLUDED.halt_flag,
-                        halt_triggered_at = EXCLUDED.halt_triggered_at,
-                        halt_reason = EXCLUDED.halt_reason,
-                        halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
-                        last_updated_at = CURRENT_TIMESTAMP
-                    """,
-                    (
-                        self.HALT_FLAG_DYNAMODB_KEY,
-                        state_value,
-                        True,
-                        now_utc.isoformat(),
-                        reason or "Phase 1 degraded: stale data detected",
-                        1,
-                        "orchestrator",
-                    ),
-                )
-            logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
-            return True
+                # Use advisory lock to serialize access to halt flag
+                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)
+
+                try:
+                    cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+
+                    state_value = json.dumps({"halt_triggered_by": "orchestrator", "reason": reason or "Phase 1 degraded"})
+                    cur.execute(
+                        """
+                        INSERT INTO algo_runtime_state (
+                            state_key, state_value, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (state_key) DO UPDATE SET
+                            state_value = EXCLUDED.state_value,
+                            halt_flag = EXCLUDED.halt_flag,
+                            halt_triggered_at = EXCLUDED.halt_triggered_at,
+                            halt_reason = EXCLUDED.halt_reason,
+                            halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
+                            last_updated_at = CURRENT_TIMESTAMP
+                        """,
+                        (
+                            self.HALT_FLAG_DYNAMODB_KEY,
+                            state_value,
+                            True,
+                            now_utc.isoformat(),
+                            reason or "Phase 1 degraded: stale data detected",
+                            1,
+                            "orchestrator",
+                        ),
+                    )
+                    logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
+                    return True
+                finally:
+                    try:
+                        cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+                    except Exception as unlock_err:
+                        logger.warning(f"[HALT_FLAG] Could not release advisory lock: {unlock_err}")
+
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to set halt flag in RDS: {e}")
             return False
@@ -721,82 +757,98 @@ class HaltFlagManager:
             return False
 
     def _proactive_clear_stale_halt_rds(self) -> bool:
-        """Proactively clear stale halt flag from RDS. Returns True if cleared, False if still active or no halt."""
+        """Proactively clear stale halt flag from RDS. Returns True if cleared, False if still active or no halt.
+
+        RACE CONDITION FIX: Use advisory lock to serialize halt flag access at startup.
+        Ensures read and clear are atomic even if called by multiple orchestrator instances.
+        """
         try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT halt_flag, halt_triggered_at
-                    FROM algo_runtime_state
-                    WHERE state_key = %s
-                    """,
-                    (self.HALT_FLAG_DYNAMODB_KEY,),
-                )
-                result = cur.fetchone()
-
-                if not result or not result[0]:
-                    return False
-
-                triggered_at = result[1]
-                if not triggered_at:
-                    return False
+            with DatabaseContext("write") as cur:
+                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)
 
                 try:
-                    trigger_dt = datetime.fromisoformat(
-                        triggered_at.isoformat() if hasattr(triggered_at, "isoformat") else triggered_at
+                    # Acquire lock before reading
+                    cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+
+                    cur.execute(
+                        """
+                        SELECT halt_flag, halt_triggered_at
+                        FROM algo_runtime_state
+                        WHERE state_key = %s
+                        """,
+                        (self.HALT_FLAG_DYNAMODB_KEY,),
                     )
-                    now_utc = datetime.now(timezone.utc)
+                    result = cur.fetchone()
 
-                    # Same root cause as _check_halt_flag_rds: _set_halt_flag_rds writes
-                    # halt_triggered_at as now_utc.isoformat() - genuinely UTC - into a
-                    # `timestamp without time zone` column, which stores the wall-clock
-                    # digits verbatim (no session-timezone conversion). Mislabeling the
-                    # naive value as Eastern instead of UTC shifts trigger_date forward by
-                    # the ET-UTC offset (4-5h) - for a halt genuinely triggered late evening
-                    # ET (e.g. 11 PM ET = past midnight UTC), this pushes trigger_date from
-                    # "yesterday" to "today", so the previous-trading-day auto-clear branch
-                    # below never fires. That branch exists specifically to break a startup
-                    # deadlock (ISSUE #31) - silently defeating it for exactly the halts most
-                    # likely to still be sitting there at the next morning's startup.
-                    trigger_dt = trigger_dt if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=timezone.utc)
-                    trigger_et = trigger_dt.astimezone(EASTERN_TZ)
-                    now_et = now_utc.astimezone(EASTERN_TZ)
+                    if not result or not result[0]:
+                        return False
 
-                    trigger_date = trigger_et.date()
-                    now_date_et = now_et.date()
+                    triggered_at = result[1]
+                    if not triggered_at:
+                        return False
 
-                    if trigger_date < now_date_et:
-                        market_open_et = now_et.replace(
-                            hour=MARKET_OPEN_HOUR,
-                            minute=MARKET_OPEN_MINUTE,
-                            second=0,
-                            microsecond=0,
+                    try:
+                        trigger_dt = datetime.fromisoformat(
+                            triggered_at.isoformat() if hasattr(triggered_at, "isoformat") else triggered_at
                         )
-                        market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+                        now_utc = datetime.now(timezone.utc)
 
-                        if now_et >= market_open_et:
-                            time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
-                            logger.critical(
-                                f"[PROACTIVE_CLEAR] Halt from {trigger_date} detected at startup. "
-                                f"It's now {now_date_et} past market open ({time_str} ET). "
-                                "Breaking deadlock by auto-clearing halt (RDS)."
+                        # Same root cause as _check_halt_flag_rds: _set_halt_flag_rds writes
+                        # halt_triggered_at as now_utc.isoformat() - genuinely UTC - into a
+                        # `timestamp without time zone` column, which stores the wall-clock
+                        # digits verbatim (no session-timezone conversion). Mislabeling the
+                        # naive value as Eastern instead of UTC shifts trigger_date forward by
+                        # the ET-UTC offset (4-5h) - for a halt genuinely triggered late evening
+                        # ET (e.g. 11 PM ET = past midnight UTC), this pushes trigger_date from
+                        # "yesterday" to "today", so the previous-trading-day auto-clear branch
+                        # below never fires. That branch exists specifically to break a startup
+                        # deadlock (ISSUE #31) - silently defeating it for exactly the halts most
+                        # likely to still be sitting there at the next morning's startup.
+                        trigger_dt = trigger_dt if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=timezone.utc)
+                        trigger_et = trigger_dt.astimezone(EASTERN_TZ)
+                        now_et = now_utc.astimezone(EASTERN_TZ)
+
+                        trigger_date = trigger_et.date()
+                        now_date_et = now_et.date()
+
+                        if trigger_date < now_date_et:
+                            market_open_et = now_et.replace(
+                                hour=MARKET_OPEN_HOUR,
+                                minute=MARKET_OPEN_MINUTE,
+                                second=0,
+                                microsecond=0,
                             )
-                            with DatabaseContext("write") as write_cur:
-                                write_cur.execute(
+                            market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                            if now_et >= market_open_et:
+                                time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
+                                logger.critical(
+                                    f"[PROACTIVE_CLEAR] Halt from {trigger_date} detected at startup. "
+                                    f"It's now {now_date_et} past market open ({time_str} ET). "
+                                    "Breaking deadlock by auto-clearing halt (RDS)."
+                                )
+                                # Clear while still holding advisory lock (atomic operation)
+                                cur.execute(
                                     """UPDATE algo_runtime_state SET halt_flag = FALSE, halt_count = 0
                                        WHERE state_key = %s""",
                                     (self.HALT_FLAG_DYNAMODB_KEY,),
                                 )
-                            logger.info(
-                                "[PROACTIVE_CLEAR] Halt flag successfully cleared (RDS). Orchestrator will proceed."
-                            )
-                            return True
+                                logger.info(
+                                    "[PROACTIVE_CLEAR] Halt flag successfully cleared (RDS). Orchestrator will proceed."
+                                )
+                                return True
 
-                    return False
+                        return False
 
-                except (ValueError, KeyError, TypeError) as parse_err:
-                    logger.warning(f"[PROACTIVE_CLEAR] Could not parse RDS timestamp: {parse_err}")
-                    return False
+                    except (ValueError, KeyError, TypeError) as parse_err:
+                        logger.warning(f"[PROACTIVE_CLEAR] Could not parse RDS timestamp: {parse_err}")
+                        return False
+
+                finally:
+                    try:
+                        cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+                    except Exception as unlock_err:
+                        logger.warning(f"[HALT_FLAG] Could not release advisory lock: {unlock_err}")
 
         except Exception as e:
             logger.warning(f"[PROACTIVE_CLEAR] RDS proactive clear failed: {e}")
@@ -910,21 +962,37 @@ class HaltFlagManager:
         raise RuntimeError(error_msg)
 
     def _clear_halt_flag_rds(self, reason: str) -> bool:
-        """Clear halt flag in RDS. Returns True if successfully cleared."""
+        """Clear halt flag in RDS. Returns True if successfully cleared.
+
+        RACE CONDITION FIX: Use advisory lock to serialize halt flag updates across
+        concurrent orchestrator instances. Ensures clear operation is atomic.
+        """
         try:
             with DatabaseContext("write") as cur:
-                now_utc = datetime.now(timezone.utc)
-                cur.execute(
-                    """
-                    UPDATE algo_runtime_state
-                    SET halt_flag = FALSE, halt_count = 0, halt_reason = %s, last_updated_at = %s
-                    WHERE state_key = %s
-                    """,
-                    (reason or "Phase 1 verified: data is fresh", now_utc, self.HALT_FLAG_DYNAMODB_KEY),
-                )
-            msg = reason or "Phase 1 verified: data is fresh, resuming normal trading"
-            logger.info(f"[HALT_FLAG_CLEARED] {msg} (via RDS fallback)")
-            return True
+                # Use advisory lock to serialize access to halt flag
+                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)
+
+                try:
+                    cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+
+                    now_utc = datetime.now(timezone.utc)
+                    cur.execute(
+                        """
+                        UPDATE algo_runtime_state
+                        SET halt_flag = FALSE, halt_count = 0, halt_reason = %s, last_updated_at = %s
+                        WHERE state_key = %s
+                        """,
+                        (reason or "Phase 1 verified: data is fresh", now_utc, self.HALT_FLAG_DYNAMODB_KEY),
+                    )
+                    msg = reason or "Phase 1 verified: data is fresh, resuming normal trading"
+                    logger.info(f"[HALT_FLAG_CLEARED] {msg} (via RDS fallback)")
+                    return True
+                finally:
+                    try:
+                        cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+                    except Exception as unlock_err:
+                        logger.warning(f"[HALT_FLAG] Could not release advisory lock: {unlock_err}")
+
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")
             return False
