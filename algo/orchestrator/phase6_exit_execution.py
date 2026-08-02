@@ -932,6 +932,7 @@ def run(
                         if verbose:
                             logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                     else:
+                        assert executor is not None, "executor must be initialized in non-dry-run mode"
                         result = executor.exit_trade(
                             trade_id=rec["trade_id"],
                             exit_price=rec["current_price"],
