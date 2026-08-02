@@ -312,16 +312,11 @@ def run(
                         except (TypeError, ValueError) as e:
                             logger.error(f"[PHASE 6] Failed to convert sector count {count} ({type(count).__name__}) to int: {e}")
                             continue
-                        # CRITICAL: Force both operands to native Python int for subtraction
-                        # Triple conversion to eliminate numpy/psycopg2 int types
+                        # CRITICAL: Use _ensure_int for ALL arithmetic operands
+                        # This ensures native Python int, not psycopg2 Decimal or numpy types
                         try:
-                            count_int_native = int(int(int(count_int)))
-                            max_sector_native = int(int(int(max_per_sector)))
-                            # Verify both are native Python int
-                            if not isinstance(count_int_native, int) or isinstance(count_int_native, bool):
-                                raise TypeError(f"count_int_native is {type(count_int_native).__name__}, not native int")
-                            if not isinstance(max_sector_native, int) or isinstance(max_sector_native, bool):
-                                raise TypeError(f"max_sector_native is {type(max_sector_native).__name__}, not native int")
+                            count_int_native = _ensure_int(count_int, f"sector_count:{sector} (pre-arithmetic)")
+                            max_sector_native = _ensure_int(max_per_sector, "max_positions_per_sector (pre-arithmetic)")
                         except (TypeError, ValueError) as conv_err:
                             logger.error(f"[PHASE 6] Failed to convert ints for arithmetic: {conv_err}")
                             continue
@@ -498,28 +493,20 @@ def run(
                                 logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                                 continue
 
-                            # CRITICAL: Defensive float conversion before ALL arithmetic
-                            # Ensure both operands are guaranteed native float for subtraction
-                            # max_size_pct_float: converted at line 379 via _ensure_float
-                            # pct_float: converted above via float(float(...))
-                            # Triple-convert to eliminate ANY possible Decimal/numpy remnants
+                            # CRITICAL: Use _ensure_float for ALL arithmetic operands
+                            # _ensure_float handles psycopg2 Decimal, numpy types, and validates native float
+                            # Do NOT use raw float() - it doesn't guarantee native Python float with psycopg2 types
                             try:
-                                max_size_pct_float_safe = float(float(float(max_size_pct_float)))
-                                pct_float_safe = float(float(float(pct_float)))
-                                # Verify types before arithmetic
-                                if not isinstance(max_size_pct_float_safe, float):
-                                    raise TypeError(f"max_size_pct_float_safe is {type(max_size_pct_float_safe).__name__}, not float")
-                                if not isinstance(pct_float_safe, float):
-                                    raise TypeError(f"pct_float_safe is {type(pct_float_safe).__name__}, not float")
+                                max_size_pct_float_safe = _ensure_float(max_size_pct_float, "max_position_size_pct (pre-arithmetic)")
+                                pct_float_safe = _ensure_float(pct_float, f"{symbol}:pct_value (pre-arithmetic)")
                             except (TypeError, ValueError) as conv_err:
                                 logger.error(f"[PHASE 6] Failed to convert floats for arithmetic: {conv_err}")
                                 raise
 
                             if pct_float_safe > max_size_pct_float_safe:
-                                # CRITICAL: Force native float IMMEDIATELY before arithmetic to eliminate any Decimal remnants
-                                # Even after triple-conversion, psycopg2 Decimals can slip through in arithmetic contexts
-                                pct_final = float(pct_float_safe)
-                                max_pct_final = float(max_size_pct_float_safe)
+                                # CRITICAL: _ensure_float guarantees native Python float - safe for arithmetic
+                                pct_final = pct_float_safe
+                                max_pct_final = max_size_pct_float_safe
                                 exceed_amount = pct_final - max_pct_final
                                 oversized_positions.append((pos_id, symbol, pct_final, max_pct_final))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_pct_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
