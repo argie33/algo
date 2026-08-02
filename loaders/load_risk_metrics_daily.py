@@ -339,9 +339,8 @@ class RiskMetricsLoader(OptimalLoader):
                     "downside_volatility_252d_unavailable_reason": "insufficient_history",
                     "max_drawdown_1y_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                    "data_unavailable": debt_to_assets is None,
-                    "reason": None if debt_to_assets is not None else reason,
-                    "reason_type": None if debt_to_assets is not None else "loader_failed",
+                    "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
+                    "reason": reason if debt_to_assets is None else None,
                 }
 
             prices = sorted([(row[0], float(row[1])) for row in rows])
@@ -375,9 +374,8 @@ class RiskMetricsLoader(OptimalLoader):
                     "downside_volatility_252d_unavailable_reason": "insufficient_history",
                     "max_drawdown_1y_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                    "data_unavailable": debt_to_assets is None,
-                    "reason": None if debt_to_assets is not None else reason,
-                    "reason_type": None if debt_to_assets is not None else "loader_failed",
+                    "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
+                    "reason": reason if debt_to_assets is None else None,
                 }
 
             # Calculate volatilities
@@ -496,9 +494,8 @@ class RiskMetricsLoader(OptimalLoader):
                 "downside_volatility_252d_unavailable_reason": "insufficient_history",
                 "max_drawdown_1y_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "data_unavailable": debt_to_assets is None,
-                "reason": None if debt_to_assets is not None else reason,
-                "reason_type": None if debt_to_assets is not None else "loader_failed",
+                "data_unavailable": debt_to_assets is None,  # All metrics failed; only debt_to_assets attempted
+                "reason": reason if debt_to_assets is None else None,
             }
         except Exception as e:
             logger.warning(f"[RISK_METRICS] Stability error for {symbol}: {type(e).__name__}: {e}")
