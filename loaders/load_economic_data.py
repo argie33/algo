@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Consolidated Economic Data Loader - US economic indicators + currency.
+"""Consolidated Economic Data Loader - Comprehensive US economic indicators + currency.
 
 Fetches and stores:
-- FRED Series: T10Y2Y, SOFR, BAMLH0A0HYM2, ICSA (daily via FRED API)
+- FRED Series: 56 comprehensive economic indicators (yields, employment, inflation,
+  growth, credit spreads, financial conditions, housing, commodities, recession indicator)
 - DXY: USD Dollar Index proxy from FRED (DEXUSEU - EUR/USD exchange rate, inverted)
 
 CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py into single loader
