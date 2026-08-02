@@ -48,12 +48,84 @@ logger = logging.getLogger(__name__)
 
 configure_socket_timeout(30)
 
-# FRED series to fetch
+# FRED series to fetch - comprehensive economic indicators
+# Organized by category for maintenance clarity
 FRED_SERIES = [
+    # Monetary policy & rates (core)
     "T10Y2Y",  # 10Y-2Y spread (recession indicator)
-    "SOFR",  # Secured Overnight Financing Rate (daily benchmark, replaces FEDFUNDS monthly data)
+    "SOFR",  # Secured Overnight Financing Rate (daily benchmark)
+    "T10Y3M",  # 10Y-3M spread (longer recession indicator)
+    "T5YIE",  # 5-year breakeven inflation
+    "T10YIE",  # 10-year breakeven inflation
+
+    # Yield curve (all maturities)
+    "DGS3MO",  # 3-month treasury
+    "DGS6MO",  # 6-month treasury
+    "DGS1",  # 1-year treasury
+    "DGS2",  # 2-year treasury
+    "DGS3",  # 3-year treasury
+    "DGS5",  # 5-year treasury
+    "DGS7",  # 7-year treasury
+    "DGS10",  # 10-year treasury
+    "DGS20",  # 20-year treasury
+    "DGS30",  # 30-year treasury
+
+    # Credit spreads
     "BAMLH0A0HYM2",  # High Yield OAS
-    "ICSA",  # Initial Claims
+    "BAMLC0A0CM",  # Investment Grade OAS
+
+    # Employment & income
+    "PAYEMS",  # Total nonfarm payroll
+    "UNRATE",  # Unemployment rate
+    "CIVPART",  # Labor force participation rate
+    "AHETPI",  # Average hourly earnings
+    "JTSJOL",  # JOLTS job openings
+    "JTSQUR",  # JOLTS quit rate
+    "ICSA",  # Initial claims (weekly)
+    "UEMPMEAN",  # Mean unemployment duration
+
+    # Inflation
+    "CPIAUCSL",  # CPI - All Urban Consumers
+    "CPILFESL",  # Core CPI (ex-food & energy)
+    "PCEPILFE",  # Core PCE Inflation
+    "PPIACO",  # Producer Price Index
+
+    # Activity & production
+    "INDPRO",  # Industrial Production
+    "RSXFS",  # Retail Sales
+    "HOUST",  # Housing Starts
+    "PERMIT",  # Building Permits
+    "TCU",  # Capacity Utilization
+    "CFNAI",  # Chicago Fed Activity Index
+    "MICH",  # Consumer Sentiment (University of Michigan)
+
+    # Growth & income
+    "GDPC1",  # Real GDP
+    "DSPIC96",  # Real Disposable Income
+    "TOTALSA",  # Total nonfarm payroll (seasonally adjusted)
+
+    # Money supply & credit
+    "M1SL",  # M1 Money Supply
+    "M2SL",  # M2 Money Supply
+    "WALCL",  # Monetary Base
+    "BUSLOANS",  # Commercial and Industrial Loans
+    "PRIME",  # Bank prime loan rate
+
+    # Financial conditions
+    "ANFCI",  # Advanced National Financial Conditions Index
+    "STLFSI4",  # St. Louis Fed Financial Stress Index
+
+    # Consumer/housing
+    "MORTGAGE30US",  # 30-year mortgage rate
+    "PSAVERT",  # Personal savings rate
+    "UMCSENT",  # Consumer sentiment
+
+    # Currency & commodities
+    "DTWEXBGS",  # Trade-weighted USD index
+    "DCOILWTICO",  # WTI Crude Oil price
+
+    # Recession indicator
+    "USREC",  # NBER recession indicator
 ]
 
 
