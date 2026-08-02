@@ -228,6 +228,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 f"Reason: {reason_msg}. Cannot monitor position."
                             )
 
+                        assert symbol is not None, "symbol should be set by get_str without allow_none"
                         prices[symbol] = float(close_price) if close_price is not None else None
 
                 update_errors = []
@@ -680,7 +681,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         # Live mode had NO retry logic (unlike paper mode), causing immediate failure on transient cursor errors
         # Apply same retry mechanism as paper mode to handle transient connection issues
         max_retries = 3
-        recommendations = None
+        recommendations: list[dict[str, Any]] | None = None
         last_review_error = None
 
         for attempt in range(max_retries):
