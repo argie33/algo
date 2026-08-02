@@ -312,14 +312,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue,
                            ais.gross_profit
                     FROM annual_balance_sheet abs
-                    LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
-                    LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year
+                    LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
+                    LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
                     LEFT JOIN (
                         SELECT DISTINCT ON (symbol) symbol, shares_outstanding
                         FROM sec_valuations
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
-                    WHERE abs.symbol = %s
+                    WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
                     ORDER BY abs.fiscal_year DESC
                     LIMIT 1
                     """,
@@ -333,7 +333,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     """
                     SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share
                     FROM annual_income_statement
-                    WHERE symbol = %s AND revenue IS NOT NULL
+                    WHERE symbol = %s AND revenue IS NOT NULL AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC
                     LIMIT 10
                     """,
