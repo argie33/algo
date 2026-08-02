@@ -80,6 +80,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      host: "127.0.0.1",
       port: 5173,
       strictPort: false,
       proxy: isDevelopment
@@ -87,7 +88,7 @@ export default defineConfig(({ mode }) => {
             "/api": {
               target: effectiveProxyTarget,
               changeOrigin: true,
-              timeout: 30000,
+              timeout: 300000,
             },
           }
         : undefined,

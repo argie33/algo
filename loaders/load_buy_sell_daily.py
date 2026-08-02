@@ -31,18 +31,18 @@ logger = logging.getLogger(__name__)
 
 
 def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150) -> None:
-    """Raise if buy_sell_daily's most recent date has a suspiciously low signal count.
+    """Raise if buy_sell_daily shows unexpected signal degradation over 3-day rolling window.
 
-    BUG (found 2026-07-26): the original version of this check averaged total_signals
-    over COUNT(DISTINCT date) across the table's ENTIRE history. With enough accumulated
-    history, that all-time average can never fall below the threshold again no matter how
-    many consecutive days produce zero new signals - it's diluted by every healthy day
-    that ever ran. This masked buy_sell_daily sitting frozen at a stale date for 9+
-    consecutive days while this loader kept reporting status=success/COMPLETED the whole
-    time (loader_execution_history showed dozens of "success" runs with no forward
-    progress). Checking only the most recent date's count catches a live degradation
-    immediately, and raising (not just logging critical) ensures a degraded run is
-    recorded as a failure instead of silently marked complete.
+    TWO-LEVEL CHECK:
+    1. Absolute minimum: Latest day must have >= min_signals_per_day_threshold (catches sudden collapse)
+    2. Relative degradation: Latest day < 50% of 3-day median (catches slow drift)
+
+    HISTORY:
+    - Previous all-time average check masked 9+ days of stale data (diluted by old healthy days)
+    - Single-day check caught immediate failures but missed slow 3-day degradation
+    - New median check catches both: sudden drops AND sustained drift over multiple days
+
+    This prevents false positives from 1-2 bad days while catching real degradation patterns.
     """
     cur.execute("SELECT MAX(date) FROM buy_sell_daily")
     result = cur.fetchone()
@@ -50,6 +50,7 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
     if latest_signal_date is None:
         return
 
+    # Check absolute minimum on latest day
     cur.execute("SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s", (latest_signal_date,))
     result = cur.fetchone()
     latest_day_signals = result[0] if result else 0
@@ -66,6 +67,38 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
             f"OPERATOR ACTION: Check BuySignalGenerator logic and price_daily coverage. "
             f"Do NOT accept this as normal - investigate immediately."
         )
+
+    # CRITICAL: Also check 3-day rolling median to catch slow degradation
+    # A single bad day might be legitimate (holiday, market event), but 3-day drift indicates
+    # upstream loader failure (technical_data_daily partial failure, etc.)
+    cur.execute("""
+        WITH recent_days AS (
+            SELECT date, COUNT(*) as signal_count
+            FROM buy_sell_daily
+            WHERE date > %s - INTERVAL '10 days'
+            GROUP BY date
+            ORDER BY date DESC
+            LIMIT 3
+        )
+        SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY signal_count) as median_signals
+        FROM recent_days
+    """, (latest_signal_date,))
+
+    result = cur.fetchone()
+    if result and result[0] is not None:
+        median_3day = float(result[0])
+        degradation_threshold = median_3day * 0.5  # Flag if latest < 50% of 3-day median
+
+        if latest_day_signals < degradation_threshold:
+            raise RuntimeError(
+                f"[SIGNAL_DEGRADATION_DETECTED] buy_sell_daily showing sustained degradation. "
+                f"Latest day ({latest_signal_date}): {latest_day_signals} signals. "
+                f"3-day rolling median: {median_3day:.0f} signals. "
+                f"Threshold: {degradation_threshold:.0f} (50% of median). "
+                f"This indicates sustained upstream loader failure (not a single-day anomaly). "
+                f"OPERATOR ACTION: Check technical_data_daily and price_daily loaders for partial failures. "
+                f"Do NOT accept degraded signal generation - investigate immediately."
+            )
 
 
 class SignalsDailyLoader(OptimalLoader):

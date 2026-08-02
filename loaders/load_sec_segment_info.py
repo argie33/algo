@@ -88,7 +88,14 @@ class SecSegmentInfoLoader(SecLoaderBase):
             if facts_response and facts_response.get('facts'):
                 # Try companyfacts API first
                 segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
-                if segment_data.get('data_available'):
+                # CRITICAL: Validate type before chaining .get() - parse_companyfacts might return non-dict
+                if segment_data is not None and not isinstance(segment_data, dict):
+                    logger.warning(
+                        f"[{symbol}] parse_companyfacts returned {type(segment_data).__name__}, expected dict. "
+                        f"Falling back to raw XBRL."
+                    )
+                    segment_data = None
+                elif segment_data and segment_data.get('data_available'):
                     logger.info(f"[{symbol}] Segment data found via companyfacts API")
 
             # If companyfacts didn't have segment data, try raw XBRL XML (more aggressive)
@@ -112,7 +119,14 @@ class SecSegmentInfoLoader(SecLoaderBase):
                             segment_data = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(
                                 xml_content, symbol
                             )
-                            if segment_data.get('data_available'):
+                            # CRITICAL: Validate type before chaining .get() - extract might return non-dict
+                            if segment_data is not None and not isinstance(segment_data, dict):
+                                logger.warning(
+                                    f"[{symbol}] extract_segment_revenue_from_xbrl_xml returned {type(segment_data).__name__}, "
+                                    f"expected dict. Marking as unavailable."
+                                )
+                                segment_data = None
+                            elif segment_data and segment_data.get('data_available'):
                                 logger.info(f"[{symbol}] Segment data found in raw XBRL XML")
                         except (FileNotFoundError, RuntimeError) as e:
                             logger.debug(f"[{symbol}] Failed to fetch/parse raw XBRL: {e}")

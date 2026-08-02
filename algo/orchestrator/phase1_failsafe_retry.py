@@ -149,6 +149,52 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         expected_data_date, freshness_context = _get_expected_data_date()
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
 
+        def _check_data_completeness(table_name: str) -> tuple[bool, str]:
+            """Check if table has sufficient data completeness (95%+ non-NULL in critical column).
+
+            Returns: (is_complete, reason_if_incomplete)
+            """
+            if table_name == "stock_scores":
+                # stock_scores: check that symbol column is non-NULL (composite_score can be NULL for unavailable stocks)
+                critical_col = "symbol"
+            elif table_name == "price_daily":
+                # price_daily: check close price is populated
+                critical_col = "close"
+            elif table_name == "technical_data_daily":
+                # technical_data_daily: check rsi_14 (core technical indicator)
+                critical_col = "rsi_14"
+            elif table_name == "buy_sell_daily":
+                # buy_sell_daily: check signal_type is populated
+                critical_col = "signal_type"
+            elif table_name == "market_health_daily":
+                # market_health_daily: check vix is populated
+                critical_col = "vix"
+            else:
+                return True, ""  # Unknown table, skip completeness check
+
+            try:
+                cur.execute(f"""
+                    SELECT
+                        COUNT(*) as total_rows,
+                        COUNT({critical_col}) as non_null_rows
+                    FROM {table_name}
+                    WHERE date = %s OR updated_at::date = %s
+                """, (expected_data_date, expected_data_date))
+
+                row = cur.fetchone()
+                if not row or row[0] == 0:
+                    return False, f"No rows for {expected_data_date}"
+
+                total, non_null = row[0], row[1]
+                completeness_pct = (non_null / total * 100) if total > 0 else 0
+
+                if completeness_pct < 95.0:
+                    return False, f"Completeness {completeness_pct:.1f}% (need 95%+ of {critical_col} non-NULL)"
+                return True, ""
+            except Exception as e:
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name}: {e}")
+                return True, ""  # On error, proceed (don't fail the whole check)
+
         with DatabaseContext("read") as cur:
             for table_name, loader_key in loaders_to_refresh.items():
                 try:
@@ -188,7 +234,18 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                                 f"({days_behind} day(s) behind)"
                             )
                         else:
-                            logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh: {table_max_date}")
+                            # CRITICAL: Also check data completeness (not just date freshness)
+                            # A table can have MAX(date)=today but be 95% NULL values
+                            is_complete, incomplete_reason = _check_data_completeness(table_name)
+                            if not is_complete:
+                                stale_loaders.append((table_name, loader_key, 0))
+                                results["incomplete_loaders"].append(table_name)
+                                logger.warning(
+                                    f"[PHASE 1 FAILSAFE LOCAL] {table_name} data sparse despite fresh date: {incomplete_reason}. "
+                                    f"Loader may have completed with insufficient data quality. Triggering refresh."
+                                )
+                            else:
+                                logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh and complete: {table_max_date}")
                     else:
                         # No data at all
                         stale_loaders.append((table_name, loader_key, 999))

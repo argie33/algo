@@ -327,7 +327,7 @@ def run(
                             continue
                         # CRITICAL: Subtraction with guaranteed native Python ints
                         over_limit = count_int_native - max_sector_native
-                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int} positions (limit {max_per_sector_int}, need to exit {over_limit})")
+                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int_native} positions (limit {max_sector_native}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
                         # Ensure over_limit is an int for the LIMIT clause

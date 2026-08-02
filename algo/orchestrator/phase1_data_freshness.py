@@ -60,10 +60,17 @@ logger = logging.getLogger(__name__)
 def _check_health_column_coverage(
     total_rows: int | None,
     pcr_rows: int | None,
+    pcr_distinct: int | None,
     vix_rows: int | None,
+    vix_distinct: int | None,
     health_max_date: _date,
 ) -> None:
     """Validate market_health_daily's optional-column coverage for health_max_date.
+
+    CRITICAL FIX 2026-08-02: Now checks data distribution, not just coverage.
+    - All-same-value data (COUNT(DISTINCT) = 1) is suspicious - indicates copy-paste or constant fill
+    - All-NULL data still only warns (optional columns)
+    - But if data exists, it must have multiple distinct values to be trusted
 
     total_rows == 0 halts (the whole row is missing, not just an optional column).
     put_call_ratio/vix_level being fully null only warns - see the inline note below,
@@ -80,21 +87,31 @@ def _check_health_column_coverage(
         # commit 6a94934d4, "Make put_call_ratio truly optional") - it's an unofficial
         # yfinance-options-chain-derived sentiment enrichment (8pt of 100), explicitly
         # excluded from market_exposure's required_factors and gracefully skipped when
-        # missing. This used to be a hard RuntimeError halting the entire orchestrator
-        # (Phase 1/2/4/5/7 all skip), which contradicted that same-day optionality
-        # decision and would halt real trading whenever this one non-critical field
-        # was null - which happens routinely (e.g. before the daily options-chain
-        # fetch completes). Downgraded to a warning, matching vix_rows below.
+        # missing. Downgraded to a warning, matching vix_rows below.
         logger.warning(
             f"[PHASE 1] WARNING: market_health_daily missing put_call_ratio data for {health_max_date}. "
             "Optional sentiment enrichment (Phase 2 skips it gracefully) - not halting. "
             "Check market_health_daily loader if this persists."
+        )
+    elif pcr_distinct is not None and pcr_distinct <= 1 and pcr_rows > 0:
+        # Data exists but all same value - indicates copy-paste or constant fill, not real data
+        logger.warning(
+            f"[PHASE 1] WARNING: market_health_daily put_call_ratio for {health_max_date} has "
+            f"only 1 distinct value across {pcr_rows} rows. This indicates constant fill or copy-paste, "
+            f"not real market data. Check market_health_daily loader - is put_call_ratio calculation working?"
         )
 
     if not vix_rows:
         logger.warning(
             f"[PHASE 1] WARNING: market_health_daily missing VIX data for {health_max_date}. "
             "VIX is optional if provided by other means, but check market_health_daily loader."
+        )
+    elif vix_distinct is not None and vix_distinct <= 1 and vix_rows > 0:
+        # Data exists but all same value - same red flag as put_call_ratio
+        logger.warning(
+            f"[PHASE 1] WARNING: market_health_daily VIX for {health_max_date} has "
+            f"only 1 distinct value across {vix_rows} rows. This indicates constant fill or copy-paste, "
+            f"not real market data. Check market_health_daily loader - is VIX calculation working?"
         )
 
 
@@ -858,21 +875,27 @@ def run(  # noqa: C901
                     raise RuntimeError("[PHASE 1] Market health data unavailable. Check market_health_daily loader.")
                 health_max_date = health_row[0]
 
-                # CRITICAL FIX: Verify market_health_daily has CRITICAL COLUMNS populated, not just the table exists
+                # CRITICAL FIX: Verify market_health_daily has CRITICAL COLUMNS populated with diverse data
                 # Early morning: table might exist but put_call_ratio not loaded yet
+                # NEW FIX: Also check data distribution - all same value or all NaN is suspicious
                 cur.execute(
                     """
                     SELECT COUNT(*) as total_rows,
                            SUM(CASE WHEN put_call_ratio IS NOT NULL THEN 1 ELSE 0 END) as pcr_rows,
-                           SUM(CASE WHEN vix_level IS NOT NULL THEN 1 ELSE 0 END) as vix_rows
+                           COUNT(DISTINCT put_call_ratio) as pcr_distinct,
+                           SUM(CASE WHEN vix_level IS NOT NULL THEN 1 ELSE 0 END) as vix_rows,
+                           COUNT(DISTINCT vix_level) as vix_distinct
                     FROM market_health_daily
                     WHERE date = %s
                     """,
                     (health_max_date,),
                 )
                 health_col_row = cur.fetchone()
-                total_rows, pcr_rows, vix_rows = health_col_row if health_col_row else (0, 0, 0)
-                _check_health_column_coverage(total_rows, pcr_rows, vix_rows, health_max_date)
+                if health_col_row and len(health_col_row) >= 5:
+                    total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct = health_col_row[:5]
+                else:
+                    total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct = (0, 0, 0, 0, 0)
+                _check_health_column_coverage(total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct, health_max_date)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
                 raise RuntimeError(f"[PHASE 1] Cannot fetch market reference dates from database: {e}") from e
@@ -1268,6 +1291,64 @@ def run(  # noqa: C901
                 "validation_status": "PASS" if not stale_table_details else "PASS (with warnings)",
             }
             validate_phase_data(1, phase_data)
+
+            # CRITICAL NEW CHECK (2026-08-02): Validate portfolio symbols have prices
+            # Phase 1 verified price_daily overall freshness, but doesn't check if ALL
+            # portfolio symbols have data for the trading date. This causes Phase 6 to halt
+            # when evaluating exits for a symbol with no price_daily data (verified root
+            # cause of "5 errors" pattern on 2026-07-29). Catch this early.
+            try:
+                # Get all open positions in portfolio
+                cur.execute("""
+                    SELECT DISTINCT symbol FROM algo_positions
+                    WHERE status IN ('open', 'partially_filled')
+                """)
+                portfolio_symbols = [row[0] for row in cur.fetchall()]
+
+                if portfolio_symbols:
+                    logger.info(f"[PHASE 1] Validating prices for {len(portfolio_symbols)} portfolio symbols on {max_date}")
+                    missing_symbols = []
+
+                    for symbol in portfolio_symbols:
+                        # Check if symbol has price data for max_date with non-NULL close price
+                        cur.execute("""
+                            SELECT COUNT(*) FROM price_daily
+                            WHERE symbol = %s AND date = %s AND close IS NOT NULL
+                        """, (symbol, max_date))
+                        count = cur.fetchone()[0]
+                        if count == 0:
+                            missing_symbols.append(symbol)
+
+                    if missing_symbols:
+                        # CRITICAL: Missing prices for portfolio symbols is data integrity failure
+                        # Phase 6 will halt when trying to evaluate exits without current prices
+                        error_msg = (
+                            f"[PHASE 1 CRITICAL] Portfolio symbols missing prices on {max_date}: {missing_symbols}. "
+                            f"Phase 6 exit execution will fail for these positions. "
+                            f"Check price_daily loader logs for data gaps or symbol-specific issues."
+                        )
+                        logger.critical(error_msg)
+                        log_phase_result_fn(1, "portfolio_price_coverage", "halt", error_msg)
+
+                        # Return halted status to prevent Phase 6 attempting exits without price data
+                        phase_data["portfolio_symbols"] = len(portfolio_symbols)
+                        phase_data["missing_prices"] = missing_symbols
+                        return PhaseResult(
+                            1,
+                            "portfolio_price_coverage",
+                            "halted",
+                            phase_data,
+                            True,
+                            f"Portfolio symbols missing prices: {missing_symbols}",
+                        )
+                    else:
+                        logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices on {max_date}")
+                        phase_data["portfolio_symbols"] = len(portfolio_symbols)
+                        phase_data["portfolio_price_coverage"] = "complete"
+            except Exception as portfolio_check_err:
+                # If portfolio symbol check fails, log but don't halt (it's supplementary)
+                logger.warning(f"[PHASE 1] Portfolio symbol price validation failed: {portfolio_check_err}. Continuing.")
+
             return PhaseResult(
                 1,
                 "all_tables_fresh",

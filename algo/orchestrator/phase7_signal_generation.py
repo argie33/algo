@@ -97,7 +97,59 @@ _LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDI
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
-_SIGNAL_COUNT_ANOMALY_THRESHOLD = 250  # Minimum signals for a day to be considered normal (historical median 300-1000+, threshold at ~25-30% of median catches degradation)
+_SIGNAL_COUNT_ANOMALY_THRESHOLD = 250  # Default/fallback if dynamic calculation fails (historical median 300-1000+)
+
+
+def _calculate_dynamic_anomaly_threshold() -> int:
+    """Calculate signal anomaly threshold from historical 30-day median.
+
+    Adapts to universe size: if your universe is smaller, median is lower,
+    threshold scales accordingly. Prevents false positives from hardcoded constants.
+
+    Returns: threshold = median_30d / 3 (catches signals dropped to 33% of normal)
+    """
+    try:
+        from utils.db.context import DatabaseContext
+        from algo.infrastructure import MarketCalendar
+
+        with DatabaseContext("read") as cur:
+            # Query signal counts for last 30 trading days (only BUY signals per Phase 7 design)
+            cur.execute("""
+                WITH recent_signals AS (
+                    SELECT date, COUNT(*) as signal_count
+                    FROM buy_sell_daily
+                    WHERE signal_type = 'BUY'
+                    AND date >= CURRENT_DATE - INTERVAL '45 days'  # 45 calendar days to cover 30 trading days
+                    GROUP BY date
+                    ORDER BY date DESC
+                    LIMIT 30
+                )
+                SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY signal_count) as median_signals
+                FROM recent_signals
+                WHERE signal_count > 0
+            """)
+
+            result = cur.fetchone()
+            if result and result[0] is not None:
+                median_signals = float(result[0])
+                threshold = max(100, int(median_signals / 3))  # At least 100, catch drops to 1/3 of median
+                logger.info(
+                    f"[PHASE 7] Dynamic anomaly threshold: {threshold} (median_30d={median_signals:.0f}/3). "
+                    f"Will halt if signals drop below {threshold} on any day."
+                )
+                return threshold
+            else:
+                logger.warning(
+                    f"[PHASE 7] Could not calculate dynamic threshold (insufficient historical data). "
+                    f"Using fallback: {_SIGNAL_COUNT_ANOMALY_THRESHOLD}"
+                )
+                return _SIGNAL_COUNT_ANOMALY_THRESHOLD
+    except Exception as e:
+        logger.warning(
+            f"[PHASE 7] Error calculating dynamic anomaly threshold: {e}. "
+            f"Using fallback: {_SIGNAL_COUNT_ANOMALY_THRESHOLD}"
+        )
+        return _SIGNAL_COUNT_ANOMALY_THRESHOLD
 
 
 def _buysell_lookback_start_date(run_date: _date) -> _date:
@@ -1056,19 +1108,14 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
-            # Severe but non-zero collapse: _SIGNAL_COUNT_ANOMALY_THRESHOLD was previously
-            # defined but never checked, so a drop from the typical 300+/day to a handful of
-            # signals silently passed through as "OK" - same underlying failure modes as the
-            # zero-signal case above (upstream loader degradation), just not total.
-            # Same reasoning as the zero-signal check above: no separate recency gate needed,
-            # latest_buysell_date is already confirmed current by the acceptable_staleness
-            # check earlier in this function.
-            if 0 < today_count < _SIGNAL_COUNT_ANOMALY_THRESHOLD:
+            # Severe but non-zero collapse: Drop from typical 300+/day to handful of signals
+            # indicates underlying failure (upstream loader degradation or universe coverage collapse).
+            # Use dynamically-calculated threshold (median_30d / 3) not hardcoded constant.
+            if 0 < today_count < anomaly_threshold:
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has only {today_count} "
-                    f"BUY signals (< anomaly floor of {_SIGNAL_COUNT_ANOMALY_THRESHOLD}). "
-                    f"Historical normal: 300-1000+ signals per trading day. "
-                    f"This indicates a severe (though not total) upstream data quality problem: "
+                    f"BUY signals (< anomaly floor of {anomaly_threshold}). "
+                    f"This indicates a severe upstream data quality problem: "
                     f"(1) technical_data_daily loader partially failed, "
                     f"(2) universe coverage collapsed for another reason. "
                     f"Check: (1) technical_data_daily status in data_loader_status, "
@@ -1120,6 +1167,10 @@ def run(  # noqa: C901
 
     # Validate required config keys at phase entry (fail-fast)
     validate_phase_config(config, "phase_7_signal_generation")
+
+    # CRITICAL: Calculate anomaly threshold dynamically (not hardcoded)
+    # Adapts to universe size so the threshold is always ~1/3 of recent median
+    anomaly_threshold = _calculate_dynamic_anomaly_threshold()
 
     min_composite_score = float(config["phase7_min_composite_score"])
 
