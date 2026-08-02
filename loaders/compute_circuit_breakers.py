@@ -232,13 +232,36 @@ def _compute_drawdown(cur: Any) -> float:
         FROM algo_portfolio_snapshots
     """)
     row = cur.fetchone()
-    if not row or row["peak"] is None or row["current"] is None:
-        logger.warning("[CIRCUIT_BREAKER] Portfolio snapshot data unavailable for drawdown calculation (CB1)")
-        raise ValueError("Portfolio snapshot data unavailable for drawdown calculation")
+    if not row:
+        error_msg = (
+            "[CIRCUIT_BREAKER CRITICAL] Portfolio snapshot query returned no rows. "
+            "Cannot compute drawdown (CB1) - database may be empty or query failed."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    if row["peak"] is None:
+        error_msg = (
+            "[CIRCUIT_BREAKER CRITICAL] Maximum (peak) portfolio value is NULL. "
+            "Cannot compute drawdown (CB1). Check adjusted_equity calculation."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    if row["current"] is None:
+        error_msg = (
+            "[CIRCUIT_BREAKER CRITICAL] Current portfolio value is NULL. "
+            "Cannot compute drawdown (CB1). Check most recent portfolio snapshot."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
     peak = float(row["peak"])
     current = float(row["current"])
     if peak <= 0:
-        raise ValueError(f"Invalid peak portfolio value: {peak}")
+        error_msg = (
+            f"[CIRCUIT_BREAKER CRITICAL] Invalid peak portfolio value: {peak}. "
+            f"Peak equity must be positive."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
     dd = (peak - current) / peak * 100
     return dd
 
@@ -253,8 +276,21 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
     """
     cur.execute("SELECT adjusted_equity FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (today,))
     today_row = cur.fetchone()
-    if not today_row or today_row["adjusted_equity"] is None:
-        raise ValueError(f"No adjusted_equity snapshot for {today} (CB2)")
+    if not today_row:
+        error_msg = (
+            f"[CIRCUIT_BREAKER CRITICAL] No portfolio snapshot for {today}. "
+            f"Cannot compute daily loss (CB2). Check: (1) snapshot table has entry for today, "
+            f"(2) date values are in ET timezone"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    if today_row["adjusted_equity"] is None:
+        error_msg = (
+            f"[CIRCUIT_BREAKER CRITICAL] Adjusted equity is NULL for {today}. "
+            f"Cannot compute daily loss (CB2). Check adjusted_equity calculation."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
     cur.execute(
         """
         SELECT adjusted_equity FROM algo_portfolio_snapshots
@@ -264,8 +300,21 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
         (today,),
     )
     prev_row = cur.fetchone()
-    if not prev_row or prev_row["adjusted_equity"] is None:
-        raise ValueError(f"Insufficient adjusted_equity history before {today} (CB2)")
+    if not prev_row:
+        error_msg = (
+            f"[CIRCUIT_BREAKER CRITICAL] No prior portfolio snapshot before {today}. "
+            f"Cannot compute daily loss (CB2) - need at least 2 days of history. "
+            f"Check: (1) snapshots for previous trading day exist, (2) ET date values"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    if prev_row["adjusted_equity"] is None:
+        error_msg = (
+            f"[CIRCUIT_BREAKER CRITICAL] Prior adjusted equity is NULL. "
+            f"Cannot compute daily loss (CB2). Check adjusted_equity calculation for prior date."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
     cur_val = float(today_row["adjusted_equity"])
     prev_val = float(prev_row["adjusted_equity"])
     if prev_val <= 0:
