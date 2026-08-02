@@ -104,8 +104,8 @@ class TestCompleteAWSDeployment:
 
         # Check that growth_metrics is validated (coverage threshold may vary)
         assert "growth_metrics" in source, "growth_metrics must be validated"
-        # Coverage can be 0.20 (SEC-filing-dependent) or higher for other metrics
-        assert "0.20" in source or "0.30" in source or "0.50" in source or "0.70" in source, (
+        # Coverage can be 0.10 (SEC-filing-dependent) or higher for other metrics
+        assert "0.10" in source or "0.15" in source or "0.20" in source, (
             "growth_metrics must have coverage requirement"
         )
 

@@ -495,14 +495,19 @@ def run(
                                 logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                                 continue
 
-                            # Both operands are guaranteed native float:
-                            # - max_size_pct_float: converted at line 335
-                            # - pct_float: converted at lines 447 and 451
-                            if pct_float > max_size_pct_float:
-                                # Subtraction is safe: both operands are guaranteed to be native float
-                                exceed_amount = pct_float - max_size_pct_float
-                                oversized_positions.append((pos_id, symbol, pct_float, max_size_pct_float))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {max_size_pct_float:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                            # CRITICAL: Defensive float conversion before ALL arithmetic
+                            # Ensure both operands are guaranteed native float for subtraction
+                            # max_size_pct_float: converted at line 379 via _ensure_float
+                            # pct_float: converted above via float(float(...))
+                            # BUT: Be defensive - double-convert to eliminate any Decimal remnants
+                            max_size_pct_float_safe = float(float(max_size_pct_float))
+                            pct_float_safe = float(float(pct_float))
+
+                            if pct_float_safe > max_size_pct_float_safe:
+                                # Subtraction is safe: both operands are explicitly native float
+                                exceed_amount = pct_float_safe - max_size_pct_float_safe
+                                oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float_safe:.1f}% (limit {max_size_pct_float_safe:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue
