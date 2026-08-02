@@ -118,7 +118,7 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
         logger.error(f"[WATERMARK] Failed to update watermarks: {e}", exc_info=True)
 
 
-def run_price_loader(symbols=None, backfill_days=1):
+def run_price_loader(symbols=None, backfill_days=0):
     """Run price loader for specific symbols."""
     from loaders.load_prices import PriceLoader
 
@@ -144,7 +144,7 @@ def run_price_loader(symbols=None, backfill_days=1):
     return result
 
 
-def run_technical_indicators_loader(backfill_days=1):
+def run_technical_indicators_loader(backfill_days=0):
     """Run technical indicators loader - vectorized in-database calculation."""
     import psycopg2
 
@@ -344,7 +344,7 @@ def main():
         help="Loader to run (use consolidated loader names)"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
-    parser.add_argument("--backfill", type=int, default=1, help="Days to backfill")
+    parser.add_argument("--backfill", type=int, default=0, help="Days to backfill (default: 0 = load incremental data using watermarks)")
     parser.add_argument("--limit", type=int, help="Limit for scores loader")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--force-refresh", action="store_true", help="Force refresh by bypassing watermarks and updating status")

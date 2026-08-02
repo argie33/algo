@@ -86,6 +86,7 @@ def cleanup_orphaned_dev_servers() -> None:
                 text=True,
                 timeout=5,
             )
+            killed_count = 0
             for line in result.stdout.split("\n"):
                 if "3001" in line and "LISTENING" in line:
                     # Line format: "TCP    127.0.0.1:3001         0.0.0.0:0              LISTENING       12345"
@@ -99,8 +100,11 @@ def cleanup_orphaned_dev_servers() -> None:
                                 capture_output=True,
                                 timeout=5,
                             )
+                            killed_count += 1
                         except (ValueError, subprocess.TimeoutExpired):
                             pass
+            if killed_count > 0:
+                logger.info(f"[STARTUP] Killed {killed_count} orphaned process(es)")
         else:
             # Unix: use pkill to force-kill dev_server processes only
             subprocess.run(
@@ -380,7 +384,7 @@ def run_complete_loader_pipeline() -> bool:
 
 def start_dev_server() -> subprocess.Popen:
     """Start dev_server in background and wait for it to be ready."""
-    print("[STARTUP] Checking if dev_server (localhost:3001) is already running...", flush=True)
+    print("[STARTUP] Checking if dev_server (127.0.0.1:3001) is already running...", flush=True)
 
     # Check if already running
     if is_port_open(3001):
@@ -395,34 +399,43 @@ def start_dev_server() -> subprocess.Popen:
                 flush=True,
             )
         else:
-            print("[STARTUP] [OK] Dev server already running on localhost:3001", flush=True)
+            print("[STARTUP] [OK] Dev server already running on 127.0.0.1:3001", flush=True)
             return None
 
     # Clean up any orphaned dev_server processes before starting fresh
-    print("[STARTUP] Cleaning up any orphaned processes...", flush=True)
+    print("[STARTUP] Cleaning up any orphaned processes on port 3001...", flush=True)
     cleanup_orphaned_dev_servers()
 
     print("[STARTUP] Dev server not responding. Starting it now...", flush=True)
-    print("[STARTUP]   Running: python3 lambda/api/dev_server.py", flush=True)
+    print("[STARTUP]   Running: python lambda/api/dev_server.py", flush=True)
 
     repo_root = Path(__file__).parent
     dev_server_path = repo_root / "lambda" / "api" / "dev_server.py"
+    log_dir = repo_root / ".algo" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "dev_server.log"
 
     if not dev_server_path.exists():
         raise FileNotFoundError(f"dev_server.py not found at {dev_server_path}")
 
-    # Start dev_server subprocess
+    # Start dev_server subprocess with logging
     env = os.environ.copy()
     env["LOCAL_MODE"] = "true"
     env["ENVIRONMENT"] = "development"
     env["ALPACA_PAPER_TRADING"] = "true"  # CRITICAL: Ensure paper trading mode for local dev
 
+    # Open log file for dev_server output
+    with open(log_file, "a") as f:
+        f.write(f"\n{'='*60}\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting dev_server\n{'='*60}\n")
+
+    log_handle = open(log_file, "a")
+
     process = subprocess.Popen(
         [sys.executable, str(dev_server_path)],
         cwd=str(repo_root),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
     )
@@ -432,15 +445,29 @@ def start_dev_server() -> subprocess.Popen:
     start_time = time.time()
     while time.time() - start_time < 30:
         if is_port_open(3001):
-            print("[STARTUP] [OK] Dev server started successfully on localhost:3001", flush=True)
+            print(f"[STARTUP] [OK] Dev server started (PID {process.pid}) on 127.0.0.1:3001", flush=True)
+            print(f"[STARTUP] Log: {log_file}", flush=True)
             return process
         time.sleep(0.5)
 
     print("[STARTUP] [FAIL] Dev server failed to start within 30s", flush=True)
+    print(f"[STARTUP] Check logs: {log_file}", flush=True)
     process.terminate()
-    stdout, stderr = process.communicate(timeout=5)
-    print(f"[STARTUP] stdout:\n{stdout}")
-    print(f"[STARTUP] stderr:\n{stderr}")
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+    # Print last 20 lines of log for diagnosis
+    try:
+        with open(log_file) as f:
+            lines = f.readlines()
+            print("[STARTUP] Last 20 lines of dev_server log:")
+            for line in lines[-20:]:
+                print(f"[STARTUP]   {line.rstrip()}")
+    except Exception as e:
+        print(f"[STARTUP] Could not read log: {e}")
+
     raise RuntimeError("Dev server startup timeout")
 
 
