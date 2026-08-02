@@ -643,6 +643,12 @@ class OptimalLoader:
                     raise RuntimeError(f"Loader exceeded SLA timeout ({sla_timeout_seconds}s)")
 
             self._stats.set("duration_sec", round(time.time() - start, 2))
+
+            # FIX: Compute symbols_loaded and add it to stats BEFORE converting to dict
+            # _update_final_status needs expected_symbols to calculate completion_pct
+            symbols_loaded = self._update_final_status(len(symbols))
+            self._stats.set("symbols_loaded", symbols_loaded)
+
             stats_dict = self._stats.to_dict()
 
             try:
@@ -652,8 +658,6 @@ class OptimalLoader:
                     m.put_loader_result(self.table_name, stats_dict)
             except Exception as e:
                 raise RuntimeError(f"Loader metrics publishing failed: {e}") from e
-
-            self._update_final_status(len(symbols))
             if sla_monitor:
                 sla_monitor.log_status("info")
                 sla_monitor.publish_metric()
@@ -1157,7 +1161,7 @@ class OptimalLoader:
             return date(value, 12, 31)
         return value
 
-    def _update_final_status(self, expected_symbols: int) -> None:
+    def _update_final_status(self, expected_symbols: int) -> int:
         # CRITICAL FIX: Never allow None for expected_symbols - this causes data integrity failures
         # When symbol_count is NULL, Phase 1 failsafe halts orchestrator
         if expected_symbols is None:
@@ -1169,6 +1173,7 @@ class OptimalLoader:
                 f"[{self.table_name}] expected_symbols is None at _update_final_status. "
                 "Caller must ensure valid symbol count is passed. Cannot update status with unknown completeness."
             )
+        symbols_loaded = 0  # Default if error occurs
         try:
             with DatabaseContext("read") as cur:
                 # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
@@ -1380,6 +1385,8 @@ class OptimalLoader:
                 set_pooled_connection(_saved)
         except Exception as e:
             logger.warning(f"Failed to update data_loader_status: {e}")
+
+        return symbols_loaded
 
     # AWS error codes meaning "no usable DynamoDB access from this environment" - either
     # permission was denied (AccessDenied) or the credentials themselves aren't valid

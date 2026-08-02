@@ -151,10 +151,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # Use RowAccessor for type-safe column access instead of magic indices
                 position_columns = ["id", "symbol", "quantity", "current_price", "entry_date", "stop_loss_price", "avg_entry_price"]
                 try:
-                    open_symbols = [
+                    open_symbols_raw = [
                         RowAccessor(row, position_columns, "position_fetch").get_str(1)  # symbol at index 1
                         for row in positions
                     ]
+                    # Filter out None values to ensure all symbols are strings
+                    open_symbols = [sym for sym in open_symbols_raw if sym is not None]
                 except (IndexError, KeyError, ValueError) as row_err:
                     raise RuntimeError(
                         f"[PHASE 3] Failed to extract symbol from position row: {row_err}. "

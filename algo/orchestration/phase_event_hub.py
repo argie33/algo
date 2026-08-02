@@ -17,6 +17,7 @@ EVENT TYPES:
 """
 
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -140,7 +141,12 @@ class PhaseEventHub:
     def __init__(self) -> None:
         self.subscribers: dict[str, list[Callable[..., Any]]] = {}
         self.event_history: list[PhaseEvent] = []
-        self.max_history = 1000  # Keep last 1000 events in memory
+        # Max events to keep in memory, configurable via environment
+        try:
+            self.max_history = int(os.environ.get("PHASE_EVENT_HISTORY_MAX", "1000"))
+        except (ValueError, TypeError):
+            logger.warning("[PHASE_EVENT_HUB] Invalid PHASE_EVENT_HISTORY_MAX, using default 1000")
+            self.max_history = 1000
 
     def subscribe(self, event_type: str, callback: Callable[..., Any]) -> None:
         """Subscribe to phase events.
