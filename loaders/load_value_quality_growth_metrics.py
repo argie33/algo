@@ -759,8 +759,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     try:
                         ni_growth = ((earnings_per_share - prior_year_eps) / abs(prior_year_eps)) * 100 if earnings_per_share else None
                         metrics["net_income_growth_yoy"] = float(round(ni_growth, 2)) if ni_growth is not None else None
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
+                        logger.warning(
+                            f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
+                            f"Metric marked data_unavailable."
+                        )
 
             # Operating Income Growth YoY
             if operating_income is not None and revenue is not None and revenue > 0:
@@ -769,8 +773,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     try:
                         oi_growth = ((operating_income - prior_op_margin) / abs(prior_op_margin)) * 100
                         metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
+                        logger.warning(
+                            f"[{symbol}] Failed to calculate operating_income_growth_yoy: {type(e).__name__}. "
+                            f"Metric marked data_unavailable."
+                        )
 
             # Margin Trends (current - prior year)
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:

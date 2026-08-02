@@ -417,8 +417,13 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                         try:
                             stdev = statistics.stdev(eps_growth_rates)
                             metrics["eps_growth_stability"] = float(stdev)
-                        except (ValueError, statistics.StatisticsError):
-                            pass
+                        except (ValueError, statistics.StatisticsError) as e:
+                            # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
+                            # Silent pass hides data quality issues (insufficient data, invalid values)
+                            logger.warning(
+                                f"[{symbol}] Failed to calculate eps_growth_stability: {type(e).__name__}: {e}. "
+                                f"Metric will be marked data_unavailable."
+                            )
 
             # Compute quarterly growth momentum (average of recent quarterly growth rates)
             if len(valid_eps) >= 4:
