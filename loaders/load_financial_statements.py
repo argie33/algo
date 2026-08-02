@@ -886,26 +886,40 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         """
         transformed = super().transform(rows)
 
-        # Define metric fields that must have at least one non-NULL value
-        # (excluding identifier/date fields and markers)
-        metric_fields = {
-            "income": {"revenue", "cost_of_revenue", "gross_profit", "operating_income", "net_income", "earnings_per_share"},
-            "balance": {"total_assets", "current_assets", "total_liabilities", "stockholders_equity", "cash_and_equivalents"},
-            "cashflow": {"operating_cash_flow", "investing_cash_flow", "financing_cash_flow", "capex"},
+        # Define REQUIRED metric fields (must have at least one non-NULL value) vs OPTIONAL fields
+        # REQUIRED fields: core SEC metrics that should always be present for real filings
+        # OPTIONAL fields: companies-specific (amortization only for acquistive firms, inventory only for retailers, etc)
+        required_metrics = {
+            "income": {"revenue", "net_income"},  # Must have revenue or net_income for real filing
+            "balance": {"total_assets", "stockholders_equity"},  # Must have assets/equity
+            "cashflow": {"operating_cash_flow"},  # Must have operating cash flow
         }
 
-        # Get metrics for current statement type
-        required_metrics = metric_fields.get(self.statement_type, set())
+        # Optional fields - NULL is expected for many companies (used for EBITDA/quality scores but not validation)
+        _OPTIONAL_INCOME_FIELDS = {
+            "depreciation_expense", "amortization_expense",  # Only companies with D&A report these separately
+            "interest_expense",  # Finance/banks report this, others don't
+            "cost_of_revenue", "gross_profit", "operating_income",  # Variations in revenue reporting
+        }
+        _OPTIONAL_BALANCE_FIELDS = {
+            "goodwill", "inventory",  # Only acquire/retail firms report these
+            "cash_and_equivalents", "accounts_receivable", "ppe_net", "long_term_debt",  # Varies by industry
+        }
+        _OPTIONAL_CASHFLOW_FIELDS = {"capex", "investing_cash_flow", "financing_cash_flow"}  # Not always reported
+
+        # Get REQUIRED metrics for current statement type
+        required_by_type = required_metrics.get(self.statement_type, set())
 
         result = []
         for row in transformed:
             if row.get("data_unavailable"):
                 result.append(row)
             else:
-                # Check if all metrics are NULL (indicates incomplete SEC data)
-                has_metrics = any(row.get(field) is not None for field in required_metrics)
-                if not has_metrics and required_metrics:
-                    # All financial metrics are NULL - mark as unavailable
+                # Check if REQUIRED metrics are NULL (indicates truly incomplete SEC data)
+                # OPTIONAL fields (amortization, goodwill, etc.) can be NULL without marking as unavailable
+                has_required = any(row.get(field) is not None for field in required_by_type)
+                if not has_required and required_by_type:
+                    # REQUIRED financial metrics are NULL - mark as unavailable (spinoff/incomplete filing)
                     symbol = row.get("symbol", "?")
                     fiscal_year = row.get("fiscal_year", "?")
                     logger.warning(
@@ -915,6 +929,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
                     row["data_unavailable"] = True
                     row["reason"] = f"incomplete_sec_filing_{self.statement_type}"
                 else:
+                    # Has required metrics - data is valid even if optional fields are NULL
                     row["data_unavailable"] = False
                     row["reason"] = None
                 result.append(row)
