@@ -624,7 +624,7 @@ def run(
                     try:
                         with DatabaseContext("read") as cur_tmp:
                             cur_tmp.execute(
-                                "SELECT current_price, trade_ids_arr FROM algo_positions WHERE position_id = %s",
+                                "SELECT current_price FROM algo_positions WHERE id = %s",
                                 (action["position_id"],),
                             )
                             row_tmp = cur_tmp.fetchone()
@@ -634,18 +634,6 @@ def run(
                                     "Cannot execute force exit without price."
                                 )
                             cur_price = float(row_tmp[0])
-                            # If trade_id not in action, use the first trade from position
-                            if not action.get("trade_id"):
-                                if row_tmp[1]:
-                                    trades = row_tmp[1] if isinstance(row_tmp[1], list) else [row_tmp[1]]
-                                    if trades:
-                                        action["trade_id"] = trades[0]
-                                # CRITICAL: Ensure trade_id was found
-                                if not action.get("trade_id"):
-                                    raise RuntimeError(
-                                        f"[FORCE-EXIT] Cannot find trade_id for position {action['position_id']}. "
-                                        "Position has no associated trades. Cannot execute force exit."
-                                    )
                             if cur_price <= 0:
                                 raise RuntimeError(
                                     f"[FORCE-EXIT] Invalid current price {cur_price} for position {action['position_id']}. "
@@ -706,7 +694,7 @@ def run(
                     try:
                         with DatabaseContext("read") as cur:
                             cur.execute(
-                                "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                "SELECT current_price FROM algo_positions WHERE id = %s",
                                 (action["position_id"],),
                             )
                             row = cur.fetchone()
@@ -792,7 +780,7 @@ def run(
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
                                     cur.execute(
-                                        "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
+                                        "UPDATE algo_positions SET stop_loss_price = %s WHERE id = %s",
                                         (action["new_stop"], action["position_id"]),
                                     )
                                     # rowcount guards against silently counting a no-op as a success -
@@ -894,8 +882,8 @@ def run(
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
                                     cur.execute(
-                                        "UPDATE algo_positions SET current_stop_price = %s "
-                                        "WHERE position_id = %s AND status = %s",
+                                        "UPDATE algo_positions SET stop_loss_price = %s "
+                                        "WHERE id = %s AND status = %s",
                                         (
                                             rec["new_stop_recommended"],
                                             rec["position_id"],
