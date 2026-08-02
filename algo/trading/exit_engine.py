@@ -117,6 +117,40 @@ class PositionContext:
         self.partial_exits_log = partial_exits_log
         self.config = config
         self.cur = cur
+        self._validate_exit_config()
+
+    def _validate_exit_config(self) -> None:
+        """Validate all exit rule config keys are present at initialization.
+
+        Fail-fast on missing config rather than during individual rule checks.
+        This ensures all required exit parameters are defined before position
+        monitoring begins.
+        """
+        required_config_keys = {
+            "exit_on_rs_line_break_50dma": bool,
+            "max_hold_days": int,
+            "eight_week_rule_threshold_pct": float,
+            "eight_week_rule_window_days": int,
+            "min_sqs_for_exit": float,
+            "max_risk_per_trade_pct": float,
+        }
+
+        missing_keys = []
+        for key, expected_type in required_config_keys.items():
+            if key not in self.config:
+                missing_keys.append(f"'{key}' ({expected_type.__name__})")
+            elif not isinstance(self.config[key], expected_type):
+                actual_type = type(self.config[key]).__name__
+                missing_keys.append(
+                    f"'{key}' has type {actual_type}, expected {expected_type.__name__}"
+                )
+
+        if missing_keys:
+            raise ValueError(
+                f"[{self.symbol}] CRITICAL: Exit rule config incomplete. Missing: {', '.join(missing_keys)}. "
+                f"Position cannot be monitored without complete exit parameters. "
+                f"Check orchestrator config validation."
+            )
 
     def check_stop_loss(self) -> tuple[bool, dict[str, Any] | None]:
         """Stop loss check: hard capital preservation rule."""

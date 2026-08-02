@@ -348,6 +348,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
         transformed = []
         skipped_invalid_fields = 0
+        unmapped_fields_per_symbol: dict[str, set[str]] = {}
 
         for r in rows:
             row: dict[str, Any] = {}
@@ -362,9 +363,14 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
 
                 if sec_field not in field_mapping:
-                    logger.debug(
-                        f"[{self.table_name}] {r.get('symbol')}: Unmapped SEC field '{sec_field}' "
-                        f"- may indicate schema change or optional field. Skipping."
+                    symbol = r.get("symbol", "?")
+                    if symbol not in unmapped_fields_per_symbol:
+                        unmapped_fields_per_symbol[symbol] = set()
+                    unmapped_fields_per_symbol[symbol].add(sec_field)
+                    logger.warning(
+                        f"[{self.table_name}] {symbol}: Unmapped SEC field '{sec_field}'. "
+                        f"This field is present in SEC XBRL data but has no database column mapping. "
+                        f"Check if field_mapping in load_financial_statements.py needs updating."
                     )
                     continue
 
@@ -436,6 +442,16 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
         if skipped_invalid_fields + skipped_missing_keys > 0:
             logger.warning(f"[{self.table_name}] Skipped {skipped_invalid_fields + skipped_missing_keys} rows.")
+
+        # Report unmapped fields summary (Issue #4 fix: Surface data mapping gaps)
+        if unmapped_fields_per_symbol:
+            for symbol in sorted(unmapped_fields_per_symbol.keys()):
+                unmapped_set = unmapped_fields_per_symbol[symbol]
+                logger.warning(
+                    f"[{self.table_name}] {symbol}: Found {len(unmapped_set)} unmapped SEC XBRL concepts: "
+                    f"{sorted(unmapped_set)}. These fields are being discarded. "
+                    f"If any are important metrics, add mappings to field_mapping dict."
+                )
 
         return list(seen.values())
 
