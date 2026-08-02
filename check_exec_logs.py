@@ -44,12 +44,30 @@ try:
         result = cur.fetchone()
         if result and result[0]:
             import json
-            phases = json.loads(result[0])
-            for phase_num in sorted(phases.keys(), key=lambda x: int(x)):
-                phase = phases[phase_num]
-                print(f"\nPhase {phase_num}: {phase.get('name')}")
-                print(f"  Status: {phase.get('status')}")
-                print(f"  Summary: {phase.get('summary')}")
+            # CRITICAL: phase_results is stored as JSONB, so psycopg2 returns it as
+            # a Python object (list/dict), not a string. Don't call json.loads().
+            phases_data = result[0]
+            if isinstance(phases_data, str):
+                # If somehow it's a string, parse it
+                phases = json.loads(phases_data)
+            else:
+                # Already a Python object from JSONB fetch
+                phases = phases_data if isinstance(phases_data, dict) else {i: p for i, p in enumerate(phases_data)}
+
+            if isinstance(phases, list):
+                # phase_results_array is a list - convert to dict for easier access
+                for phase in phases:
+                    phase_num = phase.get('phase', '?')
+                    print(f"\nPhase {phase_num}: {phase.get('name')}")
+                    print(f"  Status: {phase.get('status')}")
+                    print(f"  Summary: {phase.get('summary')}")
+            else:
+                # phases is a dict
+                for phase_num in sorted(phases.keys(), key=lambda x: int(x)):
+                    phase = phases[phase_num]
+                    print(f"\nPhase {phase_num}: {phase.get('name')}")
+                    print(f"  Status: {phase.get('status')}")
+                    print(f"  Summary: {phase.get('summary')}")
 
     conn.close()
 except Exception as e:
