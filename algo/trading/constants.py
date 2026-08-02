@@ -52,6 +52,16 @@ class TradeStatus(str, Enum):
             return normalized
         raise ValueError(f"Invalid trade status: {value}")
 
+    @classmethod
+    def all_open(cls) -> list[str]:
+        """Return all non-terminal trade statuses that represent open/active trades.
+
+        Used by exit_engine to fetch trades that can still be exited.
+        Includes: open, filled (partial fill), halted (awaiting recovery attempt).
+        Excludes: closed (already exited), cancelled (never executed).
+        """
+        return [cls.OPEN.value, cls.FILLED.value, cls.HALTED.value]
+
 
 class DataUnavailableReason(str, Enum):
     """Standardized reasons for data being unavailable."""
