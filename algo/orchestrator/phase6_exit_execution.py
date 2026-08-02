@@ -550,12 +550,26 @@ def run(
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:
+                        # Fetch trade_id for this oversized position
+                        cur.execute(
+                            "SELECT trade_id FROM algo_positions WHERE id = %s AND status = 'open'",
+                            (pos_id,)
+                        )
+                        trade_row = cur.fetchone()
+                        if trade_row is None or trade_row[0] is None:
+                            logger.warning(
+                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_id. "
+                                f"Cannot force-exit without trade reference. Skipping this position."
+                            )
+                            continue
+
+                        trade_id = trade_row[0]
                         action = {
                             "symbol": symbol,
                             "position_id": pos_id,
                             "action": "force_exit",
                             "reason": f"POSITION_SIZE_CONCENTRATION: {pct:.1f}% > {limit:.0f}% limit",
-                            "trade_id": None,  # Will be fetched during execution
+                            "trade_id": trade_id,  # Now properly fetched from database
                         }
                         rebalance_actions.append(action)
                         logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (position size {pct:.1f}% exceeds {limit:.0f}% limit)")
