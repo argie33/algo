@@ -216,53 +216,32 @@ def run(
             logger.critical(msg)
             raise RuntimeError(msg)
         elif len(position_recs) == 0:
-            # In dry-run mode, empty position_recs is OK - no actual exits will execute
-            if dry_run:
-                logger.info("[PHASE 6] Dry-run mode with no position recommendations - returning degraded status")
-                result_data = {
-                    "exits_executed": 0,
-                    "stops_raised": 0,
-                    "errors": 0,
-                    "detail": "DRY-RUN: No position monitor recommendations received"
-                }
-                log_phase_result_fn(
-                    6,
-                    "exit_execution",
-                    "degraded",
-                    "DRY-RUN: No position monitor recommendations",
-                )
-                return PhaseResult(
-                    6,
-                    "exit_execution",
-                    "degraded",
-                    result_data,
-                    False,
-                    "DRY-RUN: No position monitor recommendations",
-                )
+            # CRITICAL: Even with no Phase 3 recommendations, concentration checks MUST run
+            # Phase 3 generates recommendations for positions that need exit/stop changes,
+            # but does NOT generate recommendations for structural concentration violations
+            # (oversized positions, over-concentrated sectors). Those are detected here.
+            # Do NOT return early - let concentration checks run to detect these violations.
 
-            # CRITICAL: Check if we have open positions but no recommendations
-            # Phase 3 MUST generate recommendations for all open positions (or halt if it can't)
-            # Empty recommendations + open positions = Phase 3 silently skipped position monitoring
-            with DatabaseContext("read") as cur:
-                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status='open'")
-                result = cur.fetchone()
-                if result is None or result[0] is None:
-                    raise RuntimeError("[PHASE 6] Query to count open positions returned NULL")
-                open_position_count = result[0]
+            if not dry_run:
+                # In live mode, check for open positions
+                with DatabaseContext("read") as cur:
+                    cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status='open'")
+                    result = cur.fetchone()
+                    if result is None or result[0] is None:
+                        raise RuntimeError("[PHASE 6] Query to count open positions returned NULL")
+                    open_position_count = result[0]
 
-            if open_position_count > 0:
-                msg = (
-                    f"[PHASE 6 CRITICAL] Phase 3 generated no recommendations but {open_position_count} positions are open. "
-                    f"This violates fail-fast position monitoring: Phase 3 must either generate recommendations or halt. "
-                    f"Cannot proceed with unmonitored positions - cannot determine exit conditions or P&L. "
-                    f"This indicates Phase 3 silently skipped position analysis (data integrity violation)."
-                )
-                logger.critical(msg)
-                raise RuntimeError(msg)
+                if open_position_count > 0:
+                    msg = (
+                        f"[PHASE 6 CRITICAL] Phase 3 generated no recommendations but {open_position_count} positions are open. "
+                        f"This violates fail-fast position monitoring: Phase 3 must either generate recommendations or halt. "
+                        f"Cannot proceed with unmonitored positions - cannot determine exit conditions or P&L. "
+                        f"This indicates Phase 3 silently skipped position analysis (data integrity violation)."
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg)
 
-            # Empty recommendations + no open positions = normal case
-            # All positions are closed or healthy
-            logger.info("[PHASE 6] Position monitor returned no exit recommendations (normal case - no open positions). Proceeding with zero exits.")
+            logger.info("[PHASE 6] No Phase 3 recommendations - concentration checks will run to detect structural violations")
 
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
         # Sector concentration limit: configured via max_positions_per_sector (default 10)

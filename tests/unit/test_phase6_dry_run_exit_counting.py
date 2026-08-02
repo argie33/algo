@@ -126,6 +126,8 @@ def test_phase6_dry_run_returns_degraded_status():
     config = {
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
+        "max_positions_per_sector": 10,
+        "max_position_size_pct": 6.0,
     }
 
     position_recs = []
@@ -134,7 +136,22 @@ def test_phase6_dry_run_returns_degraded_status():
     alert_manager = MagicMock()
     log_phase_result_fn = MagicMock()
 
-    with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext'):
+    with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext') as mock_db:
+        # Set up mock cursor for concentration checks with empty portfolio
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.side_effect = [
+            (0, 0),      # Sector concentration check - count query
+            (0,),        # Sector concentration check - SUM query
+            (0, 0),      # Size concentration check - count query
+            (0,),        # Size concentration check - SUM query
+        ]
+        mock_cursor.fetchall.return_value = []  # No positions for concentration checks
+        mock_cursor.rowcount = 1
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_cursor
+        mock_context.__exit__.return_value = None
+        mock_db.return_value = mock_context
+
         result = phase6_run(
             config=config,
             run_date=__import__('datetime').date.today(),
