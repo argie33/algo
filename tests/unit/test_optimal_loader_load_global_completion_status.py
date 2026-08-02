@@ -74,10 +74,8 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, rows)
 
         assert result == 1
-        loader._infrastructure.update_loader_status.assert_called_with("COMPLETED")
-        calls = loader._infrastructure.update_loader_status.call_args_list
-        assert len(calls) >= 1
-        assert calls[0][0][0] == "RUNNING"
+        loader._status_manager.mark_completed.assert_called()
+        loader._status_manager.mark_running.assert_called()
 
     def test_empty_result_still_marks_completed_not_left_running(self):
         loader = _make_loader()
@@ -85,7 +83,7 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, [])
 
         assert result == 0
-        loader._infrastructure.update_loader_status.assert_called_with("COMPLETED")
+        loader._status_manager.mark_completed.assert_called()
 
     def test_data_unavailable_marker_dict_still_marks_completed(self):
         loader = _make_loader()
@@ -93,7 +91,7 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, {"data_unavailable": True, "reason": "no_source_available"})
 
         assert result == 0
-        loader._infrastructure.update_loader_status.assert_called_with("COMPLETED")
+        loader._status_manager.mark_completed.assert_called()
 
     def test_list_wrapped_data_unavailable_marker_still_marks_completed(self):
         loader = _make_loader()
@@ -101,4 +99,4 @@ class TestLoadGlobalCompletionStatus:
         result = _run_load_global(loader, [{"data_unavailable": True, "reason": "no_source_available"}])
 
         assert result == 0
-        loader._infrastructure.update_loader_status.assert_called_with("COMPLETED")
+        loader._status_manager.mark_completed.assert_called()
