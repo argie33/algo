@@ -101,9 +101,12 @@ def _get_connection_pool() -> Any:
                     # response meant for the other. ThreadedConnectionPool adds a threading.Lock
                     # around pool access; production Lambda (one invocation per execution
                     # environment) never needed it, which is why this went uncaught.
+                    # Pool size configurable via environment for dev/staging/prod tiers
+                    pool_min = int(os.environ.get("DB_POOL_MIN_CONNECTIONS", "5"))
+                    pool_max = int(os.environ.get("DB_POOL_MAX_CONNECTIONS", "40"))
                     base_pool = psycopg2.pool.ThreadedConnectionPool(
-                        minconn=5,
-                        maxconn=40,
+                        minconn=pool_min,
+                        maxconn=pool_max,
                         host=db_config["host"],
                         port=port,
                         database=db_config["database"],
@@ -128,9 +131,9 @@ def _get_connection_pool() -> Any:
 
                     _connection_pool = IdleConnectionPool(base_pool, max_idle_sec=300, cleanup_interval_sec=60)
                     logger.info(
-                        "[DB_POOL] Connection pool initialized (minconn=5, maxconn=40) "
+                        f"[DB_POOL] Connection pool initialized (minconn={pool_min}, maxconn={pool_max}) "
                         "with idle connection cleanup (max_idle=300s, check every 60s). "
-                        "Supports 60 concurrent loaders + dev server threads."
+                        "Configure via DB_POOL_MIN_CONNECTIONS and DB_POOL_MAX_CONNECTIONS environment variables."
                     )
                 except psycopg2.Error as e:
                     logger.error(f"[DB_POOL] Failed to create pool: {e}")
