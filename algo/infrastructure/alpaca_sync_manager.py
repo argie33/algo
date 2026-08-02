@@ -333,11 +333,49 @@ class AlpacaSyncManager:
 
         Raises:
             RuntimeError: If Alpaca API fails or database error
+
+        FIX (Session 2026-08-02): Graceful credential failure in paper mode.
+        Paper mode can operate without Alpaca credentials (trades exist only in DB).
+        Skip sync if credentials missing in paper/review mode, fail-hard only in live.
         """
+        is_paper_mode = self.config.get("execution_mode") == "paper"
+
+        # Check if Alpaca credentials are available
+        if not self._alpaca_key or not self._alpaca_secret:
+            if is_paper_mode:
+                # Paper mode can work without Alpaca (trades are simulated, not real)
+                logger.warning(
+                    "[POSITION_SYNC] Alpaca credentials not available in paper mode. "
+                    "Skipping position sync (trades exist in database, not in Alpaca account)."
+                )
+                return {
+                    "message": "Position sync skipped (paper mode, no Alpaca credentials)",
+                    "orphan_symbols": [],
+                    "synced_count": 0,
+                    "closed_count": 0,
+                }
+            else:
+                # Live mode requires Alpaca credentials - fail-hard
+                raise RuntimeError(
+                    "[POSITION_SYNC] Alpaca credentials missing in live mode. "
+                    "Cannot sync positions without valid APCA_API_KEY_ID and APCA_API_SECRET_KEY. "
+                    "Set credentials before running live trading."
+                )
+
         try:
             self.fetch_alpaca_account()
         except Exception as e:
-            raise RuntimeError(f"[POSITION_SYNC] Failed to fetch Alpaca account: {e}") from e
+            if is_paper_mode:
+                # Paper mode can continue without account fetch
+                logger.warning(f"[POSITION_SYNC] Failed to fetch Alpaca account in paper mode: {e}. Continuing...")
+                return {
+                    "message": f"Position sync failed (paper mode allows degradation): {e}",
+                    "orphan_symbols": [],
+                    "synced_count": 0,
+                    "closed_count": 0,
+                }
+            else:
+                raise RuntimeError(f"[POSITION_SYNC] Failed to fetch Alpaca account: {e}") from e
 
         # Fetch positions from Alpaca
         try:
