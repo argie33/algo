@@ -316,7 +316,7 @@ def run(
                         sector, count = row[0], row[1]
                         # CRITICAL: Handle Decimal types from psycopg2 - convert to int BEFORE arithmetic
                         try:
-                            count_int = int(count) if count is not None else 0
+                            count_int = _ensure_int(count, f"sector_count:{sector}") if count is not None else 0
                         except (TypeError, ValueError) as e:
                             logger.error(f"[PHASE 6] Failed to convert sector count {count} ({type(count).__name__}) to int: {e}")
                             continue
@@ -430,7 +430,7 @@ def run(
                         raise RuntimeError(
                             "[PHASE 6] Data corruption: SUM(position_value) is NULL - position_value fields may contain non-numeric values"
                         )
-                    total_value_float = float(total_value)
+                    total_value_float = _ensure_float(total_value, "SUM(position_value)")
 
                     if total_value_float <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
@@ -480,7 +480,7 @@ def run(
                             try:
                                 # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
                                 # Division of float by Decimal returns Decimal, so we must ensure total_value_float is native float
-                                value_float = float(value)
+                                value_float = _ensure_float(value, f"{symbol}:position_value")
                                 # Ensure division uses native floats, not Decimals
                                 total_value_for_division = float(total_value_float)
                                 # Perform division with native floats
