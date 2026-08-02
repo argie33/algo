@@ -140,7 +140,7 @@ class PositionMonitor:
                         # Check Alpaca API for halt status
                         alpaca_halt = False
                         try:
-                            halt_check = meh.check_single_stock_halt(symbol, timeout=2.0)
+                            halt_check = meh.check_single_stock_halt(symbol)
                             if halt_check and halt_check.get("error"):
                                 raise RuntimeError(
                                     f"Halt check failed for {symbol}: {halt_check.get('reason', halt_check['error'])}. "
@@ -1701,6 +1701,7 @@ class PositionMonitor:
                 continue
             break
 
+        assert resp is not None, "Response should be set after loop"
         if resp.status_code != 200:
             raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol}")
 

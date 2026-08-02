@@ -155,11 +155,12 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
         raise RuntimeError(f"Position sync failed: {e}")
 
     if error_details:
-        logger.warning(
-            f"[POSITION_SYNC] Sync errors for {len(error_details)} symbols: "
-            f"{', '.join(f\"{d['symbol']}({d['reason'][:30]})\" for d in error_details[:5])}"
-            f"{' ... and ' + str(len(error_details) - 5) + ' more' if len(error_details) > 5 else ''}"
+        error_summary = ", ".join(
+            f"{d['symbol']}({d['reason'][:30]})" for d in error_details[:5]
         )
+        if len(error_details) > 5:
+            error_summary += f" ... and {len(error_details) - 5} more"
+        logger.warning(f"[POSITION_SYNC] Sync errors for {len(error_details)} symbols: {error_summary}")
     logger.info(f"[POSITION_SYNC] Completed: {inserted} inserted, {updated} updated, {errors} errors")
     return inserted, updated, errors, error_details
 

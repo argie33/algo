@@ -1645,9 +1645,14 @@ class Orchestrator:
         # CRITICAL: Sync positions from trades BEFORE Phase 1
         # This ensures algo_positions is fresh for Phase 3/8/9
         try:
-            inserted, updated, errors = sync_positions_from_trades()
+            inserted, updated, errors, error_details = sync_positions_from_trades()
             if errors > 0:
-                logger.warning(f"[POSITION_SYNC] Completed with {errors} errors during sync")
+                failed_symbols = [e["symbol"] for e in error_details]
+                logger.warning(
+                    f"[POSITION_SYNC] Completed with {errors} errors. "
+                    f"Failed symbols: {', '.join(failed_symbols[:3])}"
+                    f"{' ... and ' + str(len(failed_symbols) - 3) + ' more' if len(failed_symbols) > 3 else ''}"
+                )
             else:
                 logger.info(f"[POSITION_SYNC] Completed: {inserted} inserted, {updated} updated")
 
