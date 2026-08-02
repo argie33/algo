@@ -152,11 +152,14 @@ class PriceFetcher:
 
     def set_circuit_breaker(self, circuit_breaker: Any) -> None:
         if circuit_breaker is None:
-            logger.warning(
-                "[PRICE_FETCHER] Circuit breaker not configured. "
-                "Price fetches will execute without API outage protection. "
-                "This is a degraded state - consider re-checking initialization."
+            msg = (
+                "[PRICE_FETCHER] CRITICAL: Circuit breaker not configured. "
+                "Price fetches cannot execute without API outage protection. "
+                "This prevents rate-limit hammer during API outages. "
+                "Initialization must provide a circuit breaker instance."
             )
+            logger.error(msg)
+            raise RuntimeError(msg)
         self._circuit_breaker = circuit_breaker
 
     def get_current_batch_size(self) -> int:
