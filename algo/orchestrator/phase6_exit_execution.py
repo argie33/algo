@@ -351,11 +351,24 @@ def run(
                                 continue
 
                             pos_id, symbol, value = row[0], row[1], row[2]
+                            # CRITICAL FIX: Reject positions with NULL position_value instead of treating as 0.0
+                            # NULL position_value means position was not properly initialized or updated;
+                            # silently treating it as 0.0 would cause oversized position to evade concentration check
+                            if value is None:
+                                logger.critical(
+                                    f"[PHASE 6 CRITICAL] Position {symbol} (id={pos_id}) has NULL position_value. "
+                                    f"Cannot assess concentration risk for NULL position. This violates risk management "
+                                    f"and must halt concentration check. Check: (1) Phase 3 updates position_value, "
+                                    f"(2) position was properly synced from trades"
+                                )
+                                raise RuntimeError(
+                                    f"[PHASE 6] Cannot assess concentration: position {symbol} has NULL position_value"
+                                )
                             # Compute percentage in Python with explicit float conversion to avoid Decimal/float type mixing
                             try:
                                 # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
                                 # Division of float by Decimal returns Decimal, so we must ensure total_value_float is native float
-                                value_float = float(value) if value is not None else 0.0
+                                value_float = float(value)
                                 # Ensure division uses native floats, not Decimals
                                 total_value_for_division = float(total_value_float)
                                 pct_float = (value_float / total_value_for_division * 100) if total_value_for_division > 0 else 0.0
