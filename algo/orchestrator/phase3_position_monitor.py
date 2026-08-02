@@ -450,8 +450,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             recommendations = monitor.review_positions(run_date, cur=None)
                         n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
                         n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
-                        logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises",
-                                   len(recommendations), n_early_exit, n_raise_stop)
+                        logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises" %
+                                   (len(recommendations), n_early_exit, n_raise_stop))
                         break  # Success - exit retry loop
                     except Exception as review_err:
                         last_error = review_err
