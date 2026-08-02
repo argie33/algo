@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class PositionTracker:
     """Manage all position-related database operations and validation."""
 
-    def __init__(self, alpaca_key: str, alpaca_secret: str, alpaca_base_url: str):
+    def __init__(self, alpaca_key: str | None, alpaca_secret: str | None, alpaca_base_url: str):
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url

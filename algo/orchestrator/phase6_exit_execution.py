@@ -561,19 +561,8 @@ def run(
                                 continue
 
                             if pct_float_safe > max_size_pct_float_safe:
-                                # CRITICAL: _ensure_float guarantees native Python float - safe for arithmetic
-                                # Force to native float one more time before arithmetic to eliminate any Decimal remnants
-                                pct_final = float(float(pct_float_safe))
-                                max_pct_final = float(float(max_size_pct_float_safe))
-                                # Verify types before arithmetic
-                                if not isinstance(pct_final, float) or not isinstance(max_pct_final, float):
-                                    raise TypeError(
-                                        f"[PHASE 6] Arithmetic operand type check failed for {symbol}: "
-                                        f"pct_final={type(pct_final).__name__}, max_pct_final={type(max_pct_final).__name__}. "
-                                        f"Cannot proceed with concentration check."
-                                    )
-                                exceed_amount = pct_final - max_pct_final
-                                oversized_positions.append((pos_id, symbol, pct_final, max_pct_final))
+                                exceed_amount = pct_float_safe - max_size_pct_float_safe
+                                oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_pct_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")

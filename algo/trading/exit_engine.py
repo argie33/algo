@@ -7,7 +7,7 @@ import uuid
 from datetime import date as _date
 from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import psycopg2
 import requests
@@ -969,17 +969,17 @@ class ExitEngine:
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 
-                        fraction = exit_signal["fraction"]
+                        fraction = cast(float, exit_signal["fraction"])
 
-                        stage = exit_signal["stage"]
+                        stage = cast(str, exit_signal["stage"])
 
-                        new_stop = exit_signal.get("new_stop")
+                        new_stop = cast(float | None, exit_signal.get("new_stop"))
 
                         # Route exit through executor (atomicity + audit logging)
 
                         # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
 
-                        logger.info(f"  {symbol}: {stage.upper()} - {exit_signal['reason']}")
+                        logger.info(f"  {symbol}: {stage.upper()} - {cast(str, exit_signal['reason'])}")
 
                         if fraction > 0:
                             logger.info(f"      (exit {int(fraction * 100)}%)")
@@ -1029,9 +1029,11 @@ class ExitEngine:
                         # rather than propagating a "current transaction is aborted" error that would abort
                         # exit coverage for all remaining positions in this batch.
                         transaction_aborted = False
+                        rollback_err: Exception | None = None
                         try:
                             cur.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
                         except psycopg2.Error as _rollback_err:
+                            rollback_err = _rollback_err
                             # Check if the transaction is aborted - if so, we MUST halt this run
                             if "current transaction is aborted" in str(_rollback_err).lower():
                                 transaction_aborted = True
@@ -1055,7 +1057,7 @@ class ExitEngine:
                             raise DatabaseError(
                                 f"[EXIT_ENGINE CRITICAL] Transaction aborted - cannot continue evaluating positions. "
                                 f"First abort occurred at symbol {symbol}. Halting exit engine."
-                            ) from _rollback_err
+                            ) from rollback_err
 
                         # Persist to an audit table, not just the logger - this process's stdout
                         # is gone the moment a scheduled/background run exits, and this is the

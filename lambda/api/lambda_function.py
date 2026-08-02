@@ -187,16 +187,16 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 cur.execute(create_sql)
                 conn.commit()
                 logger.info(f"[STARTUP] Created table {table_name}")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[STARTUP] Could not create table {table_name}: {e}")
                 try:
                     conn.rollback()
-                except Exception:
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
                     # Connection died mid-statement (e.g. transient RDS/network blip).
                     # Reconnect so the remaining migrations and the validation step
                     # below still run against a healthy connection instead of a single
                     # transient failure aborting the entire Lambda cold start.
-                    logger.warning("[STARTUP] Connection lost during rollback - reconnecting")
+                    logger.warning(f"[STARTUP] Connection lost during rollback: {rollback_err} - reconnecting")
                     conn = psycopg2.connect(
                         host=db_host,
                         port=int(db_port),
@@ -291,12 +291,12 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 cur.execute(sql)
                 conn.commit()
                 logger.info(f"[STARTUP] Ensured {table}.{column} exists ({description})")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as e:
                 logger.warning(f"[STARTUP] Could not update {table}.{column}: {e}")
                 try:
                     conn.rollback()
-                except Exception:
-                    logger.warning("[STARTUP] Connection lost during rollback - reconnecting")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
+                    logger.warning(f"[STARTUP] Connection lost during rollback: {rollback_err} - reconnecting")
                     conn = psycopg2.connect(
                         host=db_host,
                         port=int(db_port),

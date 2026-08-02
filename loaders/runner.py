@@ -178,8 +178,22 @@ def run_loader(
                 )
             fail_rate = symbols_failed / max(len(symbols), 1)
             max_fail_rate = getattr(loader, "max_fail_rate", 15.0) / 100.0  # CRITICAL: Default 15% fail tolerance (was dangerously 60%). Fail-fast on data source issues.
+
+            # ERROR COUNT PROPAGATION FIX: Surface error counts to loader status for dashboard visibility
+            # Allows operators to distinguish "100% success" from "95% success, 5% failed"
+            symbols_loaded = stats.get("symbols_loaded", 0)
+            execution_duration = stats.get("execution_duration_sec")
+
             if fail_rate > max_fail_rate:
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
+                # Still mark in status so operators see partial failures
+                from utils.loaders.status_manager import LoaderStatusManager
+                status_mgr = LoaderStatusManager(loader_class.table_name)
+                status_mgr.mark_failed(
+                    error_message=f"{symbols_failed} symbols failed to load (fail rate {fail_rate * 100:.1f}% exceeds limit {max_fail_rate * 100:.0f}%)",
+                    completion_pct=((symbols_loaded / len(symbols)) * 100) if len(symbols) > 0 else 0,
+                    retry_count=stats.get("retry_count")
+                )
                 return 1
 
             # Some loaders define post-run steps (e.g. StockScoresLoader.post_run computes
@@ -187,6 +201,14 @@ def run_loader(
             # writes complete. This hook was previously defined but never invoked.
             if hasattr(loader, "post_run"):
                 loader.post_run()
+
+            # Mark completion with error count visibility so dashboard shows partial success (e.g. "95 of 100 succeeded")
+            from utils.loaders.status_manager import LoaderStatusManager
+            status_mgr = LoaderStatusManager(loader_class.table_name)
+            status_mgr.mark_completed(
+                execution_duration_sec=execution_duration,
+                symbols_failed=symbols_failed if symbols_failed > 0 else None  # Only log if there were failures
+            )
 
             return 0
     except Exception as e:

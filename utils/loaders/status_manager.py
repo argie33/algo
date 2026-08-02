@@ -222,6 +222,7 @@ class LoaderStatusManager:
         http_status: int | None = None,
         rate_limit_quota: str | None = None,
         latest_date: Any | None = None,
+        symbols_failed: int | None = None,
     ) -> None:
         """Mark loader as completed successfully.
 
@@ -231,12 +232,14 @@ class LoaderStatusManager:
         since it's also stamped on FAILED/TIMEOUT).
 
         ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
+        ERROR COUNT TRACKING: Now logs symbols_failed count for visibility into partial failures.
 
         Args:
             execution_duration_sec: Optional execution duration for performance tracking
             http_status: Optional HTTP status code from API call (200=ok)
             rate_limit_quota: Optional rate limit quota string for display
             latest_date: Optional latest date in the loaded data (for data freshness tracking)
+            symbols_failed: Optional count of symbols that failed to load (allows partial success visibility)
         """
         self._acquire_lock()
         try:
@@ -297,7 +300,12 @@ class LoaderStatusManager:
                         f"Dashboard failure-pattern analysis may be incomplete."
                     )
 
-            logger.info(f"[STATUS] {self.table_name}: COMPLETED ({execution_duration_sec:.1f}s)" if execution_duration_sec else f"[STATUS] {self.table_name}: COMPLETED")
+            # Log completion with error visibility (symbols_failed indicates partial success)
+            duration_str = f"({execution_duration_sec:.1f}s)" if execution_duration_sec else ""
+            if symbols_failed is not None and symbols_failed > 0:
+                logger.warning(f"[STATUS] {self.table_name}: COMPLETED with {symbols_failed} symbol failures {duration_str}")
+            else:
+                logger.info(f"[STATUS] {self.table_name}: COMPLETED {duration_str}")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as COMPLETED: {e}")
             raise

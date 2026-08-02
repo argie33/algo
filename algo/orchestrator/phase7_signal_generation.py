@@ -425,7 +425,7 @@ def _get_candidates_from_buysell(
     """
     from algo.infrastructure.config import AlgoConfig
     config_obj = AlgoConfig()
-    min_completeness_threshold = config_obj.get_field("min_completeness_score", default=70)
+    min_completeness_threshold = config_obj.get("min_completeness_score", default=70)
 
     lookback_date = _buysell_lookback_start_date(run_date)
     try:
@@ -1177,7 +1177,8 @@ def run(  # noqa: C901
     # Old: hard-coded min_composite_score=30 (below median 32.75, rejected only 60% of universe)
     # New: Use market regime tier's minimum (uptrend=50, pressure=60, caution=70, correction=80)
     # This dramatically raises entry quality by filtering weak signals in all market conditions.
-    from algo.risk.exposure_policy import tier_for_exposure, read_market_regime
+    from algo.risk.exposure_policy import tier_for_exposure
+    from algo.risk.market_exposure import read_market_regime
 
     try:
         market_regime = read_market_regime(run_date)
@@ -1261,21 +1262,14 @@ def run(  # noqa: C901
                 logger.info(
                     f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols (limited to recent 3-day lookback)"
                 )
-                # CRITICAL FIX: Signal quality scores must be recomputed every day for TODAY's symbols.
-                # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
-                # scores depend on today's buy/sell signals, technical data, and trend templates which
-                # change daily. Passing backfill_days=3 focuses processing on recent signals while
-                # respecting watermarks for older data (already scored).
-                # Prior: backfill_days=60 forced full reprocessing for 5468 symbols (35+ min lock hold)
-                # Now: backfill_days=3 processes only recent unscored signals (~1-2 min lock hold)
-                # TIMEOUT FIX: Phase 7 runs 3x daily, so loading 3 days of backfill takes ~5-8 min max
-                # Increased from 10 to 15 min to handle scenarios with high symbol volume or slow locks
+                # Use watermark-based incremental loading: only recompute scores for symbols
+                # whose underlying data (buy_sell_daily signals, technical indicators) have changed
+                # since the last score update. This is tracked via updated_at watermark.
                 loader_start = time.time()
-                loader_timeout_secs = 900  # 15 minutes max (was 10 min, increased for safety)
+                loader_timeout_secs = 600  # 10 minutes (was 15 min with backfill_days=3 workaround)
                 score_result = loader.run(
                     symbols=all_symbols,
                     parallelism=8,
-                    backfill_days=3,  # Limit to recent 3 days to eliminate lock contention
                 )
                 loader_elapsed = time.time() - loader_start
                 if loader_elapsed > loader_timeout_secs:

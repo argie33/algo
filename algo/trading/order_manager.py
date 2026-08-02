@@ -29,7 +29,7 @@ validator = AlpacaResponseValidator()
 class OrderManager:
     """Manage order lifecycle via Alpaca API."""
 
-    def __init__(self, alpaca_key: str, alpaca_secret: str, alpaca_base_url: str) -> None:
+    def __init__(self, alpaca_key: str | None, alpaca_secret: str | None, alpaca_base_url: str) -> None:
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url
