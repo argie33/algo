@@ -535,6 +535,14 @@ class VectorizedTechnicalLoader:
                     "Data may be corrupted or have invalid format."
                 ) from e
 
+        # Report skipped symbols for audit trail
+        if skipped_symbols:
+            logger.warning(
+                f"[INDICATORS] {len(skipped_symbols)} symbols skipped due to data quality issues "
+                f"(extreme ROC values, insufficient price data, etc): {skipped_symbols[:10]}"
+                + (f"... and {len(skipped_symbols)-10} more" if len(skipped_symbols) > 10 else "")
+            )
+
         if not results:
             return pd.DataFrame()
 
