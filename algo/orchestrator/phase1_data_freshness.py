@@ -671,6 +671,7 @@ def run(  # noqa: C901
             # Session 344: Found that completion_pct was calculated on row_count, not symbol_count,
             # causing false "100% complete" when only 1 symbol out of 5000+ was actually loaded.
             # This check catches that mismatch and fails fast rather than proceeding with incomplete data.
+            # CRITICAL FIX 2026-08-02: Fail-fast on data integrity mismatch (was just logging)
             try:
                 cur.execute("""SELECT completion_pct, symbols_loaded, symbol_count
                        FROM data_loader_status
@@ -679,19 +680,30 @@ def run(  # noqa: C901
                 loader_status_row = cur.fetchone()
                 if loader_status_row:
                     reported_pct, reported_loaded, reported_expected = loader_status_row
-                    # If loader reports 100% but actual loaded count is significantly lower, that's a red flag
+                    # If loader reports 90%+ but actual loaded count is significantly lower, that's data integrity failure
                     if reported_pct and reported_pct >= 90 and reported_loaded and reported_expected:
                         actual_coverage = (reported_loaded / max(reported_expected, 1)) * 100
                         if actual_coverage < 50:
-                            logger.critical(
-                                f"[PHASE 1] CRITICAL DATA QUALITY BUG: data_loader_status reports "
+                            error_msg = (
+                                f"[PHASE 1 CRITICAL] Data integrity failure: data_loader_status reports "
                                 f"{reported_pct:.0f}% completion but actual coverage is {actual_coverage:.1f}% "
                                 f"({reported_loaded} symbols loaded, {reported_expected} expected). "
                                 f"This indicates the loader's completion_pct calculation is broken. "
-                                f"Using actual symbol count {symbols_loaded} for validation."
+                                f"Cannot proceed with analysis on corrupted completion metrics. "
+                                f"Check data_loader_status.completion_pct calculation logic."
                             )
-            except Exception as status_check_err:
-                logger.warning(f"[PHASE 1] Could not validate loader status accuracy: {status_check_err}")
+                            logger.critical(error_msg)
+                            log_phase_result_fn(1, "data_loader_status", "halt", error_msg)
+                            return PhaseResult(
+                                1,
+                                "data_freshness",
+                                "halted",
+                                {"status": "halted", "reason": error_msg},
+                                True,
+                                error_msg,
+                            )
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_check_err:
+                logger.warning(f"[PHASE 1] Could not validate loader status accuracy (database error): {status_check_err}")
 
             # For coverage baseline: use CURRENT ACTIVE SYMBOL COUNT from stock_symbols
             # (not prior day's count, which can be lower/higher due to symbol list changes)

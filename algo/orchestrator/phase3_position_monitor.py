@@ -14,6 +14,7 @@ from algo.orchestrator.phase_error_handling import (
 )
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
+from utils.db.result_validator import RowAccessor
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     )
 
                 # Get latest prices from price_daily table for all open symbols
-                open_symbols = [row[1] for row in positions]  # row[1] is symbol
+                # Use RowAccessor for type-safe column access instead of magic indices
+                position_columns = ["position_id", "symbol", "quantity", "current_price", "entry_date", "stop_loss_price", "avg_entry_price"]
+                open_symbols = [
+                    RowAccessor(row, position_columns, "position_fetch").get_str(1)  # symbol at index 1
+                    for row in positions
+                ]
                 prices: dict[str, float | None] = {}
 
                 if open_symbols:
@@ -156,7 +162,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                     # CRITICAL: Validate that ALL open symbols got price data (fail-fast if silent gap)
                     if len(price_rows) != len(open_symbols):
-                        missing_symbols = set(open_symbols) - {row[0] for row in price_rows}
+                        price_columns = ["symbol", "close", "data_unavailable", "data_unavailable_reason"]
+                        price_symbols = {
+                            RowAccessor(row, price_columns, "price_fetch").get_str(0)  # symbol at index 0
+                            for row in price_rows
+                        }
+                        missing_symbols = set(open_symbols) - price_symbols
                         raise RuntimeError(
                             f"[PHASE 3 CRITICAL] Silent price data loss detected: {len(missing_symbols)} symbols missing prices. "
                             f"Expected {len(open_symbols)} prices, got {len(price_rows)}. "
@@ -166,15 +177,13 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         )
 
                     # GOVERNANCE COMPLIANCE: Check data_unavailable flag for each price
+                    price_columns = ["symbol", "close", "data_unavailable", "data_unavailable_reason"]
                     for row in price_rows:
-                        if len(row) != 4:
-                            raise RuntimeError(
-                                f"[PHASE 3] Price query returned {len(row)} columns, expected 4. Schema drift detected."
-                            )
-                        symbol = row[0]
-                        close_price = row[1]
-                        data_unavailable_flag = bool(row[2]) if row[2] is not None else False
-                        reason_msg = row[3] if row[3] is not None else None
+                        accessor = RowAccessor(row, price_columns, "price_fetch")
+                        symbol = accessor.get_str(0)
+                        close_price = accessor.get_float(1)
+                        data_unavailable_flag = accessor.get_bool(2, allow_none=True) or False
+                        reason_msg = accessor.get_str(3, allow_none=True)
 
                         # FAIL-FAST: If price data is explicitly marked unavailable, this is a critical issue
                         # that should be surfaced immediately, not silently skipped.
@@ -199,8 +208,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 for update_idx, (position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry) in enumerate(positions):
                     # CRITICAL: Periodic pool health check during long-running position updates
                     # If Phase 3 processes many positions (30+ seconds), other processes may consume connections
-                    # Check pool every 5 positions (after ~1-2 seconds) to catch exhaustion early
-                    if update_idx > 0 and update_idx % 5 == 0:
+                    # CRITICAL FIX 2026-08-02: Check pool every 30 positions (was every 5, high overhead)
+                    # Every 30 positions = ~10-15 seconds depending on update time, catches exhaustion early without spam
+                    if update_idx > 0 and update_idx % 30 == 0:
                         from utils.db.connection_pool import get_pool_health
                         current_health = get_pool_health()
                         current_available = current_health.get("available_conns", 0)
