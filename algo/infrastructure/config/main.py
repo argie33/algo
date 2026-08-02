@@ -1440,7 +1440,13 @@ class AlgoConfig:
                 t_conn_done = time.time()
                 logger.info(f"[AlgoConfig] database connection took {t_conn_done - t_conn_start:.2f}s")
 
-                cur.execute("SELECT key, value, data_type FROM algo_config")
+                # CRITICAL FIX: Check if data_type column exists in old schemas
+                # Some test environments may use old algo_config schema without data_type
+                try:
+                    cur.execute("SELECT key, value, data_type FROM algo_config")
+                except psycopg2.ProgrammingError:
+                    # data_type column doesn't exist - use fallback query
+                    cur.execute("SELECT key, value, NULL::VARCHAR as data_type FROM algo_config")
                 rows = cur.fetchall()
                 logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
@@ -2212,19 +2218,41 @@ class AlgoConfig:
                 row = cur.fetchone()
                 old_value = row["value"] if row else None
 
+                # CRITICAL FIX: Check if data_type column exists before using it
+                # Some test environments may have old schema - use compatible query
+                cur.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'algo_config' AND column_name = 'data_type'
+                """)
+                has_data_type_col = cur.fetchone() is not None
+
                 # Upsert config value (use final_value which may be fail-closed default)
-                cur.execute(
-                    """
-                    INSERT INTO algo_config (key, value, data_type, updated_at, updated_by)
-                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
-                    ON CONFLICT (key) DO UPDATE SET
-                        value = EXCLUDED.value,
-                        data_type = EXCLUDED.data_type,
-                        updated_at = CURRENT_TIMESTAMP,
-                        updated_by = EXCLUDED.updated_by
-                """,
-                    (key, str(final_value), value_type, changed_by),
-                )
+                if has_data_type_col:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_config (key, value, data_type, updated_at, updated_by)
+                        VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
+                        ON CONFLICT (key) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            data_type = EXCLUDED.data_type,
+                            updated_at = CURRENT_TIMESTAMP,
+                            updated_by = EXCLUDED.updated_by
+                    """,
+                        (key, str(final_value), value_type, changed_by),
+                    )
+                else:
+                    # Fallback for old schema without data_type column
+                    cur.execute(
+                        """
+                        INSERT INTO algo_config (key, value, updated_at, updated_by)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP, %s)
+                        ON CONFLICT (key) DO UPDATE SET
+                            value = EXCLUDED.value,
+                            updated_at = CURRENT_TIMESTAMP,
+                            updated_by = EXCLUDED.updated_by
+                    """,
+                        (key, str(final_value), changed_by),
+                    )
 
                 # Write audit trail (note: include original requested value if fail-closed)
                 # TEMPORARY: Wrapped in try-except to allow operation even if audit table doesn't exist
