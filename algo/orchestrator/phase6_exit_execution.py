@@ -9,6 +9,7 @@ from typing import Any
 import psycopg2
 
 from algo.exceptions import ValidationError
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from algo.trading.exceptions import DatabaseError
@@ -50,6 +51,9 @@ def run(
     Returns:
         PhaseResult with status 'ok'
     """
+    # Validate required config keys at phase entry (fail-fast)
+    validate_phase_config(config, "phase_6_exit_execution")
+
     # No halt flag check here: exits MUST run regardless of halt state.
     # When circuit breaker fires, we still need to exit stressed positions
     # to reduce risk. Blocking exits compounds losses.

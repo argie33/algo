@@ -89,6 +89,28 @@ def run(  # noqa: C901
             )
             raise RuntimeError(error_msg)
 
+        # CRITICAL: Validate circuit breaker checks dict is NOT EMPTY
+        # If checks={}, no circuit breaker is evaluated and trading proceeds unguarded
+        if not checks:
+            error_msg = (
+                "[PHASE 2 CRITICAL] Circuit breaker checks returned empty dict. "
+                "This means CircuitBreaker.check_all() failed to populate any checks. "
+                "Cannot proceed without circuit breaker enforcement - halt trading to prevent unguarded execution."
+            )
+            logger.critical(error_msg)
+            log_phase_error(
+                2,
+                PhaseError(
+                    category=ErrorCategory.DATA_INVALID,
+                    message=error_msg,
+                    root_cause="CircuitBreaker.check_all() returned empty checks dict",
+                    recoverable=False,
+                    log_level="critical",
+                ),
+                log_phase_result_fn,
+            )
+            raise RuntimeError(error_msg)
+
         # CRITICAL: Validate each check is a dict with a 'value' field
         def extract_check_value(check_result: Any) -> float | None:
             """Extract value from check result dict, or None if missing."""

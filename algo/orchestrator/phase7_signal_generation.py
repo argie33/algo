@@ -85,6 +85,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
@@ -1070,12 +1071,9 @@ def run(  # noqa: C901
             "Get config at orchestrator level and pass it explicitly."
         )
 
-    # Validate critical config values (fail-fast)
-    if "phase7_min_composite_score" not in config or config["phase7_min_composite_score"] is None:
-        raise ValueError(
-            f"CRITICAL: phase7_min_composite_score config missing or None. "
-            f"Required for signal filtering. Set to a value between 0-100 (default: {_MIN_COMPOSITE_SCORE})."
-        )
+    # Validate required config keys at phase entry (fail-fast)
+    validate_phase_config(config, "phase_7_signal_generation")
+
     min_composite_score = float(config["phase7_min_composite_score"])
 
     phase_start = time.time()
