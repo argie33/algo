@@ -35,6 +35,7 @@ from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.correlation import set_correlation_id
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism
+from utils.loaders.enum_validator import validate_interval
 from utils.loaders.helpers import get_active_symbols
 from utils.loaders.status_manager import LoaderStatusManager
 from utils.optimal_loader import OptimalLoader
@@ -78,8 +79,8 @@ class PriceLoader(OptimalLoader):
     """
 
     def __init__(self, interval: str = "1d", asset_class: str = "stock", *args: Any, **kwargs: Any) -> None:
-        if interval not in ("1d", "1wk", "1mo"):
-            raise ValueError(f"Invalid interval: {interval!r}; must be one of: 1d, 1wk, 1mo")
+        # ISSUE #12 FIX: Enum validation for interval
+        validate_interval(interval, context="PriceLoader.__init__")
         if asset_class not in ("stock", "etf"):
             raise ValueError(f"Invalid asset_class: {asset_class!r}; must be one of: stock, etf")
 
@@ -2436,6 +2437,12 @@ class PriceLoader(OptimalLoader):
                         f"Cannot proceed with corrupted data. Rollback all pending rows."
                     )
             logger.info(f"[PRE-INSERT VALIDATION] All {len(pending_rows)} rows validated successfully")
+
+            # ISSUE #12 FIX: Enum validation for state fields
+            # Validate that all rows have valid state/enum values before inserting
+            valid_interval = {"1d", "1wk", "1mo"}
+            if self.interval not in valid_interval:
+                raise ValueError(f"Invalid interval: {self.interval}, must be one of {valid_interval}")
 
             # BLOCKER #4 CRITICAL FIX: All-or-nothing insert in single transaction
             # Previously: bulk_insert() called per chunk, each in its own transaction

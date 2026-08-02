@@ -42,6 +42,7 @@ from typing import Any  # noqa: E402
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.loaders.enum_validator import validate_statement_type, validate_period  # noqa: E402
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -189,6 +190,11 @@ def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
     Returns:
         Dict with table_name, primary_key, schema_cols, field_mapping
     """
+    # ISSUE #12 FIX: Enum validation
+    if statement_type != "all":
+        validate_statement_type(statement_type, context="get_statement_config")
+        validate_period(period, context="get_statement_config")
+
     if statement_type == "income":
         return get_income_statement_config(period)
     elif statement_type == "balance":
