@@ -52,7 +52,13 @@ def test_failed_validation_rec_counted_as_error_not_silently_dropped():
         # Mock DatabaseContext to return proper values for position sizing checks
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = []  # No sectors over limit
-        mock_cur.fetchone.return_value = (0,)  # No open positions, so total_value = 0
+        # Configure fetchone with side_effect for multiple queries
+        mock_cur.fetchone.side_effect = [
+            (0, 0),  # Sector concentration check - count query
+            (0,),    # Sector concentration check - SUM query
+            (0, 0),  # Size concentration check - count query
+            (0,),    # Size concentration check - SUM query
+        ]
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False
 

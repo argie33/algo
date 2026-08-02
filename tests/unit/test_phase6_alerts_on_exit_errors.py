@@ -40,11 +40,21 @@ def test_alert_sent_when_exit_errors_occur():
         mock_engine_cls.return_value = mock_engine
 
         # Mock the open position count check to return 0 open positions
-        mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = (0,)  # No open positions
-        mock_cur.fetchall.return_value = []  # No positions for concentration checks
-        mock_db_ctx.return_value.__enter__.return_value = mock_cur
-        mock_db_ctx.return_value.__exit__.return_value = False
+        # Each DatabaseContext() call needs its own cursor with properly sequenced fetchone calls
+        def create_mock_context(*args, **kwargs):
+            mock_cur = MagicMock()
+            # Configure fetchone for concentration checks
+            mock_cur.fetchone.side_effect = [
+                (0, 0),  # Concentration check - count query
+                (0,),    # Concentration check - SUM query
+            ]
+            mock_cur.fetchall.return_value = []  # No positions for concentration checks
+            mock_context = MagicMock()
+            mock_context.__enter__.return_value = mock_cur
+            mock_context.__exit__.return_value = False
+            return mock_context
+
+        mock_db_ctx.side_effect = create_mock_context
 
         result = p6.run(
             config=config,
@@ -81,11 +91,21 @@ def test_no_alert_when_no_exit_errors():
         mock_engine_cls.return_value = mock_engine
 
         # Mock the open position count check to return 0 open positions
-        mock_cur = MagicMock()
-        mock_cur.fetchone.return_value = (0,)  # No open positions
-        mock_cur.fetchall.return_value = []  # No positions for concentration checks
-        mock_db_ctx.return_value.__enter__.return_value = mock_cur
-        mock_db_ctx.return_value.__exit__.return_value = False
+        # Each DatabaseContext() call needs its own cursor with properly sequenced fetchone calls
+        def create_mock_context(*args, **kwargs):
+            mock_cur = MagicMock()
+            # Configure fetchone for concentration checks
+            mock_cur.fetchone.side_effect = [
+                (0, 0),  # Concentration check - count query
+                (0,),    # Concentration check - SUM query
+            ]
+            mock_cur.fetchall.return_value = []  # No positions for concentration checks
+            mock_context = MagicMock()
+            mock_context.__enter__.return_value = mock_cur
+            mock_context.__exit__.return_value = False
+            return mock_context
+
+        mock_db_ctx.side_effect = create_mock_context
 
         result = p6.run(
             config=config,

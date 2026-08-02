@@ -58,9 +58,16 @@ def test_phase6_dry_run_counts_exits():
 
     # Mock DatabaseContext for position price fetching
     with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext') as mock_db:
-        # Set up mock cursor
+        # Set up mock cursor with side_effect for multiple queries
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = (150.0,)  # current_price
+        # Configure fetchone responses for: concentration checks + force_exit price fetches
+        mock_cursor.fetchone.side_effect = [
+            (0, 0),      # Sector concentration check - count query
+            (0,),        # Sector concentration check - SUM query
+            (0, 0),      # Size concentration check - count query
+            (0,),        # Size concentration check - SUM query
+            (150.0,),    # current_price for force_exit
+        ]
         mock_cursor.fetchall.return_value = []  # No positions for concentration check (empty portfolio)
         mock_cursor.rowcount = 1
         mock_context = MagicMock()
