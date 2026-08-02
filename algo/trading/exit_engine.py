@@ -475,27 +475,30 @@ class PositionContext:
 
             max_dd = int(max_dd_val)
             if self.dist_days_today > max_dd and not self._was_distribution_reduced_today():
-                # CRITICAL FIX: Do NOT trigger distribution day exit for underwater positions
-                # Unlike every other exit signal, distribution days have no profitability requirement,
-                # which means underwater positions would exit 50% WITHOUT a corresponding stop raise,
-                # leaving the remaining half exposed at the original stop designed for the full position.
-                # This converts a recoverable loss into a cascading forced loss.
-                # Distribution exits should only apply to profitable or breakeven positions where
-                # the market condition justifies taking profit. For underwater positions, skip entirely.
+                # CRITICAL FIX: Prevent stop from being raised above current price for underwater positions
+                # The bug (2026-07-27): check_distribution() raised stop to entry_price even for positions
+                # below entry_price, guaranteeing stop-out on the next pass (underwater positions would exit
+                # 50% AND immediately stop-out the remaining half, cascading into circuit breaker halt).
+                # Distribution market conditions justify reducing exposure (50% exit), but we must ensure
+                # the protective stop does NOT go above the current price (which would guarantee immediate stop-out).
                 at_or_above_breakeven = self.cur_price >= self.entry_price
-                if not at_or_above_breakeven:
-                    # Position is underwater - skip distribution trigger (position already has valid stop)
-                    return False, None
+                if at_or_above_breakeven:
+                    # Position is at or above breakeven - safe to raise stop to entry price to lock in gains
+                    new_stop = max(self.active_stop, self.entry_price)
+                    reason = f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50% of profitable position, stop raised to breakeven"
+                else:
+                    # Position is underwater - reduce exposure but keep stop at current level
+                    # to avoid creating a guaranteed stop-out on the remaining half
+                    new_stop = self.active_stop
+                    reason = f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50% of position to manage market distribution risk (stop stays at {float(self.active_stop):.2f})"
 
-                # Position is at or above breakeven - safe to reduce exposure
-                new_stop = max(self.active_stop, self.entry_price)
                 return (
                     True,
                     {
                         "stage": "distribution",
                         "fraction": 0.5,
                         "new_stop": new_stop,
-                        "reason": f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50% of profitable position, stop raised to breakeven",
+                        "reason": reason,
                     },
                 )
         return False, None
