@@ -254,13 +254,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
         except Exception as e:
             logger.error(f"[VALUE_QUALITY_GROWTH FATAL] {type(e).__name__}: {e}", exc_info=True)
-            with DatabaseContext("write") as cur:
-                error_msg = str(e)[:500]
-                for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
-                    cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s WHERE table_name = %s",
-                        ("error", error_msg, table),
-                    )
+            error_msg = str(e)[:500]
+            for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
+                manager = managers.get(table) or LoaderStatusManager(table)
+                manager.mark_failed(error_msg)
             raise
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:  # type: ignore[override]
