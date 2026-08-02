@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from datetime import date as _date
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
