@@ -692,48 +692,60 @@ def _get_candidates_from_buysell(
             if scores_to_write:
                 try:
                     with DatabaseContext("write") as cur_write:
-                        # CRITICAL FIX: Use advisory lock to prevent concurrent Phase 7 runs from race condition
+                        # CRITICAL FIX: Use non-blocking advisory lock to prevent concurrent Phase 7 runs from race condition
                         # Multiple orchestrator instances may run concurrently in AWS Lambda/ECS.
-                        # Without lock, concurrent UPDATEs to buy_sell_daily cause lock timeouts:
-                        # Instance A acquires row lock -> Instance B waits -> timeout after 5-30s
-                        # With advisory lock, Instance A acquires lock -> does all UPDATEs -> releases
-                        # Instance B waits for lock (no timeout) -> acquires -> does UPDATEs -> releases
+                        # OPTIMIZATION: Use pg_try_advisory_lock (non-blocking) instead of pg_advisory_lock (blocking)
+                        # - Blocking lock causes 7+ halts when Phase 7 runs 3x daily and lock contention occurs
+                        # - Non-blocking lock fails fast: if held, skip update and next Phase 7 run handles it
+                        # - Prevents timeouts that halt the orchestrator unnecessarily
                         # Advisory lock ID: deterministic hash of 'phase7_signal_scores'
                         lock_id = hash('phase7_signal_scores') % (2 ** 31)
+                        lock_acquired = False
 
                         try:
-                            cur_write.execute(f"SELECT pg_advisory_lock({lock_id})")
-                            logger.debug(f"[PHASE 7] Acquired advisory lock for signal quality score updates")
+                            cur_write.execute(f"SELECT pg_try_advisory_lock({lock_id})")
+                            result = cur_write.fetchone()
+                            lock_acquired = result[0] if result else False
+
+                            if lock_acquired:
+                                logger.debug(f"[PHASE 7] Acquired non-blocking advisory lock for signal quality score updates")
+                            else:
+                                logger.info(f"[PHASE 7] Lock held by concurrent Phase 7 instance, skipping score updates (next run will handle)")
                         except Exception as lock_err:
                             logger.warning(f"[PHASE 7] Could not acquire advisory lock: {lock_err}. Continuing without lock.")
 
                         try:
-                            failed_writes = []
-                            for sqs, entry_sqs, symbol, signal_date in scores_to_write:
-                                cur_write.execute(
-                                    """
-                                    UPDATE buy_sell_daily
-                                    SET signal_quality_score = %s, entry_quality_score = %s
-                                    WHERE symbol = %s AND date = %s
-                                    """,
-                                    (sqs, entry_sqs, symbol, signal_date),
-                                )
-                                if cur_write.rowcount == 0:
-                                    failed_writes.append(f"{symbol} on {signal_date}")
+                            # Only proceed with updates if lock was acquired
+                            if lock_acquired:
+                                failed_writes = []
+                                for sqs, entry_sqs, symbol, signal_date in scores_to_write:
+                                    cur_write.execute(
+                                        """
+                                        UPDATE buy_sell_daily
+                                        SET signal_quality_score = %s, entry_quality_score = %s
+                                        WHERE symbol = %s AND date = %s
+                                        """,
+                                        (sqs, entry_sqs, symbol, signal_date),
+                                    )
+                                    if cur_write.rowcount == 0:
+                                        failed_writes.append(f"{symbol} on {signal_date}")
 
-                            if failed_writes:
-                                raise RuntimeError(
-                                    f"[PHASE 7 CRITICAL] Signal quality score persistence failed for {len(failed_writes)} symbols: {', '.join(failed_writes)}. "
-                                    f"Expected rows were not found in buy_sell_daily table. This indicates a data integrity issue that must be investigated."
-                                )
-                            logger.info(f"[PHASE 7] Wrote {len(scores_to_write)} signal_quality_scores to buy_sell_daily")
+                                if failed_writes:
+                                    raise RuntimeError(
+                                        f"[PHASE 7 CRITICAL] Signal quality score persistence failed for {len(failed_writes)} symbols: {', '.join(failed_writes)}. "
+                                        f"Expected rows were not found in buy_sell_daily table. This indicates a data integrity issue that must be investigated."
+                                    )
+                                logger.info(f"[PHASE 7] Wrote {len(scores_to_write)} signal_quality_scores to buy_sell_daily")
+                            else:
+                                logger.info(f"[PHASE 7] Skipping {len(scores_to_write)} score updates (lock held by concurrent run)")
                         finally:
-                            # Release advisory lock
-                            try:
-                                cur_write.execute(f"SELECT pg_advisory_unlock({lock_id})")
-                                logger.debug(f"[PHASE 7] Released advisory lock after signal quality score updates")
-                            except Exception as unlock_err:
-                                logger.warning(f"[PHASE 7] Could not release advisory lock: {unlock_err}. Lock will auto-release on connection close.")
+                            # Release advisory lock if acquired
+                            if lock_acquired:
+                                try:
+                                    cur_write.execute(f"SELECT pg_advisory_unlock({lock_id})")
+                                    logger.debug(f"[PHASE 7] Released non-blocking advisory lock after signal quality score updates")
+                                except Exception as unlock_err:
+                                    logger.warning(f"[PHASE 7] Could not release advisory lock: {unlock_err}. Lock will auto-release on connection close.")
                 except Exception as write_e:
                     raise RuntimeError(
                         f"[PHASE 7] Failed to write signal quality scores to buy_sell_daily: {write_e}. "
