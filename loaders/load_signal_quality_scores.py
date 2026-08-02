@@ -100,13 +100,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 # practice). completion_pct is written only by the loader itself and is a
                 # reliable execution signal - see phase1_failsafe_retry.py for the same
                 # completion_pct-primary pattern.
-                bs_ready = (bs_completion_pct is not None and bs_completion_pct >= 95.0) or bs_status in (
-                    "COMPLETED",
-                    "success",
-                    "OK",
-                    "ok",
-                    "HEALTHY",
-                )
+                bs_ready = bs_completion_pct is not None and bs_completion_pct >= 95.0
                 if not bs_ready:
                     raise RuntimeError(
                         f"CRITICAL: buy_sell_daily upstream loader not ready. "

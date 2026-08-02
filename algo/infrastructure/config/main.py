@@ -2220,30 +2220,30 @@ class AlgoConfig:
                 row = cur.fetchone()
                 old_value = row["value"] if row else None
 
-                # CRITICAL FIX: Check if data_type column exists before using it
-                # Some test environments may have old schema - use compatible query
+                # CRITICAL FIX: Check if value_type column exists before using it
+                # Schema always has value_type (not data_type) - use correct column name
                 cur.execute("""
                     SELECT column_name FROM information_schema.columns
-                    WHERE table_name = 'algo_config' AND column_name = 'data_type'
+                    WHERE table_name = 'algo_config' AND column_name = 'value_type'
                 """)
-                has_data_type_col = cur.fetchone() is not None
+                has_value_type_col = cur.fetchone() is not None
 
                 # Upsert config value (use final_value which may be fail-closed default)
-                if has_data_type_col:
+                if has_value_type_col:
                     cur.execute(
                         """
-                        INSERT INTO algo_config (key, value, data_type, updated_at, updated_by)
+                        INSERT INTO algo_config (key, value, value_type, updated_at, updated_by)
                         VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
                         ON CONFLICT (key) DO UPDATE SET
                             value = EXCLUDED.value,
-                            data_type = EXCLUDED.data_type,
+                            value_type = EXCLUDED.value_type,
                             updated_at = CURRENT_TIMESTAMP,
                             updated_by = EXCLUDED.updated_by
                     """,
                         (key, str(final_value), value_type, changed_by),
                     )
                 else:
-                    # Fallback for old schema without data_type column
+                    # Fallback for very old schemas without value_type column
                     cur.execute(
                         """
                         INSERT INTO algo_config (key, value, updated_at, updated_by)
