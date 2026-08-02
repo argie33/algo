@@ -1149,6 +1149,11 @@ class PositionMonitor:
                         f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
                         f"Add sector to sector_ranking table or exclude from portfolio."
                     )
+                if len(cur_row) < 2:
+                    raise PositionValidationError(
+                        f"[POSITION_MONITOR] Sector ranking query returned insufficient columns ({len(cur_row)} < 2). "
+                        f"Database schema may be corrupted or query result malformed."
+                    )
                 cur_rank = int(cur_row[0])
                 old_rank = cur_row[1]
 
@@ -1215,6 +1220,11 @@ class PositionMonitor:
                             f"Cannot assess sector health for {symbol} without current ranking data. "
                             f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
                             f"Add sector to sector_ranking table or exclude from portfolio."
+                        )
+                    if len(cur_row) < 2:
+                        raise PositionValidationError(
+                            f"[POSITION_MONITOR] Sector ranking query returned insufficient columns ({len(cur_row)} < 2). "
+                            f"Database schema may be corrupted or query result malformed."
                         )
                     cur_rank = int(cur_row[0])
                     old_rank = cur_row[1]

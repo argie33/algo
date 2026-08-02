@@ -1278,7 +1278,9 @@ def run(  # noqa: C901
             # Handle LockAcquisitionError FIRST - don't halt on temporary lock contention
             # CRITICAL: This must come before TimeoutError, as both may indicate lock issues
             from algo.exceptions import LockAcquisitionError
-            if isinstance(e, LockAcquisitionError):
+            # Check both isinstance and exception type name (more robust against module reload issues)
+            is_lock_error = isinstance(e, LockAcquisitionError) or type(e).__name__ == 'LockAcquisitionError'
+            if is_lock_error:
                 # Temporary lock issue - log warning but don't halt
                 msg = (
                     f"[PHASE 7 WARNING] Signal quality score loader could not acquire lock (temporary contention). "
