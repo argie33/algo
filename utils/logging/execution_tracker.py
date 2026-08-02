@@ -147,7 +147,9 @@ class OrchestratorExecutionTracker:
             # Keys may be int (1, 2, 3) or str ('3a', '3b') - sort as strings to handle mixed types
             phase_results_array = [self.phase_results[n] for n in sorted(self.phase_results.keys(), key=str)]
 
+            logger.debug(f"[EXECUTION_LOG] About to insert run {self.run_id} with status={overall_status}")
             with DatabaseContext("write") as cur:
+                logger.debug(f"[EXECUTION_LOG] DatabaseContext opened for write")
                 cur.execute(
                     """
                     INSERT INTO orchestrator_execution_log
@@ -178,6 +180,8 @@ class OrchestratorExecutionTracker:
                         phases_errored,
                     ),
                 )
+                logger.debug(f"[EXECUTION_LOG] INSERT executed for run {self.run_id}")
+            logger.debug(f"[EXECUTION_LOG] DatabaseContext exited - transaction should be committed")
             logger.info(f"[EXECUTION_LOG] Saved run {self.run_id}: {overall_status}")
             return True
         except (json.JSONDecodeError, ValueError) as e:
