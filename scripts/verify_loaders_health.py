@@ -185,9 +185,8 @@ LOADERS: dict[str, dict[str, Any]] = {
 
 # Guard against this file's output_table entries silently drifting from reality
 # again (the exact bug this whole LOADERS dict was rebuilt to fix - see comment
-# above). loaders/loader_registry.py is the single shared source of truth,
-# independently cross-referenced from scripts/audit_all_loaders.py and
-# scripts/refresh_stale_loaders.py too; failing loudly here at import time means
+# above). loaders/loader_registry.py is the single shared source of truth that
+# other audit scripts also reference; failing loudly here at import time means
 # a future loader rename/consolidation that updates the registry but not this
 # file's per-entry thresholds gets caught immediately instead of silently
 # producing false health signals again.
