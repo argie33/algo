@@ -563,13 +563,29 @@ class LivePerformance:
                 max_dd_val = float(max_dd) if max_dd is not None else None
 
                 with DatabaseContext("write") as cur:
+                    # Extract trade counts and percentages from win_rate result
+                    total_trades_val = None
+                    num_wins_val = None
+                    num_losses_val = None
+                    avg_win_pct_val = None
+                    avg_loss_pct_val = None
+                    avg_r_val = avg_win_r_val  # avg_win_r is the avg R-multiple
+
+                    if wr:
+                        total_trades_val = wr.get("win_count", 0) + wr.get("loss_count", 0)
+                        num_wins_val = wr.get("win_count")
+                        num_losses_val = wr.get("loss_count")
+                        avg_win_pct_val = wr.get("avg_win_pct")
+                        avg_loss_pct_val = wr.get("avg_loss_pct")
+
                     cur.execute(
                         """
                         INSERT INTO algo_performance_daily (
                             report_date, rolling_sharpe_252d, rolling_sortino_252d, calmar_ratio,
                             win_rate_50t, avg_win_r_50t, avg_loss_r_50t, expectancy,
-                            max_drawdown_pct
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            max_drawdown_pct, total_trades, num_wins, num_losses,
+                            avg_win, avg_loss, avg_r, win_rate_all, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW()::timestamp)
                         ON CONFLICT (report_date) DO UPDATE SET
                             rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
                             rolling_sortino_252d = EXCLUDED.rolling_sortino_252d,
@@ -578,7 +594,15 @@ class LivePerformance:
                             avg_win_r_50t = EXCLUDED.avg_win_r_50t,
                             avg_loss_r_50t = EXCLUDED.avg_loss_r_50t,
                             expectancy = EXCLUDED.expectancy,
-                            max_drawdown_pct = EXCLUDED.max_drawdown_pct
+                            max_drawdown_pct = EXCLUDED.max_drawdown_pct,
+                            total_trades = EXCLUDED.total_trades,
+                            num_wins = EXCLUDED.num_wins,
+                            num_losses = EXCLUDED.num_losses,
+                            avg_win = EXCLUDED.avg_win,
+                            avg_loss = EXCLUDED.avg_loss,
+                            avg_r = EXCLUDED.avg_r,
+                            win_rate_all = EXCLUDED.win_rate_all,
+                            updated_at = NOW()::timestamp
                         """,
                         (
                             report_date,
@@ -590,6 +614,13 @@ class LivePerformance:
                             avg_loss_r_val,
                             expectancy_val,
                             max_dd_val,
+                            total_trades_val,
+                            num_wins_val,
+                            num_losses_val,
+                            avg_win_pct_val,
+                            avg_loss_pct_val,
+                            avg_r_val,
+                            win_rate_val,
                         ),
                     )
                     logger.info(
