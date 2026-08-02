@@ -374,13 +374,21 @@ class Orchestrator:
         # Use self.execution_mode which was set by __init__ precedence logic (env var > DB > default)
         # This is the ACTUAL value being used for trading after precedence is applied
         execution_mode = self.execution_mode
-        if not execution_mode or execution_mode not in ("paper", "dry", "review", "auto"):
+        execution_mode_descriptions = {
+            "paper": "Paper trading (Alpaca sandbox endpoint)",
+            "dry": "Dry run (no Alpaca calls, local-only orders)",
+            "review": "Manual review mode (pending orders, no auto execution)",
+            "auto": "Live trading (Alpaca live or paper endpoint based on config)",
+        }
+        if not execution_mode or execution_mode not in execution_mode_descriptions:
             raise RuntimeError(
-                f"[STARTUP] CRITICAL: execution_mode must be 'paper', 'dry', 'review', or 'auto' ('auto' is "
-                f"the real-trading mode - 'live' is not a supported value, despite the name). "
-                f"Current value: {execution_mode!r}. Configure via algo_config table."
+                f"[STARTUP] CRITICAL: execution_mode must be one of: "
+                f"{', '.join(execution_mode_descriptions.keys())}. "
+                f"('auto' is the real-trading mode - 'live' is NOT a supported value despite the name). "
+                f"Current value: {execution_mode!r}. Configure 'execution_mode' in algo_config table."
             )
-        logger.info(f"[OK] execution_mode validated: {execution_mode}")
+        mode_desc = execution_mode_descriptions[execution_mode]
+        logger.info(f"[OK] execution_mode validated: {execution_mode} → {mode_desc}")
 
         # 2. Validate Alpaca credentials whenever orders are actually sent to Alpaca.
         # execution_mode == "auto" sends real orders to Alpaca's PAPER endpoint when
@@ -2534,16 +2542,6 @@ class Orchestrator:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
-        # Refresh algo_performance_metrics from daily data (non-blocking post-run maintenance)
-        # This keeps the legacy metrics table fresh after Phase 9 completes
-        try:
-            from scripts.refresh_algo_performance_metrics import refresh_performance_metrics
-            if refresh_performance_metrics():
-                logger.info("[POST-RUN] algo_performance_metrics refreshed")
-            else:
-                logger.warning("[POST-RUN] Failed to refresh algo_performance_metrics (non-critical)")
-        except Exception as e:
-            logger.warning(f"[POST-RUN] Could not refresh metrics table: {e} (non-blocking)")
 
         # Publish CloudWatch metrics (non-blocking - never let metrics interrupt trading)
         try:

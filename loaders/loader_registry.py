@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 """Canonical loader-script -> output-table(s) mapping.
 
-Single source of truth, extracted after the exact same drift bug (hand-
-maintained copies of this mapping silently falling out of sync with loader
-renames/consolidations since Session 275) was found and independently fixed
-in THREE different local health/audit scripts:
-  - scripts/verify_loaders_health.py
-  - scripts/audit_all_loaders.py
-  - scripts/refresh_stale_loaders.py
-
-All three had entries for loader scripts deleted or renamed since Session 275
-(e.g. load_yfinance_snapshot.py, load_growth_metrics.py), and one
-(load_earnings_calendar_sec.py) was mapped to the wrong table entirely -
-'earnings_history' (a permanently-empty legacy table) instead of
-'earnings_calendar_sec' (the table the loader actually writes to, confirmed
-live: 353k+ rows updated daily). That misdirection made a healthy loader
-report as broken while the table it actually populates was never checked.
+Single source of truth, extracted after hand-maintained copies of this
+mapping silently fell out of sync with loader renames/consolidations since
+Session 275. Multiple independent audit scripts had entries for deleted/renamed
+loaders (e.g. load_yfinance_snapshot.py, load_growth_metrics.py), and some
+(load_earnings_calendar_sec.py) were mapped to wrong tables entirely -
+'earnings_history' (permanently-empty legacy table) instead of the actual
+'earnings_calendar_sec' (353k+ rows updated daily). This registry centralizes
+the truth to prevent such drift.
 
 Kept in sync with the active loader list in scripts/local_loader_scheduler.py
 (the source used to reconcile all three fixes above) - update here first when

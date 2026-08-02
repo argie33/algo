@@ -189,7 +189,7 @@ def _check_failsafe_retry_result(
             "halted",
             failsafe_result,
             True,
-            f"Price data incomplete after retry ({coverage_str}). Run recovery script: python scripts/recover_incomplete_loader.py",
+            f"Price data incomplete after retry ({coverage_str}). Check loader status: python scripts/verify_loaders_health.py",
         )
 
     if failsafe_result.get("halt_required"):
