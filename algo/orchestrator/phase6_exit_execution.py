@@ -82,7 +82,7 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
     for attempt in range(max_retries + 1):
         try:
             result = executor.exit_trade(**kwargs)
-            return result
+            return cast(dict[str, Any], result)
         except (TimeoutError, ConnectionError, OSError) as e:
             last_error = e
             if attempt < max_retries:
@@ -563,7 +563,7 @@ def run(
                             if pct_float_safe > max_size_pct_float_safe:
                                 exceed_amount = pct_float_safe - max_size_pct_float_safe
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_pct_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float_safe:.1f}% (limit {max_size_pct_float_safe:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue

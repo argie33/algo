@@ -435,11 +435,8 @@ class DatabaseContext:
         # Python's with statement will suppress any exception if __exit__ returns True
         # If we return None or False, the exception propagates
         # If we return True, the exception is suppressed (DO NOT DO THIS)
-        # By returning None and not raising, we let the original exception propagate
-        if exc_type is not None:
-            # An exception occurred in the with block - let it propagate after cleanup
-            return False  # Explicitly return False to NOT suppress the exception
-        return None  # type: ignore[return-value]
+        # By returning None (explicitly or implicitly), we let the original exception propagate
+        # (exception occurred but cleanup succeeded - return None to propagate the exception)
 
     @staticmethod
     def get_pool_status() -> dict[str, Any]:
