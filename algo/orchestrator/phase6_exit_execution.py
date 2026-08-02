@@ -269,29 +269,25 @@ def run(
                         return []
 
                     # Find positions exceeding size limit
-                    # Cast total_value_float to ensure it's native Python float for parameter
-                    cur.execute(f"""
-                        SELECT ap.position_id, ap.symbol, ap.position_value,
-                               (ap.position_value / %s * 100) as pct_of_portfolio
+                    cur.execute("""
+                        SELECT ap.position_id, ap.symbol, ap.position_value
                         FROM algo_positions ap
                         WHERE ap.status = 'open'
                         ORDER BY ap.position_value DESC
-                    """, (float(total_value_float),))
+                    """)
 
                     oversized_positions = []
-                    for pos_id, symbol, value, pct in cur.fetchall():
-                        # Ensure pct is float (PostgreSQL numeric -> psycopg2 Decimal -> float)
-                        # Handle both Decimal and float types explicitly
+                    for pos_id, symbol, value in cur.fetchall():
+                        # Compute percentage in Python with explicit float conversion to avoid Decimal/float type mixing
                         try:
-                            pct_float = float(pct) if pct is not None else 0.0
-                        except (TypeError, ValueError) as te:
-                            logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to convert percentage {pct} ({type(pct).__name__}) to float: {te}")
+                            value_float = float(value) if value is not None else 0.0
+                            pct_float = (value_float / total_value_float * 100) if total_value_float > 0 else 0.0
+                        except (TypeError, ValueError, ZeroDivisionError) as te:
+                            logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                             continue
 
-                        # CRITICAL: Ensure both operands are Python native float before arithmetic to prevent Decimal/float mixing
+                        # CRITICAL: Ensure both operands are Python native float before arithmetic
                         limit_for_comparison = float(max_size_pct_float)
-                        # Force-convert pct_float to native float to eliminate any Decimal remnants
-                        pct_float = float(pct_float)
 
                         if pct_float > limit_for_comparison:
                             # Both operands guaranteed to be native Python float after conversion above
