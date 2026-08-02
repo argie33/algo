@@ -27,6 +27,12 @@ def test_phase6_paper_trading_executes_and_reports_exits():
         # Phase 6 sector concentration check requires this config
         "max_positions_per_sector": 10,
         "max_position_size_pct": 5.0,
+        # TradeExecutor config
+        "t1_target_r_multiple": 2.0,
+        "t2_target_r_multiple": 3.0,
+        "t3_target_r_multiple": 4.0,
+        "exit_on_breached_support": True,
+        "exit_at_cash_flow_date": True,
     }
 
     # Simulate real position recommendations from Phase 3
@@ -78,8 +84,10 @@ def test_phase6_paper_trading_executes_and_reports_exits():
             mock_cursor = MagicMock()
             # For sector concentration check: no concentrated sectors
             mock_cursor.fetchall.return_value = []
-            # For position price fetches: return current_price
+            # For position price fetches and concentration checks: return appropriate tuples
             mock_cursor.fetchone.side_effect = [
+                (4, 0),  # position count query: (COUNT(*), NULL count) - 4 positions, none NULL
+                (100000.0,),  # total portfolio value
                 (150.0,),  # current_price for first position
                 (140.5,),  # current_price for second position
                 (305.0,),  # current_price for third position
