@@ -354,12 +354,28 @@ def run(
                                 )
                                 continue
                             pos_id, symbol = row[0], row[1]
+
+                            # CRITICAL: Fetch the trade_id for this position
+                            # Concentration check needs valid trade_id to execute exits
+                            cur.execute(
+                                "SELECT trade_id FROM algo_positions WHERE id = %s AND status = 'open'",
+                                (pos_id,)
+                            )
+                            trade_row = cur.fetchone()
+                            if trade_row is None or trade_row[0] is None:
+                                logger.warning(
+                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_id. "
+                                    f"Cannot force-exit without trade reference. Skipping this position."
+                                )
+                                continue
+
+                            trade_id = trade_row[0]
                             action = {
                                 "symbol": symbol,
                                 "position_id": pos_id,
                                 "action": "force_exit",
                                 "reason": f"SECTOR_CONCENTRATION: {sector} has {count_int_native} positions (limit {max_sector_native})",
-                                "trade_id": None,  # Will be fetched during execution
+                                "trade_id": trade_id,  # Now properly fetched from database
                             }
                             rebalance_actions.append(action)
                             logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (sector concentration rebalance)")
