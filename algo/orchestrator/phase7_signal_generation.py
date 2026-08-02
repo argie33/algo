@@ -1111,6 +1111,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # Severe but non-zero collapse: Drop from typical 300+/day to handful of signals
             # indicates underlying failure (upstream loader degradation or universe coverage collapse).
             # Use dynamically-calculated threshold (median_30d / 3) not hardcoded constant.
+            anomaly_threshold = _calculate_dynamic_anomaly_threshold()
             if 0 < today_count < anomaly_threshold:
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has only {today_count} "

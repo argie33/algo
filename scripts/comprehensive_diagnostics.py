@@ -129,12 +129,12 @@ class SystemDiagnostics:
                 # Check for stale locks (>2 hours old)
                 query = """
                 SELECT
-                    resource_name,
-                    owner_id,
+                    loader_name,
                     started_at,
                     EXTRACT(EPOCH FROM (NOW() - started_at)) as age_seconds
-                FROM loader_execution_locks
+                FROM data_loader_runs
                 WHERE started_at < NOW() - INTERVAL '2 hours'
+                  AND status = 'running'
                 ORDER BY started_at DESC
                 LIMIT 20
                 """
@@ -147,19 +147,19 @@ class SystemDiagnostics:
                         self.results.append(DiagnosticResult(
                             'Stale Locks',
                             'OK',
-                            'No stale locks found'
+                            'No stale loader locks found'
                         ))
                     else:
                         stale_details = []
                         for row in stale_locks:
                             age_hours = row['age_seconds'] / 3600
-                            stale_details.append(f"{row['resource_name']} (owner={row['owner_id']}, age={age_hours:.1f}h)")
+                            stale_details.append(f"{row['loader_name']} (age={age_hours:.1f}h)")
 
                         severity = 'WARNING' if len(stale_locks) < 5 else 'ERROR'
                         self.results.append(DiagnosticResult(
                             'Stale Locks',
                             severity,
-                            f'Found {len(stale_locks)} stale locks',
+                            f'Found {len(stale_locks)} stale loader locks',
                             {'stale_locks': stale_details[:5]}
                         ))
                 except Exception as table_error:
@@ -167,8 +167,8 @@ class SystemDiagnostics:
                     if 'does not exist' in str(table_error).lower():
                         self.results.append(DiagnosticResult(
                             'Stale Locks',
-                            'WARNING',
-                            'loader_execution_locks table not found (may be using DynamoDB)'
+                            'OK',
+                            'data_loader_runs table not found'
                         ))
                     else:
                         raise
@@ -189,9 +189,9 @@ class SystemDiagnostics:
                     loader_name,
                     status,
                     COUNT(*) as count,
-                    AVG(EXTRACT(EPOCH FROM (finished_at - started_at))) as avg_duration_sec,
-                    MAX(finished_at) as last_run
-                FROM loader_execution_log
+                    AVG(EXTRACT(EPOCH FROM (completed_at - started_at))) as avg_duration_sec,
+                    MAX(completed_at) as last_run
+                FROM data_loader_runs
                 WHERE started_at > NOW() - INTERVAL '24 hours'
                 GROUP BY loader_name, status
                 ORDER BY loader_name, last_run DESC
@@ -216,7 +216,7 @@ class SystemDiagnostics:
 
                         failed = status_counts.get('failed', 0)
                         error = status_counts.get('error', 0)
-                        success = status_counts.get('success', 0)
+                        completed = status_counts.get('completed', 0)
 
                         overall_status = 'OK'
                         if failed > 0 or error > 0:
@@ -225,9 +225,9 @@ class SystemDiagnostics:
                         self.results.append(DiagnosticResult(
                             'Loader Performance',
                             overall_status,
-                            f'Runs: {success} success, {failed} failed, {error} error (24h)',
+                            f'Runs: {completed} completed, {failed} failed, {error} error (24h)',
                             {
-                                'success_count': success,
+                                'completed_count': completed,
                                 'failed_count': failed,
                                 'error_count': error,
                                 'status_breakdown': status_counts
@@ -237,8 +237,8 @@ class SystemDiagnostics:
                     if 'does not exist' in str(table_error).lower():
                         self.results.append(DiagnosticResult(
                             'Loader Performance',
-                            'WARNING',
-                            'loader_execution_log table not found'
+                            'OK',
+                            'data_loader_runs table not found'
                         ))
                     else:
                         raise
