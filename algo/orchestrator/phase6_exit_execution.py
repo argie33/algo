@@ -322,16 +322,23 @@ def run(
                         except (TypeError, ValueError) as conv_err:
                             logger.error(f"[PHASE 6] Failed to convert ints for arithmetic: {conv_err}")
                             continue
-                        # Verify types before arithmetic
+                        # Verify types before arithmetic - triple-check both operands
                         if not isinstance(count_int_native, int) or not isinstance(max_sector_native, int):
                             logger.error(
                                 f"[PHASE 6] Sector arithmetic type check failed: sector={sector}, "
-                                f"count_int_native={type(count_int_native).__name__}, "
-                                f"max_sector_native={type(max_sector_native).__name__}"
+                                f"count_int_native={type(count_int_native).__name__}={count_int_native!r}, "
+                                f"max_sector_native={type(max_sector_native).__name__}={max_sector_native!r}"
                             )
                             continue
+                        # CRITICAL: Force to native int one more time to eliminate any Decimal/numpy remnants
+                        count_int_final = int(count_int_native)
+                        max_sector_final = int(max_sector_native)
+                        if not isinstance(count_int_final, int) or isinstance(count_int_final, bool):
+                            raise TypeError(f"[PHASE 6] count_int_final conversion failed: {type(count_int_final).__name__}")
+                        if not isinstance(max_sector_final, int) or isinstance(max_sector_final, bool):
+                            raise TypeError(f"[PHASE 6] max_sector_final conversion failed: {type(max_sector_final).__name__}")
                         # CRITICAL: Subtraction with guaranteed native Python ints
-                        over_limit = count_int_native - max_sector_native
+                        over_limit = count_int_final - max_sector_final
                         logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int_native} positions (limit {max_sector_native}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
@@ -504,13 +511,16 @@ def run(
                             try:
                                 # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
                                 # Division of float by Decimal returns Decimal, so we must ensure total_value_float is native float
+                                logger.debug(f"[PHASE 6] Processing {symbol}: value={value!r} (type={type(value).__name__}), total_value_float={total_value_float!r} (type={type(total_value_float).__name__})")
                                 value_float = _ensure_float(value, f"{symbol}:position_value")
                                 # Ensure division uses native floats, not Decimals
                                 total_value_for_division = float(total_value_float)
+                                logger.debug(f"[PHASE 6] After conversion: value_float={value_float!r} (type={type(value_float).__name__}), total_value_for_division={total_value_for_division!r} (type={type(total_value_for_division).__name__})")
                                 # Perform division with native floats
                                 pct_value = value_float / total_value_for_division * 100 if total_value_for_division > 0 else 0.0
                                 # CRITICAL: Force to native float - convert twice to eliminate any Decimal remnants
                                 pct_float = float(float(pct_value))
+                                logger.debug(f"[PHASE 6] Percentage calculated: pct_float={pct_float!r} (type={type(pct_float).__name__})")
                                 # Verify type after conversion
                                 if not isinstance(pct_float, float):
                                     logger.warning(f"[PHASE 6] pct_float is {type(pct_float).__name__} instead of float, converting: {pct_float}")
@@ -528,6 +538,18 @@ def run(
                             except (TypeError, ValueError) as conv_err:
                                 logger.error(f"[PHASE 6] Failed to convert floats for arithmetic: {conv_err}")
                                 raise
+
+                            # Additional safeguard: verify types AFTER _ensure_float conversion
+                            if not isinstance(max_size_pct_float_safe, float):
+                                logger.error(
+                                    f"[PHASE 6] max_size_pct_float_safe type check failed: {type(max_size_pct_float_safe).__name__}={max_size_pct_float_safe!r}"
+                                )
+                                continue
+                            if not isinstance(pct_float_safe, float):
+                                logger.error(
+                                    f"[PHASE 6] pct_float_safe type check failed for {symbol}: {type(pct_float_safe).__name__}={pct_float_safe!r}"
+                                )
+                                continue
 
                             if pct_float_safe > max_size_pct_float_safe:
                                 # CRITICAL: _ensure_float guarantees native Python float - safe for arithmetic
