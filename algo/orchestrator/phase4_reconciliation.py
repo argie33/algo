@@ -7,6 +7,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
@@ -43,6 +44,8 @@ def run(  # noqa: C901
     Returns:
         PhaseResult with status 'ok' (succeeds even when broker unavailable)
     """
+    validate_phase_config(config, "phase_4_reconciliation")
+
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
         from utils.db import DatabaseContext

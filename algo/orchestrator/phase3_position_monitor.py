@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
@@ -69,6 +70,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     Returns:
         PhaseResult with status 'ok', data containing position recommendations
     """
+    validate_phase_config(config, "phase_3_position_monitor")
+
     # Phase 3 (Position Monitor) is CRITICAL and cannot be skipped
     # It detects: single-stock halts, stale orders, stuck positions, orphaned trades
     # Position monitoring is non-negotiable - do not disable via environment variables

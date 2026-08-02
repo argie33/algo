@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
@@ -38,6 +39,8 @@ def run(  # noqa: C901
     Returns:
         PhaseResult with status and data
     """
+    validate_phase_config(config, "phase_2_circuit_breakers")
+
     try:
         from algo.risk import CircuitBreaker
 

@@ -46,6 +46,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
@@ -296,6 +297,8 @@ def run(  # noqa: C901
     stale but trading can continue.
     Excludes stock_scores (orchestrator-generated output, not pipeline input).
     """
+    validate_phase_config(config, "phase_1_data_freshness")
+
     from datetime import timedelta as td
 
     phase_start = time.time()

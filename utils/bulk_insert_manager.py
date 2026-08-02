@@ -234,8 +234,16 @@ class BulkInsertManager:
             logger.critical(error_msg)
             raise RuntimeError(error_msg)
 
-        # Update watermark if provided (OUTSIDE transaction to avoid nested DatabaseContext)
-        if symbol and new_watermark and watermark_mgr:
+        # CRITICAL FIX: Only advance watermark if rows were actually loaded
+        # On weekends/holidays, loaders return zero rows. If we advance watermark anyway,
+        # next run will start at Monday's date and skip the entire weekend (data never loaded)
+        # See: BLOCKER #4 from comprehensive steering audit (watermark skips weekends forever)
+        if inserted == 0:
+            logger.info(
+                f"[WATERMARK] Zero rows loaded for {symbol} on {new_watermark}. "
+                f"Watermark NOT advanced - will retry this date on next load to catch any missing data."
+            )
+        elif symbol and new_watermark and watermark_mgr:
             try:
                 from utils.data.watermark import WatermarkManager
 
