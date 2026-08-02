@@ -55,8 +55,20 @@ def _evaluate(mock_config, cur_price, entry_price, last_partial_exit_date=None, 
         1000,  # vol
         1000,  # avg_vol_50
     )
+
+    # Create a config object that behaves like AlgoConfig (dict-like interface)
+    class ConfigDict(dict):
+        def get(self, key, default=None):
+            return super().get(key, default)
+        def __getitem__(self, key):
+            return super().__getitem__(key)
+        def __contains__(self, key):
+            return super().__contains__(key)
+
+    config_obj = ConfigDict(mock_config)
+
     with patch("algo.trading.exit_engine.TradeExecutor"):
-        engine = ExitEngine(mock_config)
+        engine = ExitEngine(config_obj)
         return engine._evaluate_position(
             cur=mock_cur,
             symbol="LPG",
