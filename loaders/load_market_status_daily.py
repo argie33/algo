@@ -220,12 +220,15 @@ class MarketStatusDailyLoader(OptimalLoader):
             ]
 
     def _fetch_fed_rate_environment(self, eval_date: date) -> dict[str, Any]:
-        """Fetch current Fed funds rate and determine policy environment.
+        """Fetch current federal funds rate and determine policy environment.
+
+        Uses SOFR (Secured Overnight Financing Rate), the Fed's official benchmark
+        rate published daily. Replaces legacy FEDFUNDS (monthly data with gaps).
 
         Returns:
             {
                 "fed_rate_environment": "neutral" | "accommodative" | "restrictive" | None,
-                "fed_rate": float (latest FEDFUNDS rate) | None,
+                "fed_rate": float (latest SOFR rate) | None,
                 "fed_rate_data_unavailable": bool,
                 "fed_rate_unavailable_reason": str | None,
             }
@@ -242,9 +245,9 @@ class MarketStatusDailyLoader(OptimalLoader):
             if not self._fred_api_key:
                 self._fred_api_key = get_fred_api_key()
 
-            # Fetch latest FEDFUNDS rate (last 30 days to ensure we have data)
+            # Fetch latest SOFR rate (last 30 days to ensure we have data)
             start_date = eval_date - timedelta(days=30)
-            fred_data = fetch_from_fred(self._fred_api_key, "FEDFUNDS", start_date, eval_date)
+            fred_data = fetch_from_fred(self._fred_api_key, "SOFR", start_date, eval_date)
 
             if not fred_data:
                 return {
@@ -268,7 +271,7 @@ class MarketStatusDailyLoader(OptimalLoader):
 
             if days_old > 7:  # More than a week old
                 logger.warning(
-                    f"[MARKET_STATUS] FEDFUNDS data is {days_old} days old (from {rate_date}). "
+                    f"[MARKET_STATUS] SOFR data is {days_old} days old (from {rate_date}). "
                     f"Using stale rate={fed_rate:.2f}% for regime classification."
                 )
 

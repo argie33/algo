@@ -40,7 +40,7 @@ class DataQualityAuditor:
         logger.info("AUDIT 1: ECONOMIC DATA (FRED)")
         logger.info("=" * 80)
 
-        required_series = ["T10Y2Y", "FEDFUNDS", "BAMLH0A0HYM2", "ICSA"]
+        required_series = ["T10Y2Y", "SOFR", "BAMLH0A0HYM2", "ICSA"]
         issues = []
 
         try:

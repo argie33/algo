@@ -125,10 +125,10 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
                         raise ValueError(f"Invalid indicator value for {i.get('series_id')}: {e}") from e
 
         # Critical indicators: fail fast if missing
-        # FEDFUNDS: Current policy rate-required for all economic models
-        fed_funds = by_series.get("FEDFUNDS")
+        # SOFR: Secured Overnight Financing Rate (Fed's official overnight benchmark)
+        fed_funds = by_series.get("SOFR")
         if fed_funds is None:
-            raise ValueError("Federal Funds Rate (FEDFUNDS) missing from indicators")
+            raise ValueError("SOFR (Secured Overnight Financing Rate) missing from indicators")
 
         # Optional indicators (None if not published, but logged for monitoring)
         # These are used in economic stress scoring but have published gaps.

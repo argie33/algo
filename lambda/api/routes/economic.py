@@ -206,7 +206,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         "T5YIE": "5Y Breakeven Inflation",
         "T10YIE": "10Y Breakeven Inflation",
         # Monetary / rates
-        "FEDFUNDS": "Federal Funds Rate",
+        "SOFR": "Secured Overnight Financing Rate",
         "M2SL": "M2 Money Supply",
         "T10Y2Y": "Yield Curve (10Y-2Y)",
         # Growth
