@@ -493,8 +493,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             )
 
                         error_str = str(review_err)[:200]
+                        # Escape % characters in error message to prevent format string issues later
+                        # when the error is logged or stored in database
+                        error_str_safe = error_str.replace("%", "%%")
                         error_msg = (
-                            "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str + ". "
+                            "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str_safe + ". "
                             "Cannot generate exit recommendations without proper position analysis. "
                             "Position monitoring is non-negotiable for risk management. "
                             "This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
@@ -710,7 +713,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 else:
                     # Non-transient error - raise with explicit context
                     raise RuntimeError(
-                        f"[PHASE 3] Position halt review failed: {type(review_err).__name__}"
+                        f"[PHASE 3] Position halt review failed: {type(review_err).__name__}: "
+                        f"{str(review_err)[:100].replace('%', '%%')}"
                     ) from review_err
 
         # ISSUE 5: Handle degraded mode where recommendations is empty due to retry exhaustion
