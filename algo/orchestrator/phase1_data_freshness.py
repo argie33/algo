@@ -379,7 +379,9 @@ def run(  # noqa: C901
             # NOTE: stock_scores is NOT validated here; it's an orchestrator OUTPUT (Phase 5),
             # not a pipeline loader INPUT. Validating orchestrator outputs in Phase 1 breaks first-run.
             # Phase 7 (Signal Generation) will handle missing stock_scores when it runs.
-            cur.execute("SELECT MAX(date) FROM price_daily")
+            # CRITICAL FIX 2026-08-02: Exclude index tickers (^VIX, etc) from MAX(date)
+            # Index tickers update pre-market before equity prices, skewing freshness check
+            cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol NOT LIKE '^%%'")
             row = cur.fetchone()
             if row is None:
                 raise RuntimeError(
@@ -467,11 +469,13 @@ def run(  # noqa: C901
 
             # CRITICAL FIX: Detect phantom rows in price_daily (NULL prices counted as fresh data)
             # These bypass the freshness check by inflating MAX(date) and symbol count
+            # CRITICAL FIX 2026-08-02: Exclude index tickers from MAX(date) in nested SELECT
             cur.execute("""SELECT COUNT(*) as phantom_count,
                           COUNT(CASE WHEN close IS NULL THEN 1 END) as null_close_count,
                           COUNT(CASE WHEN open IS NULL THEN 1 END) as null_open_count
                    FROM price_daily
-                   WHERE date = (SELECT MAX(date) FROM price_daily)""")
+                   WHERE date = (SELECT MAX(date) FROM price_daily WHERE symbol NOT LIKE '^%%')
+                   AND symbol NOT LIKE '^%%'""")
             phantom_row = cur.fetchone()
             if phantom_row:
                 phantom_count = phantom_row[0]

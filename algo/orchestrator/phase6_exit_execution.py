@@ -308,30 +308,50 @@ def run(
                         ORDER BY ap.position_value DESC
                     """)
 
+                    try:
+                        all_positions = cur.fetchall()
+                    except Exception as fetch_err:
+                        logger.error(f"[PHASE 6] Failed to fetch positions: {fetch_err}")
+                        raise RuntimeError(f"[PHASE 6] Cannot fetch positions for concentration check: {fetch_err}") from fetch_err
+
+                    if all_positions is None or len(all_positions) == 0:
+                        logger.info("[PHASE 6] No open positions returned from query - skipping size concentration check")
+                        return []
+
                     oversized_positions = []
-                    for pos_id, symbol, value in cur.fetchall():
-                        # Compute percentage in Python with explicit float conversion to avoid Decimal/float type mixing
+                    for row in all_positions:
                         try:
-                            # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
-                            # Division of float by Decimal returns Decimal, so we must ensure total_value_float is native float
-                            value_float = float(value) if value is not None else 0.0
-                            # Ensure division uses native floats, not Decimals
-                            total_value_for_division = float(total_value_float)
-                            pct_float = (value_float / total_value_for_division * 100) if total_value_for_division > 0 else 0.0
-                            # Force to native float in case division returned Decimal
-                            pct_float = float(pct_float)
-                        except (TypeError, ValueError, ZeroDivisionError) as te:
-                            logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
+                            # Guard against malformed rows (e.g., in test mocks)
+                            if not isinstance(row, (tuple, list)) or len(row) < 3:
+                                logger.debug(f"[PHASE 6] Skipping malformed position row: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})")
+                                continue
+
+                            pos_id, symbol, value = row[0], row[1], row[2]
+                            # Compute percentage in Python with explicit float conversion to avoid Decimal/float type mixing
+                            try:
+                                # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
+                                # Division of float by Decimal returns Decimal, so we must ensure total_value_float is native float
+                                value_float = float(value) if value is not None else 0.0
+                                # Ensure division uses native floats, not Decimals
+                                total_value_for_division = float(total_value_float)
+                                pct_float = (value_float / total_value_for_division * 100) if total_value_for_division > 0 else 0.0
+                                # Force to native float in case division returned Decimal
+                                pct_float = float(pct_float)
+                            except (TypeError, ValueError, ZeroDivisionError) as te:
+                                logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
+                                continue
+
+                            # CRITICAL: Ensure both operands are Python native float before arithmetic
+                            limit_for_comparison = float(max_size_pct_float)
+
+                            if pct_float > limit_for_comparison:
+                                # Both operands guaranteed to be native Python float after explicit conversion above
+                                exceed_amount = pct_float - limit_for_comparison
+                                oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                        except (IndexError, TypeError) as row_err:
+                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue
-
-                        # CRITICAL: Ensure both operands are Python native float before arithmetic
-                        limit_for_comparison = float(max_size_pct_float)
-
-                        if pct_float > limit_for_comparison:
-                            # Both operands guaranteed to be native Python float after explicit conversion above
-                            exceed_amount = pct_float - limit_for_comparison
-                            oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
-                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:

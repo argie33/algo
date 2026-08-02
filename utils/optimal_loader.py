@@ -52,9 +52,10 @@ class OptimalLoader:
                         "Use 0 for incremental load, or positive value for backfill."
                     )
                 if self._backfill_days > 730:
-                    logger.warning(
-                        f"[CONFIG] BACKFILL_DAYS={self._backfill_days} exceeds 2-year recommendation. "
-                        "This may cause long load times. Consider using smaller backfill_days or incremental load."
+                    raise ValueError(
+                        f"[CONFIG] BACKFILL_DAYS={self._backfill_days} exceeds 2-year maximum (730 days). "
+                        "Full 2-year backfills risk excessive load times and API rate limits. "
+                        "Use incremental load (BACKFILL_DAYS=0) or smaller backfill window (max 730 days)."
                     )
             except ValueError as e:
                 if "invalid literal" in str(e):
