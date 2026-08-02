@@ -221,14 +221,28 @@ class SecSegmentInfoLoader(SecLoaderBase):
             either may be None if SEC omitted or malformed that column. Returns None
             if no 10-K found.
         """
-        filings = submissions.get('filings', {}).get('recent', {})
+        # CRITICAL FIX 2026-08-02: Validate intermediate results before chaining .get()
+        # If submissions structure is corrupted, .get('filings', {}) might return non-dict
+        filings_container = submissions.get('filings')
+        if not isinstance(filings_container, dict):
+            return None
+
+        filings = filings_container.get('recent', {})
         if not isinstance(filings, dict):
             return None
 
         forms = filings.get('form', [])
+        if not isinstance(forms, list):
+            return None
         accessions = filings.get('accessionNumber', [])
+        if not isinstance(accessions, list):
+            return None
         report_dates = filings.get('reportDate', [])
+        if not isinstance(report_dates, list):
+            return None
         filing_dates = filings.get('filingDate', [])
+        if not isinstance(filing_dates, list):
+            return None
 
         for i, form in enumerate(forms):
             if form == '10-K' and i < len(accessions):
@@ -267,7 +281,14 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
         try:
             # Try to extract filing dates from the facts structure
-            us_gaap = facts_response.get('facts', {}).get('us-gaap', {})
+            # CRITICAL FIX 2026-08-02: Validate intermediate results before chaining .get()
+            facts_container = facts_response.get('facts')
+            if not isinstance(facts_container, dict):
+                raise ValueError(
+                    "[SEC_SEGMENT_INFO] SEC API 'facts' key is missing or not a dict. "
+                    "API response structure may have changed or response is malformed."
+                )
+            us_gaap = facts_container.get('us-gaap', {})
             if not isinstance(us_gaap, dict):
                 raise ValueError(
                     "[SEC_SEGMENT_INFO] SEC API facts.us-gaap is not a dict. "

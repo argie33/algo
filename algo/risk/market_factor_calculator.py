@@ -413,7 +413,16 @@ class MarketFactorCalculator:
                 }
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
-            pcr_val = row.get("put_call_ratio") if isinstance(row, dict) else row[0]
+            if isinstance(row, dict):
+                pcr_val = row.get("put_call_ratio")
+            else:
+                # Tuple result - validate structure before indexing
+                if not row or len(row) < 1:
+                    return {
+                        "data_unavailable": True,
+                        "reason": "Query returned empty or invalid result structure"
+                    }
+                pcr_val = row[0]
             if pcr_val is None:
                 return {
                     "data_unavailable": True,
