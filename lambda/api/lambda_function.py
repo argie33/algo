@@ -331,7 +331,7 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 )
                 if not cur.fetchone():
                     missing_columns.append(f"{table}.{column}")
-            except Exception as val_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as val_err:
                 logger.warning(f"[STARTUP] Could not validate {table}.{column}: {val_err}")
                 missing_columns.append(f"{table}.{column} (validation failed)")
 
@@ -352,9 +352,13 @@ def _apply_critical_migrations() -> tuple[bool, str]:
     except ImportError:
         logger.warning("[STARTUP] psycopg2 not available - migrations skipped")
         return False, "psycopg2 missing"
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[STARTUP] Migration initialization failed: {e}")
         return False, str(e)
+    except Exception as e:
+        # Unexpected error type - log as critical to alert operators
+        logger.critical(f"[STARTUP CRITICAL] Unexpected error during migration: {type(e).__name__}: {e}")
+        return False, f"Unexpected error: {type(e).__name__}"
 
 
 # Execute migrations on cold start

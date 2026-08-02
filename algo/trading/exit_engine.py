@@ -1338,6 +1338,7 @@ class ExitEngine:
                     continue
                 break
 
+            assert response is not None, "Response should be set after loop"
             if response.status_code == 200:
                 data = response.json()
 

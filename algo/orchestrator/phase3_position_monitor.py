@@ -74,6 +74,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     """
     validate_phase_config(config, "phase_3_position_monitor")
 
+    # Initialize recommendations at function scope (will be reassigned in each execution mode)
+    recommendations: list[dict[str, Any]] | None = None
+
     # Phase 3 (Position Monitor) is CRITICAL and cannot be skipped
     # It detects: single-stock halts, stale orders, stuck positions, orphaned trades
     # Position monitoring is non-negotiable - do not disable via environment variables
@@ -681,7 +684,6 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         # Live mode had NO retry logic (unlike paper mode), causing immediate failure on transient cursor errors
         # Apply same retry mechanism as paper mode to handle transient connection issues
         max_retries = 3
-        recommendations: list[dict[str, Any]] | None = None
         last_review_error = None
 
         for attempt in range(max_retries):
