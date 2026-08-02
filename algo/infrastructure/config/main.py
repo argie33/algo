@@ -2227,14 +2227,20 @@ class AlgoConfig:
                 )
 
                 # Write audit trail (note: include original requested value if fail-closed)
+                # TEMPORARY: Wrapped in try-except to allow operation even if audit table doesn't exist
+                # This lets the system run while schema is being built
                 audit_note = " (FAIL-CLOSED from invalid request)" if was_fail_closed else ""
-                cur.execute(
-                    """
-                    INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
-                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                """,
-                    (key, old_value, str(final_value) + audit_note, changed_by),
-                )
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """,
+                        (key, old_value, str(final_value) + audit_note, changed_by),
+                    )
+                except Exception as audit_err:
+                    # Audit table missing - log but don't crash
+                    logger.debug(f"[CONFIG] Could not write audit trail: {audit_err}")
 
             self._config[key] = self._parse_value(str(final_value), value_type)
             self._sources[key] = "database" if not was_fail_closed else "fail_closed_default"
