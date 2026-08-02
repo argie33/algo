@@ -6,6 +6,7 @@ from datetime import date as _date
 from typing import Any
 
 from algo.orchestrator.config_validator import validate_phase_config
+from algo.orchestrator.error_classifier import PhaseErrorClassifier
 from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
@@ -717,11 +718,18 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         )
 
     except Exception as e:
+        # Classify error severity and log with standard format
+        error_severity = PhaseErrorClassifier.log_error(
+            "phase_3_position_monitor",
+            e,
+            should_reraise=False,
+        )
+
         error = PhaseError(
             category=ErrorCategory.DEPENDENCY_FAILED,
-            message="Position monitor failed unexpectedly",
+            message=f"Position monitor failed unexpectedly ({error_severity.value})",
             root_cause=str(e)[:200],
-            recoverable=False,
+            recoverable=error_severity.name == "TRANSIENT",
             log_level="critical",
         )
         log_phase_error(3, error, log_phase_result_fn)
