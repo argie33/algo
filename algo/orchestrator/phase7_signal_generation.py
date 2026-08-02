@@ -1177,23 +1177,9 @@ def run(  # noqa: C901
                         True,
                         msg,
                     )
-        except (TimeoutError, FutureTimeoutError) as timeout_e:
-            msg = (
-                f"[PHASE 7 CRITICAL] Signal quality score computation timed out: {timeout_e}. "
-                f"Loader is stalled. Check for hung database connections or locks."
-            )
-            logger.critical(msg)
-            log_phase_result_fn(7, "signal_generation", "halt", msg)
-            return PhaseResult(
-                7,
-                "signal_generation",
-                "halted",
-                {"qualified_trades": [], "liquidity_passed": 0},
-                True,
-                msg,
-            )
         except Exception as e:
-            # Handle LockAcquisitionError gracefully - don't halt on temporary lock contention
+            # Handle LockAcquisitionError FIRST - don't halt on temporary lock contention
+            # CRITICAL: This must come before TimeoutError, as both may indicate lock issues
             from algo.exceptions import LockAcquisitionError
             if isinstance(e, LockAcquisitionError):
                 # Temporary lock issue - log warning but don't halt
@@ -1205,6 +1191,15 @@ def run(  # noqa: C901
                 log_phase_result_fn(7, "signal_generation", "degraded", msg)
                 # Return empty result - downstream Phase 8 will detect and handle gracefully
                 score_result = {"symbols_processed": 0, "symbols_failed": 0, "lock_contention": True}
+            elif isinstance(e, (TimeoutError, FutureTimeoutError)):
+                # Timeout (separate from lock acquisition) - also graceful degradation
+                msg = (
+                    f"[PHASE 7 WARNING] Signal quality score computation timed out. "
+                    f"Will proceed without updated scores. Trades will use previously cached scores if available."
+                )
+                logger.warning(msg)
+                log_phase_result_fn(7, "signal_generation", "degraded", msg)
+                score_result = {"symbols_processed": 0, "symbols_failed": 0, "timeout": True}
             else:
                 # CRITICAL: Other errors halt Phase 7
                 # Signal quality scores are REQUIRED for Phase 8 entry gates.

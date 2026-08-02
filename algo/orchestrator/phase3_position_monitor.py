@@ -193,7 +193,24 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         prices[symbol] = float(close_price) if close_price is not None else None
 
                 update_errors = []
-                for position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry in positions:
+                for update_idx, (position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry) in enumerate(positions):
+                    # CRITICAL: Periodic pool health check during long-running position updates
+                    # If Phase 3 processes many positions (30+ seconds), other processes may consume connections
+                    # Check pool every 5 positions (after ~1-2 seconds) to catch exhaustion early
+                    if update_idx > 0 and update_idx % 5 == 0:
+                        from utils.db.connection_pool import get_pool_health
+                        current_health = get_pool_health()
+                        current_available = current_health.get("available_conns", 0)
+                        if current_available < 3:
+                            error_msg = (
+                                f"[PHASE 3 CRITICAL] CONNECTION POOL EXHAUSTION DETECTED during position updates. "
+                                f"Only {current_available} connections available (minimum required: 3). "
+                                f"Halting position updates to prevent cascade failures. "
+                                f"This indicates other processes are consuming connections. "
+                                f"Completed {update_idx}/{len(positions)} position updates before exhaustion detected."
+                            )
+                            logger.error(error_msg)
+                            raise RuntimeError(error_msg)
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
                         # Fail-fast on missing current prices for open positions.
