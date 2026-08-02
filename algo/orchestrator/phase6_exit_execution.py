@@ -472,7 +472,7 @@ def run(
                                 total_value_for_division = float(total_value_float)
                                 pct_float = (value_float / total_value_for_division * 100) if total_value_for_division > 0 else 0.0
                                 # Force to native float in case division returned Decimal
-                                pct_float = float(pct_float)
+                                pct_float = float(float(pct_float))
                             except (TypeError, ValueError, ZeroDivisionError) as te:
                                 logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                                 continue
@@ -482,7 +482,8 @@ def run(
 
                             if pct_float > limit_for_comparison:
                                 # Both operands guaranteed to be native Python float after explicit conversion above
-                                exceed_amount = pct_float - limit_for_comparison
+                                # CRITICAL FIX: Convert to float again immediately before subtraction to handle Decimal propagation
+                                exceed_amount = float(pct_float) - float(limit_for_comparison)
                                 oversized_positions.append((pos_id, symbol, pct_float, limit_for_comparison))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float:.1f}% (limit {limit_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:

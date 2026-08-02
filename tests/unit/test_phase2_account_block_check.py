@@ -18,11 +18,12 @@ from algo.orchestrator.phase2_circuit_breakers import run as phase2_run
 
 def _clean_cb_result():
     # BLOCKER #5 FIX: checks dict must not be empty. Include at least one circuit breaker result
+    # Each check must have at minimum a "halted" field (state dict) per circuit_breaker.py line 238
     return {
         "halted": False,
         "halt_reasons": [],
         "checks": {
-            "vix_circuit_breaker": {"passed": True, "message": "VIX ok"},
+            "vix": {"halted": False, "reason": "VIX ok"},
         },
     }
 
