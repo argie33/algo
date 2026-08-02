@@ -176,19 +176,19 @@ class OrchestratorPhaseExecutor:
                 "constraints": {
                     "tier_name": "CORRECTION",
                     "regime": "CORRECTION",  # CRITICAL: Required by _health_panel_fields() in Phase 5
-                    "risk_multiplier": 0.5,  # Reduced but non-zero - allow minimal entries
-                    "max_new_positions_today": 2,  # Allow 2 entries minimum for risk management
-                    "halt_new_entries": False,  # Don't block entries entirely - let Phase 8 decide
-                    "max_concentration_pct": 3.0,  # Half of normal 6% limit
-                    "halt_reason": "Phase 5 halted - using conservative defaults for risk control",
+                    "risk_multiplier": 0.0,
+                    "max_new_positions_today": 0,
+                    "halt_new_entries": True,
+                    "max_concentration_pct": 0.0,  # CRITICAL: Phase 8 requires this field (Session 416)
+                    "halt_reason": "Previous phase halted - cannot determine exposure constraints",
                 },
                 "actions": [],
                 # CRITICAL: Include health panel fields for dashboard rendering (same as Phase 5 normal execution)
                 "market_regime": "CORRECTION",
-                "entry_allowed": True,  # Allow Phase 8 to attempt entries with reduced size
-                "halt_active": False,  # Don't halt - let Phase 8 handle with conservative sizing
-                "max_new_entries": 2,  # Limited entries for risk management
-                "reason": "phase halted - using conservative defaults to maintain market responsiveness",
+                "entry_allowed": False,
+                "halt_active": True,
+                "max_new_entries": 0,
+                "reason": "phase skipped - using safe defaults (no new entries)",
             },
             6: {"exits_executed": 0, "reason": "phase skipped"},
             7: {
