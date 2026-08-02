@@ -470,7 +470,7 @@ class PositionMonitor:
                 SELECT p.id, p.symbol, p.entry_price, p.stop_loss_price,
                        p.target_1_price, p.target_2_price, p.target_3_price,
                        p.entry_date, p.created_at,
-                       p.id, p.quantity, NULL,
+                       p.quantity, NULL, NULL,
                        p.stop_loss_price, p.current_price
                 FROM algo_positions p
                 WHERE p.status = 'open' AND p.quantity > 0
@@ -519,16 +519,14 @@ class PositionMonitor:
                             f"Cannot extract position data. This may indicate database connection issues or schema mismatch."
                         ) from e
                     symbol = row[1]  # symbol is at index 1 in the row tuple
-                    trade_id = row[0]
-                    position_id = row[9]
+                    position_id = row[0]  # p.id is at index 0 in the row tuple
                     error_msg = str(e)
                     validation_errors.append((symbol, error_msg))
                     # Include failed position in results so orchestrator has complete visibility
                     recs.append(
                         {
-                            "trade_id": trade_id,
-                            "symbol": symbol,
                             "position_id": position_id,
+                            "symbol": symbol,
                             "action": "FAILED_VALIDATION",
                             "error": error_msg,
                         }
@@ -598,7 +596,7 @@ class PositionMonitor:
     def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> dict[str, Any]:  # noqa: C901
         try:
             (
-                trade_id,
+                position_id,
                 symbol,
                 entry_price,
                 init_stop,
@@ -607,9 +605,9 @@ class PositionMonitor:
                 _t3_price,
                 trade_date,
                 _signal_date,
-                position_id,
                 quantity,
                 target_hits,
+                _unused_null,
                 current_stop,
                 _db_current_price,
             ) = row
@@ -722,7 +720,6 @@ class PositionMonitor:
         if cur_price <= active_stop:
             logger.critical(f"[PHASE 3 CRITICAL] {symbol}: Current price ${cur_price:.2f} <= active stop ${active_stop:.2f} - IMMEDIATE EXIT REQUIRED")
             return {
-                "trade_id": trade_id,
                 "symbol": symbol,
                 "position_id": position_id,
                 "days_held": days_held,
@@ -825,7 +822,6 @@ class PositionMonitor:
             urgent_exit = True
 
         return {
-            "trade_id": trade_id,
             "symbol": symbol,
             "position_id": position_id,
             "days_held": days_held,
