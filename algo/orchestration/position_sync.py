@@ -42,7 +42,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
 
     For each symbol with net quantity > 0 in trades:
     - If position exists: update quantity and status
-    - If position doesn't exist: insert with position_id from trades
+    - If position doesn't exist: insert new position
 
     Returns:
         (inserted_count, updated_count, error_count)
@@ -70,7 +70,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                 try:
                     # Check if position exists
                     cur.execute(
-                        'SELECT position_id FROM algo_positions WHERE symbol = %s AND status = %s',
+                        'SELECT id FROM algo_positions WHERE symbol = %s AND status = %s',
                         (symbol, 'open')
                     )
                     existing = cur.fetchone()
@@ -85,17 +85,17 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                         updated += 1
                         logger.debug(f"[POSITION_SYNC] Updated {symbol}: {total_qty:.2f} shares")
                     else:
-                        # Get position_id from first trade
+                        # Get entry_price from first trade
                         cur.execute('''
-                            SELECT entry_price, position_id FROM algo_trades
-                            WHERE symbol = %s AND position_id IS NOT NULL AND status IN ('filled', 'open')
+                            SELECT entry_price FROM algo_trades
+                            WHERE symbol = %s AND status IN ('filled', 'open')
                             ORDER BY entry_date ASC
                             LIMIT 1
                         ''', (symbol,))
 
                         trade_row = cur.fetchone()
-                        if trade_row and trade_row[1]:
-                            entry_price, position_id = trade_row
+                        if trade_row:
+                            entry_price = trade_row[0]
 
                             # AUDIT ISSUE #3 FIX: Validate position data BEFORE insert/update
                             # CHECKPOINT 1: Check entry_price IS NOT NULL and > 0
@@ -107,7 +107,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                             # FAIL-FAST: Reject position rather than insert corrupted data
                             if not entry_price or entry_price <= 0:
                                 raise RuntimeError(
-                                    f"[POSITION_SYNC] Cannot sync position {position_id} for {symbol}: "
+                                    f"[POSITION_SYNC] Cannot sync position for {symbol}: "
                                     f"entry_price is NULL or <= 0 (value={entry_price}). "
                                     f"Cannot create corrupted position data. "
                                     f"Verify trade entry_price was recorded correctly."
@@ -120,48 +120,20 @@ def sync_positions_from_trades() -> Tuple[int, int, int]:
                             # in case SQL execution or sync state changed between GROUP BY and this point.
                             if total_qty <= 0:
                                 raise RuntimeError(
-                                    f"[POSITION_SYNC] Cannot sync position {position_id} for {symbol}: "
+                                    f"[POSITION_SYNC] Cannot sync position for {symbol}: "
                                     f"quantity must be > 0 (value={total_qty}). "
                                     f"Zero/negative quantity indicates corrupted trade record."
                                 )
 
-                            # Try to update position if it exists with this position_id
+                            # Position doesn't exist, insert new one
                             cur.execute('''
-                                UPDATE algo_positions
-                                SET quantity = %s, status = 'open', updated_at = NOW()
-                                WHERE position_id = %s
-                            ''', (total_qty, position_id))
-
-                            if cur.rowcount >= 1:
-                                updated += 1
-                                logger.debug(f"[POSITION_SYNC] Updated existing position {symbol}: {total_qty:.2f} shares")
-                            else:
-                                # Position doesn't exist with this position_id, check before inserting
-                                cur.execute('''
-                                    SELECT position_id FROM algo_positions WHERE position_id = %s
-                                ''', (position_id,))
-                                existing_by_id = cur.fetchone()
-
-                                if existing_by_id:
-                                    # Position exists - update it
-                                    cur.execute('''
-                                        UPDATE algo_positions
-                                        SET quantity = %s, status = 'open', updated_at = NOW()
-                                        WHERE position_id = %s
-                                    ''', (total_qty, position_id))
-                                    updated += 1
-                                    logger.debug(f"[POSITION_SYNC] Updated position {symbol}: {total_qty:.2f} shares")
-                                else:
-                                    # Position doesn't exist, insert new one
-                                    # ISSUE 3: Verify position_id exists in algo_positions table before final insert
-                                    cur.execute('''
-                                        INSERT INTO algo_positions (symbol, position_id, quantity, status, entry_price, updated_at, created_at)
-                                        VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-                                    ''', (symbol, position_id, total_qty, 'open', entry_price))
-                                    inserted += 1
-                                    logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
+                                INSERT INTO algo_positions (symbol, quantity, status, entry_price, entry_date, created_at, updated_at)
+                                VALUES (%s, %s, %s, %s, NOW(), NOW(), NOW())
+                            ''', (symbol, total_qty, 'open', entry_price))
+                            inserted += 1
+                            logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
                         else:
-                            logger.warning(f"[POSITION_SYNC] Could not find position_id for {symbol}")
+                            logger.warning(f"[POSITION_SYNC] Could not find entry_price for {symbol}")
                             errors += 1
 
                 except Exception as e:

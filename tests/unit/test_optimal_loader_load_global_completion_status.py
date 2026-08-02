@@ -32,6 +32,7 @@ def _make_loader(table_name="test_global_table"):
     loader.watermark_field = "date"
     loader._execution_start_time = None
     loader._infrastructure = MagicMock()
+    loader._status_manager = MagicMock()
     loader._bulk_insert_mgr = MagicMock()
     loader._stats = MagicMock()
     return loader

@@ -516,10 +516,13 @@ def run(
                                 raise
 
                             if pct_float_safe > max_size_pct_float_safe:
-                                # Subtraction is safe: both operands are explicitly native float
-                                exceed_amount = pct_float_safe - max_size_pct_float_safe
-                                oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float_safe:.1f}% (limit {max_size_pct_float_safe:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                                # CRITICAL: Force native float IMMEDIATELY before arithmetic to eliminate any Decimal remnants
+                                # Even after triple-conversion, psycopg2 Decimals can slip through in arithmetic contexts
+                                pct_final = float(pct_float_safe)
+                                max_pct_final = float(max_size_pct_float_safe)
+                                exceed_amount = pct_final - max_pct_final
+                                oversized_positions.append((pos_id, symbol, pct_final, max_pct_final))
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_pct_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue
