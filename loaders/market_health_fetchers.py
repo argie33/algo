@@ -103,21 +103,39 @@ class VIXFetcher:
                             "VIX loader has never run or price_daily is corrupt."
                         )
                 result = {}
+                invalid_dates = []
                 for row in rows:
                     d = row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
                     # CRITICAL: VIX fields must all be present for valid market data
                     if row[1] is None or row[2] is None or row[3] is None:
                         logger.warning(
                             f"[MARKET_HEALTH] VIX data incomplete for {d}: "
-                            f"close={row[1]}, low={row[2]}, high={row[3]}. Skipping invalid record."
+                            f"close={row[1]}, low={row[2]}, high={row[3]}."
                         )
+                        invalid_dates.append(d)
                         continue
                     result[d] = {
                         "vix_close": float(row[1]),
                         "vix_high": float(row[3]),
                         "vix_low": float(row[2]),
                     }
-                logger.info(f"Fetched {len(result)} VIX dates from price_daily")
+
+                # CRITICAL: If today's VIX data is incomplete, halt evaluation
+                # Circuit breaker cannot make safety decisions without complete market data
+                # Empty VIX dataset would allow trading when market is halted
+                if len(result) == 0:
+                    raise RuntimeError(
+                        f"[CRITICAL] VIX data is completely missing or all records invalid. "
+                        f"Invalid dates: {invalid_dates}. "
+                        f"Cannot compute market health without VIX. "
+                        f"Circuit breaker halt evaluation is blocked. "
+                        f"Check: (1) price_daily has VIX rows, (2) VIX fields are populated"
+                    )
+
+                logger.info(
+                    f"Fetched {len(result)} valid VIX dates from price_daily"
+                    f"{f' (skipped {len(invalid_dates)} invalid records)' if invalid_dates else ''}"
+                )
                 return result
         except RuntimeError:
             raise
