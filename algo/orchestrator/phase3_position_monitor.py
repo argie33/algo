@@ -99,11 +99,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 updated = 0
                 # BLOCKER #1: Use passed cursor ALWAYS - never open nested DatabaseContext
                 # Fetch open positions with required fields for price update (including entry_date for days calculation)
+                # CRITICAL FIX Session 393: Add FOR UPDATE to prevent race conditions with concurrent Phase 6 exits
+                # If Phase 6 (exit_engine) runs concurrently in AWS Lambda/ECS, both might read positions simultaneously.
+                # Phase 6 has FOR UPDATE (line 579 of exit_engine.py), but Phase 3 must also lock to prevent
+                # read-modify-write race: Phase 3 reads, calculates new price, Phase 6 reads at same time,
+                # then Phase 3 writes, then Phase 6 writes, causing Phase 3 update to be lost.
                 cur.execute("""
                     SELECT position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price
                     FROM algo_positions
                     WHERE status = 'open' AND quantity > 0
                     ORDER BY position_id
+                    FOR UPDATE OF algo_positions
                 """)
                 positions = cur.fetchall()
                 logger.info(f"[PHASE 3] Found {len(positions)} open positions to update")
