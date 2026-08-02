@@ -271,7 +271,7 @@ def run(
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
         # Sector concentration limit: configured via max_positions_per_sector (default 10)
         # CRITICAL FIX: Previously hardcoded limit=3, now uses config value to prevent exits when config != 3
-        def _check_sector_concentration():
+        def _check_sector_concentration() -> list[dict[str, Any]]:
             """Identify over-concentrated sectors and add force-exit recommendations."""
             try:
                 max_sector_val = config.get("max_positions_per_sector")
@@ -406,7 +406,7 @@ def run(
         # Check for position size concentration and add force-exit recommendations for oversized positions
         # Position size limit: configured via max_position_size_pct (default 6%)
         # CRITICAL: Oversized positions violate risk management rules and must be force-exited
-        def _check_position_size_concentration():
+        def _check_position_size_concentration() -> list[dict[str, Any]]:
             """Identify oversized positions and add force-exit recommendations."""
             try:
                 max_size_pct_val = config.get("max_position_size_pct")

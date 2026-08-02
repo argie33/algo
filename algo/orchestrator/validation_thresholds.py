@@ -10,6 +10,7 @@ All thresholds are defined with documentation explaining the rationale.
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ MIN_LOADER_SUCCESS_RECORD_COUNT = 100
 LOCK_CONTENTION_WARNING_THRESHOLD = 3  # retries before logging warning
 
 
-def get_threshold(key: str, default=None):
+def get_threshold(key: str, default: Any = None) -> Any:
     """Get a validation threshold value.
 
     In production, this could be extended to fetch from algo_config table
@@ -149,7 +150,7 @@ def get_threshold(key: str, default=None):
     return thresholds[key]
 
 
-def log_threshold_values():
+def log_threshold_values() -> None:
     """Log all threshold values for audit trail and debugging."""
     logger.info("[VALIDATION_THRESHOLDS] Loaded configuration:")
     logger.info(f"  ATR: min={MIN_ATR_THRESHOLD}")

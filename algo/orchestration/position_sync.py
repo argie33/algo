@@ -166,7 +166,7 @@ def validate_position_count(expected_approximate: int | None = None) -> bool:
                 raise RuntimeError(
                     "[POSITION_SYNC_VALIDATE] COUNT query returned no rows - database error"
                 )
-            open_count = pos_row[0]
+            open_count = int(pos_row[0])
 
             # Count open trades
             cur.execute('''
@@ -179,7 +179,7 @@ def validate_position_count(expected_approximate: int | None = None) -> bool:
 
             # Allow 5% mismatch (rounding, pending closes, etc)
             if trade_symbols == 0:
-                is_valid = open_count == 0
+                is_valid: bool = open_count == 0
             else:
                 mismatch_pct = abs(open_count - trade_symbols) / trade_symbols * 100
                 is_valid = mismatch_pct < 5
