@@ -1278,8 +1278,17 @@ def run(  # noqa: C901
             # Handle LockAcquisitionError FIRST - don't halt on temporary lock contention
             # CRITICAL: This must come before TimeoutError, as both may indicate lock issues
             from algo.exceptions import LockAcquisitionError
-            # Check both isinstance and exception type name (more robust against module reload issues)
-            is_lock_error = isinstance(e, LockAcquisitionError) or type(e).__name__ == 'LockAcquisitionError'
+
+            # Check multiple ways: isinstance, type name, string message
+            # Lock errors can be wrapped or have import timing issues
+            error_str = str(e)
+            error_type_name = type(e).__name__
+            is_lock_error = (
+                isinstance(e, LockAcquisitionError)
+                or error_type_name == 'LockAcquisitionError'
+                or 'LockAcquisitionError' in error_type_name
+                or 'lock' in error_str.lower()
+            )
             if is_lock_error:
                 # Temporary lock issue - log warning but don't halt
                 msg = (
