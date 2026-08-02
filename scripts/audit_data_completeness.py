@@ -10,12 +10,12 @@ sys.path.insert(0, project_root)
 
 import psycopg2
 from psycopg2.extras import DictCursor
-from utils.db.connection import DatabaseConnectionPool
+from utils.db.connection import _get_connection_pool
 
 def get_connection():
     """Get DB connection."""
-    pool = DatabaseConnectionPool()
-    return pool.get_connection()
+    pool = _get_connection_pool()
+    return pool.getconn()
 
 def audit_financial_statements():
     """Audit financial statement data completeness."""
@@ -40,8 +40,8 @@ def audit_financial_statements():
             ('total_assets', 'Total assets'),
             ('goodwill', 'Goodwill - FIXED 2026-07-28, needs backfill'),
             ('inventory', 'Inventory - FIXED 2026-07-28, needs backfill'),
-            ('cash', 'Cash - FIXED 2026-07-28, needs backfill'),
-            ('receivables', 'Receivables - FIXED 2026-07-28, needs backfill'),
+            ('cash_and_equivalents', 'Cash - FIXED 2026-07-28, needs backfill'),
+            ('accounts_receivable', 'Receivables - FIXED 2026-07-28, needs backfill'),
             ('ppe_net', 'PPE net - FIXED 2026-07-28, needs backfill'),
             ('long_term_debt', 'LT Debt - FIXED 2026-07-28, needs backfill'),
             ('stockholders_equity', 'Stockholders equity'),
@@ -77,7 +77,7 @@ def audit_financial_statements():
                 null_count = result['nulls']
                 pct_null = (null_count / total_rows * 100) if total_rows > 0 else 0
 
-                status = "✅" if pct_null < 5 else "⚠️ " if pct_null < 50 else "🔴"
+                status = "[OK]" if pct_null < 5 else "[WARN]" if pct_null < 50 else "[CRIT]"
                 print(f"  {status} {col:30} | {pct_null:6.1f}% NULL | {null_count:,}/{total_rows:,}")
 
         except Exception as e:
@@ -127,7 +127,7 @@ def audit_loader_status():
             else:
                 age_str = "never"
 
-            status_icon = "✅" if status == "HEALTHY" else "⚠️ " if status == "STALE" else "🔴"
+            status_icon = "[OK]" if status == "HEALTHY" else "[WARN]" if status == "STALE" else "[CRIT]"
             print(f"{table:40} | {status:10} | {age_str:10} | {consecutive_failures:2}")
 
             if row['reason']:
@@ -147,35 +147,35 @@ def audit_missing_sources():
 
     print("""
 OFFICIAL SOURCES BEING USED:
-  ✅ SEC EDGAR (companyfacts API) → financial statements, valuations, dividends, segment data
-  ✅ SEC Forms 3/4/5 → insider transaction data
-  ✅ SEC 13F → institutional holdings
-  ✅ SEC 8-K/10-K/10-Q → current reports, earnings calendar
-  ✅ FRED (56 economic series) → macro data (SOFR, yields, employment, inflation, housing, etc)
-  ✅ FINRA → short interest
-  ✅ Alpaca SIP → market prices
-  ✅ NYSE/NASDAQ → trading calendar
-  ✅ yfinance → analyst ratings (only free source), put/call ratio
+  [OK] SEC EDGAR (companyfacts API) - financial statements, valuations, dividends, segment data
+  [OK] SEC Forms 3/4/5 - insider transaction data
+  [OK] SEC 13F - institutional holdings
+  [OK] SEC 8-K/10-K/10-Q - current reports, earnings calendar
+  [OK] FRED (56 economic series) - macro data (SOFR, yields, employment, inflation, housing, etc)
+  [OK] FINRA - short interest
+  [OK] Alpaca SIP - market prices
+  [OK] NYSE/NASDAQ - trading calendar
+  [OK] yfinance - analyst ratings (only free source), put/call ratio
 
 POTENTIALLY USEFUL SOURCES NOT YET INTEGRATED:
-  ❓ SEC EDGAR - Supplemental Detail Tables (for complex financial statement analysis)
-  ❓ SEC EDGAR - Revisions/Amendments (track data corrections)
-  ❓ NIST/SEC Cybersecurity Risk Disclosure (new 2023 requirement, 8-K Item 1.05)
-  ❓ Fed Funds Rate forecasts (CME FedWatch) vs actual SOFR
-  ❓ CFTC Commitments of Traders (COT reports) for commodity exposure
-  ❓ Options flow data (IV rank/percentile for volatility regime)
-  ❓ Insider trading velocity by sector (FINRA forms)
-  ❓ Activist investor alerts (13D/13G filings)
-  ❓ Debt/equity offering alerts
-  ❓ Analyst estimate revisions history (not just current consensus)
-  ❓ Corporate event calendar (splits, dividends, earnings)
-  ❓ ESG data (MSCI/Sustainalytics - paid)
-  ❓ Supply chain disruption indices
+  [?] SEC EDGAR - Supplemental Detail Tables (for complex financial statement analysis)
+  [?] SEC EDGAR - Revisions/Amendments (track data corrections)
+  [?] NIST/SEC Cybersecurity Risk Disclosure (new 2023 requirement, 8-K Item 1.05)
+  [?] Fed Funds Rate forecasts (CME FedWatch) vs actual SOFR
+  [?] CFTC Commitments of Traders (COT reports) for commodity exposure
+  [?] Options flow data (IV rank/percentile for volatility regime)
+  [?] Insider trading velocity by sector (FINRA forms)
+  [?] Activist investor alerts (13D/13G filings)
+  [?] Debt/equity offering alerts
+  [?] Analyst estimate revisions history (not just current consensus)
+  [?] Corporate event calendar (splits, dividends, earnings)
+  [?] ESG data (MSCI/Sustainalytics - paid)
+  [?] Supply chain disruption indices
 
 KNOWN INCOMPLETE INTEGRATIONS:
-  ⚠️  Institutional holdings (13F) - OpenFIGI crosswalk backfill ongoing
-  ⚠️  TTM financial statements - requires aggregation logic (low priority)
-  ⚠️  Historical backfill - many columns have NULL before fix dates
+  [WARN] Institutional holdings (13F) - OpenFIGI crosswalk backfill ongoing
+  [WARN] TTM financial statements - requires aggregation logic (low priority)
+  [WARN] Historical backfill - many columns have NULL before fix dates
 """)
 
 def audit_schema_gaps():
