@@ -1098,8 +1098,15 @@ def _get_risk_metrics(cur: cursor) -> Any:
         var_95 = data.get("var_pct_95")
         cvar_95 = data.get("cvar_pct_95")
         stressed_var = data.get("stressed_var_pct")
+        # Beta and Concentration are required fields - fail if missing
         portfolio_beta = data.get("portfolio_beta")
+        if portfolio_beta is None:
+            logger.error("Risk metrics database row missing required 'portfolio_beta' field")
+            return error_response(503, "incomplete_risk_data", "Portfolio beta required but missing from database")
         concentration = data.get("top_5_concentration")
+        if concentration is None:
+            logger.error("Risk metrics database row missing required 'top_5_concentration' field")
+            return error_response(503, "incomplete_risk_data", "Top 5 concentration required but missing from database")
 
         # Check if there are any open positions (needed by dashboard to determine if beta should display)
         cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")

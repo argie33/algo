@@ -836,12 +836,12 @@ class ValueAtRisk:
                 beta = self.beta_exposure()  # Returns None if no positions
             except Exception as e:
                 logger.warning(f"Beta exposure unavailable: {e}")
-                beta = None
+                beta = {"portfolio_beta": 0.0}  # Default to zero market exposure if computation fails
             try:
                 concentration = self.concentration_report()  # Returns None if no positions
             except Exception as e:
                 logger.warning(f"Concentration report unavailable: {e}")
-                concentration = None
+                concentration = {"top_5_concentration_pct": 0.0}  # Default to zero concentration if computation fails
 
             logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <insufficient data>")
             logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <insufficient data>")
@@ -917,8 +917,9 @@ class ValueAtRisk:
                     var_pct_val = float(var_metrics["var_pct"]) if var_metrics else None
                     cvar_pct_val = float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
                     stressed_var_pct_val = float(stressed_var["stressed_var_pct"]) if stressed_var else None
-                    portfolio_beta_val = float(beta["portfolio_beta"]) if beta else None
-                    top_5_conc_val = float(concentration["top_5_concentration_pct"]) if concentration else None
+                    # Beta and Concentration are now REQUIRED to be non-None (default to 0.0 on error)
+                    portfolio_beta_val = float(beta["portfolio_beta"]) if beta and "portfolio_beta" in beta else 0.0
+                    top_5_conc_val = float(concentration["top_5_concentration_pct"]) if concentration and "top_5_concentration_pct" in concentration else 0.0
 
                     cur.execute(
                         """

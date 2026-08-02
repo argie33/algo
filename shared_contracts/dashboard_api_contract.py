@@ -651,25 +651,24 @@ DASHBOARD_ENDPOINTS = {
         "method": "GET",
         "description": "Risk metrics (VaR, CVaR, beta, concentration)",
         "response_schema": ResponseSchema(
-            required_fields=[],
+            required_fields=["portfolio_beta", "top_5_concentration"],
             optional_fields=[
                 "report_date",
                 "var_pct_95",
                 "cvar_pct_95",
                 "stressed_var_pct",
-                "portfolio_beta",
-                "top_5_concentration",
                 "svar",
                 "has_positions",
             ],
             field_types={
                 "var_pct_95": (float, int),
                 "portfolio_beta": (float, int),
+                "top_5_concentration": (float, int),
             },
             description="Risk metrics and exposures",
         ),
         "freshness_max_age_seconds": 3600,
-        "strict_fields": [],
+        "strict_fields": ["portfolio_beta", "top_5_concentration"],
         "critical": False,
     },
     "perf_anl": {
