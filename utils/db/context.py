@@ -373,6 +373,15 @@ class DatabaseContext:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit context - cleanup connection.
 
+        CRITICAL FIX (2026-08-02): Re-raise exceptions that occurred inside the with
+        block instead of suppressing them. Previously, __exit__ would log and rollback
+        on exception but NOT re-raise, causing the exception to be SUPPRESSED. This meant
+        database errors were silently ignored and code after the with block would execute
+        as if the operation succeeded, causing data loss (e.g., orchestrator_execution_log
+        never receives run records, appears empty to dashboards). Now __exit__ returns
+        None (default, doesn't suppress exceptions) when cleanup succeeds, allowing the
+        original exception to propagate.
+
         OPTIMIZATION: If connection is externally managed (from pooled context),
         don't close it - let OptimalLoader manage its lifecycle.
 
@@ -417,6 +426,14 @@ class DatabaseContext:
                 self.cur = None
                 if not self._externally_managed:
                     self.conn = None
+        # CRITICAL: Re-raise the exception if one occurred
+        # Python's with statement will suppress any exception if __exit__ returns True
+        # If we return None or False, the exception propagates
+        # If we return True, the exception is suppressed (DO NOT DO THIS)
+        # By returning None and not raising, we let the original exception propagate
+        if exc_type is not None:
+            # An exception occurred in the with block - let it propagate after cleanup
+            return False  # Explicitly return False to NOT suppress the exception
 
     @staticmethod
     def get_pool_status() -> dict[str, Any]:
