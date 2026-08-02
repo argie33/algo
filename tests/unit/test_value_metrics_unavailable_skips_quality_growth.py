@@ -67,11 +67,14 @@ class TestValueUnavailableStillWritesQualityAndGrowth:
             patch.object(loader, "_insert_quality_metrics") as mock_insert_quality,
             patch.object(loader, "_insert_growth_metrics") as mock_insert_growth,
             patch("loaders.load_value_quality_growth_metrics.DatabaseContext") as mock_db_ctx,
+            patch("utils.loaders.status_manager.DatabaseContext") as mock_status_db_ctx,
             patch("utils.loaders.config.get_default_parallelism", return_value=1),
         ):
             mock_cur = MagicMock()
             mock_cur.fetchone.return_value = (1,)  # non-zero "today" verification counts
+            mock_cur.rowcount = 1
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_status_db_ctx.return_value.__enter__.return_value = mock_cur
 
             result = loader.run([symbol])
 

@@ -36,7 +36,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "force_partial_at_r": None,
         "halt_new_entries": False,
         "force_exit_negative_r": False,
-        "max_concentration_pct": 20.0,
+        "max_concentration_pct": 28.0,  # TUNING FIX (2026-08-02): Raised from 20% to 28%. Was forcing exits at winners. -2.43% avg return on forced exits.
         "color": "green",
     },
     {
@@ -51,7 +51,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "force_partial_at_r": None,
         "halt_new_entries": False,
         "force_exit_negative_r": False,
-        "max_concentration_pct": 16.0,
+        "max_concentration_pct": 22.0,  # TUNING FIX (2026-08-02): Raised from 16% to 22%. Better scaling for winners under market pressure.
         "color": "yellow",
     },
     {
