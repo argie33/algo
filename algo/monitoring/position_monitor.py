@@ -466,19 +466,16 @@ class PositionMonitor:
             # Without lock: Phase 3 reads -> Phase 6 modifies -> Phase 3 evaluates stale data
             # With lock: Phase 3 locks positions -> Phase 6 must wait -> reads current state
             cursor.execute(
-                f"""
-                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
-                       t.target_1_price, t.target_2_price, t.target_3_price,
-                       t.trade_date, t.signal_date,
-                       p.position_id, p.quantity, p.target_levels_hit,
-                       p.current_stop_price, p.current_price
-                FROM algo_trades t
-                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
-                  AND p.trade_ids_arr IS NOT NULL AND array_length(p.trade_ids_arr, 1) > 0
-                FOR UPDATE OF p, t
-                """,
-                tuple(open_statuses),
+                """
+                SELECT p.id, p.symbol, p.entry_price, p.stop_loss_price,
+                       p.target_1_price, p.target_2_price, p.target_3_price,
+                       p.entry_date, p.created_at,
+                       p.id, p.quantity, NULL,
+                       p.stop_loss_price, p.current_price
+                FROM algo_positions p
+                WHERE p.status = 'open' AND p.quantity > 0
+                FOR UPDATE OF p
+                """
             )
             positions = cursor.fetchall()
 
@@ -1546,7 +1543,7 @@ class PositionMonitor:
                                       ELSE NULL END,
                     days_since_entry = %s,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE position_id = %s
+                WHERE id = %s
                 """,
                 (
                     current_price,
@@ -1622,8 +1619,8 @@ class PositionMonitor:
         ctx = DatabaseContext("write")
         with ctx as cur:
             cur.execute("""
-                SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
-                       ap.avg_entry_price AS entry_price, ap.trade_ids_arr
+                SELECT ap.id, ap.symbol, ap.quantity, ap.stop_loss_price,
+                       ap.avg_entry_price AS entry_price
                 FROM algo_positions ap
                 WHERE ap.status = 'open'
             """)
@@ -1631,11 +1628,11 @@ class PositionMonitor:
 
             alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
 
-            for pos_id, symbol, db_qty, db_stop, _entry_price, trade_ids_arr in positions:
+            for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
                 try:
                     alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
                     self._handle_qty_variance(
-                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments
+                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, None, adjustments
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
@@ -1742,7 +1739,7 @@ class PositionMonitor:
                    exit_reason = %s,
                    profit_loss_dollars = (current_price - avg_entry_price) * quantity,
                    unrealized_pnl = NULL
-                   WHERE position_id = %s""",
+                   WHERE id = %s""",
                 ("position_closed_at_broker", pos_id),
             )
             adjustments.append(
@@ -1768,7 +1765,7 @@ class PositionMonitor:
         if qty_change_pct <= 20:
             return
 
-        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, trade_ids_arr, adjustments)
+        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, None, adjustments)
 
     def _apply_split_adjustment(
         self,
@@ -1834,7 +1831,7 @@ class PositionMonitor:
             """
             UPDATE algo_positions
             SET quantity = %s,
-                current_stop_price = %s,
+                stop_loss_price = %s,
                 entry_price = ROUND(entry_price / %s, 2),
                 avg_entry_price = ROUND(avg_entry_price / %s, 2),
                 stop_loss_price = ROUND(stop_loss_price / %s, 2),
@@ -1842,7 +1839,7 @@ class PositionMonitor:
                 target_2_price = ROUND(target_2_price / %s, 2),
                 target_3_price = ROUND(target_3_price / %s, 2),
                 initial_risk_per_share = ROUND(initial_risk_per_share / %s, 4)
-            WHERE position_id = %s
+            WHERE id = %s
             """,
             (alpaca_qty, new_stop, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, ratio_f, pos_id),
         )

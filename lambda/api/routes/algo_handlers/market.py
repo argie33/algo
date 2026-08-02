@@ -374,9 +374,14 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "SELECT COUNT(*) AS row_count, MAX(signal_date) AS last_updated FROM algo_signals",
             ),
             # Phase 9: Portfolio snapshots
+            # CRITICAL FIX: Use MAX(updated_at) not MAX(snapshot_date) for freshness
+            # snapshot_date is DATE-only (midnight); updated_at reflects actual last write time
+            # API endpoint (_get_algo_portfolio) calculates data_age_seconds from updated_at,
+            # so health panel must use same column or staleness checks diverge
+            # (confirmed: portfolio panel shows 29h old while health showed "OK" at 1d old)
             (
                 "algo_portfolio_snapshots",
-                "SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS last_updated FROM algo_portfolio_snapshots",
+                "SELECT COUNT(*) AS row_count, MAX(updated_at) AS last_updated FROM algo_portfolio_snapshots",
             ),
             # Phase 9: Daily equity curve
             (

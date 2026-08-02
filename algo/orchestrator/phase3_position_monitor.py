@@ -118,10 +118,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # read-modify-write race: Phase 3 reads, calculates new price, Phase 6 reads at same time,
                 # then Phase 3 writes, then Phase 6 writes, causing Phase 3 update to be lost.
                 cur.execute("""
-                    SELECT position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price
+                    SELECT id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price
                     FROM algo_positions
                     WHERE status = 'open' AND quantity > 0
-                    ORDER BY position_id
+                    ORDER BY id
                     FOR UPDATE OF algo_positions
                 """)
                 positions = cur.fetchall()
@@ -133,7 +133,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         raise RuntimeError(
                             f"[PHASE 3] Position query returned {len(positions[0])} columns, expected exactly 7. "
                             f"Schema drift detected - cannot extract all position fields. "
-                            f"Query must return: (position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price)"
+                            f"Query must return: (id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price)"
                         )
                     # Validate that ALL positions have the same structure
                     for idx, row in enumerate(positions):
@@ -145,7 +145,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                 # Get latest prices from price_daily table for all open symbols
                 # Use RowAccessor for type-safe column access instead of magic indices
-                position_columns = ["position_id", "symbol", "quantity", "current_price", "entry_date", "stop_loss_price", "avg_entry_price"]
+                position_columns = ["id", "symbol", "quantity", "current_price", "entry_date", "stop_loss_price", "avg_entry_price"]
                 try:
                     open_symbols = [
                         RowAccessor(row, position_columns, "position_fetch").get_str(1)  # symbol at index 1
@@ -245,7 +245,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         update_errors.append(("UNKNOWN", f"Row {update_idx} has {len(row)} columns, expected 7"))
                         continue
                     try:
-                        position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry = row
+                        pos_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry = row
                     except (ValueError, TypeError) as unpack_err:
                         logger.error(f"[PHASE 3] Failed to unpack position row {update_idx}: {unpack_err}")
                         update_errors.append(("UNKNOWN", f"Row {update_idx} unpack failed: {str(unpack_err)[:50]}"))
@@ -363,7 +363,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 days_since_entry = %s,
                                 ladder_pct_stop = %s,
                                 updated_at = CURRENT_TIMESTAMP
-                            WHERE position_id = %s
+                            WHERE id = %s
                             """,
                             (
                                 current_price,
@@ -374,7 +374,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 current_price,
                                 days_since_entry,
                                 ladder_pct_stop,
-                                position_id,
+                                pos_id,
                             ),
                         )
                         updated += 1
