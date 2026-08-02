@@ -42,6 +42,7 @@ def test_alert_sent_when_exit_errors_occur():
         # Mock the open position count check to return 0 open positions
         mock_cur = MagicMock()
         mock_cur.fetchone.return_value = (0,)  # No open positions
+        mock_cur.fetchall.return_value = []  # No positions for concentration checks
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False
 
@@ -82,6 +83,7 @@ def test_no_alert_when_no_exit_errors():
         # Mock the open position count check to return 0 open positions
         mock_cur = MagicMock()
         mock_cur.fetchone.return_value = (0,)  # No open positions
+        mock_cur.fetchall.return_value = []  # No positions for concentration checks
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False
 

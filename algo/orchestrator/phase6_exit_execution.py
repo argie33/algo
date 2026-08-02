@@ -197,7 +197,14 @@ def run(
                     concentrated_sectors = cur.fetchall()
                     rebalance_actions = []
 
-                    for sector, count in concentrated_sectors:
+                    for row in concentrated_sectors:
+                        if len(row) < 2:
+                            logger.warning(
+                                f"[PHASE 6 CONCENTRATION] Sector row has {len(row)} columns, expected 2. "
+                                f"Skipping malformed row: {row}"
+                            )
+                            continue
+                        sector, count = row[0], row[1]
                         count_int = int(count) if count is not None else 0
                         # CRITICAL: re-ensure max_per_sector is int for subtraction
                         max_per_sector_int = int(max_per_sector)
@@ -216,7 +223,14 @@ def run(
                         """, (sector, int(over_limit)))
 
                         weak_positions = cur.fetchall()
-                        for pos_id, symbol in weak_positions:
+                        for row in weak_positions:
+                            if len(row) < 2:
+                                logger.warning(
+                                    f"[PHASE 6 WEAK_POSITIONS] Position row has {len(row)} columns, expected 2. "
+                                    f"Skipping malformed row: {row}"
+                                )
+                                continue
+                            pos_id, symbol = row[0], row[1]
                             action = {
                                 "symbol": symbol,
                                 "position_id": pos_id,
@@ -262,6 +276,11 @@ def run(
                     count_row = cur.fetchone()
                     if count_row is None:
                         raise RuntimeError("[PHASE 6] Query for position count returned NULL")
+                    if len(count_row) < 2:
+                        raise RuntimeError(
+                            f"[PHASE 6] Position count query returned {len(count_row)} columns, expected 2. "
+                            f"Database schema or query result structure corruption detected."
+                        )
                     total_open_positions = count_row[0]
                     null_position_values = count_row[1] if count_row[1] is not None else 0
 
@@ -283,6 +302,11 @@ def run(
                     result = cur.fetchone()
                     if result is None:
                         raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
+                    if len(result) < 1:
+                        raise RuntimeError(
+                            f"[PHASE 6] Sum query returned {len(result)} columns, expected 1. "
+                            f"Database query result structure corruption detected."
+                        )
                     total_value = result[0]
                     if total_value is None:
                         # This should NOT happen after the NULL check above, but guard against it anyway

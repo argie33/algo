@@ -61,6 +61,7 @@ def test_phase6_dry_run_counts_exits():
         # Set up mock cursor
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = (150.0,)  # current_price
+        mock_cursor.fetchall.return_value = []  # No positions for concentration check (empty portfolio)
         mock_cursor.rowcount = 1
         mock_context = MagicMock()
         mock_context.__enter__.return_value = mock_cursor
