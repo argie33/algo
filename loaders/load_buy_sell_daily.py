@@ -117,9 +117,10 @@ class SignalsDailyLoader(OptimalLoader):
 
                 original_count = len(symbols)
                 symbols = [s for s in symbols if s in scored_symbols]
+                pct_retained = (len(symbols) / original_count * 100) if original_count > 0 else 0.0
                 logger.info(
                     f"[UNIVERSE FILTER] Filtered buy_sell_daily symbols to stock_scores universe: "
-                    f"{original_count} → {len(symbols)} symbols ({len(symbols) / original_count * 100:.1f}% retained)"
+                    f"{original_count} → {len(symbols)} symbols ({pct_retained:.1f}% retained)"
                 )
 
                 # DATA DELETION REMOVED (Session 262 Fix)
@@ -214,10 +215,11 @@ class SignalsDailyLoader(OptimalLoader):
 
                 symbols_before_price_filter = len(symbols)
                 symbols = [s for s in symbols if s in price_symbols]
+                pct_retained_price = (len(symbols) / symbols_before_price_filter * 100) if symbols_before_price_filter > 0 else 0.0
                 logger.info(
                     f"[PRICE_FILTER] Filtered to symbols with price_daily data on {price_data_date}: "
                     f"{symbols_before_price_filter} → {len(symbols)} symbols "
-                    f"({len(symbols) / symbols_before_price_filter * 100:.1f}% retained, price_data has {price_data_count} total)"
+                    f"({pct_retained_price:.1f}% retained, price_data has {price_data_count} total)"
                 )
 
                 if not symbols:
