@@ -1,17 +1,33 @@
-# Project
+# Working with This Project
 
+## Quick Start
+
+**Local development — always use this entry point:**
 ```bash
-python start_dashboard_dev.py                          # Local dev
-python scripts/run_local_orchestrator.py               # Test orchestrator
+python start_dashboard_dev.py                          # Starts loaders + API + dashboard
 ```
 
-**Data not available?** → Check staleness, then run orchestrator tests
+**Test orchestrator logic locally:**
+```bash
+python scripts/run_local_orchestrator.py [--afternoon|--evening]
+```
 
-**Rules:** Type-safe. No `.env`/`pdb`. Data integrity first. Always use `start_dashboard_dev.py` for local dev.
+**Troubleshooting data issues:**
+```bash
+python scripts/monitor_data_staleness.py               # Check freshness
+python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stuck
+```
 
-**Data staleness:** `python scripts/monitor_data_staleness.py` + `python scripts/verify_eventbridge_scheduler.py --fix`
+## Core Rules (Non-Negotiable)
 
-**Orchestrator testing:** `python scripts/run_local_orchestrator.py [--afternoon|--evening]`
+**Data integrity first.** These rules prevent real bugs:
+- Type-safe code (mypy pass required)
+- No `.env` committed; use `.env.local` for secrets
+- No `pdb` in production code
+- Always use `start_dashboard_dev.py` for dev (not raw orchestrator)
+- Load-bearing rules in `MEMORY.md` apply directly — don't question, verify in code
+
+**Why:** This system runs production trading logic. Mistakes compound fast. The rules in memory exist because we've debugged those bugs before.
 
 ---
 
@@ -23,16 +39,28 @@ python scripts/run_local_orchestrator.py               # Test orchestrator
 
 ---
 
-## Token Optimization
+## Memory System
 
-**Keep context lean:** Session-specific docs/logs/audits belong in memory, not root. Delete after sessions.
+**Load-bearing rules live in `MEMORY.md`** — organized by domain (Database, Phases, Infrastructure, Git, etc.). Before touching code in those areas, check the relevant rule and apply it.
 
-**Monthly maintenance:** 
+**Session-specific findings get deleted when the session ends:**
+- Status reports, audit logs, temp debug findings → remove when done
+- Only permanent code-level rules stay
+
+**Before saving memory:**
+- Verify the claim in DB/code (don't trust descriptions)
+- Read the "Why" so you understand the actual bug being prevented
+- Use the memory safety protocol from `MEMORY.md`
+
+---
+
+## Repository Maintenance
+
+**Monthly cleanup:**
 ```bash
-git stash clear                          # Clear uncommitted work storage
-git gc --aggressive --prune=now          # Compact .git (frees 50-100 MB)
+git stash clear                                # Clear uncommitted work storage  
+git gc --aggressive --prune=now                # Compact .git (frees 50-100 MB)
 ```
 
-**What to keep:** Code, tests, IaC, config. **What to delete:** .log files, audit reports, debug scripts, worktree branches.
-
-**Memory best practice:** Only load-bearing rules in memory (safety gates, bugs, patterns). Session findings → delete when session ends.
+**What to keep:** Code, tests, IaC, config files.
+**What to delete:** `.log` files, audit reports, debug scripts, worktree branches, dated session findings from memory.

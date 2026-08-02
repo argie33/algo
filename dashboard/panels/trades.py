@@ -505,22 +505,29 @@ def panel_trades_expanded(trades: Any) -> Any:
         exit_date = safe_get_field(tr, "exit_date")
         exit_rsn_val = safe_get_field(tr, "exit_reason")
         if exit_rsn_val is None:
-            logger.warning(
-                f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: exit_reason field missing from API response. "
-                f"Cannot determine exit trigger. Expected one of {list(exit_short.keys())}."
-            )
-            exit_rsn_raw = ""
+            exit_rsn = "--"
         else:
             exit_rsn_raw = str(exit_rsn_val).lower().strip()
-            if exit_rsn_raw not in exit_short:
-                if "stop triggered at" in exit_rsn_raw:
-                    exit_rsn_raw = "stop"
-                else:
-                    logger.warning(
-                        f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: unknown exit_reason '{exit_rsn_raw}'. "
-                        f"Expected one of {list(exit_short.keys())}. Check API schema or add mapping."
-                    )
-        exit_rsn = exit_short.get(exit_rsn_raw, "--")
+            # Try direct mapping first
+            if exit_rsn_raw in exit_short:
+                exit_rsn = exit_short[exit_rsn_raw]
+            elif "stop triggered at" in exit_rsn_raw:
+                exit_rsn = "stop"
+            # Phase 6 generated reasons - pattern-based mapping
+            elif "force_exit" in exit_rsn_raw and "concentration" in exit_rsn_raw:
+                exit_rsn = "conc"
+            elif "force_exit" in exit_rsn_raw:
+                exit_rsn = "force"
+            elif "stop loss hit" in exit_rsn_raw:
+                exit_rsn = "stop"
+            elif "minervini" in exit_rsn_raw:
+                exit_rsn = "mv"
+            elif "health flag" in exit_rsn_raw:
+                exit_rsn = "hlth"
+            elif "rs line" in exit_rsn_raw:
+                exit_rsn = "rs"
+            else:
+                exit_rsn = "--"
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
         # DIM (not R) when unavailable - see panel_completed_trades' identical fix above.
