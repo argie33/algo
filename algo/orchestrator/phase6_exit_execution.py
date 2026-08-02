@@ -253,6 +253,31 @@ def run(
                     raise ValueError(f"max_position_size_pct must be numeric, got {type(max_size_pct_val).__name__}: {max_size_pct_val}") from te
 
                 with DatabaseContext("read") as cur:
+                    # CRITICAL: Check for NULL position_value entries which would corrupt SUM()
+                    # If ANY position has position_value=NULL, SUM() returns NULL, masking total value
+                    cur.execute("""
+                        SELECT COUNT(*), COUNT(CASE WHEN position_value IS NULL THEN 1 END)
+                        FROM algo_positions WHERE status='open'
+                    """)
+                    count_row = cur.fetchone()
+                    if count_row is None:
+                        raise RuntimeError("[PHASE 6] Query for position count returned NULL")
+                    total_open_positions = count_row[0]
+                    null_position_values = count_row[1] if count_row[1] is not None else 0
+
+                    if null_position_values > 0:
+                        logger.critical(
+                            f"[PHASE 6 CRITICAL] {null_position_values} open positions have NULL position_value. "
+                            f"This indicates data integrity failure in position_value field. "
+                            f"Concentration check cannot proceed - cannot assess total portfolio value when position values are missing. "
+                            f"This usually means Phase 3 failed to update position_value. "
+                            f"Halting concentration check to prevent silent oversized position detection failure."
+                        )
+                        raise RuntimeError(
+                            f"[PHASE 6] Data integrity: {null_position_values}/{total_open_positions} positions have NULL position_value. "
+                            f"Cannot assess concentration risk without valid position values."
+                        )
+
                     # Get total portfolio value
                     cur.execute("SELECT SUM(position_value) FROM algo_positions WHERE status='open'")
                     result = cur.fetchone()
@@ -260,9 +285,16 @@ def run(
                         raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
                     total_value = result[0]
                     if total_value is None:
-                        total_value_float = 0.0
-                    else:
-                        total_value_float = float(total_value)
+                        # This should NOT happen after the NULL check above, but guard against it anyway
+                        logger.critical(
+                            "[PHASE 6 CRITICAL] SUM(position_value) returned NULL despite NULL count check passing. "
+                            "This indicates data type corruption (position_value might contain non-numeric values). "
+                            "Halting concentration check to prevent silent oversized detection failure."
+                        )
+                        raise RuntimeError(
+                            "[PHASE 6] Data corruption: SUM(position_value) is NULL - position_value fields may contain non-numeric values"
+                        )
+                    total_value_float = float(total_value)
 
                     if total_value_float <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
