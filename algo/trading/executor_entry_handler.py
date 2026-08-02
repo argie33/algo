@@ -298,11 +298,11 @@ class EntryHandler:
                 # executed_price=entry_price - a price nothing was ever actually filled at)
                 # instead of halting - the "else: Live mode: Alpaca failure is a hard stop"
                 # branch below was completely unreachable dead code for every valid
-                # execution_mode value. Scoped to paper-only: paper mode legitimately wants to
-                # keep tracking a hypothetical trade for backtesting even without Alpaca
-                # connectivity (it was never going to touch real money either way); auto mode
+                # execution_mode value. Scoped to paper/dry modes: both are LOCAL-only and legitimately want to
+                # keep tracking hypothetical trades for backtesting even without Alpaca
+                # connectivity (they never touch real money either way); review/auto modes
                 # must now correctly fall through to the hard-stop branch.
-                if execution_mode == "paper":
+                if execution_mode in ("paper", "dry"):
                     logger.warning(
                         f"[PAPER MODE] {symbol}: Alpaca order failed ({order_error}), "
                         f"but creating trade record in paper mode for backtest/tracking"
