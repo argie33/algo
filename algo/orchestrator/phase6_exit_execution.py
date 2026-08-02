@@ -52,11 +52,12 @@ def _ensure_float(val: Any, field_name: str = "value") -> float:
         raise ValueError(f"Cannot convert None {field_name} to float")
     try:
         # Force conversion through native Python float to eliminate numpy/psycopg2 types
-        # Convert twice to eliminate any remnants of Decimal/numpy types
-        result = float(val)
-        native_float = float(result)  # Double conversion to ensure native type
-        if not isinstance(native_float, float):
-            raise TypeError(f"{field_name}: double float() returned {type(native_float).__name__}, not native float")
+        # First, convert to string then to float to break Decimal type binding
+        # This is more robust than float() which can sometimes return Decimal-derived types
+        result = float(str(val))
+        native_float = float(result)  # Second conversion to ensure native type
+        if not isinstance(native_float, float) or isinstance(native_float, bool):
+            raise TypeError(f"{field_name}: conversion returned {type(native_float).__name__}, not native float")
         return native_float
     except (TypeError, ValueError) as e:
         raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to native Python float: {e}") from e
@@ -327,7 +328,7 @@ def run(
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
                         # Ensure over_limit is an int for the LIMIT clause
                         cur.execute("""
-                            SELECT ap.position_id, ap.symbol
+                            SELECT ap.id, ap.symbol
                             FROM algo_positions ap
                             JOIN company_profile cs ON ap.symbol = cs.symbol
                             WHERE ap.status = 'open' AND cs.sector = %s
@@ -436,7 +437,7 @@ def run(
 
                     # Find positions exceeding size limit
                     cur.execute("""
-                        SELECT ap.position_id, ap.symbol, ap.position_value
+                        SELECT ap.id, ap.symbol, ap.position_value
                         FROM algo_positions ap
                         WHERE ap.status = 'open'
                         ORDER BY ap.position_value DESC
