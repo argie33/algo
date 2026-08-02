@@ -367,7 +367,14 @@ def _get_candidates_from_buysell(
 
     SWING SCORE MIGRATION: Removed swing_trader_scores LEFT JOIN (was fetched but never used).
     All signal ranking now uses composite_score only.
+
+    FIX: Use configured min_completeness_score threshold instead of hardcoded 70 (Session 2026-08-02).
+    Hardcoded threshold was blocking signals for 65%+ of universe when config specified 35.
     """
+    from algo.infrastructure.config import AlgoConfig
+    config_obj = AlgoConfig()
+    min_completeness_threshold = config_obj.get_field("min_completeness_score", default=70)
+
     lookback_date = _buysell_lookback_start_date(run_date)
     try:
         with DatabaseContext("read") as cur:
@@ -436,7 +443,7 @@ def _get_candidates_from_buysell(
                     ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.symbol = bsd.symbol
                     WHERE ss.composite_score >= %s
-                      AND ss.data_completeness >= 70
+                      AND ss.data_completeness >= %s
                       AND (ss.data_unavailable = false OR ss.data_unavailable IS NULL)
                       AND p.close > sma.avg_close
                       AND p.high > p.low
@@ -456,6 +463,7 @@ def _get_candidates_from_buysell(
                     run_date,
                     run_date,
                     min_score,
+                    min_completeness_threshold,
                     min_close_quality,
                     limit,
                 ),

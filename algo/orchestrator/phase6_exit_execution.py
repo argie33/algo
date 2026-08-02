@@ -25,6 +25,51 @@ from utils.trading.status import PositionStatus
 logger = logging.getLogger(__name__)
 
 
+def _ensure_int(val: Any, field_name: str = "value") -> int:
+    """Convert any integer value to native Python int with diagnostic logging."""
+    if val is None:
+        raise ValueError(f"Cannot convert None {field_name} to int")
+    if isinstance(val, int) and not isinstance(val, bool):
+        return val
+    if isinstance(val, Decimal):
+        result = int(val)
+        if not isinstance(result, int) or isinstance(result, bool):
+            raise TypeError(f"{field_name}: int(Decimal) returned {type(result).__name__} not int")
+        return result
+    try:
+        result = int(val)
+        if not isinstance(result, int) or isinstance(result, bool):
+            raise TypeError(f"{field_name}: int() returned {type(result).__name__} not int")
+        return result
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to int: {e}") from e
+
+
+def _ensure_float(val: Any, field_name: str = "value") -> float:
+    """Convert any numeric value to native Python float, handling psycopg2 Decimal types."""
+    if val is None:
+        raise ValueError(f"Cannot convert None {field_name} to float")
+    if isinstance(val, float):
+        return val
+    if isinstance(val, Decimal):
+        result = float(val)
+        if not isinstance(result, float):
+            raise TypeError(f"{field_name}: float(Decimal) returned {type(result).__name__} not float")
+        return result
+    if isinstance(val, int):
+        result = float(val)
+        if not isinstance(result, float):
+            raise TypeError(f"{field_name}: float(int) returned {type(result).__name__} not float")
+        return result
+    try:
+        result = float(val)
+        if not isinstance(result, float):
+            raise TypeError(f"{field_name}: float() returned {type(result).__name__} not float")
+        return result
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to float: {e}") from e
+
+
 def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dict[str, Any]:
     """Execute exit trade with exponential backoff retry on transient failures.
 
@@ -719,6 +764,13 @@ def run(
                             )
                     else:
                         try:
+                            # CRITICAL: new_stop must be present for tighten_stop action
+                            if "new_stop" not in action:
+                                raise RuntimeError(
+                                    f"[PHASE 6] tighten_stop action missing required 'new_stop' field. "
+                                    f"Action: {action}. "
+                                    f"Cannot update stop price without target value."
+                                )
                             with DatabaseContext("write") as cur:
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
