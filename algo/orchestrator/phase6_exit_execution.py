@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import time
 from collections.abc import Callable
 from datetime import date as _date
 from decimal import Decimal
@@ -22,6 +23,52 @@ from utils.db.context import DatabaseContext
 from utils.trading.status import PositionStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dict[str, Any]:
+    """Execute exit trade with exponential backoff retry on transient failures.
+
+    Args:
+        executor: TradeExecutor instance
+        max_retries: Maximum number of retry attempts (default 3)
+        **kwargs: Arguments to pass to executor.exit_trade()
+
+    Returns:
+        Result dict with success status
+
+    Raises:
+        RuntimeError: If all retries exhausted
+    """
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            result = executor.exit_trade(**kwargs)
+            return result
+        except (TimeoutError, ConnectionError, OSError) as e:
+            last_error = e
+            if attempt < max_retries:
+                wait_sec = 0.5 * (2 ** attempt)  # Exponential backoff: 0.5s, 1s, 2s
+                logger.warning(
+                    f"Exit trade attempt {attempt + 1}/{max_retries + 1} failed with transient error ({type(e).__name__}). "
+                    f"Retrying in {wait_sec:.1f}s... Trade ID: {kwargs.get('trade_id')}"
+                )
+                time.sleep(wait_sec)
+            else:
+                logger.error(
+                    f"Exit trade failed after {max_retries + 1} attempts with transient error: {type(e).__name__}: {e}. "
+                    f"Trade ID: {kwargs.get('trade_id')}"
+                )
+                raise RuntimeError(
+                    f"Exit trade failed after retries: {type(e).__name__}: {e}"
+                ) from e
+        except Exception as e:
+            # Non-transient errors (validation, auth, etc.) don't retry
+            logger.error(f"Exit trade failed with non-transient error: {type(e).__name__}: {e}")
+            result = {"success": False, "message": str(e)[:200]}
+            return result
+
+    # Should not reach here, but handle just in case
+    raise RuntimeError(f"Exit trade exhausted retries: {last_error}")
 
 
 def run(
