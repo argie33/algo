@@ -1057,7 +1057,7 @@ class ExitEngine:
                             raise DatabaseError(
                                 f"[EXIT_ENGINE CRITICAL] Transaction aborted - cannot continue evaluating positions. "
                                 f"First abort occurred at symbol {symbol}. Halting exit engine."
-                            ) from rollback_err
+                            ) from (rollback_err if rollback_err else None)
 
                         # Persist to an audit table, not just the logger - this process's stdout
                         # is gone the moment a scheduled/background run exits, and this is the
