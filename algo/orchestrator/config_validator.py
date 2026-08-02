@@ -6,6 +6,7 @@ and type mismatches. Each phase calls validate_phase_config() at entry to ensure
 required configuration keys are present and properly typed.
 """
 
+from decimal import Decimal
 from typing import Any
 
 
@@ -85,6 +86,9 @@ def get_config_str(config: Any, key: str, phase_name: str = "phase") -> str:
 def get_config_int(config: Any, key: str, phase_name: str = "phase", default: int | None = None) -> int:
     """Get an integer config value with error checking.
 
+    Handles numeric types from both Python and psycopg2 (which returns Decimal).
+    CRITICAL: psycopg2 returns Decimal from database numeric columns, so accept all numeric types.
+
     Args:
         config: Configuration object
         key: Config key to retrieve
@@ -95,7 +99,7 @@ def get_config_int(config: Any, key: str, phase_name: str = "phase", default: in
         Integer value from config
 
     Raises:
-        ConfigValidationError: If key is missing (and no default) or not an integer
+        ConfigValidationError: If key is missing (and no default) or not a number
     """
     value = config.get(key)
     if value is None:
@@ -104,15 +108,24 @@ def get_config_int(config: Any, key: str, phase_name: str = "phase", default: in
         raise ConfigValidationError(
             f"[{phase_name}] config['{key}'] is None - required integer config missing"
         )
-    if not isinstance(value, int):
+    # Accept int, float, and Decimal (from psycopg2 database values)
+    if not isinstance(value, (int, float, Decimal)):
         raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected int"
+            f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected numeric type (int/float/Decimal)"
         )
-    return value
+    try:
+        return int(value)
+    except (ValueError, TypeError) as e:
+        raise ConfigValidationError(
+            f"[{phase_name}] config['{key}'] value {value!r} cannot be converted to int: {e}"
+        ) from e
 
 
 def get_config_float(config: Any, key: str, phase_name: str = "phase", default: float | None = None) -> float:
     """Get a float config value with error checking.
+
+    Handles numeric types from both Python and psycopg2 (which returns Decimal).
+    CRITICAL: psycopg2 returns Decimal from database numeric columns, so accept all numeric types.
 
     Args:
         config: Configuration object
@@ -133,11 +146,17 @@ def get_config_float(config: Any, key: str, phase_name: str = "phase", default: 
         raise ConfigValidationError(
             f"[{phase_name}] config['{key}'] is None - required float config missing"
         )
-    if not isinstance(value, (int, float)):
+    # Accept int, float, and Decimal (from psycopg2 database values)
+    if not isinstance(value, (int, float, Decimal)):
         raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected int or float"
+            f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected numeric type (int/float/Decimal)"
         )
-    return float(value)
+    try:
+        return float(value)
+    except (ValueError, TypeError) as e:
+        raise ConfigValidationError(
+            f"[{phase_name}] config['{key}'] value {value!r} cannot be converted to float: {e}"
+        ) from e
 
 
 def get_config_bool(config: Any, key: str, phase_name: str = "phase", default: bool | None = None) -> bool:
