@@ -7,7 +7,6 @@ from algo.orchestrator.phase6_exit_execution import run as phase6_run
 from algo.orchestrator.phase_result import PhaseResult
 
 
-@pytest.mark.skip(reason="Complex mock setup needs refinement - focus on core position_monitor fix")
 def test_phase6_paper_trading_executes_and_reports_exits():
     """
     Integration test: Verify Phase 6 executes in paper trading mode and reports actual exit counts.
@@ -27,6 +26,7 @@ def test_phase6_paper_trading_executes_and_reports_exits():
         "chandelier_atr_mult": 3.0,
         # Phase 6 sector concentration check requires this config
         "max_positions_per_sector": 10,
+        "max_position_size_pct": 5.0,
     }
 
     # Simulate real position recommendations from Phase 3

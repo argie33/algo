@@ -183,7 +183,12 @@ class PositionContext:
         return False, None
 
     def check_rs_line_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
-        """RS line break: relative strength deterioration vs SPY."""
+        """RS line break: relative strength deterioration vs SPY.
+
+        TUNING FIX (2026-08-02): Only exit on RS line breaks if position is a LOSER.
+        Winners were being exited when sector weakened, destroying profits.
+        Now: RS line break only exits positions with R <= 0.5 (losers only).
+        """
         if "exit_on_rs_line_break_50dma" not in self.config:
             raise ValueError(
                 "CRITICAL: 'exit_on_rs_line_break_50dma' config missing. "
@@ -191,14 +196,32 @@ class PositionContext:
             )
         if self.config["exit_on_rs_line_break_50dma"]:
             if engine._rs_line_breaking(self.cur, self.symbol, self.current_date):
-                return (
-                    True,
-                    {
-                        "stage": "stop",
-                        "fraction": 1.0,
-                        "reason": "RS line broke below 50-DMA  - relative strength deterioration",
-                    },
-                )
+                # TUNING FIX: Calculate current R-multiple to check if position is a loser
+                # R = (current_price - entry_price) / (entry_price - stop_loss)
+                # Only exit if R <= 0.5 (loser), never exit winners when sector weakens
+                risk_per_share = self.entry_price - self.init_stop
+                if risk_per_share <= 0:
+                    logger.warning(f"[EXIT] {self.symbol}: RS line break check skipped - invalid risk_per_share")
+                    return False, None
+
+                current_r = (self.cur_price - self.entry_price) / risk_per_share
+                if current_r <= 0.5:
+                    # LOSER: Sector weakness + down money = exit cleanly
+                    return (
+                        True,
+                        {
+                            "stage": "stop",
+                            "fraction": 1.0,
+                            "reason": f"RS line broke below 50-DMA (loser: R={float(current_r):.2f})",
+                        },
+                    )
+                else:
+                    # WINNER: Sector weakness but position profitable - DO NOT EXIT
+                    logger.debug(
+                        f"[EXIT] {self.symbol}: RS line break ignored (winner: R={float(current_r):.2f}, "
+                        f"price=${float(self.cur_price):.2f}, entry=${float(self.entry_price):.2f})"
+                    )
+                    return False, None
         return False, None
 
     def check_time_exit(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
