@@ -362,21 +362,30 @@ def run(
                                 continue
                             pos_id, symbol = row[0], row[1]
 
-                            # CRITICAL: Fetch the trade_id for this position
-                            # Concentration check needs valid trade_id to execute exits
+                            # CRITICAL: Fetch the trade_ids for this position
+                            # Concentration check needs valid trade_ids to execute exits
                             cur.execute(
-                                "SELECT trade_id FROM algo_positions WHERE id = %s AND status = 'open'",
+                                "SELECT trade_ids FROM algo_positions WHERE id = %s AND status = 'open'",
                                 (pos_id,)
                             )
                             trade_row = cur.fetchone()
                             if trade_row is None or trade_row[0] is None:
                                 logger.warning(
-                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_id. "
+                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids. "
                                     f"Cannot force-exit without trade reference. Skipping this position."
                                 )
                                 continue
 
-                            trade_id = trade_row[0]
+                            trade_ids = trade_row[0]
+                            # Use first trade_id if multiple (trade_ids is a comma-separated string)
+                            trade_id = trade_ids.split(',')[0] if trade_ids else None
+                            if not trade_id:
+                                logger.warning(
+                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids malformed: {trade_ids}. "
+                                    f"Cannot parse trade reference. Skipping this position."
+                                )
+                                continue
+
                             action = {
                                 "symbol": symbol,
                                 "position_id": pos_id,
@@ -572,20 +581,29 @@ def run(
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:
-                        # Fetch trade_id for this oversized position
+                        # Fetch trade_ids for this oversized position
                         cur.execute(
-                            "SELECT trade_id FROM algo_positions WHERE id = %s AND status = 'open'",
+                            "SELECT trade_ids FROM algo_positions WHERE id = %s AND status = 'open'",
                             (pos_id,)
                         )
                         trade_row = cur.fetchone()
                         if trade_row is None or trade_row[0] is None:
                             logger.warning(
-                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_id. "
+                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids. "
                                 f"Cannot force-exit without trade reference. Skipping this position."
                             )
                             continue
 
-                        trade_id = trade_row[0]
+                        trade_ids = trade_row[0]
+                        # Use first trade_id if multiple (trade_ids is a comma-separated string)
+                        trade_id = trade_ids.split(',')[0] if trade_ids else None
+                        if not trade_id:
+                            logger.warning(
+                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids malformed: {trade_ids}. "
+                                f"Cannot parse trade reference. Skipping this position."
+                            )
+                            continue
+
                         action = {
                             "symbol": symbol,
                             "position_id": pos_id,
