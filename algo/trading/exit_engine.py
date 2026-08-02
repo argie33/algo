@@ -120,17 +120,21 @@ class PositionContext:
         self._validate_exit_config()
 
     def _validate_exit_config(self) -> None:
-        """Validate all exit rule config keys are present at initialization.
+        """Validate critical exit rule config keys are present at initialization.
 
-        Fail-fast on missing config rather than during individual rule checks.
-        This ensures all required exit parameters are defined before position
-        monitoring begins.
+        Only validates fields that are actually used in this position's exit checks.
+        Fail-fast on missing required config rather than during individual rule checks.
         """
+        # Minimal required config - fields used by all exit checks
         required_config_keys = {
             "exit_on_rs_line_break_50dma": bool,
             "max_hold_days": int,
             "eight_week_rule_threshold_pct": float,
             "eight_week_rule_window_days": int,
+        }
+
+        # Optional fields - only checked if actually used in exit chain
+        optional_config_keys = {
             "min_sqs_for_exit": float,
             "max_risk_per_trade_pct": float,
         }
@@ -471,26 +475,27 @@ class PositionContext:
 
             max_dd = int(max_dd_val)
             if self.dist_days_today > max_dd and not self._was_distribution_reduced_today():
-                # Unlike every other breakeven-raise trigger in this file (T1/T2 target hit,
-                # first_red_day, climax_exhaustion), this one has no profitability gate - it's
-                # a market-wide condition, not a per-position price level. Raising the stop to
-                # entry_price when cur_price is still BELOW entry_price puts the stop above the
-                # current price, guaranteeing an immediate full stop-out on the very next
-                # evaluation (even at the same price) instead of a genuine breakeven protection.
-                # Confirmed live 2026-07-27: 9 fresh positions all still slightly red got their
-                # stop raised to breakeven here, then were fully stopped out moments later at the
-                # same price, turning a 50% risk-reduction into a full loss across the whole
-                # portfolio simultaneously and tripping the consecutive-losses circuit breaker.
+                # CRITICAL FIX: Do NOT trigger distribution day exit for underwater positions
+                # Unlike every other exit signal, distribution days have no profitability requirement,
+                # which means underwater positions would exit 50% WITHOUT a corresponding stop raise,
+                # leaving the remaining half exposed at the original stop designed for the full position.
+                # This converts a recoverable loss into a cascading forced loss.
+                # Distribution exits should only apply to profitable or breakeven positions where
+                # the market condition justifies taking profit. For underwater positions, skip entirely.
                 at_or_above_breakeven = self.cur_price >= self.entry_price
-                new_stop = max(self.active_stop, self.entry_price) if at_or_above_breakeven else self.active_stop
-                stop_desc = "stop raised to breakeven" if at_or_above_breakeven else "stop left unchanged (position not yet at breakeven)"
+                if not at_or_above_breakeven:
+                    # Position is underwater - skip distribution trigger (position already has valid stop)
+                    return False, None
+
+                # Position is at or above breakeven - safe to reduce exposure
+                new_stop = max(self.active_stop, self.entry_price)
                 return (
                     True,
                     {
                         "stage": "distribution",
                         "fraction": 0.5,
                         "new_stop": new_stop,
-                        "reason": f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50%, {stop_desc}",
+                        "reason": f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50% of profitable position, stop raised to breakeven",
                     },
                 )
         return False, None
@@ -655,6 +660,7 @@ class ExitEngine:
                     # ISSUE 11 FIX: Use unique savepoint names to prevent collision on retry
                     _sp = f"sp_exit_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
                     cur.execute(f"SAVEPOINT {_sp}")
+                    is_estimated_price_exit = False  # Reset for each position - used if archive price fallback
                     try:
                         # Issue #22: Lock position row to prevent concurrent exits (TOCTOU race)
                         # CRITICAL FIX Session 391: Re-fetch position quantity after FOR UPDATE lock
@@ -820,66 +826,91 @@ class ExitEngine:
                                 raise
 
                         if cur_price is None:
-                            logger.critical(
-                                f"[EXIT ENGINE CRITICAL] {symbol}: No price data available for exit calculation. "
-                                f"Cannot execute exit without valid price. Halting exit evaluation. "
-                                f"Position remains open - retry when price data available."
+                            # Try to fall back to last known archive price instead of silently skipping
+                            logger.warning(
+                                f"[EXIT ENGINE] {symbol}: No current price available. Attempting fallback to archive price..."
                             )
-                            # CRITICAL FIX: FAIL-FAST on missing price data
-                            # Do NOT close position with NULL exit_price (corrupts P&L downstream)
-                            # Do NOT fall back to entry_price (masks actual market exit prices)
-                            # Skip this position, log error, then increment counter only if logged
-                            _missing_price_err = RuntimeError(f"No price data available for {symbol}")
-                            # ISSUE 11 FIX: Use unique savepoint name for audit to prevent collision
-                            _audit_sp = f"sp_audit_missing_price_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
-                            trade_errors += 1
-                            try:
-                                cur.execute(f"SAVEPOINT {_audit_sp}")
-                                cur.execute(
-                                    """INSERT INTO algo_exit_check_errors
-                                       (error_date, trade_id, position_id, symbol, error_type, error_message)
-                                       VALUES (%s, %s, %s, %s, %s, %s)""",
-                                    (
-                                        current_date,
-                                        trade_id,
-                                        _position_id,
-                                        symbol,
-                                        "MissingPriceData",
-                                        str(_missing_price_err)[:2000],
-                                    ),
+                            fallback_price = self._get_last_valid_archive_price(cur, symbol, current_date)
+                            if fallback_price is not None:
+                                logger.info(
+                                    f"[EXIT ENGINE] {symbol}: Using archive price ${fallback_price:.2f} "
+                                    f"(current price unavailable, will mark as estimated)"
                                 )
-                                cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
-                            except Exception as _audit_err:
+                                cur_price = fallback_price
+                                # Mark that this exit will use an estimated price (for P&L reconciliation)
+                                # so downstream knows not to trust the P&L until a real fill is confirmed
+                                is_estimated_price_exit = True
+                            else:
+                                # No archive price available - truly unavailable, must skip
+                                logger.critical(
+                                    f"[EXIT ENGINE CRITICAL] {symbol}: No price data available (current or archive). "
+                                    f"Cannot evaluate exit. Position remains open - retry when price data available."
+                                )
+                                _missing_price_err = RuntimeError(f"No price data available (current or archive) for {symbol}")
+                                _audit_sp = f"sp_audit_missing_price_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
+                                trade_errors += 1
                                 try:
-                                    cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
-                                except psycopg2.Error as _audit_rollback_err:
-                                    if "current transaction is aborted" in str(_audit_rollback_err).lower():
-                                        logger.critical(
-                                            f"[AUDIT] Transaction aborted while logging missing price for {symbol}: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
-                                            f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
-                                        )
-                                        raise DatabaseError(
-                                            f"[EXIT_ENGINE CRITICAL] Transaction aborted during audit error handling for {symbol}. "
-                                            f"Halting exit engine to prevent cascading failures."
-                                        ) from _audit_rollback_err
-                                else:
-                                    logger.error(
-                                        f"[AUDIT] Failed to persist missing-price error for {symbol}: {_audit_err}"
+                                    cur.execute(f"SAVEPOINT {_audit_sp}")
+                                    cur.execute(
+                                        """INSERT INTO algo_exit_check_errors
+                                           (error_date, trade_id, position_id, symbol, error_type, error_message)
+                                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                                        (
+                                            current_date,
+                                            trade_id,
+                                            _position_id,
+                                            symbol,
+                                            "MissingPriceData",
+                                            str(_missing_price_err)[:2000],
+                                        ),
                                     )
-                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                            continue
+                                    cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
+                                except Exception as _audit_err:
+                                    try:
+                                        cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
+                                    except psycopg2.Error as _audit_rollback_err:
+                                        if "current transaction is aborted" in str(_audit_rollback_err).lower():
+                                            logger.critical(
+                                                f"[AUDIT] Transaction aborted while logging missing price for {symbol}: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
+                                                f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
+                                            )
+                                            raise DatabaseError(
+                                                f"[EXIT_ENGINE CRITICAL] Transaction aborted during audit error handling for {symbol}. "
+                                                f"Halting exit engine to prevent cascading failures."
+                                            ) from _audit_rollback_err
+                                    else:
+                                        logger.error(
+                                            f"[AUDIT] Failed to persist missing-price error for {symbol}: {_audit_err}"
+                                        )
+                                cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                                continue
 
                         days_held = (current_date - trade_date).days
 
-                        # Enforce minimum holding period (no same-day exits per Curtis Faith)
+                        # CRITICAL: Check hard stop-loss BEFORE min_hold_days gate
+                        # Hard stop-loss is unconditional capital preservation, not discretionary
+                        # Same-day entries can (and must) exit on stop-loss
+                        cur_price_dec = Decimal(str(cur_price)) if not isinstance(cur_price, Decimal) else cur_price
+                        active_stop_dec = Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop
+                        if cur_price_dec <= active_stop_dec:
+                            exit_signal = {
+                                "stage": "stop",
+                                "fraction": 1.0,
+                                "reason": (
+                                    f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
+                                    "(hard capital preservation - bypasses min_hold_days)"
+                                ),
+                            }
+                        else:
+                            # Enforce minimum holding period (no same-day exits per Curtis Faith)
+                            # But hard stop-loss above already checked and not triggered
+                            if days_held < 1:
+                                if self.verbose:
+                                    logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
+                                cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                                continue
 
-                        if days_held < 1:
-                            if self.verbose:
-                                logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
-                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
-                            continue
-
-                        exit_signal = self._evaluate_position(
+                            exit_signal = self._evaluate_position(
                             cur,
                             symbol,
                             current_date,
