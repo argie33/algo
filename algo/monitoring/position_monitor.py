@@ -882,42 +882,34 @@ class PositionMonitor:
         Args:
             symbol: Stock symbol
             current_date: Date to fetch data for
-            cur: Optional cursor to use. If None, opens new DatabaseContext.
-                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+            cur: REQUIRED cursor to use. Must not be None - prevents nested context issues.
+                 CRITICAL: Never opens new DatabaseContext - caller must provide cursor
                  to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
 
         Raises:
-            ValueError: If price data is missing - price_daily is required,
-                       technical_data_daily may be None (handled by caller)
+            ValueError: If price data is missing or cur is None
         """
-        if cur is not None:
-            try:
-                cur.execute(
-                    """
-                    SELECT pd.close, td.atr, td.sma_50, td.sma_200
-                    FROM price_daily pd
-                    INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
-                    WHERE pd.symbol = %s AND pd.date <= %s
-                    ORDER BY pd.date DESC LIMIT 1
-                    """,
-                    (symbol, current_date),
-                )
-                row = cur.fetchone()
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise ValueError(f"Database error fetching price data for {symbol}: {e}") from e
-        else:
-            with DatabaseContext("read") as fresh_cur:
-                fresh_cur.execute(
-                    """
-                    SELECT pd.close, td.atr, td.sma_50, td.sma_200
-                    FROM price_daily pd
-                    INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
-                    WHERE pd.symbol = %s AND pd.date <= %s
-                    ORDER BY pd.date DESC LIMIT 1
-                    """,
-                    (symbol, current_date),
-                )
-                row = fresh_cur.fetchone()
+        if cur is None:
+            raise ValueError(
+                f"[POSITION_MONITOR CRITICAL] _fetch_current_market called without cursor. "
+                f"This would require opening nested DatabaseContext which closes parent cursor. "
+                f"Caller must provide cursor. This is a programming error - Phase 3 must pass cursor."
+            )
+
+        try:
+            cur.execute(
+                """
+                SELECT pd.close, td.atr, td.sma_50, td.sma_200
+                FROM price_daily pd
+                INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                WHERE pd.symbol = %s AND pd.date <= %s
+                ORDER BY pd.date DESC LIMIT 1
+                """,
+                (symbol, current_date),
+            )
+            row = cur.fetchone()
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise ValueError(f"Database error fetching price data for {symbol}: {e}") from e
 
         if row is None:
             raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier - no price_daily entry")
@@ -1043,8 +1035,8 @@ class PositionMonitor:
         Args:
             symbol: Stock symbol to check
             current_date: Date to check
-            cur: Optional cursor to use. If None, opens new DatabaseContext.
-                 CRITICAL: If caller has an open DatabaseContext, MUST pass cursor
+            cur: REQUIRED cursor to use. Must not be None.
+                 CRITICAL: Never opens new DatabaseContext - caller must provide cursor
                  to avoid nested context closing the outer cursor (causes "cursor already closed" errors).
         """
         # Skip sector checks for index/macro ETFs (Session 196: removed unused sector ETFs)
@@ -1052,139 +1044,77 @@ class PositionMonitor:
         if symbol in ("SPY", "QQQ", "IWM", "GLD", "TLT", "^GSPC", "^IXIC", "^DJI"):
             return "neutral"
 
-        # CRITICAL FIX: If caller passed a cursor, use it instead of opening new contexts
-        # This prevents nested DatabaseContext from closing the outer cursor
-        if cur is not None:
-            try:
-                cur.execute(
-                    "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
-                    (symbol,),
+        # CRITICAL FIX: Require cursor - no nested contexts allowed
+        if cur is None:
+            raise ValueError(
+                f"[POSITION_MONITOR CRITICAL] _check_sector_health called without cursor. "
+                f"This would require opening nested DatabaseContext which closes parent cursor. "
+                f"Caller must provide cursor."
+            )
+
+        try:
+            cur.execute(
+                "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
+                (symbol,),
+            )
+            srow = cur.fetchone()
+            if srow is None or len(srow) < 1:
+                raise ValueError(
+                    f"[POSITION MONITOR] Sector data missing for {symbol}. "
+                    f"Cannot classify position without sector information for exposure calculations."
                 )
-                srow = cur.fetchone()
-                if srow is None or len(srow) < 1:
-                    raise ValueError(
-                        f"[POSITION MONITOR] Sector data missing for {symbol}. "
-                        f"Cannot classify position without sector information for exposure calculations."
-                    )
-                if srow[0] is None:
-                    raise ValueError(
-                        f"[POSITION MONITOR] Sector is NULL for {symbol}. "
-                        f"Cannot classify position without valid sector for exposure calculations."
-                    )
-                sector = srow[0]
-
-                # "Other" is a placeholder for unclassified/new symbols without proper sector data
-                # These don't have historical sector_ranking records yet; skip trend check and return neutral
-                if sector == "Other":
-                    logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
-                    return "neutral"
-
-                # Use same cursor for sector ranking query
-                cur.execute(
-                    """
-                    SELECT current_rank, rank_4w_ago FROM sector_ranking
-                    WHERE sector_name = %s
-                      AND date <= %s
-                    ORDER BY date DESC LIMIT 1
-                    """,
-                    (sector, current_date),
+            if srow[0] is None:
+                raise ValueError(
+                    f"[POSITION MONITOR] Sector is NULL for {symbol}. "
+                    f"Cannot classify position without valid sector for exposure calculations."
                 )
-                cur_row = cur.fetchone()
-                if not cur_row or cur_row[0] is None:
-                    raise PositionValidationError(
-                        f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
-                        f"Cannot assess sector health for {symbol} without current ranking data. "
-                        f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
-                        f"Add sector to sector_ranking table or exclude from portfolio."
-                    )
-                cur_rank = int(cur_row[0])
-                old_rank = cur_row[1]
+            sector = srow[0]
 
-                if old_rank is None:
-                    logger.warning(
-                        f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
-                        f"using current rank alone without historical trend assessment. "
-                        f"This is expected for new sectors or data gaps. Position monitoring continues."
-                    )
-                    return "neutral"
-                old_rank = int(old_rank)
-                if cur_rank > old_rank + 3:  # got worse by 3+ ranks
-                    return "weakening"
-                if cur_rank < old_rank - 3:
-                    return "strengthening"
-                return "stable"
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise RuntimeError(
-                    f"Sector health check failed: {e}. "
-                    f"Cannot proceed with position monitoring without valid sector health metrics."
-                ) from e
-        else:
-            # Fallback: open own context if not provided
-            with DatabaseContext("read") as fresh_cur:
-                try:
-                    fresh_cur.execute(
-                        "SELECT sector FROM company_profile WHERE symbol = %s LIMIT 1",
-                        (symbol,),
-                    )
-                    srow = fresh_cur.fetchone()
-                    if srow is None or len(srow) < 1:
-                        raise ValueError(
-                            f"[POSITION MONITOR] Sector data missing for {symbol}. "
-                            f"Cannot classify position without sector information for exposure calculations."
-                        )
-                    if srow[0] is None:
-                        raise ValueError(
-                            f"[POSITION MONITOR] Sector is NULL for {symbol}. "
-                            f"Cannot classify position without valid sector for exposure calculations."
-                        )
-                    sector = srow[0]
+            # "Other" is a placeholder for unclassified/new symbols without proper sector data
+            # These don't have historical sector_ranking records yet; skip trend check and return neutral
+            if sector == "Other":
+                logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
+                return "neutral"
 
-                    # "Other" is a placeholder for unclassified/new symbols without proper sector data
-                    # These don't have historical sector_ranking records yet; skip trend check and return neutral
-                    if sector == "Other":
-                        logger.debug(f"Skipping sector health check for {symbol}: sector is 'Other' (unclassified)")
-                        return "neutral"
+            # Use same cursor for sector ranking query
+            cur.execute(
+                """
+                SELECT current_rank, rank_4w_ago FROM sector_ranking
+                WHERE sector_name = %s
+                  AND date <= %s
+                ORDER BY date DESC LIMIT 1
+                """,
+                (sector, current_date),
+            )
+            cur_row = cur.fetchone()
+            if not cur_row or cur_row[0] is None:
+                raise PositionValidationError(
+                    f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
+                    f"Cannot assess sector health for {symbol} without current ranking data. "
+                    f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
+                    f"Add sector to sector_ranking table or exclude from portfolio."
+                )
+            cur_rank = int(cur_row[0])
+            old_rank = cur_row[1]
 
-                    # CRITICAL FIX: Use same cursor instead of nesting a new context
-                    # Nested DatabaseContext closes the parent cursor, causing "cursor already closed" errors
-                    fresh_cur.execute(
-                        """
-                        SELECT current_rank, rank_4w_ago FROM sector_ranking
-                        WHERE sector_name = %s
-                          AND date <= %s
-                        ORDER BY date DESC LIMIT 1
-                        """,
-                        (sector, current_date),
-                    )
-                    cur_row = fresh_cur.fetchone()
-                    if not cur_row or cur_row[0] is None:
-                        raise PositionValidationError(
-                            f"[POSITION_MONITOR] Sector ranking data missing for {sector} (may be new sector). "
-                            f"Cannot assess sector health for {symbol} without current ranking data. "
-                            f"Sector rankings are required for position risk assessment - do not assume 'neutral' on missing data. "
-                            f"Add sector to sector_ranking table or exclude from portfolio."
-                        )
-                    cur_rank = int(cur_row[0])
-                    old_rank = cur_row[1]
-
-                    if old_rank is None:
-                        logger.warning(
-                            f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
-                            f"using current rank alone without historical trend assessment. "
-                            f"This is expected for new sectors or data gaps. Position monitoring continues."
-                        )
-                        return "neutral"
-                    old_rank = int(old_rank)
-                    if cur_rank > old_rank + 3:  # got worse by 3+ ranks
-                        return "weakening"
-                    if cur_rank < old_rank - 3:
-                        return "strengthening"
-                    return "stable"
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    raise RuntimeError(
-                        f"Sector health check failed: {e}. "
-                        f"Cannot proceed with position monitoring without valid sector health metrics."
-                    ) from e
+            if old_rank is None:
+                logger.warning(
+                    f"[POSITION_MONITOR] Sector ranking baseline missing for {symbol} ({sector}) - "
+                    f"using current rank alone without historical trend assessment. "
+                    f"This is expected for new sectors or data gaps. Position monitoring continues."
+                )
+                return "neutral"
+            old_rank = int(old_rank)
+            if cur_rank > old_rank + 3:  # got worse by 3+ ranks
+                return "weakening"
+            if cur_rank < old_rank - 3:
+                return "strengthening"
+            return "stable"
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(
+                f"Sector health check failed: {e}. "
+                f"Cannot proceed with position monitoring without valid sector health metrics."
+            ) from e
 
     def _max_unrealized_pct(
         self,
