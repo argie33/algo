@@ -453,8 +453,9 @@ def run(
                                 logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
                                 continue
 
-                            # max_size_pct_float is already verified as native float by _ensure_float()
-                            # pct_float is also verified as native float above
+                            # Both operands are guaranteed native float:
+                            # - max_size_pct_float: converted at line 335
+                            # - pct_float: converted at lines 447 and 451
                             if pct_float > max_size_pct_float:
                                 # Subtraction is safe: both operands are guaranteed to be native float
                                 exceed_amount = pct_float - max_size_pct_float

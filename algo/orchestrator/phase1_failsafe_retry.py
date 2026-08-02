@@ -136,6 +136,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         "price_daily": "prices",
         "technical_data_daily": "technical",
         "stock_scores": "scores",
+        "buy_sell_daily": "buy_sell",  # CRITICAL FIX 2026-08-02: Was missing, causing 3+ day staleness
         "market_health_daily": "market_status",
     }
 
