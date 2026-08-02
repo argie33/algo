@@ -256,7 +256,7 @@ class SystemDiagnostics:
                 tables_to_check = [
                     ('price_daily', 'date'),
                     ('buy_sell_daily', 'date'),
-                    ('quality_metrics', 'as_of_date'),
+                    ('quality_metrics', 'updated_at'),
                 ]
 
                 freshness_results = {}
@@ -268,12 +268,18 @@ class SystemDiagnostics:
 
                         if row and row['max_date']:
                             max_date = row['max_date']
-                            today = datetime.utcnow().date()
-                            if isinstance(max_date, str):
-                                max_date = datetime.fromisoformat(max_date).date()
-                            age_days = (today - max_date).days
+                            today = datetime.utcnow()
+
+                            # Handle both DATE and TIMESTAMP types
+                            if hasattr(max_date, 'date'):  # datetime/timestamp object
+                                max_date_only = max_date.date()
+                            else:  # string
+                                max_date_dt = datetime.fromisoformat(str(max_date))
+                                max_date_only = max_date_dt.date()
+
+                            age_days = (today.date() - max_date_only).days
                             freshness_results[table] = {
-                                'max_date': str(max_date),
+                                'max_date': str(max_date_only),
                                 'age_days': age_days
                             }
                         else:
@@ -371,7 +377,7 @@ class SystemDiagnostics:
                     COUNT(*) as error_count,
                     MAX(created_at) as last_error
                 FROM orchestrator_execution_log
-                WHERE status = 'failed'
+                WHERE overall_status = 'halted'
                   AND created_at > NOW() - INTERVAL '24 hours'
                 """
 
