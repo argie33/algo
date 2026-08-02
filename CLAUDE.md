@@ -15,6 +15,14 @@ python scripts/run_local_orchestrator.py               # Test orchestrator
 
 ---
 
+## Architecture & Navigation
+
+### Two Orchestration Directories
+- `algo/orchestration/` → Runtime execution (orchestrator.py 145KB, halt_flag_manager, regime_manager, etc.)
+- `algo/orchestrator/` → Phase implementations (phase1-9, 12,382 LOC total, phase7/8 are refactoring candidates)
+
+---
+
 ## Token Optimization
 
 **Keep context lean:** Session-specific docs/logs/audits belong in memory, not root. Delete after sessions.
