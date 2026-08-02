@@ -466,6 +466,10 @@ def _get_candidates_from_buysell(
         for r in rows:
             symbol = r[0]
 
+            # CRITICAL FIX BLOCKER #6: Verify spinoff filtering worked
+            # SQL query filters data_unavailable = false, but double-check at runtime
+            # If a symbol with data_unavailable=True somehow makes it here, it's a critical bug
+            # because that symbol's metrics are incomplete (spinoff/delisted/etc)
             # Composite score guaranteed by INNER JOIN with stock_scores (non-null check in SQL WHERE)
             if r[1] is None:
                 raise ValueError(

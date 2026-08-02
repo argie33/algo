@@ -163,6 +163,25 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
         if regime not in VALID_REGIMES:
             errors.append(f"regime must be one of {VALID_REGIMES}, got '{regime}'")
 
+    # CRITICAL: Check for contradictory constraints (HIGH ISSUE #5 FIX)
+    # Contradictory constraints indicate configuration error that would cause unexpected behavior
+    if exposure_constraints.get("halt_new_entries") is False:
+        # If entries are NOT halted, at least one entry constraint must allow entries
+        max_positions = exposure_constraints.get("max_new_positions_today", 0)
+        max_concentration = exposure_constraints.get("max_concentration_pct", 0.0)
+
+        if max_positions == 0:
+            errors.append(
+                "Contradictory: halt_new_entries=False but max_new_positions_today=0. "
+                "Either halt entries (halt_new_entries=True) or allow entries (max_new_positions_today > 0)."
+            )
+
+        if max_concentration == 0:
+            errors.append(
+                "Contradictory: halt_new_entries=False but max_concentration_pct=0.0. "
+                "Either halt entries (halt_new_entries=True) or allow positions (max_concentration_pct > 0)."
+            )
+
     # If any validation failed, halt with comprehensive error message
     if errors:
         error_msg = f"Invalid exposure constraints for Phase 8: {'; '.join(errors)}"

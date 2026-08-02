@@ -316,11 +316,16 @@ class DatabaseContext:
             # ISSUE #13 FIX: Set isolation level for critical reads
             # Use SERIALIZABLE for critical financial calculations (risk, position sizing)
             # Use READ_COMMITTED for loaders and API reads (higher concurrency)
+            # CRITICAL BUG FIX (2026-08-02): set_isolation_level() implicitly commits the current
+            # transaction! This was causing all writes via DatabaseContext to be silently rolled back.
+            # When __enter__ calls set_isolation_level(), it commits any pending work, then __exit__'s
+            # commit() has nothing to commit. By executing SET TRANSACTION instead, we avoid the
+            # implicit commit and let the transaction continue normally.
             isolation_level = "SERIALIZABLE" if self.role == "read" and not self.correlation_id else "READ_COMMITTED"
             try:
-                self.conn.set_isolation_level(
-                    2 if isolation_level == "SERIALIZABLE" else 1  # 2=SERIALIZABLE, 1=READ_COMMITTED
-                )
+                # Use SET TRANSACTION instead of set_isolation_level() to avoid implicit commit
+                sql_isolation = "SERIALIZABLE" if isolation_level == "SERIALIZABLE" else "READ COMMITTED"
+                self.cur.execute(f"SET TRANSACTION ISOLATION LEVEL {sql_isolation}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[DB_CONTEXT] Failed to set isolation level to {isolation_level}: {e}")
                 # Don't fail on isolation setting, just log and continue

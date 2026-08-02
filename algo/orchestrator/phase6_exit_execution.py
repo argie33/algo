@@ -71,6 +71,54 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
     raise RuntimeError(f"Exit trade exhausted retries: {last_error}")
 
 
+def _validate_exit_trade_response(result: dict[str, Any], trade_id: int | str) -> None:
+    """HIGH ISSUE #4 FIX: Validate TradeExecutor.exit_trade() response structure.
+
+    If TradeExecutor changes response structure, Phase 6 may partially succeed
+    (trade executed but response incomplete), causing database/Alpaca divergence.
+
+    This validation ensures the response has all required fields before Phase 6
+    proceeds to update database, preventing state inconsistency.
+
+    Args:
+        result: Response dict from executor.exit_trade()
+        trade_id: Trade ID for error context
+
+    Raises:
+        RuntimeError: If response is incomplete
+    """
+    if not isinstance(result, dict):
+        raise RuntimeError(
+            f"[PHASE 6] Exit response invalid type {type(result).__name__}, expected dict. "
+            f"Trade ID: {trade_id}"
+        )
+
+    required_keys = ["success", "trade_id", "message"]
+    missing_keys = [k for k in required_keys if k not in result]
+
+    if missing_keys:
+        raise RuntimeError(
+            f"[PHASE 6] Exit response incomplete: missing {missing_keys}. "
+            f"Response keys: {list(result.keys())}. "
+            f"Trade ID: {trade_id}. "
+            f"Cannot proceed with incomplete response - data integrity at risk."
+        )
+
+    # For successful exits, verify we got pricing/execution details
+    if result.get("success"):
+        # executed_price and filled_qty help verify execution actually happened
+        if "executed_price" not in result or result["executed_price"] is None:
+            logger.warning(
+                f"[PHASE 6] Success response missing executed_price for trade {trade_id}. "
+                f"Execution details incomplete. Trade may have executed but price unknown."
+            )
+        if "filled_qty" not in result or result["filled_qty"] is None:
+            logger.warning(
+                f"[PHASE 6] Success response missing filled_qty for trade {trade_id}. "
+                f"Execution details incomplete. Trade may have executed but quantity unknown."
+            )
+
+
 def run(
     config: Any,
     run_date: _date,
@@ -591,9 +639,11 @@ def run(
                             exit_fraction=1.0,
                             exit_stage="exposure_force_exit",
                         )
-                        if "success" not in result or result["success"] is None:
+                        # HIGH ISSUE #4 FIX: Validate response structure before proceeding
+                        _validate_exit_trade_response(result, action["trade_id"])
+                        if result["success"] is None:
                             raise RuntimeError(
-                                f"Force exit result missing 'success' field. Got keys: {list(result.keys())}"
+                                f"Force exit result has success=None. Response: {result}"
                             )
                         if result["success"]:
                             exit_count += 1
@@ -658,9 +708,11 @@ def run(
                                 exit_stage="exposure_partial",
                                 new_stop_price=action.get("new_stop"),
                             )
-                            if "success" not in result or result["success"] is None:
+                            # HIGH ISSUE #4 FIX: Validate response structure before proceeding
+                            _validate_exit_trade_response(result, action["trade_id"])
+                            if result["success"] is None:
                                 raise RuntimeError(
-                                    f"Partial exit result missing 'success' field. Got keys: {list(result.keys())}"
+                                    f"Partial exit result has success=None. Response: {result}"
                                 )
                             if result["success"]:
                                 exit_count += 1
