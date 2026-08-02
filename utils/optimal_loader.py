@@ -608,8 +608,6 @@ class OptimalLoader:
             self._status_manager.mark_running()
             self._infrastructure.start_heartbeat()
 
-            logger.warning(f"[{self.table_name}] DEBUG: _backfill_days={self._backfill_days}")
-
             start = time.time()
             self._execution_start_time = start
             symbols = list(symbols)

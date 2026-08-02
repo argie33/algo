@@ -39,7 +39,7 @@ def _fake_self(env_execution_mode, config_execution_mode):
 class TestExecutionModeLiveRejected:
     def test_live_config_value_rejected_at_startup(self):
         self = _fake_self("live", "live")
-        with pytest.raises(RuntimeError, match="execution_mode must be 'paper', 'dry', 'review', or 'auto'"):
+        with pytest.raises(RuntimeError, match=r"execution_mode must be one of:.*paper.*dry.*review.*auto"):
             Orchestrator._validate_startup_configuration(self)
 
     def test_auto_config_value_still_accepted(self):

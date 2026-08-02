@@ -168,7 +168,6 @@ class RDSLockManager:
 
         try:
             with DatabaseContext("write") as cur:
-                # DEBUG: Check what locks exist before attempting delete
                 cur.execute(
                     "SELECT loader_name, locked_by, expires_at FROM loader_execution_locks WHERE loader_name = %s",
                     (lock_key,),

@@ -469,7 +469,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if not quality_row:
             return self._unavailable_marker("quality_metrics", symbol)
 
-        # DEBUG: Check quality_row structure
         if not isinstance(quality_row, (tuple, list)):
             logger.error(
                 f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row is {type(quality_row)}, not tuple/list. This is a CRITICAL BUG. "

@@ -1247,7 +1247,6 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {  # noqa: N806
-        # DEBUG: Added equity-curve and histogram endpoints
         "/api/health",  # Basic health check (no auth required for uptime monitoring)
         "/api/health/cognito",  # Cognito client ID check (public for frontend config)
         # SECURITY FIX: /api/health/detailed and /api/health/pipeline require authentication
