@@ -456,6 +456,15 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 logger.warning(
                                     f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:100]}"
                                 )
+                                # CRITICAL FIX: After a transaction abort, the cursor is unusable.
+                                # Must issue ROLLBACK to reset transaction state before retrying.
+                                # Without this, retry attempts fail immediately with "cursor already closed".
+                                try:
+                                    cur.execute("ROLLBACK")
+                                    logger.debug("[PHASE 3] Issued ROLLBACK after transaction abort")
+                                except Exception as rollback_err:
+                                    logger.warning(f"[PHASE 3] ROLLBACK failed: {rollback_err}. Retrying anyway.")
+
                                 import time
                                 time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
                                 continue
