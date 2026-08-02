@@ -918,6 +918,7 @@ class ExitEngine:
                         # Same-day entries can (and must) exit on stop-loss
                         cur_price_dec = Decimal(str(cur_price)) if not isinstance(cur_price, Decimal) else cur_price
                         active_stop_dec = Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop
+                        exit_signal: dict[str, Any] | None = None
                         if cur_price_dec <= active_stop_dec:
                             exit_signal = {
                                 "stage": "stop",
@@ -1000,7 +1001,7 @@ class ExitEngine:
                         result = self.executor.exit_trade(
                             trade_id=trade_id,
                             exit_price=cur_price if fraction > 0 else None,
-                            exit_reason=exit_signal["reason"],
+                            exit_reason=cast(str, exit_signal["reason"]),
                             exit_fraction=fraction,  # 0 for stop-raise-only
                             exit_stage=stage,
                             new_stop_price=new_stop,

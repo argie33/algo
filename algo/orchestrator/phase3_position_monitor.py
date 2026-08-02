@@ -96,7 +96,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # pool gets exhausted causing "cursor already closed" errors
             from utils.db.connection_pool import get_pool_health
             pool_health = get_pool_health()
-            available_conns = pool_health.get("available_conns", 0)
+            available_conns_raw = pool_health.get("available_conns", 0)
+            available_conns = int(available_conns_raw) if isinstance(available_conns_raw, (int, str)) else 0
             if available_conns < 3:
                 error_msg = (
                     f"[PHASE 3] CONNECTION POOL EXHAUSTION DETECTED: Only {available_conns} connections available. "
@@ -182,8 +183,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     if len(price_rows) != len(open_symbols):
                         price_columns = ["symbol", "close", "data_unavailable", "data_unavailable_reason"]
                         price_symbols = {
-                            RowAccessor(row, price_columns, "price_fetch").get_str(0)  # symbol at index 0
-                            for row in price_rows
+                            sym for sym in [
+                                RowAccessor(row, price_columns, "price_fetch").get_str(0)  # symbol at index 0
+                                for row in price_rows
+                            ] if sym is not None
                         }
                         missing_symbols = set(open_symbols) - price_symbols
                         raise RuntimeError(
@@ -262,7 +265,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     if update_idx > 0 and update_idx % 30 == 0:
                         from utils.db.connection_pool import get_pool_health
                         current_health = get_pool_health()
-                        current_available = current_health.get("available_conns", 0)
+                        current_available_raw = current_health.get("available_conns", 0)
+                        current_available = int(current_available_raw) if isinstance(current_available_raw, (int, str)) else 0
                         if current_available < 3:
                             error_msg = (
                                 f"[PHASE 3 CRITICAL] CONNECTION POOL EXHAUSTION DETECTED during position updates. "

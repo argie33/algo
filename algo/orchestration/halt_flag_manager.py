@@ -39,7 +39,7 @@ class HaltFlagManager:
         self.alerts = alerts
         self.log_phase_result = log_phase_result
         # Instance variable allows independent logging for each orchestrator run
-        self._dynamodb_unavailable_logged = False
+        self._dynamodb_unavailable_logged: bool = False
 
     def check_halt_flag(self) -> bool:
         """Check for halt flag with DynamoDB + RDS fallback. Returns True if halt was requested.
