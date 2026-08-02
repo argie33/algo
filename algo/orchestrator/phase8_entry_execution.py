@@ -1629,6 +1629,45 @@ def run(
             f"{len(data_quality_failures)} rejected. Failures: {data_quality_failures}"
         )
 
+    # CRITICAL FIX: Deduplicate signals by symbol
+    # If Phase 7 generated multiple signals for the same symbol in a single run,
+    # keep only the highest-quality one (by composite_score). Attempting to enter
+    # multiple positions for the same symbol causes idempotent duplicate failures.
+    # This can happen if multiple technical patterns trigger for same symbol.
+    signal_by_symbol = {}
+    duplicate_signals_removed = 0
+    for signal in validated_trades:
+        symbol = signal.get("symbol")
+        composite_score = signal.get("composite_score", 0)
+
+        if symbol in signal_by_symbol:
+            # Keep the signal with higher composite_score
+            existing_score = signal_by_symbol[symbol].get("composite_score", 0)
+            if composite_score > existing_score:
+                logger.info(
+                    f"[PHASE 8 DEDUP] {symbol}: Keeping signal with score {composite_score:.1f} "
+                    f"(previous: {existing_score:.1f})"
+                )
+                signal_by_symbol[symbol] = signal
+                duplicate_signals_removed += 1
+            else:
+                logger.info(
+                    f"[PHASE 8 DEDUP] {symbol}: Skipping duplicate signal with score {composite_score:.1f} "
+                    f"(keeping previous: {existing_score:.1f})"
+                )
+                duplicate_signals_removed += 1
+        else:
+            signal_by_symbol[symbol] = signal
+
+    if duplicate_signals_removed:
+        logger.warning(
+            f"[PHASE 8 DEDUP] Removed {duplicate_signals_removed} duplicate signals. "
+            f"Processing {len(signal_by_symbol)} unique symbols."
+        )
+
+    # Use deduplicated signals for processing
+    validated_trades = list(signal_by_symbol.values())
+
     # Use validated trades for execution
     qualified_trades = validated_trades
 
