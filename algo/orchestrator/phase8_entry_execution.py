@@ -956,7 +956,7 @@ def run(
                         "This indicates Phase 7 did not properly populate result data. "
                         f"Phase 7 data keys: {list(phase7_result.data.keys())}"
                     )
-                qualified_trades_from_executor = phase7_result.data["qualified_trades"]
+                qualified_trades_from_executor = cast(list[dict[str, Any]], phase7_result.data["qualified_trades"])
                 if qualified_trades_from_executor is None:
                     raise ValueError(
                         "[PHASE 8 DATA INTEGRITY] Phase 7 returned 'qualified_trades'=None. "
