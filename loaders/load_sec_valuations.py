@@ -47,6 +47,16 @@ class SecValuationsLoader(OptimalLoader):
     watermark_field = "computed_at"
     exclude_etfs_from_symbols = True
 
+    # Sanity floor for the "search all fiscal years" share-count fallbacks below. Real SEC
+    # XBRL data occasionally contains a single implausible outlier entry for a concept (live-
+    # confirmed: ERIE's WeightedAverageNumberOfDilutedSharesOutstanding has exactly one
+    # reported value across its whole filing history, 2542 shares, for a multi-billion-dollar
+    # company that has millions of shares outstanding - almost certainly a filer tagging
+    # error). Every real US-listed operating company has at least this many shares
+    # outstanding, so this floor rejects that class of bad data without excluding real
+    # micro-caps.
+    MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute SEC-derived valuations for one symbol.
 
@@ -138,10 +148,10 @@ class SecValuationsLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT shares_outstanding_basic FROM annual_income_statement
-                        WHERE symbol = %s AND shares_outstanding_basic IS NOT NULL AND shares_outstanding_basic > 0
+                        WHERE symbol = %s AND shares_outstanding_basic > %s
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
-                        (symbol,),
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
                     )
                     prior_shares_row = cur.fetchone()
                     if prior_shares_row and prior_shares_row[0]:
@@ -162,6 +172,27 @@ class SecValuationsLoader(OptimalLoader):
                     if shares_row and shares_row[0]:
                         shares_out = safe_float(shares_row[0], f"{symbol}.shares_outstanding", allow_none=False)
                         logger.debug(f"[{symbol}] Fetched shares_outstanding from company_info_sec: {shares_out:,.0f}")
+
+                # Last-resort fallback: the diluted share count (migration 1192). Some real
+                # operating companies (live-confirmed: JOUT/Johnson Outdoors, 44 real 10-K
+                # entries) only ever tag WeightedAverageNumberOfDilutedSharesOutstanding in
+                # SEC XBRL, never the basic variant - every fallback above depends on basic
+                # (directly or via the company_info_sec/net_income/eps proxies) and comes up
+                # empty for these filers. Diluted is a real reported count, just not the
+                # exact same measure as basic (differs by dilutive securities outstanding).
+                if not shares_out:
+                    cur.execute(
+                        """
+                        SELECT shares_outstanding_diluted FROM annual_income_statement
+                        WHERE symbol = %s AND shares_outstanding_diluted > %s
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
+                    )
+                    diluted_shares_row = cur.fetchone()
+                    if diluted_shares_row and diluted_shares_row[0]:
+                        shares_out = float(diluted_shares_row[0])
+                        logger.debug(f"[{symbol}] Using shares_outstanding_diluted (no basic count reported): {shares_out:,.0f}")
 
                 # Fail if still no shares outstanding available
                 if not shares_out or shares_out <= 0:

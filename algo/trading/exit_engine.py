@@ -905,8 +905,18 @@ class ExitEngine:
                                                 f"Halting exit engine to prevent cascading failures."
                                             ) from _audit_rollback_err
                                     else:
-                                        logger.error(
-                                            f"[AUDIT] Failed to persist missing-price error for {symbol}: {_audit_err}"
+                                        diag_detail = ""
+                                        if isinstance(_audit_err, psycopg2.Error):
+                                            diag_detail = (
+                                                f" pgcode={getattr(_audit_err, 'pgcode', None)} "
+                                                f"pgerror={getattr(_audit_err, 'pgerror', None)} "
+                                                f"diag={getattr(getattr(_audit_err, 'diag', None), 'message_detail', None)}"
+                                            )
+                                        logger.critical(
+                                            f"[AUDIT] Failed to persist missing-price error for {symbol} "
+                                            f"(trade {trade_id}): {type(_audit_err).__name__}: {_audit_err}.{diag_detail} "
+                                            f"algo_exit_check_errors will NOT have a row for this failure.",
+                                            exc_info=_audit_err,
                                         )
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
@@ -1115,9 +1125,28 @@ class ExitEngine:
                                         f"Skipping to next position to avoid cascading failures."
                                     )
                             if audit_failed:
-                                logger.error(
-                                    f"[AUDIT] Failed to persist error details for {symbol}: {_audit_err}. "
-                                    f"Error was counted and logged, but audit record could not be written."
+                                # CRITICAL: this is the ONLY place a failed exit-check gets recorded once
+                                # the algo_exit_check_errors INSERT itself fails - phase6_exit_execution.py's
+                                # alert just says "see algo_exit_check_errors for detail", which is a dead
+                                # end if we're here. logger.error()+str() previously dropped psycopg2's
+                                # pgcode/pgerror/diag (the actual reason the INSERT failed - e.g. which
+                                # constraint or column) and the traceback, both gone the moment a
+                                # scheduled/background run's stdout disappears. Capture everything available
+                                # now, at CRITICAL level, so the next occurrence is root-causable from logs
+                                # alone instead of needing a live reproduction.
+                                diag_detail = ""
+                                if isinstance(_audit_err, psycopg2.Error):
+                                    diag_detail = (
+                                        f" pgcode={getattr(_audit_err, 'pgcode', None)} "
+                                        f"pgerror={getattr(_audit_err, 'pgerror', None)} "
+                                        f"diag={getattr(getattr(_audit_err, 'diag', None), 'message_detail', None)}"
+                                    )
+                                logger.critical(
+                                    f"[AUDIT] Failed to persist error details for {symbol} "
+                                    f"(trade {trade_id}): {type(_audit_err).__name__}: {_audit_err}.{diag_detail} "
+                                    f"Error was counted and logged, but audit record could not be written - "
+                                    f"algo_exit_check_errors will NOT have a row for this failure.",
+                                    exc_info=_audit_err,
                                 )
                             # CRITICAL FIX: After audit failure, don't attempt to RELEASE the savepoint
                             # The transaction may be in a bad state. Continue to next position.
