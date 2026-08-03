@@ -1126,12 +1126,11 @@ def _get_risk_metrics(cur: cursor) -> Any:
         return success_response(
             {
                 "report_date": data.get("report_date"),
-                "var_pct_95": float(var_95) if var_95 is not None else None,
-                "cvar_pct_95": float(cvar_95) if cvar_95 is not None else None,
-                "stressed_var_pct": (float(stressed_var) if stressed_var is not None else None),
+                "var95": float(var_95) if var_95 is not None else None,
+                "cvar95": float(cvar_95) if cvar_95 is not None else None,
                 "svar": (float(stressed_var) if stressed_var is not None else None),
-                "portfolio_beta": (float(portfolio_beta) if portfolio_beta is not None else None),
-                "top_5_concentration": (float(concentration) if concentration is not None else None),
+                "beta": (float(portfolio_beta) if portfolio_beta is not None else None),
+                "conc5": (float(concentration) if concentration is not None else None),
                 "has_positions": has_positions,
             }
         )
