@@ -26,7 +26,7 @@ class TestConstraintValidation:
         bad_constraints = {
             "max_new_positions_today": 5,
             "max_concentration_pct": 20.0,
-            "regime": "expansion",
+            "regime": "confirmed_uptrend",
         }
 
         with pytest.raises(ValueError) as exc_info:
@@ -44,7 +44,7 @@ class TestConstraintValidation:
             "halt_new_entries": "yes",  # Should be bool
             "max_new_positions_today": 5,
             "max_concentration_pct": 20.0,
-            "regime": "expansion",
+            "regime": "confirmed_uptrend",
         }
 
         with pytest.raises(ValueError) as exc_info:
@@ -60,7 +60,7 @@ class TestConstraintValidation:
             "halt_new_entries": False,
             "max_new_positions_today": 5,
             "max_concentration_pct": 20.0,
-            "regime": "invalid_regime",  # Should be expansion/correction/caution
+            "regime": "invalid_regime",  # Should be confirmed_uptrend/uptrend_under_pressure/caution/correction
         }
 
         with pytest.raises(ValueError) as exc_info:
@@ -91,7 +91,7 @@ class TestConstraintValidation:
             "halt_new_entries": False,
             "max_new_positions_today": 5,
             "max_concentration_pct": 150.0,  # > 100
-            "regime": "expansion",
+            "regime": "confirmed_uptrend",
         }
 
         with pytest.raises(ValueError):
@@ -311,7 +311,7 @@ class TestValidationLogging:
             "halt_new_entries": False,
             "max_new_positions_today": 5,
             "max_concentration_pct": 20.0,
-            "regime": "expansion",
+            "regime": "confirmed_uptrend",
         }
 
         with patch('algo.orchestrator.phase8_entry_execution.logger') as mock_logger:

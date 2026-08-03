@@ -200,7 +200,7 @@ class CredentialManager:
         env_var = secret_name.upper().replace("/", "_")
         secret = os.getenv(env_var)
 
-        if secret:
+        if secret is not None:
             self._cache[secret_name] = (secret, time.time())
             return secret
 
@@ -385,7 +385,7 @@ class CredentialManager:
             raise ValueError("DB_USER not set in environment. Set DB_USER before using credential manager.")
 
         password = self.get_password("db/password")
-        if not password:
+        if password is None:
             raise ValueError("Database password not found in environment or Secrets Manager")
 
         db_name = os.getenv("DB_NAME")

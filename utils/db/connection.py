@@ -62,9 +62,9 @@ def _get_connection_pool() -> Any:
                 db_config = get_db_config()
                 if not all(
                     [
-                        db_config.get("host"),
-                        db_config.get("user"),
-                        db_config.get("password"),
+                        db_config.get("host") is not None,
+                        db_config.get("user") is not None,
+                        db_config.get("password") is not None,
                     ]
                 ):
                     raise psycopg2.OperationalError("Missing required database configuration")

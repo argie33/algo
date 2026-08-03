@@ -32,13 +32,13 @@ def check_endpoint(url: str, headers: dict[str, str] | None = None) -> tuple[int
 
 
 def main() -> None:
-    # Test backend API on localhost:3001 (what dev_server should serve)
+    # Test backend API on 127.0.0.1:3001 (what dev_server should serve)
     endpoints = [
-        ("Portfolio", "http://localhost:3001/api/portfolio"),
-        ("Holdings", "http://localhost:3001/api/holdings"),
-        ("Signals", "http://localhost:3001/api/signals"),
-        ("Market Sentiment", "http://localhost:3001/api/market/sentiment"),
-        ("Portfolio Health", "http://localhost:3001/api/health/portfolio"),
+        ("Portfolio", "http://127.0.0.1:3001/api/portfolio"),
+        ("Holdings", "http://127.0.0.1:3001/api/holdings"),
+        ("Signals", "http://127.0.0.1:3001/api/signals"),
+        ("Market Sentiment", "http://127.0.0.1:3001/api/market/sentiment"),
+        ("Portfolio Health", "http://127.0.0.1:3001/api/health/portfolio"),
     ]
 
     print("=" * 60)
@@ -62,12 +62,12 @@ def main() -> None:
     print("=" * 60)
 
     # Test what the frontend (on 5174) would see via Vite proxy
-    # This simulates the Vite proxy that should forward /api to localhost:3001
-    print("\nVite proxy should forward /api/* to http://localhost:3001")
+    # This simulates the Vite proxy that should forward /api to 127.0.0.1:3001
+    print("\nVite proxy should forward /api/* to http://127.0.0.1:3001")
     print("Frontend on localhost:5174 makes request to: http://localhost:5174/api/portfolio")
-    print("Vite proxy forwards to: http://localhost:3001/api/portfolio")
+    print("Vite proxy forwards to: http://127.0.0.1:3001/api/portfolio")
 
-    status, resp = check_endpoint("http://localhost:3001/api/portfolio")
+    status, resp = check_endpoint("http://127.0.0.1:3001/api/portfolio")
     if status == 200:
         print("[OK] Backend is accessible via proxy target")
     else:

@@ -948,7 +948,7 @@ def run(  # noqa: C901
                 "price_daily": run_date,
                 "technical_data_daily": run_date,
                 "stock_scores": run_date,
-                "buy_sell_daily": run_date,  # Must have today's signals for Phase 7
+                "buy_sell_daily": acceptable_min_date,  # Must have the latest trading day's signals for Phase 7
                 "trend_template_data": run_date,
                 "sector_ranking": run_date,
                 "growth_metrics": run_date,

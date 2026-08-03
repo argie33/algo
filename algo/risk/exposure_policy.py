@@ -27,7 +27,7 @@ class ExposurePolicyConstraints:
     halt_new_entries: bool
     max_new_positions_today: int
     max_concentration_pct: float
-    regime: Literal["expansion", "correction", "caution"]
+    regime: Literal["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
     tier_name: str
     description: str
     risk_multiplier: float

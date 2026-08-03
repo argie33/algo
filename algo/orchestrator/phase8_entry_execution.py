@@ -11,7 +11,7 @@ Phase 8 receives exposure constraints from Phase 5 (ExposurePolicy tier settings
 These constraints must be validated BEFORE any trade execution:
 - All required keys present (halt_new_entries, max_new_positions_today, max_concentration_pct, regime)
 - All values have correct types (bool, int, float, string)
-- All values within valid ranges (concentration 0-100%, regime = expansion/correction/caution)
+- All values within valid ranges (concentration 0-100%, regime = confirmed_uptrend/uptrend_under_pressure/caution/correction)
 - If invalid: Phase 8 halts with clear error message
 See: _validate_constraints_for_phase8() for implementation.
 
@@ -93,7 +93,9 @@ from utils.trading import TradeStatus
 logger = logging.getLogger(__name__)
 
 # ISSUE 15 FIX: Define valid constraint values for Phase 8 validation
-VALID_REGIMES = ["expansion", "correction", "caution"]
+# CRITICAL FIX: Must match the real regime taxonomy (see phase5_exposure_policy.py VALID_REGIMES
+# for why - the old "expansion"/"correction"/"caution" list never matched actual data).
+VALID_REGIMES = ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
 
 
 def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints | Any) -> None:
@@ -168,7 +170,7 @@ def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints |
             errors.append(f"max_concentration_pct must be 0.0-100.0, got {val}")
 
     if "regime" in constraints_dict:
-        # AUDIT ISSUE #15: regime must be from defined set (expansion/correction/caution)
+        # AUDIT ISSUE #15: regime must be from defined set (see VALID_REGIMES above)
         # Maps to market conditions and position sizing tier in ExposurePolicy
         regime = constraints_dict.get("regime", "").lower()
         if regime not in VALID_REGIMES:

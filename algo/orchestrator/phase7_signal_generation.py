@@ -85,7 +85,7 @@ from typing import Any
 
 import psycopg2
 
-from algo.orchestrator.config_validator import validate_phase_config
+from algo.orchestrator.config_validator import get_config_float, validate_phase_config
 from algo.orchestrator.phase_data_contract import ExposureConstraints, validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
@@ -119,7 +119,7 @@ def _calculate_dynamic_anomaly_threshold() -> int:
                     SELECT date, COUNT(*) as signal_count
                     FROM buy_sell_daily
                     WHERE signal_type = 'BUY'
-                    AND date >= CURRENT_DATE - INTERVAL '45 days'  # 45 calendar days to cover 30 trading days
+                    AND date >= CURRENT_DATE - INTERVAL '45 days'  -- 45 calendar days to cover 30 trading days
                     GROUP BY date
                     ORDER BY date DESC
                     LIMIT 30
@@ -1194,12 +1194,12 @@ def run(  # noqa: C901
             f"[PHASE 7] Could not get regime-based min score: {e}. "
             f"Falling back to config value."
         )
-        min_composite_score = float(config["phase7_min_composite_score"])
+        min_composite_score = get_config_float(config, "phase7_min_composite_score", "phase_7_signal_generation", default=50.0)
 
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
 
-    min_close_quality = float(config["min_close_quality_pct"]) / 100.0
+    min_close_quality = get_config_float(config, "min_close_quality_pct", "phase_7_signal_generation", default=40.0) / 100.0
 
     # ISSUE #8 FIX: Guard rails - check critical dependencies BEFORE signal generation
     # Fails fast if ANY dependency is unavailable, preventing silent degradation

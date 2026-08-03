@@ -2416,10 +2416,13 @@ class PriceLoader(OptimalLoader):
                 # DO NOT create marker rows - they pollute price_daily with NULL values.
                 # This is more resilient than marking unavailable: allows silent retry without
                 # cluttering the table with phantom rows. Phase 1 has to filter them anyway.
+                # Counts as a failure (matches the 0-rows-from-fetch handling above) so
+                # runner.py's fail_rate gate can't be silently undercounted by validation drops.
                 logger.debug(
                     f"[{self.table_name}] {symbol}: Skipped (no valid prices after validation). "
                     "Watermark not updated - will retry next run."
                 )
+                self._stats["symbols_failed"] += 1
                 self._stats["symbols_processed"] += 1
                 continue
 

@@ -13,7 +13,12 @@ from algo.reporting import AlertManager
 logger = logging.getLogger(__name__)
 
 # ISSUE 15 FIX: Define valid constraint values
-VALID_REGIMES = ["expansion", "correction", "caution"]
+# CRITICAL FIX: Must match the actual regime taxonomy written to market_exposure_daily.regime
+# and read by algo.orchestration.regime_manager.RegimeManager.REGIMES. The previous list
+# ("expansion"/"correction"/"caution") never matched real data - market_exposure_daily has
+# produced "uptrend_under_pressure" every single day for weeks, so this validator raised
+# ValueError on every real run and crashed Phase 5 (and Phase 6/8 downstream) unconditionally.
+VALID_REGIMES = ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
 VALID_CONSTRAINT_KEYS = [
     "halt_new_entries",
     "halt_reason",

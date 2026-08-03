@@ -5,7 +5,7 @@ Manual diagnostic script - run directly with `python tests/manual/test_vite_prox
 Has no actual test functions (prints a diagnosis rather than asserting), so it must stay
 guarded from pytest collection (see test_market_handler.py for the same pattern) -
 otherwise, since its filename matches pytest's test_*.py glob, every full test-suite run
-silently fires live HTTP requests at localhost:3001/5175 during collection, with no
+silently fires live HTTP requests at 127.0.0.1:3001/5175 during collection, with no
 pass/fail signal to show for it.
 """
 
@@ -26,10 +26,10 @@ def main() -> None:
 
     # Test 1: Direct call to dev_server (backend)
     print("\n[1] Backend API (direct):")
-    print("    GET http://localhost:3001/api/algo/status")
+    print("    GET http://127.0.0.1:3001/api/algo/status")
     try:
         resp = requests.get(
-            "http://localhost:3001/api/algo/status", headers={"Authorization": "Bearer dev-admin"}, timeout=5
+            "http://127.0.0.1:3001/api/algo/status", headers={"Authorization": "Bearer dev-admin"}, timeout=5
         )
         print(f"    Status: {resp.status_code}")
         if resp.status_code == 200:
@@ -91,7 +91,7 @@ def main() -> None:
     print("""
 If Backend API works but Vite Proxy fails:
   -> Vite proxy target is misconfigured or not running
-  -> Check: vite.config.js proxy.target should be 'http://localhost:3001'
+  -> Check: vite.config.js proxy.target should be 'http://127.0.0.1:3001'
   -> Check: npm run dev is actually starting
 
 If Vite Proxy works but browser still shows 'data not available':

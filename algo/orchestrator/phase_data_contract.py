@@ -101,7 +101,7 @@ class ExposureConstraints(TypedDict, total=False):
 
     as_of_date: str  # ISO date string
     exposure_pct: float  # 0-100
-    regime: str  # "expansion", "correction", "caution"
+    regime: str  # "confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"
     tier_name: str  # Name of exposure tier
     description: str  # Human-readable tier description
     risk_multiplier: float  # 0.0-1.0
