@@ -1097,6 +1097,15 @@ class ExitHandler:
             "success": True,
             "trade_id": trade_id,
             "shares_exited": shares_to_exit,
+            # FIX: Phase 6's _validate_exit_trade_response() checks for "executed_price" and
+            # "filled_qty" to confirm a successful exit actually captured fill details, but
+            # this dict never included them (only "shares_exited", and price only ever
+            # embedded in the "message" string) - so that check logged a false
+            # "price/quantity unknown" warning on every single successful exit, 100% of the
+            # time, not just genuine incomplete-response cases. filled_qty aliases the
+            # already-computed shares_to_exit; executed_price is the real fill price.
+            "executed_price": final_exit_price,
+            "filled_qty": shares_to_exit,
             # Cumulative across all legs when full_exit=True (matches what's stored in
             # algo_trades - see the multi-leg comment above); equal to this leg's own
             # pnl_dollars/pnl_pct/r_multiple for a partial exit or an as-yet-unreconciled
