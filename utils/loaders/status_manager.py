@@ -44,7 +44,22 @@ class LoaderStatusManager:
 
         Args:
             table_name: Name of the table this loader updates (e.g., 'price_daily')
+
+        Raises:
+            ValueError: table_name is empty/falsy. Confirmed live 2026-08-03: a caller
+                somewhere constructed this with an empty string, and _ensure_status_row_exists's
+                INSERT ... ON CONFLICT DO NOTHING happily created a permanent
+                data_loader_status row keyed by '' - not tied to any real table, so no loader
+                ever updates its symbol_count/symbols_loaded, so every mark_completed() call
+                against it hits the <98%-completion safety check and marks it FAILED, forever
+                incrementing consecutive_failures. pipeline_health.py's secondary-table sweep
+                (SELECT DISTINCT table_name FROM data_loader_status) then picks up this
+                phantom row and logs "Error checking secondary table : Empty table name" on
+                every single health check. Failing fast here prevents the row from ever
+                being created again.
         """
+        if not table_name:
+            raise ValueError(f"LoaderStatusManager requires a non-empty table_name, got {table_name!r}")
         self.table_name = table_name
         self._ensure_status_row_exists()
 

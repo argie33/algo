@@ -1313,9 +1313,18 @@ class ExitEngine:
             response = None
             for attempt in range(max_attempts):
                 try:
+                    # CRITICAL FIX 2026-08-03: /v2/quotes/latest is not a valid Alpaca endpoint -
+                    # confirmed live it returns a genuine (not proxy/auth) 404 "endpoint not
+                    # found" from Alpaca itself; the real path is /v2/stocks/quotes/latest. Also
+                    # switched feed sip -> iex: this account has no SIP subscription (confirmed
+                    # live: sip returns 403 "subscription does not permit querying recent SIP
+                    # data" even on the corrected path) - iex is the free-tier feed and returns
+                    # real quotes. Together these meant EVERY exit-engine quote lookup, for every
+                    # symbol, on every run, always fell through to the paper-sandbox-404 branch
+                    # and used database fallback pricing instead of a live quote.
                     response = requests.get(
-                        f"{data_url}/v2/quotes/latest",
-                        params={"symbols": symbol, "feed": "sip"},
+                        f"{data_url}/v2/stocks/quotes/latest",
+                        params={"symbols": symbol, "feed": "iex"},
                         headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
                         timeout=get_alpaca_timeout(),
                     )

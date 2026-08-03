@@ -55,7 +55,7 @@ const formatReasonDisplay = (reason) => {
   const reasonMap = {
     missing_sec_data: "No SEC data",
     insufficient_history: "Insufficient history",
-    no_analyst_estimates: "Analyst data unavailable",
+    no_analyst_estimates: "Analyst estimates unavailable",
     analyst_estimates_not_in_sec_filings: "Analyst data not in SEC",
     ebitda_not_extracted: "Not extracted",
     depreciation_amortization_not_loaded: "Depreciation/amortization not loaded",
@@ -68,8 +68,20 @@ const formatReasonDisplay = (reason) => {
     institutional_data_not_available: "Institutional data not available",
     short_float_data_not_calculated: "Short float metrics not calculated",
     ad_rating_not_available: "A/D rating not available",
+    no_dividend_paying_stock: "Non-dividend payer",
   };
   return reasonMap[reason] || reason;
+};
+
+// Detailed reason tooltips (hover text)
+const reasonTooltips = {
+  missing_sec_data: "SEC does not require this disclosure for all company types",
+  non_dividend_paying_stock: "This stock does not pay dividends",
+  insufficient_history: "Requires historical data for calculation",
+  no_analyst_estimates: "External analyst estimates not yet loaded",
+  unprofitable_stock: "Metric undefined for loss-making companies",
+  missing_price_data: "Price data not yet available",
+  institutional_data_not_available: "Institutional holding data not available for this stock",
 };
 
 const FACTORS = [
@@ -265,7 +277,7 @@ function InputRow({ row }) {
         {hasValue ? (
           row.fmt(row.value)
         ) : reasonDisplay ? (
-          <span className="muted" title={reason}>
+          <span className="muted" title={reasonTooltips[reason] || reason}>
             {reasonDisplay}
           </span>
         ) : row.collected === false ? (
@@ -273,7 +285,7 @@ function InputRow({ row }) {
             Not yet available
           </span>
         ) : (
-          <span className="muted">No data</span>
+          <span className="muted" title="Data tracked but missing for this stock">No data</span>
         )}
       </td>
     </tr>
@@ -398,9 +410,27 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
         Detailed Factor Inputs
       </div>
       <div className="t-2xs muted" style={{ marginBottom: "var(--space-2)" }}>
-        Cyan tag = weight in the live scoring formula · amber &quot;Not yet available&quot; = this
-        metric is not populated for any stock yet (system-wide data gap, not just this one) ·
-        plain &quot;No data&quot; = tracked but missing for this stock only.
+        <div style={{ marginBottom: "var(--space-1)" }}>
+          <strong>Legend:</strong>
+        </div>
+        <div style={{ marginBottom: "4px" }}>
+          • <strong>Cyan tag</strong> = weight in the live scoring formula
+        </div>
+        <div style={{ marginBottom: "4px" }}>
+          • <strong style={{ color: "var(--success)" }}>Value</strong> = data available for this stock
+        </div>
+        <div style={{ marginBottom: "4px" }}>
+          • <strong style={{ color: "var(--text-faint)" }}>No SEC data</strong> = SEC doesn't require this disclosure for all company types
+        </div>
+        <div style={{ marginBottom: "4px" }}>
+          • <strong style={{ color: "var(--text-faint)" }}>Non-dividend payer</strong> = stock characteristic, not a data gap
+        </div>
+        <div style={{ marginBottom: "4px" }}>
+          • <strong style={{ color: "var(--text-faint)" }}>No data</strong> = metric tracked but missing for this stock
+        </div>
+        <div>
+          • <strong className="badge badge-amber" style={{ fontSize: "0.65rem", padding: "1px 3px" }}>Not yet available</strong> = system-wide gap (no stock has this yet)
+        </div>
       </div>
       <div className="grid grid-3 gap-3" style={{ marginBottom: "var(--space-5)" }}>
         <InputsCard title="Quality & Fundamentals" stock={stock} schema={QUALITY_SCHEMA} inputsKey="quality_inputs" />
@@ -444,9 +474,17 @@ export default StockScoreAccordion;
 // ─── Input Schemas ──────────────────────────────────────────────────────────
 // Ground-truthed against loaders/load_stock_scores.py and
 // loaders/load_value_quality_growth_metrics.py (the actual scoring formulas),
-// plus a live-DB column-population audit (2026-07-20) to flag fields that are
-// queried/displayed but essentially never populated for any stock ("not yet
-// available" rather than an ordinary per-stock null).
+// plus a live-DB column-population audit (2026-07-20, refreshed 2026-08-03) to
+// flag fields that are queried/displayed but essentially never populated for
+// any stock ("not yet available" rather than an ordinary per-stock null).
+// 2026-08-03: wired forward_pe/ev_ebitda/ev_revenue (value), net_income_growth_yoy/
+// operating_income_growth_yoy/sustainable_growth_rate/fcf_growth_yoy/ocf_growth_yoy
+// (growth), short_interest_trend (positioning), and downside_volatility_252d/
+// max_drawdown_1y (stability) into their respective _score_* formulas in
+// load_stock_scores.py - flipped from used:false to used:true here to match.
+// gross_margin_trend/roe_trend/quarterly_growth_momentum/asset_growth_yoy remain
+// used:false - they're structurally always NULL (no prior-year cost_of_revenue/
+// equity/assets fetched upstream), so there's nothing real to weight yet.
 //
 // used: true  -> this field is a genuine input to the score formula
 // weight: display string for the "Used in Score" badge
@@ -502,11 +540,11 @@ const MOMENTUM_SCHEMA = [
 
 const VALUE_SCHEMA = [
   { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '20%' },
-  { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2) },
+  { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_pb', label: 'P/B', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_ps', label: 'P/S', fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'stock_ev_ebitda', label: 'EV / EBITDA', fmt: v => num(v, 2) },
-  { key: 'stock_ev_revenue', label: 'EV / Revenue', fmt: v => num(v, 2) },
+  { key: 'stock_ev_ebitda', label: 'EV / EBITDA', fmt: v => num(v, 2), used: true, weight: '12%' },
+  { key: 'stock_ev_revenue', label: 'EV / Revenue', fmt: v => num(v, 2), used: true, weight: '10%' },
   { key: 'peg_ratio', label: 'PEG', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2) },
   { key: 'fcf_yield', label: 'FCF Yield', fmt: v => pct(v, 2), used: true, weight: '20%' },
@@ -519,16 +557,16 @@ const GROWTH_SCHEMA = [
   { key: 'eps_growth_3y_cagr',         label: 'EPS CAGR (3Y)',           fmt: v => pct(v, 2), used: true, weight: '19%' },
   { key: 'revenue_growth_5y_cagr',     label: 'Revenue CAGR (5Y)',       fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'eps_growth_5y_cagr',         label: 'EPS CAGR (5Y)',           fmt: v => pct(v, 2), used: true, weight: '5%' },
-  { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2) },
-  { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2) },
+  { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2), used: true, weight: '8%' },
+  { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp` },
   { key: 'operating_margin_trend',     label: 'Op Margin Trend',         fmt: v => `${num(v, 2)} pp` },
   { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp` },
   { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2) },
-  { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2) },
+  { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp` },
-  { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2) },
-  { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2) },
+  { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '6%' },
+  { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '4%' },
   { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2) },
   { key: 'earnings_growth_4q_avg',     label: 'Earnings Growth 4Q Avg',  fmt: v => pct(v, 2) },
 ];
@@ -540,7 +578,7 @@ const POSITIONING_SCHEMA = [
   { key: 'top_10_institutions_pct',     label: 'Top 10 Institutions %', fmt: v => pct(v, 1) },
   { key: 'institutional_holders_count', label: 'Institutional Holders', fmt: v => num(v, 0) },
   { key: 'short_percent_of_float',      label: 'Short % of Shares O/S', fmt: v => pct(v, 1) },
-  { key: 'short_interest_trend',        label: 'Short Interest Trend', fmt: v => num(v, 1) },
+  { key: 'short_interest_trend',        label: 'Short Interest Trend', fmt: v => v == null ? '—' : v.charAt(0).toUpperCase() + v.slice(1), used: true, weight: '10%' },
   { key: 'shares_short_prior_month',    label: 'Shares Short (Prior Month)', fmt: v => num(v, 0) },
   { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },
   { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1) },
@@ -552,10 +590,10 @@ const STABILITY_SCHEMA = [
   { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '12%' },
   { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: '10%' },
-  { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2) },
+  { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2), used: true, weight: '15%' },
   { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2) },
   { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2) },
-  { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2) },
+  { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2), used: true, weight: '10%' },
   { key: 'dividend_yield',           label: 'Dividend Yield',       fmt: v => pct(v, 2) },
   { key: 'payout_ratio',             label: 'Payout Ratio',         fmt: v => pct(v, 1) },
 ];

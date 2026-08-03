@@ -486,6 +486,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if all(m is None for m in core_metrics):
             return self._unavailable_marker("value_metrics", symbol)
 
+        # Determine dividend yield reason: non-payer vs missing data
+        # If dividend_yield is None, check if stock is a known dividend payer
+        dividend_yield_reason = None
+        if dividend_yield is None:
+            # Check if stock has paid dividends (present in dividend_data)
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT 1 FROM dividend_data WHERE symbol = %s LIMIT 1",
+                    (symbol,)
+                )
+                has_dividend_history = cur.fetchone() is not None
+            dividend_yield_reason = "missing_sec_data" if has_dividend_history else "non_dividend_paying_stock"
+
         # Track which fields are unavailable (Session 389)
         return {
             "symbol": symbol,
@@ -504,7 +517,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "pb_ratio_unavailable_reason": "missing_sec_data" if pb is None else None,
             "ps_ratio_unavailable_reason": "missing_sec_data" if ps is None else None,
             "peg_ratio_unavailable_reason": "missing_sec_data" if peg is None else None,
-            "dividend_yield_unavailable_reason": "missing_sec_data" if dividend_yield is None else None,
+            "dividend_yield_unavailable_reason": dividend_yield_reason,
             "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
             "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded" if ev_ebitda is None else None,
@@ -771,16 +784,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if 0.0 <= candidate_rate <= 0.60:
                     effective_tax_rate = candidate_rate
 
-            # Invested Capital = Stockholders' Equity + Long-Term Debt - Cash & Equivalents
-            # CRITICAL: Require ALL three components; do not default missing debt/cash to 0
-            # ROIC calculation needs complete balance sheet data, not partial guesses
+            # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
+            # Use total_debt_ev (from sec_valuations, 79% available) as primary source
+            # Fall back to long_term_debt_bs (from balance_sheet, only 22% available) if needed
+            # ROIC requires complete balance sheet data, not partial guesses
             invested_capital = None
+            debt_for_roic = total_debt_ev if total_debt_ev is not None else long_term_debt_bs
+
             if (
                 stockholders_equity is not None
-                and long_term_debt_bs is not None
+                and debt_for_roic is not None
                 and cash_and_equivalents_bs is not None
             ):
-                invested_capital = stockholders_equity + long_term_debt_bs - cash_and_equivalents_bs
+                invested_capital = stockholders_equity + debt_for_roic - cash_and_equivalents_bs
 
             if (
                 effective_tax_rate is not None
