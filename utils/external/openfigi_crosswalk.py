@@ -78,7 +78,7 @@ import logging
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +189,7 @@ def _post_mapping_batch(cusips: list[str]) -> list[dict[str, Any]] | None:
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=30) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                return cast(list[dict[str, Any]], json.loads(resp.read().decode("utf-8")))
         except urllib.error.HTTPError as e:
             if e.code == 429 and attempt == 0:
                 logger.warning("[OpenFIGI] Rate limited, backing off 60s before one retry")

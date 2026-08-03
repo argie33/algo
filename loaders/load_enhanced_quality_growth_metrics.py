@@ -34,7 +34,7 @@ by adding these new columns as UPDATE operations.
 import logging
 import sys
 from datetime import date
-from typing import Any
+from typing import Any, Iterable
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
@@ -58,7 +58,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0
     exclude_etfs_from_symbols = True
 
-    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:
+    def run(self, symbols: Iterable[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:
         """Override run() to write trend metrics to BOTH quality_metrics and growth_metrics."""
         from utils.loaders.config import get_default_parallelism
 
