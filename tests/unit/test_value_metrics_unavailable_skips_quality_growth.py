@@ -71,7 +71,9 @@ class TestValueUnavailableStillWritesQualityAndGrowth:
             patch("utils.loaders.config.get_default_parallelism", return_value=1),
         ):
             mock_cur = MagicMock()
-            mock_cur.fetchone.return_value = (1,)  # non-zero "today" verification counts
+            # First fetchone: safety check (symbol_count, symbols_loaded, completion_pct)
+            # Second fetchone: non-zero "today" verification counts
+            mock_cur.fetchone.side_effect = [(1, 1, 100.0), (1,)]
             mock_cur.rowcount = 1
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
             mock_status_db_ctx.return_value.__enter__.return_value = mock_cur

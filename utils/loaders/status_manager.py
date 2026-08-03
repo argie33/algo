@@ -49,39 +49,26 @@ class LoaderStatusManager:
         self._ensure_status_row_exists()
 
     def _acquire_lock(self, timeout: int = 10) -> None:
-        """Acquire advisory lock on this loader's status.
+        """No-op for backwards compatibility.
 
-        ISSUE #9 FIX: Uses PostgreSQL advisory lock to coordinate concurrent status updates.
-        Fails fast if lock cannot be acquired within timeout.
+        REMOVED: Advisory locks were broken - pg_advisory_lock acquired in one connection
+        but released when that connection closed, leaving no lock for subsequent operations.
+        Replaced with SELECT FOR UPDATE which holds lock within transaction.
 
-        Args:
-            timeout: Lock acquisition timeout in seconds
+        This method is kept for backwards compatibility but does nothing.
+        Lock acquisition now happens inline in mark_running/update_progress/etc.
         """
-        try:
-            with DatabaseContext("write") as cur:
-                # Use hash of table_name as lock ID (deterministic, unique per table)
-                lock_id = hash(self.table_name) % (2**31)  # Keep within 32-bit range
-                cur.execute(f"SET lock_timeout = '{timeout}s'")
-                cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
-                logger.debug(f"[STATUS_MANAGER] Acquired lock for {self.table_name}")
-        except Exception as e:
-            raise RuntimeError(
-                f"[STATUS_MANAGER] Failed to acquire lock for {self.table_name}: {e}. "
-                f"Cannot proceed with status update without lock protection."
-            ) from e
+        pass
 
     def _release_lock(self) -> None:
-        """Release advisory lock on this loader's status.
+        """No-op for backwards compatibility - transaction-level locks auto-release.
 
-        ISSUE #9 FIX: Releases the previously acquired advisory lock.
+        REMOVED: Advisory locks were broken. SELECT FOR UPDATE locks are automatically
+        released when the transaction commits (or rolls back).
+
+        This method is kept for backwards compatibility but does nothing.
         """
-        try:
-            with DatabaseContext("write") as cur:
-                lock_id = hash(self.table_name) % (2**31)
-                cur.execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
-                logger.debug(f"[STATUS_MANAGER] Released lock for {self.table_name}")
-        except Exception as e:
-            logger.warning(f"[STATUS_MANAGER] Failed to release lock for {self.table_name}: {e}")
+        pass
 
     def _ensure_status_row_exists(self) -> None:
         """Create data_loader_status row if it doesn't exist.
