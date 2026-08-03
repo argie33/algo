@@ -266,7 +266,8 @@ class SecValuationsLoader(OptimalLoader):
             return [marker]
         except Exception as e:
             # Try to classify and handle, or fail-fast if truly unexpected
-            return self._wrap_exception_handler(symbol, e, "computing valuations")
+            marker = handle_exception(symbol, e, "computing valuations")
+            return [marker]
 
     def _compute_valuations(  # noqa: C901
         self,

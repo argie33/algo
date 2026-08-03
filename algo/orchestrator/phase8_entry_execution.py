@@ -1039,7 +1039,7 @@ def run(
             "[PHASE 8] Exposure constraints unavailable or incomplete - using safe halt constraints. "
             "Position entry will be blocked until valid constraints are available."
         )
-        exposure_constraints_from_executor = ExposurePolicyConstraints(
+        safe_constraints = ExposurePolicyConstraints(
             regime="correction",
             tier_name="CORRECTION",
             description="Safe halt defaults (constraints unavailable)",
@@ -1052,10 +1052,11 @@ def run(
             min_composite_score=0.0,
             halt_reason="Exposure constraints unavailable - Phase 5 incomplete or skipped",
         )
+        exposure_constraints_from_executor = cast(ExposureConstraints, safe_constraints.to_dict())
 
         # CHECKPOINT 3: Validate safe defaults have all required fields (fallback path)
         required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
-        safe_defaults_dict = exposure_constraints_from_executor.to_dict()
+        safe_defaults_dict = exposure_constraints_from_executor
         missing_in_defaults = [k for k in required_fields if k not in safe_defaults_dict]
         if missing_in_defaults:
             error_msg = (
@@ -1969,7 +1970,7 @@ def run(
                                 "Original formula (min(sma-atr, entry-2*atr)) unsound."
                             )
                             stop_loss = min_stop_above_support
-            except Exception as e:
+            except (psycopg2.DatabaseError, ValueError, TypeError) as e:
                 logger.error(
                     f"[PHASE 8 CRITICAL] {symbol}: Could not validate stop loss against "
                     f"support: {type(e).__name__}: {e}"
