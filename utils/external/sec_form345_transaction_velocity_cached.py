@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from utils.external.sec_form345_transaction_velocity import Form345TransactionVelocityAggregator, VelocityMetrics
@@ -41,7 +41,7 @@ class CachedForm345Aggregator:
         self._build_complete = threading.Event()
         self._lock = threading.Lock()
 
-    def get_velocity_metrics(self, symbol: str, measurement_date: datetime | None = None, wait_for_download: bool = False) -> VelocityMetrics:
+    def get_velocity_metrics(self, symbol: str, measurement_date: datetime | None = None, wait_for_download: bool = False) -> dict[str, Any]:
         """Get insider transaction velocity for a symbol.
 
         Args:

@@ -87,18 +87,24 @@ def test_worst_sector_selected_across_multiple_sectors(cb):
     assert result["halted"] is True
 
 
-def test_missing_sector_fails_closed_with_error(cb):
+def test_missing_sector_gracefully_skips_position(cb):
+    """Missing sector (NULL from LEFT JOIN) should skip position, not halt orchestrator."""
     rows = [(None, -500.0, 100.0, 100)]
     cur = _make_cursor(rows)
-    with pytest.raises(RuntimeError, match="None/empty sector"):
-        cb._check_sector_drawdown(date(2026, 7, 26), cur)
+    result = cb._check_sector_drawdown(date(2026, 7, 26), cur)
+    # Should not halt - insufficient data but that's degradation, not a halt
+    assert result["halted"] is False
+    assert "Insufficient data" in result.get("reason", "")
 
 
-def test_missing_pnl_data_fails_closed_with_error(cb):
+def test_missing_pnl_data_gracefully_skips_position(cb):
+    """Missing P&L data should skip position, not halt orchestrator."""
     rows = [("Technology", None, 100.0, 100)]
     cur = _make_cursor(rows)
-    with pytest.raises(RuntimeError, match="missing P&L/cost-basis data"):
-        cb._check_sector_drawdown(date(2026, 7, 26), cur)
+    result = cb._check_sector_drawdown(date(2026, 7, 26), cur)
+    # Should not halt - position re-syncs in Phase 3, orchestrator continues
+    assert result["halted"] is False
+    assert "Insufficient data" in result.get("reason", "")
 
 
 def test_missing_config_key_raises():
