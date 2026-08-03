@@ -173,8 +173,8 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 # buy_sell_daily: check signal_type is populated
                 critical_col = "signal_type"
             elif table_name == "market_health_daily":
-                # market_health_daily: check vix is populated
-                critical_col = "vix"
+                # market_health_daily: check vix_level is populated
+                critical_col = "vix_level"
             else:
                 return True, ""  # Unknown table, skip completeness check
 
