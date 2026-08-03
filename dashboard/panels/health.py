@@ -250,6 +250,108 @@ PHASE_DATA_KEYS = (
 )
 
 
+def _calc_critical_tables_status(hlth_items: list[Any]) -> tuple[int, int]:
+    """Calculate how many critical tables are ready vs stale.
+
+    Returns: (ready_count, stale_count)
+    """
+    critical_items = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
+    ready = sum(1 for r in critical_items if r.get("st") == "ok")
+    stale = len(critical_items) - ready
+    return ready, stale
+
+
+def _calc_data_completeness(hlth_items: list[Any]) -> dict[str, tuple[int, int]]:
+    """Calculate data completeness by criticality (ready, total).
+
+    Returns: {"CRIT": (8, 8), "IMP": (12, 13), "NORM": (32, 40)}
+    """
+    by_role = {}
+    for r in hlth_items:
+        if not isinstance(r, dict):
+            continue
+        role = r.get("role", "NORM")
+        st = r.get("st")
+        if role not in by_role:
+            by_role[role] = {"ready": 0, "total": 0}
+        by_role[role]["total"] += 1
+        if st == "ok":
+            by_role[role]["ready"] += 1
+
+    return {role: (data["ready"], data["total"]) for role, data in by_role.items()}
+
+
+def _calc_loader_success_rate(hlth_items: list[Any]) -> tuple[int, int, float | None]:
+    """Calculate loader success rate from failures.
+
+    Returns: (succeeded_count, total_count, success_rate_pct or None)
+    """
+    total = 0
+    with_failure_data = 0
+    total_failures = 0
+
+    for r in hlth_items:
+        if not isinstance(r, dict):
+            continue
+        total += 1
+        n_fail_raw = r.get("consecutive_failures")
+        if n_fail_raw is not None:
+            with_failure_data += 1
+            if isinstance(n_fail_raw, (int, float)):
+                total_failures += int(n_fail_raw)
+
+    if with_failure_data == 0:
+        return total, total, None
+
+    succeeded = total - total_failures if total > 0 else 0
+    success_rate = (succeeded / total * 100) if total > 0 else 0
+    return max(0, succeeded), total, success_rate
+
+
+def _calc_loader_queue_depth(hlth_items: list[Any]) -> tuple[int, int]:
+    """Calculate how many loaders are loading vs queued.
+
+    Returns: (loading_count, queued_count)
+    """
+    loading = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed"))
+    # Queued = those with execution_started but for which it's taking long (this is an estimate)
+    queued = 0
+    return loading, queued
+
+
+def _get_most_critical_issues(hlth_items: list[Any]) -> list[str]:
+    """Extract top 3 most critical blocking issues.
+
+    Returns: List of issue descriptions
+    """
+    issues = []
+    for r in hlth_items:
+        if not isinstance(r, dict):
+            continue
+        role = r.get("role")
+        if role != "CRIT":
+            continue
+        st = r.get("st")
+        if st != "ok":
+            tbl_name = r.get("tbl", "unknown")
+            if st == "stale":
+                age = r.get("age")
+                threshold = r.get("stale_threshold_days")
+                if age is not None and threshold is not None:
+                    issues.append(f"{tbl_name} stale ({age}d > {threshold}d threshold)")
+                else:
+                    issues.append(f"{tbl_name} stale")
+            elif st == "empty":
+                issues.append(f"{tbl_name} has no data")
+            elif st == "error":
+                err = r.get("loader_error", "unknown error")
+                issues.append(f"{tbl_name} loading failed: {err[:40]}")
+            else:
+                issues.append(f"{tbl_name} unavailable ({st})")
+
+    return issues[:3]
+
+
 def _build_phase_execution_panel(
     execution_health: dict[str, Any] | None,
     run: dict[str, Any] | None = None,
@@ -3341,6 +3443,34 @@ def panel_algo_health(
     else:
         rows.append(Text.from_markup("[dim]No run data - algo has not run yet[/]"))
 
+    # ── A.2: Data readiness summary (NEW) ─────────────────────────────────────
+    hlth_dict = hlth if isinstance(hlth, dict) else {}
+    hlth_items_raw, _ = extract_health_items(hlth if hlth is not None else {})
+    hlth_items = hlth_items_raw if isinstance(hlth_items_raw, list) else []
+
+    if hlth_items:
+        crit_ready, crit_stale = _calc_critical_tables_status(hlth_items)
+        crit_total = crit_ready + crit_stale
+        if crit_total > 0:
+            crit_color = G if crit_stale == 0 else Y if crit_stale == 1 else R
+            rows.append(Text.from_markup(f"  [dim]Critical data:[/] [{crit_color}]{crit_ready}/{crit_total} ready[/]"))
+
+    # ── A.3: Degraded mode alert (NEW) ────────────────────────────────────────
+    degraded_mode = hlth_dict.get("degraded_mode_active")
+    if degraded_mode:
+        rows.append(Text.from_markup(f"  [{R}]⚠ DEGRADED MODE:[/] Position sizes at 50%"))
+
+    # ── A.4: Loader health summary (NEW) ──────────────────────────────────────
+    if hlth_items:
+        loading_count, _ = _calc_loader_queue_depth(hlth_items)
+        total_loaders = len(hlth_items)
+        failed_loaders = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") in ("error", "stale"))
+        succeeded_loaders = total_loaders - failed_loaders
+        if loading_count > 0:
+            rows.append(Text.from_markup(f"  [dim]Loaders:[/] [{G}]{succeeded_loaders} ok[/] [{Y}]{loading_count} loading[/]"))
+        elif failed_loaders > 0:
+            rows.append(Text.from_markup(f"  [dim]Loaders:[/] [{G}]{succeeded_loaders} ok[/] [{R}]{failed_loaders} failed[/]"))
+
     # ── A.5: Execution stats (last 24h failures) ──────────────────────────────
     stats_line = _format_execution_stats(exec_stats)
     if stats_line:
@@ -3549,6 +3679,13 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
     if trading_halted and trading_halt_reason:
         rows.append(Text.from_markup(f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}"))
 
+    # ── Loader success rate (NEW) ────────────────────────────────────────────
+    if hlth_items:
+        succeeded, total, success_rate = _calc_loader_success_rate(hlth_items)
+        if success_rate is not None and total > 0:
+            rate_color = G if success_rate >= 90 else Y if success_rate >= 70 else R
+            rows.append(Text.from_markup(f"  [dim]Loader health:[/] [{rate_color}]{success_rate:.0f}% success ({succeeded}/{total})[/]"))
+
     # Summary counts by status
     summary = hlth_dict.get("summary")
     if isinstance(summary, dict) and summary:
@@ -3568,11 +3705,39 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         if parts:
             rows.append(Text.from_markup("[dim]Summary:[/]  " + "  ".join(parts)))
 
-    # Critical tables stale alert
+    # ── Data completeness by criticality (NEW) ───────────────────────────────
+    if hlth_items:
+        completeness = _calc_data_completeness(hlth_items)
+        if completeness:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup("[bold cyan]Data Coverage:[/]"))
+            for role in ["CRIT", "IMP", "NORM"]:
+                if role in completeness:
+                    ready, total = completeness[role]
+                    pct = (ready / total * 100) if total > 0 else 0
+                    role_name = "Critical" if role == "CRIT" else "Important" if role == "IMP" else "Normal"
+                    pct_color = G if pct == 100 else Y if pct >= 80 else R
+                    rows.append(Text.from_markup(f"  [{pct_color}]{role_name:9}:[/] {ready:2}/{total:2} ({pct:5.1f}%)"))
+
+    # ── Most critical blocking issues (NEW - replaces bare critical stale alert) ──
     critical_stale = hlth_dict.get("critical_stale")
     if critical_stale:
-        names = "  ".join(f"[bold {R}]{n}[/]" for n in critical_stale[:5])
-        rows.append(Text.from_markup(f"[{R}]⚠ CRITICAL STALE:[/]  {names}"))
+        names = "  ".join(f"[bold {R}]{n}[/]" for n in critical_stale[:3])
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[{R}]⚠ CRITICAL BLOCKING:[/]  {names}"))
+
+    # Extract top 3 issues from items if available
+    if hlth_items:
+        top_issues = _get_most_critical_issues(hlth_items)
+        if top_issues and not critical_stale:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup(f"[{R}]⚠ CRITICAL ISSUES:[/]"))
+            for issue in top_issues:
+                rows.append(Text.from_markup(f"  [{R}]•[/] {issue[:70]}"))
+        elif top_issues and critical_stale:
+            rows.append(Text.from_markup("[dim]Top issues:[/]"))
+            for issue in top_issues[:2]:
+                rows.append(Text.from_markup(f"  [{R}]•[/] {issue[:65]}[/]"))
 
     # Phase 1 data freshness check result (orchestrator's view at last run)
     execution_health = hlth_dict.get("execution_health")
@@ -3660,6 +3825,15 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         if len(never_started) > 6:
             rows.append(Text.from_markup(f"  [dim]...and {len(never_started) - 6} more[/]"))
 
+    # ── LOADER QUEUE DEPTH & ETA (NEW) ─────────────────────────────────────────
+    # Show pipeline status and estimated completion
+    if hlth_items:
+        loading_count, queued = _calc_loader_queue_depth(hlth_items)
+        if loading_count > 0:
+            rows.append(Rule(style="dim"))
+            eta_s = f"{queued + loading_count} more loaders to complete"
+            rows.append(Text.from_markup(f"[dim]Loader queue:[/] [{Y}]{loading_count} active[/]  {queued + loading_count} items pending"))
+
     # ── CURRENTLY LOADING ──────────────────────────────────────
     # Show what's in progress
     in_progress = [r for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed")]
@@ -3667,7 +3841,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup(f"[bold {Y}]Loading now:[/]"))
         for r in in_progress[:4]:
-            pct = r.get("completion_pct")
+            pct = r.get("completion_pct")  # type: ignore[assignment]
             pct_s = f"{float(pct):.0f}%" if pct is not None else "?"
             sl, sc = r.get("symbols_loaded"), r.get("symbol_count")
             cnt_s = f" ({sl}/{sc} symbols)" if sl is not None and sc is not None else ""
