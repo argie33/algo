@@ -993,7 +993,7 @@ def run(
                 # When Phase 5 halts due to missing market data or policy error, it returns
                 # halt_constraints with safe defaults (max_concentration_pct=0, halt_new_entries=True).
                 # Phase 8 MUST use these halt constraints, not ignore them.
-                exposure_constraints_from_executor = phase5_result.data.get("constraints")
+                exposure_constraints_from_executor = cast(ExposureConstraints | None, phase5_result.data.get("constraints"))
 
                 # CHECKPOINT 1: Validate Phase 5 constraints have ALL required fields (around line 685-710)
                 # If any required field is missing, use safe defaults instead
