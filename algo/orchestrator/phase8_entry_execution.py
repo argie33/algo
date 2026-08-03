@@ -2169,9 +2169,11 @@ def run(
                 _log_signal_rejection(symbol, "serialization_conflict", str(ser_err), run_date, entry_price, risk_pct)
                 skipped_count += 1
                 continue
-            except Exception as e:
-                logger.error(f"[PHASE 8] Failed to check for duplicate positions: {e}")
-                # Don't halt on check failure, let database constraint catch actual duplicates
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
+                logger.error(f"[PHASE 8] Failed to check for duplicate positions: {type(db_err).__name__}: {db_err}")
+                _log_signal_rejection(symbol, "duplicate_check_failed", f"Database error checking positions: {type(db_err).__name__}", run_date, entry_price, risk_pct)
+                skipped_count += 1
+                continue
 
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")
