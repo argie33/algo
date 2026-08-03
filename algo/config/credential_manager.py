@@ -600,12 +600,63 @@ class CredentialManager:
         If any SMTP env var or secret is set, ALL SMTP fields must be explicitly provided.
         No defaults or partial fallbacks.
 
+        CRITICAL FIX: terraform/modules/services/main.tf stores SMTP credentials in AWS
+        Secrets Manager (aws_secretsmanager_secret.algo_smtp, JSON blob:
+        {password, username, host, port}) specifically so the password isn't visible via
+        lambda:GetFunction, and sets ALERT_SMTP_SECRET_ARN on the orchestrator Lambda's env -
+        deliberately NOT ALERT_SMTP_PASSWORD. This function (and AlertManager.__init__,
+        which read raw os.getenv("ALERT_SMTP_PASSWORD") directly, never this function) had no
+        code path that ever consumed ALERT_SMTP_SECRET_ARN - so in the real deployed Lambda,
+        with everything correctly configured in terraform and IAM, self.smtp_password was
+        always empty, AlertManager silently cleared email_to, and a circuit-breaker trip or
+        Phase 9 governance halt never actually paged anyone via email, even though every
+        terraform/IAM piece looked fully wired up. Mirrors _get_db_credentials()'s existing
+        DB_SECRET_ARN JSON-blob fetch pattern.
+
         Fields required if SMTP is configured:
-        - ALERT_SMTP_HOST or smtp/host secret
-        - ALERT_SMTP_USER or smtp/user secret
-        - ALERT_SMTP_PASSWORD or smtp/password secret
-        - ALERT_SMTP_PORT or smtp/port secret
+        - ALERT_SMTP_SECRET_ARN (AWS: fetches host/user/password/port together from Secrets Manager)
+        - or ALERT_SMTP_HOST + ALERT_SMTP_USER + ALERT_SMTP_PASSWORD + ALERT_SMTP_PORT (local dev)
         """
+        secret_arn = os.getenv("ALERT_SMTP_SECRET_ARN")
+        if secret_arn and self._is_aws:
+            cache_key = "__smtp_credentials__"
+            if cache_key in self._cache:
+                cached_smtp: dict[str, Any]
+                smtp_timestamp: float
+                cached_smtp, smtp_timestamp = self._cache[cache_key]
+                if time.time() - smtp_timestamp < CREDENTIAL_CACHE_TTL_SECONDS:
+                    return cached_smtp
+
+            client = self._get_secrets_client()
+            if not client:
+                raise RuntimeError(
+                    "ALERT_SMTP_SECRET_ARN is set but Secrets Manager client is unavailable. "
+                    "Cannot fall back to environment variables for SMTP credentials in AWS environment."
+                )
+            import json as _json
+
+            response = client.get_secret_value(SecretId=secret_arn)
+            secret_string = response.get("SecretString")
+            if not secret_string:
+                raise ValueError(f"ALERT_SMTP_SECRET_ARN '{secret_arn}' exists but contains no SecretString")
+            try:
+                creds = _json.loads(secret_string)
+            except _json.JSONDecodeError as e:
+                raise ValueError(f"SMTP secret contains invalid JSON: {e}") from e
+
+            for field in ("username", "password", "host", "port"):
+                if field not in creds or not creds[field]:
+                    raise ValueError(f"SMTP secret at '{secret_arn}' missing required field '{field}'")
+
+            smtp_result: dict[str, Any] = {
+                "username": creds["username"],
+                "password": creds["password"],
+                "host": creds["host"],
+                "port": int(creds["port"]),
+            }
+            self._cache[cache_key] = (smtp_result, time.time())
+            return smtp_result
+
         # Check if SMTP is configured by looking for any required field
         has_smtp_host = os.getenv("ALERT_SMTP_HOST") is not None
         has_smtp_user = os.getenv("ALERT_SMTP_USER") is not None

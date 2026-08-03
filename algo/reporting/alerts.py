@@ -21,6 +21,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -39,10 +40,33 @@ class AlertManager:
     def __init__(self) -> None:
         self.email_from = os.getenv("ALERT_SMTP_FROM", os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local"))
         self.email_to = [e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()]
-        self.smtp_host = os.getenv("ALERT_SMTP_HOST")
-        self.smtp_port = int(os.getenv("ALERT_SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("ALERT_SMTP_USER", "")
-        self.smtp_password = os.getenv("ALERT_SMTP_PASSWORD", "")
+
+        # CRITICAL FIX: previously read raw os.getenv("ALERT_SMTP_HOST"/"ALERT_SMTP_USER"/
+        # "ALERT_SMTP_PASSWORD") directly - but terraform/modules/services/main.tf stores
+        # these in AWS Secrets Manager and sets ALERT_SMTP_SECRET_ARN on the Lambda env,
+        # deliberately NOT ALERT_SMTP_PASSWORD (security fix: env vars are visible via
+        # lambda:GetFunction). No code anywhere ever consumed ALERT_SMTP_SECRET_ARN, so in
+        # the real deployed Lambda self.smtp_password was always empty even with everything
+        # correctly configured in terraform/IAM, silently disabling email alerts. Route
+        # through get_smtp_credentials(), which fetches the Secrets Manager blob when
+        # ALERT_SMTP_SECRET_ARN is set (AWS) or falls back to the individual env vars
+        # (local dev).
+        try:
+            smtp_creds = get_credential_manager().get_smtp_credentials()
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"[ALERT CONFIG] SMTP credential lookup failed: {e}. Email alerts disabled.")
+            smtp_creds = None
+
+        if smtp_creds:
+            self.smtp_host: str | None = smtp_creds["host"]
+            self.smtp_port = smtp_creds["port"]
+            self.smtp_user = smtp_creds["username"]
+            self.smtp_password = smtp_creds["password"]
+        else:
+            self.smtp_host = None
+            self.smtp_port = int(os.getenv("ALERT_SMTP_PORT", "587"))
+            self.smtp_user = ""
+            self.smtp_password = ""
 
         if self.email_to and not (self.smtp_host and self.smtp_user and self.smtp_password):
             logger.warning(
