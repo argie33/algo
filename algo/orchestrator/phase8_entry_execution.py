@@ -265,9 +265,9 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                   AND p.quantity > 0
             """)
             result = cur.fetchone()
-            if result is None:
+            if result is None or len(result) < 2:
                 raise RuntimeError(
-                    "[ENTRY EXECUTION] Risk calculation query returned no rows. "
+                    "[ENTRY EXECUTION] Risk calculation query returned no rows or incomplete result. "
                     "This indicates database failure. Check: (1) database connectivity, (2) algo_positions table exists"
                 )
             # SUM returns NULL when no matching rows; COUNT returns 0 or actual count
@@ -379,7 +379,8 @@ def _cleanup_orphaned_positions() -> int:
                 WHERE quantity = 0 AND status = 'open'
                 """
             )
-            orphaned_count = cur.fetchone()[0] if cur.fetchone() else 0
+            result = cur.fetchone()
+            orphaned_count = result[0] if result else 0
 
             if orphaned_count > 0:
                 # Mark them as closed with cleanup annotation
@@ -808,6 +809,27 @@ def run(
     """
     validate_phase_config(config, "phase_8_entry_execution")
 
+    if "execution_mode" not in config:
+        raise ValueError(
+            "[PHASE 8] Config missing 'execution_mode'. "
+            "Trading mode must be explicit ('paper' or 'auto'). "
+            "Check algo_config table has this key."
+        )
+    execution_mode = config["execution_mode"]
+    if execution_mode not in ("paper", "auto"):
+        raise ValueError(
+            f"[PHASE 8] Invalid execution_mode='{execution_mode}'. "
+            "Must be 'paper' (paper trading) or 'auto' (live trading)."
+        )
+
+    if "alpaca_paper_trading" not in config:
+        raise ValueError(
+            "[PHASE 8] Config missing 'alpaca_paper_trading'. "
+            "Trading mode must be explicit (paper vs live). "
+            "Check algo_config table has this key."
+        )
+    alpaca_paper_trading = config["alpaca_paper_trading"]
+
     phase_start = time.time()
 
     logger.info("[PHASE 8] Starting entry execution")
@@ -844,7 +866,6 @@ def run(
     # CRITICAL GUARD: Check for pending/recent orders that may still be filling
     # If orders from prior run are still pending, executing new entries risks duplicates
     # NOTE: Skip this guard in paper mode since there are no real pending orders in simulation
-    execution_mode = config.get("execution_mode", "paper")
     if execution_mode != "paper":
         try:
             with DatabaseContext("read") as cur:
@@ -1255,12 +1276,16 @@ def run(
                     if MarketCalendar.is_trading_day(most_recent_trading_day):
                         break
                     most_recent_trading_day -= td(days=1)
+                if not MarketCalendar.is_trading_day(most_recent_trading_day):
+                    raise ValueError(f"No trading day found within 10 days of {run_date}")
             # Find previous trading day as minimum acceptable price date
             expected_price_date = most_recent_trading_day - td(days=1)
             while expected_price_date > most_recent_trading_day - td(days=10):
                 if MarketCalendar.is_trading_day(expected_price_date):
                     break
                 expected_price_date -= td(days=1)
+            if not MarketCalendar.is_trading_day(expected_price_date):
+                raise ValueError(f"No previous trading day found within 10 days of {most_recent_trading_day}")
 
             if latest_price_date is None or latest_price_date < expected_price_date:
                 msg = (
@@ -1319,31 +1344,10 @@ def run(
         + (f" (cap: {max_entries}/day)" if max_entries else "")
     )
 
-    # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
-    # CRITICAL FIX: Require explicit config - fail-fast if missing
-    # No silent fallback to False (which would attempt live trading)
-    if "execution_mode" not in config:
-        raise ValueError(
-            "[PHASE 8] Config missing 'execution_mode'. "
-            "Trading mode must be explicit ('paper' or 'auto'). "
-            "Check algo_config table has this key."
-        )
-    execution_mode_check = config["execution_mode"]
-
-    if "alpaca_paper_trading" not in config:
-        raise ValueError(
-            "[PHASE 8] Config missing 'alpaca_paper_trading'. "
-            "Trading mode must be explicit (paper vs live). "
-            "Check algo_config table has this key."
-        )
-    alpaca_paper_trading = config["alpaca_paper_trading"]
-    # "auto" is this system's real live-trading mode (see this session's other
-    # execution_mode fixes) - this is log text only (no behavior gated on it), but
-    # including "auto" made every live orchestrator run log the misleading "Paper trading
-    # mode active... Trades will execute against paper account" message.
-    if execution_mode_check == "paper" or alpaca_paper_trading:
+    # Log paper trading mode info (execution_mode and alpaca_paper_trading already validated above)
+    if execution_mode == "paper" or alpaca_paper_trading:
         logger.info(
-            f"[PHASE 8] Paper trading mode active (execution_mode={execution_mode_check}, "
+            f"[PHASE 8] Paper trading mode active (execution_mode={execution_mode}, "
             f"alpaca_paper_trading={alpaca_paper_trading}). Trades will execute against paper account."
         )
 
@@ -1402,13 +1406,6 @@ def run(
     # Fetch portfolio value once - avoids one Alpaca API call per symbol
     # CRITICAL FIX: Use database snapshot for atomic value, not live Alpaca fetch
     # Prevents: stale value being used for position sizing if API times out and fallback activates
-    execution_mode = config.get("execution_mode")
-    if execution_mode is None:
-        raise ValueError(
-            "[PHASE 8 CRITICAL] execution_mode config missing. "
-            "Cannot determine trading mode (live vs paper). "
-            "Set explicit execution_mode in algo_config table."
-        )
     portfolio_value = None
     portfolio_value_source = None
 
@@ -1425,12 +1422,12 @@ def run(
                 (run_date,),
             )
             result = cur.fetchone()
-            if result and result[0] is not None and result[1] == run_date:
+            if result and len(result) > 1 and result[0] is not None and result[1] == run_date:
                 portfolio_value = Decimal(str(result[0]))
                 portfolio_value_source = "database_snapshot"
                 logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from database snapshot)")
             else:
-                if result and result[1] != run_date:
+                if result and len(result) > 1 and result[1] != run_date:
                     raise ValueError(f"Portfolio snapshot date {result[1]} does not match run_date {run_date}")
                 else:
                     raise ValueError("No portfolio snapshot available for today")
@@ -1494,13 +1491,6 @@ def run(
     # Now: explicit validation with actionable error messages
     alpaca_key = None
     alpaca_secret = None
-    execution_mode = config.get("execution_mode")
-    if execution_mode is None:
-        raise ValueError(
-            "[PHASE 8 CRITICAL] execution_mode config missing. "
-            "Cannot determine trading mode (live vs paper). "
-            "Set explicit execution_mode in algo_config table."
-        )
 
     try:
         from algo.config.credential_manager import get_credential_manager
@@ -1614,48 +1604,6 @@ def run(
         msg = (
             f"[PHASE 8 CRITICAL] Position count check failed: {e}. "
             f"Cannot verify position limit. Must halt to prevent exceeding 15-position limit."
-        )
-        logger.critical(msg, exc_info=True)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        raise RuntimeError(msg) from e
-
-    # CRITICAL FIX (Session 2026-08-03): Re-validate price_daily freshness for afternoon/evening runs
-    # Phase 1 validates at startup, but Phase 8 may run HOURS later. Re-validate before entries.
-    # If market closed early or pipeline stalled, price_daily may be stale.
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute("SELECT MAX(date) FROM price_daily")
-            price_row = cur.fetchone()
-            max_price_date = price_row[0] if price_row and price_row[0] else None
-
-            if not max_price_date:
-                msg = (
-                    f"[PHASE 8 CRITICAL] price_daily table is empty (no dates found). "
-                    f"Cannot verify price freshness. Must halt - no valid price data for trading."
-                )
-                logger.critical(msg)
-                log_phase_result_fn(8, "entry_execution", "halt", msg)
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-            if max_price_date < run_date:
-                msg = (
-                    f"[PHASE 8 CRITICAL] price_daily is STALE: max_date={max_price_date}, run_date={run_date}. "
-                    f"Latest prices are from {max_price_date}, but trading run is for {run_date}. "
-                    f"Market may have closed early, or price loader did not complete. "
-                    f"Cannot execute entries without current price data. Must halt."
-                )
-                logger.critical(msg)
-                log_phase_result_fn(8, "entry_execution", "halt", msg)
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-            logger.info(
-                f"[PHASE 8] Price freshness validated: max_date={max_price_date} >= run_date={run_date}. "
-                f"OK to proceed with entries."
-            )
-    except Exception as e:
-        msg = (
-            f"[PHASE 8 CRITICAL] Price freshness check failed: {e}. "
-            f"Cannot verify data is current for trading. Must halt to prevent stale-data entries."
         )
         logger.critical(msg, exc_info=True)
         log_phase_result_fn(8, "entry_execution", "halt", msg)
@@ -2512,7 +2460,7 @@ def run(
     # reported clean success with 0 executed - same bug class as phase6_exit_execution.py's
     # previously-always-"success" status (which errors already fed into but the status
     # string itself ignored).
-    phase_status = "degraded" if failed_count > 0 else "success"
+    phase_status = "degraded" if failed_count > 0 else "ok"
     log_phase_result_fn(8, "entry_execution", phase_status, f"{executed_count} trades executed, {failed_count} failed")
 
     # success_rate: percentage of actual submission attempts (executed + failed) that
