@@ -474,7 +474,18 @@ class AlpacaSyncManager:
                 )
                 if cur.rowcount > 0:
                     synced_count += 1
-                    if prior_qty is not None and int(prior_qty) != int(qty_float):
+                    # CRITICAL FIX: this compared int(prior_qty) != int(qty_float) - this system
+                    # actively trades fractional shares (order_manager.py), so a genuine
+                    # sub-1-share drift (e.g. DB=10.9, Alpaca=10.1 - a real ~0.8-share, up to
+                    # hundreds of dollars depending on price, correction from a partial fill or
+                    # manual adjustment) truncated to int(10.9)=10 == int(10.1)=10 and was
+                    # silently treated as "no drift" - no warning logged, no notify() alert. The
+                    # DB quantity was still correctly overwritten to match the broker either way
+                    # (the UPDATE above runs unconditionally), so this never caused a wrong final
+                    # state - only a missed operator alert for exactly the sub-1-share drift this
+                    # check exists to catch. Compare with a small tolerance for float precision
+                    # instead of truncating.
+                    if prior_qty is not None and abs(prior_qty - qty_float) > 1e-6:
                         logger.warning(
                             f"[POSITION_SYNC] Quantity drift for {symbol}: DB had {prior_qty}, "
                             f"Alpaca reports {qty_float} - overwriting DB to match broker (source of truth)."
