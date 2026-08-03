@@ -738,6 +738,31 @@ def get_db_credentials() -> dict[str, Any]:
     return get_credential_manager().get_db_credentials()
 
 
+def get_algo_owner_cognito_sub() -> str:
+    """Return the Cognito sub that owns all algo-created trading records.
+
+    The trading engine (orchestrator/executor) runs without any per-request
+    JWT/user context - it's a background job, not an authenticated API
+    handler - so it never populates cognito_sub the way
+    lambda/api/routes/user_isolation.py does for real requests. Without this,
+    every position/trade/snapshot the algo writes gets cognito_sub=NULL and
+    is permanently invisible to the dashboard's user-scoped
+    "WHERE cognito_sub = %s" queries (lambda/api/routes/algo_handlers/
+    dashboard.py) - confirmed live: 100% of algo_positions/algo_trades/
+    algo_portfolio_snapshots rows had cognito_sub=NULL, so the dashboard
+    always showed zero positions no matter how many the algo actually held.
+
+    Sourced from ADMIN_COGNITO_SUB - the same env var
+    migrations/versions/037_replace_admin_placeholder_with_real_cognito_sub.py
+    already uses to backfill existing rows - so a production deploy only
+    needs it set once, to the real owner's Cognito sub. Falls back to
+    "dev-admin", the fixed sub lambda/api/dev_auth.py issues for local dev
+    tokens (see dashboard/api_data_layer.py's "Bearer dev-admin"), so local
+    development shows positions without any extra setup.
+    """
+    return os.getenv("ADMIN_COGNITO_SUB", "").strip() or "dev-admin"
+
+
 def get_alpaca_credentials(user_id: str | None = None) -> dict[str, Any]:
     """Module-level convenience function for Alpaca credentials.
 

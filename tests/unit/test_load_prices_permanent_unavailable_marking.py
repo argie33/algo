@@ -9,12 +9,22 @@ the same dead symbols, inflating data_loader_status.consecutive_failures/complet
 forever, and operators had to hand-patch stock_symbols out of band (a pattern that isn't
 repeatable and doesn't self-heal for the next symbol that goes quiet).
 
-Fix: before marking a >2-day-stale, 0-row symbol as failed, confirm with one more 30-day
-lookback fetch. If that's also empty, persist data_unavailable=TRUE with a reason to
-stock_symbols (via _mark_symbol_permanently_unavailable) and count it as skipped, not
-failed - so it stops being re-discovered on every run. If the 30-day check finds rows,
-preserve the original behavior (mark failed, retry next run) since that's evidence of a
-transient gap, not permanent unavailability.
+Fix: before marking a >2-day-stale, 0-row symbol as failed, confirm with one more fetch
+strictly since the symbol's own watermark. If that's also empty, persist
+data_unavailable=TRUE with a reason to stock_symbols (via
+_mark_symbol_permanently_unavailable) and count it as skipped, not failed - so it stops
+being re-discovered on every run. If the confirmation fetch finds real rows newer than
+the watermark, preserve the original behavior (mark failed, retry next run) since that's
+evidence of a transient gap, not permanent unavailability.
+
+BUG FIX 2026-08-03: the confirmation originally fetched from a fixed `today - 30 days`
+anchor instead of from the symbol's own watermark. For any symbol whose last real trade
+fell within that 30-day window (i.e. almost every recently-stopped-trading symbol), the
+fetch always re-discovered the already-loaded historical row(s) at/before the watermark,
+so the confirmation could never come back empty - permanent-unavailable marking was
+structurally unreachable, and 280 real symbols (mostly expired SPAC-rights tickers) got
+stuck failing 29 consecutive days. Fixed to fetch from `watermark + 1 day` - the only
+question that matters is whether anything NEW has shown up since the last successful load.
 """
 
 from datetime import datetime, timedelta
@@ -57,8 +67,8 @@ class TestPermanentUnavailableMarking:
         loader._watermark.get_watermarks_bulk.return_value = {"DEAD": dead_watermark}
 
         def fake_fetch(symbols, since, **kwargs):
-            # Both the forced-fresh (7d) batch fetch and the 30-day confirmation
-            # fetch come back genuinely empty - this symbol is really gone.
+            # Both the forced-fresh (7d) batch fetch and the confirmation fetch (since
+            # the watermark) come back genuinely empty - this symbol is really gone.
             return {"DEAD": []}
 
         loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)
@@ -78,23 +88,26 @@ class TestPermanentUnavailableMarking:
         assert loader._stats["symbols_skipped_by_watermark"] == 1
         assert loader._stats["symbols_processed"] == 1
 
-        # Confirms the 30-day widened lookback actually happened, not just a re-read.
-        thirty_day_calls = [
-            c for c in loader.fetch_batch_incremental.call_args_list if c.args[1] == today - timedelta(days=30)
+        # Confirms the since-watermark confirmation fetch actually happened, not just a re-read.
+        confirmation_calls = [
+            c for c in loader.fetch_batch_incremental.call_args_list if c.args[1] == dead_watermark + timedelta(days=1)
         ]
-        assert len(thirty_day_calls) == 1
+        assert len(confirmation_calls) == 1
 
-    def test_stale_symbol_with_older_data_stays_failed_not_marked(self):
-        """A 30-day lookback that DOES find rows means this is a long gap, not a dead
-        symbol - must preserve the original fail-and-retry behavior, not mark it unavailable."""
+    def test_stale_symbol_with_newer_data_stays_failed_not_marked(self):
+        """A confirmation fetch that finds a row NEWER than the watermark means this is a
+        transient gap, not a dead symbol - must preserve the original fail-and-retry
+        behavior, not mark it unavailable. (A row OLDER than the watermark would just be
+        re-discovering data already loaded - see the 2026-08-03 bug fix above; that must
+        NOT be treated as evidence the symbol is still alive.)"""
         loader = _make_loader()
         today = datetime.now(EASTERN_TZ).date()
         stale_watermark = today - timedelta(days=10)
         loader._watermark.get_watermarks_bulk.return_value = {"GAPPY": stale_watermark}
 
-        old_row = {
+        new_row = {
             "symbol": "GAPPY",
-            "date": today - timedelta(days=20),
+            "date": today - timedelta(days=3),
             "open": 1.0,
             "high": 2.0,
             "low": 0.5,
@@ -103,8 +116,8 @@ class TestPermanentUnavailableMarking:
         }
 
         def fake_fetch(symbols, since, **kwargs):
-            if since == today - timedelta(days=30):
-                return {"GAPPY": [dict(old_row)]}
+            if since == stale_watermark + timedelta(days=1):
+                return {"GAPPY": [dict(new_row)]}
             return {"GAPPY": []}
 
         loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)

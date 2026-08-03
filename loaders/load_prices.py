@@ -858,22 +858,31 @@ class PriceLoader(OptimalLoader):
         """
         return self.fetcher.fetch_batch_incremental(symbols, since, is_eod_pipeline=self._is_eod_pipeline)
 
-    def _confirm_no_data_in_30_days(self, symbol: str) -> bool:
+    def _confirm_no_data_in_30_days(self, symbol: str, current_watermark: date) -> bool:
         """Second-opinion check before permanently marking a symbol unavailable.
 
-        The stale-watermark path below only has a narrow (<=7 day) fetch window to go
-        on, which isn't enough to distinguish "genuinely delisted/halted" from "just a
-        long trading gap" - marking the former unavailable is correct (stops the same
-        symbol re-failing every run forever) but marking the latter would wrongly drop a
-        real symbol out of the trading universe. Widen the lookback to 30 days as one
-        extra confirmation; only symbols still empty over that whole window get marked.
+        BUG FIX 2026-08-03: this used to fetch from `today - 30 days` regardless of the
+        symbol's own watermark. For any symbol whose last real trade was within the last
+        30 days (i.e. almost every recently-stopped-trading symbol - SPAC rights that
+        just expired, a thin-volume delisting, etc.), that window always re-discovers the
+        already-loaded historical row(s) at/before the watermark, so `result.get(symbol)`
+        was always truthy and this could never confirm unavailability - the symbol would
+        fail every run forever instead of ever being marked permanently unavailable.
+        Live-confirmed: 280 symbols (mostly SPAC-rights tickers like CTAAR/EMISR/EURKR)
+        stuck failing 29 consecutive days this way, dragging price_daily's completion
+        below its 98% threshold and falsely marking the whole load FAILED daily even
+        though every genuinely-active symbol loaded fine.
+
+        Fetching from `current_watermark + 1 day` instead asks the only question that
+        actually matters - has ANY new data shown up since the last date we successfully
+        loaded - without re-finding data we already have.
         """
         try:
-            today = datetime.now(EASTERN_TZ).date()
-            result = self.fetch_batch_incremental([symbol], today - timedelta(days=30))
+            since = current_watermark + timedelta(days=1)
+            result = self.fetch_batch_incremental([symbol], since)
             return not result.get(symbol)
         except Exception as e:
-            logger.debug(f"[{self.table_name}] {symbol}: 30-day confirmation fetch failed: {e}")
+            logger.debug(f"[{self.table_name}] {symbol}: no-new-data confirmation fetch failed: {e}")
             return False
 
     def _mark_symbol_permanently_unavailable(self, symbol: str, reason: str) -> None:
@@ -2404,10 +2413,11 @@ class PriceLoader(OptimalLoader):
                     # 30-day lookback confirms this isn't a transient gap at all (see
                     # _confirm_no_data_in_30_days), in which case retrying forever just
                     # wastes API calls and masks the real state behind a permanent failure.
-                    if self._confirm_no_data_in_30_days(symbol):
+                    if self._confirm_no_data_in_30_days(symbol, current_watermark):
                         reason = (
-                            f"yfinance returned no data for {symbol} over a 30-day lookback "
-                            f"(watermark was {watermark_age_days}d stale) - auto-verified {today}"
+                            f"yfinance returned no new data for {symbol} since its last loaded date "
+                            f"{current_watermark} (watermark was {watermark_age_days}d stale) - "
+                            f"auto-verified {today}"
                         )
                         self._mark_symbol_permanently_unavailable(symbol, reason)
                         self._stats["symbols_skipped_by_watermark"] += 1

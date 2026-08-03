@@ -84,7 +84,7 @@ def test_parses_real_infotable_columns_keyed_by_cusip(monkeypatch) -> None:
 
     monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=120: _FakeResponse())
 
-    holdings = loader._fetch_and_parse_13f_bulk("https://www.sec.gov/files/.../fake.zip")
+    holdings, _manager_holdings = loader._fetch_and_parse_13f_bulk("https://www.sec.gov/files/.../fake.zip")
 
     # Both rows share CUSIP 88579Y101 (same issuer, different manager filings) -
     # must sum, not overwrite, and must be keyed by CUSIP since there is no ticker.
@@ -143,7 +143,7 @@ def test_crosswalk_to_tickers_uses_cache_and_only_queries_openfigi_for_new_cusip
 
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.fetch_cusip_tickers", _fail_if_called)
 
-    result = loader._crosswalk_to_tickers({"037833100": 914936485})
+    result, _manager_result = loader._crosswalk_to_tickers({"037833100": 914936485})
 
     assert result == {"AAPL": 914936485}
     assert cursor.upserts == []  # nothing new to cache
@@ -182,7 +182,7 @@ def test_crosswalk_to_tickers_queries_and_caches_new_cusips(monkeypatch):
         _fake_fetch_cusip_tickers,
     )
 
-    result = loader._crosswalk_to_tickers({"037833100": 914936485, "UNRESOLVABLE": 500})
+    result, _manager_result = loader._crosswalk_to_tickers({"037833100": 914936485, "UNRESOLVABLE": 500})
 
     assert result == {"AAPL": 914936485}
     # Both the resolved and unresolved CUSIP must be cached (a negative result is a
@@ -216,7 +216,7 @@ def test_crosswalk_to_tickers_rejects_the_live_verified_xom_wrong_entity_match(m
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["XOM"])
 
-    result = loader._crosswalk_to_tickers({"999999999": 999})
+    result, _manager_result = loader._crosswalk_to_tickers({"999999999": 999})
 
     assert result == {}
 
@@ -246,6 +246,6 @@ def test_crosswalk_to_tickers_ignores_a_resolved_ticker_outside_our_universe(mon
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["XOM"])
 
-    result = loader._crosswalk_to_tickers({"30231G102": 5720000000})
+    result, _manager_result = loader._crosswalk_to_tickers({"30231G102": 5720000000})
 
     assert result == {}

@@ -24,6 +24,7 @@ from typing import Any, cast
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
+from algo.config.credential_manager import get_algo_owner_cognito_sub
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     DatabaseError,
@@ -506,7 +507,7 @@ class EntryHandler:
                 stop_method, stop_reasoning,
                 advanced_components, bracket_order,
                 reentry_count, prior_trade_id, rejection_reason,
-                created_at
+                cognito_sub, created_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
                 %s, %s,
@@ -518,7 +519,7 @@ class EntryHandler:
                 %s, %s,
                 %s, %s,
                 %s, %s, %s,
-                CURRENT_TIMESTAMP
+                %s, CURRENT_TIMESTAMP
             )
             """,
             (
@@ -563,6 +564,7 @@ class EntryHandler:
                 0,
                 None,
                 request.rejection_reason,
+                get_algo_owner_cognito_sub(),
             ),
         )
 
@@ -1081,11 +1083,11 @@ class EntryHandler:
                     trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
                     target_1_price, target_2_price, target_3_price,
                     target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                    r_multiple, metrics_updated_at, created_at
+                    r_multiple, cognito_sub, metrics_updated_at, created_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
-                    %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """,
                 (
@@ -1123,6 +1125,7 @@ class EntryHandler:
                     self.t2_target_r_multiple if target_2_price else None,
                     self.t3_target_r_multiple if target_3_price else None,
                     r_multiple,
+                    get_algo_owner_cognito_sub(),
                 ),
             )
 

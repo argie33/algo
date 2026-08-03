@@ -15,7 +15,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from algo.trading.executor_strategies import create_execution_mode_strategy
-from algo.config.credential_manager import get_credential_manager
+from algo.config.credential_manager import get_algo_owner_cognito_sub, get_credential_manager
 from utils.db.advisory_locks import ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 
 logger = logging.getLogger(__name__)
@@ -214,14 +214,15 @@ class AlpacaSyncManager:
                         cur.execute(
                             """
                             INSERT INTO algo_untracked_positions
-                            (symbol, quantity, current_price, position_value, detected_at, updated_at, last_seen_at)
-                            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            (symbol, quantity, current_price, position_value, cognito_sub, detected_at, updated_at, last_seen_at)
+                            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                             (
                                 symbol,
                                 qty_float,
                                 float(current_price) if current_price else None,
                                 position_value,
+                                get_algo_owner_cognito_sub(),
                             ),
                         )
                         # CRITICAL: this is a real broker position (real shares, real dollars)

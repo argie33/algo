@@ -1258,7 +1258,7 @@ def run(  # noqa: C901
 
             if today_scores_exist:
                 logger.info("[PHASE 7] Skipping signal quality score loader (today's scores already available)")
-                score_result = {"symbols_processed": 0, "symbols_failed": 0}
+                score_result = {"symbols_processed": 0, "symbols_failed": 0, "already_computed_today": True}
             else:
                 logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
                 loader = SignalQualityScoresLoader()
@@ -1377,7 +1377,14 @@ def run(  # noqa: C901
         # This happens when signal_quality_scores lock is held by stale process.
         # EXCEPTION: If lock_contention flag is set, we already logged this as degraded mode
         # and should NOT halt - Phase 8 will proceed without updated scores.
-        if symbols_processed == 0 and not score_result.get("lock_contention", False):
+        # EXCEPTION: If already_computed_today is set, symbols_processed=0 is the skip
+        # sentinel from the "today's scores already exist" fast path above, not a failure -
+        # live-confirmed 2026-08-03: the loader completed successfully at 09:39-09:40
+        # (53,353 rows, loader_execution_history status=success), then Phase 7 re-ran at
+        # 09:42, correctly skipped re-computing, and this check treated that intentional
+        # skip as "loader failed to acquire lock" and halted the entire orchestrator -
+        # blocking Phase 8 entries on data that was valid and current.
+        if symbols_processed == 0 and not score_result.get("lock_contention", False) and not score_result.get("already_computed_today", False):
             msg = (
                 "[PHASE 7 CRITICAL] Signal quality score computation produced 0 symbols processed. "
                 "This indicates the loader failed to acquire the processing lock (likely held by stale process) "

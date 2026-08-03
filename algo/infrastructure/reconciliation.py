@@ -14,6 +14,7 @@ import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
+from algo.config.credential_manager import get_algo_owner_cognito_sub
 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.audit_logger import TradeAuditLogger
 from algo.infrastructure.broker_adapter import BrokerAdapter
@@ -622,6 +623,7 @@ class DailyReconciliation:
                         adjusted_equity,
                         adjusted_running_peak,
                         adjusted_drawdown_pct,
+                        get_algo_owner_cognito_sub(),
                     )
                     logger.info(
                         f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={cash_remaining}"
@@ -640,9 +642,9 @@ class DailyReconciliation:
                             daily_return_pct, cumulative_return_pct, max_drawdown_pct,
                             sharpe_ratio, market_health_status, drawdown_pct, running_peak,
                             net_capital_flow_cum, adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct,
-                            created_at
+                            cognito_sub, created_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -1404,9 +1406,9 @@ class DailyReconciliation:
                             daily_return_pct, cumulative_return_pct, max_drawdown_pct,
                             sharpe_ratio, market_health_status, drawdown_pct, running_peak,
                             net_capital_flow_cum, adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct,
-                            created_at
+                            cognito_sub, created_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -1471,6 +1473,7 @@ class DailyReconciliation:
                             adjusted_equity,
                             adjusted_running_peak,
                             adjusted_drawdown_pct,
+                            get_algo_owner_cognito_sub(),
                         ),
                     )
                 finally:

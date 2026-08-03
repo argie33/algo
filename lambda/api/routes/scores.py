@@ -623,9 +623,25 @@ def _get_stock_scores(  # noqa: C901
         # Exclude ETFs per GOVERNANCE.md: "financial data loaders and trading signals are stocks only".
         # Use etf_symbols table (definitive source). Note: ss.etf column does not exist in stock_scores.
         # This pattern is mirrored in /api/market/breadth and Phase 7 signal generation.
+        #
+        # SPAC-SHELL/DERIVATIVE FILTERING (2026-08-03): pre-merger SPAC common shares
+        # ("... Acquisition Corp[oration] - Class A Ordinary Shares") and their Rights/
+        # Warrants derivatives have no operating business, so SEC EDGAR has no income
+        # statement/balance sheet for them - loaders correctly mark them
+        # 'no_annual_income_data_in_sec_edgar_reit_or_special_entity', which surfaced on
+        # the scores page as "No SEC data" for ~5% of the universe (279/5455 symbols,
+        # verified live 2026-08-03). That's not a loader gap to fix - there is nothing to
+        # load - so exclude them the same way ETFs are excluded. The Rights/Warrants
+        # pattern is end-anchored ('...Rights?/Warrants?$') to avoid matching ADS
+        # boilerplate like "...American Depositary Shares (each representing the right to
+        # receive...)" (e.g. AMX/RLX/WDH), which are real operating companies.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
+            AND (ss.security_name IS NULL OR (
+                ss.security_name !~* '(Rights?|Warrants?)$'
+                AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
+            ))
             """
         params_list: list[Any] = []
 

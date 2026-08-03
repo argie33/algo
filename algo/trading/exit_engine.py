@@ -835,7 +835,7 @@ class ExitEngine:
                                        exit_reason = %s,
                                        current_price = NULL,
                                        profit_loss_dollars = NULL,
-                                       profit_loss_pct = NULL,
+                                       unrealized_pnl_pct = NULL,
                                        unrealized_pnl = NULL,
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND status IN ({position_status_placeholders})""",

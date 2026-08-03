@@ -390,11 +390,10 @@ def _cleanup_orphaned_positions() -> int:
                     """
                     UPDATE algo_positions
                     SET status = 'closed',
-                        exit_date = %s,
+                        closed_at = CURRENT_TIMESTAMP,
                         exit_reason = 'Phase8_cleanup_orphaned_position'
                     WHERE quantity = 0 AND status = 'open'
-                    """,
-                    (_date.today(),),
+                    """
                 )
                 logger.warning(
                     f"[PHASE 8 CLEANUP] Cleaned up {orphaned_count} orphaned positions "

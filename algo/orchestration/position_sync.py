@@ -32,6 +32,7 @@ import logging
 from decimal import Decimal
 from typing import Tuple
 
+from algo.config.credential_manager import get_algo_owner_cognito_sub
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -87,9 +88,21 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         updated += 1
                         logger.debug(f"[POSITION_SYNC] Updated {symbol}: {total_qty:.2f} shares")
                     else:
-                        # Get entry_price from first trade
+                        # Get entry_price and risk/position-linkage fields from first trade.
+                        # algo_positions requires position_id, avg_entry_price, stop_loss_price,
+                        # and current_stop_price (all NOT NULL, no defaults) - pulling them from
+                        # the originating algo_trades row instead of leaving them unset, which
+                        # previously made every insert here raise a NOT NULL violation, caught by
+                        # the broad except below and logged as a per-symbol error. That silently
+                        # defeated this function's entire purpose (AUDIT ISSUE #3: healing
+                        # positions orphaned when a crash landed the algo_trades row but not the
+                        # matching algo_positions row) - the exact orphaned-position case this
+                        # reconciliation exists to catch was the one case it could never fix.
                         cur.execute('''
-                            SELECT entry_price FROM algo_trades
+                            SELECT entry_price, position_id, stop_loss_price,
+                                   target_1_price, target_2_price, target_3_price,
+                                   target_1_r_multiple, target_2_r_multiple, target_3_r_multiple
+                            FROM algo_trades
                             WHERE symbol = %s AND status IN ('filled', 'open')
                             ORDER BY entry_date ASC
                             LIMIT 1
@@ -97,7 +110,11 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
 
                         trade_row = cur.fetchone()
                         if trade_row:
-                            entry_price = trade_row[0]
+                            (
+                                entry_price, trade_position_id, stop_loss_price,
+                                target_1_price, target_2_price, target_3_price,
+                                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                            ) = trade_row
 
                             # AUDIT ISSUE #3 FIX: Validate position data BEFORE insert/update
                             # CHECKPOINT 1: Check entry_price IS NOT NULL and > 0
@@ -127,11 +144,45 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                     f"Zero/negative quantity indicates corrupted trade record."
                                 )
 
+                            # CHECKPOINT 3: Check position_id and stop_loss_price are present.
+                            # WHY: Both are NOT NULL on algo_positions with no default. A position
+                            # with no stop_loss_price is also unmanageable by every downstream exit
+                            # check (exit_engine.py, circuit_breaker.py), so refuse to synthesize a
+                            # placeholder value here rather than create a position no safety check
+                            # can act on.
+                            if not trade_position_id or not stop_loss_price or stop_loss_price <= 0:
+                                raise RuntimeError(
+                                    f"[POSITION_SYNC] Cannot sync position for {symbol}: "
+                                    f"position_id={trade_position_id!r}, stop_loss_price={stop_loss_price!r}. "
+                                    f"Both required (NOT NULL) - trade record is incomplete."
+                                )
+
                             # Position doesn't exist, insert new one
                             cur.execute('''
-                                INSERT INTO algo_positions (symbol, quantity, status, entry_price, entry_date, created_at, updated_at)
-                                VALUES (%s, %s, %s, %s, NOW(), NOW(), NOW())
-                            ''', (symbol, total_qty, 'open', entry_price))
+                                INSERT INTO algo_positions (
+                                    position_id, symbol, quantity, avg_entry_price, entry_price,
+                                    current_price, status, entry_date,
+                                    stop_loss_price, current_stop_price,
+                                    target_1_price, target_2_price, target_3_price,
+                                    target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                                    cognito_sub, created_at, updated_at
+                                )
+                                VALUES (
+                                    %s, %s, %s, %s, %s,
+                                    %s, %s, NOW(),
+                                    %s, %s,
+                                    %s, %s, %s,
+                                    %s, %s, %s,
+                                    %s, NOW(), NOW()
+                                )
+                            ''', (
+                                trade_position_id, symbol, total_qty, entry_price, entry_price,
+                                entry_price, 'open',
+                                stop_loss_price, stop_loss_price,
+                                target_1_price, target_2_price, target_3_price,
+                                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                                get_algo_owner_cognito_sub(),
+                            ))
                             inserted += 1
                             logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
                         else:
