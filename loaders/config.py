@@ -115,4 +115,6 @@ def get_loader_max_backfill_days() -> int:
                 f"Must be a valid integer > 0. {e}"
             ) from e
 
-    return 730  # Default: 2 years maximum
+    # Default: read from algo/config which supports environment override
+    from algo.config import MAX_BACKFILL_DAYS_LIMIT
+    return MAX_BACKFILL_DAYS_LIMIT

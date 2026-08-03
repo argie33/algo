@@ -42,8 +42,10 @@ LOADER_TIMEOUT_SECONDS: Final[int] = LOADER_TIMEOUT_MINUTES * 60
 # Maximum days of historical data to backfill per load
 # Used by: loaders/optimal_loader.py
 # Purpose: Avoid excessive backfill on initial loader setup
-# Typical: 0-30 for incremental loads, up to 730 for full year backfill
+# Typical: 0-30 for incremental loads, up to 730+ for full year+ backfill
+# Environment: MAX_BACKFILL_DAYS (default 0 = incremental only, no backfill)
 MAX_BACKFILL_DAYS: Final[int] = int(os.environ.get("MAX_BACKFILL_DAYS", "0"))
+MAX_BACKFILL_DAYS_LIMIT: Final[int] = int(os.environ.get("MAX_BACKFILL_DAYS_LIMIT", "1825"))  # 5 years default
 
 # ============================================================================
 # DATABASE CONNECTION POOL CONFIGURATION
@@ -126,8 +128,8 @@ def validate_config() -> None:
     if LOADER_TIMEOUT_MINUTES <= 0:
         errors.append(f"LOADER_TIMEOUT_MINUTES must be > 0, got {LOADER_TIMEOUT_MINUTES}")
 
-    if MAX_BACKFILL_DAYS < 0 or MAX_BACKFILL_DAYS > 730:
-        errors.append(f"MAX_BACKFILL_DAYS must be 0-730, got {MAX_BACKFILL_DAYS}")
+    if MAX_BACKFILL_DAYS < 0 or MAX_BACKFILL_DAYS > MAX_BACKFILL_DAYS_LIMIT:
+        errors.append(f"MAX_BACKFILL_DAYS must be 0-{MAX_BACKFILL_DAYS_LIMIT}, got {MAX_BACKFILL_DAYS}")
 
     if DB_POOL_MIN_CONNECTIONS <= 0:
         errors.append(f"DB_POOL_MIN_CONNECTIONS must be > 0, got {DB_POOL_MIN_CONNECTIONS}")
