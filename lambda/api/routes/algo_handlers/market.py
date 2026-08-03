@@ -36,8 +36,8 @@ from .signals import _TIER_CONFIG
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get data quality")
-@validate_api_response("health")
+@db_route_handler("get data quality")  # type: ignore[untyped-decorator]
+@validate_api_response("health")  # type: ignore[untyped-decorator]
 def _get_data_quality(cur: cursor) -> Any:
     try:
         # Get patrol log entries from last 24 hours
@@ -166,8 +166,8 @@ def _rollback_after_error(cur: cursor) -> None:
         logger.debug(f"[DATA_STATUS] Failed to rollback after query error: {rollback_err}")
 
 
-@db_route_handler("fetch data status")
-@validate_api_response("health")
+@db_route_handler("fetch data status")  # type: ignore[untyped-decorator]
+@validate_api_response("health")  # type: ignore[untyped-decorator]
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -1285,8 +1285,8 @@ def _normalize_exposure(exp: dict[str, Any]) -> Any:
     }
 
 
-@db_route_handler("get market")
-@validate_api_response("mkt")
+@db_route_handler("get market")  # type: ignore[untyped-decorator]
+@validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_market(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -1416,7 +1416,7 @@ def _get_market(cur: cursor) -> Any:
         return error_response(503, "service_unavailable", "Failed to fetch market data")
 
 
-@db_route_handler("get market factors")
+@db_route_handler("get market factors")  # type: ignore[untyped-decorator]
 def _get_market_factors(cur: cursor) -> Any:
     logger.debug("[MARKET_FACTORS] Function called - no validation decorator")
     try:
@@ -1469,8 +1469,8 @@ def _get_market_factors(cur: cursor) -> Any:
         return error_response(503, "service_unavailable", "Failed to fetch market factors")
 
 
-@db_route_handler("get market sentiment")
-@validate_api_response("mkt")
+@db_route_handler("get market sentiment")  # type: ignore[untyped-decorator]
+@validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_market_sentiment(cur: cursor) -> Any:
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score.
     # bullish/bearish/neutral breakdown is not available in this view (AAII survey data lives in
@@ -1519,8 +1519,8 @@ def _get_market_sentiment(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("get markets")
-@validate_api_response("mkt")
+@db_route_handler("get markets")  # type: ignore[untyped-decorator]
+@validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_markets(cur: cursor) -> Any:  # noqa: C901
     try:
         # Latest exposure row (skip non-trading days to get last valid trading day)
@@ -1867,8 +1867,8 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         )
 
 
-@db_route_handler("get trend criteria")
-@validate_api_response("mkt")
+@db_route_handler("get trend criteria")  # type: ignore[untyped-decorator]
+@validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_trend_criteria(cur: cursor) -> Any:
     cur.execute("""
         SELECT
