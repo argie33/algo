@@ -770,11 +770,9 @@ class PipelineHealth:
                         VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, NOW()))
                         ON CONFLICT (table_name)
                         DO UPDATE SET
-                            status = EXCLUDED.status,
                             row_count = EXCLUDED.row_count,
                             latest_date = EXCLUDED.latest_date,
                             age_days = EXCLUDED.age_days,
-                            error_message = EXCLUDED.error_message,
                             stale_threshold_days = EXCLUDED.stale_threshold_days,
                             last_updated = EXCLUDED.last_updated
                         """,

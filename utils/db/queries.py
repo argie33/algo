@@ -6,6 +6,8 @@ buy_sell_daily, stock_scores tables. Reduces duplication, improves maintainabili
 enables query optimization at one point.
 """
 
+from typing import cast
+
 from utils.db.context import DatabaseContext
 
 
@@ -17,7 +19,7 @@ class AlgoPositionsQueries:
         """Get count of currently open positions."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-            return cur.fetchone()[0]
+            return cast(int, cur.fetchone()[0])
 
     @staticmethod
     def get_open_position_symbols() -> set[str]:
@@ -31,7 +33,7 @@ class AlgoPositionsQueries:
         """Get total count of positions (for inventory checks)."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_positions")
-            return cur.fetchone()[0]
+            return cast(int, cur.fetchone()[0])
 
     @staticmethod
     def get_total_position_value() -> float:
@@ -64,14 +66,14 @@ class AlgoTradesQueries:
         """Get count of total trades."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_trades")
-            return cur.fetchone()[0]
+            return cast(int, cur.fetchone()[0])
 
     @staticmethod
     def get_trade_count_by_status(status: str) -> int:
         """Get count of trades with given status."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_trades WHERE status = %s", (status,))
-            return cur.fetchone()[0]
+            return cast(int, cur.fetchone()[0])
 
 
 class BuySellDailyQueries:
@@ -82,7 +84,7 @@ class BuySellDailyQueries:
         """Get count of signals."""
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM buy_sell_daily")
-            return cur.fetchone()[0]
+            return cast(int, cur.fetchone()[0])
 
     @staticmethod
     def get_latest_date() -> str | None:
@@ -100,7 +102,7 @@ class BuySellDailyQueries:
                 "SELECT COUNT(*) FROM buy_sell_daily WHERE date = %s AND signal_type = 'BUY'",
                 (date_,),
             )
-            return cur.fetchone()[0]
+            return cast(int, cur.fetchone()[0])
 
 
 class StockScoresQueries:

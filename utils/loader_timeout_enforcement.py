@@ -14,6 +14,7 @@ Loader developers should use this wrapper instead of raw API calls to prevent ha
 import logging
 import signal
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Optional
@@ -35,7 +36,7 @@ def _timeout_handler(signum: int, frame: Any) -> None:
 
 
 @contextmanager
-def loader_timeout_context(loader_name: str, timeout_seconds: Optional[int] = None):
+def loader_timeout_context(loader_name: str, timeout_seconds: Optional[int] = None) -> Generator[None, None, None]:
     """
     Context manager to enforce timeout on loader execution.
 
@@ -52,18 +53,27 @@ def loader_timeout_context(loader_name: str, timeout_seconds: Optional[int] = No
         LoaderTimeoutError: If loader exceeds timeout
     """
     timeout = timeout_seconds or LOADER_MAX_RUNTIME_SECONDS
-    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    old_handler = None
+    start_time = time.time()
 
     try:
-        start_time = time.time()
-        signal.alarm(timeout)
-        logger.info(f"[LOADER_TIMEOUT] {loader_name}: timeout enforcement enabled ({timeout}s max)")
+        # Try to set up signal-based timeout (Unix only)
+        try:
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)  # type: ignore[attr-defined]
+            signal.alarm(timeout)  # type: ignore[attr-defined]
+            logger.info(f"[LOADER_TIMEOUT] {loader_name}: timeout enforcement enabled ({timeout}s max)")
+        except (AttributeError, ValueError):
+            # Windows or signal already set - use time-based fallback only
+            logger.debug(f"[LOADER_TIMEOUT] {loader_name}: signal-based timeout not available, using time-based fallback")
 
         try:
             yield
         finally:
             elapsed = time.time() - start_time
-            signal.alarm(0)  # Cancel alarm
+            try:
+                signal.alarm(0)  # type: ignore[attr-defined]
+            except (AttributeError, ValueError):
+                pass
             if elapsed > timeout * 0.8:  # Warn if used 80%+ of timeout
                 logger.warning(f"[LOADER_TIMEOUT] {loader_name}: used {elapsed:.1f}s of {timeout}s limit")
 
@@ -71,10 +81,14 @@ def loader_timeout_context(loader_name: str, timeout_seconds: Optional[int] = No
         logger.critical(f"[LOADER_TIMEOUT] {loader_name} EXCEEDED TIMEOUT: {e}")
         raise
     finally:
-        signal.signal(signal.SIGALRM, old_handler)
+        if old_handler is not None:
+            try:
+                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
+            except (AttributeError, ValueError):
+                pass
 
 
-def with_loader_timeout(timeout_seconds: Optional[int] = None):
+def with_loader_timeout(timeout_seconds: Optional[int] = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator to add timeout enforcement to a loader function.
 
@@ -89,7 +103,7 @@ def with_loader_timeout(timeout_seconds: Optional[int] = None):
     Raises:
         LoaderTimeoutError: If loader exceeds timeout
     """
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             with loader_timeout_context(func.__name__, timeout_seconds):
