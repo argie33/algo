@@ -47,7 +47,6 @@ EXCLUSION_PATTERNS = [
     r"\bblank check\b",
     r"\bspac\b",
     r"\bspecial purpose\b",
-    r"\binvestment corp\b",
     r"\betn\b",
     r"\bexchange[- ]traded note\b",
     r"\betf\b",
@@ -89,9 +88,31 @@ EXCLUSION_PATTERNS = [
     r"\d+(\.\d+)?%\s+series\s+[a-z]\b",
 ]
 
+# GOVERNANCE 2026-08-03: a bare `\binvestment corp\b` pattern used to sit in
+# EXCLUSION_PATTERNS above. Live-confirmed it silently excluded AGNC ("AGNC Investment
+# Corp. - Common Stock", a large actively-traded mortgage REIT) and SAR ("Saratoga
+# Investment Corp New", a real BDC common stock) from the entire trading universe -
+# neither is a SPAC. The pattern exists to catch serial-SPAC-sponsor shell companies
+# (Hennessy Capital Investment Corp. VIII, NewHold Investment Corp III/IV, Origin
+# Investment Corp I, Vine Hill Capital Investment Corp. II, Bain Capital GSS Investment
+# Corp.) whose base equity lines ("... Class A Ordinary Shares") aren't caught by any
+# other pattern (their units/warrants/rights lines already are, via the patterns above).
+# Real US operating companies list "Common Stock"; these SPACs (offshore blank-check
+# vehicles) list "Ordinary Shares" instead - only exclude "investment corp" names that
+# also carry that SPAC share-class language, not the bare phrase on its own. Verified
+# against the full live nasdaqlisted.txt/otherlisted.txt feeds: this change flips exactly
+# AGNC and SAR to included and leaves every SPAC-family row (units/warrants/rights/base
+# shares) excluded, same as before.
+INVESTMENT_CORP_PATTERN = re.compile(r"\binvestment corp\b", re.IGNORECASE)
+SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.IGNORECASE)
+
 
 def should_exclude(name: str) -> bool:
-    return any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS)
+    if any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS):
+        return True
+    if INVESTMENT_CORP_PATTERN.search(name) and SPAC_SHARE_CLASS_PATTERN.search(name):
+        return True
+    return False
 
 
 class MarketConstituentsLoader(OptimalLoader):

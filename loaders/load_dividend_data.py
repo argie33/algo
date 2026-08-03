@@ -163,9 +163,15 @@ class DividendDataLoader(SecLoaderBase):
                 except (ValueError, TypeError):
                     continue
 
-                # Estimate ex-date: typically within 30-60 days after period end
+                # Estimate ex-date: typically within 30-60 days after period end.
+                # This estimate is a structural necessity, not a data-quality shortcut:
+                # SEC XBRL only reports declared/paid per-share amounts tied to a fiscal
+                # period, never a true ex-dividend date, yet ex_dividend_date is this
+                # table's dedup/primary key (migration 1168) - some anchor date is required
+                # to key each dividend record on. payment_date has no such requirement, so
+                # unlike ex_dividend_date it's left None (matching record_date below)
+                # rather than compounding the estimate with a second guessed date.
                 ex_dividend_date = period_end + timedelta(days=45)
-                payment_date = ex_dividend_date + timedelta(days=3)
 
                 results.append(
                     {
@@ -173,7 +179,7 @@ class DividendDataLoader(SecLoaderBase):
                         "declaration_date": declaration_date,
                         "ex_dividend_date": ex_dividend_date,
                         "record_date": None,
-                        "payment_date": payment_date,
+                        "payment_date": None,
                         "dividend_per_share": Decimal(str(value)),
                         "dividend_yield_pct": None,
                         "total_dividend_amount": None,

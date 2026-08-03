@@ -94,3 +94,41 @@ class TestRightsWhenIssuedAndDepositaryShareExclusionPatterns:
         bare `\\btrust\\b` pattern would risk false-positiving real REIT common stock, so
         it's deliberately left unmatched pending individual review."""
         assert not should_exclude("SCE TRUST VI")
+
+
+class TestInvestmentCorpSpacVsRealCompany:
+    """Regression test added 2026-08-03: a bare `\\binvestment corp\\b` pattern silently
+    excluded real, actively-traded common stocks whose legal name happens to end in the
+    abbreviated "Investment Corp." rather than the fuller "Investment Corporation" -
+    live-confirmed against the actual nasdaqlisted.txt/otherlisted.txt feeds that AGNC
+    (AGNC Investment Corp., a large mortgage REIT) and SAR (Saratoga Investment Corp, a
+    real BDC) were both missing from stock_symbols entirely. The pattern exists to catch
+    serial-SPAC-sponsor shell companies, which - unlike real US operating companies -
+    list "Ordinary Shares"/"Rights" instead of "Common Stock"; only exclude when that
+    SPAC share-class language is also present.
+    """
+
+    def test_agnc_common_stock_not_excluded(self):
+        assert not should_exclude("AGNC Investment Corp. - Common Stock")
+
+    def test_saratoga_common_stock_not_excluded(self):
+        assert not should_exclude("Saratoga Investment Corp New")
+
+    def test_agnc_preferred_depositary_shares_still_excluded(self):
+        assert should_exclude(
+            "AGNC Investment Corp. - Depositary Shares Each Representing a 1/1,000th "
+            "Interest in a Share of 7.75% Series G Fixed-Rate Reset Cumulative "
+            "Redeemable Preferred Stock"
+        )
+
+    def test_saratoga_notes_due_still_excluded(self):
+        assert should_exclude("Saratoga Investment Corp 8.00% Notes due 2027")
+
+    def test_spac_ordinary_shares_still_excluded(self):
+        assert should_exclude("Hennessy Capital Investment Corp. VIII - Class A Ordinary Shares")
+
+    def test_spac_share_rights_still_excluded(self):
+        assert should_exclude("Hennessy Capital Investment Corp. VIII - Share Rights")
+
+    def test_spac_units_still_excluded(self):
+        assert should_exclude("NewHold Investment Corp III - Units")

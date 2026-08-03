@@ -50,6 +50,22 @@ def test_distinct_dividend_records_are_not_collapsed() -> None:
     assert len(per_share) == 2
 
 
+def test_payment_date_is_not_fabricated() -> None:
+    """SEC XBRL never reports a true payment date. ex_dividend_date is structurally
+    estimated (period_end + 45d) because it doubles as this table's dedup/primary key
+    (migration 1168), but payment_date has no such requirement - it must stay None
+    rather than compound the estimate with a second guessed date presented as real."""
+    loader = _make_loader()
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert records
+    for r in records:
+        assert r["payment_date"] is None
+        assert r["record_date"] is None
+        assert r["ex_dividend_date"] is not None
+
+
 def test_true_duplicate_on_primary_key_is_still_deduped() -> None:
     facts = {
         "facts": {

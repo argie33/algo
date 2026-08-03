@@ -673,7 +673,7 @@ class OptimalLoader:
 
             # FIX: Compute symbols_loaded and add it to stats BEFORE converting to dict
             # _update_final_status needs expected_symbols to calculate completion_pct
-            symbols_loaded = self._update_final_status(len(symbols))
+            symbols_loaded = self._update_final_status(len(symbols), symbols)
             self._stats.set("symbols_loaded", symbols_loaded)
 
             stats_dict = self._stats.to_dict()
@@ -1198,7 +1198,7 @@ class OptimalLoader:
             return date(value, 12, 31)
         return value
 
-    def _update_final_status(self, expected_symbols: int) -> int:
+    def _update_final_status(self, expected_symbols: int, symbols: list[str] | None = None) -> int:
         # CRITICAL FIX: Never allow None for expected_symbols - this causes data integrity failures
         # When symbol_count is NULL, Phase 1 failsafe halts orchestrator
         if expected_symbols is None:
@@ -1216,9 +1216,35 @@ class OptimalLoader:
                 # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
                 if self.watermark_field:
                     if self.is_symbol_based:
-                        cur.execute(
-                            f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) FROM {self.table_name}"
-                        )
+                        # FIXED 2026-08-03: the distinct-symbol count used to be unscoped
+                        # (COUNT(DISTINCT symbol) FROM {table_name}) - the table's ENTIRE symbol
+                        # population, not just the symbols this run actually requested. Harmless
+                        # for a normal full-universe run (expected_symbols == real population
+                        # size, so the ratio stays sane), but a live crash for a --symbols-scoped
+                        # run (e.g. local dev/test) against a table an earlier full run already
+                        # populated broadly: e.g. requesting 10 symbols against a table with
+                        # 2,816 real distinct symbols computed completion_pct = 2816/10*100 =
+                        # 28160%, overflowing the NUMERIC(5,2) completion_pct column in
+                        # mark_completed()'s re-check and crashing the whole run (rolling back the
+                        # real data this run had just written, since both live in the same
+                        # externally-managed transaction). Scoping the count to the symbols
+                        # actually requested this run (via a WHERE'd subquery, kept inside the
+                        # same single query so the row shape callers/tests depend on is
+                        # unchanged) fixes both the immediate completion_pct here and
+                        # mark_completed()'s later re-derivation from the symbol_count/
+                        # symbols_loaded columns this method writes.
+                        if symbols:
+                            cur.execute(
+                                f"SELECT COUNT(*), MAX({self.watermark_field}), "
+                                f"(SELECT COUNT(DISTINCT symbol) FROM {self.table_name} WHERE symbol = ANY(%s)) "
+                                f"FROM {self.table_name}",
+                                (list(symbols),),
+                            )
+                        else:
+                            cur.execute(
+                                f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) "
+                                f"FROM {self.table_name}"
+                            )
                         result = cur.fetchone()
                         if result is None:
                             raise RuntimeError(
