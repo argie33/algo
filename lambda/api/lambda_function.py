@@ -108,7 +108,16 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             )
             raise RuntimeError(f"Database config missing required field: {e}") from e
 
-        if not all([db_host, db_user, db_password]):
+        # FIXED 2026-08-03: db_password was included in this truthy check, but
+        # credential_manager.get_db_config() legitimately returns password="" (not missing -
+        # an actual empty string) for localhost trust-auth Postgres (see
+        # algo/config/credential_manager.py's own "Only localhost Postgres is expected to run
+        # with trust-auth" convention). That made dev_server.py hard-fail at startup every time
+        # it was correctly pointed at local trust-auth Postgres via .env.local (DB_PASSWORD=
+        # empty by design), even though the same empty password connects to Postgres just fine.
+        # host/user are still required (an empty database host or user is never legitimate,
+        # even for trust-auth); only password is allowed to be empty.
+        if not all([db_host, db_user]) or db_password is None:
             logger.critical(
                 "[STARTUP] Database configuration has empty required fields. Cannot initialize Lambda with incomplete configuration."
             )

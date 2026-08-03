@@ -104,10 +104,11 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
         "buy_sell_daily": ["symbol", "date", "signal", "strength"],
         "algo_signals": ["symbol", "signal_date", "signal_active"],
         "algo_positions": ["symbol", "entry_date", "status"],
-        "algo_trades": ["symbol", "entry_date", "side"],
+        "algo_trades": ["symbol", "entry_date", "status"],
         "algo_config": ["updated_at"],
         "algo_config_audit": ["updated_at"],
         "algo_orchestrator_runs": ["updated_at"],
+        "algo_signal_rejections": ["symbol", "rejection_date", "rejection_reason"],
     }
 
     critical_cols = critical_columns_map.get(table_name, ["updated_at"])

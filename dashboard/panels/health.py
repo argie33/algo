@@ -3737,7 +3737,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         elif top_issues and critical_stale:
             rows.append(Text.from_markup("[dim]Top issues:[/]"))
             for issue in top_issues[:2]:
-                rows.append(Text.from_markup(f"  [{R}]•[/] {issue[:65]}[/]"))
+                rows.append(Text.from_markup(f"  [{R}]•[/] {issue[:65]}"))
 
     # Phase 1 data freshness check result (orchestrator's view at last run)
     execution_health = hlth_dict.get("execution_health")
