@@ -91,13 +91,16 @@ class LoaderStatusManager:
                 f"Will attempt status updates anyway."
             )
 
-    def mark_running(self) -> None:
+    def mark_running(self, symbol_count: int | None = None) -> None:
         """Mark loader as starting execution now.
 
         Sets: status=RUNNING, execution_started=NOW
 
         ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within a single transaction.
         This prevents concurrent updates from overwriting counts.
+
+        Args:
+            symbol_count: Optional total number of symbols being loaded (for completion_pct calculation)
         """
         try:
             with DatabaseContext("write") as cur:
@@ -115,14 +118,24 @@ class LoaderStatusManager:
                             f"{current_status} -> RUNNING"
                         )
 
-                cur.execute(
-                    """
-                    UPDATE data_loader_status
-                    SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL
-                    WHERE table_name = %s
-                    """,
-                    (LoaderStatus.RUNNING.value, self.table_name),
-                )
+                if symbol_count is not None:
+                    cur.execute(
+                        """
+                        UPDATE data_loader_status
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0
+                        WHERE table_name = %s
+                        """,
+                        (LoaderStatus.RUNNING.value, symbol_count, self.table_name),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        UPDATE data_loader_status
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL
+                        WHERE table_name = %s
+                        """,
+                        (LoaderStatus.RUNNING.value, self.table_name),
+                    )
                 if cur.rowcount != 1:
                     raise RuntimeError(
                         f"[STATUS_MANAGER] CRITICAL: Failed to update {self.table_name} status. "

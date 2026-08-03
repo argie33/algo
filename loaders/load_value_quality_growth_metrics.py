@@ -89,7 +89,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             managers = {}
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                 manager = LoaderStatusManager(table)
-                manager.mark_running()
+                manager.mark_running(symbol_count=len(symbols))
                 managers[table] = manager
 
             # Process each symbol
@@ -219,6 +219,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                 manager = managers.get(table) or LoaderStatusManager(table)
+                # Update progress to mark all symbols as loaded (this loader loads all at once, not per-symbol)
+                manager.update_progress(symbols_loaded=len(symbols), symbol_count=len(symbols), completion_pct=100.0)
                 manager.mark_completed()
 
             logger.info(
