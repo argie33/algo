@@ -77,21 +77,23 @@ _localhost_checked = False
 
 
 def _check_localhost_available() -> bool:
-    """Check if dev_server is running on localhost:3001."""
+    """Check if dev_server is running on localhost:3001 (IPv4 or IPv6)."""
     import socket
 
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        result = sock.connect_ex(("127.0.0.1", 3001))
-        sock.close()
-        return result == 0
-    except Exception as e:
-        logger.debug(
-            f"[API_LAYER] Socket connectivity check for localhost:3001 failed: "
-            f"{type(e).__name__}: {e}. Assuming dev_server not available."
-        )
-        return False
+    for host, family in [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]:
+        try:
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((host, 3001))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception as e:
+            logger.debug(
+                f"[API_LAYER] Socket connectivity check for {host}:3001 failed: "
+                f"{type(e).__name__}. Assuming dev_server not available on {host}."
+            )
+    return False
 
 
 def _get_api_base_url_with_source() -> tuple[str, str]:

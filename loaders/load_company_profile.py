@@ -166,7 +166,7 @@ def _build_major_group_fallback(mapping: dict[int, str]) -> dict[int, str]:
     """
     from collections import Counter
 
-    votes: dict[int, Counter] = {}
+    votes: dict[int, Counter[str]] = {}
     for code, sector in mapping.items():
         votes.setdefault(code // 100, Counter())[sector] += 1
     return {major: counter.most_common(1)[0][0] for major, counter in votes.items()}
