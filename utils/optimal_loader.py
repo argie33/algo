@@ -51,11 +51,14 @@ class OptimalLoader:
                         f"[CONFIG] BACKFILL_DAYS cannot be negative (got {self._backfill_days}). "
                         "Use 0 for incremental load, or positive value for backfill."
                     )
-                if self._backfill_days > 730:
+                from loaders.config import get_loader_max_backfill_days
+                max_backfill = get_loader_max_backfill_days()
+                if self._backfill_days > max_backfill:
                     raise ValueError(
-                        f"[CONFIG] BACKFILL_DAYS={self._backfill_days} exceeds 2-year maximum (730 days). "
-                        "Full 2-year backfills risk excessive load times and API rate limits. "
-                        "Use incremental load (BACKFILL_DAYS=0) or smaller backfill window (max 730 days)."
+                        f"[CONFIG] BACKFILL_DAYS={self._backfill_days} exceeds configured maximum ({max_backfill} days). "
+                        "Full backfills risk excessive load times and API rate limits. "
+                        f"Use incremental load (BACKFILL_DAYS=0) or smaller backfill window (max {max_backfill} days). "
+                        f"Override with LOADER_MAX_BACKFILL_DAYS environment variable."
                     )
             except ValueError as e:
                 if "invalid literal" in str(e):

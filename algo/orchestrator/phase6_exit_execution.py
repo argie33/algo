@@ -73,10 +73,10 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
         **kwargs: Arguments to pass to executor.exit_trade()
 
     Returns:
-        Result dict with success status
+        Result dict with success status and trade execution details
 
     Raises:
-        RuntimeError: If all retries exhausted
+        RuntimeError: If all transient retry attempts exhausted
     """
     last_error = None
     for attempt in range(max_retries + 1):
@@ -100,10 +100,13 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
                 raise RuntimeError(
                     f"Exit trade failed after retries: {type(e).__name__}: {e}"
                 ) from e
-        except Exception as e:
-            # Non-transient errors (validation, auth, etc.) don't retry
-            logger.error(f"Exit trade failed with non-transient error: {type(e).__name__}: {e}")
+        except (ValueError, KeyError, AttributeError) as e:
+            logger.error(f"Exit trade failed with validation error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}")
             result = {"success": False, "message": str(e)[:200]}
+            return result
+        except Exception as e:
+            logger.error(f"Exit trade failed with unexpected error: {type(e).__name__}: {e}", exc_info=True)
+            result = {"success": False, "message": f"Unexpected error: {str(e)[:200]}"}
             return result
 
     # Should not reach here, but handle just in case

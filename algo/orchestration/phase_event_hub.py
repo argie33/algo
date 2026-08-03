@@ -141,11 +141,12 @@ class PhaseEventHub:
     def __init__(self) -> None:
         self.subscribers: dict[str, list[Callable[..., Any]]] = {}
         self.event_history: list[PhaseEvent] = []
-        # Max events to keep in memory, configurable via environment
+        # Max events to keep in memory, configurable via PHASE_EVENT_HISTORY_MAX environment variable
+        from loaders.config import get_phase_event_history_max
         try:
-            self.max_history = int(os.environ.get("PHASE_EVENT_HISTORY_MAX", "1000"))
-        except (ValueError, TypeError):
-            logger.warning("[PHASE_EVENT_HUB] Invalid PHASE_EVENT_HISTORY_MAX, using default 1000")
+            self.max_history = get_phase_event_history_max()
+        except ValueError as e:
+            logger.warning(f"[PHASE_EVENT_HUB] Failed to read event history config: {e}. Using default 1000")
             self.max_history = 1000
 
     def subscribe(self, event_type: str, callback: Callable[..., Any]) -> None:
