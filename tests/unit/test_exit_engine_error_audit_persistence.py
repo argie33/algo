@@ -99,16 +99,12 @@ def test_trade_error_is_persisted_to_audit_table(mock_config):
     assert args[4] == "RuntimeError"
     assert "simulated unexpected evaluation failure" in args[5]
 
-    # Audit insert must be wrapped in its own savepoint (released on success)
-    audit_savepoints = [c for c in mock_cur.execute.call_args_list if "_audit" in str(c)]
-    assert any("SAVEPOINT" in str(c) for c in audit_savepoints)
-    assert any("RELEASE SAVEPOINT" in str(c) for c in audit_savepoints)
-
 
 def test_audit_insert_failure_does_not_crash_the_run(mock_config):
     """If the audit table itself is unavailable, exit-check coverage for the REST of the
-    batch must not be lost - the audit insert failure has to be swallowed after rolling
-    back to its own savepoint, not left to abort the whole outer transaction."""
+    batch must not be lost - the audit insert runs on its own isolated connection (see
+    _persist_exit_check_error), so its failure can't touch the outer transaction's
+    savepoint state at all and must be swallowed without aborting the run."""
     current_date = date(2026, 7, 22)
     mock_cur = MagicMock()
     mock_cur.fetchall.return_value = [_trade_row(trade_id="TRD-1", symbol="SYM1", position_id="POS-1")]
@@ -141,8 +137,9 @@ def test_audit_insert_failure_does_not_crash_the_run(mock_config):
 
     assert trade_errors == 1
     rollback_calls = [c for c in mock_cur.execute.call_args_list if "ROLLBACK TO SAVEPOINT" in str(c)]
-    # One rollback for the trade's own savepoint, one for the failed audit-insert savepoint
-    assert len(rollback_calls) == 2
+    # Only the trade's own savepoint rolls back - the audit insert (on an isolated
+    # connection) has no savepoint of its own to roll back.
+    assert len(rollback_calls) == 1
 
 
 if __name__ == "__main__":

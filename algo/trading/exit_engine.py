@@ -527,6 +527,55 @@ class PositionContext:
         return False, None
 
 
+def _persist_exit_check_error(
+    error_date: _date,
+    trade_id: Any,
+    position_id: Any,
+    symbol: str,
+    error_type: str,
+    error_message: str,
+) -> None:
+    """Best-effort audit write for a failed exit check, on its own connection.
+
+    2026-08-03: two live runs (LOCAL-AFTERNOON-...-100833, ...-101518) each recorded real
+    trade_errors in orchestrator_execution_log with zero corresponding rows in
+    algo_exit_check_errors for that date - the alert's "see algo_exit_check_errors for
+    detail" pointer was a dead end. A same-day mitigation upgraded the failure-path
+    logging to CRITICAL with pgcode/pgerror/diag/traceback, but the underlying INSERT
+    still ran as a nested SAVEPOINT on the *same* connection/transaction that had just
+    failed - direct DB reproduction that day ruled out a broken INSERT statement, a
+    full-batch rollback, and a plain SERIALIZABLE conflict as causes, without finding the
+    real one. Rather than keep guessing at what state the shared connection could be in,
+    this now writes the audit row on a brand-new DatabaseContext connection, decoupling
+    audit-trail durability from whatever happened to the main exit-check transaction -
+    whatever the original failure mode was, it cannot also break an unrelated connection.
+    """
+    try:
+        with DatabaseContext("write") as audit_cur:
+            audit_cur.execute(
+                """INSERT INTO algo_exit_check_errors
+                   (error_date, trade_id, position_id, symbol, error_type, error_message)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (error_date, trade_id, position_id, symbol, error_type, error_message[:2000]),
+            )
+    except Exception as audit_err:
+        diag_detail = ""
+        if isinstance(audit_err, psycopg2.Error):
+            diag_detail = (
+                f" pgcode={getattr(audit_err, 'pgcode', None)} "
+                f"pgerror={getattr(audit_err, 'pgerror', None)} "
+                f"diag={getattr(getattr(audit_err, 'diag', None), 'message_detail', None)}"
+            )
+        logger.critical(
+            f"[AUDIT] Failed to persist exit-check error for {symbol} (trade {trade_id}, "
+            f"error_type={error_type}) to algo_exit_check_errors on an isolated connection: "
+            f"{type(audit_err).__name__}: {audit_err}.{diag_detail} "
+            f"algo_exit_check_errors will NOT have a row for this failure. "
+            f"Original error: {error_message}",
+            exc_info=audit_err,
+        )
+
+
 class ExitEngine:
     """Monitor and execute position exits."""
 
@@ -873,51 +922,15 @@ class ExitEngine:
                                     f"Cannot evaluate exit. Position remains open - retry when price data available."
                                 )
                                 _missing_price_err = RuntimeError(f"No price data available (current or archive) for {symbol}")
-                                _audit_sp = f"sp_audit_missing_price_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
                                 trade_errors += 1
-                                try:
-                                    cur.execute(f"SAVEPOINT {_audit_sp}")
-                                    cur.execute(
-                                        """INSERT INTO algo_exit_check_errors
-                                           (error_date, trade_id, position_id, symbol, error_type, error_message)
-                                           VALUES (%s, %s, %s, %s, %s, %s)""",
-                                        (
-                                            current_date,
-                                            trade_id,
-                                            _position_id,
-                                            symbol,
-                                            "MissingPriceData",
-                                            str(_missing_price_err)[:2000],
-                                        ),
-                                    )
-                                    cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
-                                except Exception as _audit_err:
-                                    try:
-                                        cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
-                                    except psycopg2.Error as _audit_rollback_err:
-                                        if "current transaction is aborted" in str(_audit_rollback_err).lower():
-                                            logger.critical(
-                                                f"[AUDIT] Transaction aborted while logging missing price for {symbol}: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
-                                                f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
-                                            )
-                                            raise DatabaseError(
-                                                f"[EXIT_ENGINE CRITICAL] Transaction aborted during audit error handling for {symbol}. "
-                                                f"Halting exit engine to prevent cascading failures."
-                                            ) from _audit_rollback_err
-                                    else:
-                                        diag_detail = ""
-                                        if isinstance(_audit_err, psycopg2.Error):
-                                            diag_detail = (
-                                                f" pgcode={getattr(_audit_err, 'pgcode', None)} "
-                                                f"pgerror={getattr(_audit_err, 'pgerror', None)} "
-                                                f"diag={getattr(getattr(_audit_err, 'diag', None), 'message_detail', None)}"
-                                            )
-                                        logger.critical(
-                                            f"[AUDIT] Failed to persist missing-price error for {symbol} "
-                                            f"(trade {trade_id}): {type(_audit_err).__name__}: {_audit_err}.{diag_detail} "
-                                            f"algo_exit_check_errors will NOT have a row for this failure.",
-                                            exc_info=_audit_err,
-                                        )
+                                _persist_exit_check_error(
+                                    current_date,
+                                    trade_id,
+                                    _position_id,
+                                    symbol,
+                                    "MissingPriceData",
+                                    str(_missing_price_err),
+                                )
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
 
@@ -1073,84 +1086,23 @@ class ExitEngine:
                         # Persist to an audit table, not just the logger - this process's stdout
                         # is gone the moment a scheduled/background run exits, and this is the
                         # only place a failed exit-check for an open position gets recorded.
-                        # Wrapped in its own savepoint: an audit-insert failure (e.g. table
-                        # unavailable) must not abort the outer transaction and cost every
-                        # remaining position in this batch its exit coverage too.
+                        # Written on an isolated connection (see _persist_exit_check_error) so an
+                        # audit-insert failure can never depend on - or further damage - whatever
+                        # state this position's own transaction/savepoint is already in.
                         # CRITICAL: Count error unconditionally - it occurred (we caught the exception)
                         # regardless of whether audit persistence succeeds. Audit is forensics,
                         # not the source of truth for whether an error happened. If audit fails,
                         # log it but still count the error.
                         trade_errors += 1
-
-                        _audit_sp = f"{_sp}_audit"
-                        audit_failed = False
-                        try:
-                            cur.execute(f"SAVEPOINT {_audit_sp}")
-                            cur.execute(
-                                """INSERT INTO algo_exit_check_errors
-                                   (error_date, trade_id, position_id, symbol, error_type, error_message)
-                                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                                (
-                                    current_date,
-                                    trade_id,
-                                    _position_id,
-                                    symbol,
-                                    type(_trade_err).__name__,
-                                    str(_trade_err)[:2000],
-                                ),
-                            )
-                            cur.execute(f"RELEASE SAVEPOINT {_audit_sp}")
-                        except Exception as _audit_err:
-                            audit_failed = True
-                            try:
-                                cur.execute(f"ROLLBACK TO SAVEPOINT {_audit_sp}")
-                            except psycopg2.Error as _audit_rollback_err:
-                                # Check if transaction is aborted - if so, HALT immediately
-                                if "current transaction is aborted" in str(_audit_rollback_err).lower():
-                                    logger.critical(
-                                        f"[AUDIT] Transaction aborted while writing audit for {symbol}: {type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
-                                        f"Cannot continue evaluating remaining positions - transaction state is unrecoverable."
-                                    )
-                                    raise DatabaseError(
-                                        f"[EXIT_ENGINE CRITICAL] Transaction aborted during audit error handling for {symbol}. "
-                                        f"Halting exit engine to prevent cascading failures."
-                                    ) from _audit_rollback_err
-                                else:
-                                    # Audit savepoint rollback failed for non-abort reason - but still log it and continue
-                                    # CRITICAL FIX: Even if savepoint rollback fails for non-abort reason, the transaction
-                                    # may still be in a bad state. Log the error but flag as failed so we skip to next position.
-                                    logger.error(
-                                        f"[AUDIT] Transaction state uncertain - savepoint rollback failed for {symbol}: "
-                                        f"{type(_audit_rollback_err).__name__}: {_audit_rollback_err}. "
-                                        f"Skipping to next position to avoid cascading failures."
-                                    )
-                            if audit_failed:
-                                # CRITICAL: this is the ONLY place a failed exit-check gets recorded once
-                                # the algo_exit_check_errors INSERT itself fails - phase6_exit_execution.py's
-                                # alert just says "see algo_exit_check_errors for detail", which is a dead
-                                # end if we're here. logger.error()+str() previously dropped psycopg2's
-                                # pgcode/pgerror/diag (the actual reason the INSERT failed - e.g. which
-                                # constraint or column) and the traceback, both gone the moment a
-                                # scheduled/background run's stdout disappears. Capture everything available
-                                # now, at CRITICAL level, so the next occurrence is root-causable from logs
-                                # alone instead of needing a live reproduction.
-                                diag_detail = ""
-                                if isinstance(_audit_err, psycopg2.Error):
-                                    diag_detail = (
-                                        f" pgcode={getattr(_audit_err, 'pgcode', None)} "
-                                        f"pgerror={getattr(_audit_err, 'pgerror', None)} "
-                                        f"diag={getattr(getattr(_audit_err, 'diag', None), 'message_detail', None)}"
-                                    )
-                                logger.critical(
-                                    f"[AUDIT] Failed to persist error details for {symbol} "
-                                    f"(trade {trade_id}): {type(_audit_err).__name__}: {_audit_err}.{diag_detail} "
-                                    f"Error was counted and logged, but audit record could not be written - "
-                                    f"algo_exit_check_errors will NOT have a row for this failure.",
-                                    exc_info=_audit_err,
-                                )
-                            # CRITICAL FIX: After audit failure, don't attempt to RELEASE the savepoint
-                            # The transaction may be in a bad state. Continue to next position.
-                            continue
+                        _persist_exit_check_error(
+                            current_date,
+                            trade_id,
+                            _position_id,
+                            symbol,
+                            type(_trade_err).__name__,
+                            str(_trade_err),
+                        )
+                        continue
 
                 logger.info(f"\n{'=' * 70}")
 
@@ -1511,9 +1463,24 @@ class ExitEngine:
         For 404 (delisted symbols in paper trading), use database fallback instead.
         """
 
-        # Try real-time quote first (intraday pricing, raises on API failure)
-
-        current_price = self._fetch_alpaca_quote(symbol)
+        # CRITICAL FIX: `_fetch_alpaca_quote`'s own docstring documents that when the market is
+        # closed it deliberately RAISES RuntimeError ("Caller must check market hours before
+        # requesting intraday data") rather than returning a data_unavailable marker like the
+        # paper-mode 401/404 branches do - the contract assumes THIS caller checks market hours
+        # first. It never did: this function called `_fetch_alpaca_quote` unconditionally, so
+        # outside market hours the RuntimeError propagated straight past the "fall back to daily
+        # closes" logic below (step 2 of this docstring's own documented strategy), out through
+        # `_evaluate_position`, and into the per-position exception handler as a counted
+        # trade_error - meaning EVERY open position loses its stop/target/time-exit coverage for
+        # the day if the exit engine ever runs after 4:00 PM ET (e.g. a delayed preclose run).
+        # Confirmed live 2026-08-03: reproduced against 4 real open positions after market close.
+        # Checking market hours here, before ever calling `_fetch_alpaca_quote`, honors the
+        # documented contract and skips a doomed network round-trip.
+        if MarketCalendar.is_market_open():
+            # Try real-time quote first (intraday pricing, raises on genuine API failure)
+            current_price = self._fetch_alpaca_quote(symbol)
+        else:
+            current_price = {"data_unavailable": True, "reason": "market_closed"}
 
         # Check if got valid price (not data_unavailable marker)
         if isinstance(current_price, (int, float)) and not isinstance(current_price, bool):
