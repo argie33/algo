@@ -80,8 +80,16 @@ class PriceLoader(OptimalLoader):
 
     @property
     def max_fail_rate(self) -> float:
+        # Allow test overrides (for mypy type safety with parent class read-write property)
+        if hasattr(self, "_override_max_fail_rate"):
+            return self._override_max_fail_rate
         from loaders.config import get_loader_max_fail_rate
         return get_loader_max_fail_rate("price")
+
+    @max_fail_rate.setter
+    def max_fail_rate(self, value: float) -> None:
+        """Allow tests to override max_fail_rate."""
+        self._override_max_fail_rate = value
 
     def __init__(self, interval: str = "1d", asset_class: str = "stock", *args: Any, **kwargs: Any) -> None:
         # ISSUE #12 FIX: Enum validation for interval
