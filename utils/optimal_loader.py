@@ -493,8 +493,11 @@ class OptimalLoader:
             # observed 2385s max with margin while still being friendlier than production's
             # full 2h for an accidental infinite loop.
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
-            is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600" if is_local_mode else "7200"))
+            # CRITICAL FIX: Use loader-specific SLA timeout (can be 90+ min for price_loader)
+            from loaders.config import get_loader_sla_timeout
+            sla_timeout = get_loader_sla_timeout(self.table_name)
+            # Lock TTL should be at least as long as SLA timeout (add 10% margin for safety)
+            lock_ttl = int(sla_timeout * 1.1)
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
@@ -649,7 +652,10 @@ class OptimalLoader:
             parallelism, _ = self._infrastructure.should_reduce_parallelism(parallelism)
             logger.info(f"[{self.table_name}] Starting load: {len(symbols)} symbols (parallelism={parallelism})")
 
-            sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
+            # CRITICAL FIX: Use loader-specific SLA timeout instead of hardcoded 2h
+            # price_daily needs 90+ min (5000+ symbols), signal_quality_scores needs 60+ min
+            from loaders.config import get_loader_sla_timeout
+            sla_timeout_seconds = get_loader_sla_timeout(self.table_name)
 
             try:
                 if parallelism == 1:
@@ -750,8 +756,11 @@ class OptimalLoader:
             # observed 2385s max with margin while still being friendlier than production's
             # full 2h for an accidental infinite loop.
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
-            is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600" if is_local_mode else "7200"))
+            # CRITICAL FIX: Use loader-specific SLA timeout (can be 90+ min for price_loader)
+            from loaders.config import get_loader_sla_timeout
+            sla_timeout = get_loader_sla_timeout(self.table_name)
+            # Lock TTL should be at least as long as SLA timeout (add 10% margin for safety)
+            lock_ttl = int(sla_timeout * 1.1)
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
@@ -912,7 +921,9 @@ class OptimalLoader:
     def _run_serial(self, symbols: list[str]) -> None:
         failed_symbols: list[str] = []
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
-        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
+        # CRITICAL FIX: Use loader-specific SLA timeout
+        from loaders.config import get_loader_sla_timeout
+        max_batch_time = get_loader_sla_timeout(self.table_name)
         batch_start = time.time()
 
         for i, symbol in enumerate(symbols, 1):
@@ -969,8 +980,13 @@ class OptimalLoader:
         import threading
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
-        per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "120"))
-        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
+        # CRITICAL FIX: Parallel per-symbol timeout was 120s, causing premature timeouts
+        # for legitimate slow operations (e.g., SEC API queries can take 5+ min per symbol).
+        # Increase to 600s (10 min) to match serial timeout. Environment can override.
+        per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
+        # CRITICAL FIX: Use loader-specific SLA timeout instead of hardcoded value
+        from loaders.config import get_loader_sla_timeout
+        max_batch_time = get_loader_sla_timeout(self.table_name)
         batch_start = time.time()
 
         # Track when each symbol ACTUALLY STARTS executing (not when it's dispatched/queued).
