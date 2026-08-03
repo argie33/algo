@@ -465,12 +465,23 @@ class PositionMonitor:
             # If Phase 6 (exit_engine) runs concurrently in Lambda/ECS:
             # Without lock: Phase 3 reads -> Phase 6 modifies -> Phase 3 evaluates stale data
             # With lock: Phase 3 locks positions -> Phase 6 must wait -> reads current state
+            #
+            # CRITICAL FIX (2026-08-03): the column-count fix in the commit above (matching
+            # this SELECT's column count to _evaluate_position()'s 14-value unpack) replaced
+            # the query's 11th column with a literal NULL - which _evaluate_position() unpacks
+            # into `target_hits`, then unconditionally raises if it's None ("target_hits is
+            # NULL in algo_trades... Database schema or trade data corrupted"). So this query
+            # NEVER supplied a real target_hits value, meaning review_positions() raised for
+            # EVERY real open position, unconditionally - invisible all session because there
+            # were zero real open positions in this dev environment to exercise the path until
+            # an end-to-end synthetic verification test inserted one. Select the real
+            # `p.target_levels_hit` column here instead (NOT NULL in the schema).
             cursor.execute(
                 """
                 SELECT p.id, p.symbol, p.entry_price, p.stop_loss_price,
                        p.target_1_price, p.target_2_price, p.target_3_price,
                        p.entry_date, p.created_at,
-                       p.quantity, NULL, NULL,
+                       p.quantity, p.target_levels_hit, p.trade_ids,
                        p.stop_loss_price, p.current_price
                 FROM algo_positions p
                 WHERE p.status = 'open' AND p.quantity > 0
@@ -607,10 +618,21 @@ class PositionMonitor:
                 _signal_date,
                 quantity,
                 target_hits,
-                _unused_null,
+                trade_ids_str,
                 current_stop,
                 _db_current_price,
             ) = row
+            # CRITICAL FIX: _persist_review() (below) requires rec["trade_id"], but neither
+            # of this function's return paths ever supplied that key - the early stop-hit
+            # return used a bogus getattr(self, 'trade_ids', None) (self.trade_ids is never
+            # set anywhere, always None) and the normal return path had no trade_id key at
+            # all. So _persist_review() raised KeyError('trade_id') for EVERY real position
+            # review, unconditionally - review_positions() has never completed successfully
+            # for any real open position. Invisible all session because there were zero real
+            # open positions in this dev environment until an end-to-end synthetic
+            # verification test inserted one. trade_ids is comma-separated (see identical
+            # "first trade_id if multiple" convention in phase6_exit_execution.py).
+            trade_id = trade_ids_str.split(",")[0].strip() if trade_ids_str else None
         except (ValueError, TypeError) as unpack_err:
             raise PositionValidationError(
                 f"Failed to unpack position row: {type(unpack_err).__name__}: {unpack_err}. "
@@ -740,7 +762,7 @@ class PositionMonitor:
                 "action_reason": f"STOP LOSS HIT: price ${cur_price:.2f} <= stop ${active_stop:.2f}",
                 "urgent_exit": True,
                 "new_stop_recommended": None,
-                "trade_ids": getattr(self, 'trade_ids', None),
+                "trade_id": trade_id,
             }
 
         # 3. Health flags
@@ -842,6 +864,7 @@ class PositionMonitor:
             "action_reason": action_reason,
             "urgent_exit": urgent_exit,
             "new_stop_recommended": new_stop_recommended,
+            "trade_id": trade_id,
         }
 
     # ---------- Helpers ----------

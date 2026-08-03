@@ -163,8 +163,22 @@ class RowAccessor:
         return cast(int | None, self.get(index, int, allow_none))
 
     def get_float(self, index: int, allow_none: bool = False) -> float | None:
-        """Get float column (int and float accepted)."""
-        return cast(float | None, self.get(index, (int, float), allow_none))
+        """Get float column (int, float, and Decimal accepted; Decimal is converted to float).
+
+        CRITICAL FIX: psycopg2 returns NUMERIC/DECIMAL columns (prices, quantities, most
+        money-shaped columns in this schema) as decimal.Decimal, never native float. This
+        method's accepted-type tuple was (int, float) - it never accepted Decimal at all,
+        so ANY real query row containing an actual Decimal value raised
+        RowValidationError("Column has type Decimal, expected int or float") despite the
+        docstring's stated purpose of being the safe way to read a float column. Live-caught
+        2026-08-03: phase3_position_monitor.py's own price_daily.close read via this method
+        failed on every real position - invisible all session because there were zero real
+        open positions to exercise the path until a synthetic end-to-end verification test.
+        """
+        from decimal import Decimal
+
+        value = self.get(index, (int, float, Decimal), allow_none)
+        return float(value) if value is not None else None
 
     def get_bool(self, index: int, allow_none: bool = False) -> bool | None:
         """Get boolean column."""
