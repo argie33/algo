@@ -814,14 +814,22 @@ def run(
     if "execution_mode" not in config:
         raise ValueError(
             "[PHASE 8] Config missing 'execution_mode'. "
-            "Trading mode must be explicit ('paper' or 'auto'). "
+            "Trading mode must be explicit ('paper', 'dry', 'review', or 'auto'). "
             "Check algo_config table has this key."
         )
     execution_mode = config["execution_mode"]
-    if execution_mode not in ("paper", "auto"):
+    # CRITICAL FIX: This whitelist only accepted "paper"/"auto", but "dry" and "review" are
+    # two other fully-supported execution_mode values - algo.orchestration.orchestrator.py's
+    # own startup VALID_EXECUTION_MODES set and algo.trading.executor_strategies.py's
+    # create_execution_mode_strategy() both already register/accept all 4 (DryExecutionMode
+    # and ReviewExecutionMode are real, working strategies). Setting execution_mode to "dry"
+    # or "review" - both legitimate pre-live-trading testing modes - would pass Orchestrator
+    # startup validation cleanly, then crash here with ValueError the moment Phase 8 ran.
+    if execution_mode not in ("paper", "dry", "review", "auto"):
         raise ValueError(
             f"[PHASE 8] Invalid execution_mode='{execution_mode}'. "
-            "Must be 'paper' (paper trading) or 'auto' (live trading)."
+            "Must be 'paper' (paper trading), 'dry' (local-only, no Alpaca calls), "
+            "'review' (pending orders for manual approval), or 'auto' (live trading)."
         )
 
     if "alpaca_paper_trading" not in config:

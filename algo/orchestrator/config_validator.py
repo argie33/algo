@@ -29,7 +29,7 @@ def validate_phase_config(config: Any, phase_name: str) -> None:
 
     # Required keys used by ALL phases
     required_keys = {
-        "execution_mode": str,  # Must be 'paper', 'review', 'live', or 'auto'
+        "execution_mode": str,  # Must be 'paper', 'dry', 'review', or 'auto'
     }
 
     # Validate each required key
@@ -48,8 +48,17 @@ def validate_phase_config(config: Any, phase_name: str) -> None:
             )
 
     # Validate execution_mode is in valid set
+    # CRITICAL FIX: This set was {"paper", "review", "live", "auto"} - wrong on both ends.
+    # "live" was never a real value: algo.trading.executor_strategies.create_execution_mode_strategy()
+    # has never registered a "live" strategy (only paper/dry/review/auto - "auto" is this
+    # system's actual live-trading mode), so it would pass this check clean then crash deep
+    # inside TradeExecutor.__init__. "dry" was missing entirely despite being one of the 4
+    # real values algo.infrastructure.config.execution_config.get_execution_mode() accepts and
+    # DryExecutionMode implementing it as a real strategy - so execution_mode="dry" crashed
+    # here with ConfigValidationError at the very first phase, since every phase (1-9) calls
+    # validate_phase_config() before doing anything else.
     execution_mode = config.get("execution_mode")
-    valid_modes = {"paper", "review", "live", "auto"}
+    valid_modes = {"paper", "dry", "review", "auto"}
     if execution_mode not in valid_modes:
         raise ConfigValidationError(
             f"[{phase_name}] execution_mode='{execution_mode}' is invalid. "
