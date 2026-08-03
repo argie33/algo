@@ -36,6 +36,8 @@ import sys
 from datetime import date
 from typing import Any, Iterable
 
+import psycopg2
+
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.loaders.status_manager import LoaderStatusManager
@@ -58,8 +60,14 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0
     exclude_etfs_from_symbols = True
 
-    def run(self, symbols: Iterable[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:
-        """Override run() to write trend metrics to BOTH quality_metrics and growth_metrics."""
+    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
+        """Override run() to write trend metrics to BOTH quality_metrics and growth_metrics.
+
+        Args:
+            symbols: Stock ticker symbols to process
+            parallelism: Number of parallel workers (default 1)
+            backfill_days: Number of days to backfill (passed to parent)
+        """
         from utils.loaders.config import get_default_parallelism
 
         symbols_succeeded = 0
@@ -72,8 +80,22 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 status_mgr = LoaderStatusManager(table)
                 status_mgr.mark_running()
 
+            # Apply backfill_days override if provided
+            if backfill_days is not None:
+                self._backfill_days = backfill_days
+
             for symbol in symbols:
                 try:
+                    # Calculate since_date from backfill_days (matching parent behavior)
+                    from datetime import datetime, timedelta, timezone as tz
+
+                    since_date = None
+                    if self._backfill_days > 0:
+                        since_date = datetime.now(tz.utc).date() - timedelta(days=self._backfill_days)
+                    else:
+                        # Use watermark for incremental loading
+                        since_date = self._watermark.get_current_watermark(symbol=symbol)
+
                     metrics = self.fetch_incremental(symbol, since_date)
                     if not metrics:
                         logger.error(f"[ENHANCED] {symbol}: fetch_incremental returned empty list")
@@ -128,8 +150,11 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
                     symbols_succeeded += 1
 
+                except (ValueError, KeyError) as e:
+                    logger.error(f"[ENHANCED] {symbol}: Data structure error: {e}")
+                    symbols_failed += 1
                 except Exception as e:
-                    logger.error(f"[ENHANCED] {symbol}: {e}")
+                    logger.error(f"[ENHANCED] {symbol}: Unexpected error: {e}", exc_info=True)
                     symbols_failed += 1
 
             success = symbols_succeeded > 0
@@ -152,8 +177,11 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 "success": success
             }
 
+        except (psycopg2.Error, ValueError) as e:
+            logger.error(f"[ENHANCED] Fatal error: {type(e).__name__}: {e}")
+            return {"success": False, "error": str(e)}
         except Exception as e:
-            logger.error(f"[ENHANCED] Fatal error: {e}")
+            logger.error(f"[ENHANCED] Fatal unexpected error: {type(e).__name__}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:

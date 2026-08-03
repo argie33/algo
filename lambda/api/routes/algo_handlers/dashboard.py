@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -40,6 +41,7 @@ from utils.validation import (
 # - After fix: Cache queries ALWAYS use latest portfolio/price state, no stale risk exposure
 # Note: scores_cache and signals_cache were defined but never used - removed as dead code
 _positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 60}
+_positions_cache_lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -59,38 +61,40 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # OPTIMIZATION: Cache positions response for 60 seconds (positions don't update that frequently)
     # This reduces database load during dashboard refreshes
     current_time = time.time()
-    cache_is_valid = (
-        _positions_cache["data"] is not None
-        and _positions_cache["timestamp"] > 0  # Ensure timestamp was actually set
-        and (current_time - _positions_cache["timestamp"]) < _positions_cache["cache_ttl_seconds"]
-    )
 
-    # FIX: Secondary validation - ensure timestamp is not in future (clock skew guard)
-    if cache_is_valid and _positions_cache["timestamp"] > current_time:
-        logger.warning("[POSITIONS] Cache timestamp in future, skipping cache (possible clock skew)")
-        cache_is_valid = False
-
-    if cache_is_valid:
-        cache_age_seconds = int(current_time - _positions_cache["timestamp"])
-        logger.info(f"[POSITIONS] Returning cached response (age: {cache_age_seconds}s)")
-
-        # CRITICAL: Add cache freshness metadata to cached response
-        # Frontend needs to know response was cached, not just when underlying data was fetched
-        cached_response = (
-            _positions_cache["data"].copy() if isinstance(_positions_cache["data"], dict) else _positions_cache["data"]
+    with _positions_cache_lock:
+        cache_is_valid = (
+            _positions_cache["data"] is not None
+            and _positions_cache["timestamp"] > 0  # Ensure timestamp was actually set
+            and (current_time - _positions_cache["timestamp"]) < _positions_cache["cache_ttl_seconds"]
         )
-        if isinstance(cached_response, dict) and "body" in cached_response:
-            # json_response format: {"statusCode": 200, "body": {...}}
-            body = cached_response.get("body")
-            if isinstance(body, dict):
-                if "data_freshness" not in body:
-                    body["data_freshness"] = {}
-                if isinstance(body["data_freshness"], dict):
-                    body["data_freshness"]["cache_age_seconds"] = cache_age_seconds
-                    body["data_freshness"]["cache_ttl_seconds"] = _positions_cache["cache_ttl_seconds"]
-                    body["data_freshness"]["from_cache"] = True
 
-        return cached_response
+        # FIX: Secondary validation - ensure timestamp is not in future (clock skew guard)
+        if cache_is_valid and _positions_cache["timestamp"] > current_time:
+            logger.warning("[POSITIONS] Cache timestamp in future, skipping cache (possible clock skew)")
+            cache_is_valid = False
+
+        if cache_is_valid:
+            cache_age_seconds = int(current_time - _positions_cache["timestamp"])
+            logger.info(f"[POSITIONS] Returning cached response (age: {cache_age_seconds}s)")
+
+            # CRITICAL: Add cache freshness metadata to cached response
+            # Frontend needs to know response was cached, not just when underlying data was fetched
+            cached_response = (
+                _positions_cache["data"].copy() if isinstance(_positions_cache["data"], dict) else _positions_cache["data"]
+            )
+            if isinstance(cached_response, dict) and "body" in cached_response:
+                # json_response format: {"statusCode": 200, "body": {...}}
+                body = cached_response.get("body")
+                if isinstance(body, dict):
+                    if "data_freshness" not in body:
+                        body["data_freshness"] = {}
+                    if isinstance(body["data_freshness"], dict):
+                        body["data_freshness"]["cache_age_seconds"] = cache_age_seconds
+                        body["data_freshness"]["cache_ttl_seconds"] = _positions_cache["cache_ttl_seconds"]
+                        body["data_freshness"]["from_cache"] = True
+
+            return cached_response
 
     # Use 5-second timeout for main query - enrichment queries are non-critical so they
     # can timeout without blocking the response. Main algo_positions query must complete.
@@ -650,8 +654,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
     # Cache the response for 60 seconds to reduce database load
     cached_response = json_response(200, sanitized)
-    _positions_cache["data"] = cached_response
-    _positions_cache["timestamp"] = time.time()
+    with _positions_cache_lock:
+        _positions_cache["data"] = cached_response
+        _positions_cache["timestamp"] = time.time()
     logger.info("[POSITIONS] Response cached for 60 seconds")
 
     return cached_response

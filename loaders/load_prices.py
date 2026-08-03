@@ -78,11 +78,10 @@ class PriceLoader(OptimalLoader):
     with DataImportance.CRITICAL and freshness validation to prevent silent stale data.
     """
 
-    # CRITICAL FIX (2026-08-03): Max fail rate for price_daily should be very low (2%)
-    # Previous default 15% allowed 233/5486 symbols to be silently skipped in July 31 load
-    # and marked HEALTHY. Price data is critical for position sizing - any missing symbols
-    # should trigger investigation. Set to 2% (109 symbols) as safety threshold.
-    max_fail_rate = 2.0
+    @property
+    def max_fail_rate(self) -> float:
+        from loaders.config import get_loader_max_fail_rate
+        return get_loader_max_fail_rate("price")
 
     def __init__(self, interval: str = "1d", asset_class: str = "stock", *args: Any, **kwargs: Any) -> None:
         # ISSUE #12 FIX: Enum validation for interval

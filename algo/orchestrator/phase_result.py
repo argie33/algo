@@ -2,9 +2,21 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
+
+
+class PhaseResultData(TypedDict, total=False):
+    """Typed schema for phase result data field. All fields optional (each phase defines its own contract)."""
+
+    summary: str | None
+    status: str | None
+    reason: str | None
+    error: str | None
+    halted: bool
+    skipped: bool
+    data_unavailable: bool
 
 
 @dataclass
