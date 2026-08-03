@@ -262,7 +262,7 @@ class XBRLSegmentParser:
             }
 
     @staticmethod
-    def _extract_segment_count(us_gaap: dict, symbol: str) -> int | None:
+    def _extract_segment_count(us_gaap: dict[str, Any], symbol: str) -> int | None:
         """Extract number of reportable segments from us-gaap facts.
 
         FIXED 2026-07-28: previously checked ["SegmentNumber", "NumberOfReportableSegments",
@@ -286,30 +286,31 @@ class XBRLSegmentParser:
                 concept_data = us_gaap[concept_name]
                 if isinstance(concept_data, dict) and "units" in concept_data:
                     # companyfacts structure: units[unit_name][facts_list]
-                    units = concept_data.get("units") if "units" in concept_data else {}
-                    for _unit, facts_list in units.items():
-                        if isinstance(facts_list, list):
-                            best_fact = None
-                            best_fy = -1
-                            for fact in facts_list:
-                                if isinstance(fact, dict):
-                                    val = fact.get("val") or fact.get("value")
-                                    if val is not None:
-                                        try:
-                                            count = int(val)
-                                            if count > 0:
-                                                fy = fact.get("fy", -1)
-                                                # Prefer FY periods over quarterly
-                                                fp = fact.get("fp", "")
-                                                if fp == "FY" and fy > best_fy:
-                                                    best_fy = fy
-                                                    best_fact = count
-                                                elif best_fact is None:
-                                                    best_fact = count
-                                        except (ValueError, TypeError):
-                                            pass
-                            if best_fact:
-                                return best_fact
+                    units = concept_data.get("units") or {}
+                    if isinstance(units, dict):
+                        for _unit, facts_list in units.items():
+                            if isinstance(facts_list, list):
+                                best_fact = None
+                                best_fy = -1
+                                for fact in facts_list:
+                                    if isinstance(fact, dict):
+                                        val = fact.get("val") or fact.get("value")
+                                        if val is not None:
+                                            try:
+                                                count = int(val)
+                                                if count > 0:
+                                                    fy = fact.get("fy", -1)
+                                                    # Prefer FY periods over quarterly
+                                                    fp = fact.get("fp", "")
+                                                    if fp == "FY" and fy > best_fy:
+                                                        best_fy = fy
+                                                        best_fact = count
+                                                    elif best_fact is None:
+                                                        best_fact = count
+                                            except (ValueError, TypeError):
+                                                pass
+                                if best_fact:
+                                    return best_fact
 
         return None
 
@@ -966,7 +967,7 @@ class XBRLSegmentParser:
             # actual externally-reported segment revenue; prefer it on disagreement
             # rather than picking whichever happened to be tagged first in document
             # order.
-            segments: dict[str, float] = {}
+            segments = {}
             segment_is_boilerplate: dict[str, bool] = {}
             for member, _end, _duration, revenue, is_boilerplate_paired in latest_facts:
                 if member not in segments:

@@ -14,7 +14,7 @@ def test_phase3_handles_null_close_price():
     alerts = Mock(spec=AlertManager)
 
     # Create mocks for database
-    with patch("algo.orchestrator.phase3_position_monitor.DatabaseContext") as mock_db_ctx:
+    with patch("utils.db.context.DatabaseContext") as mock_db_ctx:
         mock_cur = MagicMock()
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
 
