@@ -2,10 +2,11 @@
 
 import logging
 import math
+from dataclasses import dataclass
 from datetime import date as _date
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, Literal
 
 import psycopg2
 
@@ -14,6 +15,60 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ExposurePolicyConstraints:
+    """Type-safe constraints for Phase 5→8 handoff.
+
+    All constraints required and validated before trading.
+    Static type checking catches missing/wrong fields at commit time, not runtime.
+    """
+    halt_new_entries: bool
+    max_new_positions_today: int
+    max_concentration_pct: float
+    regime: Literal["expansion", "correction", "caution"]
+    tier_name: str
+    description: str
+    risk_multiplier: float
+    min_composite_score: float
+    as_of_date: str
+    exposure_pct: float
+    halt_reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """For backwards compatibility with code expecting dict."""
+        result = {
+            "halt_new_entries": self.halt_new_entries,
+            "max_new_positions_today": self.max_new_positions_today,
+            "max_concentration_pct": self.max_concentration_pct,
+            "regime": self.regime,
+            "tier_name": self.tier_name,
+            "description": self.description,
+            "risk_multiplier": self.risk_multiplier,
+            "min_composite_score": self.min_composite_score,
+            "as_of_date": self.as_of_date,
+            "exposure_pct": self.exposure_pct,
+            "halt_reason": self.halt_reason,
+        }
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExposurePolicyConstraints":
+        """Create from dict for temporary compatibility during migration."""
+        return cls(
+            halt_new_entries=data["halt_new_entries"],
+            max_new_positions_today=data["max_new_positions_today"],
+            max_concentration_pct=data["max_concentration_pct"],
+            regime=data["regime"],
+            tier_name=data["tier_name"],
+            description=data["description"],
+            risk_multiplier=data["risk_multiplier"],
+            min_composite_score=data["min_composite_score"],
+            as_of_date=data["as_of_date"],
+            exposure_pct=data["exposure_pct"],
+            halt_reason=data.get("halt_reason"),
+        )
 
 # Four tiers aligned with RegimeManager vocabulary so both systems speak the same language.
 # Ranges mirror the regime thresholds in algo_market_exposure.py:
@@ -379,11 +434,14 @@ class ExposurePolicy:
 
         return {"action": "hold", "symbol": symbol, "r_multiple": r_mult}
 
-    def get_entry_constraints(self, eval_date: _date | None = None) -> dict[str, Any]:
+    def get_entry_constraints(self, eval_date: _date | None = None) -> ExposurePolicyConstraints:
         """Return current constraints for new entries.
 
         FAIL-FAST: When halt_new_entries=True, always includes halt_reason.
         Prevents silent missing reason if entries are halted.
+
+        Returns:
+            ExposurePolicyConstraints: Type-safe constraint dataclass with all required fields.
 
         Raises:
             RuntimeError: If exposure data unavailable. Entry constraints are critical
@@ -392,30 +450,27 @@ class ExposurePolicy:
         active = self.get_active_tier(eval_date)
         tier = active["tier"]
 
-        # Build base constraints
-        constraints = {
-            "as_of_date": active["as_of_date"],
-            "exposure_pct": active["exposure_pct"],
-            "regime": active["regime"],
-            "tier_name": tier["name"],
-            "description": tier["description"],
-            "risk_multiplier": tier["risk_multiplier"],
-            "max_new_positions_today": tier["max_new_positions_today"],
-            "min_composite_score": tier["min_composite_score"],
-            "halt_new_entries": tier["halt_new_entries"],
-            "max_concentration_pct": tier["max_concentration_pct"],
-        }
-
         # When halting entries, always include explicit reason
+        halt_reason = None
         if tier["halt_new_entries"]:
-            constraints["halt_reason"] = (
+            halt_reason = (
                 f"Market tier '{tier['name']}' halts new entries: {tier['description']} "
                 f"(Exposure: {active['exposure_pct']}%)"
             )
-        else:
-            constraints["halt_reason"] = None
 
-        return constraints
+        return ExposurePolicyConstraints(
+            halt_new_entries=tier["halt_new_entries"],
+            max_new_positions_today=tier["max_new_positions_today"],
+            max_concentration_pct=tier["max_concentration_pct"],
+            regime=active["regime"],
+            tier_name=tier["name"],
+            description=tier["description"],
+            risk_multiplier=tier["risk_multiplier"],
+            min_composite_score=tier["min_composite_score"],
+            as_of_date=active["as_of_date"],
+            exposure_pct=active["exposure_pct"],
+            halt_reason=halt_reason,
+        )
 
 
 if __name__ == "__main__":
@@ -433,7 +488,7 @@ if __name__ == "__main__":
     logger.info(f"  {active['tier']['description']}")
     logger.info("\nEntry Constraints:")
     constraints = p.get_entry_constraints()
-    for k, v in constraints.items():
+    for k, v in constraints.to_dict().items():
         if k not in ("as_of_date", "tier_name", "description"):
             logger.info(f"  {k:30s} = {v}")
 

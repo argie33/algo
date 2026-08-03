@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from algo.exceptions import DataContractError, MissingPhaseDataError
+from algo.risk import ExposurePolicyConstraints
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ __all__ = [
     "Phase4Contract",
     "Phase5Contract",
     "Phase6Contract",
+    "ExposureConstraints",
+    "ExposureAction",
     "PositionRecommendation",
     "extract_required_data",
     "validate_dependency_executed",
@@ -89,10 +92,30 @@ class ExposureAction(TypedDict, total=False):
     exit_fraction: float
 
 
+class ExposureConstraints(TypedDict, total=False):
+    """Schema for exposure constraints from Phase 5 to Phase 8.
+
+    These constraints control position sizing, entry blocking, and concentration limits.
+    All fields are REQUIRED by Phase 8 for safe trade execution.
+    """
+
+    as_of_date: str  # ISO date string
+    exposure_pct: float  # 0-100
+    regime: str  # "expansion", "correction", "caution"
+    tier_name: str  # Name of exposure tier
+    description: str  # Human-readable tier description
+    risk_multiplier: float  # 0.0-1.0
+    max_new_positions_today: int  # >= 0
+    min_composite_score: float  # Minimum signal score threshold
+    halt_new_entries: bool  # Whether to block new entries
+    max_concentration_pct: float  # 0.0-100.0, max position size as % of portfolio
+    halt_reason: str | None  # Reason if halt_new_entries=True, None otherwise
+
+
 class Phase5Contract(TypedDict):
     """Data contract: what Phase 5 (Exposure Policy) produces."""
 
-    constraints: dict[str, Any]
+    constraints: ExposureConstraints
     actions: list[ExposureAction]
 
 

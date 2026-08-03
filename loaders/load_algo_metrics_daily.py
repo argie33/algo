@@ -132,45 +132,38 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                     except (ValueError, TypeError) as e:
                         raise ValueError(f"avg_signal_score must be numeric, got {score}") from e
 
-                # LOADER CONSOLIDATION FIX: Return status-only result
+                # LOADER CONSOLIDATION FIX: Return verification-only result
                 # Phase 9 (orchestrator) is now the exclusive writer to algo_metrics_daily.
-                # This loader computes metrics for validation/monitoring but does NOT persist.
-                # Returning data_unavailable=True + reason tells data_loader_status to mark
-                # this as intentional delegation (not a failure), so operators see:
-                # "metrics managed by Phase 9 orchestrator, not this loader"
+                # This loader verifies metrics can be computed (validates data integrity)
+                # but does NOT persist. Returning data_unavailable=True with reason_type="not_applicable"
+                # tells data_loader_status this is intentional (not a failure).
                 logger.info(
                     f"[ALGO_METRICS] Metrics verified for {row[0]}: "
                     f"{total_actions} actions, {entries} entries, {exits} exits. "
-                    f"Note: data write is handled by Phase 9 orchestrator (not this loader)"
+                    f"Note: data persistence handled by Phase 9 orchestrator"
                 )
                 return [
                     {
                         "date": row[0],
                         "data_unavailable": True,
-                        "reason": "metrics_managed_by_phase9_orchestrator",
-                        "reason_type": "delegation",  # Not a failure - intentional consolidation
-                        # Include computed values for visibility/auditing
-                        "total_actions": total_actions,
-                        "entries": entries,
-                        "exits": exits,
-                        "avg_signal_score": avg_signal_score,
+                        "reason": "metrics_written_by_phase9_orchestrator",
+                        "reason_type": "not_applicable",
                     }
                 ]
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            reason_msg = f"metrics_computation_failed: {e}"
+            reason_msg = f"metrics_verification_failed: {e}"
             logger.error(f"[ALGO_METRICS] {reason_msg}")
-            # Return delegated status so Phase 9 can generate metrics if this fails
             logger.info(
-                f"[ALGO_METRICS] Metrics verification failed for {run_date}, "
-                f"will rely on Phase 9 orchestrator to generate metrics: {reason_msg}"
+                f"[ALGO_METRICS] Metrics verification failed for {run_date}. "
+                f"Phase 9 will attempt to generate from trade logs: {reason_msg}"
             )
             return [
                 {
                     "date": run_date,
                     "data_unavailable": True,
-                    "reason": f"delegated_to_phase9: {reason_msg}",
-                    "reason_type": "delegation",  # Phase 9 will handle metrics generation
+                    "reason": reason_msg,
+                    "reason_type": "loader_failed",
                 }
             ]
 

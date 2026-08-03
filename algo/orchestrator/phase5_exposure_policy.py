@@ -82,28 +82,38 @@ def validate_constraint_dict(constraints: dict[str, Any]) -> None:
         raise ValueError(error_msg)
 
 
-def _health_panel_fields(constraints: dict[str, Any]) -> dict[str, Any]:
+def _health_panel_fields(constraints: Any) -> dict[str, Any]:
     """Map ExposurePolicy constraint keys to the exact keys the health dashboard
     (dashboard/panels/health.py, Phase 5 detail row) reads - previously PhaseResult.data
     only carried {"constraints": {...}, "actions": [...]}, so Market regime/New entries/
     Max slots/Halt status silently never rendered despite constraints already having this
     data under its own (differently-named) keys.
+
+    Accepts both dataclass (ExposurePolicyConstraints) and dict for backwards compatibility.
     """
+    from algo.risk import ExposurePolicyConstraints
+
+    # Convert dataclass to dict if needed
+    if isinstance(constraints, ExposurePolicyConstraints):
+        constraints_dict = constraints.to_dict()
+    else:
+        constraints_dict = constraints
+
     required_keys = ["regime", "halt_new_entries", "max_new_positions_today", "halt_reason"]
-    missing = [k for k in required_keys if k not in constraints]
+    missing = [k for k in required_keys if k not in constraints_dict]
     if missing:
         raise KeyError(
             f"Exposure constraints missing required fields {missing}. "
             f"Dashboard cannot render health panel without complete constraint data. "
-            f"Constraints keys: {list(constraints.keys())}"
+            f"Constraints keys: {list(constraints_dict.keys())}"
         )
 
     return {
-        "market_regime": constraints["regime"],
-        "entry_allowed": not constraints["halt_new_entries"],
-        "halt_active": constraints["halt_new_entries"],
-        "max_new_entries": constraints["max_new_positions_today"],
-        "halt_reason": constraints["halt_reason"],
+        "market_regime": constraints_dict["regime"],
+        "entry_allowed": not constraints_dict["halt_new_entries"],
+        "halt_active": constraints_dict["halt_new_entries"],
+        "max_new_entries": constraints_dict["max_new_positions_today"],
+        "halt_reason": constraints_dict["halt_reason"],
     }
 
 
@@ -187,12 +197,12 @@ def run(
         constraints = policy.get_entry_constraints(run_date)
 
         if constraints:
-            logger.info(f"  Tier: {constraints['tier_name']} - {constraints['description']}")
+            logger.info(f"  Tier: {constraints.tier_name} - {constraints.description}")
             logger.info(
-                f"    risk_mult={constraints['risk_multiplier']}, "
-                f"max_new/day={constraints['max_new_positions_today']}, "
-                f"min_composite={constraints['min_composite_score']}, "
-                f"halt_entries={constraints['halt_new_entries']}"
+                f"    risk_mult={constraints.risk_multiplier}, "
+                f"max_new/day={constraints.max_new_positions_today}, "
+                f"min_composite={constraints.min_composite_score}, "
+                f"halt_entries={constraints.halt_new_entries}"
             )
 
         try:
@@ -224,12 +234,12 @@ def run(
                 5,
                 "exposure_policy",
                 "success",
-                f"tier={constraints['tier_name']}, no actions",
+                f"tier={constraints.tier_name}, no actions",
             )
             # ISSUE 15 FIX: Validate constraints before returning
-            validate_constraint_dict(constraints)
+            validate_constraint_dict(constraints.to_dict())
             # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
-            validate_phase_5_constraints(constraints)
+            validate_phase_5_constraints(constraints.to_dict())
             return PhaseResult(
                 5,
                 "exposure_policy",
@@ -272,7 +282,7 @@ def run(
             raise RuntimeError(
                 "[PHASE 5] Risk policy constraints missing after position review. Check database and policy configuration."
             )
-        tier_name = constraints["tier_name"]
+        tier_name = constraints.tier_name
         # Validate counts dict has required keys before logging
         log_phase_result_fn(
             5,
@@ -284,12 +294,11 @@ def run(
             f"{counts['force_exit']} force_exit",
         )
 
+        # Validate using dict representation, but store dataclass directly
+        validate_constraint_dict(constraints.to_dict())
+        validate_phase_5_constraints(constraints.to_dict())
         phase_data = {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)}
         validate_phase_data(5, phase_data)
-        # ISSUE 15 FIX: Validate constraints before returning
-        validate_constraint_dict(constraints)
-        # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
-        validate_phase_5_constraints(constraints)
         return PhaseResult(
             5,
             "exposure_policy",

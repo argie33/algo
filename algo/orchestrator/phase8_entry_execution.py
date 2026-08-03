@@ -95,7 +95,7 @@ logger = logging.getLogger(__name__)
 VALID_REGIMES = ["expansion", "correction", "caution"]
 
 
-def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> None:
+def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any] | Any) -> None:
     """AUDIT ISSUE #15 FIX: Validate exposure constraints before using in Phase 8 entry execution.
 
     Ensures all required constraint fields have valid values. Fail-fast if invalid.
@@ -108,9 +108,11 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
     constraints due to data corruption or logic error, Phase 8 must catch it BEFORE
     attempting any trades, not after position sizing causes damage.
 
+    Accepts both ExposurePolicyConstraints dataclass and dict for backwards compatibility.
+
     Validation checkpoints:
-    1. Constraint dict exists and is proper type
-    2. All required keys are present
+    1. Constraint dict/dataclass exists and is proper type
+    2. All required keys/attributes are present
     3. Each value has correct type
     4. Each value is within valid range
     5. Enum values (regime) are from allowed list
@@ -119,57 +121,64 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
     failed and why. Operator can then investigate Phase 5 output.
 
     Raises:
-        TypeError: If exposure_constraints is not a dict
+        TypeError: If exposure_constraints is not a dict or dataclass
         ValueError: If any constraint is invalid or missing (includes all details)
     """
-    if not isinstance(exposure_constraints, dict):
-        raise TypeError(f"exposure_constraints must be dict, got {type(exposure_constraints).__name__}")
+    from algo.risk import ExposurePolicyConstraints
+
+    # Convert dataclass to dict if needed for uniform validation
+    if isinstance(exposure_constraints, ExposurePolicyConstraints):
+        constraints_dict = exposure_constraints.to_dict()
+    elif isinstance(exposure_constraints, dict):
+        constraints_dict = exposure_constraints
+    else:
+        raise TypeError(f"exposure_constraints must be dict or ExposurePolicyConstraints, got {type(exposure_constraints).__name__}")
 
     errors = []
-    tier_name = exposure_constraints.get("tier_name", "UNKNOWN_TIER")
+    tier_name = constraints_dict.get("tier_name", "UNKNOWN_TIER")
 
     # CHECKPOINT 1: All required keys must be present
     # These fields are mandatory for Phase 8 to make safe trading decisions
     required_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct", "regime"]
     for key in required_keys:
-        if key not in exposure_constraints:
+        if key not in constraints_dict:
             errors.append(f"Missing required key: {key}")
 
     # CHECKPOINT 2-5: Validate individual field values
     # Each validation includes type check and range check (if applicable)
 
-    if "halt_new_entries" in exposure_constraints:
+    if "halt_new_entries" in constraints_dict:
         # AUDIT ISSUE #15: bool type required (not truthy/falsy string)
-        val = exposure_constraints.get("halt_new_entries")
+        val = constraints_dict.get("halt_new_entries")
         if not isinstance(val, bool):
             errors.append(f"halt_new_entries must be bool, got {type(val).__name__}")
 
-    if "max_new_positions_today" in exposure_constraints:
+    if "max_new_positions_today" in constraints_dict:
         # AUDIT ISSUE #15: int >= 0 required (prevents negative or fractional positions)
-        val = exposure_constraints.get("max_new_positions_today")
+        val = constraints_dict.get("max_new_positions_today")
         if not isinstance(val, int) or val < 0:
             errors.append(f"max_new_positions_today must be int >= 0, got {val}")
 
-    if "max_concentration_pct" in exposure_constraints:
+    if "max_concentration_pct" in constraints_dict:
         # AUDIT ISSUE #15: percentage must be 0-100 (valid range for concentration)
         # Allows 0% (no single-stock limit) to 100% (entire portfolio in one stock, not recommended)
-        val = exposure_constraints.get("max_concentration_pct")
+        val = constraints_dict.get("max_concentration_pct")
         if not isinstance(val, (int, float)) or not (0.0 <= val <= 100.0):
             errors.append(f"max_concentration_pct must be 0.0-100.0, got {val}")
 
-    if "regime" in exposure_constraints:
+    if "regime" in constraints_dict:
         # AUDIT ISSUE #15: regime must be from defined set (expansion/correction/caution)
         # Maps to market conditions and position sizing tier in ExposurePolicy
-        regime = exposure_constraints.get("regime", "").lower()
+        regime = constraints_dict.get("regime", "").lower()
         if regime not in VALID_REGIMES:
             errors.append(f"regime must be one of {VALID_REGIMES}, got '{regime}'")
 
     # CRITICAL: Check for contradictory constraints (HIGH ISSUE #1 FIX)
     # Contradictory constraints indicate configuration error that would cause unexpected behavior
-    if exposure_constraints.get("halt_new_entries") is False:
+    if constraints_dict.get("halt_new_entries") is False:
         # If entries are NOT halted, at least one entry constraint must allow entries
-        max_positions = exposure_constraints.get("max_new_positions_today", 0)
-        max_concentration = exposure_constraints.get("max_concentration_pct", 0.0)
+        max_positions = constraints_dict.get("max_new_positions_today", 0)
+        max_concentration = constraints_dict.get("max_concentration_pct", 0.0)
 
         if max_positions == 0:
             errors.append(
@@ -194,10 +203,10 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any]) -> No
     # AUDIT TRAIL: Log successful constraint validation for monitoring and audit
     logger.info(
         f"[PHASE 8 AUDIT] Constraint validation passed [{tier_name}]: "
-        f"halt_new_entries={exposure_constraints.get('halt_new_entries')}, "
-        f"max_new_positions={exposure_constraints.get('max_new_positions_today')}, "
-        f"max_concentration={exposure_constraints.get('max_concentration_pct')}%, "
-        f"regime={exposure_constraints.get('regime')}"
+        f"halt_new_entries={constraints_dict.get('halt_new_entries')}, "
+        f"max_new_positions={constraints_dict.get('max_new_positions_today')}, "
+        f"max_concentration={constraints_dict.get('max_concentration_pct')}%, "
+        f"regime={constraints_dict.get('regime')}"
     )
 
 
@@ -773,7 +782,7 @@ def run(
     verbose: bool,
     log_phase_result_fn: Callable[..., Any],
     qualified_trades: list[dict[str, Any]] | None = None,
-    exposure_constraints: dict[str, Any] | None = None,
+    exposure_constraints: dict[str, Any] | Any | None = None,
     check_halt_flag: Callable[..., Any] | None = None,
     executor: Any = None,
 ) -> PhaseResult:
@@ -1023,24 +1032,30 @@ def run(
     # Previously, exceptions could skip the safe defaults, leaving exposure_constraints_from_executor=None
     # which would cause Phase 8 to halt with "missing max_concentration_pct" later.
     if exposure_constraints_from_executor is None:
+        from algo.risk import ExposurePolicyConstraints
+
         logger.warning(
             "[PHASE 8] Exposure constraints unavailable or incomplete - using safe halt constraints. "
             "Position entry will be blocked until valid constraints are available."
         )
-        exposure_constraints_from_executor = {
-            "regime": "correction",
-            "tier_name": "CORRECTION",
-            "description": "Safe halt defaults (constraints unavailable)",
-            "risk_multiplier": 0.0,
-            "max_new_positions_today": 0,
-            "halt_new_entries": True,
-            "max_concentration_pct": 0.0,
-            "halt_reason": "Exposure constraints unavailable - Phase 5 incomplete or skipped",
-        }
+        exposure_constraints_from_executor = ExposurePolicyConstraints(
+            regime="correction",
+            tier_name="CORRECTION",
+            description="Safe halt defaults (constraints unavailable)",
+            risk_multiplier=0.0,
+            max_new_positions_today=0,
+            halt_new_entries=True,
+            max_concentration_pct=0.0,
+            as_of_date="",
+            exposure_pct=0.0,
+            min_composite_score=0.0,
+            halt_reason="Exposure constraints unavailable - Phase 5 incomplete or skipped",
+        )
 
         # CHECKPOINT 3: Validate safe defaults have all required fields (fallback path)
         required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
-        missing_in_defaults = [k for k in required_fields if k not in exposure_constraints_from_executor]
+        safe_defaults_dict = exposure_constraints_from_executor.to_dict()
+        missing_in_defaults = [k for k in required_fields if k not in safe_defaults_dict]
         if missing_in_defaults:
             error_msg = (
                 f"[PHASE 8 CRITICAL] Safe default constraints incomplete: missing {missing_in_defaults}. "
@@ -1116,8 +1131,17 @@ def run(
         "max_concentration_pct",
     ]
 
+    # CRITICAL: Convert dataclass to dict for downstream compatibility
+    # exposure_constraints may be ExposurePolicyConstraints dataclass or dict
+    from algo.risk import ExposurePolicyConstraints
+
+    if isinstance(exposure_constraints, ExposurePolicyConstraints):
+        exposure_constraints_dict = exposure_constraints.to_dict()
+    else:
+        exposure_constraints_dict = exposure_constraints or {}
+
     # CRITICAL: Exposure constraints are REQUIRED - fail-fast if entirely missing
-    if not exposure_constraints:
+    if not exposure_constraints_dict:
         msg = (
             "[PHASE 8 CRITICAL] Exposure constraints not available (Phase 5 may have halted). "
             "Cannot execute trades without market exposure analysis from Phase 5 (Exposure Policy). "
@@ -1128,14 +1152,14 @@ def run(
         log_phase_result_fn(8, "entry_execution", "blocked", msg)
         # CRITICAL: Apply safe defaults instead of halting
         # Phase 8 can continue with conservative constraints to prevent unguarded trades
-        exposure_constraints = {
+        exposure_constraints_dict = {
             "halt_new_entries": True,
             "max_new_positions_today": 0,
             "max_concentration_pct": 0.0,
         }
 
     # Validate that all required fields exist - apply defaults for any missing fields
-    missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
+    missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints_dict]
 
     if missing_keys:
         # CRITICAL FIX: Apply defaults for missing fields instead of halting
@@ -1143,7 +1167,7 @@ def run(
         # Missing fields are filled with conservative defaults that block new entries.
         logger.warning(
             f"[PHASE 8] Exposure constraints incomplete from Phase 5: missing keys {missing_keys}. "
-            f"Available fields: {list(exposure_constraints.keys())}. "
+            f"Available fields: {list(exposure_constraints_dict.keys())}. "
             f"Applying conservative defaults for missing fields to prevent unguarded trades."
         )
 
@@ -1155,16 +1179,19 @@ def run(
         }
         for key in missing_keys:
             if key in constraint_defaults:
-                exposure_constraints[key] = constraint_defaults[key]
+                exposure_constraints_dict[key] = constraint_defaults[key]
                 logger.warning(f"[PHASE 8] Applied default for missing constraint '{key}': {constraint_defaults[key]}")
 
     # Add diagnostic logging
-    if exposure_constraints:
+    if exposure_constraints_dict:
         logger.info(
             f"[PHASE 8 DIAGNOSTIC] Exposure constraints status: "
-            f"has {len(exposure_constraints)} fields, requires {len(required_constraint_keys)}. "
-            f"Fields present: {list(exposure_constraints.keys())}"
+            f"has {len(exposure_constraints_dict)} fields, requires {len(required_constraint_keys)}. "
+            f"Fields present: {list(exposure_constraints_dict.keys())}"
         )
+
+    # Use dict for subsequent operations
+    exposure_constraints = exposure_constraints_dict
 
     # ISSUE 15 FIX: Validate constraints before using in Phase 8
     try:

@@ -124,6 +124,39 @@ class SecLoaderBase(OptimalLoader):
             logger.error(f"[{self.table_name}] Schema healing failed: {e}")
             raise RuntimeError(f"[{self.table_name}] Cannot verify schema is ready: {e}") from e
 
+    def _wrap_exception_handler(
+        self, symbol: str, exc: Exception, context: str
+    ) -> list[dict[str, Any]]:
+        """Unified exception handler for SEC data fetching failures.
+
+        When handle_exception() itself fails (programming error), wraps it safely
+        rather than letting the error propagate uncaught. This prevents loader
+        crashes when the exception handler has a bug (e.g., unexpected exception type).
+
+        Args:
+            symbol: Stock symbol being processed
+            exc: The original exception from fetch attempt
+            context: Description of what was being attempted (e.g., "fetching company info")
+
+        Returns:
+            List with data_unavailable marker on handler success, or raises RuntimeError if handler itself fails
+
+        Raises:
+            RuntimeError: If exception handler fails (catches ValueError, KeyError, AttributeError from handler)
+        """
+        from utils.loaders.exception_handler import handle_exception
+
+        try:
+            marker = handle_exception(symbol, exc, context)
+            return [marker]
+        except (ValueError, KeyError, AttributeError) as handler_err:
+            logger.critical(
+                f"[{symbol}] Exception handler failed while processing {type(exc).__name__}: {exc}. "
+                f"Handler error: {type(handler_err).__name__}: {handler_err}",
+                exc_info=True,
+            )
+            raise RuntimeError(f"Failed to handle SEC fetch error for {symbol}: {handler_err}") from exc
+
     @abstractmethod
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Subclasses must implement fetch_incremental."""

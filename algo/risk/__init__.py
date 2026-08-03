@@ -2,7 +2,7 @@
 
 from .circuit_breaker import CircuitBreaker
 from .earnings_blackout import EarningsBlackout
-from .exposure_policy import ExposurePolicy
+from .exposure_policy import ExposurePolicy, ExposurePolicyConstraints
 from .liquidity_checks import LiquidityChecks
 from .market_exposure import MarketDataUnavailableError, MarketExposure, read_market_regime
 from .var import ValueAtRisk
@@ -11,6 +11,7 @@ __all__ = [
     "CircuitBreaker",
     "EarningsBlackout",
     "ExposurePolicy",
+    "ExposurePolicyConstraints",
     "LiquidityChecks",
     "MarketDataUnavailableError",
     "MarketExposure",

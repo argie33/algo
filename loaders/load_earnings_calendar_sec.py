@@ -191,12 +191,7 @@ class EarningsCalendarSECLoader(SecLoaderBase):
             return [marker]
         except Exception as e:
             # Try to handle via classification, or fail-fast if unexpected
-            try:
-                marker = handle_exception(symbol, e, "fetching earnings calendar")
-                return [marker]
-            except Exception:
-                logger.critical(f"[{symbol}] Failed to fetch earnings calendar: {type(e).__name__}: {e}", exc_info=True)
-                raise
+            return self._wrap_exception_handler(symbol, e, "fetching earnings calendar")
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record.
