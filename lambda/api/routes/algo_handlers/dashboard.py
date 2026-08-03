@@ -1654,14 +1654,25 @@ def _get_dashboard_signals(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Fetch executed signals from algo_signals (source of truth from orchestrator Phase 8)
-        # CRITICAL FIX (2026-08-03): Changed from signal_active=true to execution_status='executed'
-        # because signals were being marked as "active" even when rejected (not updated when rejected).
-        # Now execution_status clearly indicates: executed, rejected, pending, expired
+        # Fetch candidate signals from algo_signals (source of truth from orchestrator Phase 8).
+        # REGRESSION FIX (2026-08-03): A same-day change filtered every query below down to
+        # execution_status='executed' only, on the theory that signal_active=true was
+        # confusingly showing rejected signals as "active". But this panel's job is to grade
+        # the algo's *candidate* signals (A/B/C/D distribution, top picks, active buy signals
+        # with entry/target/stop) - most rejections here are portfolio-capacity/risk-limit
+        # blocks (sizer_blocked, duplicate_position, pretrade_check) unrelated to signal
+        # quality, not "this wasn't a real signal". Narrowing to executed-only collapsed a
+        # ~200/week candidate pool down to ~35 (whatever fit in the day's position/risk
+        # budget), which read as "all our signal data disappeared". execution_status is still
+        # useful info (added 9998_add_execution_status_to_algo_signals.sql) - just excluding
+        # 'expired' (signals >7d old Phase 8 never resolved) instead of requiring 'executed'
+        # restores the original candidate-pool visibility while still dropping genuinely stale
+        # rows, which is what the original migration's stated goal (dashboard confusion around
+        # signal_active never being unset) was actually about.
         cur.execute("""
             SELECT COUNT(*) AS n, MAX(signal_date) AS d
             FROM algo_signals
-            WHERE execution_status = 'executed' AND signal_date >= CURRENT_DATE - 7
+            WHERE execution_status != 'expired' AND signal_date >= CURRENT_DATE - 7
         """)
         sig = cur.fetchone()
         if sig is not None:
@@ -1722,7 +1733,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                         LIMIT 1
                     ) b ON TRUE
                     LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
-                    WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
+                    WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
                         -- Exclude signals with no buy_sell_daily match at all: these have been
                         -- active (signal_active=true, never flipped off - nothing in the codebase
                         -- ever deactivates an algo_signals row) for days after the symbol dropped
@@ -1763,7 +1774,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     COUNT(*) FILTER (WHERE s.signal_quality_score < 40 OR s.signal_quality_score IS NULL) AS d,
                     COUNT(*) AS total
                 FROM algo_signals s
-                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
             """)
             grades_r = cur.fetchone()
             if grades_r is None:
@@ -1778,7 +1789,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 SELECT s.symbol, s.signal_quality_score AS score, cp.sector
                 FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.symbol = s.symbol
-                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score BETWEEN 55 AND 69
                 ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 15
@@ -1789,7 +1800,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             cur.execute("""
                 SELECT s.symbol, s.signal_quality_score AS score
                 FROM algo_signals s
-                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score >= 80
                 ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 20
@@ -1802,7 +1813,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                        COUNT(*) FILTER (WHERE s.signal_quality_score >= 60) AS buy_n,
                        COUNT(*) AS total_n
                 FROM algo_signals s
-                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
                 GROUP BY s.signal_date
                 ORDER BY s.signal_date DESC
                 LIMIT 7
@@ -1813,7 +1824,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             cur.execute("""
                 SELECT COUNT(*) AS n
                 FROM algo_signals s
-                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score >= 70
             """)
             count_row = cur.fetchone()
