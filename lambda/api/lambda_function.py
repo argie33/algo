@@ -34,7 +34,9 @@ _JWKS_CACHE_TIME = None
 _JWKS_CACHE_LOCK = threading.Lock()  # Protects JWKS cache updates
 
 _ALLOWED_ORIGINS_CACHE = None
+_ALLOWED_ORIGINS_CACHE_TIME = None
 _ALLOWED_ORIGINS_LOCK = threading.Lock()  # Protects allowed origins cache
+_ALLOWED_ORIGINS_CACHE_TTL_SECONDS = 3600  # Refresh allowed origins hourly (handles env var changes)
 _COGNITO_ENABLED = None  # Determined at module load
 _COGNITO_ENABLED_LOCK = threading.Lock()  # Protects Cognito enabled flag
 _CLOUDFRONT_DOMAIN_CACHE = None  # CloudFront domain fetched from Secrets Manager
@@ -43,6 +45,8 @@ _CLOUDFRONT_DOMAIN_CACHE_TTL_SECONDS = 86400  # Refresh CloudFront domain daily
 _CLOUDFRONT_DOMAIN_LOCK = threading.Lock()  # Protects CloudFront domain cache
 _JWKS_CACHE_TTL_SECONDS = 3600  # Refresh JWKS keys hourly
 _NAIVE_DB_TZ_CACHE: ZoneInfo | timezone | None = None  # DB session tz for naive `timestamp without time zone` cols
+_NAIVE_DB_TZ_CACHE_TIME = None
+_NAIVE_DB_TZ_CACHE_TTL_SECONDS = 86400  # Refresh DB timezone daily
 _NAIVE_DB_TZ_LOCK = threading.Lock()
 
 try:
@@ -711,14 +715,20 @@ def _build_allowed_origins() -> set[str]:
     Dev mode origins (localhost) only allowed if ALLOW_LOCALHOST_CORS=true
     Thread-safe: Uses double-check locking pattern to prevent race conditions.
     """
-    global _ALLOWED_ORIGINS_CACHE
+    global _ALLOWED_ORIGINS_CACHE, _ALLOWED_ORIGINS_CACHE_TIME
 
-    if _ALLOWED_ORIGINS_CACHE is not None:
+    now = datetime.now(timezone.utc)
+    cache_ttl = timedelta(seconds=_ALLOWED_ORIGINS_CACHE_TTL_SECONDS)
+
+    # Check if cache is still valid (within TTL)
+    if (_ALLOWED_ORIGINS_CACHE is not None and _ALLOWED_ORIGINS_CACHE_TIME is not None
+        and (now - _ALLOWED_ORIGINS_CACHE_TIME) < cache_ttl):
         return _ALLOWED_ORIGINS_CACHE
 
     with _ALLOWED_ORIGINS_LOCK:
         # Double-check pattern after acquiring lock
-        if _ALLOWED_ORIGINS_CACHE is not None:
+        if (_ALLOWED_ORIGINS_CACHE is not None and _ALLOWED_ORIGINS_CACHE_TIME is not None
+            and (now - _ALLOWED_ORIGINS_CACHE_TIME) < cache_ttl):
             return _ALLOWED_ORIGINS_CACHE
 
         origins = set()
@@ -747,6 +757,7 @@ def _build_allowed_origins() -> set[str]:
             origins.add("http://localhost:3000")  # React dev default
 
         _ALLOWED_ORIGINS_CACHE = origins
+        _ALLOWED_ORIGINS_CACHE_TIME = now
         return origins
 
 
@@ -1765,17 +1776,31 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             session's actual UTC offset. Cached process-wide: this is a fixed connection
             setting, not a per-request value.
             """
-            global _NAIVE_DB_TZ_CACHE
-            if _NAIVE_DB_TZ_CACHE is not None:
+            global _NAIVE_DB_TZ_CACHE, _NAIVE_DB_TZ_CACHE_TIME
+
+            now = datetime.now(timezone.utc)
+            cache_ttl = timedelta(seconds=_NAIVE_DB_TZ_CACHE_TTL_SECONDS)
+
+            # Check if cache is still valid (within TTL)
+            if (_NAIVE_DB_TZ_CACHE is not None and _NAIVE_DB_TZ_CACHE_TIME is not None
+                and (now - _NAIVE_DB_TZ_CACHE_TIME) < cache_ttl):
                 return _NAIVE_DB_TZ_CACHE
+
             with _NAIVE_DB_TZ_LOCK:
-                if _NAIVE_DB_TZ_CACHE is None:
+                # Double-check pattern after acquiring lock
+                if (_NAIVE_DB_TZ_CACHE is not None and _NAIVE_DB_TZ_CACHE_TIME is not None
+                    and (now - _NAIVE_DB_TZ_CACHE_TIME) < cache_ttl):
+                    return _NAIVE_DB_TZ_CACHE
+
+                if _NAIVE_DB_TZ_CACHE is None or _NAIVE_DB_TZ_CACHE_TIME is None:
                     try:
                         from utils.db.timezone_utils import get_db_timezone
                         _NAIVE_DB_TZ_CACHE = get_db_timezone()
+                        _NAIVE_DB_TZ_CACHE_TIME = now
                     except (ImportError, RuntimeError, ValueError, psycopg2.DatabaseError, psycopg2.OperationalError) as tz_err:
                         logger.warning(f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {type(tz_err).__name__}: {tz_err}")
                         _NAIVE_DB_TZ_CACHE = timezone.utc
+                        _NAIVE_DB_TZ_CACHE_TIME = now
             return _NAIVE_DB_TZ_CACHE
 
         def _json_default(obj: Any) -> str | float:
