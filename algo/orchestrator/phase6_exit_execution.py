@@ -403,8 +403,18 @@ def run(
                             logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (sector concentration rebalance)")
 
                     return rebalance_actions
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.error(f"[PHASE 6] Sector concentration check failed (DB error): {e}")
+                raise RuntimeError(
+                    f"[PHASE 6] Cannot proceed with exit execution: database error in sector check. {e}"
+                ) from e
+            except (ValueError, KeyError, TypeError) as e:
+                logger.error(f"[PHASE 6] Sector concentration check failed (data error): {e}")
+                raise RuntimeError(
+                    f"[PHASE 6] Cannot proceed with exit execution: data validation failed. {e}"
+                ) from e
             except Exception as e:
-                logger.error(f"[PHASE 6] Sector concentration check failed: {e}")
+                logger.error(f"[PHASE 6] Sector concentration check failed (unexpected): {e}")
                 raise RuntimeError(
                     f"[PHASE 6] Cannot proceed with exit execution: sector concentration check failed. {e}"
                 ) from e
@@ -497,8 +507,11 @@ def run(
 
                     try:
                         all_positions = cur.fetchall()
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as fetch_err:
+                        logger.error(f"[PHASE 6] Failed to fetch positions (DB error): {fetch_err}")
+                        raise RuntimeError(f"[PHASE 6] Cannot fetch positions for concentration check (DB): {fetch_err}") from fetch_err
                     except Exception as fetch_err:
-                        logger.error(f"[PHASE 6] Failed to fetch positions: {fetch_err}")
+                        logger.error(f"[PHASE 6] Failed to fetch positions (unexpected): {fetch_err}")
                         raise RuntimeError(f"[PHASE 6] Cannot fetch positions for concentration check: {fetch_err}") from fetch_err
 
                     if all_positions is None or len(all_positions) == 0:
