@@ -246,7 +246,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             )
                         accessor = RowAccessor(row, price_columns, "price_fetch")
                         symbol = accessor.get_str(0)
-                        close_price = accessor.get_float(1)
+                        close_price = accessor.get_float(1, allow_none=True)
                         data_unavailable_flag = accessor.get_bool(2, allow_none=True) or False
                         reason_msg = accessor.get_str(3, allow_none=True)
 
