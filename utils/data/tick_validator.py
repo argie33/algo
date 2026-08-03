@@ -178,9 +178,18 @@ class TickValidator:
 
         prices = [open_price, high, low, close]
 
-        # Catch obvious delisting/data errors
-        if max(prices) > 100_000:
-            self.errors.append(f"price > $100,000: {max(prices)}")
+        # Catch obvious delisting/data errors (decimal-shift, unit-confusion, garbage API
+        # responses). CRITICAL FIX: a $100,000 ceiling rejected BRK.A (Berkshire Hathaway
+        # Class A) as invalid - it's a real, well-known stock that has legitimately traded
+        # above $100k for years specifically because Buffett has never split it (~$769k as
+        # of 2026-07-31, confirmed live). Every one of BRK.A's rows was being silently
+        # dropped by this check, not just an isolated bad tick. Raised to $2,000,000 - well
+        # above BRK.A's current price with room for years of appreciation, while still
+        # catching a garden-variety stock reported 10-1000x too high (the actual failure
+        # mode this check exists for) for every other symbol, none of which trade anywhere
+        # near this range.
+        if max(prices) > 2_000_000:
+            self.errors.append(f"price > $2,000,000: {max(prices)}")
         if min(prices) < 0.001:
             self.errors.append(f"price < $0.001: {min(prices)}")
 
