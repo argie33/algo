@@ -28,10 +28,10 @@ def test_mark_completed_resets_streak_and_stamps_success():
         mock_db_ctx.return_value.__exit__.return_value = False
 
         # Mock fetchone() to return different values for different queries
-        # First call: SELECT symbols_loaded (1 value)
+        # First call: SELECT symbol_count, symbols_loaded, completion_pct (3 values)
         # Second call: SELECT for archive (7 values)
         mock_cur.fetchone.side_effect = [
-            (None,),  # symbols_loaded from throughput calculation
+            (5486, 5253, 95.75),  # symbol_count, symbols_loaded, completion_pct from safety check
             (None, None, None, None, None, None, None),  # archive SELECT: (exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count)
         ]
         mock_cur.rowcount = 1  # Verify rowcount check passes
