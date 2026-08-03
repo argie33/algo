@@ -1573,6 +1573,15 @@ class Orchestrator:
         # have accurate portfolio state on the next invocation.
         result = run_phase9(self.config, self.run_date, self.log_phase_result)
         self._phase9_result = result
+        # CRITICAL FIX: mirror Phase 2's pattern. result.halted is only True for the
+        # execution_mode=auto governance halt (see phase9_reconciliation.py's
+        # is_governance_halt) - a real broker/DB reconciliation failure that previously never
+        # reached set_halt_flag(), letting Phase 8 submit real orders on the next run despite
+        # an unverified portfolio state.
+        if result.halted:
+            halt_reason = result.error or "Phase 9 reconciliation governance halt"
+            logger.info(f"[PHASE 9] Setting halt flag due to reconciliation failure: {halt_reason}")
+            self.halt_manager.set_halt_flag(halt_reason)
         if "positions" in result.data:
             self.phase_results.setdefault(9, {})["open_positions"] = result.data["positions"]
         else:

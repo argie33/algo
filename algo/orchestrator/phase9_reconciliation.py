@@ -1599,7 +1599,10 @@ def run(
                 raise RuntimeError(error_msg) from e
 
         # Degrade gracefully if reconciliation failed (e.g., broker unavailable in dry-run)
-        # Phase 9 is always_run, so it should not cause a halt even if broker is unavailable
+        # Phase 9 is always_run, so a non-auto-mode failure should not itself halt (see
+        # is_governance_halt below for the one case that does).
+        is_governance_halt = False
+        phase_error: str | None = None
         if reconciliation_succeeded:
             # cash_available/total_return_pct/latest_snapshot: the health dashboard
             # (dashboard/panels/health.py, Phase 9 detail row) already expects these
@@ -1632,6 +1635,29 @@ def run(
             )
             phase_status = "error"
 
+            # CRITICAL FIX: this PhaseResult's `halted` field used to be hardcoded False
+            # ("Phase 9 is always_run, so it should not cause a halt") below, which was fine
+            # for the non-auto DB-fallback path this reasoning was written for, but
+            # run_daily_reconciliation()'s broker-connected path (execution_mode="auto", real
+            # money) wraps genuinely critical checks - negative broker cash, corrupted account
+            # state, missing account fields - in a broad except that turns them into this same
+            # success=False/"error" result. Live-reproduced: with the old hardcoded False,
+            # phase_9_reconcile() returns `not result.halted` = True regardless, so
+            # orchestrator.py never calls halt_manager.set_halt_flag() for Phase 9 (unlike
+            # Phase 1/2, which do) and Phase 8 submits real orders on the very next run despite
+            # a provably broken broker/DB relationship. Only escalate to a real halt in "auto"
+            # mode - non-auto (paper/dry/review) reconciliation failures (e.g. broker
+            # unavailable during local dev) still just degrade, matching Phase 2's identical
+            # is_credential_error-in-paper-mode distinction.
+            execution_mode = config.get("execution_mode")
+            is_governance_halt = execution_mode == "auto"
+            if is_governance_halt:
+                phase_error = f"Phase 9 reconciliation governance halt (execution_mode=auto): {error_msg}"
+                logger.critical(
+                    "[PHASE 9] GOVERNANCE HALT: reconciliation failure in execution_mode=auto "
+                    "(real money) - broker/DB portfolio state cannot be verified. Halting until resolved."
+                )
+
             data = {
                 "reconciliation": result,
             }
@@ -1650,7 +1676,7 @@ def run(
         phase_summary = f"Portfolio state: {data.get('portfolio_value', 'N/A')} | Status: {phase_status}"
         log_phase_result_fn(9, "reconciliation", phase_status, phase_summary)
 
-        return PhaseResult(9, "reconciliation", phase_status, data, False, None)
+        return PhaseResult(9, "reconciliation", phase_status, data, is_governance_halt, phase_error)
 
     except Exception as e:
         error_msg = str(e)
