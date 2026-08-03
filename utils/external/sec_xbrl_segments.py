@@ -1031,10 +1031,10 @@ class XBRLSegmentParser:
                 }
                 for member, revenue in reportable_segments.items()
             ),
-            key=lambda s: s["revenue"],
+            key=lambda s: float(s["revenue"]),
             reverse=True,
         )
-        revenues = [s["revenue"] for s in segment_list]
+        revenues: list[float] = [float(s["revenue"]) for s in segment_list]
         hhi = XBRLSegmentParser._compute_herfindahl_index(revenues, total_revenue)
         largest_pct = revenues[0] / total_revenue * 100
 
