@@ -179,13 +179,21 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 return True, ""  # Unknown table, skip completeness check
 
             try:
+                # stock_scores doesn't have a date column, use updated_at instead
+                if table_name == "stock_scores":
+                    date_filter = "updated_at::date = %s"
+                    params = (expected_data_date,)
+                else:
+                    date_filter = "date = %s OR updated_at::date = %s"
+                    params = (expected_data_date, expected_data_date)
+
                 cur.execute(f"""
                     SELECT
                         COUNT(*) as total_rows,
                         COUNT({critical_col}) as non_null_rows
                     FROM {table_name}
-                    WHERE date = %s OR updated_at::date = %s
-                """, (expected_data_date, expected_data_date))
+                    WHERE {date_filter}
+                """, params)
 
                 row = cur.fetchone()
                 if not row or row[0] == 0:
