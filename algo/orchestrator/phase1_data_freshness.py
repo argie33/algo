@@ -378,15 +378,32 @@ def run(  # noqa: C901
                 log_phase_result_fn(1, "data_freshness", "halt", error_msg)
                 return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "no active symbols"}, True, error_msg)
             logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
-    except Exception as pre_check_err:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
         error_msg = (
-            f"[PHASE 1 CRITICAL] Pre-flight validation failed - cannot verify stock_symbols table: {pre_check_err}. "
+            f"[PHASE 1 CRITICAL] Pre-flight validation failed - database error: {type(db_err).__name__}: {db_err}. "
             f"This prevents all downstream phases from running correctly. "
-            f"Fail-fast: halting Phase 1 to surface data quality issue."
+            f"Check: database connectivity, RDS credentials, or schema consistency."
         )
         logger.critical(error_msg)
         log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "pre-flight validation failed"}, True, error_msg)
+        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "database error during pre-flight"}, True, error_msg)
+    except (ValueError, TypeError, AttributeError) as code_err:
+        error_msg = (
+            f"[PHASE 1 CRITICAL] Pre-flight validation failed - code error: {type(code_err).__name__}: {code_err}. "
+            f"This indicates a bug in Phase 1 pre-flight logic. Report to developers."
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "data_freshness", "halt", error_msg)
+        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "code error in pre-flight"}, True, error_msg)
+    except Exception as unknown_err:
+        error_msg = (
+            f"[PHASE 1 CRITICAL] Pre-flight validation failed - unexpected error: {type(unknown_err).__name__}: {unknown_err}. "
+            f"This prevents all downstream phases from running correctly. "
+            f"Fail-fast: halting Phase 1 to surface unknown issue."
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "data_freshness", "halt", error_msg)
+        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "unknown error in pre-flight"}, True, error_msg)
 
     try:
         with DatabaseContext("read") as cur:
