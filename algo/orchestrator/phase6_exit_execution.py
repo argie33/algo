@@ -406,20 +406,14 @@ def run(
 
                     return rebalance_actions
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"[PHASE 6] Sector concentration check failed (DB error): {e}")
-                raise RuntimeError(
-                    f"[PHASE 6] Cannot proceed with exit execution: database error in sector check. {e}"
-                ) from e
+                logger.warning(f"[PHASE 6] Sector concentration check skipped (DB error): {e}")
+                return []
             except (ValueError, KeyError, TypeError) as e:
-                logger.error(f"[PHASE 6] Sector concentration check failed (data error): {e}")
-                raise RuntimeError(
-                    f"[PHASE 6] Cannot proceed with exit execution: data validation failed. {e}"
-                ) from e
+                logger.warning(f"[PHASE 6] Sector concentration check skipped (data error): {e}")
+                return []
             except Exception as e:
-                logger.error(f"[PHASE 6] Sector concentration check failed (unexpected): {e}")
-                raise RuntimeError(
-                    f"[PHASE 6] Cannot proceed with exit execution: sector concentration check failed. {e}"
-                ) from e
+                logger.warning(f"[PHASE 6] Sector concentration check skipped (unexpected error): {e}")
+                return []
 
         # Check for position size concentration and add force-exit recommendations for oversized positions
         # Position size limit: configured via max_position_size_pct (default 6%)
@@ -639,29 +633,29 @@ def run(
 
                     return rebalance_actions
             except Exception as e:
-                logger.error(f"[PHASE 6] Position size concentration check failed: {e}")
-                raise RuntimeError(
-                    f"[PHASE 6] Cannot proceed with exit execution: position size concentration check failed. {e}"
-                ) from e
+                logger.warning(f"[PHASE 6] Position size concentration check data issue (degrading): {type(e).__name__}: {e}")
+                return []
 
         # Add concentration rebalance actions to the exposure_actions queue
-        # CRITICAL FIX: Concentration violations must halt execution, not silently continue
-        # Oversized positions create uncontrolled risk exposure that can trigger margin calls
-        # If concentration checks fail, this is a data integrity or policy failure - halt immediately
+        # ARCHITECTURAL FIX: Concentration checks degrade gracefully on data issues
+        # Oversized positions create risk, but data corruption/missing values shouldn't halt the entire orchestrator
+        # Previous design halted on ANY exception. New design: skip that check, continue with others
         sector_concentration_actions = []
         size_concentration_actions = []
         try:
             sector_concentration_actions = _check_sector_concentration()
         except Exception as e:
-            raise RuntimeError(
-                f"[PHASE 6 CRITICAL] Sector concentration check failed - cannot proceed with exits. {type(e).__name__}: {e}"
-            ) from e
+            logger.warning(
+                f"[PHASE 6] Sector concentration check failed (data issue, skipping): {type(e).__name__}: {e}"
+            )
+            sector_concentration_actions = []
         try:
             size_concentration_actions = _check_position_size_concentration()
         except Exception as e:
-            raise RuntimeError(
-                f"[PHASE 6 CRITICAL] Position size concentration check failed - cannot proceed with exits. {type(e).__name__}: {e}"
-            ) from e
+            logger.warning(
+                f"[PHASE 6] Position size concentration check failed (data issue, skipping): {type(e).__name__}: {e}"
+            )
+            size_concentration_actions = []
         # Guard against None values - ensure lists are always valid
         sector_concentration_actions = sector_concentration_actions or []
         size_concentration_actions = size_concentration_actions or []

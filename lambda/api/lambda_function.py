@@ -79,7 +79,7 @@ def _apply_critical_migrations() -> tuple[bool, str]:
         # Use credential_manager to fetch DB credentials from Secrets Manager or environment
         # This is the same source that DatabaseContext uses for all other DB operations
         try:
-            from config.credential_manager import get_db_config
+            from algo.config.credential_manager import get_db_config
 
             db_config = get_db_config()
         except (ImportError, ModuleNotFoundError) as e:
@@ -412,7 +412,7 @@ def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
         try:
             import json
 
-            from config.credential_manager import get_secret
+            from algo.config.credential_manager import get_secret
 
             try:
                 secret = get_secret("algo/cloudfront-domain")
@@ -1517,7 +1517,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Credential cache uses 5-minute TTL to balance freshness with API costs
     # Expired entries are automatically skipped; clearing cache is optional for rotation speed.
     try:
-        from config.credential_manager import clear_expired_credentials
+        from algo.config.credential_manager import clear_expired_credentials
 
         clear_expired_credentials()
     except (ImportError, AttributeError):
