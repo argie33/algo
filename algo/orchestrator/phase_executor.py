@@ -45,7 +45,7 @@ class OrchestratorPhaseExecutor:
         """Initialize executor.
 
         Args:
-            config: Configuration object
+            config: Configuration object (typically orchestrator runtime config with risk/trading settings)
             halt_check_fn: Function that returns True if orchestrator should halt
             skip_phases: Optional list of phase numbers to skip (useful for non-trading days)
         """
@@ -83,13 +83,14 @@ class OrchestratorPhaseExecutor:
 
         Args:
             phase_num: Phase that produced data
-            *keys: Required keys to extract
+            *keys: Required keys to extract (1 or more keys)
 
         Returns:
-            Single value if one key, tuple if multiple keys
+            Single value (Any type) if one key, tuple of values if multiple keys.
+            Type of returned value depends on phase schema (documented in phase implementation).
 
         Raises:
-            Exception: If phase data is missing or invalid
+            MissingPhaseDataError: If phase data is missing or invalid
         """
         from algo.orchestrator.phase_data_contract import (
             MissingPhaseDataError,
