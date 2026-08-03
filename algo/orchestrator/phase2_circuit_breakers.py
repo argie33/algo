@@ -410,6 +410,16 @@ def run(  # noqa: C901
             None,
         )
 
+    except (RuntimeError, ValueError, KeyError) as e:
+        error = PhaseError(
+            category=ErrorCategory.DEPENDENCY_FAILED,
+            message="Circuit breaker check failed - data/validation error",
+            root_cause=str(e)[:200],
+            recoverable=False,
+            log_level="critical",
+        )
+        log_phase_error(2, error, log_phase_result_fn)
+        logger.critical(f"[PHASE 2] Circuit breaker check failed (validation error): {str(e)[:100]}")
     except Exception as e:
         error = PhaseError(
             category=ErrorCategory.DEPENDENCY_FAILED,
