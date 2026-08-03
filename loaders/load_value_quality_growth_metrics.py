@@ -686,14 +686,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("roa")
 
             # Operating Margin = Operating Income / Revenue
-            if operating_income is not None and revenue is not None and revenue != 0:
-                metrics["operating_margin"] = float((operating_income / revenue) * 100)
+            # Fallback for banks (NULL revenue): use Operating Income / Total Assets instead
+            if operating_income is not None and operating_income != 0:
+                if revenue is not None and revenue != 0:
+                    metrics["operating_margin"] = float((operating_income / revenue) * 100)
+                elif total_assets is not None and total_assets != 0:
+                    # Fallback: ROA of operating income (useful for banks with NULL revenue)
+                    metrics["operating_margin"] = float((operating_income / total_assets) * 100)
+                else:
+                    failed_metrics.append("operating_margin")
             else:
                 failed_metrics.append("operating_margin")
 
             # Net Margin = Net Income / Revenue
-            if net_income is not None and revenue is not None and revenue != 0:
-                metrics["net_margin"] = float((net_income / revenue) * 100)
+            # Fallback for banks (NULL revenue): use Net Income / Total Assets instead
+            if net_income is not None and net_income != 0:
+                if revenue is not None and revenue != 0:
+                    metrics["net_margin"] = float((net_income / revenue) * 100)
+                elif total_assets is not None and total_assets != 0:
+                    # Fallback: ROA of net income (useful for banks with NULL revenue)
+                    metrics["net_margin"] = float((net_income / total_assets) * 100)
+                else:
+                    failed_metrics.append("net_margin")
             else:
                 failed_metrics.append("net_margin")
 
