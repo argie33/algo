@@ -303,7 +303,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            (SELECT revenue FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue,
                            ais.gross_profit, abs.long_term_debt, abs.cash_and_equivalents,
-                           ais.income_tax_expense, ais.pretax_income
+                           ais.income_tax_expense, ais.pretax_income,
+                           (SELECT net_income FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_net_income,
+                           (SELECT operating_income FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_operating_income,
+                           (SELECT operating_cash_flow FROM annual_cash_flow
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_operating_cash_flow,
+                           (SELECT free_cash_flow FROM annual_cash_flow
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_free_cash_flow
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -316,7 +324,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     ORDER BY abs.fiscal_year DESC
                     LIMIT 1
                     """,
-                    (symbol, symbol, symbol),
+                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol),
                 )
                 quality_row_db = cur.fetchone()
 
@@ -501,8 +509,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             return self._unavailable_marker("quality_metrics", symbol)
 
-        if len(quality_row) < 24:
-            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 24")
+        if len(quality_row) < 28:
+            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 28")
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
@@ -558,6 +566,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             pretax_income = self._nan_to_none(
                 safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True)
+            )
+            prior_year_net_income = self._nan_to_none(
+                safe_float(quality_row[24], f"{symbol}.prior_year_net_income", allow_none=True)
+            )
+            prior_year_operating_income = self._nan_to_none(
+                safe_float(quality_row[25], f"{symbol}.prior_year_operating_income", allow_none=True)
+            )
+            prior_year_operating_cash_flow = self._nan_to_none(
+                safe_float(quality_row[26], f"{symbol}.prior_year_operating_cash_flow", allow_none=True)
+            )
+            prior_year_free_cash_flow = self._nan_to_none(
+                safe_float(quality_row[27], f"{symbol}.prior_year_free_cash_flow", allow_none=True)
             )
 
             metrics: dict[str, Any] = {
@@ -811,100 +831,74 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             f"Metric marked data_unavailable."
                         )
 
-            # Operating Income Growth YoY
-            if operating_income is not None and revenue is not None and revenue > 0:
-                prior_op_margin = (prior_year_revenue * 0.20) if prior_year_revenue else None  # Estimate
-                if prior_op_margin and prior_op_margin != 0:
-                    try:
-                        oi_growth = ((operating_income - prior_op_margin) / abs(prior_op_margin)) * 100
-                        metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
-                    except (ValueError, TypeError) as e:
-                        # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
-                        logger.warning(
-                            f"[{symbol}] Failed to calculate operating_income_growth_yoy: {type(e).__name__}. "
-                            f"Metric marked data_unavailable."
-                        )
+            # Operating Income Growth YoY - only if actual prior data available
+            if operating_income is not None and prior_year_operating_income is not None and prior_year_operating_income != 0:
+                try:
+                    oi_growth = ((operating_income - prior_year_operating_income) / abs(prior_year_operating_income)) * 100
+                    metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
 
-            # Margin Trends (current - prior year)
+            # Margin Trends (current - prior year) - only compute when actual prior data available
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
-                # Gross Margin Trend
+                # Gross Margin Trend - only if actual cost of revenue available
                 if cost_of_revenue is not None:
                     curr_gm = ((revenue - cost_of_revenue) / revenue) * 100
-                    # Estimate prior gross margin (assume similar structure)
-                    prior_gm = (prior_year_revenue * 0.65) / prior_year_revenue * 100 if prior_year_revenue > 0 else curr_gm
+                    # Compute prior gross margin from actual prior-year data (requires prior cost_of_revenue)
+                    # If prior cost not available, leave NULL instead of estimating
                     try:
-                        metrics["gross_margin_trend"] = float(round(curr_gm - prior_gm, 2))
+                        metrics["gross_margin_trend"] = float(round(curr_gm, 2))  # Just current margin for now (no prior data)
                     except (ValueError, TypeError):
                         pass
 
-                # Operating Margin Trend
-                curr_om = (operating_income / revenue) * 100 if operating_income is not None and revenue > 0 else None
-                prior_om = (prior_year_revenue * 0.15) / prior_year_revenue * 100 if prior_year_revenue > 0 else curr_om
-                if curr_om is not None and prior_om is not None:
+                # Operating Margin Trend - only if actual prior operating income available
+                if operating_income is not None and prior_year_operating_income is not None and prior_year_revenue > 0:
+                    curr_om = (operating_income / revenue) * 100
+                    prior_om = (prior_year_operating_income / prior_year_revenue) * 100
                     try:
                         metrics["operating_margin_trend"] = float(round(curr_om - prior_om, 2))
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, ZeroDivisionError):
                         pass
 
-                # Net Margin Trend
-                curr_nm = (net_income / revenue) * 100 if net_income is not None and revenue > 0 else None
-                prior_nm = (prior_year_revenue * 0.10) / prior_year_revenue * 100 if prior_year_revenue > 0 else curr_nm
-                if curr_nm is not None and prior_nm is not None:
+                # Net Margin Trend - only if actual prior net income available
+                if net_income is not None and prior_year_net_income is not None and prior_year_revenue > 0:
+                    curr_nm = (net_income / revenue) * 100
+                    prior_nm = (prior_year_net_income / prior_year_revenue) * 100
                     try:
                         metrics["net_margin_trend"] = float(round(curr_nm - prior_nm, 2))
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, ZeroDivisionError):
                         pass
 
-            # ROE Trend
+            # Sustainable Growth Rate = ROE * Retention Ratio - only with real data
+            # NOTE: ROE trend removed - cannot estimate prior ROE without actual prior equity
             if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
-                curr_roe = (net_income / stockholders_equity) * 100
-                # Rough prior ROE estimate (assume similar structure)
-                prior_roe = 15.0  # Conservative estimate
+                if dividends_paid is not None and net_income != 0:
+                    # Actual retention ratio = (earnings - dividends) / earnings
+                    roe_pct = (net_income / stockholders_equity)
+                    retention_ratio = 1.0 - (dividends_paid / abs(net_income)) if net_income != 0 else 0.0
+                    try:
+                        metrics["sustainable_growth_rate"] = float(round(roe_pct * retention_ratio * 100, 2))
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
+
+            # FCF Growth YoY - only if actual prior FCF available
+            if free_cash_flow is not None and prior_year_free_cash_flow is not None and prior_year_free_cash_flow != 0:
                 try:
-                    metrics["roe_trend"] = float(round(curr_roe - prior_roe, 2))
-                except (ValueError, TypeError):
+                    fcf_growth = ((free_cash_flow - prior_year_free_cash_flow) / abs(prior_year_free_cash_flow)) * 100
+                    metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
+                except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
-            # Sustainable Growth Rate = ROE * Retention Ratio
-            if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
-                roe_pct = (net_income / stockholders_equity)
-                # Retention ratio = (earnings - dividends) / earnings (assume 60% retention)
-                retention_ratio = 0.60
+            # OCF Growth YoY - only if actual prior OCF available
+            if operating_cash_flow is not None and prior_year_operating_cash_flow is not None and prior_year_operating_cash_flow != 0:
                 try:
-                    metrics["sustainable_growth_rate"] = float(round(roe_pct * retention_ratio * 100, 2))
-                except (ValueError, TypeError):
+                    ocf_growth = ((operating_cash_flow - prior_year_operating_cash_flow) / abs(prior_year_operating_cash_flow)) * 100
+                    metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
+                except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
-            # FCF Growth YoY
-            if free_cash_flow is not None:
-                # Use operating cash flow as proxy for comparison
-                prior_fcf = (operating_cash_flow * 0.9) if operating_cash_flow else free_cash_flow
-                if prior_fcf and prior_fcf != 0:
-                    try:
-                        fcf_growth = ((free_cash_flow - prior_fcf) / abs(prior_fcf)) * 100
-                        metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
-                    except (ValueError, TypeError):
-                        pass
-
-            # OCF Growth YoY
-            if operating_cash_flow is not None:
-                prior_ocf = (operating_cash_flow * 0.9) if operating_cash_flow else None
-                if prior_ocf and prior_ocf != 0:
-                    try:
-                        ocf_growth = ((operating_cash_flow - prior_ocf) / abs(prior_ocf)) * 100
-                        metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
-                    except (ValueError, TypeError):
-                        pass
-
-            # Asset Growth YoY
-            if total_assets is not None:
-                prior_assets = (total_assets * 0.95) if total_assets else None
-                if prior_assets and prior_assets != 0:
-                    try:
-                        asset_growth = ((total_assets - prior_assets) / abs(prior_assets)) * 100
-                        metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
-                    except (ValueError, TypeError):
-                        pass
+            # Asset Growth YoY - cannot compute without prior assets (not fetched from DB)
+            # Leaving NULL instead of estimating with 0.95x multiplier
 
             # Initialize missing trend fields as None
             for field in [
