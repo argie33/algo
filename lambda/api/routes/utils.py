@@ -249,6 +249,60 @@ def error_response(code: int, typ: str, msg: str | None) -> Any:
     return response
 
 
+def no_data_response(msg: str | None = None) -> Any:
+    """Standardized response for empty query results.
+
+    CRITICAL FIX: Distinguish "query executed successfully but returned 0 rows" (no_data)
+    from "query execution failed" (query_failed). This allows callers to distinguish:
+    - No data (200): Query succeeded, zero rows returned (expected for some endpoints)
+    - Query failed (500): Database error, network issue, etc. (needs investigation)
+
+    Args:
+        msg: Optional message explaining why no data (e.g., "No data for this date range")
+
+    Returns:
+        Response dict with statusCode 200 and errorType "no_data"
+    """
+    from utils.error_handlers import sanitize_error_message
+
+    if msg is None:
+        msg = "No data found for the requested query"
+    msg = sanitize_error_message(msg)
+
+    return cast(
+        dict[str, Any],
+        {"statusCode": 200, "errorType": "no_data", "message": msg, "_error": msg, "_is_no_data": True},
+    )
+
+
+def query_failed_response(error: Exception | str, context: str = "query") -> Any:
+    """Standardized response for query execution failures.
+
+    CRITICAL FIX: Distinguish "query executed but returned no rows" (no_data)
+    from "query execution failed" (query_failed). This makes errors actionable:
+    - Query failed (500): Database connection, parse error, timeout → needs ops attention
+    - No data (200): Empty result set → expected behavior for some endpoints
+
+    Args:
+        error: Exception or error message
+        context: Operation context for logging
+
+    Returns:
+        Response dict with statusCode 500 and errorType "query_failed"
+    """
+    from utils.error_handlers import sanitize_error_message
+
+    error_msg = str(error) if isinstance(error, Exception) else str(error)
+    error_msg = sanitize_error_message(error_msg)
+
+    logger.error(f"[query_failed_response] {context} failed: {error_msg}")
+
+    return cast(
+        dict[str, Any],
+        {"statusCode": 500, "errorType": "query_failed", "message": error_msg, "_error": error_msg},
+    )
+
+
 def raise_db_error(error: Exception, context: str = "database operation") -> NoReturn:
     """Convert database error to APIException.
 
