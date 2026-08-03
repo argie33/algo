@@ -38,9 +38,16 @@ class TestTrendAnalysisStatusHistoryArchiving:
 
     def test_failed_status_archives_to_history(self):
         cur = MagicMock()
-        # First fetchone: safety check (symbol_count, symbols_loaded, completion_pct)
-        # Second fetchone: archive query (7 columns)
-        cur.fetchone.side_effect = [(10, 0, 0.0), (None, None, "error", 0, 0.0, 0, 10)]
+        # Mock fetchone to return different results based on SQL content
+        def mock_fetchone_fn():
+            last_sql = cur.execute.call_args[0][0] if cur.execute.called else ""
+            if "symbol_count, symbols_loaded, completion_pct" in last_sql:
+                return (10, 0, 0.0)  # safety check response
+            elif "execution_started" in last_sql or "data_loader_status" in last_sql:
+                return (None, None, "error", 0, 0.0, 0, 10)  # archive response
+            return (1,)  # default
+
+        cur.fetchone.side_effect = mock_fetchone_fn
         cur.rowcount = 1  # Status manager checks rowcount
 
         with (

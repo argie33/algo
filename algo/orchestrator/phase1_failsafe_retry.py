@@ -375,6 +375,9 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
             # any loader reporting canonical "FAILED" would be invisible to this OR clause
             # and only caught via the completion_pct threshold, silently narrowing failsafe
             # retry coverage. Compare case-insensitively so both vocabularies are caught.
+            # CRITICAL FIX 2026-08-04: Changed hardcoded 95% to 98% to catch price_daily which
+            # requires 98% completion (2% max_fail_rate). Other loaders with 95% min will be
+            # selected here but filtered out at line 454-460 if they're above their own threshold.
             cur.execute("""
                 SELECT
                     table_name,
@@ -386,7 +389,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     execution_started,
                     last_updated
                 FROM data_loader_status
-                WHERE (completion_pct < 95.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
+                WHERE (completion_pct < 98.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
                     AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
                 ORDER BY completion_pct ASC, table_name
             """)

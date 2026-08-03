@@ -96,14 +96,14 @@ class LoaderStatusManager:
 
         Sets: status=RUNNING, execution_started=NOW
 
-        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent updates.
+        ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within a single transaction.
+        This prevents concurrent updates from overwriting counts.
         """
-        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
-                # Validate monotonic increase: status must move from NOT_STARTED to RUNNING
+                # SELECT FOR UPDATE locks the row within this transaction
                 cur.execute(
-                    "SELECT status FROM data_loader_status WHERE table_name = %s",
+                    "SELECT status FROM data_loader_status WHERE table_name = %s FOR UPDATE",
                     (self.table_name,),
                 )
                 result = cur.fetchone()
@@ -132,8 +132,6 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as RUNNING: {e}")
             raise
-        finally:
-            self._release_lock()
 
     def update_progress(
         self,
@@ -143,7 +141,7 @@ class LoaderStatusManager:
     ) -> None:
         """Update loader progress without changing status.
 
-        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent updates from overwriting counts.
+        ISSUE #9 FIX: Uses SELECT FOR UPDATE to prevent concurrent updates from overwriting counts.
         Validates monotonic increase: symbols_loaded cannot decrease.
 
         Args:
@@ -151,57 +149,54 @@ class LoaderStatusManager:
             symbol_count: Total number of symbols to process
             completion_pct: Percentage complete (0-100)
         """
-        self._acquire_lock()
         try:
-            updates = {"last_updated": "NOW()"}
-            params: list[Any] = []
-
-            if symbols_loaded is not None:
-                updates["symbols_loaded"] = "%s"
-                params.append(symbols_loaded)
-
-            if symbol_count is not None:
-                updates["symbol_count"] = "%s"
-                params.append(symbol_count)
-
-            if completion_pct is not None:
-                if not (0 <= completion_pct <= 100):
-                    logger.error(f"[STATUS_MANAGER] completion_pct must be 0-100, got {completion_pct}")
-                    return
-                updates["completion_pct"] = "%s"
-                params.append(completion_pct)
-
-            # Validate monotonic increase before updating
-            if symbols_loaded is not None:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT symbols_loaded FROM data_loader_status WHERE table_name = %s",
-                        (self.table_name,),
-                    )
-                    result = cur.fetchone()
-                    if result and result[0] is not None:
-                        old_symbols_loaded = result[0]
-                        if symbols_loaded < old_symbols_loaded:
-                            raise ValueError(
-                                f"[STATUS_MANAGER] symbols_loaded cannot decrease: {old_symbols_loaded} -> {symbols_loaded}. "
-                                f"This indicates a bug in the progress tracking logic (counts should only increase)."
-                            )
-
-            params.append(self.table_name)
-
-            update_clause = ", ".join([f"{k} = {v}" for k, v in updates.items()])
             with DatabaseContext("write") as cur:
+                # SELECT FOR UPDATE locks the row within this transaction
+                cur.execute(
+                    "SELECT symbols_loaded FROM data_loader_status WHERE table_name = %s FOR UPDATE",
+                    (self.table_name,),
+                )
+                result = cur.fetchone()
+
+                # Validate monotonic increase before updating
+                if symbols_loaded is not None and result and result[0] is not None:
+                    old_symbols_loaded = result[0]
+                    if symbols_loaded < old_symbols_loaded:
+                        raise ValueError(
+                            f"[STATUS_MANAGER] symbols_loaded cannot decrease: {old_symbols_loaded} -> {symbols_loaded}. "
+                            f"This indicates a bug in the progress tracking logic (counts should only increase)."
+                        )
+
+                updates = {"last_updated": "NOW()"}
+                params: list[Any] = []
+
+                if symbols_loaded is not None:
+                    updates["symbols_loaded"] = "%s"
+                    params.append(symbols_loaded)
+
+                if symbol_count is not None:
+                    updates["symbol_count"] = "%s"
+                    params.append(symbol_count)
+
+                if completion_pct is not None:
+                    if not (0 <= completion_pct <= 100):
+                        logger.error(f"[STATUS_MANAGER] completion_pct must be 0-100, got {completion_pct}")
+                        return
+                    updates["completion_pct"] = "%s"
+                    params.append(completion_pct)
+
+                params.append(self.table_name)
+
+                update_clause = ", ".join([f"{k} = {v}" for k, v in updates.items()])
                 cur.execute(
                     f"UPDATE data_loader_status SET {update_clause} WHERE table_name = %s",
                     params,
                 )
 
-            pct_str = f"{completion_pct:.1f}%" if completion_pct is not None else "?"
-            logger.debug(f"[STATUS] {self.table_name}: Progress {pct_str} ({symbols_loaded}/{symbol_count})")
+                pct_str = f"{completion_pct:.1f}%" if completion_pct is not None else "?"
+                logger.debug(f"[STATUS] {self.table_name}: Progress {pct_str} ({symbols_loaded}/{symbol_count})")
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to update progress for {self.table_name}: {e}")
-        finally:
-            self._release_lock()
 
     def mark_completed(
         self,
@@ -218,7 +213,7 @@ class LoaderStatusManager:
         alone can't distinguish "last finished successfully" from "last finished at all",
         since it's also stamped on FAILED/TIMEOUT).
 
-        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
+        ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within transaction.
         ERROR COUNT TRACKING: Now logs symbols_failed count for visibility into partial failures.
 
         PRODUCTION SAFETY FIX (2026-08-03): Don't mark as COMPLETED if completion_pct < 98%
@@ -232,13 +227,13 @@ class LoaderStatusManager:
             latest_date: Optional latest date in the loaded data (for data freshness tracking)
             symbols_failed: Optional count of symbols that failed to load (allows partial success visibility)
         """
-        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
                 # CRITICAL SAFETY CHECK: Verify completion_pct before marking COMPLETED
+                # SELECT FOR UPDATE locks the row within this transaction
                 # This prevents marking as COMPLETE when data load was actually incomplete
                 cur.execute(
-                    "SELECT symbol_count, symbols_loaded, completion_pct FROM data_loader_status WHERE table_name = %s",
+                    "SELECT symbol_count, symbols_loaded, completion_pct FROM data_loader_status WHERE table_name = %s FOR UPDATE",
                     (self.table_name,)
                 )
                 status_row = cur.fetchone()
@@ -261,13 +256,27 @@ class LoaderStatusManager:
                             f"{actual_completion_pct:.2f}% completion ({loaded_symbols}/{total_symbols} symbols). "
                             f"This indicates incomplete data load. Marking FAILED instead."
                         )
-                        # Call mark_failed instead of mark_completed
-                        self.mark_failed(
-                            error_message=f"Incomplete load: only {loaded_symbols}/{total_symbols} symbols loaded ({actual_completion_pct:.2f}%)",
-                            completion_pct=actual_completion_pct,
-                            retry_count=None
+                        # Update status to FAILED within this same transaction (lock already held)
+                        cur.execute(
+                            """
+                            UPDATE data_loader_status
+                            SET status = %s, execution_completed = NOW(), completion_pct = %s,
+                                error_message = %s, last_updated = NOW(),
+                                consecutive_failures = consecutive_failures + 1
+                            WHERE table_name = %s
+                            """,
+                            (LoaderStatus.FAILED.value, actual_completion_pct,
+                             f"Incomplete load: only {loaded_symbols}/{total_symbols} symbols loaded ({actual_completion_pct:.2f}%)",
+                             self.table_name),
                         )
-                        return  # Exit early - mark_failed already acquired lock
+                        # Archive to history for pattern analysis
+                        archived = self._archive_to_history(cur, LoaderStatus.FAILED.value)
+                        if not archived:
+                            logger.warning(
+                                f"[STATUS_MANAGER] WARNING: {self.table_name} marked FAILED (incomplete) "
+                                f"but history archiving failed. Dashboard failure-pattern analysis may be incomplete."
+                            )
+                        return  # Exit early - transaction commits with FAILED status
 
                 # Calculate throughput if we have duration and symbols
                 symbols_per_sec = None
@@ -331,8 +340,6 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as COMPLETED: {e}")
             raise
-        finally:
-            self._release_lock()
 
     def mark_failed(
         self,
@@ -343,7 +350,7 @@ class LoaderStatusManager:
     ) -> None:
         """Mark loader as failed with error reason.
 
-        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
+        ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within transaction.
 
         Args:
             error_message: Description of what went wrong (max 1000 chars)
@@ -354,9 +361,13 @@ class LoaderStatusManager:
         # Truncate message to 1000 chars to prevent DB column overflow
         msg = error_message[:1000]
 
-        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
+                # SELECT FOR UPDATE locks the row within this transaction
+                cur.execute(
+                    "SELECT table_name FROM data_loader_status WHERE table_name = %s FOR UPDATE",
+                    (self.table_name,),
+                )
                 if completion_pct is not None:
                     cur.execute(
                         """
@@ -397,22 +408,24 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as FAILED: {e}")
             raise
-        finally:
-            self._release_lock()
 
     def mark_timeout(self, runtime_seconds: float, http_status: int | None = None) -> None:
         """Mark loader as timed out.
 
-        ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
+        ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within transaction.
 
         Args:
             runtime_seconds: How long the loader ran before timing out
             http_status: Optional HTTP status code if the timeout was from an API call
         """
         msg = f"Timeout after {runtime_seconds:.0f} seconds"
-        self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
+                # SELECT FOR UPDATE locks the row within this transaction
+                cur.execute(
+                    "SELECT table_name FROM data_loader_status WHERE table_name = %s FOR UPDATE",
+                    (self.table_name,),
+                )
                 cur.execute(
                     """
                     UPDATE data_loader_status
@@ -440,8 +453,6 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to mark {self.table_name} as TIMEOUT: {e}")
             raise
-        finally:
-            self._release_lock()
 
     def _archive_to_history(self, cur: Any, status: str, http_status: int | None = None) -> bool:
         """Archive current status to history table for pattern analysis.

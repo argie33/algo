@@ -71,9 +71,17 @@ class TestValueUnavailableStillWritesQualityAndGrowth:
             patch("utils.loaders.config.get_default_parallelism", return_value=1),
         ):
             mock_cur = MagicMock()
-            # First fetchone: safety check (symbol_count, symbols_loaded, completion_pct)
-            # Second fetchone: non-zero "today" verification counts
-            mock_cur.fetchone.side_effect = [(1, 1, 100.0), (1,)]
+            # Mock fetchone to return appropriate values based on query pattern
+            def mock_fetchone_fn():
+                last_sql = mock_cur.execute.call_args[0][0] if mock_cur.execute.called else ""
+                if "symbol_count, symbols_loaded, completion_pct" in last_sql:
+                    return (1, 1, 100.0)  # safety check for mark_completed
+                elif "COUNT(*)" in last_sql:
+                    return (1,)  # count query for mark_running
+                return (1,)  # default single value
+
+            # Use infinite generator so it never runs out of values
+            mock_cur.fetchone.side_effect = lambda: mock_fetchone_fn()
             mock_cur.rowcount = 1
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
             mock_status_db_ctx.return_value.__enter__.return_value = mock_cur
