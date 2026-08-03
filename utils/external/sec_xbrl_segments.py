@@ -345,8 +345,8 @@ class XBRLSegmentParser:
         return name.strip() or member_local_name
 
     @staticmethod
-    def _index_segment_contexts(root: ET.Element) -> dict[str, tuple[str, str, str, str | None]]:
-        """Map context id -> (axis_local_name, segment_member, period_end, period_start).
+    def _index_segment_contexts(root: ET.Element) -> dict[str, tuple[str, str, str, str | None, bool]]:
+        """Map context id -> (axis_local_name, segment_member, period_end, period_start, is_boilerplate_paired).
 
         Only contexts representing the segment's own total are included - a
         recognized segment axis alone, or paired only with the standard
