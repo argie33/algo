@@ -312,8 +312,14 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
             return current_risk_pct, available_risk_pct
     except RuntimeError:
         raise
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[RISK CHECK] Failed to calculate total open risk (DB error): {e}")
+        raise RuntimeError(f"Risk calculation failed (DB): {e}") from e
+    except (ValueError, TypeError, KeyError) as e:
+        logger.error(f"[RISK CHECK] Failed to calculate total open risk (data error): {e}")
+        raise RuntimeError(f"Risk calculation failed (data): {e}") from e
     except Exception as e:
-        logger.error(f"[RISK CHECK] Failed to calculate total open risk: {e}")
+        logger.error(f"[RISK CHECK] Failed to calculate total open risk (unexpected): {e}")
         raise RuntimeError(f"Risk calculation failed: {e}") from e
 
 
@@ -394,6 +400,10 @@ def _cleanup_orphaned_positions() -> int:
                 )
                 return orphaned_count
             return 0
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[PHASE 8 CLEANUP] Failed to clean up orphaned positions (DB error): {e}")
+        # Don't fail Phase 8 over cleanup failure - log and continue
+        return 0
     except Exception as e:
         logger.error(f"[PHASE 8 CLEANUP] Failed to clean up orphaned positions: {e}")
         # Don't fail Phase 8 over cleanup failure - log and continue
@@ -419,6 +429,9 @@ def _log_signal_rejection(
                    VALUES (%s, %s, %s, %s, %s, %s)""",
                 (run_date, symbol, rejection_stage, rejection_reason, entry_price, risk_pct),
             )
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol} (DB error): {e}. Audit trail incomplete.")
+        raise RuntimeError(f"Signal rejection audit logging failed for {symbol} (DB): {e}") from e
     except Exception as e:
         logger.error(f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol}: {e}. Audit trail incomplete.")
         raise RuntimeError(f"Signal rejection audit logging failed for {symbol}: {e}") from e
@@ -956,7 +969,7 @@ def run(
                         "This indicates Phase 7 did not properly populate result data. "
                         f"Phase 7 data keys: {list(phase7_result.data.keys())}"
                     )
-                qualified_trades_from_executor = cast(list[dict[str, Any]], phase7_result.data["qualified_trades"])
+                qualified_trades_from_executor = cast(list[QualifiedTrade], phase7_result.data["qualified_trades"])
                 if qualified_trades_from_executor is None:
                     raise ValueError(
                         "[PHASE 8 DATA INTEGRITY] Phase 7 returned 'qualified_trades'=None. "
@@ -1837,6 +1850,21 @@ def run(
 
     # Use validated trades for execution
     qualified_trades = validated_trades
+
+    # ALL-OR-NOTHING TRANSACTION SAFETY (Session 2026-08-03):
+    # Pre-flight validation: If we detect issues that would cause partial execution,
+    # reject all trades upfront rather than executing some and failing on others.
+    # Partial execution (trades 1-3 succeed, trade 4 fails) is unrecoverable - the broker
+    # won't cancel orders that are already placed.
+    if qualified_trades and not dry_run:
+        try:
+            from utils.db import DatabaseContext
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT 1")
+        except Exception as db_test_err:
+            error_msg = f"[PHASE 8] Database connectivity check failed before trade execution: {db_test_err}. Rejecting all trades to prevent partial execution."
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from db_test_err
 
     # ISSUE 14 FIX: Track per-trade execution with resource cleanup
     successfully_entered = 0
