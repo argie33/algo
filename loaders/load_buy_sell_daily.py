@@ -791,6 +791,11 @@ class SignalsDailyLoader(OptimalLoader):
                 )
                 rows = []
                 for r in cur.fetchall():
+                    if len(r) < 16:
+                        raise RuntimeError(
+                            f"[BUY_SELL] {symbol}: Query returned {len(r)} columns, expected 16. "
+                            f"Database schema mismatch or corrupted query result."
+                        )
                     if r[0] is None or r[11] is None:
                         raise RuntimeError(
                             f"{symbol} [{r[0]}]: Query returned NULL date or close price - "

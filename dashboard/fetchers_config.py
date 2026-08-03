@@ -551,6 +551,10 @@ def fetch_health(c: None) -> dict[str, Any]:
             rate_limit_quota = s.get("rate_limit_quota")
             retry_strategy = s.get("retry_strategy")
 
+            # Loader performance metrics: execution duration and throughput
+            execution_duration_sec = s.get("execution_duration_sec")
+            symbols_per_second = s.get("symbols_per_second")
+
             sources.append(
                 {
                     "tbl": name,
@@ -589,6 +593,8 @@ def fetch_health(c: None) -> dict[str, Any]:
                     "api_status": api_status,
                     "rate_limit_quota": rate_limit_quota,
                     "retry_strategy": retry_strategy,
+                    "execution_duration_sec": execution_duration_sec,
+                    "symbols_per_second": symbols_per_second,
                 }
             )
         summary = inner.get("summary")

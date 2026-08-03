@@ -78,11 +78,16 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             from config.credential_manager import get_db_config
 
             db_config = get_db_config()
-        except Exception as e:
+        except (ImportError, ModuleNotFoundError) as e:
             logger.critical(
-                f"[STARTUP] Could not fetch credentials from credential_manager: {e}. Cannot initialize Lambda without database access."
+                f"[STARTUP] Credential manager module not available: {e}. Cannot initialize Lambda without database access."
             )
-            raise RuntimeError(f"Database credential fetch failed at startup: {e}") from e
+            raise RuntimeError(f"Database credential manager unavailable at startup: {e}") from e
+        except (ValueError, KeyError) as e:
+            logger.critical(
+                f"[STARTUP] Database credentials incomplete from credential_manager: {e}. Cannot initialize Lambda without database access."
+            )
+            raise RuntimeError(f"Database credentials missing required fields: {e}") from e
 
         # GOVERNANCE: Fail-fast on missing database configuration.
         # get_db_config() validates all required fields and raises ValueError if any are missing.
@@ -355,10 +360,10 @@ def _apply_critical_migrations() -> tuple[bool, str]:
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"[STARTUP] Migration initialization failed: {e}")
         return False, str(e)
-    except Exception as e:
-        # Unexpected error type - log as critical to alert operators
-        logger.critical(f"[STARTUP CRITICAL] Unexpected error during migration: {type(e).__name__}: {e}")
-        return False, f"Unexpected error: {type(e).__name__}"
+    except (RuntimeError, ValueError, OSError) as e:
+        # Configuration or system error during migration - log as critical
+        logger.critical(f"[STARTUP CRITICAL] Error during migration: {type(e).__name__}: {e}")
+        return False, f"Migration error: {type(e).__name__}"
 
 
 # Execute migrations on cold start
@@ -372,7 +377,7 @@ try:
             f"Check database connectivity and permissions."
         )
     logger.info(f"[STARTUP] Database migrations completed: {msg}")
-except Exception as e:
+except (RuntimeError, psycopg2.Error) as e:
     logger.critical(f"[STARTUP CRITICAL] Migration initialization failed - aborting API startup: {e}")
     raise RuntimeError(f"[STARTUP] API Lambda cannot start without schema: {e}") from e
 
@@ -1100,10 +1105,14 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
                     f"[TOKEN_REVOCATION_FAILED] Blocklist module import failed: {e}. Rejecting token to prevent bypass."
                 )
                 return (False, None, "Token revocation verification failed (security check unavailable)")
-            except Exception as e:
-                # Blocklist service unreachable or error - fail secure by rejecting token
-                logger.error(f"[TOKEN_REVOCATION_FAILED] Cannot verify token revocation: {e} - rejecting token")
-                return (False, None, "Token revocation verification failed (security check required)")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                # Database unavailable - fail secure by rejecting token
+                logger.error(f"[TOKEN_REVOCATION_FAILED] Database error checking revocation: {type(e).__name__}: {e} - rejecting token")
+                return (False, None, "Token revocation verification failed (database unavailable)")
+            except OSError as e:
+                # Cache/network errors - fail secure by rejecting token
+                logger.error(f"[TOKEN_REVOCATION_FAILED] Cache/network error checking revocation: {e} - rejecting token")
+                return (False, None, "Token revocation verification failed (cache unavailable)")
 
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
 
@@ -1503,9 +1512,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     except (ImportError, AttributeError):
         # Credential manager not available - skip cache clearing (non-critical for this invocation)
         logger.debug("Credential cache clearing unavailable (module not found)")
-    except Exception as e:
-        # Cache clearing should never fail - it's just removing old entries from dict
-        logger.error(f"[CREDENTIAL_CACHE] Failed to clear expired credentials: {e}", exc_info=True)
+    except (RuntimeError, ValueError) as e:
+        # Credential cache clearing failed - non-critical, don't abort request
+        logger.warning(f"[CREDENTIAL_CACHE] Failed to clear expired credentials: {e}")
         # Don't fail the request for this non-critical operation, but log prominently
 
     # Extract path and method before ANY checks so health/CORS always work
@@ -1570,9 +1579,18 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     }
                 ),
             }
-        except Exception as e:
-            logger.error(f"[ORCHESTRATOR_FAILED] Exception: {type(e).__name__}: {e}", exc_info=True)
-            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": str(e)})}
+        except FileNotFoundError as e:
+            logger.error(f"[ORCHESTRATOR_FAILED] Python executable not found: {e}", exc_info=True)
+            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": "Python executable not found"})}
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"[ORCHESTRATOR_FAILED] Orchestrator exceeded 10-minute timeout: {e}", exc_info=True)
+            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_timeout", "message": "Orchestrator execution timeout"})}
+        except OSError as e:
+            logger.error(f"[ORCHESTRATOR_FAILED] OS error during orchestrator execution: {type(e).__name__}: {e}", exc_info=True)
+            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": f"OS error: {e}"})}
+        except ImportError as e:
+            logger.error(f"[ORCHESTRATOR_FAILED] Import error in orchestrator module: {e}", exc_info=True)
+            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": "Orchestrator module not available"})}
 
     # Health checks are handled via api_router (routes/health.py) for consistent response format
     # All health endpoints (basic, detailed, pipeline) now route through normal flow

@@ -41,10 +41,12 @@ def test_entries_exceeding_total_actions_is_not_an_error():
 
     assert len(rows) == 1
     row = rows[0]
-    assert row["data_unavailable"] is False, f"expected valid data, got: {row}"
-    assert row["entries"] == 5
-    assert row["exits"] == 0
-    assert row["total_actions"] == 2
+    # CRITICAL FIX (2026-08-02): Loader consolidation - Phase 9 is exclusive writer
+    # This loader verifies metrics but doesn't persist (returns data_unavailable=True with reason_type="not_applicable")
+    # to prevent race conditions between Phase 9 orchestrator and scheduled loader
+    assert row["data_unavailable"] is True, "Loader should report verification-only (not persisting)"
+    assert row["reason"] == "metrics_written_by_phase9_orchestrator"
+    assert row["reason_type"] == "not_applicable"
 
 
 def test_normal_high_audit_volume_day_still_works():
@@ -58,5 +60,6 @@ def test_normal_high_audit_volume_day_still_works():
     ):
         rows = loader.fetch_global(since=None)
 
-    assert rows[0]["data_unavailable"] is False
-    assert rows[0]["entries"] == 12
+    # CRITICAL FIX (2026-08-02): Loader consolidation - Phase 9 is exclusive writer
+    assert rows[0]["data_unavailable"] is True, "Loader should report verification-only (not persisting)"
+    assert rows[0]["reason"] == "metrics_written_by_phase9_orchestrator"

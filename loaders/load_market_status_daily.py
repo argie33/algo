@@ -594,6 +594,13 @@ class MarketStatusDailyLoader(OptimalLoader):
                 logger.warning(f"[MARKET_STATUS] No trend_template_data row for SPY on/before {eval_date}")
                 return {"market_stage": None, "market_trend": None}
 
+            if len(row) < 3:
+                logger.error(
+                    f"[MARKET_STATUS] Trend template query returned {len(row)} columns, expected 3. "
+                    f"Database schema mismatch or corrupted query result."
+                )
+                return {"market_stage": None, "market_trend": None}
+
             weinstein_stage, trend_direction, unavailable = row[0], row[1], row[2]
             if unavailable or weinstein_stage is None:
                 logger.warning(
@@ -652,10 +659,16 @@ class MarketStatusDailyLoader(OptimalLoader):
 
             bullish_pct = bearish_pct = neutral_pct = None
             if aaii_row:
-                # aaii_sentiment stores as fractions (0-1)
-                bullish_pct = float(aaii_row[1]) * 100
-                bearish_pct = float(aaii_row[2]) * 100
-                neutral_pct = float(aaii_row[3]) * 100
+                if len(aaii_row) < 4:
+                    logger.error(
+                        f"[MARKET_STATUS] AAII sentiment query returned {len(aaii_row)} columns, expected 4. "
+                        f"Database schema mismatch or corrupted query result."
+                    )
+                else:
+                    # aaii_sentiment stores as fractions (0-1)
+                    bullish_pct = float(aaii_row[1]) * 100
+                    bearish_pct = float(aaii_row[2]) * 100
+                    neutral_pct = float(aaii_row[3]) * 100
             else:
                 logger.debug(f"[MARKET_STATUS] AAII sentiment not available for {eval_date}")
 
