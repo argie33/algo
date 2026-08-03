@@ -28,6 +28,14 @@ table this module feeds):
   recommendation_key below is derived from the real recommendations_summary counts instead.
   Feeds analyst_sentiment_analysis (loaders/load_analyst_sentiment_analysis.py).
 
+Live-verified 2026-08-03: yf.Ticker(symbol).earnings_estimate is a real DataFrame indexed by
+period ('0q'/'+1q'/'0y'/'+1y') with avg/low/high/yearAgoEps/numberOfAnalysts/growth columns -
+same non-`.info` API family as upgrades_downgrades/recommendations_summary above. The '+1y'
+row's 'avg' column is the consensus next-fiscal-year EPS estimate, which SEC filings never
+carry (forward-looking estimates are inherently third-party). Feeds
+analyst_earnings_estimates (loaders/load_analyst_earnings_estimates.py), consumed by
+load_value_quality_growth_metrics.py to compute value_metrics.forward_pe.
+
 Uses the SHARED cross-ECS-task IP circuit breaker (utils/external/yfinance_circuit_breaker.py)
 rather than a local per-process one, since a full-universe run hits these endpoints once per
 symbol (thousands of calls/run) - the same class of shared-IP-ban risk the OHLCV yfinance
@@ -200,6 +208,38 @@ def fetch_analyst_sentiment(symbol: str) -> dict[str, Any] | None:
         "current_price": current_price,
         "upside_downside_percent": upside_downside_percent,
     }
+
+
+def fetch_forward_eps(symbol: str) -> float | None:
+    """Fetch the next-fiscal-year consensus EPS estimate for one symbol from yfinance.
+
+    Uses Ticker.earnings_estimate (period '+1y' row, 'avg' column) - a real DataFrame of
+    consensus analyst EPS estimates by period (0q/+1q/0y/+1y), NOT the deprecated `.info`/
+    quoteSummary surface (see this module's docstring). Feeds value_metrics.forward_pe =
+    current_price / forward_eps, since SEC filings never carry forward-looking estimates
+    (analyst_estimates_not_in_sec_filings - see load_value_quality_growth_metrics.py).
+
+    Returns:
+        Consensus next-FY EPS estimate, or None if the symbol has no analyst coverage
+        (not an error - most small/micro-caps genuinely have none).
+
+    Raises:
+        RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
+    """
+    df = _fetch_with_circuit_breaker(symbol, "earnings_estimate")
+    if df is None or df.empty or "avg" not in df.columns:
+        return None
+
+    if "+1y" not in df.index:
+        return None
+    val = df.loc["+1y", "avg"]
+    try:
+        val = float(val)
+    except (TypeError, ValueError):
+        return None
+    if val != val:  # NaN check w/o pandas import
+        return None
+    return val
 
 
 def _clean_str(value: Any) -> str | None:

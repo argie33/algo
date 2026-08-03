@@ -40,10 +40,27 @@ class BulkInsertManager:
         every tz-aware datetime bulk-inserted here would land in the DB shifted by
         the session's UTC offset (5-6h) and later misread as being in the future
         whenever compared against NOW() - reproduced live for stock_scores.updated_at.
+
+        FIXED 2026-08-03: previously called the module-level get_db_timezone() helper,
+        which opens its OWN nested `DatabaseContext("read")`. For a global_mode loader
+        (OptimalLoader.load_global()), this whole call happens on a shared pooled
+        connection reused across nested contexts ("externally managed" - see
+        utils/db/context.py) - a nested read-role context still calls conn.rollback()
+        on that SHARED connection on exit, which rolls back the CURRENT transaction, not
+        just its own statements. Live-reproduced: called between _create_staging_table()
+        (uncommitted CREATE UNLOGGED TABLE, same transaction) and copy_expert() - the
+        nested rollback silently wiped out the staging table before COPY ran, crashing
+        with "relation ... does not exist" on the very first bulk_insert() of a fresh
+        process (only reproduces once per process - get_db_timezone()'s own module-level
+        cache masks it on every later call). Fixed by using the cursor this method
+        already receives directly instead of opening a second nested context.
         """
         if self._session_tz_cache is None:
-            from utils.db.timezone_utils import get_db_timezone
-            self._session_tz_cache = get_db_timezone()
+            cur.execute("SHOW timezone")
+            result = cur.fetchone()
+            if not result:
+                raise RuntimeError("Failed to retrieve database timezone - SHOW timezone returned no rows")
+            self._session_tz_cache = ZoneInfo(result[0])
         return self._session_tz_cache
 
     def _create_staging_table(self, cur: Any) -> str:

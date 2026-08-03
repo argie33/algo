@@ -2331,12 +2331,36 @@ class PriceLoader(OptimalLoader):
                     self._stats["symbols_processed"] += 1
                     continue
 
-                logger.debug(
-                    f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping",
-                )
-                self._stats["symbols_skipped_by_watermark"] += 1
-                self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)
-                continue
+                # BATCH_NAN_RECOVERY (2026-08-03): yfinance's multi-symbol batch download can
+                # silently return empty/NaN rows for a single thin-volume/small-cap ticker even
+                # when the overall batch call succeeds and other symbols in the same batch get
+                # real data for the same window - live-confirmed against 11 established symbols
+                # (BIOA/CCRN/CLDI/FCUV/GAMB/GV/JDZG/MBAV/MYGN/NFBK/UBXG) that each had 1-3 day
+                # watermark lag here while yf.download(symbol) individually returned real rows.
+                # Before accepting "watermark current, no new data" at face value (which used to
+                # count as success and mask the gap from the fail-rate gate entirely), confirm
+                # with one individual re-fetch. Skip this for already-singleton batches (the
+                # SYMBOL_FALLBACK per-symbol retry path) to avoid a pointless duplicate call.
+                if len(symbols) > 1:
+                    try:
+                        single_result = self.fetch_batch_incremental([symbol], current_watermark)
+                        rows = single_result.get(symbol) or []
+                    except Exception as e:
+                        logger.debug(f"[{self.table_name}] {symbol}: single-symbol re-fetch failed: {e}")
+                        rows = []
+
+                if rows:
+                    logger.info(
+                        f"[{self.table_name}] {symbol}: Recovered {len(rows)} row(s) via single-symbol "
+                        "re-fetch after batch returned empty (BATCH_NAN_RECOVERY)"
+                    )
+                else:
+                    logger.debug(
+                        f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping",
+                    )
+                    self._stats["symbols_skipped_by_watermark"] += 1
+                    self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)
+                    continue
 
             logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")
             self._stats["rows_fetched"] += len(rows)

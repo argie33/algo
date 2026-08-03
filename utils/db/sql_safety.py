@@ -148,6 +148,9 @@ SAFE_TABLES = {
     # yfinance-sourced, restored 2026-07-27) - kept in this allowlist (queryable table), just
     # correcting the stale "no writer" comment.
     "analyst_upgrade_downgrade",
+    # Added 2026-08-03: real writer load_analyst_earnings_estimates.py (yfinance forward-EPS
+    # consensus, feeds value_metrics.forward_pe - see that loader's module docstring).
+    "analyst_earnings_estimates",
     # Market snapshots
     "yfinance_snapshot",
     "yfinance_derived_metrics",

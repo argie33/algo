@@ -138,21 +138,24 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             url, period_end = dataset
             logger.info(f"[13F] Latest published bulk dataset: {url} (period end: {period_end})")
 
+            tracked_cusips = self._get_known_tracked_cusips()
             try:
-                holdings_by_cusip = self._fetch_and_parse_13f_bulk(url)
+                holdings_by_cusip, manager_holdings_by_cusip = self._fetch_and_parse_13f_bulk(url, tracked_cusips)
             except Exception as e:
                 logger.warning(
                     f"[13F] Bulk dataset fetch/parse failed ({type(e).__name__}: {str(e)[:200]}); "
                     f"falling back to per-manager aggregation"
                 )
-                return self._calculate_and_cache_ownership(self._aggregate_top_manager_13fs(), period_end)
+                return self._calculate_and_cache_ownership(self._aggregate_top_manager_13fs(), period_end, {})
 
             logger.info(
                 f"[13F] Downloaded and parsed real SEC 13F bulk data from {url}: "
                 f"{len(holdings_by_cusip)} CUSIPs, period end {period_end}. "
                 f"Crosswalking to our own tracked universe via OpenFIGI..."
             )
-            holdings_by_ticker = self._crosswalk_to_tickers(holdings_by_cusip)
+            holdings_by_ticker, manager_holdings_by_ticker = self._crosswalk_to_tickers(
+                holdings_by_cusip, manager_holdings_by_cusip
+            )
             if not holdings_by_ticker:
                 # FIXED 2026-07-27: this used to hard-raise on "zero symbols resolved", which
                 # was a reasonable check when a crosswalk was assumed to run to completion in
@@ -172,7 +175,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                     f"future run's incremental crosswalk progress covers them."
                 )
 
-            return self._calculate_and_cache_ownership(holdings_by_ticker, period_end)
+            return self._calculate_and_cache_ownership(holdings_by_ticker, period_end, manager_holdings_by_ticker)
 
         except RuntimeError:
             # Re-raise RuntimeError from above or from _aggregate_top_manager_13fs
@@ -196,7 +199,8 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT institutional_ownership_pct, filing_date, data_source
+                    SELECT institutional_ownership_pct, filing_date, data_source,
+                           number_of_institutional_holders, top_10_institutions_pct
                     FROM institutional_holdings_13f
                     WHERE symbol = %s
                     ORDER BY filing_date DESC
@@ -212,7 +216,8 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         "symbol": symbol,
                         "filing_date": row[1],
                         "institutional_ownership_pct": row[0],
-                        "number_of_institutional_holders": None,
+                        "number_of_institutional_holders": row[3],
+                        "top_10_institutions_pct": row[4],
                         "data_unavailable": False,
                         "reason": None,
                         "sec_filing_url": None,
@@ -230,6 +235,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 "filing_date": now_et.date(),
                 "institutional_ownership_pct": None,
                 "number_of_institutional_holders": None,
+                "top_10_institutions_pct": None,
                 "data_unavailable": True,
                 "reason": "not_found_in_institutional_holdings_13f",
                 "sec_filing_url": None,
@@ -285,18 +291,42 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
         return best
 
-    def _fetch_and_parse_13f_bulk(self, url: str) -> dict[str, int]:
+    def _get_known_tracked_cusips(self) -> set[str]:
+        """CUSIPs already resolved (in a prior run) to a ticker in our own active universe.
+
+        Used to bound per-manager tracking (see _fetch_and_parse_13f_bulk) to a set small
+        enough to safely hold in memory (our tracked universe, not the whole 13F market's
+        CUSIPs) - a CUSIP newly resolved THIS run isn't in this set yet, so it won't get
+        holder-count/concentration data until a later run recomputes this set, matching the
+        existing incremental-crosswalk philosophy elsewhere in this loader.
+        """
+        symbols = set(get_active_symbols(exclude_etfs=True))
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT cusip FROM sec_13f_cusip_crosswalk WHERE ticker = ANY(%s)", (list(symbols),))
+            return {row[0] for row in cur.fetchall()}
+
+    def _fetch_and_parse_13f_bulk(
+        self, url: str, tracked_cusips: set[str] | None = None
+    ) -> tuple[dict[str, int], dict[str, dict[str, int]]]:
         """Download and parse SEC's INFOTABLE.tsv from the discovered bulk dataset URL.
 
-        Returns: dict of {CUSIP: total_shares_held_by_all_institutions}. Keyed by
-            CUSIP, NOT ticker - 13F filings never carry a ticker field (verified
-            against a real downloaded dataset's actual column headers).
+        Returns: (holdings_by_cusip, manager_holdings_by_cusip).
+        - holdings_by_cusip: {CUSIP: total_shares_held_by_all_institutions}. Keyed by
+          CUSIP, NOT ticker - 13F filings never carry a ticker field (verified against a
+          real downloaded dataset's actual column headers).
+        - manager_holdings_by_cusip: {CUSIP: {ACCESSION_NUMBER: shares}} - per-manager detail
+          (ACCESSION_NUMBER uniquely identifies one manager's quarterly 13F filing), needed
+          for institutional_holders_count/top_10_institutions_pct. Only populated for CUSIPs
+          in tracked_cusips (bounds memory to our own universe's CUSIPs, not the whole 13F
+          market's - see _get_known_tracked_cusips).
         """
         req = urllib.request.Request(url, headers={"User-Agent": "algo-trading argeropolos@gmail.com"})
         with urllib.request.urlopen(req, timeout=120) as response:
             zip_data = response.read()
 
+        tracked_cusips = tracked_cusips or set()
         holdings_by_cusip: dict[str, int] = defaultdict(int)
+        manager_holdings_by_cusip: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
             info_files = [f for f in zf.namelist() if f.endswith("INFOTABLE.tsv")]
             if not info_files:
@@ -323,11 +353,22 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                             shares = int(shares_str)
                             if shares > 0:
                                 holdings_by_cusip[cusip] += shares
+                                if cusip in tracked_cusips:
+                                    accession = row.get("ACCESSION_NUMBER")
+                                    if accession:
+                                        manager_holdings_by_cusip[cusip][accession] += shares
 
-            logger.info(f"[13F] Aggregated {len(holdings_by_cusip)} CUSIPs from bulk data")
-            return dict(holdings_by_cusip)
+            logger.info(
+                f"[13F] Aggregated {len(holdings_by_cusip)} CUSIPs from bulk data "
+                f"({len(manager_holdings_by_cusip)} with per-manager detail tracked)"
+            )
+            return dict(holdings_by_cusip), {k: dict(v) for k, v in manager_holdings_by_cusip.items()}
 
-    def _crosswalk_to_tickers(self, holdings_by_cusip: dict[str, int]) -> dict[str, int]:
+    def _crosswalk_to_tickers(
+        self,
+        holdings_by_cusip: dict[str, int],
+        manager_holdings_by_cusip: dict[str, dict[str, int]] | None = None,
+    ) -> tuple[dict[str, int], dict[str, dict[str, int]]]:
         """Resolve CUSIPs to our own tracked universe's tickers via OpenFIGI, using a
         permanent DB cache (sec_13f_cusip_crosswalk) so only never-seen CUSIPs cost a
         live OpenFIGI call - CUSIP->ticker attribution is stable across quarters.
@@ -374,8 +415,13 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
         symbols = set(get_active_symbols(exclude_etfs=True))
         local_names = self._fetch_local_entity_names(symbols)
+        manager_holdings_by_cusip = manager_holdings_by_cusip or {}
 
         holdings_by_ticker: dict[str, int] = defaultdict(int)
+        # {ticker: {accession_number: shares}} - merges across CUSIPs that resolve to the
+        # same ticker (rare, e.g. a legacy + current CUSIP both outstanding), summing shares
+        # if the same manager holds via both.
+        manager_holdings_by_ticker: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for cusip, shares in holdings_by_cusip.items():
             ticker, resolved_name = cached.get(cusip, (None, None))
             if not ticker or ticker not in symbols:
@@ -387,9 +433,11 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 )
                 continue
             holdings_by_ticker[ticker] += shares
+            for accession, mgr_shares in manager_holdings_by_cusip.get(cusip, {}).items():
+                manager_holdings_by_ticker[ticker][accession] += mgr_shares
 
         logger.info(f"[13F] Crosswalk resolved {len(holdings_by_ticker)}/{len(symbols)} tracked symbols to real holdings")
-        return dict(holdings_by_ticker)
+        return dict(holdings_by_ticker), {k: dict(v) for k, v in manager_holdings_by_ticker.items()}
 
     def _fetch_local_entity_names(self, symbols: set[str]) -> dict[str, str]:
         """Our own SEC-sourced entity_name per symbol - the ground truth
@@ -464,7 +512,10 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         raise RuntimeError(msg)
 
     def _calculate_and_cache_ownership(
-        self, holdings_by_ticker: dict[str, int], filing_date: date
+        self,
+        holdings_by_ticker: dict[str, int],
+        filing_date: date,
+        manager_holdings_by_ticker: dict[str, dict[str, int]] | None = None,
     ) -> list[dict[str, Any]]:
         """Calculate institutional ownership % for each ticker.
 
@@ -489,6 +540,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         records = []
         now_et = datetime.now(EASTERN_TZ)
         resolved_tickers: set[str] = set()
+        manager_holdings_by_ticker = manager_holdings_by_ticker or {}
 
         with DatabaseContext("read") as cur:
             for ticker, inst_shares in holdings_by_ticker.items():
@@ -505,12 +557,23 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         pct = round((inst_shares / shares_os) * 100, 2)
                         pct = min(pct, 100.0)  # Cap at 100%
 
+                        # Per-manager detail (see _get_known_tracked_cusips) - only available
+                        # for CUSIPs already resolved to this ticker in a PRIOR run, so a
+                        # newly-resolved-this-run ticker legitimately has none yet.
+                        manager_shares = manager_holdings_by_ticker.get(ticker)
+                        holder_count = len(manager_shares) if manager_shares else None
+                        top_10_pct = None
+                        if manager_shares:
+                            top_10_shares = sum(sorted(manager_shares.values(), reverse=True)[:10])
+                            top_10_pct = round(min((top_10_shares / inst_shares) * 100, 100.0), 2) if inst_shares else None
+
                         records.append(
                             {
                                 "symbol": ticker,
                                 "filing_date": filing_date,
                                 "institutional_ownership_pct": pct,
-                                "number_of_institutional_holders": None,  # Aggregate doesn't track manager count
+                                "number_of_institutional_holders": holder_count,
+                                "top_10_institutions_pct": top_10_pct,
                                 "data_unavailable": False,
                                 "reason": None,
                                 "sec_filing_url": None,
@@ -549,6 +612,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             "filing_date": now_et.date(),
             "institutional_ownership_pct": None,
             "number_of_institutional_holders": None,
+            "top_10_institutions_pct": None,
             "data_unavailable": True,
             "reason": reason,
             "sec_filing_url": None,

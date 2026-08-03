@@ -93,6 +93,9 @@ LOADER_TABLES: dict[str, list[str]] = {
     # scripts/local_loader_scheduler.py and steering/DATA_LOADERS.md).
     "load_analyst_upgrade_downgrade.py": ["analyst_upgrade_downgrade"],
     "load_analyst_sentiment_analysis.py": ["analyst_sentiment_analysis"],
+    # Added 2026-08-03: real forward-EPS source for value_metrics.forward_pe, previously
+    # hardcoded None every run - see load_analyst_earnings_estimates.py's module docstring.
+    "load_analyst_earnings_estimates.py": ["analyst_earnings_estimates"],
 }
 
 # market_exposure_daily is computed by algo/risk/market_exposure.py during

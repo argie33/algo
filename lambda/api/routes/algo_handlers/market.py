@@ -556,12 +556,17 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         naive_tz = get_db_timezone()
 
         for row in rows:
+            # CRITICAL: Skip rows without valid table_name (prevents API returning sources without 'name' field)
+            table_name = row.get("table_name")
+            if not table_name:
+                logger.warning(f"[DATA_STATUS] Skipping row with missing/empty table_name: {row}")
+                continue
+
             last_updated = row["last_updated"]
             row_count = row.get("row_count")
 
             # Get freshness rule once per table (consolidate lookups)
-            rule = _fr.get(row["table_name"])
-            table_name = row["table_name"]
+            rule = _fr.get(table_name)
 
             # Extract max_age with consistent default of 1 day for unknown tables
             max_age_raw = rule.get("max_age_days") if rule is not None else None
@@ -699,6 +704,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             sources = enriched_sources
         except ImportError as e:
             logger.warning(f"[DATA_STATUS] Freshness enhancements module not available: {e}. Dashboard will show basic freshness only.")
+
+        # CRITICAL: Validate all sources have 'name' field before returning (prevents dashboard fetch_health errors)
+        validated_sources = []
+        for source in sources:
+            if not isinstance(source, dict):
+                logger.error(f"[DATA_STATUS] Source is not a dict: {type(source).__name__}, skipping")
+                continue
+
+            source_name = source.get("name")
+            if not source_name:
+                logger.error(
+                    f"[DATA_STATUS] Source missing 'name' field. Available keys: {list(source.keys())}. Skipping."
+                )
+                continue
+
+            validated_sources.append(source)
+
+        sources = validated_sources
+        if not sources:
+            logger.warning("[DATA_STATUS] No valid sources after validation - returning empty list")
 
         # summary only gets a key for statuses that actually occurred at least once above
         # (summary[status] = current_count + 1). If every table is stale/empty/critical,

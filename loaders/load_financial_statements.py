@@ -121,6 +121,12 @@ _INCOME_FIELD_MAPPING = {
     # derived a lossier proxy (net_income/eps) believing it already used this concept.
     "weighted_average_number_of_shares_outstanding_basic": "shares_outstanding_basic",
     "interest_expense": "interest_expense",
+    # FIXED 2026-08-03: real, live-confirmed concepts some filers use INSTEAD of plain
+    # "InterestExpense" - see sec_statements.py's comment above these concepts. WMT never
+    # reports "InterestExpense" at all (only "InterestExpenseDebt"); JNJ's taxonomy migrated
+    # to "InterestExpenseNonoperating" starting FY2024.
+    "interest_expense_nonoperating": "interest_expense",
+    "interest_expense_debt": "interest_expense",
     # This mapping key was always correct - the bug was in sec_statements.py's
     # get_income_statement(), which fetched concept "DepreciationExpense" (not a real
     # us-gaap XBRL concept - live-confirmed absent from both AAPL's and MSFT's
@@ -131,6 +137,11 @@ _INCOME_FIELD_MAPPING = {
     "depreciation": "depreciation_expense",  # Session 398: EBITDA extraction
     "depreciation_and_amortization": "amortization_expense",  # Fallback if separate D/A not available
     "amortization_of_intangibles": "amortization_expense",  # Alt source for amortization
+    # For roic_pct real effective-tax-rate computation (see sec_statements.py's comment
+    # above these concepts for the live-verification note).
+    "income_tax_expense_benefit": "income_tax_expense",
+    "income_loss_from_continuing_operations_before_income_taxes_minority_interest_and_income_loss_from_equity_method_investments": "pretax_income",
+    "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest": "pretax_income",
     **_MARKER_FIELDS,
 }
 
@@ -171,6 +182,10 @@ _CASHFLOW_FIELD_MAPPING = {
     # existing NULL rows need a backfill (re-run with BACKFILL_DAYS or per-symbol refetch).
     "payments_to_acquire_property_plant_and_equipment": "capex",
     "payments_of_dividends": "dividends_paid",
+    # FIXED 2026-08-03: real dividend-payment concepts some filers use INSTEAD of plain
+    # "PaymentsOfDividends" - see sec_statements.py's comment above these concepts.
+    "payments_of_dividends_common_stock": "dividends_paid",
+    "payments_of_ordinary_dividends": "dividends_paid",
     **_MARKER_FIELDS,
 }
 
@@ -229,6 +244,8 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "depreciation_expense",
                     "amortization_expense",
                     "shares_outstanding_basic",
+                    "income_tax_expense",
+                    "pretax_income",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -256,6 +273,8 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "depreciation_expense",
                     "amortization_expense",
                     "shares_outstanding_basic",
+                    "income_tax_expense",
+                    "pretax_income",
                     "created_at",
                     "data_unavailable",
                     "reason",

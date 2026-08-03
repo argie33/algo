@@ -205,7 +205,8 @@ class PositioningMetricsLoader(OptimalLoader):
             # even if upstream 13F loader hasn't marked data available yet
             cur.execute(
                 """
-                SELECT institutional_ownership_pct, data_unavailable, reason
+                SELECT institutional_ownership_pct, data_unavailable, reason,
+                       number_of_institutional_holders, top_10_institutions_pct
                 FROM institutional_holdings_13f
                 WHERE symbol = %s
                 ORDER BY filing_date DESC LIMIT 1
@@ -219,6 +220,14 @@ class PositioningMetricsLoader(OptimalLoader):
             institutional_source = "sec_13f"
         else:
             institutional_source = "unavailable"
+
+        # FIXED 2026-08-03: previously hardcoded None always ("requires enhanced 13F data
+        # extraction not yet implemented") - load_institutional_holdings_13f.py now tracks
+        # per-manager (ACCESSION_NUMBER) shares (bounded to CUSIPs already resolved to our
+        # tracked universe - see that loader's _get_known_tracked_cusips()) and computes both
+        # real holder counts and top-10 concentration.
+        institutional_holders_count = sec_inst_row[3] if sec_inst_row else None
+        top_10_institutions_pct = sec_inst_row[4] if sec_inst_row else None
 
         # TIER 1: Fetch insider ownership from SEC Form 4/5
         insider_pct = None
@@ -284,11 +293,14 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_ratio_unavailable_reason": (
                     "missing_finra_data" if short_ratio is None else None
                 ),
-                # These require enhanced 13F data extraction not yet implemented
-                "top_10_institutions_pct": None,
-                "top_10_institutions_pct_unavailable_reason": "institutional_data_not_available",
-                "institutional_holders_count": None,
-                "institutional_holders_count_unavailable_reason": "institutional_data_not_available",
+                "top_10_institutions_pct": top_10_institutions_pct,
+                "top_10_institutions_pct_unavailable_reason": (
+                    "institutional_data_not_available" if top_10_institutions_pct is None else None
+                ),
+                "institutional_holders_count": institutional_holders_count,
+                "institutional_holders_count_unavailable_reason": (
+                    "institutional_data_not_available" if institutional_holders_count is None else None
+                ),
                 # A/D rating from volume-weighted technical indicator
                 "ad_rating": ad_rating,
                 "ad_rating_unavailable_reason": ad_rating_reason,

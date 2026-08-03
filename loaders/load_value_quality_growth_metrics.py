@@ -302,7 +302,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_eps,
                            (SELECT revenue FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue,
-                           ais.gross_profit
+                           ais.gross_profit, abs.long_term_debt, abs.cash_and_equivalents,
+                           ais.income_tax_expense, ais.pretax_income
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -415,10 +416,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         peg = row_dict.get("peg_ratio")
         fcf_yield = row_dict.get("fcf_yield")
         dividend_yield = row_dict.get("dividend_yield")
-        forward_pe = row_dict.get("forward_pe")
         enterprise_value = row_dict.get("enterprise_value")
         ev_ebitda = row_dict.get("ev_ebitda")
         ev_revenue = row_dict.get("ev_revenue")
+
+        # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
+        # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
+        # yfinance-sourced forward-EPS consensus, since SEC filings never carry forward estimates).
+        forward_pe = None
+        current_price = row_dict.get("current_price")
+        if current_price is not None and current_price > 0:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT forward_eps FROM analyst_earnings_estimates
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                fe_row = cur.fetchone()
+            forward_eps = fe_row[0] if fe_row else None
+            if forward_eps is not None and forward_eps > 0:
+                forward_pe = float(current_price) / float(forward_eps)
 
         # Validate: at least one core metric must be non-None
         core_metrics = [pe, pb, ps, fcf_yield]
@@ -445,7 +465,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "peg_ratio_unavailable_reason": "missing_sec_data" if peg is None else None,
             "dividend_yield_unavailable_reason": "missing_sec_data" if dividend_yield is None else None,
             "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
-            "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings" if forward_pe is None else None,
+            "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded" if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": "missing_sec_data" if ev_revenue is None else None,
             "market_cap_unavailable_reason": None,  # Market cap in stock_symbols, not here
@@ -481,8 +501,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             return self._unavailable_marker("quality_metrics", symbol)
 
-        if len(quality_row) < 20:
-            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 20")
+        if len(quality_row) < 24:
+            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 24")
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
@@ -526,6 +546,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             gross_profit_direct = self._nan_to_none(
                 safe_float(quality_row[19], f"{symbol}.gross_profit", allow_none=True)
+            )
+            long_term_debt_bs = self._nan_to_none(
+                safe_float(quality_row[20], f"{symbol}.long_term_debt", allow_none=True)
+            )
+            cash_and_equivalents_bs = self._nan_to_none(
+                safe_float(quality_row[21], f"{symbol}.cash_and_equivalents", allow_none=True)
+            )
+            income_tax_expense = self._nan_to_none(
+                safe_float(quality_row[22], f"{symbol}.income_tax_expense", allow_none=True)
+            )
+            pretax_income = self._nan_to_none(
+                safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True)
             )
 
             metrics: dict[str, Any] = {
@@ -664,12 +696,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("ebitda_margin")
 
-            # ROIC: (EBIT * (1 - tax_rate)) / Invested Capital
-            # CRITICAL FIX: Actual effective tax rate varies widely (5-35%+ by jurisdiction/structure).
-            # Hardcoded 25% assumption is synthetic data - fail-fast without it.
-            # To compute ROIC, need actual income tax from SEC - not currently loaded.
-            # Mark unavailable rather than using fallback approximation.
-            failed_metrics.append("roic_pct")
+            # ROIC = NOPAT / Invested Capital, NOPAT = EBIT * (1 - effective_tax_rate)
+            # FIXED (migration 1178): previously always unavailable - a hardcoded 25% tax-rate
+            # assumption was correctly rejected as synthetic (real effective rates vary 5-35%+
+            # by jurisdiction/structure), but no real source was wired up either. Now uses the
+            # real SEC-reported IncomeTaxExpenseBenefit/pretax_income concepts. Bounded to
+            # [0%, 60%]: a real but implausible rate (pretax income near zero from a one-time
+            # NOL/credit swing) would distort NOPAT worse than marking unavailable.
+            effective_tax_rate = None
+            if income_tax_expense is not None and pretax_income is not None and pretax_income > 0:
+                candidate_rate = income_tax_expense / pretax_income
+                if 0.0 <= candidate_rate <= 0.60:
+                    effective_tax_rate = candidate_rate
+
+            # Invested Capital = Stockholders' Equity + Long-Term Debt - Cash & Equivalents
+            invested_capital = None
+            if stockholders_equity is not None:
+                invested_capital = stockholders_equity + (long_term_debt_bs or 0) - (cash_and_equivalents_bs or 0)
+
+            if (
+                effective_tax_rate is not None
+                and operating_income is not None
+                and invested_capital is not None
+                and invested_capital > 0
+            ):
+                nopat = operating_income * (1 - effective_tax_rate)
+                metrics["roic_pct"] = float((nopat / invested_capital) * 100)
+            else:
+                failed_metrics.append("roic_pct")
 
             # FCF to Net Income = Free Cash Flow / Net Income
             if free_cash_flow is not None and net_income is not None and net_income != 0:

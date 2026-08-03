@@ -161,6 +161,16 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # leaving it unmapped means those symbols correctly get interest_coverage=NULL
         # instead of a wrong number.
         "InterestExpense",
+        # FIXED 2026-08-03: interest_expense was NULL for 83.5% of latest annual rows -
+        # live-confirmed against real filers (not a coverage limit, a concept-list gap):
+        # WMT never reports plain "InterestExpense" at all, only "InterestExpenseDebt" (real
+        # value confirmed present for FY2025/2026); JNJ's taxonomy migrated from "InterestExpense"
+        # (through FY2023) to "InterestExpenseNonoperating" (FY2024+, real value confirmed
+        # present). Both are genuine interest-on-debt concepts (not the broader IFRS
+        # "FinanceCosts" concern above), listed after the base concept per this file's
+        # "last-listed wins on overwrite" convention.
+        "InterestExpenseNonoperating",
+        "InterestExpenseDebt",
         # Session 398: For EBITDA calculation = OperatingIncomeLoss + Depreciation + Amortization
         # FIXED 2026-07-28: was "DepreciationExpense", which is not a real us-gaap XBRL
         # concept at all (live-confirmed absent from both AAPL's and MSFT's companyfacts) -
@@ -172,6 +182,20 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "Depreciation",
         "DepreciationAndAmortization",
         "AmortizationOfIntangibles",
+        # For roic_pct (quality_metrics) = EBIT*(1-effective_tax_rate)/invested_capital.
+        # Live-confirmed against AAPL/MSFT companyfacts (2026-08-03): both real GAAP
+        # concepts, not guessed. IncomeTaxExpenseBenefit is the real tax provision (was
+        # previously deliberately left unfetched - a hardcoded 25% tax-rate assumption
+        # was correctly rejected as synthetic data, see load_value_quality_growth_metrics.py's
+        # prior "CRITICAL FIX" comment - this replaces that gap with the real reported figure).
+        "IncomeTaxExpenseBenefit",
+        # Pretax income: the taxonomy migrated concepts over time (older filings/filers use
+        # the MinorityInterest variant, current filers use the ExtraordinaryItems variant -
+        # live-confirmed AAPL/MSFT both report ONLY the newer variant for fiscal years after
+        # ~2012). List the deprecated concept first so the current one wins on overwrite,
+        # same convention as the RevenuesNetOfInterestExpense ordering above.
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
     ]
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES)
 
@@ -196,6 +220,15 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         # same reasoning as InterestExpense above - foreign filers get NULL instead of a
         # guessed value.
         "PaymentsOfDividends",
+        # FIXED 2026-08-03: dividends_paid was NULL for MSFT/JNJ (and presumably many other
+        # well-known dividend payers) despite both definitely paying real dividends - live-
+        # confirmed neither reports plain "PaymentsOfDividends" at all. Same taxonomy-variant
+        # bug class as the interest_expense/pretax_income fixes this session: MSFT uses
+        # "PaymentsOfDividendsCommonStock" (real value confirmed), JNJ uses
+        # "PaymentsOfOrdinaryDividends" (real value confirmed). Both are genuine
+        # dividend-payment concepts, not a broader/narrower one.
+        "PaymentsOfDividendsCommonStock",
+        "PaymentsOfOrdinaryDividends",
     ]
     # REMOVED 2026-07-28: "Depreciation"/"DepreciationAndAmortization" (and the matching
     # ("DepreciationExpense", "depreciation") IFRS alias) used to be fetched here too, but

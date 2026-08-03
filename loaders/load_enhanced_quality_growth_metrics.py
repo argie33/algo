@@ -127,7 +127,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             )
 
                         quality_fields = [
-                            "roic_pct",
+                            # roic_pct REMOVED 2026-08-03: this loader isn't wired into any
+                            # active pipeline (grep-confirmed zero terraform/Step Functions
+                            # references, despite being in loader_registry.py) - found while
+                            # fixing quality_metrics.roic_pct's real gap (was hardcoded
+                            # unavailable in load_value_quality_growth_metrics.py, now computes
+                            # real NOPAT/invested-capital ROIC using actual SEC-reported income
+                            # tax data, migration 1178). This loader's own roic_pct formula
+                            # (operating_income / (total_assets - current_liabilities), no tax
+                            # adjustment, no debt/cash netting) is a strictly cruder duplicate -
+                            # if this loader were ever scheduled, its unconditional UPDATE would
+                            # silently overwrite the accurate value with the cruder one, same bug
+                            # class as this codebase's other confirmed-duplicate-computation
+                            # fixes (see steering/DATA_LOADERS.md's sec_cash_flow_metrics entry).
                             "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
                             "consecutive_positive_quarters", "estimate_revision_direction",
                             "revision_activity_30d", "estimate_momentum_60d", "estimate_momentum_90d",
@@ -221,11 +233,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             curr_fcf_f = safe_float(curr_fcf, 'fcf')
             curr_ocf_f = safe_float(curr_ocf, 'ocf')
 
-            # Compute ROIC = Operating Income / (Total Assets - Current Liabilities)
-            if curr_oi_f is not None and curr_assets_f is not None and curr_curr_liab_f is not None:
-                invested_capital = curr_assets_f - curr_curr_liab_f
-                if invested_capital > 0:
-                    metrics["roic_pct"] = float((curr_oi_f / invested_capital) * 100)
+            # roic_pct computation REMOVED 2026-08-03 - see this loader's quality_fields list
+            # comment above for why (confirmed-duplicate, cruder formula vs.
+            # load_value_quality_growth_metrics.py's real tax-adjusted NOPAT computation).
 
             # Get prior year data if available
             if len(income_rows) > 1:
