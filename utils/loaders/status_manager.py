@@ -218,6 +218,8 @@ class LoaderStatusManager:
         rate_limit_quota: str | None = None,
         latest_date: Any | None = None,
         symbols_failed: int | None = None,
+        current_run_symbols_loaded: int | None = None,
+        current_run_symbol_count: int | None = None,
     ) -> None:
         """Mark loader as completed successfully.
 
@@ -239,6 +241,25 @@ class LoaderStatusManager:
             rate_limit_quota: Optional rate limit quota string for display
             latest_date: Optional latest date in the loaded data (for data freshness tracking)
             symbols_failed: Optional count of symbols that failed to load (allows partial success visibility)
+            current_run_symbols_loaded: The CURRENT run's own verified symbols-loaded count. When
+                provided (with current_run_symbol_count), the safety check below validates
+                against these instead of re-reading symbol_count/symbols_loaded from the DB row.
+            current_run_symbol_count: The CURRENT run's own expected total symbol count. See
+                current_run_symbols_loaded.
+
+                CRITICAL FIX (2026-08-03): callers that never call mark_running()/update_progress()
+                during a run (e.g. load_prices.py - confirmed via repo-wide grep: zero call sites)
+                leave symbol_count/symbols_loaded in data_loader_status holding whatever a PAST
+                run last wrote - there is no reset-at-start, no progress-tracking-during-run for
+                those callers. The safety check below used to unconditionally re-read those two
+                columns and treat them as "this run's" numbers. Live-reproduced repeatedly on
+                etf_price_daily (2026-08-03): a run that itself verified 5/5 symbols loaded (100%,
+                confirmed via a direct DB re-query moments later) still got rejected here with
+                "only 80.00% completion (4/5 symbols)" - a stale value from a genuinely-failed run
+                from earlier, which then perpetuated forever since nothing here ever corrected it on
+                a subsequent success. Passing the current run's own counts explicitly closes that
+                gap for callers that supply them; callers that don't (unchanged) keep the exact
+                prior DB-read-back behavior.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -250,6 +271,11 @@ class LoaderStatusManager:
                     (self.table_name,)
                 )
                 status_row = cur.fetchone()
+                if current_run_symbols_loaded is not None and current_run_symbol_count is not None:
+                    total_symbols = current_run_symbol_count
+                    loaded_symbols = current_run_symbols_loaded
+                    current_completion_pct = None
+                    status_row = (total_symbols, loaded_symbols, current_completion_pct)
                 if status_row:
                     total_symbols = status_row[0]
                     loaded_symbols = status_row[1]
@@ -302,6 +328,15 @@ class LoaderStatusManager:
                 # (If we reach here, actual_completion_pct >= 98%, so it's valid to complete)
                 final_completion_pct = actual_completion_pct if actual_completion_pct >= 98.0 else 100.0
 
+                # CRITICAL FIX (2026-08-03): symbol_count/symbols_loaded were never written by
+                # either branch below - callers that never call update_progress() during a run
+                # (e.g. load_prices.py) left these two columns holding whatever a past run last
+                # wrote, forever, even after this function marks the row COMPLETED at 100%. Any
+                # later reader of this row (a dashboard, or this same safety check on a FUTURE
+                # run that doesn't pass current_run_* overrides) would keep seeing stale counts
+                # indefinitely. Refresh them here from whatever this call resolved
+                # total_symbols/loaded_symbols to (either the current_run_* override or the
+                # pre-existing DB-read fallback above).
                 # Build dynamic SQL to optionally include latest_date
                 if latest_date is not None:
                     cur.execute(
@@ -311,11 +346,13 @@ class LoaderStatusManager:
                             error_message = NULL, last_updated = NOW(),
                             last_success_at = NOW(), consecutive_failures = 0,
                             execution_duration_sec = %s, http_status_code = %s,
-                            rate_limit_quota = %s, symbols_per_second = %s, latest_date = %s
+                            rate_limit_quota = %s, symbols_per_second = %s, latest_date = %s,
+                            symbol_count = %s, symbols_loaded = %s
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
-                         rate_limit_quota, symbols_per_sec, latest_date, self.table_name),
+                         rate_limit_quota, symbols_per_sec, latest_date, total_symbols, loaded_symbols,
+                         self.table_name),
                     )
                     if cur.rowcount != 1:
                         raise RuntimeError(
@@ -330,11 +367,12 @@ class LoaderStatusManager:
                             error_message = NULL, last_updated = NOW(),
                             last_success_at = NOW(), consecutive_failures = 0,
                             execution_duration_sec = %s, http_status_code = %s,
-                            rate_limit_quota = %s, symbols_per_second = %s
+                            rate_limit_quota = %s, symbols_per_second = %s,
+                            symbol_count = %s, symbols_loaded = %s
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
-                         rate_limit_quota, symbols_per_sec, self.table_name),
+                         rate_limit_quota, symbols_per_sec, total_symbols, loaded_symbols, self.table_name),
                     )
                 if cur.rowcount != 1:
                     raise RuntimeError(

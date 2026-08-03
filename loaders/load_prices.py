@@ -1958,25 +1958,52 @@ class PriceLoader(OptimalLoader):
             # CRITICAL FIX 2026-07-22: Validate actual symbol count in database
             # loader.symbols_processed counts symbols ATTEMPTED, not SUCCESSFULLY INSERTED
             # Verify actual symbols in latest date to catch fetch/insert failures
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    psycopg2.sql.SQL(
-                        "SELECT COUNT(DISTINCT symbol) FROM {} WHERE date = %s AND close IS NOT NULL"
-                    ).format(psycopg2.sql.Identifier(table_safe)),
-                    (latest_date,),
-                )
-                actual_result = cur.fetchone()
-                if actual_result and actual_result[0] is not None:
-                    symbols_successfully_loaded = actual_result[0]
-                    if symbols_successfully_loaded < symbols_attempted:
-                        logger.critical(
-                            f"[{self.table_name}] DATA INTEGRITY WARNING: Loader reported {symbols_attempted} symbols "
-                            f"processed but database only has {symbols_successfully_loaded} with valid prices on {latest_date}. "
-                            f"Gap of {symbols_attempted - symbols_successfully_loaded} symbols suggests yfinance fetch failures "
-                            f"or transaction rollback. Using actual database count for completion calculation."
-                        )
-                else:
+            #
+            # CRITICAL FIX 2026-08-03: this verification query ran too close on the heels of
+            # the bulk insert for small/fast loaders (etf_price_daily: 5 symbols, whole run
+            # ~5s) - live-reproduced repeatedly: the loader's own in-run stats showed
+            # symbols_processed=5/symbols_failed=0, yet this SELECT immediately after saw
+            # only 4/5 rows with a non-NULL close, triggering a false "FAILED (80%)" status
+            # that then persisted indefinitely (nothing re-checks a FAILED loader's actual
+            # data later). A direct re-query moments after the same run confirmed all 5 rows
+            # were present with valid closes - this was the last INSERT's commit not yet
+            # visible to a fresh read connection at the exact instant this SELECT ran, not a
+            # genuine data gap. Retry briefly before concluding failure - a large loader
+            # (thousands of symbols, minutes of runtime) never hits this window since its own
+            # insert-to-verify gap is already far larger than the race; this only helps loaders
+            # fast enough for the race to matter.
+            symbols_successfully_loaded = symbols_attempted
+            max_verify_attempts = 3
+            for verify_attempt in range(max_verify_attempts):
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        psycopg2.sql.SQL(
+                            "SELECT COUNT(DISTINCT symbol) FROM {} WHERE date = %s AND close IS NOT NULL"
+                        ).format(psycopg2.sql.Identifier(table_safe)),
+                        (latest_date,),
+                    )
+                    actual_result = cur.fetchone()
+                if actual_result is None or actual_result[0] is None:
                     symbols_successfully_loaded = symbols_attempted
+                    break
+                symbols_successfully_loaded = actual_result[0]
+                if symbols_successfully_loaded >= symbols_attempted:
+                    break
+                if verify_attempt < max_verify_attempts - 1:
+                    logger.warning(
+                        f"[{self.table_name}] Verification query saw {symbols_successfully_loaded}/{symbols_attempted} "
+                        f"symbols on {latest_date} (attempt {verify_attempt + 1}/{max_verify_attempts}) - "
+                        f"retrying briefly in case the last insert commit isn't visible yet."
+                    )
+                    time.sleep(1.0)
+            if symbols_successfully_loaded < symbols_attempted:
+                logger.critical(
+                    f"[{self.table_name}] DATA INTEGRITY WARNING: Loader reported {symbols_attempted} symbols "
+                    f"processed but database only has {symbols_successfully_loaded} with valid prices on {latest_date} "
+                    f"after {max_verify_attempts} verification attempts. "
+                    f"Gap of {symbols_attempted - symbols_successfully_loaded} symbols suggests yfinance fetch failures "
+                    f"or transaction rollback. Using actual database count for completion calculation."
+                )
 
             completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
 
@@ -2070,9 +2097,16 @@ class PriceLoader(OptimalLoader):
             # which hides actual data quality from orchestrator.
             if loader_status == "ok" and completion_pct >= 99.0:
                 # Fully successful load - can use mark_completed() which sets 100%
+                # CRITICAL FIX 2026-08-03: pass this run's own verified counts so
+                # mark_completed()'s safety check validates against them instead of
+                # re-reading (possibly stale, from a much earlier failed run - this loader
+                # never calls mark_running()/update_progress() to keep the DB row in sync
+                # during a run) symbol_count/symbols_loaded straight from the DB row.
                 status_mgr.mark_completed(
                     execution_duration_sec=(time.time() - start_time) if hasattr(self, '_start_time') else None,
-                    latest_date=latest_date
+                    latest_date=latest_date,
+                    current_run_symbols_loaded=symbols_successfully_loaded,
+                    current_run_symbol_count=symbols_expected,
                 )
             elif loader_status == "ok" and completion_pct >= 90.0:
                 # Partial-but-acceptable load (90-99%) - preserve actual completion %
