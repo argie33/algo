@@ -45,9 +45,9 @@ class AlpacaResponseValidator:
         if not status:
             errors.append("Missing or empty status")
         elif status not in (
+            "new",
             "pending_new",
             "accepted",
-            "pending_new",
             "accepted_for_bidding",
             "filled",
             "partially_filled",
@@ -55,6 +55,17 @@ class AlpacaResponseValidator:
             "cancelled",
             "rejected",
         ):
+            # CRITICAL FIX: "pending_new" was listed twice and "new" - Alpaca's standard
+            # initial status for a freshly-accepted order - was missing entirely, even
+            # though order_manager.py's own polling loop (send_bracket_order's status-check,
+            # ~line 665) already treats "new" as a valid in-flight status. Without "new"
+            # here, a real, successfully-submitted bracket order (entry + stop-loss +
+            # take-profit legs all live at the broker) failed THIS validation immediately
+            # after submission, and _entry_result_from_order_data() returned success=False -
+            # the caller believed the order was rejected, wrote no algo_trades/algo_positions
+            # row, and the position became a real, broker-live, stop-loss-protected but
+            # completely untracked position invisible to risk aggregation and position
+            # monitoring until a later AlpacaSyncManager reconciliation (if any) caught it.
             errors.append(f"Invalid status value: {status}")
 
         if filled_avg_price is not None:
