@@ -464,7 +464,7 @@ def run(  # noqa: C901
                             continue
                         last_error = error_msg
                         break
-                except Exception as query_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as query_err:
                     error_str = str(query_err).lower()
                     is_transient = any(kw in error_str for kw in transient_error_keywords)
 
@@ -781,6 +781,8 @@ def run(  # noqa: C901
                         f"[PHASE 1 DIAGNOSTIC] max_date={max_date} recent_cutoff={phase1_recent_cutoff_days} "
                         f"per-date distribution (last 7 days with data): {list(diag_rows)}"
                     )
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as diag_err:
+                    logger.warning(f"[PHASE 1 DIAGNOSTIC] failed to gather date distribution (DB error): {diag_err}")
                 except Exception as diag_err:
                     logger.warning(f"[PHASE 1 DIAGNOSTIC] failed to gather date distribution: {diag_err}")
 
@@ -1209,9 +1211,14 @@ def run(  # noqa: C901
                                 "[PHASE 1] stock_scores data unavailable or no available symbols. "
                                 "Proceeding but scores will be unavailable for signal generation."
                             )
-                except Exception as completeness_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as completeness_err:
                     logger.warning(
-                        f"[PHASE 1] Could not check stock_scores completeness: {completeness_err}. "
+                        f"[PHASE 1] Could not check stock_scores completeness (DB error): {completeness_err}. "
+                        "Will proceed with signal generation using available scores."
+                    )
+                except (KeyError, ValueError, AttributeError) as completeness_err:
+                    logger.warning(
+                        f"[PHASE 1] Could not check stock_scores completeness (data error): {completeness_err}. "
                         "Will proceed with signal generation using available scores."
                     )
             except RuntimeError as e:
@@ -1254,8 +1261,11 @@ def run(  # noqa: C901
                             True,
                             halt_reason,
                         )
-                except Exception as check_err:
-                    halt_reason = f"Could not verify metric availability: {str(check_err)[:100]}"
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as check_err:
+                    halt_reason = f"Could not verify metric availability (DB error): {str(check_err)[:100]}"
+                    logger.error(f"[PHASE 1] {halt_reason}")
+                except (RuntimeError, ValueError, KeyError) as check_err:
+                    halt_reason = f"Could not verify metric availability (validation error): {str(check_err)[:100]}"
                     logger.error(f"[PHASE 1] {halt_reason}")
                     logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
                     log_phase_result_fn(1, "metric_verification_error", "halt", halt_reason)
@@ -1367,9 +1377,12 @@ def run(  # noqa: C901
                         logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices on {max_date}")
                         phase_data["portfolio_symbols"] = len(portfolio_symbols)
                         phase_data["portfolio_price_coverage"] = "complete"
-            except Exception as portfolio_check_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as portfolio_check_err:
                 # If portfolio symbol check fails, log but don't halt (it's supplementary)
-                logger.warning(f"[PHASE 1] Portfolio symbol price validation failed: {portfolio_check_err}. Continuing.")
+                logger.warning(f"[PHASE 1] Portfolio symbol price validation failed (DB error): {portfolio_check_err}. Continuing.")
+            except (KeyError, ValueError, TypeError) as portfolio_check_err:
+                # Data structure error - log but don't halt
+                logger.warning(f"[PHASE 1] Portfolio symbol price validation failed (data error): {portfolio_check_err}. Continuing.")
 
             return PhaseResult(
                 1,
