@@ -547,8 +547,9 @@ def run(
                                 logger.debug(f"[PHASE 6] After conversion: value_float={value_float!r} (type={type(value_float).__name__}), total_value_for_division={total_value_for_division!r} (type={type(total_value_for_division).__name__})")
                                 # Perform division with native floats
                                 pct_value = value_float / total_value_for_division * 100 if total_value_for_division > 0 else 0.0
-                                # CRITICAL: Force to native float - convert twice to eliminate any Decimal remnants
-                                pct_float = float(float(pct_value))
+                                # CRITICAL: Force to native float via string conversion to eliminate any Decimal remnants
+                                # float(float(...)) is not sufficient if division returns Decimal
+                                pct_float = float(str(pct_value))
                                 logger.debug(f"[PHASE 6] Percentage calculated: pct_float={pct_float!r} (type={type(pct_float).__name__})")
                                 # Verify type after conversion
                                 if not isinstance(pct_float, float):
@@ -589,9 +590,13 @@ def run(
                                 continue
 
                             if pct_for_comparison > max_for_comparison:
-                                exceed_amount = pct_for_comparison - max_for_comparison
+                                # CRITICAL: Force native float type IMMEDIATELY before arithmetic
+                                # to prevent Decimal - float type errors
+                                pct_native = float(pct_for_comparison)
+                                max_native = float(max_for_comparison)
+                                exceed_amount = pct_native - max_native
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_for_comparison:.1f}% (limit {max_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_native:.1f}% (limit {max_native:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue
