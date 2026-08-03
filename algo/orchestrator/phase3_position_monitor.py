@@ -113,6 +113,14 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 raise RuntimeError(error_msg)
 
             def _update_position_prices(cur: Any) -> int:
+                """Update position prices using passed cursor. Must never open nested DatabaseContext.
+
+                Args:
+                    cur: Database cursor from outer DatabaseContext("write")
+
+                Returns:
+                    Count of positions successfully updated
+                """
                 updated = 0
                 # BLOCKER #1: Use passed cursor ALWAYS - never open nested DatabaseContext
                 # Fetch open positions with required fields for price update (including entry_date for days calculation)
@@ -146,6 +154,29 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 f"[PHASE 3] Position row {idx} has {len(row)} columns, expected 7. "
                                 f"Inconsistent result structure detected - cannot safely extract all position fields."
                             )
+
+                # CRITICAL FIX 2026-08-02: Check pool BEFORE loop, not during
+                # Checking pool health DURING the loop while holding a connection:
+                # - Consumes a connection from the pool being checked
+                # - Artificially depletes available_conns count
+                # - Triggers false "pool exhausted" errors
+                # Move check here (before loop) to establish baseline. If pool can't
+                # handle position update loop, fail fast before wasting time on updates.
+                from utils.db.connection_pool import get_pool_health
+                pre_loop_health = get_pool_health()
+                avail = pre_loop_health.get("available_conns", 0)
+                pre_loop_available = int(avail) if isinstance(avail, (int, str)) and avail else 0
+                if pre_loop_available < 5:
+                    error_msg = (
+                        f"[PHASE 3 CRITICAL] POOL CAPACITY INSUFFICIENT before position updates. "
+                        f"Only {pre_loop_available} connections available (minimum needed: 5). "
+                        f"Cannot proceed with position loop - risk of connection exhaustion is too high. "
+                        f"Check: (1) Other processes holding connections, "
+                        f"(2) Connection pool config (max: {pre_loop_health.get('size', 'unknown')}), "
+                        f"(3) Previous operations not releasing connections."
+                    )
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
 
                 # Get latest prices from price_daily table for all open symbols
                 # Use RowAccessor for type-safe column access instead of magic indices
@@ -260,25 +291,6 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         update_errors.append(("UNKNOWN", f"Row {update_idx} unpack failed: {str(unpack_err)[:50]}"))
                         continue
 
-                    # CRITICAL: Periodic pool health check during long-running position updates
-                    # If Phase 3 processes many positions (30+ seconds), other processes may consume connections
-                    # CRITICAL FIX 2026-08-02: Check pool every 15 positions (was 30, increased frequency for early detection)
-                    # Every 15 positions = ~5-10 seconds depending on update time, catches exhaustion earlier
-                    if update_idx > 0 and update_idx % 15 == 0:
-                        from utils.db.connection_pool import get_pool_health
-                        current_health = get_pool_health()
-                        current_available_raw = current_health.get("available_conns", 0)
-                        current_available = int(current_available_raw) if isinstance(current_available_raw, (int, str)) else 0
-                        if current_available < 3:
-                            error_msg = (
-                                f"[PHASE 3 CRITICAL] CONNECTION POOL EXHAUSTION DETECTED during position updates. "
-                                f"Only {current_available} connections available (minimum required: 3). "
-                                f"Halting position updates to prevent cascade failures. "
-                                f"This indicates other processes are consuming connections. "
-                                f"Completed {update_idx}/{len(positions)} position updates before exhaustion detected."
-                            )
-                            logger.error(error_msg)
-                            raise RuntimeError(error_msg)
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
                         # Fail-fast on missing current prices for open positions.
@@ -393,25 +405,14 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s: %s: %s", symbol, type(e).__name__, str(e)[:200])
                         update_errors.append((symbol, str(e)[:100]))
 
-                # GOVERNANCE: Fail-fast only if CRITICAL errors (not just missing price data)
-                # Missing price data is expected during ramp-up and is handled gracefully by skipping
-                # Filter non-critical errors: missing prices, data loader lag, etc.
-                critical_errors = [
-                    e
-                    for e in update_errors
-                    if not any(
-                        phrase in e[1].lower()
-                        for phrase in [
-                            "price",
-                            "missing",
-                            "no data",
-                            "unavailable",
-                            "fallback",
-                            "ramp-up",
-                            "loader",
-                        ]
-                    )
-                ]
+                # GOVERNANCE: Fail-fast on ALL update errors. The code above explicitly fails on:
+                # - Missing current_price (lines 292-303)
+                # - NULL quantity (lines 305-311)
+                # - NULL avg_entry_price (lines 322-328)
+                # - NULL stop_loss (lines 329-335)
+                # These are CRITICAL - cannot update positions without them.
+                # Do NOT filter them as non-critical. Positions without this data cannot be monitored.
+                critical_errors = update_errors
                 if critical_errors:
                     errors_str = "; ".join(f"{sym}({err})" for sym, err in critical_errors[:3])
                     if len(critical_errors) > 3:
@@ -432,119 +433,118 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             with DatabaseContext("write") as cur:
                 updated_count = _update_position_prices(cur)
 
-                # CRITICAL FIX (Session 394): Generate exit recommendations even in paper mode
-                # to maintain position management (keep count below hard limit of 17).
-                # Skipping recommendations breaks position management: Phase 6 gets empty recommendations ->
-                # no exits execute -> position count hits hard limit -> Phase 8 blocks all new entries.
-                # FAIL-FAST FIX: PositionMonitor failure is CRITICAL - cannot generate fake fallback
-                # recommendations. Position monitoring is too fundamental to work around.
-                from algo.monitoring import PositionMonitor
-                recommendations = []
+            # CRITICAL FIX (Session 394): Generate exit recommendations even in paper mode
+            # to maintain position management (keep count below hard limit of 17).
+            # Skipping recommendations breaks position management: Phase 6 gets empty recommendations ->
+            # no exits execute -> position count hits hard limit -> Phase 8 blocks all new entries.
+            # FAIL-FAST FIX: PositionMonitor failure is CRITICAL - cannot generate fake fallback
+            # recommendations. Position monitoring is too fundamental to work around.
+            from algo.monitoring import PositionMonitor
+            recommendations = []
 
-                # CRITICAL FIX 2026-07-30: Retry on "cursor already closed" errors
-                # These indicate transient connection/cursor lifecycle issues
-                max_retries = 3
-                last_error = None
-                paper_mode_degraded = False
+            # CRITICAL FIX 2026-07-30: Retry on "cursor already closed" errors
+            # CRITICAL FIX 2026-08-02: Separate transaction for review_positions to avoid nested DatabaseContext
+            # (Issue #3 blocker). The position price update runs in its own transaction above.
+            # Retries for review_positions each open a fresh transaction - do NOT open nested contexts.
+            # Previous code: passed cur=None to retry, causing monitor.review_positions() to open
+            # a nested DatabaseContext inside the outer transaction. This violates cursor lifecycle rules.
+            max_retries = 3
+            last_error = None
+            paper_mode_degraded = False
 
-                for attempt in range(max_retries):
-                    try:
-                        monitor = PositionMonitor(config)
-                        # CRITICAL: Don't reuse the same cursor across retries - if it fails,
-                        # it becomes unusable (aborted transaction state). Create fresh cursor for each retry.
-                        if attempt == 0:
-                            # First attempt: use provided cursor to avoid nested context
-                            recommendations = monitor.review_positions(run_date, cur=cur)
-                        else:
-                            # Retry attempts: use fresh cursor (don't pass the poisoned one)
-                            recommendations = monitor.review_positions(run_date, cur=None)
-                        n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
-                        n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
-                        logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises" %
-                                   (len(recommendations), n_early_exit, n_raise_stop))
-                        break  # Success - exit retry loop
-                    except Exception as review_err:
-                        last_error = review_err
-                        error_str = str(review_err)
+            for attempt in range(max_retries):
+                try:
+                    monitor = PositionMonitor(config)
+                    # Each attempt opens its own fresh transaction via DatabaseContext.
+                    # No nested contexts - each DatabaseContext is independent.
+                    recommendations = monitor.review_positions(run_date, cur=None)
+                    n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
+                    n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
+                    logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises" %
+                               (len(recommendations), n_early_exit, n_raise_stop))
+                    break  # Success - exit retry loop
+                except Exception as review_err:
+                    last_error = review_err
+                    error_str = str(review_err)
 
-                        # Check if this is a cursor lifecycle error that might be transient
-                        if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
-                            if attempt < max_retries - 1:
-                                logger.warning(
-                                    f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying with fresh cursor: {error_str[:100]}"
-                                )
-                                # CRITICAL FIX: Don't try to ROLLBACK the poisoned cursor - it won't work.
-                                # Instead, next iteration will use a fresh cursor via DatabaseContext.
-                                # The old cursor is left for DatabaseContext.__exit__ to clean up properly.
-
-                                import time
-                                time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
-                                continue
-
-                        # For cursor errors after retries exhausted, enter degraded mode
-                        if attempt >= max_retries - 1 and "cursor already closed" in error_str.lower():
+                    # Check if this is a cursor lifecycle error that might be transient
+                    if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
+                        if attempt < max_retries - 1:
                             logger.warning(
-                                f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode."
+                                f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying with fresh cursor: {error_str[:100]}"
                             )
-                            recommendations = []
-                            paper_mode_degraded = True
-                            break
+                            # CRITICAL FIX: Don't try to ROLLBACK the poisoned cursor - it won't work.
+                            # Instead, next iteration will use a fresh cursor via DatabaseContext.
+                            # The old cursor is left for DatabaseContext.__exit__ to clean up properly.
 
-                        # For non-transient errors, log and halt
-                        import traceback
-                        full_trace = traceback.format_exc()
+                            import time
+                            time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                            continue
 
-                        # Log full stack trace for GROUP BY errors to aid diagnosis
-                        if 'GROUP BY' in full_trace.upper():
-                            # Escape braces in traceback for safe f-string formatting
-                            safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
-                            logger.critical(
-                                f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{safe_trace}"
-                            )
-
-                        error_str = str(review_err)[:200]
-                        # Escape % characters in error message to prevent format string issues later
-                        # when the error is logged or stored in database
-                        error_str_safe = error_str.replace("%", "%%")
-                        error_msg = (
-                            "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str_safe + ". "
-                            "Cannot generate exit recommendations without proper position analysis. "
-                            "Position monitoring is non-negotiable for risk management. "
-                            "This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
-                            "Next run will retry when data has been loaded."
+                    # For cursor errors after retries exhausted, enter degraded mode
+                    if attempt >= max_retries - 1 and "cursor already closed" in error_str.lower():
+                        logger.warning(
+                            f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode."
                         )
-                        logger.critical(error_msg)
-                        raise RuntimeError(error_msg) from review_err
+                        recommendations = []
+                        paper_mode_degraded = True
+                        break
 
-                # Check if we exhausted retries and are NOT in degraded mode (degraded mode is handled above)
-                if last_error is not None and not recommendations and not paper_mode_degraded:
+                    # For non-transient errors, log and halt
+                    import traceback
+                    full_trace = traceback.format_exc()
+
+                    # Log full stack trace for GROUP BY errors to aid diagnosis
+                    if 'GROUP BY' in full_trace.upper():
+                        # Escape braces in traceback for safe f-string formatting
+                        safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
+                        logger.critical(
+                            f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{safe_trace}"
+                        )
+
+                    error_str = str(review_err)[:200]
+                    # Escape % characters in error message to prevent format string issues later
+                    # when the error is logged or stored in database
+                    error_str_safe = error_str.replace("%", "%%")
                     error_msg = (
-                        "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed after retries. "
+                        "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed: " + error_str_safe + ". "
                         "Cannot generate exit recommendations without proper position analysis. "
-                        "Position monitoring is non-negotiable for risk management."
+                        "Position monitoring is non-negotiable for risk management. "
+                        "This orchestrator run cannot proceed - must halt to prevent unmonitored position risks. "
+                        "Next run will retry when data has been loaded."
                     )
                     logger.critical(error_msg)
-                    raise RuntimeError(error_msg) from last_error
+                    raise RuntimeError(error_msg) from review_err
 
-                # Determine paper mode phase status based on whether we entered degraded mode
-                paper_phase_status = "completed_degraded" if paper_mode_degraded else "ok"
-                paper_log_status = "success" if not paper_mode_degraded else "success_degraded"
+            # Check if we exhausted retries and are NOT in degraded mode (degraded mode is handled above)
+            if last_error is not None and not recommendations and not paper_mode_degraded:
+                error_msg = (
+                    "[PHASE 3 CRITICAL] PositionMonitor.review_positions() failed after retries. "
+                    "Cannot generate exit recommendations without proper position analysis. "
+                    "Position monitoring is non-negotiable for risk management."
+                )
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg) from last_error
 
-                log_phase_result_fn(
-                    3,
-                    "position_monitor",
-                    paper_log_status,
-                    f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated" +
-                    (" (degraded mode)" if paper_mode_degraded else ""),
-                )
-                return PhaseResult(
-                    3,
-                    "position_monitor",
-                    paper_phase_status,
-                    {"recommendations": recommendations, "count": updated_count},
-                    False,
-                    None,
-                )
+            # Determine paper mode phase status based on whether we entered degraded mode
+            paper_phase_status = "completed_degraded" if paper_mode_degraded else "ok"
+            paper_log_status = "success" if not paper_mode_degraded else "success_degraded"
+
+            log_phase_result_fn(
+                3,
+                "position_monitor",
+                paper_log_status,
+                f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated" +
+                (" (degraded mode)" if paper_mode_degraded else ""),
+            )
+            return PhaseResult(
+                3,
+                "position_monitor",
+                paper_phase_status,
+                {"recommendations": recommendations, "count": updated_count},
+                False,
+                None,
+            )
         except Exception as e:
             # CRITICAL FIX: Use % formatting instead of f-strings to avoid format errors with exceptions containing braces
             logger.error("[PHASE 3] Paper mode price update FAILED: %s: %s", type(e).__name__, str(e))
