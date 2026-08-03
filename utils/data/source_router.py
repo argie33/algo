@@ -149,6 +149,30 @@ class SourceHealth:
                 )
 
 
+def _normalize_yfinance_symbol(symbol: str) -> str:
+    """Translate this system's stored ticker notation to yfinance's expected format.
+
+    Two independent notation mismatches were verified live against the yfinance API
+    (2026-08-03) as the root cause of a chunk of price_daily's missing-symbol gap:
+    - Multi-class shares use a '.'-suffix here (e.g. "AGM.A", "BIO.B") but yfinance
+      requires a hyphen (e.g. "AGM-A", "BIO-B"); "AGM.A" 404s, "AGM-A" returns real data.
+    - Preferred shares use a '$'-suffix here (e.g. "BAC$E", "AHL$D") but yfinance
+      requires "-P" + the series letter (e.g. "BAC-PE", "AHL-PD"); "BAC$E" 404s,
+      "BAC-PE" returns real data. This second case was previously unhandled even
+      though the '.'-suffix case was already fixed at every yf.download() call site.
+    Order matters: '.' must be replaced before '$' would ever matter since no symbol
+    in this dataset mixes both, but doing '.' first keeps behavior identical to the
+    pre-existing single-purpose replacements this consolidates.
+    """
+    if "." in symbol:
+        symbol = symbol.replace(".", "-")
+    if "$" in symbol:
+        import re
+
+        symbol = re.sub(r"\$([A-Z]+)", r"-P\1", symbol)
+    return symbol
+
+
 class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""
 
@@ -468,7 +492,7 @@ class DataSourceRouter:
                 "details": "yfinance library required for price history download",
             }
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
-        yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
+        yf_symbol = _normalize_yfinance_symbol(symbol)
         try:
             from datetime import timedelta
 
@@ -576,7 +600,7 @@ class DataSourceRouter:
         logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
-        yf_symbols = [sym.replace(".", "-") if "." in sym else sym for sym in symbols]
+        yf_symbols = [_normalize_yfinance_symbol(sym) for sym in symbols]
 
         try:
             from datetime import timedelta
@@ -723,7 +747,7 @@ class DataSourceRouter:
                 logger.error("[yfinance-fast-check] yfinance not installed")
                 return False
 
-            yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
+            yf_symbol = _normalize_yfinance_symbol(symbol)
 
             def do_download() -> Any:
                 return yf.download(
@@ -804,7 +828,7 @@ class DataSourceRouter:
                 logger.error("[yfinance-reachable] yfinance not installed")
                 return False
 
-            yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
+            yf_symbol = _normalize_yfinance_symbol(symbol)
             end = datetime.now(EASTERN_TZ).date()
             start = end - timedelta(days=5)
 
