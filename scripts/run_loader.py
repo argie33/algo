@@ -426,22 +426,19 @@ def main():
             return 1
 
         # Mark loaders as COMPLETED if force-refresh
+        # CRITICAL FIX: Use LoaderStatusManager instead of raw SQL to preserve completion_pct
+        # Raw SQL was overwriting completion_pct to 100 even when load was only 95% complete
         if args.force_refresh and table_names:
-            import psycopg2
-            try:
-                conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-                cursor = conn.cursor()
-                for table_name in table_names:
-                    cursor.execute(
-                        "UPDATE data_loader_status SET status = %s, execution_completed = NOW(), last_updated = NOW() WHERE table_name = %s",
-                        ("COMPLETED", table_name)
-                    )
-                conn.commit()
-                cursor.close()
-                conn.close()
-                logger.info(f"[FORCE_REFRESH] Marked {table_names} as COMPLETED")
-            except Exception as e:
-                logger.warning(f"[FORCE_REFRESH] Could not update status to COMPLETED: {e}")
+            from utils.loaders.status_manager import LoaderStatusManager
+            for table_name in table_names:
+                try:
+                    status_mgr = LoaderStatusManager(table_name)
+                    # mark_completed() checks completion_pct >= 95% before allowing COMPLETED status
+                    # If check fails, it marks as FAILED instead
+                    status_mgr.mark_completed()
+                    logger.info(f"[FORCE_REFRESH] Updated {table_name} status via LoaderStatusManager")
+                except Exception as e:
+                    logger.warning(f"[FORCE_REFRESH] Could not mark {table_name} as COMPLETED: {e}")
 
             # CRITICAL FIX (Session 211): Update watermarks after --force-refresh
             # Ensures next orchestrator run sees fresh data (prevents 1-2 day staleness in LOCAL_MODE)
