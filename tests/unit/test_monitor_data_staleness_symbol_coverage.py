@@ -5,11 +5,10 @@ get_table_age_minutes() only measures MAX(updated_at) across the whole table - i
 symbols got today's row, the table reads FRESH even while a batch-crash left a meaningful
 chunk of individual symbols stuck for days. Phase 1 already fails-closed on this for
 trading itself (algo/orchestrator/phase1_data_freshness.py), but the diagnostic tools
-operators run before trading hours were blind to it (steering/LOADER_RECOVERY_GUIDE.md,
-gap found 2026-07-20: 497 active symbols stuck 3+ trading days behind, invisible here the
-whole time). Fixed by adding get_price_symbol_coverage(), mirroring Phase 1's own
-active-symbol-scoped query, and cross-checking it against the same phase1_min_coverage_pct/
-phase1_min_symbol_count config thresholds.
+operators run before trading hours need per-symbol visibility for pre-trading validation.
+Fixed by adding get_price_symbol_coverage(), mirroring Phase 1's own active-symbol-scoped
+query, and cross-checking it against the same phase1_min_coverage_pct/phase1_min_symbol_count
+config thresholds.
 """
 
 from unittest.mock import MagicMock, patch

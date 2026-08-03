@@ -1107,8 +1107,10 @@ aws stepfunctions start-execution \
   --name "manual-trigger-$(date +%s)"
 ```
 
-**Recovery from a stalled/failed loader:** see `steering/LOADER_RECOVERY_GUIDE.md` and
-`python scripts/monitor_data_staleness.py`.
+**Recovery from a stalled/failed loader:** Run `python scripts/monitor_data_staleness.py` to
+identify stale tables. Loaders use watermark-based incremental loading - if a loader
+crashes mid-batch, the next run resumes from its last successful watermark. Manual
+backfill is available via `--backfill N` flag if needed for historical recovery.
 
 ---
 

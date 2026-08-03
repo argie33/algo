@@ -627,6 +627,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             exec_completed = row.get("execution_completed")
             completion_pct = row.get("completion_pct")
             last_success_at = row.get("last_success_at")
+            execution_duration = row.get("execution_duration_sec")
+            throughput = row.get("symbols_per_second")
             sources.append(
                 {
                     "name": row["table_name"],
@@ -649,6 +651,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "stale_threshold_days": max_age,
                     "last_success_at": last_success_at.isoformat() if last_success_at else None,
                     "consecutive_failures": row.get("consecutive_failures"),
+                    "execution_duration_sec": float(execution_duration) if execution_duration is not None else None,
+                    "symbols_per_second": float(throughput) if throughput is not None else None,
                 }
             )
 

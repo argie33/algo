@@ -283,14 +283,12 @@ def get_price_symbol_coverage() -> tuple[int, int, float] | None:
     table - if 90%+ of symbols got today's row, the table reads FRESH even while a
     meaningful chunk of individual symbols have been silently stuck for days (a run that
     crashes mid-batch leaves whichever symbols hadn't been processed yet frozen at their
-    last successful date, with no per-symbol alert; see
-    steering/LOADER_RECOVERY_GUIDE.md, gap found 2026-07-20 - 497 active symbols stuck 3+
-    trading days behind after exactly this kind of crash, invisible to this script the
-    whole time). Phase 1 already fails-closed on this for trading itself (see
-    algo/orchestrator/phase1_data_freshness.py) but that only halts the orchestrator - the
-    diagnostic tools operators run *before* trading hours to sanity-check data were blind
-    to it. Mirrors Phase 1's own query (same active-symbol scoping, same non-NULL
-    open/close requirement) so the two report the same number.
+    last successful date, with no per-symbol alert). Phase 1 already fails-closed on this
+    for trading itself (see algo/orchestrator/phase1_data_freshness.py) but that only halts
+    the orchestrator - the diagnostic tools operators run *before* trading hours to
+    sanity-check data need per-symbol visibility. Mirrors Phase 1's own query (same
+    active-symbol scoping, same non-NULL open/close requirement) so the two report the
+    same number.
     """
     try:
         today = date.today()
