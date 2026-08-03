@@ -1235,10 +1235,13 @@ class OptimalLoader:
             # This ensures accuracy even if symbols_processed tracking has issues
             symbols_loaded = actual_symbols_loaded
             completion_pct = (symbols_loaded / expected_symbols * 100) if expected_symbols > 0 else 100.0
-            # CAP at 100 to prevent numeric overflow (NUMERIC(5,2) max is 999.99)
-            # For incremental loads where actual_symbols_loaded > expected_symbols (e.g., updating existing table),
-            # this is expected behavior and should still be marked COMPLETED
-            completion_pct = min(completion_pct, 100.0)
+            # CAP at 100 ONLY when symbols_loaded > expected_symbols (incremental loads)
+            # to prevent numeric overflow (NUMERIC(5,2) max is 999.99).
+            # When symbols_loaded <= expected_symbols, preserve the actual completion %
+            # so Status thresholds (e.g., 98% min for price loader) work correctly.
+            # Example: 5253/5486 symbols = 95.75%, must not be capped to 100%.
+            if symbols_loaded > expected_symbols:
+                completion_pct = min(completion_pct, 100.0)
             # Respect the subclass's own declared max_fail_rate (already used elsewhere in this
             # file, e.g. _run_sequential's fail-fast gate at "max_fail_rate = getattr(self,
             # 'max_fail_rate', 60.0)") instead of a hardcoded 90% for every OptimalLoader
