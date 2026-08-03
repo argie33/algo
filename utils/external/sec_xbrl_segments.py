@@ -42,9 +42,10 @@ ASC 280 requires disclosure of:
 
 import logging
 import re
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
@@ -315,7 +316,7 @@ class XBRLSegmentParser:
         return None
 
     @staticmethod
-    def _compute_herfindahl_index(revenues: list[float | Decimal], total: float | Decimal) -> float:
+    def _compute_herfindahl_index(revenues: Sequence[float | Decimal], total: float | Decimal) -> float:
         """Compute Herfindahl-Hirschman Index (HHI) of revenue concentration.
 
         HHI = sum of (revenue_share ^ 2) scaled to 0-10000
@@ -1032,10 +1033,10 @@ class XBRLSegmentParser:
                 }
                 for member, revenue in reportable_segments.items()
             ),
-            key=lambda s: float(s["revenue"]),
+            key=lambda s: cast(float, s["revenue"]),
             reverse=True,
         )
-        revenues: list[float] = [float(s["revenue"]) for s in segment_list]
+        revenues: list[float] = [cast(float, s["revenue"]) for s in segment_list]
         hhi = XBRLSegmentParser._compute_herfindahl_index(revenues, total_revenue)
         largest_pct = revenues[0] / total_revenue * 100
 
