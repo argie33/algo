@@ -11,7 +11,7 @@ if not owner_cognito or owner_cognito == "":
     print("ERROR: Could not determine owner cognito_sub")
     exit(1)
 
-with DatabaseContext() as cur:
+with DatabaseContext(role="write") as cur:
     # Backfill algo_trades
     cur.execute("""
     UPDATE algo_trades
