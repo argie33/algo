@@ -248,14 +248,45 @@ class LoaderStatusManager:
         self._acquire_lock()
         try:
             with DatabaseContext("write") as cur:
+                # CRITICAL SAFETY CHECK: Verify completion_pct before marking COMPLETED
+                # This prevents marking as COMPLETE when data load was actually incomplete
+                cur.execute(
+                    "SELECT symbol_count, symbols_loaded, completion_pct FROM data_loader_status WHERE table_name = %s",
+                    (self.table_name,)
+                )
+                status_row = cur.fetchone()
+                if status_row:
+                    total_symbols = status_row[0]
+                    loaded_symbols = status_row[1]
+                    current_completion_pct = status_row[2]
+
+                    # Calculate actual completion percentage from loader stats
+                    if total_symbols and total_symbols > 0:
+                        actual_completion_pct = (loaded_symbols / total_symbols) * 100.0
+                    else:
+                        actual_completion_pct = 0.0
+
+                    # SAFETY: Never mark COMPLETE if completion is suspiciously low
+                    # (This catches cases where load_pct=95% but was marked COMPLETE due to bug)
+                    if actual_completion_pct < 95.0:
+                        logger.critical(
+                            f"[SAFETY CHECK] {self.table_name}: Cannot mark COMPLETED with only "
+                            f"{actual_completion_pct:.2f}% completion ({loaded_symbols}/{total_symbols} symbols). "
+                            f"This indicates incomplete data load. Marking FAILED instead."
+                        )
+                        # Call mark_failed instead of mark_completed
+                        self.mark_failed(
+                            error_message=f"Incomplete load: only {loaded_symbols}/{total_symbols} symbols loaded ({actual_completion_pct:.2f}%)",
+                            completion_pct=actual_completion_pct,
+                            retry_count=None
+                        )
+                        return  # Exit early - mark_failed already acquired lock
+
                 # Calculate throughput if we have duration and symbols
                 symbols_per_sec = None
                 if execution_duration_sec and execution_duration_sec > 0:
-                    cur.execute("SELECT symbols_loaded FROM data_loader_status WHERE table_name = %s",
-                               (self.table_name,))
-                    result = cur.fetchone()
-                    if result and result[0]:
-                        symbols_per_sec = result[0] / execution_duration_sec
+                    if status_row:
+                        symbols_per_sec = status_row[1] / execution_duration_sec
 
                 # Build dynamic SQL to optionally include latest_date
                 if latest_date is not None:

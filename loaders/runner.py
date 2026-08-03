@@ -177,12 +177,37 @@ def run_loader(
                     f"Stats tracking corrupted."
                 )
             fail_rate = symbols_failed / max(len(symbols), 1)
-            max_fail_rate = getattr(loader, "max_fail_rate", 15.0) / 100.0  # CRITICAL: Default 15% fail tolerance (was dangerously 60%). Fail-fast on data source issues.
+
+            # CRITICAL: Get max_fail_rate with safety fallback
+            # Don't use bare getattr default (15%) - it's too lenient and masks incomplete loads
+            # (Previous price loader bug: 95.75% completion marked COMPLETE due to defaulting to 15%)
+            try:
+                # Try to get from loader's property first (preferred, config-driven)
+                max_fail_rate_pct = loader.max_fail_rate
+            except (AttributeError, Exception) as e:
+                # Fallback: if property fails, log WARNING and use conservative default
+                loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
+                logger.warning(
+                    f"[LOADER {loader_name}] Could not read max_fail_rate property (using fallback): {type(e).__name__}: {e}. "
+                    f"Using fallback 5.0% instead of dangerous 15.0% default."
+                )
+                max_fail_rate_pct = 5.0  # Conservative fallback, not 15%
+
+            max_fail_rate = max_fail_rate_pct / 100.0
 
             # ERROR COUNT PROPAGATION FIX: Surface error counts to loader status for dashboard visibility
             # Allows operators to distinguish "100% success" from "95% success, 5% failed"
             symbols_loaded = stats.get("symbols_loaded", 0)
             execution_duration = stats.get("execution_duration_sec")
+
+            # CRITICAL LOGGING: Record max_fail_rate so we can debug status issues
+            loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
+            logger.info(
+                f"[LOADER {loader_name}] Completion assessment: "
+                f"loaded={symbols_loaded}/{len(symbols)} ({fail_rate*100:.2f}% failed), "
+                f"max_fail_rate={max_fail_rate*100:.2f}%, "
+                f"result={'FAIL' if fail_rate > max_fail_rate else 'PASS'}"
+            )
 
             if fail_rate > max_fail_rate:
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
