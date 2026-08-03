@@ -351,12 +351,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 quality_row_db = cur.fetchone()
 
                 # Get annual income statement history for growth computation (not from growth_metrics table)
-                # NOTE: Filters by revenue IS NOT NULL - companies without revenue will be skipped
+                # NOTE: Removed revenue IS NOT NULL filter - banks often have NULL revenue but valid net_income
+                # Individual growth metrics will only be calculated if their specific inputs are available
                 cur.execute(
                     """
                     SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share
                     FROM annual_income_statement
-                    WHERE symbol = %s AND revenue IS NOT NULL AND data_unavailable = FALSE
+                    WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC
                     LIMIT 10
                     """,
