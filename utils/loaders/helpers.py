@@ -157,13 +157,24 @@ def get_active_symbols(
                         sql = """
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
+                              AND data_unavailable IS NOT TRUE
                               AND (etf IS NULL OR etf = 'N')
                               AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto)\\b'
                             ORDER BY symbol
                         """
                     else:
-                        # For price/market data loaders: include both stocks and ETFs
-                        sql = "SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol"
+                        # For price/market data loaders: include both stocks and ETFs.
+                        # FIXED 2026-08-03: previously didn't exclude data_unavailable=true
+                        # symbols - once a symbol is permanently marked unavailable (confirmed
+                        # delisted/no-data over a 30-day yfinance lookback, see
+                        # _mark_symbol_permanently_unavailable in loaders/load_prices.py), it
+                        # stayed `active=true` forever and kept being pulled into every load's
+                        # expected-symbols count while never being able to post a new row -
+                        # a permanent, growing ceiling on completion_pct that no retry could fix.
+                        sql = (
+                            "SELECT symbol FROM stock_symbols "
+                            "WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol"
+                        )
                     cur.execute(sql)
                     rows = cur.fetchall()
                     result["symbols"] = [row[0] for row in rows]
