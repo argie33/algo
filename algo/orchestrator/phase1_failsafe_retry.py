@@ -182,7 +182,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 # stock_scores doesn't have a date column, use updated_at instead
                 if table_name == "stock_scores":
                     date_filter = "updated_at::date = %s"
-                    params = (expected_data_date,)
+                    params: tuple[Any, ...] = (expected_data_date,)
                 else:
                     date_filter = "date = %s OR updated_at::date = %s"
                     params = (expected_data_date, expected_data_date)
