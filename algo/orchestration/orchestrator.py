@@ -936,20 +936,28 @@ class Orchestrator:
                     logger.warning(f"[PROACTIVE WAIT] Database error during poll: {db_err}. Retrying...")
                     time.sleep(poll_interval_seconds)
 
-            # Timeout expired - CRITICAL: Cannot proceed with stalled loaders
-            # Even at 90%+ completion, data is usable. If timeout occurs, it indicates the loader is stalled,
-            # not just slow. Phase 1 will validate actual data quality and halt if needed.
-            logger.critical(
-                f"[PROACTIVE WAIT] BLOCKER: Timeout after {max_wait_seconds}s waiting for loaders to reach 90%+ completion. "
+            # Timeout expired. Even at 90%+ completion, data is usable. If timeout occurs, it
+            # indicates the loader is stalled, not just slow.
+            # CRITICAL FIX: this used to say "BLOCKER"/"HALTING orchestration"/"For safety,
+            # halt on stalled loaders" - but _wait_for_loaders_before_execution() (the only
+            # caller) unconditionally catches this exact RuntimeError and proceeds to Phase 1
+            # regardless ("Proceeding to Phase 1 anyway" - by design, since Phase 1 is the
+            # real, authoritative data-quality gate that validates and halts if needed; this
+            # proactive wait is only a best-effort head start, not a safety gate itself). The
+            # halt/blocker language was actively misleading - an operator watching logs would
+            # see "CRITICAL: HALTING" and reasonably conclude the orchestrator stopped, when
+            # it never does. Describe what this function actually does: escalate to a warning
+            # and hand off to Phase 1, not halt anything.
+            logger.warning(
+                f"[PROACTIVE WAIT] Timeout after {max_wait_seconds}s waiting for loaders to reach 90%+ completion. "
                 f"Critical loader {slowest_name} stalled at {slowest_pct:.1f}% ({slowest_loaded}/{slowest_count} symbols). "
-                f"HALTING orchestration to investigate loader failure. "
-                f"Investigation needed: (1) Why is {slowest_name} stalled below 90%? "
+                f"Proceeding to Phase 1, which will validate actual data quality and halt there if needed. "
+                f"Investigation needed if this recurs: (1) Why is {slowest_name} stalled below 90%? "
                 f"(2) yfinance availability issues, (3) EventBridge loader schedules, "
                 f"(4) ECS cluster health for stuck loaders"
             )
-            # For safety, halt on stalled loaders
             raise RuntimeError(
-                f"[PROACTIVE WAIT] Cannot proceed: Critical loader '{slowest_name}' stalled at {slowest_pct:.1f}% complete "
+                f"[PROACTIVE WAIT] Critical loader '{slowest_name}' stalled at {slowest_pct:.1f}% complete "
                 f"({slowest_loaded}/{slowest_count} symbols) after {max_wait_seconds}s wait. "
                 f"Loader appears hung or experiencing systematic failures. "
                 f"Halting to investigate and prevent partial data load."
