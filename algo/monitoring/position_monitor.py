@@ -476,12 +476,20 @@ class PositionMonitor:
             # were zero real open positions in this dev environment to exercise the path until
             # an end-to-end synthetic verification test inserted one. Select the real
             # `p.target_levels_hit` column here instead (NOT NULL in the schema).
+            # CRITICAL FIX: algo_positions has TWO trade-reference columns - the dead
+            # `trade_ids` (varchar) column, never written by any code path (verified via
+            # repo-wide grep: only executor_entry_handler.py's INSERT populates the real
+            # one), and `trade_ids_arr` (the actual array column every other consumer -
+            # Phase 6/8/9, circuit_breaker.py, exposure_policy.py, executor_exit_handler.py,
+            # exit_engine.py, position_sizer.py - joins against). Selecting `trade_ids` here
+            # silently produced trade_id=None for every real position (visible in the
+            # 2026-08-03 fix's own audit-log JSON), not a crash but a quiet dead field.
             cursor.execute(
                 """
                 SELECT p.id, p.symbol, p.entry_price, p.stop_loss_price,
                        p.target_1_price, p.target_2_price, p.target_3_price,
                        p.entry_date, p.created_at,
-                       p.quantity, p.target_levels_hit, p.trade_ids,
+                       p.quantity, p.target_levels_hit, p.trade_ids_arr,
                        p.stop_loss_price, p.current_price
                 FROM algo_positions p
                 WHERE p.status = 'open' AND p.quantity > 0
@@ -618,7 +626,7 @@ class PositionMonitor:
                 _signal_date,
                 quantity,
                 target_hits,
-                trade_ids_str,
+                trade_ids_arr,
                 current_stop,
                 _db_current_price,
             ) = row
@@ -630,9 +638,11 @@ class PositionMonitor:
             # review, unconditionally - review_positions() has never completed successfully
             # for any real open position. Invisible all session because there were zero real
             # open positions in this dev environment until an end-to-end synthetic
-            # verification test inserted one. trade_ids is comma-separated (see identical
-            # "first trade_id if multiple" convention in phase6_exit_execution.py).
-            trade_id = trade_ids_str.split(",")[0].strip() if trade_ids_str else None
+            # verification test inserted one. trade_ids_arr is a real Postgres array (the
+            # SELECT above now reads the actually-populated `trade_ids_arr` column, not the
+            # dead `trade_ids` varchar - see that query's comment), so take its first element
+            # directly rather than splitting a comma-separated string.
+            trade_id = trade_ids_arr[0] if trade_ids_arr else None
         except (ValueError, TypeError) as unpack_err:
             raise PositionValidationError(
                 f"Failed to unpack position row: {type(unpack_err).__name__}: {unpack_err}. "

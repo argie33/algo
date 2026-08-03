@@ -370,26 +370,32 @@ def run(
                                 continue
                             pos_id, symbol = row[0], row[1]
 
-                            # CRITICAL: Fetch the trade_ids for this position
-                            # Concentration check needs valid trade_ids to execute exits
+                            # CRITICAL FIX: `trade_ids` (varchar) is a dead column never
+                            # written by any code path - the actually-populated column is
+                            # `trade_ids_arr` (a real Postgres array), which every other
+                            # consumer in this codebase joins/reads against (Phase 8/9,
+                            # circuit_breaker.py, exposure_policy.py, executor_exit_handler.py,
+                            # exit_engine.py, position_sizer.py). Querying `trade_ids` here
+                            # meant this force-exit path ALWAYS hit the "no trade_ids" branch
+                            # below and skipped the position, silently defeating sector
+                            # concentration limit enforcement for every position, always.
                             cur.execute(
-                                "SELECT trade_ids FROM algo_positions WHERE id = %s AND status = 'open'",
+                                "SELECT trade_ids_arr FROM algo_positions WHERE id = %s AND status = 'open'",
                                 (pos_id,)
                             )
                             trade_row = cur.fetchone()
-                            if trade_row is None or trade_row[0] is None:
+                            if trade_row is None or not trade_row[0]:
                                 logger.warning(
-                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids. "
+                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
                                     f"Cannot force-exit without trade reference. Skipping this position."
                                 )
                                 continue
 
-                            trade_ids = trade_row[0]
-                            # Use first trade_id if multiple (trade_ids is a comma-separated string)
-                            trade_id = trade_ids.split(',')[0] if trade_ids else None
+                            trade_ids_arr = trade_row[0]
+                            trade_id = trade_ids_arr[0] if trade_ids_arr else None
                             if not trade_id:
                                 logger.warning(
-                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids malformed: {trade_ids}. "
+                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
                                     f"Cannot parse trade reference. Skipping this position."
                                 )
                                 continue
@@ -612,25 +618,28 @@ def run(
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:
-                        # Fetch trade_ids for this oversized position
+                        # CRITICAL FIX: see the identical sector-concentration fix above -
+                        # `trade_ids` is a dead column never written by any code path; the
+                        # real one every other consumer uses is `trade_ids_arr`. Querying
+                        # `trade_ids` here always skipped the position, silently defeating
+                        # position-size concentration limit enforcement for every position.
                         cur.execute(
-                            "SELECT trade_ids FROM algo_positions WHERE id = %s AND status = 'open'",
+                            "SELECT trade_ids_arr FROM algo_positions WHERE id = %s AND status = 'open'",
                             (pos_id,)
                         )
                         trade_row = cur.fetchone()
-                        if trade_row is None or trade_row[0] is None:
+                        if trade_row is None or not trade_row[0]:
                             logger.warning(
-                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids. "
+                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
                                 f"Cannot force-exit without trade reference. Skipping this position."
                             )
                             continue
 
-                        trade_ids = trade_row[0]
-                        # Use first trade_id if multiple (trade_ids is a comma-separated string)
-                        trade_id = trade_ids.split(',')[0] if trade_ids else None
+                        trade_ids_arr = trade_row[0]
+                        trade_id = trade_ids_arr[0] if trade_ids_arr else None
                         if not trade_id:
                             logger.warning(
-                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids malformed: {trade_ids}. "
+                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
                                 f"Cannot parse trade reference. Skipping this position."
                             )
                             continue
