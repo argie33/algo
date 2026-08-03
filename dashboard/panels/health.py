@@ -466,7 +466,7 @@ def _build_phase_execution_panel(
                 phase_rows.append(Text.from_markup(f"      [dim]Errors found:[/] [{R}]{errors_found}[/]"))
 
         elif phase_num == 5:  # Exposure Policy
-            required_keys = {"market_regime", "entry_allowed", "halt_active", "max_new_entries", "halt_reason"}
+            required_keys: set[str] = {"market_regime", "entry_allowed", "halt_active", "max_new_entries", "halt_reason"}
             missing = required_keys - set(phase_data.keys() if phase_data else [])
             if missing:
                 phase_rows.append(Text.from_markup(f"      [dim]ERROR:[/] [{R}]Incomplete data - missing {', '.join(sorted(missing))}[/]"))
@@ -1565,8 +1565,9 @@ def panel_orch(
         # Build execution stats line if available
         stats_line_obj = _format_execution_stats(exec_stats)
 
+        body_rows: list[Text | Rule] = []
         if exec_health_rows:
-            body_rows: list[Text | Rule] = [
+            body_rows = [
                 Text.from_markup(
                     f"{sts}  [dim]{age}[/]\n"
                     f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
@@ -2042,7 +2043,7 @@ def _format_comprehensive_table_loader_health(
             logger.warning("[TABLE_LOADER_HEALTH] Failed to parse loader items")
 
     # Merge all known tables (union of health items and loader items)
-    all_tables = set()
+    all_tables: set[str] = set()
     all_tables.update(hlth_dict.keys())
     all_tables.update(loader_dict.keys())
 

@@ -71,9 +71,9 @@ logger = logging.getLogger(__name__)
 # Dashboard API URL with smart localhost detection
 # Uses lazy detection: checks localhost availability on first API call, not at import time
 _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
-_api_base_url_cache = None
-_api_base_url_source_cache = None  # Track which source was selected
-_localhost_checked = False
+_api_base_url_cache: str | None = None
+_api_base_url_source_cache: str | None = None  # Track which source was selected
+_localhost_checked: bool = False
 
 
 def _check_localhost_available() -> str | None:
@@ -137,7 +137,7 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
 
     # Priority 1: Explicit LOCAL_MODE flag
     if os.environ.get("LOCAL_MODE"):
-        localhost_url = _check_localhost_available() or "http://127.0.0.1:3001"
+        localhost_url: str = _check_localhost_available() or "http://127.0.0.1:3001"
         _api_base_url_cache = localhost_url
         _api_base_url_source_cache = "LOCAL_MODE_EXPLICIT"
         logger.info(f"[API] LOCAL_MODE enabled - using {localhost_url} (source: LOCAL_MODE_EXPLICIT)")
@@ -155,13 +155,13 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
 
     # Priority 3: Auto-detect localhost ONLY if no AWS config is set
     if not _localhost_checked:
-        localhost_url = _check_localhost_available()
-        if localhost_url is not None:
-            _api_base_url_cache = localhost_url
+        detected_url: str | None = _check_localhost_available()
+        if detected_url is not None:
+            _api_base_url_cache = detected_url
             _api_base_url_source_cache = "AUTO_DETECT_LOCALHOST"
             _localhost_checked = True
             logger.info(
-                f"[API] Dev server detected on {localhost_url} - auto-switching to local mode (source: AUTO_DETECT_LOCALHOST, no --local flag needed)"
+                f"[API] Dev server detected on {detected_url} - auto-switching to local mode (source: AUTO_DETECT_LOCALHOST, no --local flag needed)"
             )
             return _api_base_url_cache, _api_base_url_source_cache
 

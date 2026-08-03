@@ -104,10 +104,12 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
             logger.error(f"Exit trade failed with validation error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}")
             result = {"success": False, "message": str(e)[:200]}
             return result
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(f"Exit trade failed with database error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}", exc_info=True)
+            raise RuntimeError(f"Exit trade database error (trade may be partially executed): {type(e).__name__}: {e}") from e
         except Exception as e:
-            logger.error(f"Exit trade failed with unexpected error: {type(e).__name__}: {e}", exc_info=True)
-            result = {"success": False, "message": f"Unexpected error: {str(e)[:200]}"}
-            return result
+            logger.critical(f"Exit trade failed with unexpected error: {type(e).__name__}: {e}. This may indicate broker state divergence.", exc_info=True)
+            raise RuntimeError(f"Exit trade failed unexpectedly (halting to prevent divergence): {type(e).__name__}: {e}") from e
 
     # Should not reach here, but handle just in case
     raise RuntimeError(f"Exit trade exhausted retries: {last_error}")
