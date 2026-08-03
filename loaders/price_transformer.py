@@ -311,6 +311,22 @@ class PriceTransformer:
             if error_msg:
                 row_date_for_log = row["date"] if "date" in row else None
                 logger.warning(f"[{symbol}] {row_date_for_log}: {error_msg}")
+                # CRITICAL FIX: a row rejected ONLY by the sequence/gap check (a real,
+                # structurally-sane tick - passed NULL/OHLC-logic/price-bounds/volume checks -
+                # that just moved >30% from prior_close with no matching split ratio) must still
+                # update prior_close_by_symbol here. Otherwise prior_close is frozen at the
+                # pre-move price forever: a genuine, sustained crash (not a data error) - e.g.
+                # earnings disaster, FDA rejection - keeps comparing every subsequent day
+                # against the stale pre-crash level, so EVERY future day also fails this same
+                # check and the symbol's price feed deadlocks permanently with no recovery path,
+                # silently, until a human manually intervenes. This does NOT change what gets
+                # inserted into price_daily (the anomalous day itself still isn't written - a
+                # single unconfirmed extreme tick still shouldn't corrupt the DB), it only lets
+                # the *next* day be judged against what actually happened, not an increasingly
+                # stale reference - self-healing once the new level is confirmed by the
+                # following day's data, typically within one extra rejected day.
+                if error_msg.startswith("price gap > 30%") and "close" in row:
+                    prior_close_by_symbol[symbol] = row["close"]
             return False, 0, 1
 
         if tracker:
