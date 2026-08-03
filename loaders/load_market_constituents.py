@@ -71,6 +71,22 @@ EXCLUSION_PATTERNS = [
     r"\bdebenture",
     r"\bsubordinated\b",
     r"\bpfd (ser|stock)",
+    # GOVERNANCE 2026-08-03: rights offerings, when-issued shares, and depositary-share
+    # preferred notation that don't match any pattern above - live-confirmed 28
+    # already-active symbols in the local DB (SPAC rights like AIIA.R/JENA.R, when-issued
+    # like REZI.V/ADIG.V, bare "X% Series Y" preferred like DBRG$H/NLY$F, and "Depositary
+    # Shares"/"Dep Shs" preferred like EQH$A/MS$F) flowing through price_daily and every
+    # downstream loader as if they were common equity - this is the root cause of
+    # price_daily's chronic ~4% "missing symbol" gap (yfinance has no ticker for most of
+    # these instrument types at all). Verified against Bank Nova Scotia's known-tricky
+    # "...Pfd 3 Ordinary Shares" and Apple/McCormick "...Common Stock" security_names to
+    # confirm none of these new patterns false-positive on real common equity.
+    r"\brights?\b",
+    r"\bwhen-issued\b",
+    r"\bdepositary shares?\b",
+    r"\bdep shs?\b",
+    r"\bpfd\b.{0,20}\bser\b",
+    r"\d+(\.\d+)?%\s+series\s+[a-z]\b",
 ]
 
 

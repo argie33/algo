@@ -858,6 +858,44 @@ class PriceLoader(OptimalLoader):
         """
         return self.fetcher.fetch_batch_incremental(symbols, since, is_eod_pipeline=self._is_eod_pipeline)
 
+    def _confirm_no_data_in_30_days(self, symbol: str) -> bool:
+        """Second-opinion check before permanently marking a symbol unavailable.
+
+        The stale-watermark path below only has a narrow (<=7 day) fetch window to go
+        on, which isn't enough to distinguish "genuinely delisted/halted" from "just a
+        long trading gap" - marking the former unavailable is correct (stops the same
+        symbol re-failing every run forever) but marking the latter would wrongly drop a
+        real symbol out of the trading universe. Widen the lookback to 30 days as one
+        extra confirmation; only symbols still empty over that whole window get marked.
+        """
+        try:
+            today = datetime.now(EASTERN_TZ).date()
+            result = self.fetch_batch_incremental([symbol], today - timedelta(days=30))
+            return not result.get(symbol)
+        except Exception as e:
+            logger.debug(f"[{self.table_name}] {symbol}: 30-day confirmation fetch failed: {e}")
+            return False
+
+    def _mark_symbol_permanently_unavailable(self, symbol: str, reason: str) -> None:
+        """Persist a confirmed delisted/unavailable determination to stock_symbols.
+
+        Without this, the delisted/no-data signal only ever lived in this run's stats
+        and logs - every subsequent run re-discovered (and re-failed on) the same dead
+        symbol, inflating consecutive_failures and completion_pct forever, and operators
+        had to hand-patch stock_symbols out of band to make coverage checks stop flagging
+        it. Writing the marker here makes the determination durable and self-service.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE stock_symbols SET data_unavailable = TRUE, data_unavailable_reason = %s "
+                    "WHERE symbol = %s AND data_unavailable = FALSE",
+                    (reason, symbol),
+                )
+            logger.warning(f"[{self.table_name}] {symbol}: marked data_unavailable in stock_symbols ({reason})")
+        except Exception as e:
+            logger.error(f"[{self.table_name}] {symbol}: failed to persist data_unavailable marker: {e}")
+
     def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict[str, Any] | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
         result = self.fetcher.execute_batch_fetch(symbols, start, end)
@@ -1584,6 +1622,13 @@ class PriceLoader(OptimalLoader):
                         if any(x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"]):
                             symbols_skipped_delisted += 1
                             logger.info(f"[SYMBOL_FALLBACK] {symbol} skipped: appears delisted or unavailable (yfinance confirmed)")
+                            # Persist the determination so future runs don't rediscover (and
+                            # re-fail on) the same dead symbol - see _mark_symbol_permanently_unavailable.
+                            self._mark_symbol_permanently_unavailable(
+                                symbol,
+                                f"yfinance raised a delisted/not-found error during per-symbol fallback fetch: "
+                                f"{str(symbol_err)[:200]}",
+                            )
                             # Count delisted symbols as processed (we tried, data legitimately unavailable)
                             # _load_batch didn't complete for this symbol (exception), so we count it here
                             self._stats["symbols_processed"] += 1
@@ -2321,7 +2366,19 @@ class PriceLoader(OptimalLoader):
 
                 if current_watermark and watermark_age_days > 2:
                     # CRITICAL: Watermark is stale but we got 0 rows - this is an error
-                    # Don't skip, mark as failed and force retry next run
+                    # Don't skip, mark as failed and force retry next run - UNLESS a wider
+                    # 30-day lookback confirms this isn't a transient gap at all (see
+                    # _confirm_no_data_in_30_days), in which case retrying forever just
+                    # wastes API calls and masks the real state behind a permanent failure.
+                    if self._confirm_no_data_in_30_days(symbol):
+                        reason = (
+                            f"yfinance returned no data for {symbol} over a 30-day lookback "
+                            f"(watermark was {watermark_age_days}d stale) - auto-verified {today}"
+                        )
+                        self._mark_symbol_permanently_unavailable(symbol, reason)
+                        self._stats["symbols_skipped_by_watermark"] += 1
+                        self._stats["symbols_processed"] += 1
+                        continue
                     logger.error(
                         f"[{self.table_name}] {symbol}: Watermark {current_watermark} is {watermark_age_days}d old "
                         f"but fetch returned 0 rows. This indicates a data loading issue, not current data. "

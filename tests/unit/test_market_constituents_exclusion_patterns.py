@@ -43,3 +43,54 @@ class TestNewExclusionPatterns:
 
     def test_ordinary_common_stock_not_excluded(self):
         assert not should_exclude("Apple Inc. - Common Stock")
+
+
+class TestRightsWhenIssuedAndDepositaryShareExclusionPatterns:
+    """Regression test added 2026-08-03: found while root-causing price_daily's chronic
+    ~4% "missing symbol" completion gap. 28 already-active symbols turned out to be SPAC
+    rights offerings, when-issued shares, or depositary-share/bare-percentage preferred
+    notation - none of which yfinance has a ticker for at all, so they permanently failed
+    every price-loader run while silently counting against the completion threshold.
+    """
+
+    def test_spac_rights_with_each_wording_excluded(self):
+        assert should_exclude(
+            "AI Infrastructure Acquisition Corp. Rights, each entitling the holder to "
+            "receive one-fifth (1/5) of one Class A Ordinary Share"
+        )
+
+    def test_spac_rights_without_each_wording_excluded(self):
+        assert should_exclude(
+            "GalaxyEdge Acquisition Corporation Rights to receive one-fourth (1/4) of one ordinary share"
+        )
+
+    def test_when_issued_common_stock_excluded(self):
+        assert should_exclude("Resideo Technologies, Inc. Common Stock When-Issued")
+
+    def test_bare_percentage_series_preferred_excluded(self):
+        assert should_exclude("DigitalBridge Group, Inc. 7.125% Series H")
+
+    def test_depositary_shares_excluded(self):
+        assert should_exclude("Equitable Holdings, Inc. Depositary Shares")
+
+    def test_dep_shs_abbreviation_excluded(self):
+        assert should_exclude(
+            "Morgan Stanley Dep Shs Rpstg 1/1000th Int Prd Ser F Fxd to Flag"
+        )
+
+    def test_pfd_shs_ser_excluded(self):
+        """Not caught by the existing `\\bpfd (ser|stock)` pattern - "Shs" sits between
+        "Pfd" and "Ser" in the real listing-file text."""
+        assert should_exclude("EPR Properties Series E Cumulative Conv Pfd Shs Ser E")
+
+    def test_mccormick_common_stock_not_excluded(self):
+        """MKC.V is a real common stock (McCormick) with an unusual ticker suffix in our
+        DB - a data-hygiene question for the symbol table, not a text-exclusion candidate.
+        Must not be caught by the new "Series"/rights patterns."""
+        assert not should_exclude("McCormick & Company, Incorporated Common Stock")
+
+    def test_sce_trust_not_excluded_by_these_patterns(self):
+        """SCE TRUST VI is ambiguous with no distinguishing preferred/rights keyword - a
+        bare `\\btrust\\b` pattern would risk false-positiving real REIT common stock, so
+        it's deliberately left unmatched pending individual review."""
+        assert not should_exclude("SCE TRUST VI")
