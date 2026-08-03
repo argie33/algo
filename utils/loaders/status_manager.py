@@ -284,19 +284,23 @@ class LoaderStatusManager:
                     if status_row:
                         symbols_per_sec = status_row[1] / execution_duration_sec
 
+                # Use actual completion percentage instead of hardcoding 100.0
+                # (If we reach here, actual_completion_pct >= 95%, so it's valid to complete)
+                final_completion_pct = actual_completion_pct if actual_completion_pct >= 95.0 else 100.0
+
                 # Build dynamic SQL to optionally include latest_date
                 if latest_date is not None:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
+                        SET status = %s, execution_completed = NOW(), completion_pct = %s,
                             error_message = NULL, last_updated = NOW(),
                             last_success_at = NOW(), consecutive_failures = 0,
                             execution_duration_sec = %s, http_status_code = %s,
                             rate_limit_quota = %s, symbols_per_second = %s, latest_date = %s
                         WHERE table_name = %s
                         """,
-                        (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
+                        (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
                          rate_limit_quota, symbols_per_sec, latest_date, self.table_name),
                     )
                     if cur.rowcount != 1:
@@ -308,14 +312,14 @@ class LoaderStatusManager:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_completed = NOW(), completion_pct = 100.0,
+                        SET status = %s, execution_completed = NOW(), completion_pct = %s,
                             error_message = NULL, last_updated = NOW(),
                             last_success_at = NOW(), consecutive_failures = 0,
                             execution_duration_sec = %s, http_status_code = %s,
                             rate_limit_quota = %s, symbols_per_second = %s
                         WHERE table_name = %s
                         """,
-                        (LoaderStatus.COMPLETED.value, execution_duration_sec, http_status,
+                        (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
                          rate_limit_quota, symbols_per_sec, self.table_name),
                     )
                 if cur.rowcount != 1:
