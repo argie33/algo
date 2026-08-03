@@ -306,6 +306,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # Also fetch prior year EPS/revenue for YoY growth calculation
                 # shares_outstanding is in sec_valuations, not annual_balance_sheet
                 # CRITICAL: Must get latest sec_valuations row to avoid duplicate joins
+                # FIXED 2026-08-05: Prioritize years with actual FCF data (many recent years have NULL FCF
+                # because they're estimates, while prior years have audited FCF). Get most recent year with
+                # either free_cash_flow OR operating_cash_flow populated (not latest fiscal_year blindly).
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
@@ -343,7 +346,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
-                    ORDER BY abs.fiscal_year DESC
+                    ORDER BY (CASE WHEN acf.free_cash_flow IS NOT NULL THEN 0 ELSE 1 END), abs.fiscal_year DESC
                     LIMIT 1
                     """,
                     (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol),
@@ -773,12 +776,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("ebitda_margin")
 
             # ROIC = NOPAT / Invested Capital, NOPAT = EBIT * (1 - effective_tax_rate)
-            # FIXED (migration 1178): previously always unavailable - a hardcoded 25% tax-rate
-            # assumption was correctly rejected as synthetic (real effective rates vary 5-35%+
-            # by jurisdiction/structure), but no real source was wired up either. Now uses the
-            # real SEC-reported IncomeTaxExpenseBenefit/pretax_income concepts. Bounded to
-            # [0%, 60%]: a real but implausible rate (pretax income near zero from a one-time
-            # NOL/credit swing) would distort NOPAT worse than marking unavailable.
+            # FIXED (migration 1178): a hardcoded tax-rate assumption was correctly rejected as
+            # synthetic (real effective rates vary 5-35%+ by jurisdiction/structure) - only the
+            # real SEC-reported IncomeTaxExpenseBenefit/pretax_income concepts are used. Bounded
+            # to [0%, 60%]: a real but implausible rate (pretax income near zero from a one-time
+            # NOL/credit swing) would distort NOPAT worse than marking unavailable. A prior
+            # session reintroduced 0.21/0.25 fallback assumptions here - reverted, they are
+            # exactly the kind of fabricated-data-source problem migration 1178 fixed.
             effective_tax_rate = None
             if income_tax_expense is not None and pretax_income is not None and pretax_income > 0:
                 candidate_rate = income_tax_expense / pretax_income
@@ -788,7 +792,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
             # Use total_debt_ev (from sec_valuations, 79% available) as primary source
             # Fall back to long_term_debt_bs (from balance_sheet, only 22% available) if needed
-            # ROIC requires complete balance sheet data, not partial guesses
+            # ROIC requires complete balance sheet data, not partial guesses. A prior session
+            # added a (total_liabilities - current_liabilities) debt estimate - reverted: that
+            # includes non-debt liabilities (AP, accrued expenses, deferred revenue, pensions),
+            # so it is not a real "total debt" figure.
             invested_capital = None
             debt_for_roic = total_debt_ev if total_debt_ev is not None else long_term_debt_bs
 

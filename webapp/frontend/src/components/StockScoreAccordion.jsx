@@ -53,15 +53,15 @@ const grade = (v) => {
 const formatReasonDisplay = (reason) => {
   if (!reason) return null;
   const reasonMap = {
-    missing_sec_data: "No SEC data",
+    missing_sec_data: "SEC data not available",
     insufficient_history: "Insufficient history",
     no_analyst_estimates: "Analyst estimates unavailable",
     analyst_estimates_not_in_sec_filings: "Analyst data not in SEC",
-    ebitda_not_extracted: "Not extracted",
+    ebitda_not_extracted: "EBITDA not extracted",
     depreciation_amortization_not_loaded: "Depreciation/amortization not loaded",
     non_dividend_paying_stock: "Non-dividend payer",
     api_error: "Data fetch error",
-    unprofitable_stock: "Unprofitable stock",
+    unprofitable_stock: "Company unprofitable",
     missing_price_or_shares: "Missing price/shares",
     missing_finra_data: "FINRA data unavailable",
     missing_price_data: "Price data unavailable",
@@ -69,19 +69,25 @@ const formatReasonDisplay = (reason) => {
     short_float_data_not_calculated: "Short float metrics not calculated",
     ad_rating_not_available: "A/D rating not available",
     no_dividend_paying_stock: "Non-dividend payer",
+    reit_special_entity: "REIT/special entity - different accounting",
+    foreign_20f_filer: "Foreign 20-F filer - XBRL data limited",
+    bank_special_reporting: "Financial institution - alternative metrics",
   };
   return reasonMap[reason] || reason;
 };
 
 // Detailed reason tooltips (hover text)
 const reasonTooltips = {
-  missing_sec_data: "SEC does not require this disclosure for all company types",
-  non_dividend_paying_stock: "This stock does not pay dividends",
-  insufficient_history: "Requires historical data for calculation",
-  no_analyst_estimates: "External analyst estimates not yet loaded",
-  unprofitable_stock: "Metric undefined for loss-making companies",
-  missing_price_data: "Price data not yet available",
+  missing_sec_data: "This metric requires SEC filing data that is not available for this company type",
+  non_dividend_paying_stock: "This company does not pay dividends",
+  insufficient_history: "Requires historical data for calculation (typically 2+ years)",
+  no_analyst_estimates: "External analyst estimates not loaded from data providers",
+  unprofitable_stock: "Metric is undefined when company has negative earnings",
+  missing_price_data: "Historical price data not yet available",
   institutional_data_not_available: "Institutional holding data not available for this stock",
+  reit_special_entity: "REITs and special entities use different accounting; traditional financial metrics may not apply",
+  foreign_20f_filer: "Foreign companies filing 20-F use different XBRL data structure; full metrics extraction limited",
+  bank_special_reporting: "Banks and financial institutions use specialized accounting; different metrics apply",
 };
 
 const FACTORS = [
