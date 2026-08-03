@@ -262,8 +262,9 @@ class LoaderStatusManager:
                         actual_completion_pct = 0.0
 
                     # SAFETY: Never mark COMPLETE if completion is suspiciously low
-                    # (This catches cases where load_pct=95% but was marked COMPLETE due to bug)
-                    if actual_completion_pct < 95.0:
+                    # Production loaders require 98% minimum completion (2% failure tolerance max)
+                    # This catches cases where load_pct=95% but was marked COMPLETE due to bug
+                    if actual_completion_pct < 98.0:
                         logger.critical(
                             f"[SAFETY CHECK] {self.table_name}: Cannot mark COMPLETED with only "
                             f"{actual_completion_pct:.2f}% completion ({loaded_symbols}/{total_symbols} symbols). "
@@ -298,8 +299,8 @@ class LoaderStatusManager:
                         symbols_per_sec = status_row[1] / execution_duration_sec
 
                 # Use actual completion percentage instead of hardcoding 100.0
-                # (If we reach here, actual_completion_pct >= 95%, so it's valid to complete)
-                final_completion_pct = actual_completion_pct if actual_completion_pct >= 95.0 else 100.0
+                # (If we reach here, actual_completion_pct >= 98%, so it's valid to complete)
+                final_completion_pct = actual_completion_pct if actual_completion_pct >= 98.0 else 100.0
 
                 # Build dynamic SQL to optionally include latest_date
                 if latest_date is not None:
