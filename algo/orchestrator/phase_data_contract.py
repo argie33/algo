@@ -129,11 +129,38 @@ class Phase6Contract(TypedDict, total=False):
 
 # Phase 7 produces this schema
 class QualifiedTrade(TypedDict, total=False):
-    """Schema for qualified trades from Phase 7."""
+    """Schema for qualified trades from Phase 7.
+
+    Contains full signal details including technical indicators, scores, and metadata
+    needed for entry execution in Phase 8.
+    """
 
     symbol: str
-    signal: str
-    score: float
+    composite_score: float
+    quality_score: float | None
+    growth_score: float | None
+    momentum_score: float | None
+    rs_percentile: float | None
+    close: float
+    high: float | None
+    low: float | None
+    sma_50: float | None
+    atr_14: float | None
+    entry_price: float
+    signal_strength: float
+    signal_quality_score: float | None
+    trend_template_score: float | None
+    trend_score: float | None
+    sector: str | None
+    industry: str | None
+    buylevel: float | None
+    stoplevel: float | None
+    volume_surge_pct: float | None
+    market_stage: str
+    signal_date: str | None
+    base_type: str | None
+    base_quality: str | None
+    risk_score: float
 
 
 class Phase7Contract(TypedDict, total=False):

@@ -405,12 +405,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s (DB error): %s", symbol, str(e)[:200])
                         update_errors.append((symbol, str(e)[:100]))
-                    except (ValueError, TypeError, KeyError) as e:
+                    except (ValueError, TypeError) as e:
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s (data error): %s", symbol, str(e)[:200])
                         update_errors.append((symbol, str(e)[:100]))
-                    except Exception as e:
-                        # Use % formatting to avoid f-string format errors when exception contains braces
-                        logger.error("[PHASE 3 CRITICAL] Failed to update %s (unknown): %s: %s", symbol, type(e).__name__, str(e)[:200])
+                    except ArithmeticError as e:
+                        logger.error("[PHASE 3 CRITICAL] Failed to update %s (arithmetic error): %s", symbol, str(e)[:200])
                         update_errors.append((symbol, str(e)[:100]))
 
                 # GOVERNANCE: Fail-fast on ALL update errors. The code above explicitly fails on:

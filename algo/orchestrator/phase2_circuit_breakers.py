@@ -420,6 +420,14 @@ def run(  # noqa: C901
         )
         log_phase_error(2, error, log_phase_result_fn)
         logger.critical(f"[PHASE 2] Circuit breaker check failed (validation error): {str(e)[:100]}")
+        return PhaseResult(
+            2,
+            "circuit_breakers",
+            "halted",
+            {"status": "halted", "reason": f"Circuit breaker check failed: {str(e)[:80]}"},
+            True,
+            f"Circuit breaker check failed: {str(e)[:80]}",
+        )
     except Exception as e:
         error = PhaseError(
             category=ErrorCategory.DEPENDENCY_FAILED,

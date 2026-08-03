@@ -437,7 +437,7 @@ def _log_signal_rejection(
         raise RuntimeError(f"Signal rejection audit logging failed for {symbol}: {e}") from e
 
 
-def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool) -> int:
+def _persist_signals_to_database(qualified_trades: list[QualifiedTrade], run_date: _date, dry_run: bool) -> int:
     """Persist Phase 7 generated signals to algo_signals table for dashboard display.
 
     CRITICAL FIX: Signals were being generated but never saved, causing:
@@ -1206,7 +1206,7 @@ def run(
         )
 
     # Use dict for subsequent operations
-    exposure_constraints = exposure_constraints_dict
+    exposure_constraints = cast(ExposureConstraints, exposure_constraints_dict)
 
     # ISSUE 15 FIX: Validate constraints before using in Phase 8
     try:
@@ -1763,8 +1763,8 @@ def run(
     # ISSUE 4 FIX: Data quality edge cases validation - validate ATR and SMA before trade processing
     # AUDIT TRAIL: Log successful validation passes for audit trail and monitoring
     # Check technical data quality for all symbols in qualified_trades
-    validated_trades = []
-    data_quality_failures = {}
+    validated_trades: list[QualifiedTrade] = []
+    data_quality_failures: dict[str, str] = {}
 
     for signal in qualified_trades:
         symbol = signal.get("symbol")
@@ -1814,7 +1814,7 @@ def run(
     # keep only the highest-quality one (by composite_score). Attempting to enter
     # multiple positions for the same symbol causes idempotent duplicate failures.
     # This can happen if multiple technical patterns trigger for same symbol.
-    signal_by_symbol: dict[str | None, dict[str, Any]] = {}
+    signal_by_symbol: dict[str | None, QualifiedTrade] = {}
     duplicate_signals_removed = 0
     for signal in validated_trades:
         symbol = signal.get("symbol")
@@ -1865,6 +1865,48 @@ def run(
             error_msg = f"[PHASE 8] Database connectivity check failed before trade execution: {db_test_err}. Rejecting all trades to prevent partial execution."
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_test_err
+
+        # Pre-flight validation pass: test position sizing and pretrade checks
+        # for all trades before executing any. This catches issues upfront that would
+        # cause partial execution if discovered mid-loop.
+        validation_failures = []
+        for preflight_signal in qualified_trades:
+            preflight_symbol = preflight_signal.get("symbol")
+            if not preflight_symbol:
+                validation_failures.append("missing_symbol")
+                continue
+
+            try:
+                # Validate position sizing would work for this trade
+                preflight_entry = float(preflight_signal.get("entry_price", 0) or 0)
+                if preflight_entry <= 0:
+                    validation_failures.append(f"{preflight_symbol}:invalid_entry_price")
+                    continue
+
+                # Validate data available for sizing
+                if str(preflight_symbol) not in merged_technical_data:
+                    validation_failures.append(f"{preflight_symbol}:missing_tech_data")
+                    continue
+
+                preflight_tech = merged_technical_data[str(preflight_symbol)]
+                if not preflight_tech.get("atr_14") or not preflight_tech.get("sma_50"):
+                    validation_failures.append(f"{preflight_symbol}:incomplete_tech_data")
+                    continue
+
+            except Exception as preflight_err:
+                validation_failures.append(f"{preflight_symbol}:validation_error:{str(preflight_err)[:50]}")
+                continue
+
+        if validation_failures:
+            error_msg = (
+                f"[PHASE 8 CRITICAL] All-or-nothing validation failed for {len(validation_failures)} trades. "
+                f"Rejecting all trades to prevent partial execution. "
+                f"Issues: {validation_failures[:3]}" +
+                (f"... and {len(validation_failures)-3} more" if len(validation_failures) > 3 else "")
+            )
+            logger.critical(error_msg)
+            log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+            raise RuntimeError(error_msg)
 
     # ISSUE 14 FIX: Track per-trade execution with resource cleanup
     successfully_entered = 0
@@ -2203,15 +2245,15 @@ def run(
                 skipped_count += 1
                 continue
 
-            composite_score = signal.get("composite_score")
-            rs_pct = signal.get("rs_percentile")
+            sig_composite_score = signal.get("composite_score")
+            sig_rs_pct = signal.get("rs_percentile")
 
-            if composite_score is None:
+            if sig_composite_score is None:
                 raise RuntimeError(
                     f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field - "
                     f"cannot execute trade without signal quality validation."
                 )
-            if rs_pct is None:
+            if sig_rs_pct is None:
                 raise RuntimeError(
                     f"[PHASE 8] Signal for {symbol} missing required 'rs_percentile' field - "
                     f"cannot execute trade without relative strength validation."
@@ -2234,6 +2276,8 @@ def run(
                 continue
 
             trend_score = signal.get("trend_template_score")
+            composite_score = sig_composite_score  # Re-assign for use in logging below
+            rs_pct = sig_rs_pct  # Re-assign for use in logging below
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             min_sqs_val = config.get("min_signal_quality_score")
@@ -2259,7 +2303,7 @@ def run(
             logger.info(
                 f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
-                f"composite={composite_score} rs_pct={rs_pct} sqs={sqs} trend={trend_score}"
+                f"composite={sig_composite_score} rs_pct={sig_rs_pct} sqs={sqs} trend={trend_score}"
             )
 
             if not dry_run:
