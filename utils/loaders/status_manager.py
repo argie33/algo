@@ -234,6 +234,10 @@ class LoaderStatusManager:
         ISSUE #9 FIX: Wrapped in advisory lock to prevent concurrent status updates.
         ERROR COUNT TRACKING: Now logs symbols_failed count for visibility into partial failures.
 
+        PRODUCTION SAFETY FIX (2026-08-03): Don't mark as COMPLETED if completion_pct < 98%
+        (previous runs marked 95.75% completion as COMPLETE, masking data integrity issues).
+        Always use runner.py fail_rate check before calling mark_completed.
+
         Args:
             execution_duration_sec: Optional execution duration for performance tracking
             http_status: Optional HTTP status code from API call (200=ok)
