@@ -114,7 +114,6 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
     t.add_column("Grow", justify="right", no_wrap=True, width=5)
     t.add_column("Stab", justify="right", no_wrap=True, width=5)
     t.add_column("Pos", justify="right", no_wrap=True, width=4)
-    t.add_column("RS%", justify="right", no_wrap=True, width=4)
     t.add_column("Chg%", justify="right", no_wrap=True, width=5)
     t.add_column("Sector", no_wrap=True, width=10)
 
@@ -127,14 +126,12 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
         grwth = safe_get_field(sc, "growth_score")
         stab = safe_get_field(sc, "stability_score")
         pos = safe_get_field(sc, "positioning_score")
-        rs_pct = safe_get_field(sc, "rs_percentile")
         chg = safe_get_field(sc, "change_percent")
         sector = (safe_get_field(sc, "sector") or "")[:12]
         comp_v: float | None = safe_float(comp)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
         chg_v: float | None = safe_float(chg)
         chg_c: str = "green" if chg_v is not None and chg_v > 0 else ("red" if chg_v is not None and chg_v < 0 else "dim")
-        rs_v: float | None = safe_float(rs_pct)
 
         t.add_row(
             sym,
@@ -145,10 +142,6 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
             _score_cell(grwth),
             _score_cell(stab),
             _score_cell(pos),
-            Text(
-                f"{rs_v:.0f}" if rs_v is not None else "--",
-                style="green" if rs_v is not None and rs_v >= 70 else "dim",
-            ),
             Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
             Text(sector, style="dim"),
         )

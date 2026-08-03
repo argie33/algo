@@ -408,12 +408,22 @@ def run(
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"[PHASE 6] Sector concentration check skipped (DB error): {e}")
                 return []
-            except (ValueError, KeyError, TypeError) as e:
+            except (ValueError, RuntimeError) as e:
+                # Critical errors (missing config) must halt
+                error_msg = str(e)
+                if "CRITICAL" in error_msg or "missing" in error_msg.lower():
+                    raise  # Re-raise critical errors - let outer handler see them and halt
+                # Data errors can gracefully degrade
+                logger.warning(f"[PHASE 6] Sector concentration check skipped (data error): {e}")
+                return []
+            except (KeyError, TypeError) as e:
+                # Type/key errors - gracefully degrade
                 logger.warning(f"[PHASE 6] Sector concentration check skipped (data error): {e}")
                 return []
             except Exception as e:
-                logger.warning(f"[PHASE 6] Sector concentration check skipped (unexpected error): {e}")
-                return []
+                # Unexpected errors - halt to be safe
+                logger.error(f"[PHASE 6] Sector concentration check unexpected error: {type(e).__name__}: {e}")
+                raise RuntimeError(f"[PHASE 6] Sector concentration check failed unexpectedly: {e}") from e
 
         # Check for position size concentration and add force-exit recommendations for oversized positions
         # Position size limit: configured via max_position_size_pct (default 6%)
@@ -477,12 +487,17 @@ def run(
                         )
                     total_value = result[0]
                     if total_value is None:
-                        # This should NOT happen after the NULL check above, but guard against it anyway
-                        logger.warning(
-                            "[PHASE 6] SUM(position_value) returned NULL despite NULL count check passing. "
-                            "Skipping concentration check - will be retried next run."
+                        # CRITICAL: This indicates data integrity failure - NULL position values corrupt SUM()
+                        # Must halt concentration check to prevent silent failure
+                        error_msg = (
+                            "[PHASE 6 CRITICAL] SUM(position_value) returned NULL despite NULL count check passing. "
+                            "This indicates data integrity failure in position_value field. "
+                            "Cannot assess total portfolio value when position data is corrupt. "
+                            "Halting concentration check to prevent risk assessment failure."
                         )
-                        return []
+                        logger.critical(error_msg)
+                        raise RuntimeError(f"[PHASE 6] Data integrity: SUM(position_value) is NULL. Cannot proceed with concentration check.")
+
                     try:
                         total_value_float = _ensure_float(total_value, "SUM(position_value)")
                     except (TypeError, ValueError) as e:
@@ -637,29 +652,50 @@ def run(
                         logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (position size {pct:.1f}% exceeds {limit:.0f}% limit)")
 
                     return rebalance_actions
-            except Exception as e:
+            except (ValueError, RuntimeError) as e:
+                # Critical errors (missing config, NULL positions) must halt
+                # Do NOT degrade - these are safety checks
+                error_msg = str(e)
+                if "CRITICAL" in error_msg or "missing" in error_msg.lower() or "data integrity" in error_msg.lower():
+                    raise  # Re-raise critical errors - let outer handler see them and halt
+                # Data type conversion errors can gracefully degrade
                 logger.warning(f"[PHASE 6] Position size concentration check data issue (degrading): {type(e).__name__}: {e}")
                 return []
+            except Exception as e:
+                # Other unexpected errors - halt to be safe
+                logger.error(f"[PHASE 6] Position size concentration check unexpected error: {type(e).__name__}: {e}")
+                raise RuntimeError(f"[PHASE 6] Concentration check failed unexpectedly: {e}") from e
 
         # Add concentration rebalance actions to the exposure_actions queue
-        # ARCHITECTURAL FIX: Concentration checks degrade gracefully on data issues
-        # Oversized positions create risk, but data corruption/missing values shouldn't halt the entire orchestrator
-        # Previous design halted on ANY exception. New design: skip that check, continue with others
+        # CRITICAL: Concentration checks must HALT on critical errors (missing config, data integrity)
+        # Only degrade on transient data issues (single position has bad data)
         sector_concentration_actions = []
         size_concentration_actions = []
         try:
             sector_concentration_actions = _check_sector_concentration()
-        except Exception as e:
-            logger.warning(
-                f"[PHASE 6] Sector concentration check failed (data issue, skipping): {type(e).__name__}: {e}"
-            )
+        except RuntimeError as e:
+            # Critical failures must halt
+            error_msg = str(e)
+            if ("CRITICAL" in error_msg or "Data integrity" in error_msg or
+                "concentration check failed unexpectedly" in error_msg):
+                raise  # Let it propagate - this must halt Phase 6
+            # Other RuntimeErrors can be logged and skipped
+            logger.warning(f"[PHASE 6] Sector concentration check failed: {e}")
             sector_concentration_actions = []
+
         try:
             size_concentration_actions = _check_position_size_concentration()
-        except Exception as e:
-            logger.warning(
-                f"[PHASE 6] Position size concentration check failed (data issue, skipping): {type(e).__name__}: {e}"
-            )
+        except RuntimeError as e:
+            # Critical failures must halt:
+            # - "CRITICAL" in message (explicit critical errors)
+            # - "Data integrity" in message (data validation failures)
+            # - "concentration check failed unexpectedly" (programming errors)
+            error_msg = str(e)
+            if ("CRITICAL" in error_msg or "Data integrity" in error_msg or
+                "concentration check failed unexpectedly" in error_msg):
+                raise  # Let it propagate - this must halt Phase 6
+            # Other RuntimeErrors can be logged and skipped
+            logger.warning(f"[PHASE 6] Position size concentration check failed: {e}")
             size_concentration_actions = []
         # Guard against None values - ensure lists are always valid
         sector_concentration_actions = sector_concentration_actions or []

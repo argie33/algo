@@ -219,6 +219,17 @@ class OptimalLoader:
         return max(values)
 
     @property
+    def max_fail_rate(self) -> float:
+        """Maximum percentage of symbols allowed to fail before marking load as failed.
+
+        Default: 5% (conservative). Subclasses can override for different requirements.
+        Price loader: 2% (critical data, high failure is a blocker).
+        SEC/financial data: 5% (more lenient, API rate limiting is expected).
+        """
+        from loaders.config import get_loader_max_fail_rate
+        return get_loader_max_fail_rate("default")
+
+    @property
     def router(self) -> Any:
         if self._router is None:
             from utils.data.source_router import DataSourceRouter

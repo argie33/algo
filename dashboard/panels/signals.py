@@ -385,6 +385,7 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
     sig_table.add_column("Stop", justify="right", no_wrap=True, min_width=7)
     sig_table.add_column("Target", justify="right", no_wrap=True, min_width=8)
     sig_table.add_column("RSI", justify="right", no_wrap=True, min_width=5)
+    sig_table.add_column("RS%", justify="right", no_wrap=True, min_width=4)
     sig_table.add_column("Setup", no_wrap=True, max_width=18)
     sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=5)
 
@@ -402,6 +403,7 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
             stop_lvl = safe_get_field(sig_obj, "stoplevel")
         target = safe_get_field(sig_obj, "profit_target_20pct")
         rsi = safe_get_field(sig_obj, "rsi")
+        rs_pct = safe_get_field(sig_obj, "rs_percentile")
         rr_ratio = safe_get_field(sig_obj, "risk_reward_ratio")
         base_type = safe_get_field(sig_obj, "base_type")
         market_stage = safe_get_field(sig_obj, "market_stage")
@@ -418,6 +420,7 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
         stop_lvl_f: float | None = safe_float(stop_lvl)
         target_f: float | None = safe_float(target)
         rsi_f: float | None = safe_float(rsi)
+        rs_v: float | None = safe_float(rs_pct)
 
         setup_parts = [p for p in (base_type, market_stage.replace("Stage ", "S") if market_stage else None) if p]
         setup_s = " · ".join(setup_parts) if setup_parts else "--"
@@ -432,6 +435,10 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
             Text(
                 f"{rsi_f:.0f}" if rsi_f is not None else "--",
                 style=R if rsi_f is not None and rsi_f > 70 else (G if rsi_f is not None and rsi_f < 30 else "white"),
+            ),
+            Text(
+                f"{rs_v:.0f}" if rs_v is not None else "--",
+                style=G if rs_v is not None and rs_v >= 70 else "dim",
             ),
             Text(setup_s, style=DIM if setup_s == "--" else "white"),
             Text(f"{rr_v:.2f}" if rr_v is not None else "--", style=rr_c),
@@ -598,6 +605,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
         sig_tbl.add_column("T +20%", justify="right", no_wrap=True, min_width=7)
         sig_tbl.add_column("T +25%", justify="right", no_wrap=True, min_width=7)
         sig_tbl.add_column("RSI", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("RS%", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("ADX", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("Vol Surge", justify="right", no_wrap=True, min_width=8)
         sig_tbl.add_column("R/R", justify="right", no_wrap=True, min_width=5)
@@ -616,6 +624,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
             t20 = safe_float(safe_get_field(bs, "profit_target_20pct"))
             t25 = safe_float(safe_get_field(bs, "profit_target_25pct"))
             rsi_v = safe_float(safe_get_field(bs, "rsi"))
+            rs_v = safe_float(safe_get_field(bs, "rs_percentile"))
             adx_v = safe_float(safe_get_field(bs, "adx"))
             vol_surge = safe_float(safe_get_field(bs, "volume_surge_pct"))
             rr_v = safe_float(safe_get_field(bs, "risk_reward_ratio"))
@@ -643,6 +652,10 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
                 Text(
                     f"{rsi_v:.0f}" if rsi_v is not None else "--",
                     style=R if rsi_v is not None and rsi_v > 70 else (G if rsi_v is not None and rsi_v < 30 else "white"),
+                ),
+                Text(
+                    f"{rs_v:.0f}" if rs_v is not None else "--",
+                    style=G if rs_v is not None and rs_v >= 70 else "dim",
                 ),
                 Text(f"{adx_v:.0f}" if adx_v is not None else "--", style=DIM),
                 Text(
