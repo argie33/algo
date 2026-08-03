@@ -4507,6 +4507,7 @@ def _build_results_panel(
     notifs: list[Any],
     hlth: dict[str, Any] | list[Any] | None = None,
     exec_patterns: dict[str, Any] | None = None,
+    orch_extended: dict[str, Any] | None = None,
 ) -> Panel:
     """Build ALGO HEALTH EXPANDED panel: PHASE EXECUTION DETAIL, run history, and
     cross-run phase reliability trend.
@@ -4519,12 +4520,16 @@ def _build_results_panel(
     - Phase Reliability: 30-day cross-run trend of which phases halt/error most, and why
       (is this phase failing all the time, or was this a one-off?)
     - Past runs: per-run phase completion breakdown, not just overall run status
+    - Run History / Phase Health / Failure Patterns: longer-window orchestrator health,
+      from orch_extended - moved here from the data-freshness [l] panel
 
     Args:
         run: Run data (for phase status mapping)
         hlth: Health data containing execution_health with all phase details
         exec_patterns: 30-day per-phase halt/error counts + example reasons (from
             /api/algo/execution/patterns) - the cross-run trend view
+        orch_extended: Extended orchestrator data (run_history, phase_health,
+            failure_patterns) from /api/algo/freshness/extended
 
     Returns:
         Rich Panel focused entirely on phase execution detail
@@ -4868,6 +4873,16 @@ def _build_results_panel(
     # Per-run detail (last 8 runs) - how far each specific run got, and which phase stopped it
     past_runs_rows = _build_past_runs_section(exec_hist)
 
+    # Long-window orchestrator/phase health (moved here from the data-freshness [l] panel -
+    # this is run/phase health information, not per-table data freshness, so it belongs on
+    # this panel instead; see panel_data_freshness_expanded for the table-freshness detail
+    # that panel kept).
+    run_history_rows = _build_run_history_section(orch_extended.get("run_history") if orch_extended else None)
+    phase_health_rows = _build_phase_health_section(orch_extended.get("phase_health") if orch_extended else None)
+    failure_pattern_rows = _build_halt_reason_pattern_section(
+        orch_extended.get("failure_patterns") if orch_extended else None
+    )
+
     # Add header at top if we have it, then phase detail, then trend, then per-run history
     content_rows: list[Any] = []
     if header_rows:
@@ -4878,6 +4893,12 @@ def _build_results_panel(
         content_rows.extend(reliability_rows)
     if past_runs_rows:
         content_rows.extend(past_runs_rows)
+    if run_history_rows:
+        content_rows.extend(run_history_rows)
+    if phase_health_rows:
+        content_rows.extend(phase_health_rows)
+    if failure_pattern_rows:
+        content_rows.extend(failure_pattern_rows)
 
     all_content = Group(*content_rows) if content_rows else layout
 
@@ -4898,6 +4919,7 @@ def panel_algo_health_expanded(
     exec_hist: list[Any] | None = None,
     risk: dict[str, Any] | None = None,
     exec_patterns: dict[str, Any] | None = None,
+    orch_extended: dict[str, Any] | None = None,
 ) -> Panel:
     """Full-screen algo health: run outcome, phase execution detail, run history,
     30-day phase reliability trend, alerts.
@@ -4927,7 +4949,15 @@ def panel_algo_health_expanded(
     if exec_patterns is None:
         logger.debug("Health panel: exec_patterns unavailable - phase reliability trend will be omitted")
     return _build_results_panel(
-        run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth, exec_patterns=exec_patterns
+        run,
+        act,
+        algo_metrics_display,
+        exec_hist_display,
+        risk,
+        notifs,
+        hlth,
+        exec_patterns=exec_patterns,
+        orch_extended=orch_extended,
     )
 
 
@@ -4938,7 +4968,12 @@ def panel_data_freshness_expanded(
     orch_extended: dict[str, Any] | None = None,
     signal_freshness: dict[str, Any] | None = None,
 ) -> Panel:
-    """Full-screen data freshness: orchestrator run history + phase health + failure patterns + loader metrics + existing freshness table.
+    """Full-screen data freshness: loader metrics + existing per-table freshness detail.
+
+    Run history / phase health / failure patterns moved to panel_algo_health_expanded
+    (the [h] panel) - that's phase/run health, not per-table data freshness, and having
+    it prepended here was crowding out the per-table freshness detail this panel exists
+    to show.
 
     Args:
         hlth: Health/data-status response (per-table freshness)
@@ -4965,26 +5000,10 @@ def panel_data_freshness_expanded(
     )
 
     # If we have extended orchestrator data, prepend the new sections
+    # (run history / phase health / failure patterns live on the [h] panel now - see
+    # panel_algo_health_expanded - since they're phase/run health, not table freshness)
     if orch_extended and isinstance(orch_extended, dict):
         rows: list[Any] = []
-
-        # Add run history
-        run_history = orch_extended.get("run_history", [])
-        run_history_rows = _build_run_history_section(run_history)
-        if run_history_rows:
-            rows.extend(run_history_rows)
-
-        # Add phase health
-        phase_health = orch_extended.get("phase_health", {})
-        phase_health_rows = _build_phase_health_section(phase_health)
-        if phase_health_rows:
-            rows.extend(phase_health_rows)
-
-        # Add failure patterns
-        failure_patterns = orch_extended.get("failure_patterns", [])
-        failure_pattern_rows = _build_halt_reason_pattern_section(failure_patterns)
-        if failure_pattern_rows:
-            rows.extend(failure_pattern_rows)
 
         # Add loader health
         loader_health = orch_extended.get("loader_health", [])

@@ -333,6 +333,7 @@ def render_expanded_view(  # noqa: C901
                     ctx.exec_hist,
                     risk=ctx.risk,
                     exec_patterns=ctx.exec_patterns,
+                    orch_extended=ctx.orch_extended,
                 ),
             )
         case "data_freshness":

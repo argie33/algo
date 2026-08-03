@@ -96,7 +96,6 @@ logger = logging.getLogger(__name__)
 
 _LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDIT FIX Session 276)
 _MAX_WORKERS = 4
-_MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
 _SIGNAL_COUNT_ANOMALY_THRESHOLD = 250  # Default/fallback if dynamic calculation fails (historical median 300-1000+)
 

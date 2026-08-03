@@ -179,7 +179,7 @@ class RegimeManager:
 
             return regime
 
-        except (OSError, RuntimeError, ValueError) as e:
+        except (OSError, RuntimeError, ValueError, psycopg2.Error) as e:
             logger.critical(f"Regime fetch CRITICAL FAILURE: {e}")
             raise RuntimeError(f"[REGIME] Failed to determine market regime (cannot trade without regime): {e}") from e
 
@@ -347,7 +347,7 @@ class RegimeManager:
             )
         except RuntimeError:
             raise
-        except (OSError, ValueError, KeyError) as e:
+        except (OSError, ValueError, KeyError, psycopg2.Error) as e:
             raise RuntimeError(
                 f"Failed to fetch market exposure confidence: {e}. "
                 "Cannot compute position size multipliers without regime data."

@@ -5,30 +5,23 @@ Extracted responsibilities:
 - Database connectivity checks
 - Connection pool monitoring
 - Table validation
-- Long-running task termination
 - System diagnostics
+- Verifying ECS task termination (called by Orchestrator._kill_long_running_loaders())
 
-Eliminates divergent change in Orchestrator by centralizing all DB health logic.
+A full duplicate of Orchestrator._kill_long_running_loaders() itself used to live
+here too (dead code, never called - only verify_task_stopped() below was actually
+used by the orchestrator) and was removed 2026-08-05.
 """
 
 import logging
-import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
 
-from algo.infrastructure import MarketCalendar
 from algo.infrastructure.constants import DB_STATEMENT_TIMEOUT_MS
 from utils.db import DatabaseContext, assert_safe_table
-from utils.infrastructure import (
-    EASTERN_TZ,
-    MARKET_OPEN_HOUR,
-    MARKET_OPEN_MINUTE,
-    ORCHESTRATOR_KILL_BUFFER_MINUTES,
-    ORCHESTRATOR_RUN_TIMES_TUPLE,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +161,8 @@ class DatabaseHealthMonitor:
 
         ISSUE #5 FIX: Prevents hung tasks consuming RDS connections by verifying termination.
         Retries with escalating delays because ECS stop_task is async and may fail silently.
+
+        Called by Orchestrator._kill_long_running_loaders() after it issues ecs.stop_task().
         """
         for attempt in range(1, max_retries + 1):
             try:
@@ -236,186 +231,6 @@ class DatabaseHealthMonitor:
             "RDS connection may not be released. Manual intervention required."
         )
         return False
-
-    def kill_long_running_loaders(self, log_phase_result: Any) -> None:
-        """CRITICAL: Kill hung loaders if approaching next orchestrator run.
-
-        Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
-        iterate 5000+ symbols with yfinance rate limits and can run 6+ hours.
-
-        Critical-path loaders (trend_template_data, sector_ranking,
-        market_health_daily, market_exposure_daily, algo_metrics_daily) should complete within
-        30-90 minutes. If still running 15 min before next orchestrator run, they're hung and
-        consuming RDS connections.
-
-        Args:
-            log_phase_result: Callback to log phase results
-        """
-        try:
-            import boto3
-
-            ecs = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
-            cluster = os.getenv("ECS_CLUSTER_ARN", "algo-cluster")
-
-            analytics_loaders = {
-                "company_profile",
-                "analyst_sentiment",
-                "stability_metrics",
-                "value_metrics",
-            }
-            critical_path_loaders = {
-                "trend_template_data",
-                "sector_ranking",
-                "market_health_daily",
-                "market_exposure_daily",
-                "algo_metrics_daily",
-            }
-            monitored_loaders = analytics_loaders | critical_path_loaders
-
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-
-            next_orch_et = None
-            for orch_hour, orch_minute in ORCHESTRATOR_RUN_TIMES_TUPLE:
-                orch_time = now_et.replace(hour=orch_hour, minute=orch_minute, second=0, microsecond=0)
-                if orch_time > now_et:
-                    next_orch_et = orch_time
-                    break
-
-            if next_orch_et is None:
-                next_orch_et = (now_et + timedelta(days=1)).replace(
-                    hour=MARKET_OPEN_HOUR,
-                    minute=MARKET_OPEN_MINUTE,
-                    second=0,
-                    microsecond=0,
-                )
-                while not MarketCalendar.is_trading_day(next_orch_et.date()):
-                    next_orch_et += timedelta(days=1)
-
-            kill_threshold_et = next_orch_et - timedelta(minutes=ORCHESTRATOR_KILL_BUFFER_MINUTES)
-            max_runtime = kill_threshold_et - now_et
-
-            if max_runtime.total_seconds() <= 0:
-                logger.debug("[OOM_PREVENTION] Next orchestrator run is imminent, using 5 min max runtime")
-                max_runtime = timedelta(minutes=5)
-
-            logger.debug(
-                f"[OOM_PREVENTION] Next orchestrator run at {next_orch_et.strftime('%H:%M')} ET. "
-                f"Kill timeout: {max_runtime.total_seconds() / 60:.0f} minutes"
-            )
-
-            response = ecs.list_tasks(cluster=cluster, desiredStatus="RUNNING")
-            task_arns = response.get("taskArns")
-            if not task_arns:
-                return
-            if not isinstance(task_arns, list):
-                logger.error(f"[OOM_PREVENTION] Unexpected taskArns type: {type(task_arns)}, expected list")
-                return
-
-            task_details = ecs.describe_tasks(cluster=cluster, tasks=task_arns)
-            now = datetime.now(timezone.utc)
-
-            if not isinstance(task_details, dict):
-                logger.error(f"[OOM_PREVENTION] Unexpected task_details type: {type(task_details)}, expected dict")
-                return
-
-            tasks = task_details.get("tasks")
-            if not isinstance(tasks, list):
-                logger.error(f"[OOM_PREVENTION] Unexpected tasks type: {type(tasks)}, expected list")
-                return
-
-            failed_terminations = []
-            for task in tasks:
-                task_def = task.get("taskDefinitionArn", "")
-                loader_name = None
-                for loader in monitored_loaders:
-                    if loader in task_def:
-                        loader_name = loader
-                        break
-
-                if not loader_name:
-                    continue
-
-                started_at = task.get("startedAt")
-                if not started_at:
-                    task_arn = task.get("taskArn", "unknown")
-                    raise ValueError(
-                        f"[CRITICAL] Task missing startedAt field - cannot assess if hung. "
-                        f"This indicates ECS metadata corruption or schema change. "
-                        f"Cannot proceed with OOM prevention. Task: {task_arn}"
-                    )
-
-                if started_at.tzinfo is None:
-                    started_at = started_at.replace(tzinfo=timezone.utc)
-
-                age = now - started_at
-                if age > max_runtime:
-                    task_arn = task.get("taskArn")
-                    logger.warning(
-                        f"[OOM_PREVENTION] Killing {loader_name} task (running {age.total_seconds() / 3600:.1f}h, "
-                        f"max {max_runtime.total_seconds() / 3600:.1f}h before next orch run): {task_arn}"
-                    )
-
-                    try:
-                        ecs.stop_task(
-                            cluster=cluster,
-                            task=task_arn,
-                            reason="Loader hung beyond timeout before next orchestrator run",
-                        )
-                    except (ValueError, KeyError, AttributeError) as stop_err:
-                        logger.critical(
-                            f"[TASK_TERMINATION] CRITICAL: Failed to kill hung loader {loader_name}: {stop_err}. "
-                            f"Task will continue consuming resources. Manual intervention required: {task_arn}"
-                        )
-                        failed_terminations.append((loader_name, task_arn, str(stop_err)))
-                        # Mark health monitor as degraded - don't silently continue
-                        log_phase_result(
-                            0,
-                            "oom_prevention",
-                            "failure",
-                            f"Failed to kill hung {loader_name} task. Manual intervention required: {stop_err}",
-                        )
-
-                    if self.verify_task_stopped(ecs, cluster, task_arn, loader_name):
-                        log_phase_result(
-                            0,
-                            "oom_prevention",
-                            "success",
-                            f"Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h",
-                        )
-                    else:
-                        failed_terminations.append((loader_name, task_arn, "verification timeout"))
-
-            if failed_terminations:
-                error_details = "; ".join([f"{name}: {err}" for name, arn, err in failed_terminations])
-                logger.critical(
-                    f"[TASK_TERMINATION] ESCALATION: {len(failed_terminations)} task termination(s) failed. "
-                    f"{error_details}"
-                )
-                try:
-                    self.alerts.send_position_alert(
-                        "TASK_TERMINATION",
-                        "HUNG_LOADER_TERMINATION_FAILED",
-                        f"Failed to terminate {len(failed_terminations)} hung loaders. RDS connections may not be released. "
-                        f"Check CloudWatch logs and manually stop: {', '.join([arn.split('/')[-1] for _, arn, _ in failed_terminations])}",
-                        {
-                            "failed_tasks": [
-                                {"loader": name, "task_arn": arn, "error": err}
-                                for name, arn, err in failed_terminations
-                            ]
-                        },
-                    )
-                except (ValueError, ZeroDivisionError, TypeError) as alert_err:
-                    logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
-
-        except (
-            ValueError,
-            KeyError,
-            AttributeError,
-            psycopg2.DatabaseError,
-            psycopg2.OperationalError,
-        ) as e:
-            logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
 
     def validate_required_tables(self, cur: Any) -> bool:
         """FIXED Issue #23: Validate that all required tables exist before running phases.

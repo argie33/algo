@@ -196,7 +196,7 @@ def create_execution_mode_strategy(mode: str) -> ExecutionModeStrategy:
     """Factory to create execution mode strategy.
 
     Args:
-        mode: Execution mode string ('paper', 'review', 'auto')
+        mode: Execution mode string ('paper', 'dry', 'review', 'auto')
 
     Returns:
         ExecutionModeStrategy: Concrete strategy instance

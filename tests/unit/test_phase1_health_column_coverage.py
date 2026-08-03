@@ -13,12 +13,68 @@ coverage instead of relying on live reproduction to catch a regression.
 
 import logging
 from datetime import date
+from unittest.mock import MagicMock
 
 import pytest
 
-from algo.orchestrator.phase1_data_freshness import _check_health_column_coverage
+from algo.orchestrator.phase1_data_freshness import (
+    _check_health_column_coverage,
+    _fetch_health_distinctness_window,
+)
 
 _LOGGER_NAME = "algo.orchestrator.phase1_data_freshness"
+
+
+class TestHealthDistinctnessWindow:
+    """CRITICAL FIX 2026-08-03 regression: market_health_daily has exactly one row per
+    date, so a distinctness check scoped to a single date was mathematically guaranteed
+    to always report <= 1 distinct value - the "copy-paste detector" fired every single
+    run regardless of real data quality. Distinctness must be measured across a trailing
+    multi-day window instead."""
+
+    def test_returns_none_when_insufficient_window_history(self) -> None:
+        """Fewer than 5 rows of history in the window - not enough to judge distinctness,
+        must not falsely flag a young/recently-backfilled table as suspicious."""
+        cur = MagicMock()
+        cur.fetchone.return_value = (3, 1, 1)  # only 3 rows in the window
+
+        pcr_distinct, vix_distinct = _fetch_health_distinctness_window(cur, date(2026, 8, 3))
+
+        assert pcr_distinct is None
+        assert vix_distinct is None
+
+    def test_returns_real_distinct_counts_with_enough_history(self) -> None:
+        cur = MagicMock()
+        cur.fetchone.return_value = (10, 7, 8)  # 10 rows, 7 distinct pcr, 8 distinct vix
+
+        pcr_distinct, vix_distinct = _fetch_health_distinctness_window(cur, date(2026, 8, 3))
+
+        assert pcr_distinct == 7
+        assert vix_distinct == 8
+
+    def test_genuinely_stuck_loader_over_a_real_window_is_still_detected(self) -> None:
+        """The check must still catch a REAL copy-paste/stuck loader - a window with
+        enough rows but only 1 distinct value is the actual failure mode this exists to
+        catch, and must not be lost by the window-scoping fix."""
+        cur = MagicMock()
+        cur.fetchone.return_value = (10, 1, 1)  # 10 rows, but always the same value
+
+        pcr_distinct, vix_distinct = _fetch_health_distinctness_window(cur, date(2026, 8, 3))
+
+        assert pcr_distinct == 1
+        assert vix_distinct == 1
+
+    def test_query_is_scoped_to_a_trailing_window_not_a_single_date(self) -> None:
+        """Regression guard: the query itself must use a date range, not WHERE date = X -
+        the exact bug this fix removes."""
+        cur = MagicMock()
+        cur.fetchone.return_value = (10, 5, 5)
+
+        _fetch_health_distinctness_window(cur, date(2026, 8, 3))
+
+        sql = cur.execute.call_args.args[0]
+        assert "date <=" in sql or "date >=" in sql or "BETWEEN" in sql.upper()
+        assert "date = %s" not in sql.replace("\n", " ").replace("    ", " ")
 
 
 class TestHealthColumnCoverage:

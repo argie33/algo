@@ -214,6 +214,19 @@ def main() -> None:
             elif dry_run_override is not None:
                 # For LIVE_TRADING runs, respect explicit ORCHESTRATOR_DRY_RUN override
                 dry_run = dry_run_override.lower() in ("1", "true", "yes")
+                if dry_run:
+                    # WARNING: An ambient ORCHESTRATOR_DRY_RUN=true (e.g. left over in the shell
+                    # from earlier manual testing, or from tests/conftest.py's os.environ set)
+                    # silently turns a --morning/--afternoon/--preclose run into a no-op: Phase 6
+                    # reports "DRY-RUN: execution skipped" and no real stop-raise/exit executes,
+                    # with no other signal that this run type wasn't supposed to be dry-run.
+                    # 2026-08-03: this happened repeatedly across a day's runs, discovered only
+                    # by manually diffing orchestrator_execution_log after the fact.
+                    import sys
+                    print(f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' is forcing "
+                          f"dry-run for --{run_type}, a live-trading run type. No real orders will "
+                          f"execute this run. Unset ORCHESTRATOR_DRY_RUN if this is unintended.",
+                          file=sys.stderr)
             elif run_type in LIVE_TRADING_RUN_IDENTIFIERS:
                 dry_run = False
             else:

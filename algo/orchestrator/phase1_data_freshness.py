@@ -42,6 +42,7 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import date as _date
+from datetime import timedelta as _timedelta
 from typing import Any
 
 import psycopg2
@@ -55,6 +56,41 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_health_distinctness_window(
+    cur: Any, health_max_date: _date, window_days: int = 10
+) -> tuple[int | None, int | None]:
+    """Measure put_call_ratio/vix_level distinctness over a trailing window, not a single date.
+
+    CRITICAL FIX 2026-08-03: market_health_daily has exactly ONE row per date (verified
+    live: every date in the table has COUNT(*)=1). The "copy-paste detector" this used to
+    feed was scoped to `WHERE date = health_max_date`, so COUNT(DISTINCT put_call_ratio)
+    over that single row was mathematically guaranteed to equal 1 (or 0 if NULL) on EVERY
+    SINGLE RUN, regardless of whether the loader was actually stuck on a constant value -
+    it fired the "constant fill or copy-paste, not real market data" warning
+    unconditionally, forever, with zero actual signal despite looking like a real
+    data-quality check. The check's own stated intent ("indicates copy-paste or constant
+    fill") only makes sense measured across multiple days.
+
+    Returns (pcr_distinct, vix_distinct), both None if there isn't enough window history
+    yet (< 5 rows) to make the distinctness check meaningful - a short window can
+    legitimately have low cardinality without indicating a stuck loader.
+    """
+    cur.execute(
+        """
+        SELECT COUNT(*) as window_rows,
+               COUNT(DISTINCT put_call_ratio) as pcr_distinct,
+               COUNT(DISTINCT vix_level) as vix_distinct
+        FROM market_health_daily
+        WHERE date <= %s AND date > %s - %s
+        """,
+        (health_max_date, health_max_date, _timedelta(days=window_days)),
+    )
+    window_row = cur.fetchone()
+    if window_row and window_row[0] is not None and window_row[0] >= 5:
+        return window_row[1], window_row[2]
+    return None, None
 
 
 def _check_health_column_coverage(
@@ -71,6 +107,14 @@ def _check_health_column_coverage(
     - All-same-value data (COUNT(DISTINCT) = 1) is suspicious - indicates copy-paste or constant fill
     - All-NULL data still only warns (optional columns)
     - But if data exists, it must have multiple distinct values to be trusted
+
+    CRITICAL FIX 2026-08-03: pcr_distinct/vix_distinct are now measured across a trailing
+    ~10-day window, not health_max_date's single row. market_health_daily has exactly one
+    row per date (verified live), so COUNT(DISTINCT ...) scoped to a single date was
+    mathematically guaranteed to be <= 1 every run regardless of whether the loader was
+    actually stuck - this "copy-paste detector" fired unconditionally, forever, providing
+    zero real signal. The caller passes None for pcr_distinct/vix_distinct when there isn't
+    enough window history yet (< 5 rows) to make the check meaningful.
 
     total_rows == 0 halts (the whole row is missing, not just an optional column).
     put_call_ratio/vix_level being fully null only warns - see the inline note below,
@@ -905,19 +949,20 @@ def run(  # noqa: C901
                     """
                     SELECT COUNT(*) as total_rows,
                            SUM(CASE WHEN put_call_ratio IS NOT NULL THEN 1 ELSE 0 END) as pcr_rows,
-                           COUNT(DISTINCT put_call_ratio) as pcr_distinct,
-                           SUM(CASE WHEN vix_level IS NOT NULL THEN 1 ELSE 0 END) as vix_rows,
-                           COUNT(DISTINCT vix_level) as vix_distinct
+                           SUM(CASE WHEN vix_level IS NOT NULL THEN 1 ELSE 0 END) as vix_rows
                     FROM market_health_daily
                     WHERE date = %s
                     """,
                     (health_max_date,),
                 )
                 health_col_row = cur.fetchone()
-                if health_col_row and len(health_col_row) >= 5:
-                    total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct = health_col_row[:5]
+                if health_col_row and len(health_col_row) >= 3:
+                    total_rows, pcr_rows, vix_rows = health_col_row[:3]
                 else:
-                    total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct = (0, 0, 0, 0, 0)
+                    total_rows, pcr_rows, vix_rows = (0, 0, 0)
+
+                pcr_distinct, vix_distinct = _fetch_health_distinctness_window(cur, health_max_date)
+
                 _check_health_column_coverage(total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct, health_max_date)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
