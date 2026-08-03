@@ -262,9 +262,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                     # CRITICAL: Periodic pool health check during long-running position updates
                     # If Phase 3 processes many positions (30+ seconds), other processes may consume connections
-                    # CRITICAL FIX 2026-08-02: Check pool every 30 positions (was every 5, high overhead)
-                    # Every 30 positions = ~10-15 seconds depending on update time, catches exhaustion early without spam
-                    if update_idx > 0 and update_idx % 30 == 0:
+                    # CRITICAL FIX 2026-08-02: Check pool every 15 positions (was 30, increased frequency for early detection)
+                    # Every 15 positions = ~5-10 seconds depending on update time, catches exhaustion earlier
+                    if update_idx > 0 and update_idx % 15 == 0:
                         from utils.db.connection_pool import get_pool_health
                         current_health = get_pool_health()
                         current_available_raw = current_health.get("available_conns", 0)
@@ -691,6 +691,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         # Apply same retry mechanism as paper mode to handle transient connection issues
         max_retries = 3
         last_review_error = None
+        entered_degraded_mode = False
 
         for attempt in range(max_retries):
             try:
@@ -718,6 +719,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     # Return partial result: just price updates, skip analysis
                     # Return early with PhaseResult(status='completed_degraded', recommendations=[])
                     recommendations = []
+                    entered_degraded_mode = True
                     break
                 else:
                     # Non-transient error - raise with explicit context
@@ -736,8 +738,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         n_hold = sum(1 for r in recommendations if r["action"] == "HOLD")
         n_failed = sum(1 for r in recommendations if r["action"] == "FAILED_VALIDATION")
 
-        # Determine phase status based on whether we entered degraded mode
-        phase_status = "completed_degraded" if (recommendations is not None and len(recommendations) == 0 and last_review_error) else "ok"
+        # CRITICAL FIX 2026-08-02: Determine phase status based on explicit degraded_mode flag, not error persistence
+        # Previous logic: phase_status checked (len(recommendations) == 0 and last_review_error), which would
+        # mark successful retries as degraded if last_review_error was set by previous failed attempts. Now
+        # use explicit entered_degraded_mode flag to correctly reflect actual mode.
+        phase_status = "completed_degraded" if entered_degraded_mode else "ok"
 
         summary = f"{len(recommendations)} positions reviewed"
         if phase_status == "completed_degraded":

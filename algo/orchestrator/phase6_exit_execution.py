@@ -338,7 +338,10 @@ def run(
                         if not isinstance(max_sector_final, int) or isinstance(max_sector_final, bool):
                             raise TypeError(f"[PHASE 6] max_sector_final conversion failed: {type(max_sector_final).__name__}")
                         # CRITICAL: Subtraction with guaranteed native Python ints
-                        over_limit = count_int_final - max_sector_final
+                        # Convert one final time immediately before arithmetic to handle any Decimal leakage
+                        count_final = int(count_int_final) if isinstance(count_int_final, int) else int(str(count_int_final))
+                        max_final = int(max_sector_final) if isinstance(max_sector_final, int) else int(str(max_sector_final))
+                        over_limit = count_final - max_final
                         logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int_native} positions (limit {max_sector_native}, need to exit {over_limit})")
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
@@ -561,9 +564,13 @@ def run(
                                 continue
 
                             if pct_float_safe > max_size_pct_float_safe:
-                                exceed_amount = pct_float_safe - max_size_pct_float_safe
+                                # CRITICAL FIX: Ensure operands are native floats by converting one final time before arithmetic
+                                # This handles edge cases where a Decimal might slip through despite earlier conversions
+                                pct_final = float(pct_float_safe) if not isinstance(pct_float_safe, float) or isinstance(pct_float_safe, bool) else pct_float_safe
+                                max_final = float(max_size_pct_float_safe) if not isinstance(max_size_pct_float_safe, float) or isinstance(max_size_pct_float_safe, bool) else max_size_pct_float_safe
+                                exceed_amount = pct_final - max_final
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_float_safe:.1f}% (limit {max_size_pct_float_safe:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue
