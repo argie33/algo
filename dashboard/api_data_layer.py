@@ -156,7 +156,7 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
     # Priority 3: Auto-detect localhost ONLY if no AWS config is set
     if not _localhost_checked:
         localhost_url = _check_localhost_available()
-        if localhost_url:
+        if localhost_url is not None:
             _api_base_url_cache = localhost_url
             _api_base_url_source_cache = "AUTO_DETECT_LOCALHOST"
             _localhost_checked = True

@@ -60,9 +60,9 @@ class BaseResponseValidator:
     def validate_type(value: Any, expected_type: type, field_name: str) -> None:
         """Validate single value matches expected type."""
         if expected_type is int:
-            safe_int(value, field_name, strict=True)
+            safe_int(value, default=None, strict=True, field_name=field_name)
         elif expected_type is float:
-            safe_float(value, field_name, strict=True)
+            safe_float(value, default=None, strict=True, field_name=field_name)
         elif not isinstance(value, expected_type):
             raise ResponseValidationError(
                 f"Field '{field_name}' must be {expected_type.__name__}, got {type(value).__name__}"

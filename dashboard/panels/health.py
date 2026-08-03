@@ -1584,7 +1584,7 @@ def panel_orch(
             body_content = Group(*body_rows)
         else:
             if stats_line_obj:
-                body_rows: list[Text | Rule] = [
+                body_rows = [
                     Text.from_markup(
                         f"{sts}  [dim]{age}[/]\n"
                         f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
