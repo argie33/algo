@@ -191,8 +191,11 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 if completeness_pct < 95.0:
                     return False, f"Completeness {completeness_pct:.1f}% (need 95%+ of {critical_col} non-NULL)"
                 return True, ""
-            except Exception as e:
-                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name}: {e}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}")
+                return True, ""  # On error, proceed (don't fail the whole check)
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}")
                 return True, ""  # On error, proceed (don't fail the whole check)
 
         with DatabaseContext("read") as cur:
@@ -252,8 +255,10 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                         results["incomplete_loaders"].append(table_name)
                         logger.warning(f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no data")
 
-                except Exception as e:
-                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name}: {e}")
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (DB error): {e}")
+                except (KeyError, ValueError, TypeError, AttributeError) as e:
+                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (data error): {e}")
 
         if not stale_loaders:
             logger.info("[PHASE 1 FAILSAFE LOCAL] All data current (market-aware check) - no refresh needed")
@@ -300,12 +305,20 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 results["still_failing"].append(table_name)
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
+            except (OSError, IOError, RuntimeError) as e:
+                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
+                results["still_failing"].append(table_name)
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    results["halt_required"] = True
             except Exception as e:
-                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name}: {e}")
+                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
                 results["still_failing"].append(table_name)
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
 
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal database error in local refresh: {e}", exc_info=True)
+        results["halt_required"] = True
     except Exception as e:
         logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal error in local refresh: {e}", exc_info=True)
         results["halt_required"] = True
