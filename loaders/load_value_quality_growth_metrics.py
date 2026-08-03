@@ -775,25 +775,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if cost_of_revenue is not None:
                     curr_gm = ((revenue - cost_of_revenue) / revenue) * 100
                     # Estimate prior gross margin (assume similar structure)
-                    prior_gm = (prior_year_revenue * 0.65) / prior_year_revenue * 100 if prior_year_revenue else curr_gm
+                    prior_gm = (prior_year_revenue * 0.65) / prior_year_revenue * 100 if prior_year_revenue > 0 else curr_gm
                     try:
                         metrics["gross_margin_trend"] = float(round(curr_gm - prior_gm, 2))
                     except (ValueError, TypeError):
                         pass
 
                 # Operating Margin Trend
-                curr_om = (operating_income / revenue) * 100 if operating_income else None
-                prior_om = (prior_year_revenue * 0.15) / prior_year_revenue * 100 if prior_year_revenue else curr_om
-                if curr_om and prior_om:
+                curr_om = (operating_income / revenue) * 100 if operating_income is not None and revenue > 0 else None
+                prior_om = (prior_year_revenue * 0.15) / prior_year_revenue * 100 if prior_year_revenue > 0 else curr_om
+                if curr_om is not None and prior_om is not None:
                     try:
                         metrics["operating_margin_trend"] = float(round(curr_om - prior_om, 2))
                     except (ValueError, TypeError):
                         pass
 
                 # Net Margin Trend
-                curr_nm = (net_income / revenue) * 100 if net_income else None
-                prior_nm = (prior_year_revenue * 0.10) / prior_year_revenue * 100 if prior_year_revenue else curr_nm
-                if curr_nm and prior_nm:
+                curr_nm = (net_income / revenue) * 100 if net_income is not None and revenue > 0 else None
+                prior_nm = (prior_year_revenue * 0.10) / prior_year_revenue * 100 if prior_year_revenue > 0 else curr_nm
+                if curr_nm is not None and prior_nm is not None:
                     try:
                         metrics["net_margin_trend"] = float(round(curr_nm - prior_nm, 2))
                     except (ValueError, TypeError):

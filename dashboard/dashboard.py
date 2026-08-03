@@ -60,12 +60,12 @@ from urllib.parse import urlparse
 
 
 def _is_dev_server_available() -> bool:
-    """Check if dev server is running on 127.0.0.1:3001 (IPv4-only for fast resolution)."""
-    # Check IPv4-only (127.0.0.1) to avoid ~2s delays on IPv6-first Windows systems
-    # Windows resolves 'localhost' to IPv6 (::1) first, causing stalls on IPv4-only servers
-    for host in ["127.0.0.1"]:
+    """Check if dev server is running on localhost:3001 (IPv4 or IPv6)."""
+    # Check both IPv4 (127.0.0.1) and IPv6 (::1) with short timeout for fast detection
+    # on both IPv4-only and IPv6-first systems
+    for host, family in [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]:
         try:
-            sock = socket.socket(socket.AF_INET6 if host == "::1" else socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(family, socket.SOCK_STREAM)
             sock.settimeout(0.5)
             result = sock.connect_ex((host, 3001))
             sock.close()
@@ -665,13 +665,13 @@ def _setup_local_api() -> str:
         logger.error(f"Invalid local API URL: {local_url}")
         sys.exit(1)
 
-    # Check if dev_server is actually running on 127.0.0.1:3001 (IPv4-only)
+    # Check if dev_server is actually running on localhost:3001 (IPv4 or IPv6)
     import socket
 
     dev_server_running = False
-    for host in ["127.0.0.1"]:
+    for host, family in [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(family, socket.SOCK_STREAM)
             sock.settimeout(1)
             result = sock.connect_ex((host, 3001))
             sock.close()
@@ -683,7 +683,7 @@ def _setup_local_api() -> str:
 
     if not dev_server_running:
         # Dev server not running
-        logger.error("[FATAL] Dev server not running on 127.0.0.1:3001 - dashboard requires it for local mode")
+        logger.error("[FATAL] Dev server not running on localhost:3001 - dashboard requires it for local mode")
         try:
             CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on 127.0.0.1:3001[/]")
             CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")
