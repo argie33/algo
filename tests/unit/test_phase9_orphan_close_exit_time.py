@@ -49,7 +49,7 @@ def test_orphan_close_sets_exit_time_not_just_exit_date():
         patch("algo.orchestrator.phase9_reconciliation.acquire_advisory_lock"),
         patch("algo.orchestrator.phase9_reconciliation.release_advisory_lock"),
     ):
-        _record_closed_positions_exits(date(2026, 7, 24), MagicMock())
+        _record_closed_positions_exits({}, date(2026, 7, 24), MagicMock())
 
     trade_update_calls = [
         c for c in mock_write_cur.execute.call_args_list if "UPDATE algo_trades" in str(c.args[0])

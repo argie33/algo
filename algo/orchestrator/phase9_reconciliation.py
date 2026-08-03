@@ -63,8 +63,18 @@ def _run_reconciliation_step(
                 f"Check Alpaca credentials in AWS Secrets Manager or database sync state."
             ) from e
         else:
+            # CRITICAL FIX: this branch covers every non-paper-mode failure, including a real
+            # Alpaca auth error during live ("auto") trading - the highest-stakes case, since
+            # Phase 9 reconciliation failure can gate a governance halt (see phase_executor.py
+            # / the run() halt-wiring below). It still raised the literal string "Paper mode
+            # reconciliation failed" regardless of actual execution_mode - a live-mode incident
+            # reads to on-call as an expected, non-critical local-dev condition. Only the
+            # logger.error() branch above was actually fixed by the comment at the top of this
+            # try/except; the raised message itself was never updated to match.
+            execution_mode = config.get("execution_mode", "unknown")
             raise RuntimeError(
-                f"[PHASE 9] Paper mode reconciliation failed: {type(e).__name__}: {str(e)[:200]}"
+                f"[PHASE 9] Reconciliation failed (execution_mode={execution_mode}): "
+                f"{type(e).__name__}: {str(e)[:200]}"
             ) from e
 
     if "success" not in result:
@@ -1001,6 +1011,7 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
 
 
 def _record_closed_positions_exits(
+    config: Any,
     run_date: _date,
     log_phase_result_fn: Callable[..., Any],
 ) -> None:
@@ -1037,7 +1048,16 @@ def _record_closed_positions_exits(
         # Fetch actual broker exit prices for any closed sells
         broker_exit_prices = {}  # symbol -> {exit_price, fill_qty}
         try:
-            execution_mode = os.getenv("EXECUTION_MODE", "").lower()
+            # CRITICAL FIX: this read os.getenv("EXECUTION_MODE") - a variable never set
+            # anywhere in deployment (terraform/lambda both set ORCHESTRATOR_EXECUTION_MODE;
+            # "EXECUTION_MODE" is documented in environment_validation.py as a legacy ALIAS
+            # name, not something actually exported). execution_mode always resolved to ""
+            # here, so this broker-fetch block - specifically added so closed-position P&L
+            # uses ACTUAL Alpaca fill prices instead of stale price_daily EOD closes - never
+            # ran, in paper, dry, review, OR real live/auto mode. Every other execution_mode
+            # check in this same file (and orchestrator.py's own comment: "the DB value is
+            # what actually governs") reads config.get("execution_mode") - match that here.
+            execution_mode = config.get("execution_mode")
             if execution_mode == "auto":
                 broker = AlpacaBrokerAdapter({})
                 orders = broker.fetch_closed_orders(since=run_date - timedelta(days=2))
@@ -1488,7 +1508,7 @@ def run(
             log_phase_result_fn(9, "portfolio_snapshot", "warn", f"logging failed: {str(snapshot_err)[:60]}")
 
         # Record exits for recently closed positions (batch operation to avoid N+1 queries)
-        _record_closed_positions_exits(run_date, log_phase_result_fn)
+        _record_closed_positions_exits(config, run_date, log_phase_result_fn)
 
         # Step 1: Populate signal_trade_performance from closed trades
         _populate_signal_trade_performance(log_phase_result_fn)

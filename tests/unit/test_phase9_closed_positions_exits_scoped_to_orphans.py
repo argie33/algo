@@ -34,7 +34,7 @@ def test_candidate_select_is_scoped_to_still_open_algo_trades():
     read_ctx.__exit__.return_value = False
 
     with patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", return_value=read_ctx):
-        _record_closed_positions_exits(date(2026, 7, 27), MagicMock())
+        _record_closed_positions_exits({}, date(2026, 7, 27), MagicMock())
 
     select_sql = read_cur.execute.call_args[0][0]
     assert "algo_positions" in select_sql
@@ -63,7 +63,7 @@ def test_normally_closed_position_is_not_processed():
         patch("algo.orchestrator.phase9_reconciliation.acquire_advisory_lock"),
         patch("algo.orchestrator.phase9_reconciliation.release_advisory_lock"),
     ):
-        _record_closed_positions_exits(date(2026, 7, 27), MagicMock())
+        _record_closed_positions_exits({}, date(2026, 7, 27), MagicMock())
 
     # No write DatabaseContext should even be opened when there are no orphan candidates.
     write_ctx.__enter__.assert_not_called()

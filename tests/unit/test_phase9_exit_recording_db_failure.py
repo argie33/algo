@@ -65,7 +65,7 @@ def test_db_error_recording_exit_raises_instead_of_silently_continuing():
         mock_ctx.return_value.__exit__.return_value = False
 
         with pytest.raises(RuntimeError, match="AAPL"):
-            _record_closed_positions_exits(run_date=None, log_phase_result_fn=fake_log)
+            _record_closed_positions_exits({}, run_date=None, log_phase_result_fn=fake_log)
 
     # A human must be alerted - this can't just vanish into the logs, since the symbol
     # will never be re-selected by this function again after today.
@@ -116,7 +116,7 @@ def test_algo_trades_zero_rowcount_raises_before_touching_positions():
         mock_ctx.return_value.__exit__.return_value = False
 
         with pytest.raises(RuntimeError, match="AAPL"):
-            _record_closed_positions_exits(run_date=None, log_phase_result_fn=fake_log)
+            _record_closed_positions_exits({}, run_date=None, log_phase_result_fn=fake_log)
 
     assert not positions_update_reached, (
         "algo_positions must not be marked closed when the algo_trades exit "
