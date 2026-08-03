@@ -1177,10 +1177,6 @@ def run(  # noqa: C901
     # Validate required config keys at phase entry (fail-fast)
     validate_phase_config(config, "phase_7_signal_generation")
 
-    # CRITICAL: Calculate anomaly threshold dynamically (not hardcoded)
-    # Adapts to universe size so the threshold is always ~1/3 of recent median
-    anomaly_threshold = _calculate_dynamic_anomaly_threshold()
-
     # TUNING FIX (2026-08-02): Enforce regime-based minimum composite scores.
     # Old: hard-coded min_composite_score=30 (below median 32.75, rejected only 60% of universe)
     # New: Use market regime tier's minimum (uptrend=50, pressure=60, caution=70, correction=80)
@@ -1828,7 +1824,6 @@ def run(  # noqa: C901
 
                 # ISSUE 13 FIX: Wait with timeout per completed future
                 executor_timeout = 60  # seconds - overall limit for all futures
-                start_time = time.time()
 
                 for future in as_completed(future_to_symbol, timeout=executor_timeout):
                     liq_checked += 1
@@ -1864,7 +1859,6 @@ def run(  # noqa: C901
                 )
 
             # Continue with results we got
-            qualified_trades = liq_passed
             logger.info(
                 f"[PHASE 7] Liquidity check completed: {len(liq_passed)} passed, "
                 f"{len(pending_symbols)} skipped (timeout)"

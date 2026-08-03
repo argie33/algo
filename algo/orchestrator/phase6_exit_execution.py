@@ -482,28 +482,47 @@ def run(
                         )
                         return []  # Gracefully degrade instead of halting
 
-                    # Get total portfolio value
-                    cur.execute("SELECT SUM(position_value) FROM algo_positions WHERE status='open'")
+                    # Get total portfolio value (account equity: cash + positions) - the same
+                    # denominator Phase 8 uses to size positions in the first place
+                    # (algo_portfolio_snapshots.total_portfolio_value). FIXED 2026-08-03: this
+                    # used to be SUM(position_value) FROM algo_positions WHERE status='open' -
+                    # the sum of only the currently-open positions, not total account equity.
+                    # Whenever the account isn't ~100% invested (the normal case - most of the
+                    # time only a handful of positions are open against a much larger equity
+                    # base), that denominator is far smaller than true portfolio value, making
+                    # every legitimately-sized position (e.g. a real 2-4% entry, well under the
+                    # 6% limit Phase 8 enforced at entry) look artificially concentrated (e.g.
+                    # a $1,441 position against $6,270 of other-open-positions read as 23%,
+                    # vs. its real ~2% share of a $72k account) - live-confirmed 2026-08-03:
+                    # false POSITION_SIZE_CONCENTRATION force-exits on positions entered that
+                    # same run at 1.8-4.4% sizing, several landing as losses and tripping the
+                    # consecutive-losses circuit breaker.
+                    # Snapshots are written by Phase 9 (reconciliation), which runs AFTER
+                    # Phase 6 - so on a day's first orchestrator run, no snapshot_date=run_date
+                    # row exists yet. Fall back to the most recent prior snapshot (at most one
+                    # trading day stale) rather than requiring an exact same-day match: still
+                    # real account equity, and far closer to correct than the open-positions-sum
+                    # this replaces.
+                    cur.execute(
+                        """
+                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                        WHERE snapshot_date <= %s
+                        ORDER BY snapshot_date DESC LIMIT 1
+                        """,
+                        (run_date,),
+                    )
                     result = cur.fetchone()
-                    if result is None:
-                        raise RuntimeError("[PHASE 6] Query for total position value returned NULL")
-                    if len(result) < 1:
-                        raise RuntimeError(
-                            f"[PHASE 6] Sum query returned {len(result)} columns, expected 1. "
-                            f"Database query result structure corruption detected."
-                        )
-                    total_value = result[0]
+                    total_value = result[0] if result else None
                     if total_value is None:
-                        # This should not happen if total_open_positions > 0, but handle gracefully
                         logger.warning(
-                            "[PHASE 6] SUM(position_value) returned NULL despite open positions existing. "
-                            "This may indicate NULL values in position data or SQL aggregation issue. "
-                            "Skipping concentration check to prevent risk assessment failure."
+                            "[PHASE 6] No algo_portfolio_snapshots row available - cannot determine "
+                            "true account equity. Skipping position-size concentration check rather "
+                            "than risk a wrong denominator (open-position sum understates equity)."
                         )
                         return []
 
                     try:
-                        total_value_float = _ensure_float(total_value, "SUM(position_value)")
+                        total_value_float = _ensure_float(total_value, "total_portfolio_value")
                     except (TypeError, ValueError) as e:
                         logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert total portfolio value: {e} - skipping concentration check")
                         return []

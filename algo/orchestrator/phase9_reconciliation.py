@@ -1040,8 +1040,7 @@ def _record_closed_positions_exits(
             execution_mode = os.getenv("EXECUTION_MODE", "").lower()
             if execution_mode == "auto":
                 broker = AlpacaBrokerAdapter({})
-                two_days_ago = run_date - timedelta(days=2)
-                orders = broker.fetch_closed_orders(since=datetime.now(timezone.utc) - timedelta(days=2))
+                orders = broker.fetch_closed_orders(since=run_date - timedelta(days=2))
                 if orders:
                     for order in orders:
                         if order.get("status") == "filled" and order.get("side") == "sell":

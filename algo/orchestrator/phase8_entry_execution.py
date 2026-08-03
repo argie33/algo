@@ -2277,7 +2277,6 @@ def run(
 
             trend_score = signal.get("trend_template_score")
             composite_score = sig_composite_score  # Re-assign for use in logging below
-            rs_pct = sig_rs_pct  # Re-assign for use in logging below
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             min_sqs_val = config.get("min_signal_quality_score")

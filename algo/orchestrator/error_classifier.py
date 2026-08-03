@@ -54,7 +54,6 @@ class PhaseErrorClassifier:
         Returns:
             ErrorSeverity classification
         """
-        exc_type = type(exc).__name__
         msg = error_message or str(exc)
         msg_lower = msg.lower()
 

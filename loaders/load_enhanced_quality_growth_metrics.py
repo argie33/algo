@@ -346,8 +346,25 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             # Compute quarterly earnings metrics (includes consecutive_positive_quarters, eps_growth_stability, etc.)
             self._compute_quarterly_metrics(symbol, metrics)
 
+            # Log computed quarterly metrics for debugging
+            quarterly_fields = [
+                "consecutive_positive_quarters", "earnings_growth_4q_avg", "eps_growth_stability",
+                "quarterly_growth_momentum"
+            ]
+            computed_quarterly = {k: v for k, v in metrics.items() if k in quarterly_fields and v is not None}
+            if computed_quarterly:
+                logger.info(f"[ENHANCED_METRICS] {symbol}: Computed quarterly metrics: {computed_quarterly}")
+            else:
+                logger.debug(f"[ENHANCED_METRICS] {symbol}: No quarterly metrics computed")
+
             # Compute earnings surprise and beat rate from yfinance
             self._compute_earnings_surprise_metrics(symbol, metrics)
+
+            # Log computed surprise metrics for debugging
+            surprise_fields = ["earnings_surprise_avg", "earnings_beat_rate"]
+            computed_surprise = {k: v for k, v in metrics.items() if k in surprise_fields and v is not None}
+            if computed_surprise:
+                logger.info(f"[ENHANCED_METRICS] {symbol}: Computed surprise metrics: {computed_surprise}")
 
             # Initialize remaining missing analyst estimate fields as None (not yet loaded by any loader)
             # These require more complex data tracking (revision activity, momentum trends)
@@ -382,11 +399,13 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             # Get last 4 quarters of earnings data
             earnings_dates = ticker.earnings_dates
             if earnings_dates is None or earnings_dates.empty:
+                logger.debug(f"[ENHANCED_METRICS] {symbol}: No earnings_dates from yfinance")
                 return
 
             # Take most recent 4 reported earnings
             reported = earnings_dates[earnings_dates['Reported EPS'].notna()].head(4)
             if len(reported) < 2:
+                logger.debug(f"[ENHANCED_METRICS] {symbol}: Only {len(reported)} quarters with reported EPS")
                 return
 
             surprises = reported['Surprise(%)'].dropna()
@@ -399,9 +418,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 beat_rate = (beat_count / len(surprises)) * 100
                 metrics["earnings_beat_rate"] = float(beat_rate)
 
+                logger.info(f"[ENHANCED_METRICS] {symbol}: earnings_surprise_avg={metrics['earnings_surprise_avg']:.2f}%, earnings_beat_rate={metrics['earnings_beat_rate']:.2f}%")
+            else:
+                logger.debug(f"[ENHANCED_METRICS] {symbol}: No surprise data in earnings_dates")
+
+        except ImportError:
+            logger.debug(f"[ENHANCED_METRICS] {symbol}: yfinance not available")
         except Exception as e:
-            # yfinance may not have data or may be rate-limited; silently skip
-            logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise: {e}")
+            # yfinance may not have data or may be rate-limited
+            logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise: {type(e).__name__}: {e}")
 
     def _compute_quarterly_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
         """Compute metrics from quarterly earnings data."""
