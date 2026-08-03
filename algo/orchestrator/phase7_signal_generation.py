@@ -77,6 +77,7 @@ Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradati
 
 import logging
 import time
+import zlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from datetime import date as _date
@@ -758,8 +759,15 @@ def _get_candidates_from_buysell(
                         # - Blocking lock causes 7+ halts when Phase 7 runs 3x daily and lock contention occurs
                         # - Non-blocking lock fails fast: if held, skip update and next Phase 7 run handles it
                         # - Prevents timeouts that halt the orchestrator unnecessarily
-                        # Advisory lock ID: deterministic hash of 'phase7_signal_scores'
-                        lock_id = hash('phase7_signal_scores') % (2 ** 31)
+                        # Advisory lock ID: deterministic hash of 'phase7_signal_scores'.
+                        # BUG FIX: previously `hash('phase7_signal_scores') % (2**31)` - Python
+                        # randomizes str hashing per-process by default (PYTHONHASHSEED, unset
+                        # anywhere in this repo's deploy config), so concurrent Phase 7 instances
+                        # (the exact multi-instance scenario this lock exists for) each computed a
+                        # DIFFERENT lock_id, silently defeating the race-condition protection.
+                        # zlib.crc32 is not seed-randomized, matching the fixed-constant pattern
+                        # used elsewhere for the same reason (see PORTFOLIO_SNAPSHOT_LOCK_ID).
+                        lock_id = zlib.crc32(b'phase7_signal_scores') % (2 ** 31)
                         lock_acquired = False
 
                         try:
