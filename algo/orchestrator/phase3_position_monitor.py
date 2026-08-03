@@ -5,6 +5,8 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+import psycopg2
+
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.error_classifier import PhaseErrorClassifier
 from algo.orchestrator.phase_data_contract import validate_phase_data
@@ -400,9 +402,15 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             ),
                         )
                         updated += 1
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                        logger.error("[PHASE 3 CRITICAL] Failed to update %s (DB error): %s", symbol, str(e)[:200])
+                        update_errors.append((symbol, str(e)[:100]))
+                    except (ValueError, TypeError, KeyError) as e:
+                        logger.error("[PHASE 3 CRITICAL] Failed to update %s (data error): %s", symbol, str(e)[:200])
+                        update_errors.append((symbol, str(e)[:100]))
                     except Exception as e:
                         # Use % formatting to avoid f-string format errors when exception contains braces
-                        logger.error("[PHASE 3 CRITICAL] Failed to update %s: %s: %s", symbol, type(e).__name__, str(e)[:200])
+                        logger.error("[PHASE 3 CRITICAL] Failed to update %s (unknown): %s: %s", symbol, type(e).__name__, str(e)[:200])
                         update_errors.append((symbol, str(e)[:100]))
 
                 # GOVERNANCE: Fail-fast on ALL update errors. The code above explicitly fails on:
@@ -463,6 +471,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises" %
                                (len(recommendations), n_early_exit, n_raise_stop))
                     break  # Success - exit retry loop
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as review_err:
+                    last_error = review_err
+                    error_str = f"[DB Error] {str(review_err)}"
+                except (RuntimeError, ValueError, KeyError) as review_err:
+                    last_error = review_err
+                    error_str = f"[Data Error] {str(review_err)}"
                 except Exception as review_err:
                     last_error = review_err
                     error_str = str(review_err)
