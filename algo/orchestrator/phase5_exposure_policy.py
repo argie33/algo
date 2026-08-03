@@ -238,14 +238,15 @@ def run(
                 f"tier={constraints.tier_name}, no actions",
             )
             # ISSUE 15 FIX: Validate constraints before returning
-            validate_constraint_dict(constraints.to_dict())
+            constraints_dict = constraints.to_dict()
+            validate_constraint_dict(constraints_dict)
             # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
-            validate_phase_5_constraints(constraints.to_dict())
+            validate_phase_5_constraints(constraints_dict)
             return PhaseResult(
                 5,
                 "exposure_policy",
                 "ok",
-                {"constraints": constraints, "actions": [], **_health_panel_fields(constraints)},
+                {"constraints": constraints_dict, "actions": [], **_health_panel_fields(constraints)},
                 False,
                 None,
             )
@@ -295,10 +296,13 @@ def run(
             f"{counts['force_exit']} force_exit",
         )
 
-        # Validate using dict representation, but store dataclass directly
-        validate_constraint_dict(constraints.to_dict())
-        validate_phase_5_constraints(constraints.to_dict())
-        phase_data = {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)}
+        # CRITICAL FIX: Store constraints as dict, not dataclass
+        # Phase 8 expects dict with .get() and 'in' operations
+        # Dataclass doesn't support these operations, causing Phase 8 to crash
+        constraints_dict = constraints.to_dict()
+        validate_constraint_dict(constraints_dict)
+        validate_phase_5_constraints(constraints_dict)
+        phase_data = {"constraints": constraints_dict, "actions": actions, **_health_panel_fields(constraints)}
         validate_phase_data(5, phase_data)
         return PhaseResult(
             5,
