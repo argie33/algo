@@ -31,8 +31,9 @@ class TestPriceLoaderStatusHistoryArchiving:
         cur = MagicMock()
         # First SELECT: COUNT(*), MAX(date) from price_daily
         # Second SELECT: COUNT(DISTINCT symbol) from latest date
-        # Third SELECT (in archive): execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
-        cur.fetchone.side_effect = [(500, "2026-07-31"), (10,), (None, None, None, 500, 100.0, 10, 10)]
+        # Third SELECT: symbol_count, symbols_loaded, completion_pct (safety check in mark_completed)
+        # Fourth SELECT (in archive): execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
+        cur.fetchone.side_effect = [(500, "2026-07-31"), (10,), (10, 10, 100.0), (None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         with (
@@ -57,8 +58,9 @@ class TestPriceLoaderStatusHistoryArchiving:
         cur = MagicMock()
         # First SELECT: COUNT(*), MAX(date) from price_daily
         # Second SELECT: COUNT(DISTINCT symbol) from latest date
-        # Third SELECT (in archive): execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
-        cur.fetchone.side_effect = [(500, "2026-07-31"), (10,), (None, None, None, 500, 100.0, 10, 10)]
+        # Third SELECT: symbol_count, symbols_loaded, completion_pct (safety check in mark_completed)
+        # Fourth SELECT (in archive): execution_started, execution_completed, error_message, row_count, completion_pct, symbols_loaded, symbol_count
+        cur.fetchone.side_effect = [(500, "2026-07-31"), (10,), (10, 10, 100.0), (None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         def _execute(sql, *args, **kwargs):

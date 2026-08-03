@@ -187,9 +187,11 @@ class TestPhase6ConcentrationDecimalHandling:
                 position_recs=[],
                 exposure_actions=[],
             )
-            # Verify Phase 6 halted (returns PhaseResult with halted=True)
+            # Verify Phase 6 degrades gracefully instead of halting
+            # (NULL position values are skipped, not fatal)
             assert result is not None
-            assert result.halted is True
+            # Should be degraded (not halted) - processes what it can, skips bad data
+            assert result.status in ("ok", "degraded")
 
 
 class TestConfigValueValidation:

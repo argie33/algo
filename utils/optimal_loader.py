@@ -226,8 +226,15 @@ class OptimalLoader:
         Price loader: 2% (critical data, high failure is a blocker).
         SEC/financial data: 5% (more lenient, API rate limiting is expected).
         """
+        if hasattr(self, "_override_max_fail_rate"):
+            return self._override_max_fail_rate
         from loaders.config import get_loader_max_fail_rate
         return get_loader_max_fail_rate("default")
+
+    @max_fail_rate.setter
+    def max_fail_rate(self, value: float) -> None:
+        """Allow tests to override max_fail_rate."""
+        self._override_max_fail_rate = value
 
     @property
     def router(self) -> Any:

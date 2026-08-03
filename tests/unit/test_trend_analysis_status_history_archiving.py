@@ -16,7 +16,9 @@ from loaders.load_trend_analysis import _update_loader_status
 class TestTrendAnalysisStatusHistoryArchiving:
     def test_completed_status_archives_to_history(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (None, None, None, 500, 100.0, 10, 10)
+        # First fetchone: safety check (symbol_count, symbols_loaded, completion_pct)
+        # Second fetchone: archive query (7 columns)
+        cur.fetchone.side_effect = [(10, 10, 100.0), (None, None, None, 500, 100.0, 10, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         with (
@@ -36,7 +38,9 @@ class TestTrendAnalysisStatusHistoryArchiving:
 
     def test_failed_status_archives_to_history(self):
         cur = MagicMock()
-        cur.fetchone.return_value = (None, None, "error", 0, 0.0, 0, 10)
+        # First fetchone: safety check (symbol_count, symbols_loaded, completion_pct)
+        # Second fetchone: archive query (7 columns)
+        cur.fetchone.side_effect = [(10, 0, 0.0), (None, None, "error", 0, 0.0, 0, 10)]
         cur.rowcount = 1  # Status manager checks rowcount
 
         with (
@@ -53,6 +57,8 @@ class TestTrendAnalysisStatusHistoryArchiving:
     def test_archive_failure_rolls_back_savepoint_without_raising(self):
         cur = MagicMock()
         cur.rowcount = 1  # Status manager checks rowcount
+        # First fetchone: safety check (symbol_count, symbols_loaded, completion_pct)
+        cur.fetchone.return_value = (10, 10, 100.0)
 
         def _execute(sql, *args, **kwargs):
             if "INSERT INTO data_loader_status_history" in sql:

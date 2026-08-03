@@ -1858,7 +1858,7 @@ def run(
     # won't cancel orders that are already placed.
     if qualified_trades and not dry_run:
         try:
-            from utils.db import DatabaseContext
+            # DatabaseContext already imported at top of module
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT 1")
         except Exception as db_test_err:
