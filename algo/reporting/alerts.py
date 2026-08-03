@@ -19,14 +19,21 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
+import psycopg2
+
+from utils.db import DatabaseContext
+
 logger = logging.getLogger(__name__)
 
 
 class AlertManager:
-    """Send alerts via email and SNS.
+    """Send alerts via email, SNS, and a durable database record.
 
-    If no alert channels are configured, runs in no-op mode (logs only, no sending).
-    This allows paper trading and testing without external alert infrastructure.
+    Every alert is always persisted to algo_notifications (the table the dashboard already
+    surfaces), regardless of configuration. If no email/SNS channel is configured, external
+    delivery is skipped ("no-op mode" for that part only) - this allows paper trading and
+    testing without external alert infrastructure while still guaranteeing every critical
+    safety event leaves a durable, queryable trace.
     """
 
     def __init__(self) -> None:
@@ -47,13 +54,59 @@ class AlertManager:
         self.sns_topic = os.getenv("ALERTS_SNS_TOPIC", "")
         self._sns_client = None
 
-        # Allow no-op mode if no alert channels configured (for paper trading / testing)
+        # Allow no-op mode if no alert channels configured (for paper trading / testing).
+        # CRITICAL: "no-op" only applies to EXTERNAL delivery (email/SNS) - every alert is
+        # still persisted to algo_notifications (see _persist_to_db) regardless of this flag.
+        # Previously "no-op" meant "does literally nothing" - send_position_alert/critical/
+        # send_patrol_alert/send_loader_alert all early-returned before any write of any kind,
+        # so a circuit breaker trip, exit failure, or Phase 9 governance halt with no email/SNS
+        # configured left zero durable trace anywhere, not even a database row the dashboard
+        # could surface. External delivery still requires real credentials (that part is a
+        # deployment/config task, not something to fix in code) but the record itself no
+        # longer depends on having them.
         self.noop_mode = not (self.email_to or self.sns_topic)
         if self.noop_mode:
             logger.warning(
-                "[ALERT CONFIG] No alert channels configured. Running in no-op mode. "
-                "Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts."
+                "[ALERT CONFIG] No alert channels configured - email/SNS delivery disabled, "
+                "still persisting all alerts to algo_notifications. "
+                "Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for external delivery."
             )
+
+    def _persist_to_db(
+        self,
+        kind: str,
+        severity: str,
+        title: str,
+        message: str,
+        symbol: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Persist an alert to algo_notifications regardless of email/SNS configuration.
+
+        Best-effort: a DB error here must not prevent the caller's own alert logic (which
+        already has its own error handling for email/SNS) from proceeding - logging the
+        failure is the correct behavior, not raising, since these call sites are documented
+        as non-blocking elsewhere in this file.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_notifications
+                    (kind, severity, title, message, symbol, details, seen, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, FALSE, CURRENT_TIMESTAMP)
+                    """,
+                    (
+                        kind,
+                        severity,
+                        title,
+                        message,
+                        symbol,
+                        json.dumps(details) if details else None,
+                    ),
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(f"[ALERTS] Failed to persist alert to algo_notifications: {e}. Title: {title}")
 
     def _get_sns_client(self) -> Any:
         if self._sns_client is None:
@@ -87,10 +140,6 @@ class AlertManager:
         Raises:
             RuntimeError: If alert sending fails for any configured channel
         """
-        if self.noop_mode:
-            logger.debug(f"[ALERTS NOOP] send_patrol_alert: {patrol_run_id}")
-            return
-
         required_count_keys = ["critical", "error", "warn"]
         for key in required_count_keys:
             if key not in counts:
@@ -133,6 +182,14 @@ class AlertManager:
         body_lines.append("ACTION REQUIRED: Review patrol results and halt trading if necessary.")
         body_text = "\n".join(body_lines)
 
+        self._persist_to_db(
+            kind="patrol",
+            severity=severity.lower(),
+            title=subject,
+            message=body_text,
+            details={"patrol_run_id": patrol_run_id, "counts": counts},
+        )
+
         # Data patrol alerts are CRITICAL - they must reach ops or trading should halt.
         # Fail hard if any send fails (don't silently continue).
         send_errors = []
@@ -166,10 +223,6 @@ class AlertManager:
             message: human-readable message
             details: optional dict with extra context
         """
-        if self.noop_mode:
-            logger.debug(f"[ALERTS NOOP] send_position_alert: {symbol} {alert_type}")
-            return
-
         subject = f"[ALGO ALERT] {alert_type}: {symbol}"
         body_lines = [
             f"Position Alert - {datetime.now(timezone.utc).isoformat()}",
@@ -184,6 +237,15 @@ class AlertManager:
             body_lines.append(json.dumps(details, indent=2))
 
         body_text = "\n".join(body_lines)
+
+        self._persist_to_db(
+            kind="position",
+            severity="critical" if "CRITICAL" in alert_type.upper() or "BLOCK" in alert_type.upper() else "warning",
+            title=subject,
+            message=body_text,
+            symbol=symbol,
+            details=details if isinstance(details, dict) else None,
+        )
 
         if self.email_to:
             try:
@@ -203,10 +265,6 @@ class AlertManager:
         Args:
             findings: list of (severity, check, message) tuples from LoaderMonitor
         """
-        if self.noop_mode:
-            logger.debug(f"[ALERTS NOOP] send_loader_alert: {len(findings)} findings")
-            return
-
         critical = [f for f in findings if f[0] == "CRITICAL"]
         errors = [f for f in findings if f[0] == "ERROR"]
 
@@ -248,6 +306,14 @@ class AlertManager:
 
         body_text = "\n".join(body_lines)
 
+        self._persist_to_db(
+            kind="loader",
+            severity=severity.lower(),
+            title=subject,
+            message=body_text,
+            details={"findings": [{"severity": s, "check": c, "message": m} for s, c, m in findings]},
+        )
+
         if self.email_to:
             try:
                 self._send_email(subject, body_text)
@@ -266,11 +332,10 @@ class AlertManager:
         Args:
             message: Alert message
         """
-        if self.noop_mode:
-            logger.debug(f"[ALERTS NOOP] critical: {message}")
-            return
         subject = "[ALGO ALERT] CRITICAL"
         body_text = f"Critical Alert - {datetime.now(timezone.utc).isoformat()}\n\n{message}"
+
+        self._persist_to_db(kind="general", severity="critical", title=subject, message=body_text)
 
         if self.email_to:
             try:
