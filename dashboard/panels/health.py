@@ -870,6 +870,48 @@ def _build_api_diagnostics_section(hlth_items: list[Any]) -> list[Text | Rule]:
     return rows
 
 
+def _build_system_status_section(hlth_dict: dict[str, Any] | None) -> list[Text | Rule]:
+    """Build system status section showing signal freshness and degraded mode.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    if not hlth_dict or not isinstance(hlth_dict, dict):
+        return rows
+
+    system_issues = []
+
+    # Check for signal freshness info
+    signal_freshness = hlth_dict.get("signal_freshness")
+    if signal_freshness and isinstance(signal_freshness, dict):
+        freshness_status = signal_freshness.get("status")
+        signal_age_hours = signal_freshness.get("signal_age_hours")
+        if freshness_status == "STALE":
+            system_issues.append(
+                f"[bold {R}]Signal Freshness:[/] [dim]STALE ({signal_age_hours}h old)[/]"
+            )
+        elif freshness_status == "OK" and signal_age_hours and signal_age_hours > 12:
+            system_issues.append(
+                f"[bold {Y}]Signal Freshness:[/] [dim]OK but aging ({signal_age_hours}h old)[/]"
+            )
+
+    # Check for degraded mode
+    degraded_mode = hlth_dict.get("degraded_mode_active")
+    if degraded_mode:
+        system_issues.append(
+            f"[bold {R}]Degraded Mode:[/] [dim]ACTIVE - position sizes at 50%[/]"
+        )
+
+    if system_issues:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {Y}]System Status:[/]"))
+        for issue in system_issues:
+            rows.append(Text.from_markup(f"  {issue}"))
+
+    return rows
+
+
 def _build_freshness_panel(
     hlth_items: list[Any],
     ready_to_trade: bool | None,
@@ -895,6 +937,10 @@ def _build_freshness_panel(
     title = rf"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim]\[l] return[/]"
 
     left_rows: list[Text | Table | Layout | Rule] = []
+
+    # System status section (signal freshness, degraded mode)
+    system_status = _build_system_status_section(hlth_dict)
+    left_rows.extend(system_status)
 
     trading_halted = hlth_dict.get("trading_halted")
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
@@ -1001,6 +1047,8 @@ def _build_freshness_panel(
         tbl.add_column("Table", no_wrap=True, min_width=18)
         tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
         tbl.add_column("Rows", no_wrap=True, min_width=7, justify="right")
+        tbl.add_column("Duration", no_wrap=True, min_width=7, justify="right")
+        tbl.add_column("Throughput", no_wrap=True, min_width=10, justify="right")
         tbl.add_column("Status", no_wrap=True, min_width=5)
 
         for r in items:
@@ -1028,11 +1076,22 @@ def _build_freshness_panel(
             ii = "✓" if ok else ("-" if st == "empty" else "✗")
             row_count = safe_int(r.get("row_count"), default=None)
             rc_s = f"{row_count:,}" if row_count is not None else "--"
+
+            # Execution duration display
+            duration = r.get("execution_duration_sec")
+            duration_s = f"{duration:.0f}s" if duration is not None and duration > 0 else "--"
+
+            # Throughput display (symbols/second)
+            throughput = r.get("symbols_per_second")
+            throughput_s = f"{throughput:.0f} sym/s" if throughput is not None and throughput > 0 else "--"
+
             st_label = "ok" if ok else st.upper()[:3]
             tbl.add_row(
                 Text.from_markup(f"[{ic}]{ii}[/] {nm}"),
                 Text(_fmt_age(r), style=DIM if ok else Y),
                 Text(rc_s, style="dim"),
+                Text(duration_s, style="dim"),
+                Text(throughput_s, style="dim"),
                 Text(st_label, style=G if ok else (Y if st == "empty" else R)),
             )
         return tbl

@@ -431,9 +431,11 @@ class MarketFactorCalculator:
 
             pcr = float(pcr_val)
             if not (0.2 <= pcr <= 3.0):
+                reason = f"Put/call ratio {pcr} outside realistic 0.2-3.0 range (data quality issue)"
+                logger.warning(f"[PUT_CALL_RATIO] {reason} - treating as unavailable")
                 return {
                     "data_unavailable": True,
-                    "reason": f"Put/call ratio {pcr} outside realistic 0.2-3.0 range (data quality issue)"
+                    "reason": reason
                 }
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
