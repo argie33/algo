@@ -19,6 +19,18 @@
 -- _QUARTERLY_EXTRA, and 3 schema_cols frozensets all in sync - renaming the column is the
 -- single, lower-risk change).
 
-ALTER TABLE quarterly_income_statement RENAME COLUMN quarter TO fiscal_quarter;
-ALTER TABLE quarterly_balance_sheet RENAME COLUMN quarter TO fiscal_quarter;
-ALTER TABLE quarterly_cash_flow RENAME COLUMN quarter TO fiscal_quarter;
+-- Guarded rather than a plain RENAME COLUMN: some databases already had this rename
+-- applied ad hoc (outside any tracked migration) before this file was written, so a bare
+-- RENAME would fail with "column quarter does not exist" on those. Idempotent either way.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_income_statement' AND column_name = 'quarter') THEN
+        ALTER TABLE quarterly_income_statement RENAME COLUMN quarter TO fiscal_quarter;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_balance_sheet' AND column_name = 'quarter') THEN
+        ALTER TABLE quarterly_balance_sheet RENAME COLUMN quarter TO fiscal_quarter;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_cash_flow' AND column_name = 'quarter') THEN
+        ALTER TABLE quarterly_cash_flow RENAME COLUMN quarter TO fiscal_quarter;
+    END IF;
+END $$;

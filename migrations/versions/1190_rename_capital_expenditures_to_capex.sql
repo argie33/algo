@@ -13,5 +13,15 @@
 -- silently skipped rather than raised - see utils/bulk_insert_manager.py's governance-marker
 -- distinction).
 
-ALTER TABLE annual_cash_flow RENAME COLUMN capital_expenditures TO capex;
-ALTER TABLE quarterly_cash_flow RENAME COLUMN capital_expenditures TO capex;
+-- Guarded rather than a plain RENAME COLUMN: some databases already had this rename
+-- applied ad hoc (outside any tracked migration) before this file was written, so a bare
+-- RENAME would fail with "column capital_expenditures does not exist" on those.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'annual_cash_flow' AND column_name = 'capital_expenditures') THEN
+        ALTER TABLE annual_cash_flow RENAME COLUMN capital_expenditures TO capex;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'quarterly_cash_flow' AND column_name = 'capital_expenditures') THEN
+        ALTER TABLE quarterly_cash_flow RENAME COLUMN capital_expenditures TO capex;
+    END IF;
+END $$;

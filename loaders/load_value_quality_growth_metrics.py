@@ -72,8 +72,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
     exclude_etfs_from_symbols = True
 
-    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:  # type: ignore[override]  # noqa: C901
-        """Override run() to write to 3 tables instead of 1."""
+    def run(self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None) -> dict[str, Any]:  # type: ignore[override]  # noqa: C901
+        """Override run() to write to 3 tables instead of 1.
+
+        backfill_days: accepted for interface parity with runner.py's generic --backfill-days/
+        BACKFILL_DAYS CLI/env path (loaders/runner.py calls loader.run(symbols, parallelism=...,
+        backfill_days=...) whenever either is set) - unused here since fetch_incremental() always
+        recomputes from the latest SEC/sec_valuations rows rather than filtering by date.
+        """
         from utils.loaders.config import get_default_parallelism
 
         value_inserts = 0
@@ -96,7 +102,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             for symbol in symbols:
                 try:
                     # Fetch all metrics for symbol
-                    metrics = self.fetch_incremental(symbol, since_date)
+                    metrics = self.fetch_incremental(symbol, None)
                     if not metrics:
                         logger.error(
                             f"[VALUE_QUALITY_GROWTH] {symbol}: fetch_incremental returned empty list (CRITICAL BUG)"
@@ -248,6 +254,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             return {
                 "symbols_succeeded": symbols_succeeded,
+                "symbols_loaded": symbols_succeeded,  # runner.py's completion log/mark_failed() read this key, not symbols_succeeded
                 "symbols_failed": symbols_failed,
                 "value_metrics": value_inserts,
                 "quality_metrics": quality_inserts,
