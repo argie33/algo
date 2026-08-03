@@ -1180,7 +1180,10 @@ def _record_closed_positions_exits(
                             (symbol, run_date),
                         )
                         prior_partial = write_cursor.fetchone()
-                        prior_partial_pnl = Decimal(str(prior_partial[0])) if prior_partial else Decimal(0)
+                        if prior_partial and len(prior_partial) > 0 and prior_partial[0] is not None:
+                            prior_partial_pnl = Decimal(str(prior_partial[0]))
+                        else:
+                            prior_partial_pnl = Decimal(0)
 
                         # Cumulative P&L across all legs
                         cumulative_pnl_dollars = float((prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))

@@ -351,9 +351,9 @@ def run(  # noqa: C901
             pre_check_cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
             # CRITICAL FIX: Check if query returned results before indexing
             result = pre_check_cur.fetchone()
-            if result is None:
+            if result is None or len(result) < 1:
                 error_msg = (
-                    "[PHASE 1 CRITICAL] stock_symbols COUNT query failed (no results). "
+                    "[PHASE 1 CRITICAL] stock_symbols COUNT query failed (no results or empty tuple). "
                     "Database connectivity or schema issue. Check database logs."
                 )
                 logger.critical(error_msg)

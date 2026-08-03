@@ -765,7 +765,7 @@ def _get_candidates_from_buysell(
                         try:
                             cur_write.execute(f"SELECT pg_try_advisory_lock({lock_id})")
                             result = cur_write.fetchone()
-                            lock_acquired = result[0] if result else False
+                            lock_acquired = result[0] if result and result[0] is not None else False
 
                             if lock_acquired:
                                 logger.debug(f"[PHASE 7] Acquired non-blocking advisory lock for signal quality score updates")
