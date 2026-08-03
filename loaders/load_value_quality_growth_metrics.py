@@ -730,9 +730,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     effective_tax_rate = candidate_rate
 
             # Invested Capital = Stockholders' Equity + Long-Term Debt - Cash & Equivalents
+            # CRITICAL: Require ALL three components; do not default missing debt/cash to 0
+            # ROIC calculation needs complete balance sheet data, not partial guesses
             invested_capital = None
-            if stockholders_equity is not None:
-                invested_capital = stockholders_equity + (long_term_debt_bs or 0) - (cash_and_equivalents_bs or 0)
+            if (
+                stockholders_equity is not None
+                and long_term_debt_bs is not None
+                and cash_and_equivalents_bs is not None
+            ):
+                invested_capital = stockholders_equity + long_term_debt_bs - cash_and_equivalents_bs
 
             if (
                 effective_tax_rate is not None
@@ -817,19 +823,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("revenue_growth_yoy")
 
             # TREND FIELDS (new fields for enhanced scoring)
-            # Net Income Growth YoY
-            if net_income is not None and prior_year_eps is not None:
-                # Use EPS as proxy for net income trend (easier to compare)
-                if prior_year_eps != 0:
-                    try:
-                        ni_growth = ((earnings_per_share - prior_year_eps) / abs(prior_year_eps)) * 100 if earnings_per_share else None
-                        metrics["net_income_growth_yoy"] = float(round(ni_growth, 2)) if ni_growth is not None else None
-                    except (ValueError, TypeError) as e:
-                        # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
-                        logger.warning(
-                            f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
-                            f"Metric marked data_unavailable."
-                        )
+            # Net Income Growth YoY - only if actual prior net income available
+            if net_income is not None and prior_year_net_income is not None and prior_year_net_income != 0:
+                try:
+                    ni_growth = ((net_income - prior_year_net_income) / abs(prior_year_net_income)) * 100
+                    metrics["net_income_growth_yoy"] = float(round(ni_growth, 2))
+                except (ValueError, TypeError, ZeroDivisionError) as e:
+                    logger.warning(
+                        f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
+                        f"Metric marked data_unavailable."
+                    )
 
             # Operating Income Growth YoY - only if actual prior data available
             if operating_income is not None and prior_year_operating_income is not None and prior_year_operating_income != 0:
@@ -841,15 +844,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Margin Trends (current - prior year) - only compute when actual prior data available
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
-                # Gross Margin Trend - only if actual cost of revenue available
-                if cost_of_revenue is not None:
-                    curr_gm = ((revenue - cost_of_revenue) / revenue) * 100
-                    # Compute prior gross margin from actual prior-year data (requires prior cost_of_revenue)
-                    # If prior cost not available, leave NULL instead of estimating
-                    try:
-                        metrics["gross_margin_trend"] = float(round(curr_gm, 2))  # Just current margin for now (no prior data)
-                    except (ValueError, TypeError):
-                        pass
+                # Gross Margin Trend - no prior-year cost_of_revenue is fetched, so a real
+                # trend (current - prior) cannot be computed. Left unavailable rather than
+                # storing the current-year margin under a "trend" column, which would silently
+                # misrepresent a snapshot as a change.
 
                 # Operating Margin Trend - only if actual prior operating income available
                 if operating_income is not None and prior_year_operating_income is not None and prior_year_revenue > 0:
