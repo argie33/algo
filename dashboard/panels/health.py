@@ -1048,7 +1048,7 @@ def _build_freshness_panel(
         tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
         tbl.add_column("Rows", no_wrap=True, min_width=7, justify="right")
         tbl.add_column("Duration", no_wrap=True, min_width=7, justify="right")
-        tbl.add_column("Throughput", no_wrap=True, min_width=10, justify="right")
+        tbl.add_column("Last Success", no_wrap=True, min_width=10, justify="right")
         tbl.add_column("Status", no_wrap=True, min_width=5)
 
         for r in items:
@@ -1081,9 +1081,19 @@ def _build_freshness_panel(
             duration = r.get("execution_duration_sec")
             duration_s = f"{duration:.0f}s" if duration is not None and duration > 0 else "--"
 
-            # Throughput display (symbols/second)
-            throughput = r.get("symbols_per_second")
-            throughput_s = f"{throughput:.0f} sym/s" if throughput is not None and throughput > 0 else "--"
+            # Last success display - when this loader last successfully completed
+            last_success = r.get("last_success_at")
+            if last_success is None:
+                last_success_s = "never"
+            elif hasattr(last_success, "strftime"):
+                try:
+                    last_success_s = last_success.strftime("%m/%d")
+                except (AttributeError, TypeError):
+                    last_success_s = "--"
+            elif isinstance(last_success, str) and len(last_success) >= 10:
+                last_success_s = last_success[5:10]
+            else:
+                last_success_s = "--"
 
             st_label = "ok" if ok else st.upper()[:3]
             tbl.add_row(
@@ -1091,7 +1101,7 @@ def _build_freshness_panel(
                 Text(_fmt_age(r), style=DIM if ok else Y),
                 Text(rc_s, style="dim"),
                 Text(duration_s, style="dim"),
-                Text(throughput_s, style="dim"),
+                Text(last_success_s, style="dim"),
                 Text(st_label, style=G if ok else (Y if st == "empty" else R)),
             )
         return tbl
