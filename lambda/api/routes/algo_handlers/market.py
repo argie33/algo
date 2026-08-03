@@ -325,6 +325,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                            completion_pct, symbols_loaded, symbol_count, status,
                            last_success_at, consecutive_failures
                     FROM data_loader_status
+                    WHERE table_name IS NOT NULL
                     ORDER BY table_name
                 """)
             loader_rows_raw = cur.fetchall()
