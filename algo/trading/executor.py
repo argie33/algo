@@ -577,9 +577,26 @@ class TradeExecutor:
             ),
         ]
 
+        # CRITICAL FIX: check_reentry_rules() computes a real reentry_count (prior_reentry + 1
+        # when the prior exit was a stop-out) specifically so max_reentries_per_name can cap
+        # repeated re-entries into a name that keeps stopping the algo out. But
+        # ReentryCheckHandler.process() only ever surfaces this value on the FAILURE path (via
+        # status_dict) - on success it discards the check's 3rd tuple element entirely and this
+        # function returned a bare `None` for error_details, so _insert_trade_record() had no
+        # way to receive it and wrote a hardcoded literal 0 for every single trade. That made
+        # max_reentries_per_name permanently inert: every re-entry read back reentry_count=0 the
+        # next time, so `prior_reentry_count + 1 >= max_reentries_per_name` could only ever be
+        # 1 >= max, never escalating past the first re-entry regardless of how many times a
+        # symbol actually re-entered and stopped out again. Captured directly here, bypassing
+        # the pass/fail handler abstraction (which has no concept of "successful check produced
+        # a value the caller still needs"), and threaded through error_details on the success
+        # path so the actual computed count reaches TradeInsertionRequest.
+        reentry_count = 0
         for check_fn, args, check_name in checks:
             result = check_fn(*args)
             logger.debug(f"[VALIDATION LOOP] Check '{check_name}' returned: {result}")
+            if check_name == "reentry" and len(result) > 2:
+                reentry_count = result[2]
             check_failed, error_msg, status_dict = self._process_validation_result(check_name, result)
             logger.debug(
                 f"[VALIDATION LOOP] Check '{check_name}' processed: check_failed={check_failed}, error_msg={error_msg}"
@@ -593,7 +610,7 @@ class TradeExecutor:
             logger.debug(f"[VALIDATION LOOP] Check '{check_name}' passed, continuing to next check")
 
         logger.debug("[VALIDATION LOOP] All checks passed!")
-        return True, "", None
+        return True, "", {"reentry_count": reentry_count}
 
     def _process_validation_result(
         self, check_name: str, result: tuple[Any, ...]

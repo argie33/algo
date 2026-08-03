@@ -73,6 +73,7 @@ class TradeInsertionRequest:
     advanced_components: dict[str, Any] | None
     rejection_reason: str | None
     position_id: str | None = None  # FIXED: Link trade to position
+    reentry_count: int = 0
 
 
 # Map stage phase names to integer IDs for database storage
@@ -270,6 +271,11 @@ class EntryHandler:
                     result.update({k: v for k, v in error_details.items() if k != "trade_id"})
                 return result
 
+            # See executor.py::_validate_entry_conditions for why this must come from
+            # error_details rather than a hardcoded 0 - it's the actual computed value
+            # max_reentries_per_name needs to ever fire past the first re-entry.
+            reentry_count = error_details.get("reentry_count", 0) if error_details else 0
+
             # Generate trade ID and prepare for submission
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
             execution_mode = self.context.execution_mode
@@ -365,6 +371,7 @@ class EntryHandler:
                 rejection_reason,
                 idempotency_key,
                 order_send_time,
+                reentry_count,
             )
 
             if final_order_status in ("invalid", "unknown"):
@@ -561,7 +568,7 @@ class EntryHandler:
                 request.stop_reasoning,
                 json.dumps(request.advanced_components) if request.advanced_components else None,
                 request.execution_mode == "auto",
-                0,
+                request.reentry_count,
                 None,
                 request.rejection_reason,
                 get_algo_owner_cognito_sub(),
@@ -880,6 +887,7 @@ class EntryHandler:
         rejection_reason: str | None,
         idempotency_key: str,
         order_send_time: float | None,
+        reentry_count: int = 0,
     ) -> str:
         """PHASE 3: Insert trade record, position record, record TCA."""
         if executed_price is None:
@@ -978,6 +986,7 @@ class EntryHandler:
             stop_reasoning=context.execution.stop_reasoning,
             advanced_components=context.signals.advanced_components,
             rejection_reason=rejection_reason,
+            reentry_count=reentry_count,
             # Only link to a position when one will actually be created below (order_status
             # in filled/partially_filled/paper_pending/open - "open" is the immediate
             # simulated-fill status used by paper/dry execution_mode). The FK is DEFERRABLE
