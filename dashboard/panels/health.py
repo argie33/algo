@@ -939,6 +939,16 @@ def _build_freshness_panel(
         crit_names = "  ".join(f"[bold white]{get_crit_table_name(r)[:18]}[/]" for r in crit_stale)
         left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
 
+    # CRITICAL NEW: Loader error count summary (NEW FIX for error count propagation)
+    # This shows infrastructure health independent of data staleness
+    loader_errors_count = 0
+    total_loader_failures = 0
+    if hlth_dict and isinstance(hlth_dict, dict):
+        summary_data = hlth_dict.get("summary")
+        if isinstance(summary_data, dict):
+            loader_errors_count = summary_data.get("loaders_with_errors", 0)
+            total_loader_failures = summary_data.get("total_loader_failures", 0)
+
     rtt_part = ""
     if ready_to_trade:
         rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
@@ -946,13 +956,18 @@ def _build_freshness_panel(
         rtt_part = f"  [bold {R}]✗ NOT READY[/]"
 
     status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
-    left_rows.append(
-        Text.from_markup(
-            f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
-            + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
-            + rtt_part
-        )
+    freshness_line = (
+        f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
+        + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
     )
+
+    # Add loader error info if there are any
+    if loader_errors_count > 0:
+        error_color = R if loader_errors_count >= 3 else Y
+        freshness_line += f"  [{error_color}]{loader_errors_count} loader(s) with errors ({total_loader_failures} total)[/]"
+
+    freshness_line += rtt_part
+    left_rows.append(Text.from_markup(freshness_line))
 
     def sort_key(r: dict[str, Any]) -> str:
         tbl = r.get("tbl")

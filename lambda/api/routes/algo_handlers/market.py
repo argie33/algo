@@ -706,6 +706,18 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             raise ValueError(f"Expected int for 'ok' count in health summary, got {type(ok_count).__name__}")
         data_fresh_enough = len(critical_stale) == 0 and ok_count > 0
 
+        # CRITICAL FIX: Add loader error count to summary for visibility
+        # Loaders with consecutive_failures >= 1 indicate persistent issues
+        # This is different from data staleness - it shows infrastructure health
+        loaders_with_errors = [
+            (r.get("consecutive_failures") or 0, r.get("table_name"))
+            for r in enriched_rows
+            if isinstance(r.get("consecutive_failures"), (int, float)) and r.get("consecutive_failures") >= 1
+        ]
+        total_failure_count = sum(r[0] for r in loaders_with_errors)
+        summary["loaders_with_errors"] = len(loaders_with_errors)
+        summary["total_loader_failures"] = int(total_failure_count)
+
         # CRITICAL: Data freshness alone does not mean trading is actually authorized.
         # The circuit breaker (Phase 2) can halt entries for reasons unrelated to data
         # staleness (e.g. portfolio drawdown >= 20%) - ready_to_trade must reflect that,
