@@ -41,7 +41,7 @@ class CachedForm345Aggregator:
         self._build_complete = threading.Event()
         self._lock = threading.Lock()
 
-    def get_velocity_metrics(self, symbol: str, measurement_date: datetime | None = None, wait_for_download: bool = False) -> dict[str, Any]:
+    def get_velocity_metrics(self, symbol: str, measurement_date: date | None = None, wait_for_download: bool = False) -> VelocityMetrics:
         """Get insider transaction velocity for a symbol.
 
         Args:
@@ -56,12 +56,15 @@ class CachedForm345Aggregator:
         # Ensure download is started (but don't wait for it)
         self._ensure_download_started()
 
+        # Default to today if measurement_date not provided
+        effective_date = measurement_date or datetime.now(timezone.utc).date()
+
         # If caller wants to wait, do so
         if wait_for_download:
             if not self._build_complete.wait(timeout=self._timeout_seconds):
                 return VelocityMetrics(
                     symbol=symbol,
-                    measurement_date=measurement_date,
+                    measurement_date=effective_date,
                     data_unavailable=True,
                     reason="Form345_download_timeout",
                 )
@@ -70,7 +73,7 @@ class CachedForm345Aggregator:
         if not self._build_complete.is_set():
             return VelocityMetrics(
                 symbol=symbol,
-                measurement_date=measurement_date,
+                measurement_date=effective_date,
                 data_unavailable=True,
                 reason="Form345_download_in_progress",
             )
@@ -79,19 +82,20 @@ class CachedForm345Aggregator:
         if self._build_exception:
             return VelocityMetrics(
                 symbol=symbol,
-                measurement_date=measurement_date,
+                measurement_date=effective_date,
                 data_unavailable=True,
                 reason=f"Form345_download_failed: {type(self._build_exception).__name__}",
             )
 
         # Download succeeded, fetch real data
         try:
-            return self._aggregator.get_velocity_metrics(symbol, measurement_date)
+            assert self._aggregator is not None, "Aggregator must be initialized"
+            return self._aggregator.get_velocity_metrics(symbol, effective_date)
         except Exception as e:
             logger.warning(f"[Form345] Error getting metrics for {symbol}: {e}")
             return VelocityMetrics(
                 symbol=symbol,
-                measurement_date=measurement_date,
+                measurement_date=effective_date,
                 data_unavailable=True,
                 reason=f"Form345_query_error: {type(e).__name__}",
             )

@@ -220,7 +220,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
             logger.error(f"[{symbol}] Segment extraction failed: {type(e).__name__}: {str(e)[:300]}", exc_info=True)
             return [self._unavailable_marker(symbol, f"extraction_error:{type(e).__name__}")]
 
-    def _find_latest_10k(self, submissions: dict) -> dict | None:
+    def _find_latest_10k(self, submissions: dict[str, Any]) -> dict[str, Any] | None:
         """Find the most recent 10-K filing in the submissions list.
 
         SEC filings format is columnar: {'accessionNumber': [...], 'form': [...], ...}
@@ -277,7 +277,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
         except (ValueError, TypeError):
             return None
 
-    def _extract_filing_date(self, facts_response: dict) -> date | None:
+    def _extract_filing_date(self, facts_response: dict[str, Any]) -> date | None:
         """Extract most recent filing date from companyfacts response.
 
         Companyfacts includes metadata with filing dates. We look for the most recent

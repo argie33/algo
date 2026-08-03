@@ -113,7 +113,8 @@ class DividendDataLoader(SecLoaderBase):
         # disclosed, not a later split-adjusted restatement - which also fixes declaration_date
         # (derived from `filed`) landing years after the ex-date estimate it's paired with.
         earliest_fact_by_period: dict[str, dict[str, Any]] = {}
-        units_data: dict[str, Any] = concept_data.get("units") if "units" in concept_data else {}
+        units_raw = concept_data.get("units") if "units" in concept_data else None
+        units_data: dict[str, Any] = units_raw if isinstance(units_raw, dict) else {}
         for unit, facts_list in units_data.items():
             # XBRL facts are organized by unit. Both concepts this method is called with
             # ("...PerShareDeclared"/"...PerShareCashPaid") are per-share ratio concepts, whose

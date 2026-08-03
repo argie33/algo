@@ -1024,7 +1024,7 @@ class ExitEngine:
 
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
-                    except Exception as _trade_err:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, KeyError, RuntimeError) as _trade_err:
                         # CRITICAL FIX: Rollback to savepoint may itself fail if transaction is aborted.
                         # Wrap it in try-except to ensure we log the error and continue to the next position,
                         # rather than propagating a "current transaction is aborted" error that would abort

@@ -1937,12 +1937,13 @@ class PriceLoader(OptimalLoader):
             else:
                 loader_status = "ok"
 
-            # CRITICAL FIX 2026-07-31: Mark loads <90% complete as hard failures for real-money readiness
-            # Experience shows 94.6% is achievable (5189/5486 symbols with ~297 delisted/halted)
-            # Use 90% threshold to allow minor data gaps while catching systemic loader failures
+            # CRITICAL FIX 2026-08-03: Use max_fail_rate consistently for all completion checks
+            # Previously had TWO separate thresholds (max_fail_rate=2% and hardcoded min_acceptable_pct=90%)
+            # which created inconsistency: 95.75% completion passes 90% check but fails 2% max_fail_rate
+            # Now derive min_acceptable_pct from max_fail_rate to keep all checks aligned
             # NEVER reset completion_pct to 0.0 - this hides actual completion from orchestrator
             # The orchestrator needs accurate completion metrics to make halt decisions
-            min_acceptable_pct = 90.0  # Require at least 90% of expected symbols
+            min_acceptable_pct = 100.0 - self.max_fail_rate  # Require max_fail_rate % symbols loaded
 
             logger.info(
                 f"[{self.table_name}] FINAL STATUS CHECK: symbols_loaded={symbols_successfully_loaded}, "
