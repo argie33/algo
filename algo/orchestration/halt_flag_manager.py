@@ -15,6 +15,7 @@ Eliminates divergent change in Orchestrator by centralizing all halt flag logic.
 
 import logging
 import os
+import zlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -28,6 +29,20 @@ class HaltFlagManager:
     """Manage halt flag state in DynamoDB with auto-expiry and escalation tracking."""
 
     HALT_FLAG_DYNAMODB_KEY = "orchestrator_halt"
+
+    # BUG FIX: the four advisory-lock call sites below used to compute
+    # `hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)` per call. Python randomizes str
+    # hashing per-process by default (PYTHONHASHSEED, unset anywhere in this repo's
+    # Docker/Lambda/CI config) - confirmed live: three separate `python -c
+    # "hash('orchestrator_halt')"` invocations returned three different values. Every
+    # "RACE CONDITION FIX" comment on these methods claims "all instances wait on same
+    # lock", but concurrent orchestrator processes (the exact Lambda/ECS scenario these
+    # comments describe) each derive a DIFFERENT lock_id for the identical logical
+    # resource, so pg_advisory_lock never actually serializes them - a silent no-op.
+    # zlib.crc32 is not seed-randomized (verified stable across process invocations),
+    # matching the fixed-constant pattern already used elsewhere for the same reason
+    # (see PORTFOLIO_SNAPSHOT_LOCK_ID in position_sizer.py / reconciliation.py).
+    HALT_FLAG_LOCK_ID = zlib.crc32(HALT_FLAG_DYNAMODB_KEY.encode()) % (2**31)
 
     def __init__(self, alerts: Any, log_phase_result: Any) -> None:
         """Initialize with alert manager and phase logging callback.
@@ -296,7 +311,7 @@ class HaltFlagManager:
             with DatabaseContext("write") as cur:
                 # Use advisory lock to serialize access to halt flag across concurrent instances
                 # Lock ID is deterministic (hash of state key) so all instances wait on same lock
-                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)  # Ensure within PostgreSQL int32 range
+                lock_id = self.HALT_FLAG_LOCK_ID
 
                 try:
                     # Acquire exclusive lock (blocks other instances until we release)
@@ -584,7 +599,7 @@ class HaltFlagManager:
         try:
             with DatabaseContext("write") as cur:
                 # Use advisory lock to serialize access to halt flag
-                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)
+                lock_id = self.HALT_FLAG_LOCK_ID
 
                 try:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
@@ -763,7 +778,7 @@ class HaltFlagManager:
         """
         try:
             with DatabaseContext("write") as cur:
-                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)
+                lock_id = self.HALT_FLAG_LOCK_ID
 
                 try:
                     # Acquire lock before reading
@@ -969,7 +984,7 @@ class HaltFlagManager:
         try:
             with DatabaseContext("write") as cur:
                 # Use advisory lock to serialize access to halt flag
-                lock_id = hash(self.HALT_FLAG_DYNAMODB_KEY) % (2**31)
+                lock_id = self.HALT_FLAG_LOCK_ID
 
                 try:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
