@@ -241,6 +241,16 @@ class PutCallRatioFetcher:
                     return None
 
                 ratio = float(puts_oi) / float(calls_oi)
+
+                # Validate ratio is realistic (0.2-3.0 is normal range)
+                # Outside this range indicates data quality issue or extreme market conditions
+                if not (0.2 <= ratio <= 3.0):
+                    logger.warning(
+                        f"[PUT_CALL_RATIO] Ratio {ratio:.3f} outside realistic range (0.2-3.0). "
+                        f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}. Treating as unavailable."
+                    )
+                    return None
+
                 logger.info(
                     f"[PUT_CALL_RATIO] Calculated from SPY {nearest_exp}: "
                     f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}, ratio={ratio:.3f}"

@@ -611,7 +611,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
         # For development without Cognito, inject dev token automatically
         # CRITICAL FIX: Check if we're talking to a local dev_server (localhost:3001)
         # This works for both localhost and non-AWS environments to enable testing
-        is_localhost = "localhost" in api_url or "127.0.0.1" in api_url or ":3001" in api_url
+        is_localhost = "localhost" in api_url or "127.0.0.1" in api_url or "::1" in api_url or ":3001" in api_url
         is_dev_mode = os.environ.get("LOCAL_MODE") or os.environ.get("ENVIRONMENT") == "development"
         if is_localhost or is_dev_mode:
             headers["Authorization"] = "Bearer dev-admin"

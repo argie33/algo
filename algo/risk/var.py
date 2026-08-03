@@ -833,15 +833,28 @@ class ValueAtRisk:
                 ) from e
 
             try:
-                beta = self.beta_exposure()  # Returns None if no positions
+                beta = self.beta_exposure()
             except Exception as e:
                 logger.warning(f"Beta exposure unavailable: {e}")
-                beta = {"portfolio_beta": 0.0}  # Default to zero market exposure if computation fails
+                beta = None
+
+            # Ensure beta is a dict with portfolio_beta key - if calculation failed or returned None,
+            # use default zero exposure
+            if not beta or "portfolio_beta" not in beta:
+                logger.warning(f"Beta calculation missing or incomplete: {beta}. Using zero market exposure default.")
+                beta = {"portfolio_beta": 0.0}
+
             try:
-                concentration = self.concentration_report()  # Returns None if no positions
+                concentration = self.concentration_report()
             except Exception as e:
                 logger.warning(f"Concentration report unavailable: {e}")
-                concentration = {"top_5_concentration_pct": 0.0}  # Default to zero concentration if computation fails
+                concentration = None
+
+            # Ensure concentration is a dict with top_5_concentration_pct key - if calculation failed or returned None,
+            # use default zero concentration
+            if not concentration or "top_5_concentration_pct" not in concentration:
+                logger.warning(f"Concentration calculation missing or incomplete: {concentration}. Using zero concentration default.")
+                concentration = {"top_5_concentration_pct": 0.0}
 
             logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <insufficient data>")
             logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <insufficient data>")

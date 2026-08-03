@@ -1094,24 +1094,34 @@ def _get_risk_metrics(cur: cursor) -> Any:
                 "data_unavailable",
                 "Risk metrics not available. Check data loader health.",
             )
+        # Check if there are any open positions first (needed to interpret beta/concentration values)
+        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+        position_count_row = cur.fetchone()
+        has_positions = (position_count_row[0] > 0) if position_count_row else False
+
         data = safe_dict_convert(row)
         var_95 = data.get("var_pct_95")
         cvar_95 = data.get("cvar_pct_95")
         stressed_var = data.get("stressed_var_pct")
-        # Beta and Concentration are required fields - fail if missing
         portfolio_beta = data.get("portfolio_beta")
-        if portfolio_beta is None:
-            logger.error("Risk metrics database row missing required 'portfolio_beta' field")
-            return error_response(503, "incomplete_risk_data", "Portfolio beta required but missing from database")
         concentration = data.get("top_5_concentration")
-        if concentration is None:
-            logger.error("Risk metrics database row missing required 'top_5_concentration' field")
-            return error_response(503, "incomplete_risk_data", "Top 5 concentration required but missing from database")
 
-        # Check if there are any open positions (needed by dashboard to determine if beta should display)
-        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-        position_count_row = cur.fetchone()
-        has_positions = (position_count_row[0] > 0) if position_count_row else False
+        # CRITICAL FIX: Beta and Concentration are OPTIONAL when there are no open positions
+        # When positions = 0, NULL/0.0 is the correct value (zero market exposure/concentration)
+        # Only fail if there ARE open positions but beta/concentration are missing
+        if has_positions:
+            if portfolio_beta is None:
+                logger.error(
+                    "Risk metrics missing portfolio_beta despite open positions. "
+                    "Portfolio has positions but beta was not calculated - this is a data integrity error."
+                )
+                return error_response(503, "incomplete_risk_data", "Portfolio beta required but missing from database")
+            if concentration is None:
+                logger.error(
+                    "Risk metrics missing top_5_concentration despite open positions. "
+                    "Portfolio has positions but concentration was not calculated - this is a data integrity error."
+                )
+                return error_response(503, "incomplete_risk_data", "Top 5 concentration required but missing from database")
 
         return success_response(
             {

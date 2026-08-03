@@ -79,6 +79,7 @@ import psycopg2
 
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
+from algo.orchestrator.phase_data_contract import ExposureConstraints
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
@@ -95,7 +96,7 @@ logger = logging.getLogger(__name__)
 VALID_REGIMES = ["expansion", "correction", "caution"]
 
 
-def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any] | Any) -> None:
+def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints | Any) -> None:
     """AUDIT ISSUE #15 FIX: Validate exposure constraints before using in Phase 8 entry execution.
 
     Ensures all required constraint fields have valid values. Fail-fast if invalid.
@@ -130,7 +131,7 @@ def _validate_constraints_for_phase8(exposure_constraints: dict[str, Any] | Any)
     if isinstance(exposure_constraints, ExposurePolicyConstraints):
         constraints_dict = exposure_constraints.to_dict()
     elif isinstance(exposure_constraints, dict):
-        constraints_dict = exposure_constraints
+        constraints_dict = cast(dict[str, Any], exposure_constraints)
     else:
         raise TypeError(f"exposure_constraints must be dict or ExposurePolicyConstraints, got {type(exposure_constraints).__name__}")
 
@@ -782,7 +783,7 @@ def run(
     verbose: bool,
     log_phase_result_fn: Callable[..., Any],
     qualified_trades: list[dict[str, Any]] | None = None,
-    exposure_constraints: dict[str, Any] | Any | None = None,
+    exposure_constraints: ExposureConstraints | Any | None = None,
     check_halt_flag: Callable[..., Any] | None = None,
     executor: Any = None,
 ) -> PhaseResult:
@@ -1138,7 +1139,7 @@ def run(
     if isinstance(exposure_constraints, ExposurePolicyConstraints):
         exposure_constraints_dict = exposure_constraints.to_dict()
     else:
-        exposure_constraints_dict = exposure_constraints or {}
+        exposure_constraints_dict = cast(dict[str, Any], exposure_constraints or {})
 
     # CRITICAL: Exposure constraints are REQUIRED - fail-fast if entirely missing
     if not exposure_constraints_dict:

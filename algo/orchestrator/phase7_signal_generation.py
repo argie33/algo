@@ -86,7 +86,7 @@ from typing import Any
 import psycopg2
 
 from algo.orchestrator.config_validator import validate_phase_config
-from algo.orchestrator.phase_data_contract import validate_phase_data
+from algo.orchestrator.phase_data_contract import ExposureConstraints, validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from utils.db.context import DatabaseContext
@@ -1155,7 +1155,7 @@ def run(  # noqa: C901
     dry_run: bool,
     verbose: bool,
     log_phase_result_fn: Callable[..., Any],
-    exposure_constraints: dict[str, Any] | None = None,
+    exposure_constraints: ExposureConstraints | None = None,
     check_halt_flag: Callable[..., bool] | None = None,
     config: dict[str, Any] | None = None,
 ) -> PhaseResult:

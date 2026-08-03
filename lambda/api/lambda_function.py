@@ -1773,8 +1773,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     try:
                         from utils.db.timezone_utils import get_db_timezone
                         _NAIVE_DB_TZ_CACHE = get_db_timezone()
-                    except Exception as tz_err:
-                        logger.warning(f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {tz_err}")
+                    except (ImportError, RuntimeError, ValueError, psycopg2.DatabaseError, psycopg2.OperationalError) as tz_err:
+                        logger.warning(f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {type(tz_err).__name__}: {tz_err}")
                         _NAIVE_DB_TZ_CACHE = timezone.utc
             return _NAIVE_DB_TZ_CACHE
 

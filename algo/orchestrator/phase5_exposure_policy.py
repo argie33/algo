@@ -3,10 +3,10 @@
 import logging
 from collections.abc import Callable
 from datetime import date as _date
-from typing import Any
+from typing import Any, cast
 
 from algo.orchestrator.config_validator import validate_phase_config
-from algo.orchestrator.phase_data_contract import validate_phase_data
+from algo.orchestrator.phase_data_contract import ExposureConstraints, validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
@@ -27,7 +27,7 @@ VALID_CONSTRAINT_KEYS = [
 ]
 
 
-def validate_constraint_dict(constraints: dict[str, Any]) -> None:
+def validate_constraint_dict(constraints: ExposureConstraints | dict[str, Any]) -> None:
     """ISSUE 15 FIX: Validate constraint dict values, not just keys.
 
     Ensures all required constraint fields have valid values before trading.
@@ -82,14 +82,15 @@ def validate_constraint_dict(constraints: dict[str, Any]) -> None:
         raise ValueError(error_msg)
 
 
-def _health_panel_fields(constraints: Any) -> dict[str, Any]:
+def _health_panel_fields(constraints: ExposureConstraints | dict[str, Any] | Any) -> dict[str, Any]:
     """Map ExposurePolicy constraint keys to the exact keys the health dashboard
     (dashboard/panels/health.py, Phase 5 detail row) reads - previously PhaseResult.data
     only carried {"constraints": {...}, "actions": [...]}, so Market regime/New entries/
     Max slots/Halt status silently never rendered despite constraints already having this
     data under its own (differently-named) keys.
 
-    Accepts both dataclass (ExposurePolicyConstraints) and dict for backwards compatibility.
+    Accepts both dataclass (ExposurePolicyConstraints), TypedDict (ExposureConstraints),
+    and dict for backwards compatibility.
     """
     from algo.risk import ExposurePolicyConstraints
 
@@ -97,7 +98,7 @@ def _health_panel_fields(constraints: Any) -> dict[str, Any]:
     if isinstance(constraints, ExposurePolicyConstraints):
         constraints_dict = constraints.to_dict()
     else:
-        constraints_dict = constraints
+        constraints_dict = cast(dict[str, Any], constraints)
 
     required_keys = ["regime", "halt_new_entries", "max_new_positions_today", "halt_reason"]
     missing = [k for k in required_keys if k not in constraints_dict]
