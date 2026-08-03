@@ -1619,6 +1619,48 @@ def run(
         log_phase_result_fn(8, "entry_execution", "halt", msg)
         raise RuntimeError(msg) from e
 
+    # CRITICAL FIX (Session 2026-08-03): Re-validate price_daily freshness for afternoon/evening runs
+    # Phase 1 validates at startup, but Phase 8 may run HOURS later. Re-validate before entries.
+    # If market closed early or pipeline stalled, price_daily may be stale.
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT MAX(date) FROM price_daily")
+            price_row = cur.fetchone()
+            max_price_date = price_row[0] if price_row and price_row[0] else None
+
+            if not max_price_date:
+                msg = (
+                    f"[PHASE 8 CRITICAL] price_daily table is empty (no dates found). "
+                    f"Cannot verify price freshness. Must halt - no valid price data for trading."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(8, "entry_execution", "halt", msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+            if max_price_date < run_date:
+                msg = (
+                    f"[PHASE 8 CRITICAL] price_daily is STALE: max_date={max_price_date}, run_date={run_date}. "
+                    f"Latest prices are from {max_price_date}, but trading run is for {run_date}. "
+                    f"Market may have closed early, or price loader did not complete. "
+                    f"Cannot execute entries without current price data. Must halt."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(8, "entry_execution", "halt", msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+            logger.info(
+                f"[PHASE 8] Price freshness validated: max_date={max_price_date} >= run_date={run_date}. "
+                f"OK to proceed with entries."
+            )
+    except Exception as e:
+        msg = (
+            f"[PHASE 8 CRITICAL] Price freshness check failed: {e}. "
+            f"Cannot verify data is current for trading. Must halt to prevent stale-data entries."
+        )
+        logger.critical(msg, exc_info=True)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        raise RuntimeError(msg) from e
+
     # This is defensive - stops entries BEFORE they would push us over the limit
     # (vs circuit breaker which stops AFTER we've exceeded it)
     try:
