@@ -133,7 +133,7 @@ def check_secrets_freshness() -> tuple[bool, str]:
 
 def check_credential_loading() -> tuple[bool, str]:
     try:
-        from config.credential_manager import get_credential_manager
+        from algo.config.credential_manager import get_credential_manager
 
         mgr = get_credential_manager()
 

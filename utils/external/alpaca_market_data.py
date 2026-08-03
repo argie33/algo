@@ -28,7 +28,7 @@ On the free plan a request whose `end` is within the last 15 minutes is rejected
 for feed=sip; fetch_daily_bars() guards this by capping the end timestamp at
 now-16min (a no-op for EOD runs, which query completed days).
 
-Credentials come from config.credential_manager.get_alpaca_credentials() (same
+Credentials come from algo.config.credential_manager.get_alpaca_credentials() (same
 key pair as the trading API; the data host is data.alpaca.markets).
 """
 
@@ -42,7 +42,7 @@ from typing import Any
 
 import requests
 
-from config.api_endpoints import get_alpaca_data_url
+from algo.config.api_endpoints import get_alpaca_data_url
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class AlpacaMarketData:
 
     def _get_headers(self) -> dict[str, str]:
         if self._headers is None:
-            from config.credential_manager import get_alpaca_credentials
+            from algo.config.credential_manager import get_alpaca_credentials
 
             creds = get_alpaca_credentials()
             key = creds.get("key")

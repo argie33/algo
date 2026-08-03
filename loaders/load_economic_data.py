@@ -39,7 +39,7 @@ sys.path.insert(0, project_root)
 
 import requests  # noqa: E402
 
-from config.api_endpoints import get_fred_url  # noqa: E402
+from algo.config.api_endpoints import get_fred_url  # noqa: E402
 from loaders.timeout_config import configure_socket_timeout, get_http_timeout  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.loaders import get_api_key  # noqa: E402

@@ -56,7 +56,7 @@ class AWSProductionConfigValidator:
 
     def validate_alpaca_config(self) -> bool:
         try:
-            from config.credential_manager import get_credential_manager
+            from algo.config.credential_manager import get_credential_manager
 
             cred_mgr = get_credential_manager()
             cred_mgr.get_alpaca_credentials()

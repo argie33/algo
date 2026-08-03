@@ -13,7 +13,7 @@ from typing import Any, cast
 
 import psycopg2
 
-from config.credential_validator import assert_credentials
+from algo.config.credential_validator import assert_credentials
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -2414,7 +2414,7 @@ def get_alpaca_base_url(execution_mode: str | None = None) -> str:
     real-money account routing. Now forwards execution_mode so anyone who does reach for this
     wrapper gets the same full live-intent gate as the properly-imported version.
     """
-    from config.api_endpoints import get_alpaca_base_url as get_unified_url
+    from algo.config.api_endpoints import get_alpaca_base_url as get_unified_url
 
     return get_unified_url(execution_mode)
 

@@ -15,7 +15,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from algo.trading.executor_strategies import create_execution_mode_strategy
-from config.credential_manager import get_credential_manager
+from algo.config.credential_manager import get_credential_manager
 from utils.db.advisory_locks import ALGO_POSITIONS_LOCK_ID, acquire_advisory_lock, release_advisory_lock
 
 logger = logging.getLogger(__name__)

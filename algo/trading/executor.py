@@ -36,7 +36,7 @@ from algo.trading.handler_context import HandlerContext
 from algo.trading.order_manager import OrderManager
 from algo.trading.position_tracker import PositionTracker
 from algo.trading.trade_context import TradeContext
-from config.credential_manager import get_alpaca_credentials
+from algo.config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
 from utils.db.advisory_locks import (
     ALGO_POSITIONS_LOCK_ID,

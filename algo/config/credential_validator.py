@@ -122,7 +122,7 @@ def validate_credentials() -> tuple[bool, list[str]]:
     # These are optional for paper trading but should be set for live trading
     # Use the credential manager to check (supports Secrets Manager + env vars, same as actual app)
     try:
-        from config.credential_manager import get_credential_manager
+        from algo.config.credential_manager import get_credential_manager
 
         cred_mgr = get_credential_manager()
         alpaca_creds = cred_mgr.get_alpaca_credentials()

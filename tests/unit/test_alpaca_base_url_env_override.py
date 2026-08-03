@@ -11,7 +11,7 @@ account with live credentials once real trading is enabled, unless this function
 APCA_API_BASE_URL.
 """
 
-from config.api_endpoints import get_alpaca_base_url
+from algo.config.api_endpoints import get_alpaca_base_url
 
 
 def test_honors_apca_api_base_url_env_var(monkeypatch):

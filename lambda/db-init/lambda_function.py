@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 def get_credentials():
     try:
-        from config.credential_manager import get_db_credentials
+        from algo.config.credential_manager import get_db_credentials
 
         return get_db_credentials()
     except ImportError:

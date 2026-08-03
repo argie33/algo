@@ -6,7 +6,7 @@ This centralizes INTERVAL construction to make it easy to swap between config-dr
 and hardcoded values during migration.
 
 Usage:
-    from config.sql_intervals import get_interval_sql
+    from algo.config.sql_intervals import get_interval_sql
 
     # Get the INTERVAL for 7 days from config
     interval_7d = get_interval_sql("7d")  # Returns "INTERVAL '7 days'"
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 def get_interval_sql(interval_key: str, config: "AlgoConfig | None" = None) -> str:
-    """Get SQL INTERVAL string from config.
+    """Get SQL INTERVAL string from algo.config.
 
     Args:
         interval_key: Key like "7d", "30d", "24h", or "365d"
@@ -80,7 +80,7 @@ def get_interval_sql(interval_key: str, config: "AlgoConfig | None" = None) -> s
 
 
 def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> int | float:
-    """Get raw day value from config.
+    """Get raw day value from algo.config.
 
     Args:
         interval_key: Key like "7d", "30d", "24h", etc.

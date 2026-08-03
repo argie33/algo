@@ -37,7 +37,7 @@ except ImportError:
 
 def get_credentials() -> dict[str, Any]:
     try:
-        from config.credential_manager import get_db_credentials
+        from algo.config.credential_manager import get_db_credentials
 
         return get_db_credentials()
     except ImportError:

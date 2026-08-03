@@ -1503,7 +1503,7 @@ def run(
         )
 
     try:
-        from config.credential_manager import get_credential_manager
+        from algo.config.credential_manager import get_credential_manager
 
         creds = get_credential_manager().get_alpaca_credentials()
 

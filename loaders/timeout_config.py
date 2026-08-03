@@ -158,7 +158,7 @@ def get_http_timeout(api_type: str = "default") -> tuple[float, float]:
 
 
 def get_database_timeout() -> float:
-    """Get database timeout from config.
+    """Get database timeout from algo.config.
 
     Defaults to 30s (matching this module's documented default) when unset -- a
     connection timeout is operational plumbing, not financial data that needs

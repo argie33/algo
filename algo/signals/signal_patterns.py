@@ -42,7 +42,7 @@ class SignalPatternsMixin:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _get_signal_pattern_thresholds(self) -> dict[str, int]:
-        """Load signal pattern date thresholds from config."""
+        """Load signal pattern date thresholds from algo.config."""
         thresholds = {
             "signal_patterns_signal_age_days": 7,
             "signal_patterns_intermediate_lookback_days": 10,

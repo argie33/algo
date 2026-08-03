@@ -42,7 +42,7 @@ SNS_ALERT_TOPIC_ARN = os.environ.get("SNS_ALERT_TOPIC_ARN", "")
 
 def get_db_credentials():
     try:
-        from config.credential_manager import get_db_credentials as get_db_creds
+        from algo.config.credential_manager import get_db_credentials as get_db_creds
 
         return get_db_creds()
     except ImportError:

@@ -18,7 +18,7 @@ All thresholds are validated at:
 3. Hot-reload (when database values are updated)
 
 Usage:
-    from config.thresholds import ThresholdConfig
+    from algo.config.thresholds import ThresholdConfig
     max_daily_loss = ThresholdConfig.max_daily_loss_pct()  # Raises error if not configured
 """
 

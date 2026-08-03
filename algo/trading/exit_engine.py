@@ -19,8 +19,8 @@ from algo.infrastructure.market_calendar import MarketCalendar
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
-from config.api_endpoints import get_alpaca_data_url
-from config.credential_manager import get_alpaca_credentials
+from algo.config.api_endpoints import get_alpaca_data_url
+from algo.config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus

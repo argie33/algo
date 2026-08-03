@@ -25,7 +25,7 @@ def lambda_handler(event, context):
         return {"statusCode": 500, "body": json.dumps({"success": False, "error": "psycopg2 library not available"})}
 
     try:
-        from config.credential_manager import get_db_credentials
+        from algo.config.credential_manager import get_db_credentials
 
         creds = get_db_credentials()
     except Exception as e:

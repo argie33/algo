@@ -21,7 +21,7 @@ try:
 except ImportError:
     HAS_PLAYWRIGHT = False
 
-from config.api_endpoints import get_aaii_sentiment_url
+from algo.config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader

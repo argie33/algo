@@ -35,8 +35,8 @@ import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
-from config.api_endpoints import get_alpaca_base_url
-from config.credential_manager import get_alpaca_credentials, get_credential_manager
+from algo.config.api_endpoints import get_alpaca_base_url
+from algo.config.credential_manager import get_alpaca_credentials, get_credential_manager
 from utils.db import DatabaseContext
 from utils.trading import TradeStatus
 

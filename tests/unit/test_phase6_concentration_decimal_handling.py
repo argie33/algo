@@ -109,7 +109,7 @@ class TestPhase6ConcentrationDecimalHandling:
         mock_context, mock_cursor = mock_db_decimal_returns
 
         # Sector concentration query returns COUNT as integer, but max_per_sector might be Decimal
-        # from config.get()
+        # from algo.config.get()
         mock_cursor.fetchall = MagicMock(return_value=[
             ("Technology", Decimal("12")),  # 12 positions - exceeds limit of 10
             ("Finance", Decimal("8")),      # 8 positions - OK

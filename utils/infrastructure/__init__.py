@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from config.api_endpoints import (
+from algo.config.api_endpoints import (
     get_alpaca_data_url,
 )
 

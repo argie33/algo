@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 def get_rds_credentials():
     try:
-        from config.credential_manager import get_db_credentials
+        from algo.config.credential_manager import get_db_credentials
 
         return get_db_credentials()
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -71,8 +71,8 @@ def query_rds_signals(credentials):
 
 
 def get_alpaca_credentials():
-    from config.api_endpoints import get_alpaca_base_url
-    from config.credential_manager import get_alpaca_credentials as get_alpaca_creds
+    from algo.config.api_endpoints import get_alpaca_base_url
+    from algo.config.credential_manager import get_alpaca_credentials as get_alpaca_creds
 
     base_url = get_alpaca_base_url()
 

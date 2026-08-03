@@ -402,7 +402,7 @@ class Orchestrator:
         # exactly the fail-fast violation this validator exists to prevent.
         if execution_mode == "auto":
             try:
-                from config.credential_manager import CredentialManager
+                from algo.config.credential_manager import CredentialManager
 
                 is_paper_trading = self.config.get("alpaca_paper_trading")
                 if is_paper_trading is None:
@@ -2671,7 +2671,7 @@ if __name__ == "__main__":
     )
     dry_run = args.dry_run or env_dry_run
 
-    from config.credential_validator import assert_credentials
+    from algo.config.credential_validator import assert_credentials
 
     assert_credentials(on_failure="warn")
 

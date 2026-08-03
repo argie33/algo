@@ -305,7 +305,7 @@ class PositionSizer:
         secret = None
 
         try:
-            from config.credential_manager import get_credential_manager as _get_cm
+            from algo.config.credential_manager import get_credential_manager as _get_cm
 
             _creds = _get_cm().get_alpaca_credentials()
             key = _creds.get("key")
@@ -317,7 +317,7 @@ class PositionSizer:
         base = os.getenv("APCA_API_BASE_URL")
         if not base:
             try:
-                from config.api_endpoints import get_alpaca_base_url
+                from algo.config.api_endpoints import get_alpaca_base_url
 
                 base = get_alpaca_base_url(execution_mode)
             except (ImportError, AttributeError) as cfg_e:

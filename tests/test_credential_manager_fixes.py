@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from config.credential_manager import CredentialManager
+from algo.config.credential_manager import CredentialManager
 
 
 def test_db_credentials_requires_all_fields_in_aws_secret():

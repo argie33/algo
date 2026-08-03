@@ -142,7 +142,7 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
         RuntimeError: If credentials not found, invalid, or load fails
     """
     try:
-        from config.credential_manager import get_alpaca_credentials
+        from algo.config.credential_manager import get_alpaca_credentials
 
         logger.debug(f"[ALPACA] Attempting to load user-scoped credentials for {user_id}")
         creds: dict[str, str] | None = get_alpaca_credentials(user_id=user_id)
@@ -166,7 +166,7 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
     if default_to_shared:
         logger.debug("[ALPACA] Falling back to shared credentials")
         try:
-            from config.credential_manager import get_alpaca_credentials
+            from algo.config.credential_manager import get_alpaca_credentials
 
             creds = get_alpaca_credentials(user_id=None)
 
