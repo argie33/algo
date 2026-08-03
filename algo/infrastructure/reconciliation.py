@@ -2193,29 +2193,41 @@ class DailyReconciliation:
                     )
                     continue
 
-                # Check for mismatch
-                db_qty_int = int(db_qty)
-                alpaca_filled_int = int(alpaca_filled_qty)
+                # Check for mismatch. CRITICAL FIX: this used to compare int(db_qty) !=
+                # int(alpaca_filled_qty), truncating fractional shares before comparing - this
+                # system actively trades fractional shares (order_manager.py), so a genuine
+                # sub-1-share drift (e.g. db_qty=10.9, alpaca_filled_qty=10.1) truncated to
+                # int(10.9)=10 == int(10.1)=10 and was silently classified as "no mismatch".
+                # Unlike the equivalent bug already fixed in alpaca_sync_manager.py (where the
+                # DB correction ran unconditionally and only the alert was gated), HERE the
+                # comparison gates the correction UPDATE itself (see below) - so this
+                # truncation didn't just miss an alert, it left algo_trades.entry_quantity
+                # silently wrong for any sub-1-share entry-fill drift, with no way for a later
+                # reconciliation pass to ever catch it (int(10.9) always equals int(10.1)).
+                qty_mismatch = alpaca_filled_qty > 0 and abs(float(db_qty) - alpaca_filled_qty) > 1e-6
 
-                if alpaca_filled_int > 0 and db_qty_int != alpaca_filled_int:
+                if qty_mismatch:
                     # Quantity drift detected - Alpaca has different fill than DB
                     mismatches.append(
                         {
                             "symbol": symbol,
                             "trade_id": db_trade_id,
-                            "db_quantity": db_qty_int,
-                            "alpaca_filled": alpaca_filled_int,
+                            "db_quantity": float(db_qty),
+                            "alpaca_filled": alpaca_filled_qty,
                             "alpaca_status": order_status,
                         }
                     )
 
-                    # Correct the DB quantity to match Alpaca (source of truth)
+                    # Correct the DB quantity to match Alpaca (source of truth). algo_trades.
+                    # entry_quantity is numeric(_, 4) - write the precise fractional value, not
+                    # the truncated int (which would itself re-introduce the same precision loss
+                    # this fix removes from the comparison).
                     cur.execute(
                         "UPDATE algo_trades SET entry_quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE trade_id = %s",
-                        (alpaca_filled_int, db_trade_id),
+                        (alpaca_filled_qty, db_trade_id),
                     )
                     logger.warning(
-                        f"[PARTIAL_FILL] Corrected {symbol} quantity: DB had {db_qty_int}, Alpaca filled {alpaca_filled_int}"
+                        f"[PARTIAL_FILL] Corrected {symbol} quantity: DB had {db_qty}, Alpaca filled {alpaca_filled_qty}"
                     )
 
                     try:
@@ -2227,12 +2239,12 @@ class DailyReconciliation:
                         notify(
                             severity="warning",
                             title="Partial Fill Detected and Corrected",
-                            message=f"{symbol}: Quantity corrected from {db_qty_int} to {alpaca_filled_int} to match Alpaca.",
+                            message=f"{symbol}: Quantity corrected from {db_qty} to {alpaca_filled_qty} to match Alpaca.",
                             symbol=symbol,
                             details={
                                 "symbol": symbol,
-                                "db_quantity": db_qty_int,
-                                "alpaca_filled": alpaca_filled_int,
+                                "db_quantity": float(db_qty),
+                                "alpaca_filled": alpaca_filled_qty,
                             },
                             strict=True,
                         )

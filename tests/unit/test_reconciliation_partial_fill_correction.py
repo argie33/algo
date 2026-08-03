@@ -82,6 +82,36 @@ def test_notify_failure_does_not_discard_the_already_applied_correction():
     assert update_calls[0].args[1] == (60, "trade-123")
 
 
+def test_sub_one_share_drift_is_detected_and_corrected_with_precision():
+    """CRITICAL FIX regression: the mismatch check used to compare int(db_qty) !=
+    int(alpaca_filled_qty), truncating fractional shares before comparing. A genuine
+    sub-1-share drift (DB=10.9, Alpaca=10.1) truncated to int(10.9)=10 == int(10.1)=10 and
+    was silently classified as "no mismatch" - unlike the equivalent bug in
+    alpaca_sync_manager.py, HERE the comparison gates the correction UPDATE itself, so this
+    left algo_trades.entry_quantity permanently wrong with no way for a later pass to catch
+    it. Must detect the drift AND write the precise fractional value (not a truncated int)
+    to the numeric(_, 4) entry_quantity column."""
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = [
+        {"symbol": "AAPL", "filled_qty": "10.1", "status": "filled", "side": "buy"}
+    ]
+    cur = MagicMock()
+    cur.fetchone.return_value = ("trade-123", 10.9, "open")
+
+    with patch("algo.infrastructure.reconciliation.notify"):
+        result = reconciliation.check_partial_fills(cur)
+
+    assert result["mismatches"] == 1
+    assert result["details"][0]["db_quantity"] == 10.9
+    assert result["details"][0]["alpaca_filled"] == 10.1
+
+    update_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
+    assert len(update_calls) == 1
+    assert update_calls[0].args[1] == (10.1, "trade-123"), (
+        "must write the precise fractional value, not a truncated int"
+    )
+
+
 def test_no_correction_when_broker_and_db_quantities_already_match():
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
