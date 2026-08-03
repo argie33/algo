@@ -30,8 +30,10 @@ def test_mark_completed_resets_streak_and_stamps_success():
         # Mock fetchone() to return different values for different queries
         # First call: SELECT symbol_count, symbols_loaded, completion_pct (3 values)
         # Second call: SELECT for archive (7 values)
+        # SAFETY CHECK FIX (2026-08-04): Use 99% completion (>= 98% minimum) so mark_completed succeeds
+        # Previously 95.75% would trigger safety check and mark as FAILED instead
         mock_cur.fetchone.side_effect = [
-            (5486, 5253, 95.75),  # symbol_count, symbols_loaded, completion_pct from safety check
+            (5486, 5380, 99.0),  # symbol_count, symbols_loaded, completion_pct from safety check (>= 98%)
             (None, None, None, None, None, None, None),  # archive SELECT: (exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count)
         ]
         mock_cur.rowcount = 1  # Verify rowcount check passes

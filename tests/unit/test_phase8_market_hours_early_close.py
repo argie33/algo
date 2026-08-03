@@ -17,7 +17,10 @@ from algo.orchestrator.phase8_entry_execution import run
 
 def _base_kwargs(run_date=date(2026, 7, 2), execution_mode="paper"):
     return {
-        "config": {"execution_mode": execution_mode},
+        "config": {
+            "execution_mode": execution_mode,
+            "alpaca_paper_trading": True,  # Required for mode validation
+        },
         "run_date": run_date,
         "dry_run": True,
         "verbose": False,
