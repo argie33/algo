@@ -177,7 +177,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 return [{"symbol": symbol, "data_unavailable": True, "reason": "no_historical_data"}]
 
         # Compute trend metrics
-        metrics = {"symbol": symbol}
+        metrics: dict[str, Any] = {"symbol": symbol}
 
         try:
             # Extract current year data

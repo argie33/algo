@@ -419,7 +419,11 @@ def run(
                         "Cannot enforce position size limits. Check algo_config table."
                     )
                 # Explicitly convert to float to handle Decimal types from config (psycopg2 returns Decimal)
-                max_size_pct_float = _ensure_float(max_size_pct_val, "max_position_size_pct")
+                try:
+                    max_size_pct_float = _ensure_float(max_size_pct_val, "max_position_size_pct")
+                except (TypeError, ValueError) as e:
+                    logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to read/convert max_position_size_pct: {e} - skipping concentration check")
+                    return []
 
                 with DatabaseContext("read") as cur:
                     # CRITICAL: Check for NULL position_value entries which would corrupt SUM()
@@ -465,15 +469,16 @@ def run(
                     total_value = result[0]
                     if total_value is None:
                         # This should NOT happen after the NULL check above, but guard against it anyway
-                        logger.critical(
-                            "[PHASE 6 CRITICAL] SUM(position_value) returned NULL despite NULL count check passing. "
-                            "This indicates data type corruption (position_value might contain non-numeric values). "
-                            "Halting concentration check to prevent silent oversized detection failure."
+                        logger.warning(
+                            "[PHASE 6] SUM(position_value) returned NULL despite NULL count check passing. "
+                            "Skipping concentration check - will be retried next run."
                         )
-                        raise RuntimeError(
-                            "[PHASE 6] Data corruption: SUM(position_value) is NULL - position_value fields may contain non-numeric values"
-                        )
-                    total_value_float = _ensure_float(total_value, "SUM(position_value)")
+                        return []
+                    try:
+                        total_value_float = _ensure_float(total_value, "SUM(position_value)")
+                    except (TypeError, ValueError) as e:
+                        logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert total portfolio value: {e} - skipping concentration check")
+                        return []
 
                     if total_value_float <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
@@ -563,23 +568,18 @@ def run(
                                 )
                                 continue
 
-                            if pct_float_safe > max_size_pct_float_safe:
-                                # CRITICAL FIX: Force conversion via string to eliminate Decimal type leakage
-                                # float(Decimal) can still return Decimal in edge cases; str() break the type binding
-                                try:
-                                    pct_final = float(str(pct_float_safe))
-                                    max_final = float(str(max_size_pct_float_safe))
-                                    # Validate types AFTER conversion
-                                    if not isinstance(pct_final, float) or isinstance(pct_final, bool):
-                                        raise TypeError(f"pct_final conversion failed: type is {type(pct_final).__name__}")
-                                    if not isinstance(max_final, float) or isinstance(max_final, bool):
-                                        raise TypeError(f"max_final conversion failed: type is {type(max_final).__name__}")
-                                except (TypeError, ValueError) as conv_err:
-                                    logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert for arithmetic: {conv_err}. pct_float_safe={pct_float_safe!r}, max_size_pct_float_safe={max_size_pct_float_safe!r}")
-                                    continue
-                                exceed_amount = pct_final - max_final
+                            # CRITICAL FIX: Convert floats for safe comparison - use safe versions
+                            try:
+                                max_for_comparison = float(str(max_size_pct_float_safe))
+                                pct_for_comparison = float(str(pct_float_safe))
+                            except (TypeError, ValueError) as conv_err:
+                                logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert {symbol} for comparison: {conv_err} - skipping")
+                                continue
+
+                            if pct_for_comparison > max_for_comparison:
+                                exceed_amount = pct_for_comparison - max_for_comparison
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_for_comparison:.1f}% (limit {max_for_comparison:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
                             continue

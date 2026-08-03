@@ -63,7 +63,7 @@ def enrich_health_item_with_data_quality(health_item: dict[str, Any], cur: Any =
         health_item["quality_status"] = "unknown"  # No data to check
         return health_item
 
-    issues = []
+    issues: list[str] = []
     quality_status = "ok"
 
     try:
@@ -393,7 +393,7 @@ def _analyze_failure_patterns(table_name: str, cur: Any) -> dict[str, Any]:
     Returns:
         Dict with failure metrics
     """
-    result = {
+    result: dict[str, Any] = {
         "failure_rate_30d": None,
         "failure_pattern": None,
         "mttr_hours": None,
@@ -429,11 +429,11 @@ def _analyze_failure_patterns(table_name: str, cur: Any) -> dict[str, Any]:
 
         if failure_times:
             # Check if failures cluster around specific hours
-            hour_counts = {}
+            hour_counts: dict[int, int] = {}
             for h in failure_times:
                 hour_counts[h] = hour_counts.get(h, 0) + 1
 
-            most_common_hour = max(hour_counts, key=hour_counts.get)
+            most_common_hour = max(hour_counts, key=lambda h: hour_counts[h])
             if hour_counts[most_common_hour] >= len(failure_times) * 0.6:
                 result["failure_pattern"] = f"Typically around {most_common_hour}:00"
 
