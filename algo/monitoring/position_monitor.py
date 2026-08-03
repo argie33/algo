@@ -37,6 +37,8 @@ from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.config.api_endpoints import get_alpaca_base_url
 from algo.config.credential_manager import get_alpaca_credentials, get_credential_manager
+from algo.trading.exceptions import ExchangeAPIError
+from algo.trading.quote_fetcher import fetch_live_quote
 from utils.db import DatabaseContext
 from utils.trading import TradeStatus
 
@@ -967,7 +969,29 @@ class PositionMonitor:
         Raises:
             ValueError: If price data is missing - price_daily is required,
                        technical_data_daily may be None (handled by caller)
+
+        Price source: tries a live Alpaca quote first (real-time, matches exit_engine.py's
+        stop/target evaluation), falling back to price_daily's close if unavailable.
+        2026-08-03: price_daily is written once near market open and never refreshed
+        intraday (confirmed live: KARO/NBIX rows both had created_at == updated_at ==
+        08:32 all day) - without the live quote, health-flag EARLY_EXIT decisions,
+        unrealized P&L, and r_multiple were computed off a price that could be stale by
+        an entire trading day, and same-day entries evaluated within the same session
+        recorded exit_price identically equal to entry_price (both drawn from the same
+        un-refreshed row) - a fabricated $0.00 P&L for what should have been a priced exit.
         """
+        live_price = self._fetch_live_quote_or_none(symbol)
+        if live_price is not None:
+            atr, sma_50, sma_200 = self._fetch_technicals(symbol, current_date, cur=cur)
+            if atr is None or sma_50 is None:
+                raise ValueError(
+                    f"[POSITION_MONITOR] Cannot compute trailing stop for {symbol} on {current_date}: "
+                    f"missing critical technical data (atr={atr}, sma_50={sma_50}). "
+                    f"Trailing stop calculations require both ATR (volatility) and SMA_50 (trend). "
+                    f"Check: load_technical_data_daily logs for data loading failures."
+                )
+            return (live_price, atr, sma_50, sma_200)
+
         if cur is not None:
             try:
                 cur.execute(
@@ -1020,6 +1044,52 @@ class PositionMonitor:
             )
 
         return (close_price, atr, sma_50, sma_200)
+
+    def _fetch_live_quote_or_none(self, symbol: str) -> float | None:
+        """Best-effort live Alpaca quote; None on any unavailability or error.
+
+        Health-flag monitoring is a recommendation pass, not a broker-execution path
+        (unlike exit_engine.py's stop/target checks, which halt in auto mode on a
+        quote failure) - so any failure here (auth, network, symbol not found, or an
+        explicit data_unavailable marker) falls back to the existing price_daily-based
+        path rather than aborting review for this position.
+        """
+        execution_mode = self.config.get("execution_mode", "paper")
+        try:
+            quote = fetch_live_quote(symbol, execution_mode, log_prefix="POSITION_MONITOR")
+        except (RuntimeError, ValueError, ExchangeAPIError) as e:
+            logger.debug(f"[POSITION_MONITOR] {symbol}: live quote unavailable ({e}), falling back to price_daily")
+            return None
+        if isinstance(quote, (int, float)) and not isinstance(quote, bool):
+            return float(quote)
+        return None
+
+    def _fetch_technicals(
+        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None
+    ) -> tuple[float | None, float | None, float | None]:
+        """Fetch (atr, sma_50, sma_200) from the most recent technical_data_daily row on/before current_date."""
+        query = """
+            SELECT atr, sma_50, sma_200 FROM technical_data_daily
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 1
+            """
+        try:
+            if cur is not None:
+                cur.execute(query, (symbol, current_date))
+                row = cur.fetchone()
+            else:
+                with DatabaseContext("read") as fresh_cur:
+                    fresh_cur.execute(query, (symbol, current_date))
+                    row = fresh_cur.fetchone()
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise ValueError(f"Database error fetching technical data for {symbol}: {e}") from e
+
+        if row is None:
+            return (None, None, None)
+        atr = float(row[0]) if row[0] is not None else None
+        sma_50 = float(row[1]) if row[1] is not None else None
+        sma_200 = float(row[2]) if row[2] is not None else None
+        return (atr, sma_50, sma_200)
 
     def _compute_trailing_stop(
         self,
