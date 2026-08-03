@@ -79,7 +79,7 @@ import psycopg2
 
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
-from algo.orchestrator.phase_data_contract import ExposureConstraints
+from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
@@ -782,8 +782,8 @@ def run(
     dry_run: bool,
     verbose: bool,
     log_phase_result_fn: Callable[..., Any],
-    qualified_trades: list[dict[str, Any]] | None = None,
-    exposure_constraints: ExposureConstraints | Any | None = None,
+    qualified_trades: list[QualifiedTrade] | None = None,
+    exposure_constraints: ExposureConstraints | None = None,
     check_halt_flag: Callable[..., Any] | None = None,
     executor: Any = None,
 ) -> PhaseResult:
