@@ -1262,8 +1262,29 @@ def run(  # noqa: C901
                             halt_reason,
                         )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as check_err:
+                    # CRITICAL FIX: this branch only logged halt_reason with no `return` (and no
+                    # log_phase_result_fn call) - unlike its sibling except clause immediately
+                    # below, which correctly halts. We only reach this try block after
+                    # validate_upstream_metrics_ready() has ALREADY raised a genuine critical
+                    # metric-validation failure (metric_error); this except exists purely to
+                    # assess its severity via a diagnostic query. If that diagnostic query itself
+                    # hits a transient DB error, execution fell through to this function's normal
+                    # "all_tables_fresh"/"success" logging further down, masking the original
+                    # critical metric-validation failure as a clean pass - the DB error ate the
+                    # halt, rather than the halt surviving the DB error.
                     halt_reason = f"Could not verify metric availability (DB error): {str(check_err)[:100]}"
-                    logger.error(f"[PHASE 1] {halt_reason}")
+                    logger.critical(
+                        f"[PHASE 1] {halt_reason}. Original metric validation failure: {metric_error}"
+                    )
+                    log_phase_result_fn(1, "metric_verification_error", "halt", halt_reason)
+                    return PhaseResult(
+                        1,
+                        "metric_verification_error",
+                        "halted",
+                        {},
+                        True,
+                        halt_reason,
+                    )
                 except (RuntimeError, ValueError, KeyError) as check_err:
                     halt_reason = f"Could not verify metric availability (validation error): {str(check_err)[:100]}"
                     logger.error(f"[PHASE 1] {halt_reason}")
