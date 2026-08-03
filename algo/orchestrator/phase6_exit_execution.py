@@ -564,10 +564,19 @@ def run(
                                 continue
 
                             if pct_float_safe > max_size_pct_float_safe:
-                                # CRITICAL FIX: Ensure operands are native floats by converting one final time before arithmetic
-                                # This handles edge cases where a Decimal might slip through despite earlier conversions
-                                pct_final = float(pct_float_safe) if not isinstance(pct_float_safe, float) or isinstance(pct_float_safe, bool) else pct_float_safe
-                                max_final = float(max_size_pct_float_safe) if not isinstance(max_size_pct_float_safe, float) or isinstance(max_size_pct_float_safe, bool) else max_size_pct_float_safe
+                                # CRITICAL FIX: Force conversion via string to eliminate Decimal type leakage
+                                # float(Decimal) can still return Decimal in edge cases; str() break the type binding
+                                try:
+                                    pct_final = float(str(pct_float_safe))
+                                    max_final = float(str(max_size_pct_float_safe))
+                                    # Validate types AFTER conversion
+                                    if not isinstance(pct_final, float) or isinstance(pct_final, bool):
+                                        raise TypeError(f"pct_final conversion failed: type is {type(pct_final).__name__}")
+                                    if not isinstance(max_final, float) or isinstance(max_final, bool):
+                                        raise TypeError(f"max_final conversion failed: type is {type(max_final).__name__}")
+                                except (TypeError, ValueError) as conv_err:
+                                    logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert for arithmetic: {conv_err}. pct_float_safe={pct_float_safe!r}, max_size_pct_float_safe={max_size_pct_float_safe!r}")
+                                    continue
                                 exceed_amount = pct_final - max_final
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_final:.1f}% (limit {max_final:.0f}%, exceeds by {exceed_amount:.1f}%)")
