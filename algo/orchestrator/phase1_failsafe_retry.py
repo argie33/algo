@@ -2,21 +2,26 @@
 """
 Phase 1 Failsafe: Automatic Retry for Incomplete Loaders
 
-Detects loaders that are incomplete (<95% symbol coverage) and triggers automatic
-retries to recover. This prevents cascading failures downstream due to incomplete data.
+Detects loaders that fail to meet their configured completion threshold and triggers
+automatic retries to recover. This prevents cascading failures downstream due to incomplete data.
 
 Strategy:
 1. After initial Phase 1 freshness check passes, query data_loader_status
-2. Find any loaders with INCOMPLETE status or completion_pct < 95%
+2. Find any loaders with INCOMPLETE status or completion_pct below their configured threshold
 3. For each incomplete loader:
    - Log diagnostic info (how many symbols missing, last error, etc.)
    - Trigger a retry by starting the loader's ECS task (via algo-trigger-loaders,
      the same mechanism the regular schedule uses) - runs independently of this Lambda
    - Briefly poll status (up to RETRY_MONITOR_TIMEOUT_SECONDS) in case it finishes fast
-   - If retry succeeds (>=95%) within that short window, mark as recovered and proceed
+   - If retry reaches the loader's minimum completion threshold within that window, mark as recovered and proceed
    - Otherwise mark as still incomplete for THIS run (halt if critical, warn if
      auxiliary) - the ECS task keeps running in the background and the next
      scheduled orchestrator run will see the completed data
+
+Completion thresholds (configured per loader via loaders/config.py):
+- price: 2% max_fail_rate → needs 98%+ completion
+- sec, financial, earnings: 5% max_fail_rate → needs 95%+ completion
+- others: varies by loader type
 """
 
 import json
@@ -31,6 +36,7 @@ import boto3
 import psycopg2
 from botocore.exceptions import BotoCoreError, ClientError
 
+from loaders.config import get_loader_max_fail_rate
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -358,7 +364,9 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
 
     try:
         with DatabaseContext("read") as cur:
-            # Find loaders with <95% completion or error/failed status in the last 1 hour.
+            # Find loaders with low completion or error/failed status in the last 1 hour.
+            # Query uses a conservative 85% threshold to catch any potentially problematic loader,
+            # then Python code checks each against its configured max_fail_rate.
             # data_loader_status.status is written by multiple sources that don't share one
             # casing convention - utils/loader_infrastructure.py's update_loader_status()
             # writes canonical uppercase (RUNNING/COMPLETED/FAILED per utils/loaders/
@@ -378,7 +386,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     execution_started,
                     last_updated
                 FROM data_loader_status
-                WHERE (completion_pct < 90.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
+                WHERE (completion_pct < 95.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
                     AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
                 ORDER BY completion_pct ASC, table_name
             """)
@@ -436,6 +444,20 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                         f"[PHASE 1 FAILSAFE] Incomplete loader detected: {table_name} "
                         f"{completion_pct:.1f}% ({symbols_loaded}/{symbol_count} symbols, {symbols_missing} missing)"
                     )
+
+                # Check if this loader is actually below its configured threshold
+                # (vs just being caught by the conservative query threshold)
+                is_below_configured_threshold = False
+                if completion_pct is not None:
+                    max_fail_rate = get_loader_max_fail_rate(table_name)
+                    min_completion_pct = 100.0 - max_fail_rate
+                    is_below_configured_threshold = completion_pct < min_completion_pct
+                    if not is_below_configured_threshold and _status and "FAILED" not in _status.upper() and "ERROR" not in _status.upper():
+                        # Loader is above its configured threshold and has no error status - skip retry
+                        logger.debug(
+                            f"[PHASE 1 FAILSAFE] {table_name} {completion_pct:.1f}% is above configured minimum ({min_completion_pct:.0f}%) - no retry needed"
+                        )
+                        continue
 
                 results["incomplete_loaders"].append(
                     {
@@ -610,7 +632,7 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
         Dict with retry result:
         {
             "retried": bool,        # True if retry was triggered
-            "recovered": bool,      # True if loader reached >=95% after retry
+            "recovered": bool,      # True if loader reached its configured min completion threshold
             "final_completion_pct": float | None,  # None if status unknown
             "status_reason": str,   # 'success', 'timeout' (still running), or 'failed'
         }
@@ -731,13 +753,17 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
 
     Returns:
         (recovered, final_completion_pct, status_reason):
-        - recovered: True if loader reached >=95% completion
+        - recovered: True if loader reached its configured min completion threshold
         - final_completion_pct: Latest completion percentage, or None if status unknown
         - status_reason: 'success', 'timeout' (still running), or 'failed' (completed low)
 
     Raises:
         RuntimeError: If database error occurs during monitoring
     """
+    # Get the loader's configured max_fail_rate to determine its min completion threshold
+    max_fail_rate = get_loader_max_fail_rate(loader_name)
+    min_completion_pct = 100.0 - max_fail_rate
+
     deadline = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
 
     while datetime.now(timezone.utc) < deadline:
@@ -757,18 +783,16 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
                         logger.debug(
                             f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
                         )
-                    elif completion_pct >= 95.0:
-                        # CRITICAL: 95% is the minimum acceptable threshold for financial data.
-                        # Missing 5% of stocks means missing data for trading universe subset.
-                        # Below 95%, too many stocks lack prices/technicals for safe trading decisions.
-                        logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%")
+                    elif completion_pct >= min_completion_pct:
+                        # Loader reached its configured minimum completion threshold
+                        logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}% (need >={min_completion_pct:.0f}%)")
                         return True, completion_pct, "success"
 
                     elif status == "COMPLETED":
-                        # Completed but still below 95% (unacceptable for finance)
+                        # Completed but still below minimum required completion
                         logger.critical(
                             f"[PHASE 1 FAILSAFE] Loader completed but dangerously incomplete: {loader_name} {completion_pct:.1f}%. "
-                            f"Missing {100.0 - completion_pct:.1f}% of expected data. "
+                            f"Missing {100.0 - completion_pct:.1f}% of expected data (need >={min_completion_pct:.0f}%). "
                             f"This threshold prevents trading on incomplete market data (fail-fast)."
                         )
                         return False, completion_pct, "failed"
