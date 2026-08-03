@@ -2141,6 +2141,23 @@ class DailyReconciliation:
                 if not symbol or alpaca_filled_qty <= 0:
                     continue
 
+                # CRITICAL FIX: fetch_closed_orders() has no side filter (status=[filled,
+                # partially_filled] only) - it returns both buy and sell orders. This function
+                # exists to catch entry-fill drift (DB entry_quantity vs Alpaca's actual filled
+                # buy order), but without a side check, a partial-exit SELL order (T1/T2 partial
+                # profit-taking - see executor_exit_handler.py's full_exit=False path) for a
+                # still-open trade would match here too, since the trade's status stays in
+                # TradeStatus.all_open() until the final leg closes it. Its filled_qty is the
+                # (smaller, expected) exit quantity, not the original entry quantity - matching
+                # it here would silently shrink entry_quantity to the partial-exit size, and
+                # entry_quantity later feeds original_cost_basis/original_risk_dollars for the
+                # trade's final pnl_pct/exit_r_multiple in reconcile_exit_fills() (~line 1613,
+                # 1713-1722), corrupting reported P&L% and R-multiple for every trade that used a
+                # partial exit. reconcile_exit_fills() itself already filters to side == "sell"
+                # for the opposite (exit) purpose (~line 1572) - mirror that here for entries.
+                if order.get("side") != "buy":
+                    continue
+
                 # Find corresponding trade in our DB
                 #
                 # CRITICAL FIX: this hardcoded list omitted 'pending'/'paper_pending' - exactly

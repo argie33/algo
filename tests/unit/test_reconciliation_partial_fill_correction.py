@@ -26,7 +26,7 @@ def test_partial_fill_corrects_db_quantity_to_match_broker():
     """100 requested, broker only filled 60 -> DB must be corrected to 60, not left at 100."""
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
-        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled"}
+        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled", "side": "buy"}
     ]
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
@@ -46,7 +46,7 @@ def test_partial_fill_corrects_db_quantity_to_match_broker():
 def test_partial_fill_notifies_operator_of_correction():
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
-        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled"}
+        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled", "side": "buy"}
     ]
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
@@ -68,7 +68,7 @@ def test_notify_failure_does_not_discard_the_already_applied_correction():
     still return the correction in its result."""
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
-        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled"}
+        {"symbol": "AAPL", "filled_qty": "60", "status": "partially_filled", "side": "buy"}
     ]
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
@@ -85,7 +85,7 @@ def test_notify_failure_does_not_discard_the_already_applied_correction():
 def test_no_correction_when_broker_and_db_quantities_already_match():
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
-        {"symbol": "AAPL", "filled_qty": "100", "status": "filled"}
+        {"symbol": "AAPL", "filled_qty": "100", "status": "filled", "side": "buy"}
     ]
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "open")
@@ -93,6 +93,30 @@ def test_no_correction_when_broker_and_db_quantities_already_match():
     result = reconciliation.check_partial_fills(cur)
 
     assert result["mismatches"] == 0
+    assert not any("UPDATE algo_trades" in c.args[0] for c in cur.execute.call_args_list)
+
+
+def test_partial_exit_sell_order_does_not_corrupt_entry_quantity():
+    """CRITICAL FIX regression: fetch_closed_orders() has no side filter, so a T1/T2
+    partial-exit SELL order for a still-open trade (status stays in TradeStatus.all_open()
+    until the final leg closes it) used to match the same WHERE clause as a real entry
+    fill. Its filled_qty is the smaller exit quantity, not the original entry size - before
+    the fix, this silently shrank entry_quantity to the partial-exit amount, corrupting
+    original_cost_basis/original_risk_dollars (and therefore pnl_pct/exit_r_multiple) for
+    every trade that used a partial exit. A sell order must be skipped entirely here."""
+    reconciliation = _reconciliation_with_mock_broker()
+    reconciliation.broker.fetch_closed_orders.return_value = [
+        {"symbol": "AAPL", "filled_qty": "40", "status": "filled", "side": "sell"}
+    ]
+    cur = MagicMock()
+    cur.fetchone.return_value = ("trade-123", 100, "open")  # DB still has the full entry size
+
+    result = reconciliation.check_partial_fills(cur)
+
+    assert result["mismatches"] == 0
+    assert not any("SELECT trade_id" in c.args[0] for c in cur.execute.call_args_list), (
+        "a sell order should never even reach the DB lookup - it's not an entry fill"
+    )
     assert not any("UPDATE algo_trades" in c.args[0] for c in cur.execute.call_args_list)
 
 
@@ -106,7 +130,7 @@ def test_lookup_query_covers_pending_and_paper_pending_statuses():
 
     reconciliation = _reconciliation_with_mock_broker()
     reconciliation.broker.fetch_closed_orders.return_value = [
-        {"symbol": "AAPL", "filled_qty": "60", "status": "filled"}
+        {"symbol": "AAPL", "filled_qty": "60", "status": "filled", "side": "buy"}
     ]
     cur = MagicMock()
     cur.fetchone.return_value = ("trade-123", 100, "pending")
