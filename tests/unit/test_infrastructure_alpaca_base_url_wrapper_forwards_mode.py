@@ -16,13 +16,13 @@ from algo.infrastructure.config.main import get_alpaca_base_url
 
 class TestAlpacaBaseUrlWrapperForwardsExecutionMode:
     def test_forwards_execution_mode_to_delegate(self):
-        with patch("config.api_endpoints.get_alpaca_base_url") as mock_delegate:
+        with patch("algo.config.api_endpoints.get_alpaca_base_url") as mock_delegate:
             mock_delegate.return_value = "https://paper-api.alpaca.markets"
             get_alpaca_base_url("auto")
             mock_delegate.assert_called_once_with("auto")
 
     def test_forwards_none_when_omitted(self):
-        with patch("config.api_endpoints.get_alpaca_base_url") as mock_delegate:
+        with patch("algo.config.api_endpoints.get_alpaca_base_url") as mock_delegate:
             mock_delegate.return_value = "https://paper-api.alpaca.markets"
             get_alpaca_base_url()
             mock_delegate.assert_called_once_with(None)
