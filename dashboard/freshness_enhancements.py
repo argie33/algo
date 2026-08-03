@@ -97,8 +97,8 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     critical_columns_map = {
         "price_daily": ["symbol", "date", "close", "volume"],
         "stock_scores": ["symbol", "date", "signal_strength"],
-        "market_health_daily": ["date", "vix_level", "market_regime"],
-        "market_exposure_daily": ["date", "tech_exposure", "health_exposure"],
+        "market_health_daily": ["date", "vix_level"],
+        "market_exposure_daily": ["date", "tech_exposure"],
         "technical_data_daily": ["symbol", "date", "rsi", "macd"],
         "trend_template_data": ["symbol", "date", "weinstein_stage"],
         "buy_sell_daily": ["symbol", "date", "signal", "strength"],

@@ -18,16 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 def check_port_open(port: int, timeout: float = 1.0) -> bool:
-    """Check if port is listening on IPv4."""
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex(("127.0.0.1", port))
-        sock.close()
-        return result == 0
-    except Exception as e:
-        logger.debug(f"Port check failed: {e}")
-        return False
+    """Check if port is listening on IPv4 or IPv6."""
+    for host, family in [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]:
+        try:
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception as e:
+            logger.debug(f"Port check failed for {host}: {e}")
+    return False
 
 
 def get_process_holding_port(port: int) -> Optional[int]:

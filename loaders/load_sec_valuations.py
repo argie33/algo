@@ -436,6 +436,18 @@ class SecValuationsLoader(OptimalLoader):
         # Removed per GOVERNANCE.md: no external fallbacks for financial metrics.
         # All metrics computed from SEC audited data only.
 
+        # CRITICAL FIX: Validate that at least ONE key valuation metric was computed
+        # Prevent marking data as "available" when all key metrics are NULL
+        # This was causing value_metrics to have 50%+ NULL pe_ratio even with data_unavailable=FALSE
+        key_metrics = [result.get("pe_ratio"), result.get("pb_ratio"), result.get("ps_ratio"), result.get("fcf_yield")]
+        if all(m is None for m in key_metrics):
+            logger.warning(
+                f"[{symbol}] All key valuation metrics (PE, PB, PS, FCF yield) are NULL. "
+                f"Mark data as unavailable instead of incomplete."
+            )
+            result["data_unavailable"] = True
+            result["reason"] = "all_valuation_metrics_null"
+
         return result
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:

@@ -76,24 +76,38 @@ _api_base_url_source_cache = None  # Track which source was selected
 _localhost_checked = False
 
 
-def _check_localhost_available() -> bool:
-    """Check if dev_server is running on localhost:3001 (IPv4 or IPv6)."""
+def _check_localhost_available() -> str | None:
+    """Check if dev_server is running on localhost:3001 (IPv4 or IPv6).
+
+    Returns:
+        "http://127.0.0.1:3001" if IPv4 available
+        "http://[::1]:3001" if IPv6 available (IPv4 not available)
+        None if neither available
+
+    Preference: Try IPv4 first, fall back to IPv6 if IPv4 unavailable.
+    This ensures compatibility with dual-stack systems while supporting
+    IPv6-first or IPv6-only environments.
+    """
     import socket
 
-    for host, family in [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]:
+    for host, url_format in [
+        ("127.0.0.1", "http://127.0.0.1:3001"),
+        ("::1", "http://[::1]:3001"),
+    ]:
+        family = socket.AF_INET if host == "127.0.0.1" else socket.AF_INET6
         try:
             sock = socket.socket(family, socket.SOCK_STREAM)
             sock.settimeout(1)
             result = sock.connect_ex((host, 3001))
             sock.close()
             if result == 0:
-                return True
+                return url_format
         except Exception as e:
             logger.debug(
                 f"[API_LAYER] Socket connectivity check for {host}:3001 failed: "
-                f"{type(e).__name__}. Assuming dev_server not available on {host}."
+                f"{type(e).__name__}. Trying next address family."
             )
-    return False
+    return None
 
 
 def _get_api_base_url_with_source() -> tuple[str, str]:
@@ -123,9 +137,11 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
 
     # Priority 1: Explicit LOCAL_MODE flag
     if os.environ.get("LOCAL_MODE"):
-        _api_base_url_cache = "http://127.0.0.1:3001"
+        localhost_url = _check_localhost_available() or "http://127.0.0.1:3001"
+        _api_base_url_cache = localhost_url
         _api_base_url_source_cache = "LOCAL_MODE_EXPLICIT"
-        logger.info("[API] LOCAL_MODE enabled - using local dev_server (source: LOCAL_MODE_EXPLICIT)")
+        logger.info(f"[API] LOCAL_MODE enabled - using {localhost_url} (source: LOCAL_MODE_EXPLICIT)")
+        _localhost_checked = True
         return _api_base_url_cache, _api_base_url_source_cache
 
     # Priority 2: Use configured AWS URL - NEVER override this with auto-detection
@@ -138,18 +154,18 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
         return _api_base_url_cache, _api_base_url_source_cache
 
     # Priority 3: Auto-detect localhost ONLY if no AWS config is set
-    if not _localhost_checked and _check_localhost_available():
-        _api_base_url_cache = "http://127.0.0.1:3001"
-        _api_base_url_source_cache = "AUTO_DETECT_LOCALHOST"
-        _localhost_checked = True
-        logger.info(
-            "[API] Dev server detected on localhost:3001 - auto-switching to local mode (source: AUTO_DETECT_LOCALHOST, no --local flag needed)"
-        )
-        return _api_base_url_cache, _api_base_url_source_cache
+    if not _localhost_checked:
+        localhost_url = _check_localhost_available()
+        if localhost_url:
+            _api_base_url_cache = localhost_url
+            _api_base_url_source_cache = "AUTO_DETECT_LOCALHOST"
+            _localhost_checked = True
+            logger.info(
+                f"[API] Dev server detected on {localhost_url} - auto-switching to local mode (source: AUTO_DETECT_LOCALHOST, no --local flag needed)"
+            )
+            return _api_base_url_cache, _api_base_url_source_cache
 
-    _localhost_checked = True
-
-    # Priority 4: Fallback to localhost
+    # Priority 4: Fallback to localhost (use IPv4 as safe default)
     _api_base_url_cache = "http://127.0.0.1:3001"
     _api_base_url_source_cache = "FALLBACK_LOCALHOST"
     logger.warning(

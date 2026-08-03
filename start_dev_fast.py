@@ -45,18 +45,22 @@ def start_dev_server(port: int = 3001) -> subprocess.Popen:
         bufsize=1,
     )
 
-    # Wait for server to start
+    # Wait for server to start (check both IPv4 and IPv6)
     for i in range(30):
         try:
             import socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.5)
-            result = sock.connect_ex(("127.0.0.1", port))
-            sock.close()
-            if result == 0:
-                print(f"[DEV] ✓ API dev_server running on 127.0.0.1:{port}")
-                print(f"[DEV] Log: {log_file}")
-                return process
+            for host, family in [("127.0.0.1", socket.AF_INET), ("::1", socket.AF_INET6)]:
+                try:
+                    sock = socket.socket(family, socket.SOCK_STREAM)
+                    sock.settimeout(0.5)
+                    result = sock.connect_ex((host, port))
+                    sock.close()
+                    if result == 0:
+                        print(f"[DEV] ✓ API dev_server running on {host}:{port}")
+                        print(f"[DEV] Log: {log_file}")
+                        return process
+                except:
+                    pass
         except:
             pass
         time.sleep(0.5)
