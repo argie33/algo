@@ -56,6 +56,15 @@ logger = logging.getLogger(__name__)
 # data gap that must be flagged, not silently scored as current.
 MAX_FISCAL_YEAR_AGE_YEARS = 3
 
+# Computed once in _compute_quality_metrics (needs balance-sheet data _compute_growth_metrics
+# doesn't have), then mirrored into growth_dict in fetch_incremental - see that call site for
+# why quality_metrics and growth_metrics each carry their own copy of the same 11 values.
+_SHARED_TREND_FIELDS = (
+    "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
+    "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
+    "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+)
+
 
 class ValueQualityGrowthMetricsLoader(OptimalLoader):
     """Consolidated value + quality + growth metrics from SEC + valuations.
@@ -318,7 +327,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            (SELECT operating_cash_flow FROM annual_cash_flow
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_operating_cash_flow,
                            (SELECT free_cash_flow FROM annual_cash_flow
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_free_cash_flow
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_free_cash_flow,
+                           (SELECT cost_of_revenue FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_cost_of_revenue,
+                           (SELECT total_assets FROM annual_balance_sheet
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_total_assets,
+                           (SELECT stockholders_equity FROM annual_balance_sheet
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_stockholders_equity
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -331,7 +346,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     ORDER BY abs.fiscal_year DESC
                     LIMIT 1
                     """,
-                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol),
+                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol),
                 )
                 quality_row_db = cur.fetchone()
 
@@ -393,6 +408,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: {stale_reason}")
                     growth_dict = self._unavailable_marker("growth_metrics", symbol)
                     growth_dict["reason"] = stale_reason
+
+            # These 11 trend fields are computed once, in _compute_quality_metrics (it has
+            # the balance-sheet data the calculations need), but are consumed by BOTH
+            # quality_metrics and growth_metrics (migration 1185: "two real consumers of the
+            # same computed values, not a duplicate table"). _compute_growth_metrics has no
+            # access to that computation and always defaulted its own copy to None - growth_
+            # metrics's half of every one of these columns was silently dead on arrival.
+            if not growth_dict.get("data_unavailable") and not quality_dict.get("data_unavailable"):
+                for field in _SHARED_TREND_FIELDS:
+                    if quality_dict.get(field) is not None:
+                        growth_dict[field] = quality_dict[field]
 
             return [(value_dict, quality_dict, growth_dict)]
 
@@ -585,6 +611,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             prior_year_free_cash_flow = self._nan_to_none(
                 safe_float(quality_row[27], f"{symbol}.prior_year_free_cash_flow", allow_none=True)
+            )
+            prior_year_cost_of_revenue = self._nan_to_none(
+                safe_float(quality_row[28], f"{symbol}.prior_year_cost_of_revenue", allow_none=True)
+            )
+            prior_year_total_assets = self._nan_to_none(
+                safe_float(quality_row[29], f"{symbol}.prior_year_total_assets", allow_none=True)
+            )
+            prior_year_stockholders_equity = self._nan_to_none(
+                safe_float(quality_row[30], f"{symbol}.prior_year_stockholders_equity", allow_none=True)
             )
 
             metrics: dict[str, Any] = {
@@ -851,10 +886,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Margin Trends (current - prior year) - only compute when actual prior data available
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
-                # Gross Margin Trend - no prior-year cost_of_revenue is fetched, so a real
-                # trend (current - prior) cannot be computed. Left unavailable rather than
-                # storing the current-year margin under a "trend" column, which would silently
-                # misrepresent a snapshot as a change.
+                # Gross Margin Trend - now can compute with prior-year cost_of_revenue
+                if cost_of_revenue is not None and prior_year_cost_of_revenue is not None:
+                    curr_gm = ((revenue - cost_of_revenue) / revenue) * 100 if revenue > 0 else None
+                    prior_gm = ((prior_year_revenue - prior_year_cost_of_revenue) / prior_year_revenue) * 100 if prior_year_revenue > 0 else None
+                    if curr_gm is not None and prior_gm is not None:
+                        try:
+                            metrics["gross_margin_trend"] = float(round(curr_gm - prior_gm, 2))
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
 
                 # Operating Margin Trend - only if actual prior operating income available
                 if operating_income is not None and prior_year_operating_income is not None and prior_year_revenue > 0:
@@ -875,7 +915,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         pass
 
             # Sustainable Growth Rate = ROE * Retention Ratio - only with real data
-            # NOTE: ROE trend removed - cannot estimate prior ROE without actual prior equity
             if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
                 if dividends_paid is not None and net_income != 0:
                     # Actual retention ratio = (earnings - dividends) / earnings
@@ -885,6 +924,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         metrics["sustainable_growth_rate"] = float(round(roe_pct * retention_ratio * 100, 2))
                     except (ValueError, TypeError, ZeroDivisionError):
                         pass
+
+            # ROE Trend = Current ROE - Prior ROE (now can compute with prior-year equity)
+            if (stockholders_equity is not None and net_income is not None and stockholders_equity > 0 and
+                prior_year_stockholders_equity is not None and prior_year_net_income is not None and prior_year_stockholders_equity > 0):
+                curr_roe = (net_income / stockholders_equity) * 100
+                prior_roe = (prior_year_net_income / prior_year_stockholders_equity) * 100
+                try:
+                    metrics["roe_trend"] = float(round(curr_roe - prior_roe, 2))
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
 
             # FCF Growth YoY - only if actual prior FCF available
             if free_cash_flow is not None and prior_year_free_cash_flow is not None and prior_year_free_cash_flow != 0:
@@ -902,8 +951,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
-            # Asset Growth YoY - cannot compute without prior assets (not fetched from DB)
-            # Leaving NULL instead of estimating with 0.95x multiplier
+            # Asset Growth YoY - now can compute with prior-year total assets
+            if total_assets is not None and prior_year_total_assets is not None and prior_year_total_assets != 0:
+                try:
+                    asset_growth = ((total_assets - prior_year_total_assets) / abs(prior_year_total_assets)) * 100
+                    metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
 
             # Initialize missing trend fields as None
             for field in [
@@ -1470,8 +1524,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
              data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
-             eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason,
+             net_income_growth_yoy_unavailable_reason, operating_income_growth_yoy_unavailable_reason, gross_margin_trend_unavailable_reason,
+             operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason, roe_trend_unavailable_reason,
+             sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
+             ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -1496,6 +1554,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_1y_unavailable_reason = EXCLUDED.eps_growth_1y_unavailable_reason,
                 eps_growth_3y_unavailable_reason = EXCLUDED.eps_growth_3y_unavailable_reason,
                 eps_growth_5y_unavailable_reason = EXCLUDED.eps_growth_5y_unavailable_reason,
+                net_income_growth_yoy_unavailable_reason = EXCLUDED.net_income_growth_yoy_unavailable_reason,
+                operating_income_growth_yoy_unavailable_reason = EXCLUDED.operating_income_growth_yoy_unavailable_reason,
+                gross_margin_trend_unavailable_reason = EXCLUDED.gross_margin_trend_unavailable_reason,
+                operating_margin_trend_unavailable_reason = EXCLUDED.operating_margin_trend_unavailable_reason,
+                net_margin_trend_unavailable_reason = EXCLUDED.net_margin_trend_unavailable_reason,
+                roe_trend_unavailable_reason = EXCLUDED.roe_trend_unavailable_reason,
+                sustainable_growth_rate_unavailable_reason = EXCLUDED.sustainable_growth_rate_unavailable_reason,
+                quarterly_growth_momentum_unavailable_reason = EXCLUDED.quarterly_growth_momentum_unavailable_reason,
+                fcf_growth_yoy_unavailable_reason = EXCLUDED.fcf_growth_yoy_unavailable_reason,
+                ocf_growth_yoy_unavailable_reason = EXCLUDED.ocf_growth_yoy_unavailable_reason,
+                asset_growth_yoy_unavailable_reason = EXCLUDED.asset_growth_yoy_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -1520,9 +1589,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("fcf_growth_yoy"),
                 row.get("ocf_growth_yoy"),
                 row.get("asset_growth_yoy"),
-                # CRITICAL: data_unavailable field MUST be present in all rows (set by _unavailable_marker or loader).
-                # Fail-fast if missing - a row without explicit unavailability marker indicates data integrity issue.
-                # Do NOT use .get(..., False) - that silently marks unavailable metrics as available.
                 row["data_unavailable"],
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
@@ -1533,6 +1599,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_1y_unavailable_reason"),
                 row.get("eps_growth_3y_unavailable_reason"),
                 row.get("eps_growth_5y_unavailable_reason"),
+                row.get("net_income_growth_yoy_unavailable_reason"),
+                row.get("operating_income_growth_yoy_unavailable_reason"),
+                row.get("gross_margin_trend_unavailable_reason"),
+                row.get("operating_margin_trend_unavailable_reason"),
+                row.get("net_margin_trend_unavailable_reason"),
+                row.get("roe_trend_unavailable_reason"),
+                row.get("sustainable_growth_rate_unavailable_reason"),
+                row.get("quarterly_growth_momentum_unavailable_reason"),
+                row.get("fcf_growth_yoy_unavailable_reason"),
+                row.get("ocf_growth_yoy_unavailable_reason"),
+                row.get("asset_growth_yoy_unavailable_reason"),
             ),
         )
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib
 import logging
 from datetime import date as _date
 from datetime import datetime
@@ -273,23 +272,28 @@ class TradeValidator:
         entry_price: Decimal | float,
         stop_loss_price: Decimal | float,
     ) -> tuple[bool, str | None, str | None]:
-        """Check if trade already exists via idempotency key.
+        """Check if trade already exists for this symbol+signal_date (one entry per signal per day).
 
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
         """
-        # CRITICAL FIX 2026-07-30: Idempotency key must ONLY use symbol + signal_date
-        # Earlier implementation included entry_price and stop_loss_price in key,
-        # allowing different prices to bypass idempotency check.
-        # Example: LNG 3 trades on 2026-07-24 had prices 275.225, 276.62, 275.925
-        # all were allowed because each price created different hash key.
-        # CORRECT: Only symbol + signal_date matters (entry occurs once per signal per day)
-        key_source = f"{symbol}|{signal_date}"
-        idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
-
+        # CRITICAL FIX 2026-08-03: query symbol+signal_date directly instead of matching on
+        # algo_trades.idempotency_key. The 2026-07-30 fix (see git blame) made this function
+        # hash ONLY symbol+signal_date so a second entry at a different price couldn't bypass
+        # the check (the LNG 3-trades-same-day bug). But the 2026-08-01 fix to
+        # executor_entry_handler.py's insert-side key (docstring: "Include entry_price,
+        # stop_loss_price to differentiate retry attempts") deliberately changed what's
+        # actually STORED in that column to a hash of symbol+entry_price+stop_loss_price+
+        # signal_date, for a different purpose - Alpaca's client_order_id needs the retry's
+        # price/stop baked in so a genuine crash-recovery retry reuses the same broker id.
+        # Neither hash can ever equal the other, so this SELECT never matched a stored row -
+        # confirmed live: NBIX got two algo_trades rows for the same 2026-08-03 signal_date at
+        # different entry prices (167.665 and 170.045), the exact bug 2026-07-30 was supposed
+        # to prevent. Querying the real columns directly enforces the business rule
+        # independent of whatever hash the broker-retry mechanism needs the column to hold.
         cur.execute(
-            "SELECT trade_id FROM algo_trades WHERE idempotency_key = %s LIMIT 1",
-            (idempotency_key,),
+            "SELECT trade_id FROM algo_trades WHERE symbol = %s AND signal_date = %s LIMIT 1",
+            (symbol, signal_date),
         )
         result = cur.fetchone()
         if result:

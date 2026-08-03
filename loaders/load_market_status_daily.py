@@ -142,6 +142,21 @@ class MarketStatusDailyLoader(OptimalLoader):
             if health_data.get("data_unavailable"):
                 return [health_data]
 
+            # CRITICAL FIX: Persist health_data to market_health_daily BEFORE computing
+            # exposure. MarketExposure.compute() independently re-queries market_health_daily
+            # for several of its factors (put_call_ratio, vix_regime, ad_line, new_highs_lows)
+            # rather than using this freshly-fetched health_data in memory. Without this early
+            # write, today's row doesn't exist yet in the DB when compute() runs, so those
+            # factor queries silently fall back to the last already-committed (older) row -
+            # confirmed live 2026-08-03: put_call_ratio factor scored off 2026-07-31's stale
+            # 2.5726 reading while market_health_daily (written later by the framework's
+            # bulk-insert) correctly held today's fresh 1.1137, producing two different
+            # Put/Call values on the Market panel (1.114, live) vs Exposure panel (2.57,
+            # stale-at-compute-time). The framework's later bulk-insert re-upserts the same
+            # row with the remaining fields (market_stage/market_trend/sentiment), so this is
+            # a harmless idempotent pre-write, not a duplicate.
+            self._persist_market_health_early(end_date, health_data)
+
             # Compute exposure (regime, exposure %, factors)
             exposure_data = self._compute_market_exposure(end_date, health_data)
 
@@ -701,6 +716,63 @@ class MarketStatusDailyLoader(OptimalLoader):
             except Exception as persist_err:
                 logger.error(f"[MARKET_STATUS] market_sentiment persist also failed: {persist_err}")
             return result
+
+    def _persist_market_health_early(self, eval_date: date, health_data: dict[str, Any]) -> None:
+        """Upsert the just-fetched health metrics into `market_health_daily` immediately,
+        before exposure computation runs its own queries against this same table.
+
+        Partial write: market_stage/market_trend/data_unavailable/reason aren't computed yet
+        at this point in fetch_incremental() and are intentionally left out of the SET clause
+        so a same-day re-run doesn't clobber them with NULL. The framework's later bulk-insert
+        overwrites this row with the complete set of fields once everything is computed.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                INSERT INTO market_health_daily
+                    (date, vix_level, advance_decline_ratio, new_highs_count, new_lows_count,
+                     breadth_momentum_10d, up_volume_percent,
+                     yield_curve_slope, yield_curve_data_unavailable, yield_curve_unavailable_reason,
+                     put_call_ratio, put_call_ratio_data_unavailable, put_call_ratio_unavailable_reason,
+                     fed_rate_environment, fed_rate_data_unavailable, fed_rate_unavailable_reason)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date) DO UPDATE SET
+                    vix_level = EXCLUDED.vix_level,
+                    advance_decline_ratio = EXCLUDED.advance_decline_ratio,
+                    new_highs_count = EXCLUDED.new_highs_count,
+                    new_lows_count = EXCLUDED.new_lows_count,
+                    breadth_momentum_10d = EXCLUDED.breadth_momentum_10d,
+                    up_volume_percent = EXCLUDED.up_volume_percent,
+                    yield_curve_slope = EXCLUDED.yield_curve_slope,
+                    yield_curve_data_unavailable = EXCLUDED.yield_curve_data_unavailable,
+                    yield_curve_unavailable_reason = EXCLUDED.yield_curve_unavailable_reason,
+                    put_call_ratio = EXCLUDED.put_call_ratio,
+                    put_call_ratio_data_unavailable = EXCLUDED.put_call_ratio_data_unavailable,
+                    put_call_ratio_unavailable_reason = EXCLUDED.put_call_ratio_unavailable_reason,
+                    fed_rate_environment = EXCLUDED.fed_rate_environment,
+                    fed_rate_data_unavailable = EXCLUDED.fed_rate_data_unavailable,
+                    fed_rate_unavailable_reason = EXCLUDED.fed_rate_unavailable_reason,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    eval_date,
+                    health_data.get("vix_level"),
+                    health_data.get("advance_decline_ratio"),
+                    health_data.get("new_highs"),
+                    health_data.get("new_lows"),
+                    health_data.get("breadth_momentum_10d"),
+                    health_data.get("up_volume_percent"),
+                    health_data.get("yield_10y_2y_spread"),
+                    health_data.get("yield_curve_data_unavailable"),
+                    health_data.get("yield_curve_unavailable_reason"),
+                    health_data.get("put_call_ratio"),
+                    health_data.get("put_call_ratio_data_unavailable"),
+                    health_data.get("put_call_ratio_unavailable_reason"),
+                    health_data.get("fed_rate_environment"),
+                    health_data.get("fed_rate_data_unavailable"),
+                    health_data.get("fed_rate_unavailable_reason"),
+                ),
+            )
 
     def _persist_market_exposure(self, eval_date: date, exposure: dict[str, Any]) -> None:
         """Write the computed exposure row directly to `market_exposure_daily` (upsert by date).

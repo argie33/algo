@@ -148,9 +148,17 @@ THRESHOLDS = {
         "stale": 2160,
         "critical": 2880,
     },
-    "algo_performance_metrics": {
-        # Legacy table synced daily from algo_performance_daily by orchestrator post-run.
-        # Should be updated after each orchestrator run (Phase 9 completion).
+    "algo_performance_daily": {
+        # CRITICAL FIX 2026-08-03: this used to watch algo_performance_metrics, a table
+        # with no writer since 2026-06-30 (see algo/reporting/daily_report.py,
+        # lambda/api/routes/algo_handlers/metrics.py, webapp/lambda/routes/algo.js - all
+        # already migrated their readers to algo_performance_daily months ago, each with
+        # its own comment documenting the dead table). This script's own threshold config
+        # was never updated to match, so it was permanently monitoring a table nothing
+        # writes to instead of the real live one (algo_performance_daily, written every
+        # orchestrator run per Phase 9 completion - confirmed live, updated_at within
+        # minutes of the current run). Same "monitoring script still watches a deprecated
+        # table" bug class already fixed once for sec_cash_flow_metrics's scheduling.
         "fresh": 1440,
         "stale": 2160,
         "critical": 2880,
@@ -203,7 +211,7 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "sector_rotation_signal": "created_at",
                 "trend_template_data": "created_at",
                 "buy_sell_daily": "updated_at",
-                "algo_performance_metrics": "updated_at",
+                "algo_performance_daily": "updated_at",
             }
 
             if table_name not in timestamp_cols:
@@ -391,6 +399,10 @@ def check_all_tables() -> dict:
                     "stock_scores",
                     "algo_trades",
                     "algo_positions",
+                    # Written once per orchestrator run (Phase 9 completion) - same
+                    # once-per-trading-day cadence as the tables above, so it needs the
+                    # same weekend/holiday gap allowance to avoid a false weekend alarm.
+                    "algo_performance_daily",
                 )
                 and spans_gap
             ):
