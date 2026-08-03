@@ -76,6 +76,7 @@ from .algo_handlers.monitoring import (
     _get_algo_audit_log,
     _get_last_run,
     _get_notifications,
+    _get_orchestrator_history_extended,
     _get_patrol_log,
     _trigger_data_patrol,
 )
@@ -423,6 +424,8 @@ def _dispatch(  # noqa: C901
         return _get_algo_config(cur)
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)
+    elif path == "/api/algo/freshness/extended":
+        return _get_orchestrator_history_extended(cur, params)
     elif path == "/api/algo/audit-log":
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
         offset_str = extract_param(params, "offset")

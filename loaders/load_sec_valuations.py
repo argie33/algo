@@ -127,6 +127,27 @@ class SecValuationsLoader(OptimalLoader):
                     except (ValueError, ZeroDivisionError):
                         pass  # If computation fails, shares_out stays None and we fail below
 
+                # Fallback: the LIMIT 2 rows above are the two most recent fiscal years, but
+                # the most recent one is often a partial/estimate-stage filing with NULL
+                # shares_outstanding_basic even though an older year has the real reported
+                # value (same "latest year is empty" issue fixed for free_cash_flow in
+                # load_value_quality_growth_metrics.py - live-confirmed for GPRO/JOUT/CWH/etc,
+                # where FY2026 is NULL but FY2025 has a real share count). Search all fiscal
+                # years, not just the two most recent, before falling back to company_info_sec.
+                if not shares_out:
+                    cur.execute(
+                        """
+                        SELECT shares_outstanding_basic FROM annual_income_statement
+                        WHERE symbol = %s AND shares_outstanding_basic IS NOT NULL AND shares_outstanding_basic > 0
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    prior_shares_row = cur.fetchone()
+                    if prior_shares_row and prior_shares_row[0]:
+                        shares_out = float(prior_shares_row[0])
+                        logger.debug(f"[{symbol}] Using shares_outstanding_basic from an older fiscal year: {shares_out:,.0f}")
+
                 # If computation didn't work, try fetching from company_info_sec as fallback
                 if not shares_out:
                     cur.execute(

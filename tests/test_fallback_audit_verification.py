@@ -13,14 +13,26 @@ from algo.signals.buy_signal_generator import BuySignalGenerator
 class TestSignalGeneratorFallbacks:
     """Test fallback patterns in signal generation."""
 
-    def test_market_stage_ambiguous_sma_returns_marker(self) -> None:
-        """Market stage should return explicit marker when SMA relationships are ambiguous."""
+    def test_market_stage_crossing_state_returns_stage(self) -> None:
+        """Market stage should classify "crossing" orderings, not report them as ambiguous.
+
+        close (110) > sma_200 (105) > sma_50 (100): price has reclaimed the long-term average
+        ahead of the 50d MA catching up - an early-recovery/Stage 1 setup, not unclassifiable.
+        All 6 strict orderings of (close, sma_50, sma_200) are meaningful stage signals; only
+        exact ties fall through to the ambiguous marker.
+        """
         gen = BuySignalGenerator()
 
-        # SMA relationships that don't fit any stage (ambiguous)
-        # In this case: close (110) is between sma_50 (100) and sma_200 (105)
-        # This doesn't match any of the 4 defined stage patterns
         result = gen._determine_market_stage(close=110, sma_50=100, sma_200=105)
+
+        assert result == "Stage 1"
+
+    def test_market_stage_tie_returns_marker(self) -> None:
+        """Market stage should return explicit marker when close/sma_50/sma_200 tie exactly."""
+        gen = BuySignalGenerator()
+
+        # close == sma_50 doesn't fit any of the 6 strict orderings
+        result = gen._determine_market_stage(close=100, sma_50=100, sma_200=90)
 
         assert isinstance(result, dict), "Should return dict for ambiguous case"
         assert result.get("data_unavailable"), "Should have data_unavailable=True"

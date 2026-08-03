@@ -94,11 +94,18 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     issues = []
 
     # Define critical columns per table (where NULLs are unacceptable)
+    # NOTE: verified against live information_schema.columns 2026-08-03 - several of these
+    # referenced columns that don't exist on the real schema (stock_scores has no date/
+    # signal_strength column; market_exposure_daily has no tech_exposure; sector_rotation_signal
+    # wasn't listed at all, so it fell through to the ["updated_at"] default, which it also
+    # doesn't have). Every check below is wrapped in try/except with a debug-level log, so
+    # these weren't crashing anything - they were silently no-op'ing on every single call,
+    # always reporting quality_status="ok" for these tables regardless of actual data quality.
     critical_columns_map = {
         "price_daily": ["symbol", "date", "close", "volume"],
-        "stock_scores": ["symbol", "date", "signal_strength"],
+        "stock_scores": ["symbol", "composite_score"],
         "market_health_daily": ["date", "vix_level"],
-        "market_exposure_daily": ["date", "tech_exposure"],
+        "market_exposure_daily": ["date", "exposure_pct"],
         "technical_data_daily": ["symbol", "date", "rsi", "macd"],
         "trend_template_data": ["symbol", "date", "weinstein_stage"],
         "buy_sell_daily": ["symbol", "date", "signal", "strength"],
@@ -109,6 +116,13 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
         "algo_config_audit": ["updated_at"],
         "algo_orchestrator_runs": ["updated_at"],
         "algo_signal_rejections": ["symbol", "rejection_date", "rejection_reason"],
+        "sector_rotation_signal": ["date", "sector", "signal"],
+        # Neither table has an updated_at column (verified against live information_schema.
+        # columns 2026-08-03) - both were falling through to the ["updated_at"] default,
+        # throwing UndefinedColumn on every /api/algo/data-status request (caught by the
+        # try/except below, but wasted a query and quality_status silently stayed "ok").
+        "algo_reconciliation_log": ["reconciliation_date", "match_percentage"],
+        "algo_runtime_state": ["state_key", "state_value"],
     }
 
     critical_cols = critical_columns_map.get(table_name, ["updated_at"])
@@ -201,10 +215,14 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
 
     elif table_name == "market_health_daily":
         try:
+            # column is market_trend, not market_regime (verified against live schema
+            # 2026-08-03); real taxonomy is {up, uptrend, downtrend, sideways, mixed, neutral},
+            # not {bull, bear, neutral} - both were wrong, so this check silently no-op'd.
             cur.execute("""
                 SELECT COUNT(*) as violations
                 FROM market_health_daily
-                WHERE vix_level < 0 OR vix_level > 150 OR market_regime NOT IN ('bull', 'bear', 'neutral')
+                WHERE vix_level < 0 OR vix_level > 150
+                   OR market_trend NOT IN ('up', 'uptrend', 'downtrend', 'sideways', 'mixed', 'neutral')
                 LIMIT 1000
             """)
             result = cur.fetchone()
@@ -485,6 +503,102 @@ def _analyze_failure_patterns(table_name: str, cur: Any) -> dict[str, Any]:
     return result
 
 
+def enrich_health_item_with_row_count_trend(health_item: dict[str, Any], cur: Any = None) -> dict[str, Any]:
+    """Flag loaders that report a normal run but haven't actually written new data.
+
+    A loader that keeps returning status=COMPLETED with an identical row_count run after
+    run is a silent-failure mode the age/status columns alone can't catch - it looks
+    "healthy" (fresh timestamp, no error) while the underlying data has stopped moving.
+    Confirmed live 2026-08-03: price_daily's last several archived runs all carry the
+    identical row_count=8750874 despite being marked failed - the age/status view alone
+    gives no signal that the row count itself is frozen.
+
+    Deliberately NOT a "vs. trailing average" anomaly check - row_count in
+    data_loader_status_history is the cumulative table count, not rows-written-this-run
+    (confirmed via _archive_to_history reading straight from data_loader_status.row_count),
+    so append-only tables (price_daily) would never trip an average-based check even when
+    genuinely stalled, while legitimately-flat full-rewrite tables would false-positive on
+    ordinary day-to-day noise. "Unchanged across the last few runs, over a meaningful span
+    of time" is the one framing that's conservative for both table shapes.
+
+    Args:
+        health_item: Health status item dict
+        cur: Database cursor (optional)
+
+    Returns:
+        Enhanced health_item with:
+        - row_count_stalled: True if row_count hasn't changed across the last 3+ runs
+          spanning more than 24h (None if not enough history to judge)
+        - row_count_stalled_since: timestamp of the oldest run in the unchanged streak
+    """
+    if not isinstance(health_item, dict):
+        return health_item
+
+    table_name = health_item.get("tbl") or health_item.get("table_name") or health_item.get("name")
+    if not table_name:
+        return health_item
+
+    health_item["row_count_stalled"] = None
+    health_item["row_count_stalled_since"] = None
+
+    try:
+        if cur is None:
+            with DatabaseContext("read") as cur_new:
+                trend = _check_row_count_stall(table_name, cur_new)
+        else:
+            trend = _check_row_count_stall(table_name, cur)
+        health_item.update(trend)
+    except Exception as e:
+        logger.debug(f"[ROW_COUNT_TREND] Stall check failed for {table_name}: {e}")
+
+    return health_item
+
+
+def _check_row_count_stall(table_name: str, cur: Any) -> dict[str, Any]:
+    """Check whether row_count has been identical across recent archived runs."""
+    result: dict[str, Any] = {"row_count_stalled": None, "row_count_stalled_since": None}
+
+    try:
+        cur.execute("""
+            SELECT row_count, execution_completed
+            FROM data_loader_status_history
+            WHERE table_name = %s AND row_count IS NOT NULL
+            ORDER BY execution_completed DESC
+            LIMIT 5
+        """, (table_name,))
+        runs = cur.fetchall()
+        if len(runs) < 3:
+            return result
+
+        newest_count = runs[0][0]
+        streak_len = 0
+        unchanged_run = None
+        for row_count, completed_at in runs:
+            if row_count != newest_count:
+                break
+            streak_len += 1
+            unchanged_run = completed_at
+
+        if streak_len < 3 or unchanged_run is None:
+            return result
+
+        newest_at = runs[0][1]
+        if newest_at and unchanged_run:
+            span_hours = (newest_at - unchanged_run).total_seconds() / 3600
+            # Require both a 3+-run streak (checked above) and a real time span - several
+            # runs within the same hour (e.g. rapid retries) isn't evidence of a stall,
+            # just a tight retry loop.
+            if span_hours >= 24:
+                result["row_count_stalled"] = True
+                result["row_count_stalled_since"] = unchanged_run.isoformat() if hasattr(unchanged_run, "isoformat") else str(unchanged_run)
+
+    except Exception as e:
+        _rollback_after_error(cur)
+        logger.debug(f"[ROW_COUNT_TREND] Query failed for {table_name}: {e}")
+
+    return result
+
+
 def enrich_health_item_with_api_diagnostics(health_item: dict[str, Any]) -> dict[str, Any]:
     """Enrich health item with API diagnostics (rate limits, retry strategy, credentials).
 
@@ -505,20 +619,50 @@ def enrich_health_item_with_api_diagnostics(health_item: dict[str, Any]) -> dict
     # Extract API diagnostics from error message if available
     error_msg = health_item.get("loader_error") or health_item.get("error_message") or ""
 
-    # NOTE: no real quota-reset/backoff-schedule data is tracked anywhere yet (the loader
-    # status columns this was meant to read - http_status_code/rate_limit_quota, added by
-    # migration 1164 - have no production callers populating them). Report the category only;
-    # do not fabricate specific reset times or retry windows not backed by real data.
-    if "rate limit" in error_msg.lower() or "quota" in error_msg.lower():
+    # Prefer the real http_status_code column (migration 1164) when a loader actually passed
+    # it to mark_failed()/mark_timeout() - as of 2026-08-03, runner.py passes retry_count but
+    # no caller yet passes http_status, so this is currently always None in practice; string-
+    # sniffing error_message below remains the fallback until loaders capture it. Written so
+    # this starts working automatically the moment any loader does pass it, with no further
+    # dashboard changes.
+    http_status = health_item.get("http_status_code")
+    retry_count = health_item.get("retry_count")
+    real_quota = health_item.get("rate_limit_quota_raw")
+
+    if http_status == 429:
         health_item["api_status"] = "rate_limited"
-        health_item["retry_strategy"] = "exponential backoff (reset time not tracked)"
+        health_item["retry_strategy"] = "exponential backoff" + (f", {retry_count} retries so far" if retry_count else "")
+    elif http_status in (401, 403):
+        health_item["api_status"] = "auth_failed"
+        health_item["retry_strategy"] = "credentials need rotation"
+    elif http_status == 503:
+        health_item["api_status"] = "service_down"
+        health_item["retry_strategy"] = "service unavailable" + (f", {retry_count} retries so far" if retry_count else "")
+    elif http_status is not None and http_status >= 400:
+        health_item["api_status"] = "service_down"
+        health_item["retry_strategy"] = f"HTTP {http_status}" + (f", {retry_count} retries so far" if retry_count else "")
+    # NOTE: rate_limit_quota (the display string, e.g. "98/100 calls used") has no production
+    # callers populating it yet either - falls back to a category-only message below.
+    elif "rate limit" in error_msg.lower() or "quota" in error_msg.lower():
+        health_item["api_status"] = "rate_limited"
+        health_item["retry_strategy"] = "exponential backoff (reset time not tracked)" + (
+            f", {retry_count} retries so far" if retry_count else ""
+        )
     elif "auth" in error_msg.lower() or "credential" in error_msg.lower():
         health_item["api_status"] = "auth_failed"
         health_item["retry_strategy"] = "credentials need rotation"
     elif "503" in error_msg or "service" in error_msg.lower():
         health_item["api_status"] = "service_down"
-        health_item["retry_strategy"] = "service unavailable (retry timing not tracked)"
+        health_item["retry_strategy"] = "service unavailable (retry timing not tracked)" + (
+            f", {retry_count} retries so far" if retry_count else ""
+        )
     else:
+        # No categorizable failure signal. Retries that succeeded aren't a failure mode -
+        # _build_api_diagnostics_section only renders entries with api_status != "ok", so a
+        # retry count with no resulting failure has nothing useful to show here.
         health_item["api_status"] = "ok"
+
+    if real_quota:
+        health_item["rate_limit_quota"] = real_quota
 
     return health_item

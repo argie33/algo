@@ -100,3 +100,25 @@ class TestLoadGlobalCompletionStatus:
 
         assert result == 0
         loader._status_manager.mark_completed.assert_called()
+
+    def test_successful_load_passes_current_run_counts_to_mark_completed(self):
+        # CRITICAL FIX 2026-08-03: load_global() used to call mark_completed() with no
+        # arguments, so its safety check re-read symbol_count/symbols_loaded straight from
+        # whatever the DB row already held (e.g. symbol_count=0 left over from the initial
+        # _ensure_status_row() insert, since load_global() never calls
+        # mark_running(symbol_count=...) / update_progress() to keep it in sync). Live-
+        # confirmed on stock_symbols: a real, successful, 5555-row MarketConstituentsLoader
+        # run was marked FAILED at "0.00% complete (3183/0)". Fixed by passing this run's own
+        # verified insert count instead of relying on a stale DB re-read.
+        loader = _make_loader()
+        rows = [{"symbol": "AAPL"}, {"symbol": "MSFT"}, {"symbol": "GOOGL"}]
+
+        result = _run_load_global(loader, rows)
+
+        assert result == 3
+        # execution_duration_sec (added separately, real elapsed time) is intentionally not
+        # pinned to a value here - just confirm the current-run counts this test targets.
+        loader._status_manager.mark_completed.assert_called_once()
+        call_kwargs = loader._status_manager.mark_completed.call_args.kwargs
+        assert call_kwargs["current_run_symbols_loaded"] == 3
+        assert call_kwargs["current_run_symbol_count"] == 3

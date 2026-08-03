@@ -191,20 +191,36 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         FROM daily_changes
                         WHERE sector != ''
                         GROUP BY sector
+                    ),
+                    -- Whole-universe cap-weighted return for the same date, used as the
+                    -- relative_strength benchmark below. Deliberately the full daily_changes
+                    -- set (all sectors combined), not a single ticker like SPY, so the
+                    -- benchmark stays available even on days a benchmark symbol is missing.
+                    market_weighted_avg AS (
+                        SELECT
+                            SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct
+                        FROM daily_changes
                     )
                     INSERT INTO sector_performance (sector, date, return_pct, relative_strength, stock_count, created_at, updated_at)
                     SELECT
-                        sector,
+                        s.sector,
                         %s as date,
-                        return_pct,
-                        1.0 as relative_strength,
-                        stock_count,
+                        s.return_pct,
+                        -- Relative strength = sector's daily return vs the whole-universe
+                        -- benchmark return that same day: (1+sector_return)/(1+market_return).
+                        -- >1.0 = sector outperformed the broad market that day, <1.0 = underperformed.
+                        -- Previously hardcoded to the literal 1.0 for every sector/day (never a
+                        -- real calculation) - confirmed live-served via /sectors/{name}/trend.
+                        (1 + s.return_pct) / NULLIF(1 + m.return_pct, 0) as relative_strength,
+                        s.stock_count,
                         NOW() as created_at,
                         NOW() as updated_at
-                    FROM sector_weighted_avg
-                    WHERE return_pct IS NOT NULL
+                    FROM sector_weighted_avg s
+                    CROSS JOIN market_weighted_avg m
+                    WHERE s.return_pct IS NOT NULL
                     ON CONFLICT (sector, date) DO UPDATE SET
                         return_pct = EXCLUDED.return_pct,
+                        relative_strength = EXCLUDED.relative_strength,
                         stock_count = EXCLUDED.stock_count,
                         updated_at = NOW()
                     """,

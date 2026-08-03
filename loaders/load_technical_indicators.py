@@ -658,18 +658,37 @@ class VectorizedTechnicalLoader:
         # DB-row/JSON-shaped inputs.
         current_vol_raw = current_row.get("volume")
         current_vol = float(current_vol_raw) if current_vol_raw is not None and pd.notna(current_vol_raw) else None
-        if not current_vol:
-            current_vol = 1.0
 
         # 30 calendar days strictly before the current row, volume > 0 - matches the
         # original per-symbol query's window and filter exactly.
         window_start = end_date - timedelta(days=30)
         prior = df[(df["date"] < end_date) & (df["date"] >= window_start) & (df["volume"] > 0)]
-        avg_vol = float(prior["volume"].mean()) if not prior.empty else None
-        if not avg_vol or avg_vol != avg_vol:  # None or NaN
-            avg_vol = 1.0
+        avg_vol_raw = float(prior["volume"].mean()) if not prior.empty else None
+        avg_vol = avg_vol_raw if avg_vol_raw and avg_vol_raw == avg_vol_raw else None  # drop None/NaN
 
-        breakout_volume_ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
+        # Previously defaulted missing current_vol/avg_vol to a fabricated 1.0, which silently
+        # produced a nonsense ratio (e.g. real_vol/1.0) indistinguishable from a genuine reading.
+        # Leave the ratio NULL when either side of the ratio isn't real.
+        breakout_volume_ratio = (
+            current_vol / avg_vol if current_vol is not None and avg_vol is not None and avg_vol > 0 else None
+        )
+
+        # Daily high-low range as % of close, matching atr_compression_pct's percentage
+        # convention. Previously hardcoded to 0.0 (unconditionally, not even a fallback) despite
+        # real high/low/close data being in scope on symbol_df.
+        current_close = safe_float(current_row.get("close"), f"{symbol}.range_current_close", allow_none=True)
+        current_high = safe_float(current_row.get("high"), f"{symbol}.range_current_high", allow_none=True)
+        current_low = safe_float(current_row.get("low"), f"{symbol}.range_current_low", allow_none=True)
+        range_current = (
+            (current_high - current_low) / current_close * 100
+            if current_close and current_high is not None and current_low is not None
+            else None
+        )
+
+        range_hist = last_30.assign(
+            _range_pct=lambda d: (d["high"] - d["low"]) / d["close"].replace(0, pd.NA) * 100
+        )["_range_pct"].dropna()
+        range_30d_avg = float(range_hist.mean()) if not range_hist.empty else None
 
         vcp_patterns.append(
             {
@@ -678,8 +697,8 @@ class VectorizedTechnicalLoader:
                 "atr_30d_avg": atr_30d_avg,
                 "atr_current": current_atr,
                 "atr_compression_pct": atr_compression_pct,
-                "range_30d_avg": 0.0,
-                "range_current": 0.0,
+                "range_30d_avg": range_30d_avg,
+                "range_current": range_current,
                 "vcp_strength": vcp_strength,
                 "breakout_volume_ratio": breakout_volume_ratio,
             }

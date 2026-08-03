@@ -864,7 +864,7 @@ class OptimalLoader:
                     f"[{self.table_name}] fetch_global not implemented by subclass "
                     f"(data_unavailable: {rows_result.get('reason', 'unknown')}). Skipping global load step."
                 )
-                self._status_manager.mark_completed()
+                self._status_manager.mark_completed(execution_duration_sec=time.time() - start)
                 return 0
 
             # Some subclasses (e.g. load_naaim.py) list-wrap the marker dict instead of
@@ -880,7 +880,7 @@ class OptimalLoader:
                     f"[{self.table_name}] fetch_global returned list-wrapped data_unavailable marker "
                     f"(reason: {rows_result[0].get('reason', 'unknown')}). Skipping global load step."
                 )
-                self._status_manager.mark_completed()
+                self._status_manager.mark_completed(execution_duration_sec=time.time() - start)
                 return 0
 
             # rows_result is now guaranteed to be a list[dict] after marker dict check
@@ -888,7 +888,7 @@ class OptimalLoader:
 
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned empty list (no data available)")
-                self._status_manager.mark_completed()
+                self._status_manager.mark_completed(execution_duration_sec=time.time() - start)
                 return 0
 
             rows = self.transform(rows)
@@ -896,7 +896,20 @@ class OptimalLoader:
 
             self._stats.set("rows_inserted", inserted)
             self._log_execution_history("success")
-            self._status_manager.mark_completed()
+            # CRITICAL FIX 2026-08-03: pass this run's own counts, same fix already applied
+            # to load_prices.py's custom status path. Without them, mark_completed() re-reads
+            # symbol_count/symbols_loaded straight from the DB row - but load_global() callers
+            # never call mark_running(symbol_count=...)/update_progress() to keep that row in
+            # sync during a run, so symbol_count sits at whatever a much earlier run (or the
+            # initial _ensure_status_row() insert) left it at - live-confirmed 0 for
+            # MarketConstituentsLoader (stock_symbols) despite a real, successful, 5555-row
+            # global refresh completing in 3s: symbol_count=0/symbols_loaded=3183 produced a
+            # nonsensical "0.00% complete" FAILED status for a load that fully succeeded.
+            self._status_manager.mark_completed(
+                execution_duration_sec=time.time() - start,
+                current_run_symbols_loaded=inserted,
+                current_run_symbol_count=len(rows),
+            )
 
             return inserted
         finally:
@@ -961,6 +974,9 @@ class OptimalLoader:
                 self._stats.increment("symbols_failed")
                 logger.error(f"[{self.table_name}] {symbol} failed: {e}")
                 failed_symbols.append(symbol)
+                status_code = getattr(e, "status_code", None)
+                if isinstance(status_code, int):
+                    self._stats.set("http_status_code", status_code)
             if i % 100 == 0:
                 logger.info(f"  Progress: {i}/{len(symbols)}")
 
@@ -1105,6 +1121,15 @@ class OptimalLoader:
         except Exception as e:
             self._stats.increment("symbols_failed")
             logger.error(f"[{self.table_name}] {symbol} failed: {e}")
+            # Real HTTP status code, when the failing call captured one (e.g.
+            # utils/external/sec_edgar_client.py attaches .status_code to its raised
+            # exceptions) - last-seen-wins across a parallel run, threaded through to
+            # LoaderStatusManager.mark_failed() by runner.py so the dashboard's API
+            # Diagnostics section can read the real status instead of only guessing
+            # from error-message text. No-op for loaders whose exceptions don't carry it.
+            status_code = getattr(e, "status_code", None)
+            if isinstance(status_code, int):
+                self._stats.set("http_status_code", status_code)
 
     def _check_upstream_completeness(self, expected_symbols: int) -> bool:
         """Check that upstream dependencies are sufficiently complete.
@@ -1333,8 +1358,15 @@ class OptimalLoader:
                     cur.execute("SET statement_timeout = 0")
                     # Convert execution_start_time from Unix timestamp to datetime
                     execution_started = None
+                    execution_duration_sec = None
                     if self._execution_start_time:
                         execution_started = datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc)
+                        execution_duration_sec = time.time() - self._execution_start_time
+                    symbols_per_sec = (
+                        symbols_loaded / execution_duration_sec
+                        if execution_duration_sec and execution_duration_sec > 0
+                        else None
+                    )
 
                     # UPSERT, not DELETE+INSERT: table_name is the PK here, and
                     # data_loader_status_history.table_name FK-references it. Once the
@@ -1349,8 +1381,9 @@ class OptimalLoader:
                         "INSERT INTO data_loader_status "
                         "(table_name, row_count, latest_date, last_updated, status, error_message, "
                         "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed, "
+                        "execution_duration_sec, symbols_per_second, "
                         "last_success_at, consecutive_failures) "
-                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, NOW(), "
+                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, NOW(), %s, %s, "
                         "CASE WHEN %s = 'COMPLETED' THEN NOW() ELSE NULL END, "
                         "CASE WHEN %s = 'COMPLETED' THEN 0 ELSE 1 END) "
                         "ON CONFLICT (table_name) DO UPDATE SET "
@@ -1364,6 +1397,8 @@ class OptimalLoader:
                         "symbols_loaded = EXCLUDED.symbols_loaded, "
                         "execution_started = EXCLUDED.execution_started, "
                         "execution_completed = EXCLUDED.execution_completed, "
+                        "execution_duration_sec = EXCLUDED.execution_duration_sec, "
+                        "symbols_per_second = EXCLUDED.symbols_per_second, "
                         "last_success_at = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN NOW() "
                         "ELSE data_loader_status.last_success_at END, "
                         "consecutive_failures = CASE WHEN EXCLUDED.status = 'COMPLETED' THEN 0 "
@@ -1393,6 +1428,8 @@ class OptimalLoader:
                             expected_symbols,
                             symbols_loaded,
                             execution_started,
+                            execution_duration_sec,
+                            symbols_per_sec,
                             loader_status,
                             loader_status,
                         ),

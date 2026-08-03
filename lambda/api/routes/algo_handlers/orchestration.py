@@ -68,7 +68,7 @@ def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> Any:
 
 
 @db_route_handler("fetch orchestrator execution patterns")
-@validate_api_response("run")
+@validate_api_response("exec_patterns")
 def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
     """Analyze halt/failure patterns - which phases halt or fail most often.
 

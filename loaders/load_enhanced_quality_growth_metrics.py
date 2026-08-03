@@ -335,13 +335,12 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                     if curr_roe and prior_roe:
                         metrics["roe_trend"] = float(curr_roe - prior_roe)
 
-                # Sustainable growth rate = ROE * retention ratio
-                if curr_equity_f and curr_equity_f > 0 and curr_ni_f:
-                    curr_roe_pct = (curr_ni_f / curr_equity_f)
-                    # Retention ratio = (earnings - dividends) / earnings
-                    # For now, assume 60% retention as default (can be computed with dividend data)
-                    retention_ratio = 0.60
-                    metrics["sustainable_growth_rate"] = float(curr_roe_pct * retention_ratio * 100)
+                # Sustainable growth rate = ROE * retention ratio. Left unset (not a fabricated
+                # assumed retention ratio) because this loader's fetch_incremental() query never
+                # selects dividends_paid, so a real retention ratio = (earnings - dividends) /
+                # earnings can't be computed here. The sibling loader
+                # load_value_quality_growth_metrics.py does fetch dividends_paid and computes
+                # this field for real - that's the live path stock_scores actually reads from.
 
             # Compute quarterly earnings metrics (includes consecutive_positive_quarters, eps_growth_stability, etc.)
             self._compute_quarterly_metrics(symbol, metrics)

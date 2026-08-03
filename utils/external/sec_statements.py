@@ -134,6 +134,12 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # SalesRevenueNet/legacy Revenues so they don't overwrite with zero values.
         # Live-verified: MS has 2020-2026 data, WFC has 2018-2026 data.
         "RevenuesNetOfInterestExpense",
+        # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC live-confirmed via real
+        # companyfacts JSON) have neither the concepts above nor RevenuesNetOfInterestExpense
+        # (that one's for larger banks). Listed last in this revenue group so it only wins on
+        # overwrite for filers with nothing else - see load_financial_statements.py's
+        # _INCOME_FIELD_MAPPING comment for the live-verification details.
+        "InterestAndDividendIncomeOperating",
         "CostOfRevenue",
         # REMOVED 2026-07-28: "CostsAndExpenses"/"OperatingExpenses" used to be fetched here
         # as would-be operating_income fallbacks, but neither has a field_mapping entry or
@@ -155,6 +161,12 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # (shares = net_income / eps) believing (per its own stale docstring) it was already
         # using this concept.
         "WeightedAverageNumberOfSharesOutstandingBasic",
+        # FIXED (migration 1192): fallback share count for filers that only tag diluted
+        # shares (live-confirmed: JOUT/Johnson Outdoors has 44 real 10-K entries here but
+        # zero for the basic concept above). Mapped to its own shares_outstanding_diluted
+        # column, not shares_outstanding_basic - load_sec_valuations.py decides when to use
+        # it, so filers that already report basic correctly are unaffected.
+        "WeightedAverageNumberOfDilutedSharesOutstanding",
         # For interest_coverage (quality_metrics) = OperatingIncomeLoss / InterestExpense.
         # No IFRS alias: IFRS "FinanceCosts" is a broader concept (includes non-interest
         # debt costs) and would silently overstate interest expense for foreign filers -

@@ -3,6 +3,7 @@
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 
 from algo.config.orchestrator_config import OrchestratorConfig
@@ -973,23 +974,96 @@ def _build_api_diagnostics_section(hlth_items: list[Any]) -> list[Text | Rule]:
     return rows
 
 
-def _build_system_status_section(hlth_dict: dict[str, Any] | None) -> list[Text | Rule]:
-    """Build system status section showing signal freshness and degraded mode.
+def _build_data_coverage_section(data_coverage: dict[str, Any] | None) -> list[Text | Rule]:
+    """Build data-quality coverage section from /api/data-coverage.
+
+    Distinct from the per-table symbol coverage already shown elsewhere in this panel
+    (which only covers 4 hardcoded tables via row-presence at the latest date): this
+    surfaces column-level validity (zero-volume/invalid-price rows in price_daily,
+    per-indicator null rates in technical_data_daily) and two tables never covered at
+    all (market_health_daily, economic_data) - see dashboard/fetchers_config.py's
+    fetch_data_coverage() and lambda/api/routes/data_coverage.py.
+
+    Returns [] when data_coverage is unavailable or every check came back clean - this
+    is a supplementary detail section, not a primary health indicator, so it stays quiet
+    unless there's something to flag.
+    """
+    rows: list[Text | Rule] = []
+    if not data_coverage or not isinstance(data_coverage, dict):
+        return rows
+
+    issues: list[str] = []
+
+    price = data_coverage.get("price_data")
+    if isinstance(price, dict):
+        dq = price.get("data_quality") or {}
+        zero_vol = dq.get("zero_volume_pct")
+        invalid_px = dq.get("invalid_price_pct")
+        if isinstance(zero_vol, (int, float)) and zero_vol > 1:
+            issues.append(f"[{Y}]price_daily:[/] [dim]{zero_vol:.1f}% zero/null volume (7d window)[/]")
+        if isinstance(invalid_px, (int, float)) and invalid_px > 0:
+            issues.append(f"[{R}]price_daily:[/] [dim]{invalid_px:.2f}% rows with close<=0 (7d window)[/]")
+
+    technical = data_coverage.get("technical_data")
+    if isinstance(technical, dict):
+        ind = technical.get("indicator_coverage") or {}
+        min_cov = ind.get("min_coverage_pct")
+        if isinstance(min_cov, (int, float)) and min_cov < 95:
+            worst = min(
+                (("rsi", ind.get("rsi_pct")), ("ema_12", ind.get("ema50_pct")), ("atr", ind.get("atr_pct"))),
+                key=lambda t: t[1] if isinstance(t[1], (int, float)) else 100,
+            )
+            issues.append(
+                f"[{Y}]technical_data_daily:[/] [dim]{worst[0]} only {worst[1]:.1f}% populated (7d window)[/]"
+            )
+
+    market = data_coverage.get("market_data")
+    if isinstance(market, dict):
+        mh = market.get("market_health") or {}
+        econ = market.get("economic_data") or {}
+        if mh.get("status") == "missing":
+            issues.append(f"[{R}]market_health_daily:[/] [dim]no rows in last 7 days[/]")
+        if econ.get("status") == "missing":
+            issues.append(f"[{R}]economic_data:[/] [dim]no FRED series updated in last 30 days[/]")
+
+    if not issues:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]Data Coverage (column-level, 7d):[/]"))
+    for line in issues[:8]:
+        rows.append(Text.from_markup(f"  {line}"))
+
+    return rows
+
+
+def _build_system_status_section(
+    hlth_dict: dict[str, Any] | None, signal_freshness: dict[str, Any] | None = None
+) -> list[Text | Rule]:
+    """Build system status section showing signal freshness.
+
+    Args:
+        hlth_dict: Raw /api/algo/data-status response. Never carries "signal_freshness"
+            itself (that field only exists on /api/health) - kept as a fallback lookup
+            only in case a future caller merges it in directly.
+        signal_freshness: /api/health's "freshness" block ({status, signal_age_hours}),
+            fetched separately via fetch_signal_freshness() and passed through
+            panel_data_freshness_expanded(). None if that fetch failed/is unavailable.
 
     Returns list of Rich Text/Rule objects for display.
     """
     rows: list[Text | Rule] = []
 
     if not hlth_dict or not isinstance(hlth_dict, dict):
-        return rows
+        hlth_dict = {}
 
     system_issues = []
 
     # Check for signal freshness info
-    signal_freshness = hlth_dict.get("signal_freshness")
-    if signal_freshness and isinstance(signal_freshness, dict):
-        freshness_status = signal_freshness.get("status")
-        signal_age_hours = signal_freshness.get("signal_age_hours")
+    resolved_freshness = signal_freshness if isinstance(signal_freshness, dict) else hlth_dict.get("signal_freshness")
+    if resolved_freshness and isinstance(resolved_freshness, dict):
+        freshness_status = resolved_freshness.get("status")
+        signal_age_hours = resolved_freshness.get("signal_age_hours")
         if freshness_status == "STALE":
             system_issues.append(
                 f"[bold {R}]Signal Freshness:[/] [dim]STALE ({signal_age_hours}h old)[/]"
@@ -999,12 +1073,15 @@ def _build_system_status_section(hlth_dict: dict[str, Any] | None) -> list[Text 
                 f"[bold {Y}]Signal Freshness:[/] [dim]OK but aging ({signal_age_hours}h old)[/]"
             )
 
-    # Check for degraded mode
-    degraded_mode = hlth_dict.get("degraded_mode_active")
-    if degraded_mode:
-        system_issues.append(
-            f"[bold {R}]Degraded Mode:[/] [dim]ACTIVE - position sizes at 50%[/]"
-        )
+    # A "degraded mode" (0.5x position-size multiplier) branch used to live here, reading
+    # hlth_dict.get("degraded_mode_active"). Removed 2026-08-03: git-archaeology confirmed
+    # the underlying feature (algo/algo_filter_pipeline.py's FilterPipeline(degraded=...))
+    # was deleted in 183592aab (2026-06-09), and its DynamoDB remnant
+    # (dynamo_health.get_phase1_degraded_mode_status(), key "degraded_mode_active") is
+    # unreachable dead code on both ends - the write side (orchestrator.py) can never write
+    # True since phase1_data_freshness.py stopped returning status="degraded" in 837c3172a,
+    # and the read side has zero callers anywhere in the repo. Not reimplemented here since
+    # changing position-sizing behavior is a trading-logic decision, not a dashboard fix.
 
     if system_issues:
         rows.append(Rule(style="dim"))
@@ -1020,6 +1097,8 @@ def _build_freshness_panel(
     ready_to_trade: bool | None,
     hlth_dict: dict[str, Any] | None = None,
     inventory: dict[str, Any] | None = None,
+    data_coverage: dict[str, Any] | None = None,
+    signal_freshness: dict[str, Any] | None = None,
 ) -> Panel:
     """Build the standalone DATA FRESHNESS - EXPANDED panel: full table freshness detail.
 
@@ -1030,6 +1109,12 @@ def _build_freshness_panel(
             only the caller building the full standalone expanded view has this)
         inventory: Table inventory data (/api/admin/inventory) - untracked/missing tables
             (optional - not fetched by every caller)
+        data_coverage: /api/data-coverage response (optional) - price zero-volume/invalid-
+            price %, per-indicator (rsi/ema/atr) null rates, market_health/economic_data
+            presence. Distinct from the per-table symbol coverage already shown below,
+            which only covers 4 hardcoded tables and never checks column-level validity.
+        signal_freshness: /api/health's "freshness" block (optional) - see
+            _build_system_status_section for why this can't come from hlth_dict.
 
     Returns:
         Rich Panel with freshness table
@@ -1042,7 +1127,7 @@ def _build_freshness_panel(
     left_rows: list[Text | Table | Layout | Rule] = []
 
     # System status section (signal freshness, degraded mode)
-    system_status = _build_system_status_section(hlth_dict)
+    system_status = _build_system_status_section(hlth_dict, signal_freshness)
     left_rows.extend(system_status)
 
     trading_halted = hlth_dict.get("trading_halted")
@@ -1180,9 +1265,16 @@ def _build_freshness_panel(
             row_count = safe_int(r.get("row_count"), default=None)
             rc_s = f"{row_count:,}" if row_count is not None else "--"
 
-            # Execution duration display
+            # Execution duration + throughput display, folded into one cell to avoid adding
+            # a 7th column to an already-tight two-column layout.
             duration = r.get("execution_duration_sec")
-            duration_s = f"{duration:.0f}s" if duration is not None and duration > 0 else "--"
+            throughput = r.get("symbols_per_second")
+            if duration is not None and duration > 0:
+                duration_s = f"{duration:.0f}s"
+                if throughput is not None and throughput > 0:
+                    duration_s += f" ({throughput:.0f}/s)"
+            else:
+                duration_s = "--"
 
             # Last success display - when this loader last successfully completed
             last_success = r.get("last_success_at")
@@ -1237,11 +1329,14 @@ def _build_freshness_panel(
     if loader_errors:
         left_rows.append(Rule(style="dim"))
         left_rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
+        errs_by_name = {r.get("tbl"): r for r in sorted_items}
         for tbl_name, err, lrs in loader_errors[:8]:
             # TIMEOUT and FAILED both just populate error_message identically otherwise -
             # tag with the loader's own run-state enum so the two aren't indistinguishable.
             tag = f"[{lrs}] " if lrs in ("TIMEOUT", "FAILED") else ""
-            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:90]}[/]"))
+            retries = errs_by_name.get(tbl_name, {}).get("retry_count")
+            retry_s = f" ({retries}x retried)" if isinstance(retries, (int, float)) and retries > 0 else ""
+            left_rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:90]}{retry_s}[/]"))
         if len(loader_errors) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(loader_errors) - 8} more[/]"))
 
@@ -1271,7 +1366,28 @@ def _build_freshness_panel(
             pct_s = f"{float(pct):.0f}%" if pct is not None else "?"
             sl, sc = r.get("symbols_loaded"), r.get("symbol_count")
             cnt_s = f" ({sl}/{sc} symbols)" if sl is not None and sc is not None else ""
-            left_rows.append(Text.from_markup(f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s}"))
+            # Elapsed runtime + a heuristic timeout-risk flag. LOADER_TIMEOUT_MINUTES
+            # (loaders/runner.py) defaults to 120min; flag past 90min (75% of default) since
+            # the dashboard has no per-process visibility into the actual configured value.
+            started_raw = r.get("execution_started")
+            elapsed_s = fmt_age(started_raw)
+            elapsed_label = elapsed_s.replace(" ago", "") if elapsed_s != "--" else "?"
+            risk_s = ""
+            try:
+                ts = started_raw
+                if isinstance(ts, str):
+                    ts = datetime.fromisoformat(ts)
+                if isinstance(ts, datetime):
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    elapsed_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60
+                    if elapsed_min > 90:
+                        risk_s = f" [{R}]⚠ TIMEOUT RISK[/]"
+            except (TypeError, ValueError):
+                pass
+            left_rows.append(
+                Text.from_markup(f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s} [dim]running {elapsed_label}[/]{risk_s}")
+            )
 
     # Stale-table detail: each table's own configured cadence (stale_threshold_days), so
     # "STALE at 3 days old" (a 1-day table) reads differently from "STALE at 10 days old"
@@ -1309,6 +1425,24 @@ def _build_freshness_panel(
         if len(repeated_failures) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 8} more[/]"))
 
+    # Row-count stall detector: a loader reporting normal runs (fresh timestamp, no error)
+    # while row_count hasn't moved across its last 3+ archived runs, spanning 24h+ - a
+    # silent-failure mode invisible to every other section above, since nothing here looks
+    # "stale" or "erroring". See dashboard/freshness_enhancements.py::_check_row_count_stall.
+    stalled = [
+        (r.get("tbl") or "unknown", r.get("row_count_stalled_since"))
+        for r in sorted_items
+        if r.get("row_count_stalled") is True
+    ]
+    if stalled:
+        left_rows.append(Rule(style="dim"))
+        left_rows.append(Text.from_markup(f"[bold {Y}]Row count stalled (reports OK, data unchanged):[/]"))
+        for tbl_name, since in stalled[:8]:
+            since_s = f" since {fmt_age(since)}" if since else ""
+            left_rows.append(Text.from_markup(f"  [{Y}]{tbl_name}:[/] [dim]same row count across last 3+ runs{since_s}[/]"))
+        if len(stalled) > 8:
+            left_rows.append(Text.from_markup(f"  [dim]...and {len(stalled) - 8} more[/]"))
+
     # ── DATA QUALITY METRICS (NEW) ──────────────────────────────
     # Display NULLs, duplicates, and constraint violations that make data unusable
     quality_section = _build_data_quality_section(sorted_items)
@@ -1328,6 +1462,12 @@ def _build_freshness_panel(
     # Show rate limits, auth issues, retry strategies for clear action items
     api_section = _build_api_diagnostics_section(sorted_items)
     left_rows.extend(api_section)
+
+    # ── DATA COVERAGE (NEW, /api/data-coverage) ──────────────────
+    # Column-level validity (zero-volume/invalid-price, per-indicator null rates) and
+    # market_health_daily/economic_data presence - none of which the sections above cover.
+    coverage_detail_section = _build_data_coverage_section(data_coverage)
+    left_rows.extend(coverage_detail_section)
 
     # Table inventory gaps (from /api/admin/inventory) - untracked tables exist in the DB but
     # have no data_loader_status row at all (never wired into monitoring), and missing tables
@@ -1358,6 +1498,262 @@ def _build_freshness_panel(
         border_style="yellow",
         padding=(0, 1),
     )
+
+
+def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rule]:
+    """Build run history timeline section showing last N orchestrator runs.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    if not run_history or not isinstance(run_history, list):
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {CY}]Run History (Last {len(run_history)} Runs):[/]"))
+
+    for run in run_history[:15]:
+        if not isinstance(run, dict):
+            continue
+
+        run_id = run.get("run_id", "unknown")
+        status = run.get("status", "unknown").lower()
+        started_at = run.get("started_at")
+        completed_at = run.get("completed_at")
+        halt_reason = run.get("halt_reason")
+
+        # Format status with color and icon
+        if status in ("success", "ok"):
+            status_icon = "[bold green]✓[/]"
+            status_text = "OK"
+            status_color = G
+        elif status in ("halt", "halted"):
+            status_icon = "[bold yellow]~[/]"
+            status_text = "HALTED"
+            status_color = Y
+        elif status == "degraded":
+            status_icon = "[dim]⊘[/]"
+            status_text = "DEGRADED"
+            status_color = Y
+        else:
+            status_icon = "[bold red]✗[/]"
+            status_text = "ERROR"
+            status_color = R
+
+        # Phase summary
+        phase_summary = run.get("phase_summary", {})
+        phases_str = f"[{status_color}]{phase_summary.get('completed', 0)}✓[/]"
+        if phase_summary.get("halted", 0) > 0:
+            phases_str += f" [{Y}]{phase_summary.get('halted')}~[/]"
+        if phase_summary.get("errored", 0) > 0:
+            phases_str += f" [{R}]{phase_summary.get('errored')}✗[/]"
+
+        # Format time info
+        time_str = ""
+        if started_at:
+            try:
+                if hasattr(started_at, "strftime"):
+                    time_str = started_at.strftime("%H:%M:%S")
+                elif isinstance(started_at, str) and len(started_at) >= 19:
+                    time_str = started_at[11:19]
+            except (AttributeError, TypeError):
+                pass
+
+        # Duration
+        duration_str = ""
+        if started_at and completed_at:
+            try:
+                from datetime import datetime as dt
+
+                if isinstance(started_at, str):
+                    start_dt = dt.fromisoformat(started_at)
+                else:
+                    start_dt = started_at
+                if isinstance(completed_at, str):
+                    end_dt = dt.fromisoformat(completed_at)
+                else:
+                    end_dt = completed_at
+                duration = (end_dt - start_dt).total_seconds()
+                duration_str = f" [{DIM}]{duration:.1f}s[/]"
+            except (AttributeError, TypeError, ValueError):
+                pass
+
+        # Build line
+        line = f"  {status_icon} [{status_color}]{status_text}[/] {phases_str}{duration_str} [dim]{time_str}[/]"
+        if halt_reason and status in ("halt", "halted"):
+            line += f" [yellow]← {halt_reason[:40]}[/]"
+
+        rows.append(Text.from_markup(line))
+
+    return rows
+
+
+def _build_phase_health_section(phase_health: dict[str, Any] | None) -> list[Text | Rule]:
+    """Build phase-level health breakdown showing success rates for all 9 phases.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    if not phase_health or not isinstance(phase_health, dict):
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {CY}]Phase Health (30-Day Success Rates):[/]"))
+
+    phase_names = {
+        "1": "Data Freshness",
+        "2": "Circuit Breakers",
+        "3": "Position Monitor",
+        "4": "Reconciliation",
+        "5": "Exposure Policy",
+        "6": "Exit Execution",
+        "7": "Signal Generation",
+        "8": "Entry Execution",
+        "9": "Portfolio Snapshot",
+    }
+
+    for phase_num in ["1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+        phase_data = phase_health.get(phase_num)
+        if not phase_data:
+            continue
+
+        total_runs = phase_data.get("total_runs", 0)
+        success_rate = phase_data.get("success_rate", 0)
+
+        # Color based on success rate
+        if success_rate >= 95:
+            rate_color = G
+            rate_icon = "✓"
+        elif success_rate >= 80:
+            rate_color = CY
+            rate_icon = "~"
+        else:
+            rate_color = R
+            rate_icon = "✗"
+
+        phase_name = phase_names.get(phase_num, f"Phase {phase_num}")
+        line = (
+            f"  {rate_icon} P{phase_num} [{rate_color}]{success_rate:.0f}%[/] "
+            f"[dim]({total_runs} runs)[/] {phase_name}"
+        )
+        rows.append(Text.from_markup(line))
+
+    return rows
+
+
+def _build_halt_reason_pattern_section(failure_patterns: list[Any] | None) -> list[Text | Rule]:
+    """Build failure pattern section showing most common halt reasons.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    if not failure_patterns or not isinstance(failure_patterns, list):
+        return rows
+
+    failure_patterns_list = [f for f in failure_patterns if isinstance(f, dict) and f.get("reason")]
+    if not failure_patterns_list:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]Failure Patterns (30-Day Top Reasons):[/]"))
+
+    for i, pattern in enumerate(failure_patterns_list[:8], 1):
+        reason = pattern.get("reason", "unknown")
+        occurrences = pattern.get("occurrences", 0)
+
+        # Highlight frequently recurring failures
+        if occurrences >= 5:
+            color = R
+            icon = "!"
+        elif occurrences >= 3:
+            color = Y
+            icon = "•"
+        else:
+            color = DIM
+            icon = "◦"
+
+        line = f"  [{color}]{icon}[/] [{color}]{occurrences}x[/] [dim]{reason[:70]}[/]"
+        rows.append(Text.from_markup(line))
+
+    return rows
+
+
+def _build_loader_health_section(loader_health: list[Any] | None) -> list[Text | Rule]:
+    """Build loader reliability section showing tables with failure streaks.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    if not loader_health or not isinstance(loader_health, list):
+        return rows
+
+    unhealthy = [lh for lh in loader_health if isinstance(lh, dict) and lh.get("is_unhealthy")]
+    if not unhealthy:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {G}]Loader Health:[/] All loaders healthy ✓"))
+        return rows
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]Loader Issues ({len(unhealthy)} tables):[/]"))
+
+    for loader in unhealthy[:10]:
+        table_name = loader.get("table_name", "unknown")
+        cons_failures = loader.get("consecutive_failures", 0)
+        status = loader.get("status", "unknown")
+
+        if cons_failures > 0:
+            fail_color = R if cons_failures >= 3 else Y
+            line = f"  [{fail_color}]{table_name}:[/] [dim]{cons_failures} consecutive failures ({status})[/]"
+        else:
+            line = f"  [{Y}]{table_name}:[/] [dim]status: {status}[/]"
+
+        rows.append(Text.from_markup(line))
+
+    if len(unhealthy) > 10:
+        rows.append(Text.from_markup(f"  [dim]...and {len(unhealthy) - 10} more[/]"))
+
+    return rows
+
+
+def _build_trend_summary_section(trend_summary: dict[str, Any] | None) -> list[Text | Rule]:
+    """Build system trend summary section.
+
+    Returns list of Rich Text/Rule objects for display.
+    """
+    rows: list[Text | Rule] = []
+
+    if not trend_summary or not isinstance(trend_summary, dict):
+        return rows
+
+    rows.append(Rule(style="dim"))
+
+    trend = trend_summary.get("trend", "stable")
+    success_7d = trend_summary.get("success_rate_7d", 0)
+    success_30d = trend_summary.get("success_rate_30d", 0)
+
+    # Trend icon
+    if trend == "improving":
+        trend_icon = "↗"
+        trend_color = G
+    elif trend == "degrading":
+        trend_icon = "↘"
+        trend_color = R
+    else:
+        trend_icon = "→"
+        trend_color = Y
+
+    line = (
+        f"[bold {trend_color}]{trend_icon} {trend.upper()}[/] "
+        f"[dim]7-day:[/] [{CY}]{success_7d:.1f}%[/] "
+        f"[dim]30-day:[/] [{CY}]{success_30d:.1f}%[/]"
+    )
+    rows.append(Text.from_markup(line))
+
+    return rows
 
 
 def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
@@ -3456,10 +3852,10 @@ def panel_algo_health(
             crit_color = G if crit_stale == 0 else Y if crit_stale == 1 else R
             rows.append(Text.from_markup(f"  [dim]Critical data:[/] [{crit_color}]{crit_ready}/{crit_total} ready[/]"))
 
-    # ── A.3: Degraded mode alert (NEW) ────────────────────────────────────────
-    degraded_mode = hlth_dict.get("degraded_mode_active")
-    if degraded_mode:
-        rows.append(Text.from_markup(f"  [{R}]⚠ DEGRADED MODE:[/] Position sizes at 50%"))
+    # A.3 "Degraded mode alert" (hlth_dict.get("degraded_mode_active")) removed 2026-08-03 -
+    # see _build_system_status_section's comment: the underlying 0.5x position-size feature
+    # was deleted from the codebase in 2026-06, and its DynamoDB remnant is unreachable on
+    # both the write and read side. Not a dashboard wiring gap - nothing to wire it to.
 
     # ── A.4: Loader health summary (NEW) ──────────────────────────────────────
     if hlth_items:
@@ -3925,12 +4321,62 @@ def _build_algo_metrics_table(metrics: list[Any]) -> Table | None:
     return tbl
 
 
-def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
-    """Build compact past runs section showing last few runs with status and failure reasons.
+# The orchestrator always runs the same 9 phases (see algo/orchestrator/phase*.py) -
+# used to render "N/9 phases completed" per past run without a second data source.
+TOTAL_ORCHESTRATOR_PHASES = 9
 
-    Shows up to 5 most recent runs with:
+
+def _fmt_run_duration(started_at: Any, completed_at: Any) -> str | None:
+    """Compute wall-clock run duration from started_at/completed_at timestamps.
+
+    Returns None (not "?") when either timestamp is missing/unparseable/still-running
+    (completed_at null) so callers can omit the field instead of showing a fake value.
+    """
+    if started_at is None or completed_at is None:
+        return None
+    try:
+        from datetime import datetime
+
+        def _to_dt(v: Any) -> datetime | None:
+            if isinstance(v, datetime):
+                return v
+            if isinstance(v, str):
+                return datetime.fromisoformat(v.replace("Z", "+00:00"))
+            return None
+
+        start_dt = _to_dt(started_at)
+        end_dt = _to_dt(completed_at)
+        if start_dt is None or end_dt is None:
+            return None
+        secs = (end_dt - start_dt).total_seconds()
+        if secs < 0:
+            return None
+        if secs < 60:
+            return f"{secs:.0f}s"
+        mins, s = divmod(int(secs), 60)
+        if mins < 60:
+            return f"{mins}m{s:02d}s"
+        hrs, m = divmod(mins, 60)
+        return f"{hrs}h{m:02d}m"
+    except (ValueError, TypeError):
+        return None
+
+
+def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
+    """Build past runs section: status, age, duration, and phase-level outcome for
+    each recent run - not just the overall badge.
+
+    exec_hist rows already carry phases_completed/phases_halted/phases_errored (per-run
+    arrays of "P<n>" phase tags computed server-side, see
+    lambda/api/routes/algo_handlers/orchestration.py's _get_orchestrator_execution_recent)
+    and completed_at, but this section previously only used started_at + halt_reason/summary
+    and threw the rest away. Surfacing them here answers "how far did THIS run get, and
+    which phase(s) stopped it" without opening a separate view per run.
+
+    Shows up to 8 most recent runs with:
     - Status indicator (✓/~/✗)
-    - Timestamp
+    - Age + run duration
+    - N/9 phases completed, and which phase(s) halted/errored if any
     - Brief failure reason if applicable
 
     Returns list of Rich Text/Rule objects for display in health panel footer.
@@ -3941,11 +4387,12 @@ def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
     if not isinstance(valid_hist, list) or not valid_hist:
         return rows
 
-    # Show last 5 runs
-    recent_runs = valid_hist[:5]
+    # Show last 8 runs (deeper than the 5 shown previously - exec_hist now fetches
+    # a 14d/20-run window instead of 7d/10, so there's history to show)
+    recent_runs = valid_hist[:8]
 
     # Build row with status badges and details
-    for i, run in enumerate(recent_runs):
+    for run in recent_runs:
         if not isinstance(run, dict):
             continue
 
@@ -3954,8 +4401,9 @@ def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
 
         # API returns "started_at", not "run_at"
         run_at = run.get("started_at") or run.get("run_at")
-        run_id = run.get("run_id", "")
         timestamp_str = fmt_age(run_at) if run_at else "?"
+        duration_str = _fmt_run_duration(run.get("started_at"), run.get("completed_at"))
+        duration_part = f" [{DIM}]({duration_str})[/]" if duration_str else ""
 
         # Get failure details
         halt_reason = run.get("halt_reason", "")
@@ -3968,14 +4416,84 @@ def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
         elif status in ERROR_STATES and summary:
             reason = summary[:40]
 
+        # Phase-level breakdown: how far this specific run got, and which phase(s)
+        # stopped it - distinct from the aggregate 30-day trend in the reliability section.
+        phase_part = ""
+        completed_list = run.get("phases_completed")
+        halted_list = run.get("phases_halted")
+        errored_list = run.get("phases_errored")
+        if isinstance(completed_list, list):
+            n_done = len(completed_list)
+            phase_color = G if n_done >= TOTAL_ORCHESTRATOR_PHASES else (Y if n_done > 0 else DIM)
+            phase_part = f"  [{phase_color}]{n_done}/{TOTAL_ORCHESTRATOR_PHASES}[/]"
+            bad_bits = []
+            if isinstance(halted_list, list) and halted_list:
+                bad_bits.append(f"[{Y}]{','.join(halted_list)} halted[/]")
+            if isinstance(errored_list, list) and errored_list:
+                bad_bits.append(f"[{R}]{','.join(errored_list)} error[/]")
+            if bad_bits:
+                phase_part += " " + " ".join(bad_bits)
+
         # Format the run line
         reason_part = f" • {reason}" if reason else ""
-        run_line = f"  [{color}]{icon}[/] [{DIM}]{timestamp_str}[/]{reason_part}"
+        run_line = f"  [{color}]{icon}[/] [{DIM}]{timestamp_str}[/]{duration_part}{phase_part}{reason_part}"
         rows.append(Text.from_markup(run_line))
 
     if rows:
         rows.insert(0, Rule(style="dim"))
         rows.insert(0, Text.from_markup(f"[bold dim]Past runs:[/]"))
+
+    return rows
+
+
+def _build_phase_reliability_section(exec_patterns: dict[str, Any] | None) -> list[Text | Rule]:
+    """Build PHASE RELIABILITY section: which phases halt/error most often over a
+    30-day window, with example reasons - answers "is this phase failing all the time,
+    or was this a one-off?", which a single run's status (or even 8 past runs) can't
+    show on its own since it's an aggregate across a much longer window.
+
+    Backed by /api/algo/execution/patterns - already implemented server-side
+    (GROUP BY phase, COUNT halts, array_agg reasons) but never wired to the dashboard
+    before now.
+
+    Returns [] when there's no pattern data - either the fetch failed/is pending, or
+    (the common, healthy case) zero phases halted/errored in the window.
+    """
+    rows: list[Text | Rule] = []
+    if not exec_patterns or not isinstance(exec_patterns, dict):
+        return rows
+
+    patterns = exec_patterns.get("patterns")
+    if not isinstance(patterns, list) or not patterns:
+        return rows
+
+    period_days = exec_patterns.get("period_days", 30)
+
+    rows.append(Rule(style="dim"))
+    rows.append(Text.from_markup(f"[bold {Y}]Phase Reliability ({period_days}d):[/]"))
+
+    for p in patterns[:6]:
+        if not isinstance(p, dict):
+            continue
+        phase_name = p.get("phase")
+        if phase_name is None:
+            phase_name = "unknown"
+        total_halts = p.get("total_halts")
+        if total_halts is None:
+            continue
+        reasons = p.get("example_reasons")
+        if not isinstance(reasons, list):
+            reasons = []
+        # Thresholds are relative to a 30d window, not daily - >=10 events in 30d is
+        # roughly "every 3rd run", the "failing all the time" case; 3-9 is intermittent.
+        sev_color = R if total_halts >= 10 else Y if total_halts >= 3 else DIM
+        rows.append(Text.from_markup(f"  [{sev_color}]{phase_name}:[/] {total_halts} halts/errors"))
+        for reason in reasons[:2]:
+            if reason:
+                rows.append(Text.from_markup(f"    [dim]• {str(reason)[:70]}[/]"))
+
+    if len(patterns) > 6:
+        rows.append(Text.from_markup(f"  [dim]...and {len(patterns) - 6} more phases[/]"))
 
     return rows
 
@@ -3988,18 +4506,25 @@ def _build_results_panel(
     risk: dict[str, Any] | None,
     notifs: list[Any],
     hlth: dict[str, Any] | list[Any] | None = None,
+    exec_patterns: dict[str, Any] | None = None,
 ) -> Panel:
-    """Build ALGO HEALTH EXPANDED panel: PHASE EXECUTION DETAIL ONLY.
+    """Build ALGO HEALTH EXPANDED panel: PHASE EXECUTION DETAIL, run history, and
+    cross-run phase reliability trend.
 
-    Dedicated fullscreen view focused 100% on phase execution with maximum detail:
-    - Shows all 9 phases with comprehensive metrics
+    Dedicated fullscreen view focused on phase execution with maximum detail:
+    - Shows all 9 phases with comprehensive metrics for the latest run
     - Uses full window space for phase information
     - 2-column layout for phases (1-5 left, 6-9 right)
     - Every available detail for each phase displayed
+    - Phase Reliability: 30-day cross-run trend of which phases halt/error most, and why
+      (is this phase failing all the time, or was this a one-off?)
+    - Past runs: per-run phase completion breakdown, not just overall run status
 
     Args:
         run: Run data (for phase status mapping)
         hlth: Health data containing execution_health with all phase details
+        exec_patterns: 30-day per-phase halt/error counts + example reasons (from
+            /api/algo/execution/patterns) - the cross-run trend view
 
     Returns:
         Rich Panel focused entirely on phase execution detail
@@ -4337,15 +4862,20 @@ def _build_results_panel(
         Layout(Group(*right_phase_rows), ratio=1, name="right_phases"),
     )
 
-    # Build past runs section at bottom
+    # Cross-run trend (30d) - is this phase failing all the time, or was this a one-off?
+    reliability_rows = _build_phase_reliability_section(exec_patterns)
+
+    # Per-run detail (last 8 runs) - how far each specific run got, and which phase stopped it
     past_runs_rows = _build_past_runs_section(exec_hist)
 
-    # Add header at top if we have it, past runs at bottom
+    # Add header at top if we have it, then phase detail, then trend, then per-run history
     content_rows: list[Any] = []
     if header_rows:
         content_rows.extend(header_rows)
         content_rows.append(Rule(style="dim"))
     content_rows.append(layout)
+    if reliability_rows:
+        content_rows.extend(reliability_rows)
     if past_runs_rows:
         content_rows.extend(past_runs_rows)
 
@@ -4367,8 +4897,10 @@ def panel_algo_health_expanded(
     algo_metrics: list[Any] | None = None,
     exec_hist: list[Any] | None = None,
     risk: dict[str, Any] | None = None,
+    exec_patterns: dict[str, Any] | None = None,
 ) -> Panel:
-    """Full-screen algo health: run outcome, phase execution detail, run history, alerts.
+    """Full-screen algo health: run outcome, phase execution detail, run history,
+    30-day phase reliability trend, alerts.
 
     Data freshness detail lives in its own panel_data_freshness_expanded now - see that
     function for the per-table breakdown this used to show side-by-side with.
@@ -4392,20 +4924,28 @@ def panel_algo_health_expanded(
         exec_hist_display = []
     else:
         exec_hist_display = exec_hist
-    return _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth)
+    if exec_patterns is None:
+        logger.debug("Health panel: exec_patterns unavailable - phase reliability trend will be omitted")
+    return _build_results_panel(
+        run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth, exec_patterns=exec_patterns
+    )
 
 
 def panel_data_freshness_expanded(
     hlth: dict[str, Any] | list[Any] | None,
     inventory: dict[str, Any] | None = None,
+    data_coverage: dict[str, Any] | None = None,
+    orch_extended: dict[str, Any] | None = None,
+    signal_freshness: dict[str, Any] | None = None,
 ) -> Panel:
-    """Full-screen data freshness: every tracked table's status, age, row count, and the
-    orchestrator's Phase 1 freshness-gate result, in one place.
+    """Full-screen data freshness: orchestrator run history + phase health + failure patterns + loader metrics + existing freshness table.
 
     Args:
         hlth: Health/data-status response (per-table freshness)
-        inventory: Optional table inventory (/api/admin/inventory) - untracked/missing
-            tables. Not required; panel degrades gracefully without it.
+        inventory: Optional table inventory (/api/admin/inventory) - untracked/missing tables
+        data_coverage: Optional /api/data-coverage response (zero-volume/invalid-price %)
+        orch_extended: Optional extended orchestrator data (run_history, phase_health, etc.)
+        signal_freshness: Optional /api/health "freshness" block (status/signal_age_hours)
     """
     hlth_err_exp = _error_panel("health", hlth, "DATA FRESHNESS EXPANDED")
     if hlth_err_exp is not None:
@@ -4413,7 +4953,68 @@ def panel_data_freshness_expanded(
 
     hlth_dict = hlth if isinstance(hlth, dict) else {}
     hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
-    return _build_freshness_panel(hlth_items, ready_to_trade, hlth_dict, inventory=inventory)
+
+    # Get the freshness panel (preserves all existing data)
+    freshness_panel = _build_freshness_panel(
+        hlth_items,
+        ready_to_trade,
+        hlth_dict,
+        inventory=inventory,
+        data_coverage=data_coverage,
+        signal_freshness=signal_freshness,
+    )
+
+    # If we have extended orchestrator data, prepend the new sections
+    if orch_extended and isinstance(orch_extended, dict):
+        rows: list[Any] = []
+
+        # Add run history
+        run_history = orch_extended.get("run_history", [])
+        run_history_rows = _build_run_history_section(run_history)
+        if run_history_rows:
+            rows.extend(run_history_rows)
+
+        # Add phase health
+        phase_health = orch_extended.get("phase_health", {})
+        phase_health_rows = _build_phase_health_section(phase_health)
+        if phase_health_rows:
+            rows.extend(phase_health_rows)
+
+        # Add failure patterns
+        failure_patterns = orch_extended.get("failure_patterns", [])
+        failure_pattern_rows = _build_halt_reason_pattern_section(failure_patterns)
+        if failure_pattern_rows:
+            rows.extend(failure_pattern_rows)
+
+        # Add loader health
+        loader_health = orch_extended.get("loader_health", [])
+        loader_health_rows = _build_loader_health_section(loader_health)
+        if loader_health_rows:
+            rows.extend(loader_health_rows)
+
+        # Add trend summary
+        trend_summary = orch_extended.get("trend_summary", {})
+        trend_rows = _build_trend_summary_section(trend_summary)
+        if trend_rows:
+            rows.extend(trend_rows)
+
+        # Combine new sections with existing freshness panel
+        if rows:
+            rows.append(Rule(style="dim"))
+            rows.append(Text.from_markup(f"[bold {CY}]Data Freshness Table:[/]"))
+            rows.append(Rule(style="dim"))
+            rows.append(freshness_panel)
+
+            all_content = Group(*rows)
+            return Panel(
+                all_content,
+                title=r"[bold yellow]ORCHESTRATOR & DATA FRESHNESS[/]  [dim]\[l] return[/]",
+                border_style="yellow",
+                padding=(0, 1),
+            )
+
+    # If no extended data, just return the existing freshness panel (no data loss)
+    return freshness_panel
 
 
 __all__ = [

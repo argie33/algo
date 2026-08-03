@@ -319,11 +319,18 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # loader finished successfully" from execution_completed's "last time it finished at
             # all" (that column is stamped on FAILED/TIMEOUT too), and let a loader that's failed
             # every run for days read differently from one that failed once.
+            # execution_duration_sec/symbols_per_second/retry_count/http_status_code/
+            # rate_limit_quota (migration 1164) are written by LoaderStatusManager.mark_completed()/
+            # mark_failed() but were never selected here, so the freshness panel's Duration/
+            # Throughput columns always rendered "--" and API Diagnostics had to guess failure
+            # category by string-sniffing error_message instead of reading the real HTTP status.
             cur.execute("""
                     SELECT table_name, row_count, last_updated, stale_threshold_days,
                            error_message, execution_started, execution_completed,
                            completion_pct, symbols_loaded, symbol_count, status,
-                           last_success_at, consecutive_failures
+                           last_success_at, consecutive_failures,
+                           execution_duration_sec, symbols_per_second, retry_count,
+                           http_status_code, rate_limit_quota
                     FROM data_loader_status
                     WHERE table_name IS NOT NULL
                     ORDER BY table_name
@@ -635,6 +642,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             last_success_at = row.get("last_success_at")
             execution_duration = row.get("execution_duration_sec")
             throughput = row.get("symbols_per_second")
+            retry_count = row.get("retry_count")
+            http_status_code = row.get("http_status_code")
+            rate_limit_quota_raw = row.get("rate_limit_quota")
             sources.append(
                 {
                     "name": row["table_name"],
@@ -659,6 +669,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "consecutive_failures": row.get("consecutive_failures"),
                     "execution_duration_sec": float(execution_duration) if execution_duration is not None else None,
                     "symbols_per_second": float(throughput) if throughput is not None else None,
+                    "retry_count": retry_count,
+                    "http_status_code": http_status_code,
+                    "rate_limit_quota_raw": rate_limit_quota_raw,
                 }
             )
 
@@ -671,6 +684,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 enrich_health_item_with_coverage,
                 enrich_health_item_with_failure_pattern,
                 enrich_health_item_with_api_diagnostics,
+                enrich_health_item_with_row_count_trend,
             )
 
             enriched_sources = []
@@ -694,6 +708,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 except Exception as e:
                     _rollback_after_error(cur)
                     logger.debug(f"[DATA_STATUS] Failure pattern enrichment failed for {source.get('name')}: {e}")
+
+                try:
+                    source = enrich_health_item_with_row_count_trend(source, cur)
+                except Exception as e:
+                    _rollback_after_error(cur)
+                    logger.debug(f"[DATA_STATUS] Row count trend enrichment failed for {source.get('name')}: {e}")
 
                 try:
                     source = enrich_health_item_with_api_diagnostics(source)

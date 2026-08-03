@@ -24,9 +24,13 @@ from .fetchers_config import (
     fetch_algo_config,
     fetch_algo_metrics,
     fetch_circuit,
+    fetch_data_coverage,
+    fetch_execution_patterns,
     fetch_execution_stats,
     fetch_health,
+    fetch_orch_extended,
     fetch_run,
+    fetch_signal_freshness,
     fetch_table_inventory,
 )
 from .fetchers_external import (
@@ -71,15 +75,18 @@ __all__ = [
     "fetch_audit_log",
     "fetch_circuit",
     "fetch_completed_trades",
+    "fetch_data_coverage",
     "fetch_economic_calendar",
     "fetch_economic_pulse",
     "fetch_exec_history",
+    "fetch_execution_patterns",
     "fetch_execution_stats",
     "fetch_exp_factors",
     "fetch_health",
     "fetch_industry_ranking",
     "fetch_market",
     "fetch_notifications",
+    "fetch_orch_extended",
     "fetch_perf",
     "fetch_perf_analytics",
     "fetch_portfolio",
@@ -91,6 +98,7 @@ __all__ = [
     "fetch_sector_rotation",
     "fetch_sentiment",
     "fetch_signal_eval",
+    "fetch_signal_freshness",
     "fetch_signals",
     "fetch_table_inventory",
     "load_all",
@@ -123,9 +131,13 @@ FETCHERS = {
     "audit": fetch_audit_log,
     "exec_hist": fetch_exec_history,
     "exec_stats": fetch_execution_stats,
+    "exec_patterns": fetch_execution_patterns,
     "exp_factors": fetch_exp_factors,
     "scores": fetch_scores,
     "inventory": fetch_table_inventory,
+    "data_coverage": fetch_data_coverage,
+    "orch_extended": fetch_orch_extended,
+    "signal_freshness": fetch_signal_freshness,
 }
 
 
@@ -298,8 +310,12 @@ def load_all() -> dict[str, Any]:
         "audit": 6.0,
         "exec_hist": 6.0,
         "exec_stats": 6.0,
+        "exec_patterns": 6.0,
         "scores": 8.0,
         "inventory": 6.0,
+        "data_coverage": 6.0,
+        "orch_extended": 6.0,
+        "signal_freshness": 6.0,
     }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections
@@ -332,11 +348,18 @@ def load_all() -> dict[str, Any]:
         "audit",  # Audit log (optional for debugging)
         "exec_hist",  # Execution history (optional detailed view)
         "exec_stats",  # Execution stats (last 24h failures) - makes health panel aware of recent errors
+        "exec_patterns",  # 30-day phase failure patterns - which phases fail repeatedly, and why
         "cb",  # Circuit breakers - moved from critical to optional.
         # Lambda endpoint returns 503 with exponential retry backoff (12+ seconds).
         # Not required for dashboard function; panels handle missing data gracefully.
         "inventory",  # Table inventory (untracked/missing tables) - optional enrichment
         # for the DATA FRESHNESS - EXPANDED panel only; own 5min cache limits DB load.
+        "data_coverage",  # /api/data-coverage: zero-volume/invalid-price %, per-indicator
+        # null rates, market_health/economic_data presence - DATA FRESHNESS - EXPANDED only.
+        "orch_extended",  # /api/algo/freshness/extended: run history, phase success rates,
+        # failure patterns, loader health, 7d/30d trend - DATA FRESHNESS - EXPANDED only.
+        "signal_freshness",  # /api/health: signal freshness status/age - DATA FRESHNESS -
+        # EXPANDED panel's system status section only.
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:

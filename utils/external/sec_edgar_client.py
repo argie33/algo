@@ -281,11 +281,13 @@ class SecEdgarClient:
                 resp = self._session.get(url, timeout=self.timeout)
                 if resp.status_code == 404:
                     last_error = FileNotFoundError(f"SEC XML filing not found: {url}")
+                    last_error.status_code = 404  # type: ignore[attr-defined]
                     continue
                 resp.raise_for_status()
                 return cast(str, resp.text)
             except requests.HTTPError as e:
                 last_error = RuntimeError(f"Failed to fetch SEC XML: {url}: {e}")
+                last_error.status_code = e.response.status_code if e.response is not None else None  # type: ignore[attr-defined]
             except requests.ConnectionError as e:
                 last_error = RuntimeError(f"Connection error fetching SEC XML: {url}: {e}")
             except requests.Timeout as e:
@@ -328,11 +330,15 @@ class SecEdgarClient:
             self._rate_limiter.wait()
             resp = self._session.get(url, timeout=self.timeout)
             if resp.status_code == 404:
-                raise FileNotFoundError(f"SEC plain-text filing not found: {url}")
+                not_found = FileNotFoundError(f"SEC plain-text filing not found: {url}")
+                not_found.status_code = 404  # type: ignore[attr-defined]
+                raise not_found
             resp.raise_for_status()
             return cast(str, resp.text)
         except requests.HTTPError as e:
-            raise RuntimeError(f"Failed to fetch SEC plain-text filing: {url}: {e}") from e
+            http_err = RuntimeError(f"Failed to fetch SEC plain-text filing: {url}: {e}")
+            http_err.status_code = e.response.status_code if e.response is not None else None  # type: ignore[attr-defined]
+            raise http_err from e
         except requests.ConnectionError as e:
             raise RuntimeError(f"Connection error fetching SEC filing: {url}: {e}") from e
         except requests.Timeout as e:
@@ -363,7 +369,9 @@ class SecEdgarClient:
 
             # 404 means the data doesn't exist - permanent error, don't retry
             if resp.status_code == 404:
-                raise FileNotFoundError(f"SEC filing not found: {url}")
+                not_found = FileNotFoundError(f"SEC filing not found: {url}")
+                not_found.status_code = 404  # type: ignore[attr-defined]
+                raise not_found
 
             # Handle transient server errors with exponential backoff:
             # 429 = Rate limit, 403 = Forbidden/Throttle, 502 = Bad Gateway,
@@ -387,16 +395,20 @@ class SecEdgarClient:
                     time.sleep(wait_time)
                     continue
                 else:
-                    raise RuntimeError(
+                    exhausted = RuntimeError(
                         f"SEC API failed after {max_retries} retries on transient error {resp.status_code} {resp.reason}: {url}"
                     )
+                    exhausted.status_code = resp.status_code  # type: ignore[attr-defined]
+                    raise exhausted
 
             # Other HTTP errors (2xx/3xx/4xx except 404)
             try:
                 resp.raise_for_status()
                 return cast(dict[str, Any], resp.json())
             except requests.HTTPError as e:
-                raise RuntimeError(f"SEC API error for {url}: {e}") from e
+                api_err = RuntimeError(f"SEC API error for {url}: {e}")
+                api_err.status_code = resp.status_code  # type: ignore[attr-defined]
+                raise api_err from e
 
         raise RuntimeError("SEC API request exhausted all retries")
 

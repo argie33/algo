@@ -98,6 +98,15 @@ class DashboardContext:
         return self.data.get("sentiment")
 
     @property
+    def orch_extended(self) -> Any:
+        return self.data.get("orch_extended")
+
+    @property
+    def signal_freshness(self) -> Any:
+        sf = self.data.get("signal_freshness")
+        return sf.get("freshness") if isinstance(sf, dict) else None
+
+    @property
     def econ_cal(self) -> Any:
         return self.extract_items(self.data.get("econ_cal"))
 
@@ -144,3 +153,11 @@ class DashboardContext:
     @property
     def exec_stats(self) -> Any:
         return self.data.get("exec_stats")
+
+    @property
+    def exec_patterns(self) -> Any:
+        return self.data.get("exec_patterns")
+
+    @property
+    def data_coverage(self) -> Any:
+        return self.data.get("data_coverage")

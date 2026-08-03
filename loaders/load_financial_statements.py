@@ -101,6 +101,15 @@ _INCOME_FIELD_MAPPING = {
     # financial services companies since 2020. Ordering in sec_statements.py
     # ensures last-listed concept (this one for banks) wins on overwrite.
     "revenues_net_of_interest_expense": "revenue",
+    # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC, and others - live-confirmed
+    # via real SEC companyfacts JSON for all three) report neither standard revenue concepts
+    # nor RevenuesNetOfInterestExpense (that one's used by larger banks like MS/WFC) - their
+    # primary revenue-equivalent line is InterestAndDividendIncomeOperating. Live-verified for
+    # FNWB: values for FY2022-2025 line up with the same fiscal years NetIncomeLoss already had
+    # real data for, confirming this is the right concept, not a guess. Ordering in
+    # sec_statements.py places this after revenues_net_of_interest_expense so it only wins for
+    # filers that have nothing else.
+    "interest_and_dividend_income_operating": "revenue",
     "cost_of_revenue": "cost_of_revenue",
     "gross_profit": "gross_profit",
     "operating_income_loss": "operating_income",
@@ -120,6 +129,9 @@ _INCOME_FIELD_MAPPING = {
     # sec_statements.py's comment above this concept. load_sec_valuations.py previously
     # derived a lossier proxy (net_income/eps) believing it already used this concept.
     "weighted_average_number_of_shares_outstanding_basic": "shares_outstanding_basic",
+    # FIXED (migration 1192): fallback share count column, kept separate from
+    # shares_outstanding_basic above - see sec_statements.py's comment on this concept.
+    "weighted_average_number_of_diluted_shares_outstanding": "shares_outstanding_diluted",
     "interest_expense": "interest_expense",
     # FIXED 2026-08-03: real, live-confirmed concepts some filers use INSTEAD of plain
     # "InterestExpense" - see sec_statements.py's comment above these concepts. WMT never
@@ -244,6 +256,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "depreciation_expense",
                     "amortization_expense",
                     "shares_outstanding_basic",
+                    "shares_outstanding_diluted",
                     "income_tax_expense",
                     "pretax_income",
                     "created_at",
@@ -273,6 +286,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "depreciation_expense",
                     "amortization_expense",
                     "shares_outstanding_basic",
+                    "shares_outstanding_diluted",
                     "income_tax_expense",
                     "pretax_income",
                     "created_at",

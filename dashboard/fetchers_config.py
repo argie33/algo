@@ -286,6 +286,185 @@ def fetch_execution_stats(c: None) -> dict[str, Any]:
         return FetcherValidator.build_error_response(error_msg)
 
 
+def fetch_execution_patterns(c: None) -> dict[str, Any]:
+    """Fetch which phases halt/error most often over a 30-day window, with example reasons.
+
+    Wires up an endpoint (/api/algo/execution/patterns) that already existed server-side
+    but was never called from the dashboard - the only place "is this phase failing all
+    the time or was this a one-off?" could be answered, instead of inferring it by eyeballing
+    the last 5 run badges.
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    try:
+        data = api_call("/api/algo/execution/patterns?days=30")
+
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("exec_patterns", "api_call", "api_error", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(data, dict):
+            error_msg = "Execution patterns API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("exec_patterns", "type", "not_dict", type(data).__name__)
+            return FetcherValidator.build_error_response(error_msg)
+
+        patterns = data.get("patterns")
+        if not isinstance(patterns, list):
+            error_msg = "Execution patterns API missing required field: patterns"
+            logger.error(error_msg)
+            record_data_quality_issue("exec_patterns", "validation", "missing_fields")
+            return FetcherValidator.build_error_response(error_msg)
+
+        return {
+            "patterns": patterns,
+            "period_days": data.get("period_days", 30),
+        }
+    except Exception as e:
+        error_msg = format_fetcher_error("exec_patterns", e)
+        logger.error(error_msg)
+        record_data_quality_issue("exec_patterns", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
+
+
+def fetch_orch_extended(c: None) -> dict[str, Any]:
+    """Fetch extended orchestrator run history: per-run phase breakdown, 30-day phase
+    success rates, halt-reason frequency, loader failure streaks, and 7d-vs-30d trend.
+
+    Wires up /api/algo/freshness/extended (lambda/api/routes/algo_handlers/monitoring.py::
+    _get_orchestrator_history_extended) - implemented server-side but never called from the
+    dashboard, so panel_data_freshness_expanded() (dashboard/panels/health.py) had nothing
+    to render.
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    try:
+        data = api_call("/api/algo/freshness/extended?limit=20")
+
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("orch_extended", "api_call", "api_error", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(data, dict):
+            error_msg = "Orchestrator extended history API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("orch_extended", "type", "not_dict", type(data).__name__)
+            return FetcherValidator.build_error_response(error_msg)
+
+        return {
+            "run_history": data.get("run_history") if isinstance(data.get("run_history"), list) else [],
+            "phase_health": data.get("phase_health") if isinstance(data.get("phase_health"), dict) else {},
+            "failure_patterns": data.get("failure_patterns")
+            if isinstance(data.get("failure_patterns"), list)
+            else [],
+            "loader_health": data.get("loader_health") if isinstance(data.get("loader_health"), list) else [],
+            "trend_summary": data.get("trend_summary") if isinstance(data.get("trend_summary"), dict) else {},
+            "generated_at": data.get("generated_at"),
+        }
+    except Exception as e:
+        error_msg = format_fetcher_error("orch_extended", e)
+        logger.error(error_msg)
+        record_data_quality_issue("orch_extended", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
+
+
+def fetch_signal_freshness(c: None) -> dict[str, Any]:
+    """Fetch signal freshness (status/signal_age_hours) from /api/health.
+
+    /api/algo/data-status (the "health" fetcher above) never carries this field - it's
+    only computed by lambda/api/routes/health.py's /api/health handler (the same one
+    webapp/frontend's SystemHealthIndicator.jsx already polls). Without this fetcher,
+    dashboard/panels/health.py's _build_system_status_section() reads
+    hlth_dict.get("signal_freshness") from the data-status response and always gets None -
+    the same "computed server-side but nothing calls it" gap fetch_orch_extended fixed
+    for /api/algo/freshness/extended.
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    try:
+        data = api_call("/api/health")
+
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("signal_freshness", "api_call", "api_error", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(data, dict):
+            error_msg = "Health API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("signal_freshness", "type", "not_dict", type(data).__name__)
+            return FetcherValidator.build_error_response(error_msg)
+
+        freshness = data.get("freshness")
+        return {"freshness": freshness if isinstance(freshness, dict) else None}
+    except Exception as e:
+        error_msg = format_fetcher_error("signal_freshness", e)
+        logger.error(error_msg)
+        record_data_quality_issue("signal_freshness", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
+
+
+def _unwrap_coverage_section(section: Any) -> dict[str, Any] | None:
+    """Extract the inner data dict from a data_coverage.py sub-section.
+
+    get_overall_coverage_summary() (lambda/api/routes/data_coverage.py) nests each
+    sub-check's own success_response()/error_response() envelope ({"statusCode":200,
+    "data":{...}} or {"statusCode":4xx/5xx,...}) inside the outer summary - api_call()
+    only unwraps the OUTERMOST envelope, so each section here still needs unwrapping
+    individually. Returns None (not {}) for a failed/missing section so callers can
+    distinguish "this check errored" from "this check returned empty data".
+    """
+    if not isinstance(section, dict):
+        return None
+    if section.get("statusCode") not in (200, None):
+        return None
+    data = section.get("data")
+    return data if isinstance(data, dict) else None
+
+
+def fetch_data_coverage(c: None) -> dict[str, Any]:
+    """Fetch price/technical/market data-quality coverage that's genuinely not shown
+    elsewhere on the freshness panel: zero-volume/invalid-price %% in price_daily,
+    per-indicator (rsi/ema/atr) null rates in technical_data_daily, and market_health_daily/
+    economic_data presence checks.
+
+    Wires up /api/data-coverage - already implemented and registered server-side
+    (lambda/api/routes/data_coverage.py) but never called from the dashboard. Distinct
+    from dashboard/freshness_enhancements.py's enrich_health_item_with_coverage(), which
+    only computes symbol-count coverage for a hardcoded 4-table set and doesn't touch
+    per-column data quality or market_health_daily/economic_data at all.
+    """
+    from dashboard.fetcher_validator import FetcherValidator
+
+    try:
+        data = api_call("/api/data-coverage")
+
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("data_coverage", "api_call", "api_error", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(data, dict):
+            error_msg = "Data coverage API response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("data_coverage", "type", "not_dict", type(data).__name__)
+            return FetcherValidator.build_error_response(error_msg)
+
+        return {
+            "price_data": _unwrap_coverage_section(data.get("price_data")),
+            "technical_data": _unwrap_coverage_section(data.get("technical_data")),
+            "market_data": _unwrap_coverage_section(data.get("market_data")),
+            "overall_health": data.get("overall_health"),
+        }
+    except Exception as e:
+        error_msg = format_fetcher_error("data_coverage", e)
+        logger.error(error_msg)
+        record_data_quality_issue("data_coverage", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
+
+
 def fetch_algo_config(c: None) -> dict[str, Any]:
     """AWS-only algo configuration (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
@@ -555,6 +734,19 @@ def fetch_health(c: None) -> dict[str, Any]:
             execution_duration_sec = s.get("execution_duration_sec")
             symbols_per_second = s.get("symbols_per_second")
 
+            # Diagnostics written by mark_failed()/mark_timeout() (migration 1164): how many
+            # times this run retried before failing, and the raw HTTP status code if the loader
+            # captured one. Distinct from api_status/retry_strategy above, which are the
+            # enrichment layer's derived category - these are the underlying real values.
+            retry_count = s.get("retry_count")
+            http_status_code = s.get("http_status_code")
+
+            # Row-count stall detector (dashboard/freshness_enhancements.py): flags a loader
+            # that keeps reporting a normal run while its row_count hasn't actually moved -
+            # a silent-failure mode age/status alone can't catch.
+            row_count_stalled = s.get("row_count_stalled")
+            row_count_stalled_since = s.get("row_count_stalled_since")
+
             sources.append(
                 {
                     "tbl": name,
@@ -595,6 +787,10 @@ def fetch_health(c: None) -> dict[str, Any]:
                     "retry_strategy": retry_strategy,
                     "execution_duration_sec": execution_duration_sec,
                     "symbols_per_second": symbols_per_second,
+                    "retry_count": retry_count,
+                    "http_status_code": http_status_code,
+                    "row_count_stalled": row_count_stalled,
+                    "row_count_stalled_since": row_count_stalled_since,
                 }
             )
         summary = inner.get("summary")

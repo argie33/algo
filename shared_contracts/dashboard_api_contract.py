@@ -976,7 +976,7 @@ DASHBOARD_ENDPOINTS = {
     "exec_hist": {
         "path": "/api/algo/execution/recent",
         "method": "GET",
-        "params": {"days": 7, "limit": 10},
+        "params": {"days": 14, "limit": 20},
         "description": "Execution history",
         "response_schema": ResponseSchema(
             required_fields=[],
@@ -985,6 +985,67 @@ DASHBOARD_ENDPOINTS = {
             description="Recent execution records",
         ),
         "freshness_max_age_seconds": 300,
+        "strict_fields": [],
+        "critical": False,
+    },
+    "freshness_extended": {
+        "path": "/api/algo/freshness/extended",
+        "method": "GET",
+        "params": {"limit": 20},
+        "description": "Extended orchestrator run history: per-run phase breakdown, 30-day "
+        "phase success rates, halt-reason frequency, loader failure streaks, and "
+        "7d-vs-30d trend",
+        "response_schema": ResponseSchema(
+            required_fields=[],
+            optional_fields=[
+                "run_history",
+                "phase_health",
+                "failure_patterns",
+                "loader_health",
+                "trend_summary",
+                "generated_at",
+            ],
+            field_types={
+                "run_history": list,
+                "phase_health": dict,
+                "failure_patterns": list,
+                "loader_health": list,
+                "trend_summary": dict,
+            },
+            description="Cross-run orchestrator health: history, phase success rates, "
+            "failure patterns, loader reliability, and trend",
+        ),
+        "freshness_max_age_seconds": 300,
+        "strict_fields": [],
+        "critical": False,
+    },
+    "exec_stats": {
+        "path": "/api/algo/execution/stats",
+        "method": "GET",
+        "params": {"days": 1},
+        "description": "Execution success/halt/error rates over a recent window",
+        "response_schema": ResponseSchema(
+            required_fields=[],
+            optional_fields=["total_runs", "by_status", "success_rate", "halt_rate", "error_rate", "period_days"],
+            field_types={"total_runs": int, "by_status": dict, "period_days": int},
+            description="Aggregated run outcome rates",
+        ),
+        "freshness_max_age_seconds": 300,
+        "strict_fields": [],
+        "critical": False,
+    },
+    "exec_patterns": {
+        "path": "/api/algo/execution/patterns",
+        "method": "GET",
+        "params": {"days": 30},
+        "description": "Which orchestrator phases halt/error most often, with example reasons",
+        "response_schema": ResponseSchema(
+            required_fields=[],
+            optional_fields=["patterns", "period_days"],
+            field_types={"patterns": list, "period_days": int},
+            description="Per-phase 30-day failure counts and example reasons",
+        ),
+        "freshness_max_age_seconds": 3600,
         "strict_fields": [],
         "critical": False,
     },

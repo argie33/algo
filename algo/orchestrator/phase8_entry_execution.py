@@ -420,17 +420,43 @@ def _log_signal_rejection(
     entry_price: float | None = None,
     risk_pct: float | None = None,
 ) -> None:
-    """Log signal rejection to audit table."""
+    """Log signal rejection to audit table AND mark signal as rejected in algo_signals.
+
+    CRITICAL FIX (Session 2026-08-03): Previously, rejected signals were logged to
+    algo_signal_rejections but left marked as signal_active=TRUE in algo_signals,
+    causing the dashboard to show rejected signals as "active". This function now:
+    1. Logs rejection to algo_signal_rejections (audit trail)
+    2. Updates algo_signals to set execution_status='rejected' (dashboard visibility)
+    3. Preserves rejection_reason for quick lookup in dashboard queries
+    """
     if len(rejection_reason) > _REJECTION_REASON_MAX_LEN:
         rejection_reason = rejection_reason[: _REJECTION_REASON_MAX_LEN - 3] + "..."
     try:
         with DatabaseContext("write") as cur:
+            # 1. Log to audit table (existing behavior)
             cur.execute(
                 """INSERT INTO algo_signal_rejections
                    (rejection_date, symbol, rejection_stage, rejection_reason, entry_price, risk_pct)
                    VALUES (%s, %s, %s, %s, %s, %s)""",
                 (run_date, symbol, rejection_stage, rejection_reason, entry_price, risk_pct),
             )
+
+            # 2. NEW: Mark signal as rejected in algo_signals so dashboard knows this signal was rejected
+            # This ensures the dashboard query (WHERE execution_status='executed') excludes rejected signals
+            rejection_reason_short = f"{rejection_stage}: {rejection_reason}"
+            cur.execute(
+                """UPDATE algo_signals
+                   SET execution_status = 'rejected',
+                       rejection_reason = %s,
+                       updated_at = NOW()
+                   WHERE symbol = %s AND signal_date = %s""",
+                (rejection_reason_short, symbol, run_date),
+            )
+            if cur.rowcount == 0:
+                logger.warning(
+                    f"[AUDIT] Signal {symbol} rejected ({rejection_stage}) but not found in algo_signals. "
+                    f"May not have been persisted yet. Audit trail recorded in algo_signal_rejections."
+                )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol} (DB error): {e}. Audit trail incomplete.")
         raise RuntimeError(f"Signal rejection audit logging failed for {symbol} (DB): {e}") from e
@@ -1585,8 +1611,20 @@ def run(
     # PROACTIVE RISK CHECK: Before entering positions, verify we won't exceed 4% risk limit
     # CRITICAL FIX 2026-08-01: Add position count limit check (was missing - allowed 17 positions)
     # Check position count BEFORE allowing entries
-    max_positions = 15
+    #
+    # CRITICAL FIX: this was hardcoded to 15 instead of reading the real, admin-editable
+    # "max_positions" config key (algo/infrastructure/config_schema.py: int, range 1-100,
+    # default 15; actively consumed by algo/trading/position_sizer.py and
+    # algo/infrastructure/config/main.py for the same purpose). Same divergence risk as the
+    # max_total_risk_pct guard fixed just above: if an admin ever changed this config value,
+    # this pre-check would silently keep enforcing the old hardcoded 15 instead of the real
+    # configured limit.
     try:
+        config_max_positions = config.get("max_positions")
+        if config_max_positions is None:
+            raise ValueError("[PHASE 8] Config missing 'max_positions'. Required for position count check.")
+        max_positions = int(config_max_positions)
+
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity != 0")
             result = cur.fetchone()
@@ -1612,7 +1650,7 @@ def run(
     except Exception as e:
         msg = (
             f"[PHASE 8 CRITICAL] Position count check failed: {e}. "
-            f"Cannot verify position limit. Must halt to prevent exceeding 15-position limit."
+            f"Cannot verify position limit. Must halt to prevent exceeding the configured position limit."
         )
         logger.critical(msg, exc_info=True)
         log_phase_result_fn(8, "entry_execution", "halt", msg)
@@ -1621,10 +1659,23 @@ def run(
     # This is defensive - stops entries BEFORE they would push us over the limit
     # (vs circuit breaker which stops AFTER we've exceeded it)
     try:
-        current_risk_pct, available_capacity_pct = _calculate_current_total_risk_pct(max_risk_limit_pct=4.0)
+        # CRITICAL FIX: this guard hardcoded 4.0 instead of reading max_total_risk_pct from
+        # config - the same admin-editable value algo/risk/circuit_breaker.py's CB4
+        # (_check_total_risk) enforces. If that config were ever changed, this pre-check
+        # would silently diverge from the real limit: either blocking entries too early
+        # (config raised above 4%) or, worse, letting Phase 8 submit real orders past a
+        # lowered limit until CB4 catches it after the fact. Reading the same config key
+        # keeps this defensive guard and the actual circuit breaker in lockstep.
+        config_max_risk_pct = config.get("max_total_risk_pct")
+        if config_max_risk_pct is None:
+            raise ValueError("[PHASE 8] Config missing 'max_total_risk_pct'. Required for risk pre-check.")
+        max_risk_limit_pct = float(config_max_risk_pct)
+        current_risk_pct, available_capacity_pct = _calculate_current_total_risk_pct(
+            max_risk_limit_pct=max_risk_limit_pct
+        )
         if available_capacity_pct < 0.3:  # Less than 0.3% room left (rounding safety)
             msg = (
-                f"[PHASE 8 RISK GUARD] Total open risk {current_risk_pct:.2f}% >= 4% limit. "
+                f"[PHASE 8 RISK GUARD] Total open risk {current_risk_pct:.2f}% >= {max_risk_limit_pct:.0f}% limit. "
                 f"Available capacity: {available_capacity_pct:.2f}%. "
                 f"Cannot enter new positions - risk already at limit. Close positions to trade."
             )
@@ -2351,6 +2402,23 @@ def run(
                             entered_prices.append(entry_price)
                             successfully_entered += 1
 
+                            # CRITICAL FIX (2026-08-03): Mark signal as executed in algo_signals
+                            # so dashboard query (WHERE execution_status='executed') shows this trade
+                            try:
+                                with DatabaseContext("write") as cur:
+                                    cur.execute(
+                                        """UPDATE algo_signals
+                                           SET execution_status = 'executed',
+                                               updated_at = NOW()
+                                           WHERE symbol = %s AND signal_date = %s""",
+                                        (symbol, run_date),
+                                    )
+                            except Exception as mark_err:
+                                logger.warning(
+                                    f"[PHASE 8] {symbol}: Trade executed but failed to mark signal as executed in algo_signals: {mark_err}. "
+                                    f"Audit trail preserved in algo_trades table (trade_id={trade_result['trade_id']})"
+                                )
+
                             logger.info(
                                 f"[PHASE 8] {symbol}: ENTERED trade_id={trade_result['trade_id']} "
                                 f"alpaca_order_id={trade_result['alpaca_order_id']} "
@@ -2468,8 +2536,23 @@ def run(
     # reported clean success with 0 executed - same bug class as phase6_exit_execution.py's
     # previously-always-"success" status (which errors already fed into but the status
     # string itself ignored).
-    phase_status = "degraded" if failed_count > 0 else "ok"
-    log_phase_result_fn(8, "entry_execution", phase_status, f"{executed_count} trades executed, {failed_count} failed")
+    #
+    # DRY-RUN FIX: the dry-run branch above (`else: ... executed_count += 1`) simulates
+    # entries without ever calling trade_executor.execute_trade(), but this summary used
+    # to read "N trades executed, 0 failed" identically to a real run - no way to tell a
+    # monitor-only (--evening) dry-run from a real paper-money execution just from this
+    # text/status, unlike phase6_exit_execution.py which already labels its dry-run summary
+    # "DRY-RUN: execution skipped (no real trades)". Mirrors that fix here.
+    if dry_run:
+        phase_status = "degraded"
+        detail_text = (
+            f"DRY-RUN: execution skipped (no real trades) - would have entered "
+            f"{executed_count} trades, {failed_count} failed"
+        )
+    else:
+        phase_status = "degraded" if failed_count > 0 else "ok"
+        detail_text = f"{executed_count} trades executed, {failed_count} failed"
+    log_phase_result_fn(8, "entry_execution", phase_status, detail_text)
 
     # success_rate: percentage of actual submission attempts (executed + failed) that
     # succeeded. Deliberately excludes skipped_count from the denominator - those are
@@ -2496,9 +2579,8 @@ def run(
     return PhaseResult(
         8,
         "entry_execution",
-        "degraded" if failed_count > 0 else "ok",
+        phase_status,
         result_data,
         False,
-        f"Executed {executed_count} trades (rejection rate: {execution_rejection_rate}%)"
-        + (f", {failed_count} failed" if failed_count > 0 else ""),
+        detail_text,
     )

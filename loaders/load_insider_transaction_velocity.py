@@ -128,27 +128,31 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
 
     @staticmethod
     def _unavailable_record(symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
+        # All value fields NULL (not 0/50) to match the data_unavailable=True flag: a
+        # consumer that reads the flag AND the values without checking both would previously
+        # see a plausible-looking "0 transactions, 50 confidence" row indistinguishable from a
+        # genuinely quiet insider-activity period, instead of no data at all.
         return [
             {
                 "symbol": symbol,
                 "measurement_date": measurement_date,
                 "data_unavailable": True,
                 "data_unavailable_reason": reason,
-                "buy_transactions_30d": 0,
-                "sell_transactions_30d": 0,
-                "net_buy_transactions_30d": 0,
-                "buy_transactions_90d": 0,
-                "sell_transactions_90d": 0,
-                "net_buy_transactions_90d": 0,
-                "total_buy_shares_30d": 0,
-                "total_sell_shares_30d": 0,
-                "net_buy_shares_30d": 0,
-                "total_buy_shares_90d": 0,
-                "total_sell_shares_90d": 0,
-                "net_buy_shares_90d": 0,
+                "buy_transactions_30d": None,
+                "sell_transactions_30d": None,
+                "net_buy_transactions_30d": None,
+                "buy_transactions_90d": None,
+                "sell_transactions_90d": None,
+                "net_buy_transactions_90d": None,
+                "total_buy_shares_30d": None,
+                "total_sell_shares_30d": None,
+                "net_buy_shares_30d": None,
+                "total_buy_shares_90d": None,
+                "total_sell_shares_90d": None,
+                "net_buy_shares_90d": None,
                 "buy_sell_ratio_30d": None,
                 "buy_sell_ratio_90d": None,
-                "insider_confidence_score": 50,
+                "insider_confidence_score": None,
             }
         ]
 

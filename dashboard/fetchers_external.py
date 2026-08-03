@@ -258,7 +258,7 @@ def fetch_exec_history(c: None) -> dict[str, Any] | list[Any]:
     try:
         data = api_call(
             get_endpoint_path("exec_hist"),
-            params={"days": 7, "limit": 10},
+            params={"days": 14, "limit": 20},
         )
 
         # Check for API error

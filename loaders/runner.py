@@ -186,7 +186,7 @@ def run_loader(
                 max_fail_rate_pct = loader.max_fail_rate
             except (AttributeError, Exception) as e:
                 # Fallback: if property fails, log WARNING and use conservative default
-                loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
+                loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
                 logger.warning(
                     f"[LOADER {loader_name}] Could not read max_fail_rate property (using fallback): {type(e).__name__}: {e}. "
                     f"Using fallback 5.0% instead of dangerous 15.0% default."
@@ -198,10 +198,15 @@ def run_loader(
             # ERROR COUNT PROPAGATION FIX: Surface error counts to loader status for dashboard visibility
             # Allows operators to distinguish "100% success" from "95% success, 5% failed"
             symbols_loaded = stats.get("symbols_loaded", 0)
-            execution_duration = stats.get("execution_duration_sec")
+            # LoaderStats (utils/loader_stats.py) tracks this as "duration_sec" - "execution_duration_sec"
+            # is the data_loader_status DB column name, not a stats dict key. Reading the DB column name
+            # here always returned None, so every runner.py-driven loader (all but load_prices.py, which
+            # has its own bespoke main()) left execution_duration_sec NULL and the dashboard's Duration
+            # column showed "--" for every table except price_daily.
+            execution_duration = stats.get("duration_sec")
 
             # CRITICAL LOGGING: Record max_fail_rate so we can debug status issues
-            loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
+            loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
             logger.info(
                 f"[LOADER {loader_name}] Completion assessment: "
                 f"loaded={symbols_loaded}/{len(symbols)} ({fail_rate*100:.2f}% failed), "
@@ -213,11 +218,12 @@ def run_loader(
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 # Still mark in status so operators see partial failures
                 from utils.loaders.status_manager import LoaderStatusManager
-                status_mgr = LoaderStatusManager(loader_class.table_name)
+                status_mgr = LoaderStatusManager(loader.table_name)
                 status_mgr.mark_failed(
                     error_message=f"{symbols_failed} symbols failed to load (fail rate {fail_rate * 100:.1f}% exceeds limit {max_fail_rate * 100:.0f}%)",
                     completion_pct=((symbols_loaded / len(symbols)) * 100) if len(symbols) > 0 else 0,
-                    retry_count=stats.get("retry_count")
+                    retry_count=stats.get("retry_count"),
+                    http_status=stats.get("http_status_code"),
                 )
                 return 1
 
@@ -229,7 +235,7 @@ def run_loader(
 
             # Mark completion with error count visibility so dashboard shows partial success (e.g. "95 of 100 succeeded")
             from utils.loaders.status_manager import LoaderStatusManager
-            status_mgr = LoaderStatusManager(loader_class.table_name)
+            status_mgr = LoaderStatusManager(loader.table_name)
             status_mgr.mark_completed(
                 execution_duration_sec=execution_duration,
                 symbols_failed=symbols_failed if symbols_failed > 0 else None  # Only log if there were failures
@@ -237,7 +243,7 @@ def run_loader(
 
             return 0
     except Exception as e:
-        loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
+        loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
         logger.error(f"[LOADER FATAL] {loader_name} loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         return 1
     finally:

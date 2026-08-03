@@ -514,6 +514,18 @@ class BuySignalGenerator:
                 return "Stage 4"
             elif close < sma_200 and close > sma_50:
                 return "Stage 3"
+            # Remaining two orderings are "crossing" states where price has already moved past
+            # sma_200 but sma_50 hasn't caught up yet (or vice versa) - the MAs haven't confirmed
+            # the new stage. Classify by the still-forming stage rather than reporting the
+            # complete close/sma_50/sma_200 data as unusable.
+            elif close > sma_200 > sma_50:
+                # Price reclaimed the long-term average ahead of the 50d MA - early recovery,
+                # not yet a confirmed Stage 2 uptrend (50d MA still below the 200d MA).
+                return "Stage 1"
+            elif sma_50 > sma_200 > close:
+                # Price broke below both averages ahead of the 50d MA rolling over - breakdown
+                # starting, not yet a confirmed Stage 4 downtrend (50d MA still above the 200d MA).
+                return "Stage 3"
             reason = f"ambiguous_sma_relationship (close={close}, sma_50={sma_50}, sma_200={sma_200})"
             logger.debug(f"[SIGNAL_METRICS] Market stage cannot be determined from SMA relationship - {reason}")
             return {"data_unavailable": True, "reason": reason}

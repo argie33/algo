@@ -40,11 +40,19 @@ logger = logging.getLogger(__name__)
 def get_price_coverage(cur: cursor) -> Any:
     try:
         interval_7d = get_interval_sql("7d")
+        # coverage_pct is meant to answer "what % of the SP500 has recent price data" -
+        # previously divided the FULL active universe's symbol count (total_symbols, ~5400+)
+        # by the SP500-only denominator (sp500_total, ~500), producing nonsense values like
+        # 1090% (confirmed live 2026-08-03). sp500_symbols_covered scopes the numerator to
+        # the same SP500 set as the denominator so the ratio is actually meaningful.
         rows = execute_with_timeout(
             cur,
             f"""
             SELECT
                 COUNT(DISTINCT symbol) as total_symbols,
+                COUNT(DISTINCT symbol) FILTER (
+                    WHERE symbol IN (SELECT symbol FROM stock_symbols WHERE is_sp500 = TRUE)
+                ) as sp500_symbols_covered,
                 (SELECT COUNT(DISTINCT symbol) FROM stock_symbols WHERE is_sp500 = TRUE) as sp500_total,
                 MAX(date) as latest_date,
                 COUNT(*) as total_rows,
@@ -61,6 +69,7 @@ def get_price_coverage(cur: cursor) -> Any:
             return error_response(503, "no_data", "Price data not yet available")
 
         total_symbols = row["total_symbols"]
+        sp500_symbols_covered = row["sp500_symbols_covered"]
         sp500_total = row["sp500_total"]
         latest_date = row["latest_date"]
         total_rows = row["total_rows"]
@@ -78,7 +87,7 @@ def get_price_coverage(cur: cursor) -> Any:
         days_stale = (_date.today() - latest_date).days if latest_date else None
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else None
         invalid_pct = (invalid_prices / total_rows * 100) if total_rows else None
-        coverage_pct = round(total_symbols / sp500_total * 100, 1)
+        coverage_pct = round((sp500_symbols_covered or 0) / sp500_total * 100, 1)
 
         result = {
             "total_symbols": total_symbols,

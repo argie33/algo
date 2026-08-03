@@ -488,9 +488,14 @@ export default StockScoreAccordion;
 // (growth), short_interest_trend (positioning), and downside_volatility_252d/
 // max_drawdown_1y (stability) into their respective _score_* formulas in
 // load_stock_scores.py - flipped from used:false to used:true here to match.
-// gross_margin_trend/roe_trend/quarterly_growth_momentum/asset_growth_yoy remain
-// used:false - they're structurally always NULL (no prior-year cost_of_revenue/
-// equity/assets fetched upstream), so there's nothing real to weight yet.
+// 2026-08-03 (later same day): gross_margin_trend/operating_margin_trend/net_margin_trend/
+// roe_trend/asset_growth_yoy flipped to used:true too - the "structurally always NULL" premise
+// above was wrong, traced to a local-DB schema bug (stockholders_equity/cash_and_equivalents
+// columns renamed out from under the loader) that crashed fetch_incremental() before these
+// fields could ever be computed; once fixed, live-verified real non-NULL values. Wired into
+// _score_growth in load_stock_scores.py. quarterly_growth_momentum remains used:false - unlike
+// the other 5, it has no computation logic anywhere (this loader never fetches quarterly data),
+// so it's genuinely, permanently dead.
 //
 // used: true  -> this field is a genuine input to the score formula
 // weight: display string for the "Used in Score" badge
@@ -565,15 +570,15 @@ const GROWTH_SCHEMA = [
   { key: 'eps_growth_5y_cagr',         label: 'EPS CAGR (5Y)',           fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2), used: true, weight: '8%' },
   { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2), used: true, weight: '6%' },
-  { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp` },
-  { key: 'operating_margin_trend',     label: 'Op Margin Trend',         fmt: v => `${num(v, 2)} pp` },
-  { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp` },
-  { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2) },
+  { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
+  { key: 'operating_margin_trend',     label: 'Op Margin Trend',         fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
+  { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
+  { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2), used: true, weight: '3%' },
   { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp` },
   { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '4%' },
-  { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2) },
+  { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'earnings_growth_4q_avg',     label: 'Earnings Growth 4Q Avg',  fmt: v => pct(v, 2) },
 ];
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
 import boto3
@@ -192,6 +194,212 @@ def _get_last_run(cur: cursor) -> Any:
     }
 
     return json_response(200, response_data)
+
+
+@db_route_handler("get orchestrator history extended")
+@validate_api_response("freshness_extended")
+def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | None = None) -> Any:
+    """Get extended orchestrator run history with phase breakdown, failure patterns, and loader health.
+
+    Returns:
+    - run_history: Last 20 runs with status, duration, phase breakdown, halt reasons
+    - phase_health: Success/failure rates for all 9 phases across 30 days
+    - failure_patterns: Most common halt reasons and their frequency
+    - loader_health: Loader reliability metrics (failure streaks, success rates)
+    - trend_summary: Overall health trend (improving/degrading/stable)
+    """
+    limit = safe_limit(extract_param(params, "limit"), max_val=50, default=20)
+
+    try:
+        # 1. Get recent run history (last N runs)
+        cur.execute(f"""
+            SELECT r.run_id, r.run_date, r.overall_status, r.halt_reason, r.started_at, r.completed_at,
+                   l.phase_results, l.phases_completed, l.phases_halted, l.phases_errored
+            FROM algo_orchestrator_runs r
+            LEFT JOIN orchestrator_execution_log l ON l.run_id = r.run_id
+            ORDER BY r.started_at DESC
+            LIMIT %s
+        """, (limit,))
+
+        run_rows = cur.fetchall()
+        run_history = []
+
+        for row in run_rows:
+            run_dict = safe_dict_convert(row)
+            row_data = safe_json_serialize(run_dict)
+
+            # Parse phase results
+            phase_results = row_data.get("phase_results")
+            phases_list = []
+            if phase_results:
+                try:
+                    if isinstance(phase_results, str):
+                        phase_results = json.loads(phase_results)
+                    if isinstance(phase_results, list):
+                        phases_list = phase_results
+                except (ValueError, TypeError):
+                    pass
+
+            # Build phase badge summary
+            phase_summary = {
+                "completed": len([p for p in phases_list if p.get("status") in ("ok", "success")]),
+                "halted": len([p for p in phases_list if p.get("status") in ("halt", "halted", "warn", "degraded")]),
+                "skipped": len([p for p in phases_list if p.get("status") == "skipped"]),
+                "errored": len([p for p in phases_list if p.get("status") in ("error", "failed")]),
+            }
+
+            run_history.append({
+                "run_id": row_data.get("run_id"),
+                "run_date": row_data.get("run_date"),
+                "status": row_data.get("overall_status"),
+                "started_at": row_data.get("started_at"),
+                "completed_at": row_data.get("completed_at"),
+                "halt_reason": row_data.get("halt_reason"),
+                "phase_summary": phase_summary,
+                "phases": phases_list[:9],  # All 9 phases
+            })
+
+        # 2. Calculate phase-level health (success rates for each phase across 30 days)
+        phase_health = {}
+        cur.execute("""
+            WITH phase_stats AS (
+                SELECT
+                    jsonb_array_elements(phase_results) ->> 'phase' as phase_num,
+                    jsonb_array_elements(phase_results) ->> 'status' as phase_status,
+                    COUNT(*) as count
+                FROM orchestrator_execution_log
+                WHERE started_at > NOW() - INTERVAL '30 days'
+                AND phase_results IS NOT NULL
+                GROUP BY phase_num, phase_status
+            )
+            SELECT
+                phase_num,
+                SUM(count) as total_runs,
+                SUM(CASE WHEN phase_status IN ('ok', 'success') THEN count ELSE 0 END) as successful_runs
+            FROM phase_stats
+            GROUP BY phase_num
+            ORDER BY phase_num::int ASC
+        """)
+
+        for row in cur.fetchall():
+            row_dict = safe_dict_convert(row)
+            phase_num = row_dict.get("phase_num")
+            total = row_dict.get("total_runs") or 0
+            success = row_dict.get("successful_runs") or 0
+            success_rate = (success / total * 100) if total > 0 else 0
+            phase_health[phase_num] = {
+                "total_runs": total,
+                "successful_runs": success,
+                "success_rate": round(success_rate, 1),
+            }
+
+        # 3. Get failure patterns (most common halt reasons)
+        cur.execute("""
+            SELECT halt_reason, COUNT(*) as occurrences
+            FROM orchestrator_execution_log
+            WHERE halt_reason IS NOT NULL
+            AND started_at > NOW() - INTERVAL '30 days'
+            GROUP BY halt_reason
+            ORDER BY occurrences DESC
+            LIMIT 10
+        """)
+
+        failure_patterns = []
+        for row in cur.fetchall():
+            row_dict = safe_dict_convert(row)
+            failure_patterns.append({
+                "reason": row_dict.get("halt_reason"),
+                "occurrences": row_dict.get("occurrences"),
+            })
+
+        # 4. Get loader health (failure streaks and success rates)
+        cur.execute("""
+            SELECT table_name, status, consecutive_failures, retry_count, last_success_at,
+                   execution_completed, completion_pct
+            FROM data_loader_status
+            WHERE table_name IS NOT NULL
+            ORDER BY consecutive_failures DESC, table_name ASC
+            LIMIT 30
+        """)
+
+        loader_health = []
+        for row in cur.fetchall():
+            row_dict = safe_dict_convert(row)
+            table_name = row_dict.get("table_name")
+            status = row_dict.get("status")
+            cons_failures = row_dict.get("consecutive_failures") or 0
+            retry_count = row_dict.get("retry_count") or 0
+            last_success = row_dict.get("last_success_at")
+
+            if cons_failures > 0 or status != "COMPLETED":
+                loader_health.append({
+                    "table_name": table_name,
+                    "status": status,
+                    "consecutive_failures": cons_failures,
+                    "retry_count": retry_count,
+                    "last_success_at": last_success,
+                    "is_unhealthy": cons_failures > 0 or status != "COMPLETED",
+                })
+
+        # 5. Calculate trend summary (7-day vs 30-day comparison)
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_7d,
+                SUM(CASE WHEN overall_status IN ('success', 'ok') THEN 1 ELSE 0 END) as successful_7d
+            FROM orchestrator_execution_log
+            WHERE started_at > NOW() - INTERVAL '7 days'
+        """)
+
+        trend_7d_row = cur.fetchone()
+        if trend_7d_row:
+            trend_7d_dict = safe_dict_convert(trend_7d_row)
+            total_7d = trend_7d_dict.get("total_7d") or 0
+            successful_7d = trend_7d_dict.get("successful_7d") or 0
+            success_rate_7d = (successful_7d / total_7d * 100) if total_7d > 0 else 0
+        else:
+            success_rate_7d = 0
+
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_30d,
+                SUM(CASE WHEN overall_status IN ('success', 'ok') THEN 1 ELSE 0 END) as successful_30d
+            FROM orchestrator_execution_log
+            WHERE started_at > NOW() - INTERVAL '30 days'
+        """)
+
+        trend_30d_row = cur.fetchone()
+        if trend_30d_row:
+            trend_30d_dict = safe_dict_convert(trend_30d_row)
+            total_30d = trend_30d_dict.get("total_30d") or 0
+            successful_30d = trend_30d_dict.get("successful_30d") or 0
+            success_rate_30d = (successful_30d / total_30d * 100) if total_30d > 0 else 0
+        else:
+            success_rate_30d = 0
+
+        trend = "improving" if success_rate_7d > success_rate_30d else ("degrading" if success_rate_7d < success_rate_30d else "stable")
+
+        trend_summary = {
+            "trend": trend,
+            "success_rate_7d": round(success_rate_7d, 1),
+            "success_rate_30d": round(success_rate_30d, 1),
+            "total_runs_7d": total_7d if trend_7d_row else 0,
+            "total_runs_30d": total_30d if trend_30d_row else 0,
+        }
+
+        response_data = {
+            "run_history": run_history,
+            "phase_health": phase_health,
+            "failure_patterns": failure_patterns,
+            "loader_health": [lh for lh in loader_health if lh["is_unhealthy"]][:10],
+            "trend_summary": trend_summary,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        return json_response(200, response_data)
+
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+        code, error_type, message = handle_db_error(e, "get orchestrator history extended")
+        return error_response(code, error_type, message)
 
 
 @db_route_handler("fetch notifications")

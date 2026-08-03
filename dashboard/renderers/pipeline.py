@@ -325,13 +325,29 @@ def render_expanded_view(  # noqa: C901
             return _expanded_layout(
                 *_exp_top,
                 panel_algo_health_expanded(
-                    ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.exec_hist, risk=ctx.risk
+                    ctx.run,
+                    ctx.activity,
+                    ctx.health,
+                    ctx.notifs,
+                    ctx.algo_metrics,
+                    ctx.exec_hist,
+                    risk=ctx.risk,
+                    exec_patterns=ctx.exec_patterns,
                 ),
             )
         case "data_freshness":
             if has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Data freshness unavailable[/]", border_style="red"))
-            return _expanded_layout(*_exp_top, panel_data_freshness_expanded(ctx.health, ctx.inventory))
+            return _expanded_layout(
+                *_exp_top,
+                panel_data_freshness_expanded(
+                    ctx.health,
+                    ctx.inventory,
+                    data_coverage=ctx.data_coverage,
+                    orch_extended=ctx.orch_extended,
+                    signal_freshness=ctx.signal_freshness,
+                ),
+            )
         case "sectors":
             return _expanded_layout(
                 *_exp_top, panel_sectors_expanded(ctx.srank, ctx.pos, ctx.port, ctx.sec_rot, ctx.irank)

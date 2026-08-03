@@ -82,16 +82,27 @@ class SignalPatternsMixin:
                     "reason": f"insufficient_price_history ({len(rows)}/{self.BASE_MIN_HISTORY} bars)",
                 }
 
+            # Chronological order (oldest -> newest/eval_date), matching classify_base_type's
+            # own fetch and vcp_detection - rows above come back newest-first from ORDER BY date DESC.
+            rows = list(reversed(rows))
             highs = [float(r[1]) for r in rows]
             lows = [float(r[2]) for r in rows]
             closes = [float(r[3]) for r in rows]
             volumes = [float(r[4]) for r in rows]
 
-            peak_val = max(highs)
-            peak_idx = min(i for i, h in enumerate(highs) if h == peak_val)
-            base_highs = highs[: peak_idx + 1]
-            base_lows = lows[: peak_idx + 1]
-            base_vols = volumes[: peak_idx + 1]
+            # Find the base's pivot high using history that predates the most recent
+            # BASE_MIN_BARS days. A genuine breakout (and its immediate follow-through) commonly
+            # prints the window's highest highs, so searching the full window - or even just
+            # excluding the eval day itself - lets the breakout thrust "win" the peak search and
+            # collapse the base window to a couple of bars on exactly the setups that matter most.
+            # Excluding the minimum base duration guarantees any peak found leaves a base window
+            # that can actually satisfy BASE_MIN_BARS.
+            pre_breakout_highs = highs[: -self.BASE_MIN_BARS]
+            peak_val = max(pre_breakout_highs)
+            peak_idx = min(i for i, h in enumerate(pre_breakout_highs) if h == peak_val)
+            base_highs = highs[peak_idx:]
+            base_lows = lows[peak_idx:]
+            base_vols = volumes[peak_idx:]
 
             if len(base_highs) < self.BASE_MIN_BARS:
                 return {
@@ -107,7 +118,7 @@ class SignalPatternsMixin:
             base_depth = (base_high - base_low) / base_high * 100.0
             weeks_in_base = len(base_highs) // 5
 
-            cur_price = closes[0]
+            cur_price = closes[-1]
             in_base = (self.BASE_MIN_DEPTH_PCT <= base_depth <= self.BASE_MAX_DEPTH_PCT) and len(
                 base_highs
             ) >= self.BASE_MIN_HISTORY
@@ -133,14 +144,13 @@ class SignalPatternsMixin:
                     "volume_dryup_reason": "insufficient_history (< 50 bars)",
                 }
 
-            if len(base_vols) < self.LOOKBACK_BARS_SHORT:
-                raise ValueError(
-                    f"[SIGNAL_PATTERNS] Insufficient bars for recent volume calculation ({len(base_vols)}/{self.LOOKBACK_BARS_SHORT} required). "
-                    f"Cannot compute volume dryup signal - data invalid or insufficient."
-                )
-            recent_vol = sum(base_vols[: self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT
+            # Short but valid bases (BASE_MIN_BARS..LOOKBACK_BARS_SHORT) can't fill a full
+            # LOOKBACK_BARS_SHORT recent-volume window; use whatever the base actually has rather
+            # than failing classification entirely over an unrelated sub-signal.
+            recent_window = min(self.LOOKBACK_BARS_SHORT, len(base_vols))
+            recent_vol = sum(base_vols[-recent_window:]) / recent_window
 
-            prior_vol = sum(volumes[20:50]) / 30
+            prior_vol = sum(volumes[-50:-20]) / 30
             volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
             return {

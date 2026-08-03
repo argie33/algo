@@ -63,8 +63,11 @@ def test_execution_failed_is_persisted_to_signal_rejections_audit_table():
             "KEX", "execution_failed", "Order rejected (status=rejected)", date(2026, 7, 27), 149.15, 1.5
         )
 
-    mock_cur.execute.assert_called_once()
-    sql, params = mock_cur.execute.call_args[0]
+    # _log_signal_rejection now does 2 writes: the algo_signal_rejections audit-trail INSERT
+    # checked here, and a follow-up algo_signals UPDATE (execution_status='rejected') so the
+    # dashboard doesn't keep showing a rejected signal as still active.
+    assert mock_cur.execute.call_count == 2
+    sql, params = mock_cur.execute.call_args_list[0][0]
     assert "algo_signal_rejections" in sql
     assert params == (date(2026, 7, 27), "KEX", "execution_failed", "Order rejected (status=rejected)", 149.15, 1.5)
 
@@ -84,8 +87,9 @@ def test_long_rejection_reason_truncated_not_crashed():
 
         _log_signal_rejection("OHI", "processing_error", long_reason, date(2026, 7, 27))
 
-    mock_cur.execute.assert_called_once()
-    _, params = mock_cur.execute.call_args[0]
+    # See test_execution_failed_is_persisted_to_signal_rejections_audit_table: 2 writes now.
+    assert mock_cur.execute.call_count == 2
+    _, params = mock_cur.execute.call_args_list[0][0]
     persisted_reason = params[3]
     assert len(persisted_reason) == 200
     assert persisted_reason.endswith("...")

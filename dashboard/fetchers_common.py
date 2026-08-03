@@ -58,6 +58,14 @@ FETCHER_METADATA = {
         "endpoint": "/api/algo/execution/recent",
         "desc": "Execution history",
     },
+    "exec_stats": {
+        "endpoint": "/api/algo/execution/stats",
+        "desc": "Execution stats (recent success/halt/error rates)",
+    },
+    "exec_patterns": {
+        "endpoint": "/api/algo/execution/patterns",
+        "desc": "30-day phase failure patterns (which phases halt/error most, with reasons)",
+    },
     "exp_factors": {
         "endpoint": "/api/algo/markets",
         "desc": "Market exposure factors (12-factor breakdown)",
@@ -69,6 +77,19 @@ FETCHER_METADATA = {
     "inventory": {
         "endpoint": "/api/admin/inventory",
         "desc": "Complete table inventory (untracked/missing tables)",
+    },
+    "data_coverage": {
+        "endpoint": "/api/data-coverage",
+        "desc": "Data-quality coverage: zero-volume/invalid-price %, per-indicator null rates, market data presence",
+    },
+    "orch_extended": {
+        "endpoint": "/api/algo/freshness/extended",
+        "desc": "Extended orchestrator history: run timeline, 30-day phase success rates, "
+        "failure patterns, loader health, 7d/30d trend",
+    },
+    "signal_freshness": {
+        "endpoint": "/api/health",
+        "desc": "Signal freshness (status/signal_age_hours) for the DATA FRESHNESS - EXPANDED panel",
     },
 }
 

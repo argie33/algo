@@ -1654,11 +1654,14 @@ def _get_dashboard_signals(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Fetch active signals from algo_signals (source of truth from orchestrator Phase 8)
+        # Fetch executed signals from algo_signals (source of truth from orchestrator Phase 8)
+        # CRITICAL FIX (2026-08-03): Changed from signal_active=true to execution_status='executed'
+        # because signals were being marked as "active" even when rejected (not updated when rejected).
+        # Now execution_status clearly indicates: executed, rejected, pending, expired
         cur.execute("""
             SELECT COUNT(*) AS n, MAX(signal_date) AS d
             FROM algo_signals
-            WHERE signal_active = true AND signal_date >= CURRENT_DATE - 7
+            WHERE execution_status = 'executed' AND signal_date >= CURRENT_DATE - 7
         """)
         sig = cur.fetchone()
         if sig is not None:
@@ -1719,7 +1722,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                         LIMIT 1
                     ) b ON TRUE
                     LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
-                    WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                    WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
                         -- Exclude signals with no buy_sell_daily match at all: these have been
                         -- active (signal_active=true, never flipped off - nothing in the codebase
                         -- ever deactivates an algo_signals row) for days after the symbol dropped
@@ -1760,7 +1763,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     COUNT(*) FILTER (WHERE s.signal_quality_score < 40 OR s.signal_quality_score IS NULL) AS d,
                     COUNT(*) AS total
                 FROM algo_signals s
-                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
             """)
             grades_r = cur.fetchone()
             if grades_r is None:
@@ -1775,7 +1778,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 SELECT s.symbol, s.signal_quality_score AS score, cp.sector
                 FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.symbol = s.symbol
-                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score BETWEEN 55 AND 69
                 ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 15
@@ -1786,7 +1789,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             cur.execute("""
                 SELECT s.symbol, s.signal_quality_score AS score
                 FROM algo_signals s
-                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score >= 80
                 ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 20
@@ -1799,7 +1802,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                        COUNT(*) FILTER (WHERE s.signal_quality_score >= 60) AS buy_n,
                        COUNT(*) AS total_n
                 FROM algo_signals s
-                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
                 GROUP BY s.signal_date
                 ORDER BY s.signal_date DESC
                 LIMIT 7
@@ -1810,7 +1813,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             cur.execute("""
                 SELECT COUNT(*) AS n
                 FROM algo_signals s
-                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                WHERE s.execution_status = 'executed' AND s.signal_date >= CURRENT_DATE - 7
                   AND s.signal_quality_score >= 70
             """)
             count_row = cur.fetchone()
@@ -1936,20 +1939,24 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             top_scores.append(score_dict)
 
         # AUDIT: Add monitoring for COALESCE fallback usage in RS percentile
+        # Compare against the same qualifying population (composite_score > 0, data_completeness >= 70),
+        # not the paginated `limit`-sized result set - otherwise the percentage can exceed 100%.
         cur.execute("""
-            SELECT COUNT(*) as null_count
+            SELECT
+                COUNT(*) FILTER (WHERE s.rs_percentile IS NULL) as null_count,
+                COUNT(*) as total_count
             FROM stock_scores s
-            WHERE s.composite_score > 0 AND s.data_completeness >= 70 AND s.rs_percentile IS NULL
-            LIMIT 100
+            WHERE s.composite_score > 0 AND s.data_completeness >= 70
         """)
         null_rs_check = cur.fetchone()
         if null_rs_check and null_rs_check[0] > 0:
-            null_rs_pct = (null_rs_check[0] / len(top_scores) * 100) if len(top_scores) > 0 else 0
+            null_count, total_count = null_rs_check[0], null_rs_check[1]
+            null_rs_pct = (null_count / total_count * 100) if total_count > 0 else 0
             logger.warning(
-                f"[DASHBOARD AUDIT] {null_rs_check[0]} scores with NULL rs_percentile in database. "
+                f"[DASHBOARD AUDIT] {null_count} scores with NULL rs_percentile in database. "
                 f"Momentum data missing for these symbols (upstream loader did not complete). "
                 f"Dashboard returns NULL values (no fallback applied). "
-                f"If > 5%, check momentum scorer completion rate ({null_rs_pct:.1f}% of returned {len(top_scores)} scores)."
+                f"If > 5%, check momentum scorer completion rate ({null_rs_pct:.1f}% of {total_count} qualifying scores)."
             )
 
         # FALLBACK: If growth_score is null, check if it's due to missing upstream data

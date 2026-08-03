@@ -635,9 +635,26 @@ def _get_stock_scores(  # noqa: C901
         # pattern is end-anchored ('...Rights?/Warrants?$') to avoid matching ADS
         # boilerplate like "...American Depositary Shares (each representing the right to
         # receive...)" (e.g. AMX/RLX/WDH), which are real operating companies.
+        #
+        # SIC-CODE SPAC FILTERING (2026-08-03, follow-up): the name regex above was
+        # verified live to still miss a real, non-trivial share of SPAC shells with
+        # heterogeneous naming - "General Catalyst Global Resilience Merger Corp" (GCGR,
+        # "Merger" not "Acquisition"), "Iron Dome Acquisition I Corp" / "Research Alliance
+        # Corp III" / "Texas Ventures Acquisition IV Corp" (IDAC/RACC/RACD/TVIV, a roman
+        # numeral or ordinal breaks the "Acquisition Corp" substring match), "Yorkville
+        # International Capital Corp" (YICC, no "Acquisition"/"Merger" at all). Live-verified
+        # against real SEC EDGAR submissions JSON: all 6 of the above report SIC code 6770
+        # ("Blank Checks") - the SEC's own official classification for pre-merger SPAC
+        # shells - while real operating companies with similar naming (AAPL, MSFT, FNWB) and
+        # REITs/banks previously at false-positive risk from name regexes (NREF, OZK) do not.
+        # `company_info_sec.sic_code` is already fetched from this same submissions endpoint
+        # by loaders/load_company_info_sec.py, just never used for this filter before - a
+        # strictly more reliable, name-independent signal than pattern matching heterogeneous
+        # SPAC naming conventions.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
+            AND ss.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6770)
             AND (ss.security_name IS NULL OR (
                 ss.security_name !~* '(Rights?|Warrants?)$'
                 AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
