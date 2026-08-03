@@ -1372,21 +1372,43 @@ class CircuitBreaker:
 
         sector_pnl: dict[str, float] = {}
         sector_basis: dict[str, float] = {}
+        skipped_positions = 0
         for row in rows:
             if not row or len(row) < 4:
-                raise RuntimeError(f"Sector drawdown check: invalid row structure {row}")
+                logger.warning(f"Sector drawdown check: skipping malformed row {row}")
+                skipped_positions += 1
+                continue
             sector, unrealized_pnl, entry_price, quantity = row[0], row[1], row[2], row[3]
+            # Skip positions with missing sector (from LEFT JOIN) - they'll be synced in next run
             if not sector:
-                raise RuntimeError("Sector drawdown check: row has None/empty sector")
+                skipped_positions += 1
+                continue
+            # Skip positions with missing P&L data - they'll be resync'd in Phase 3
+            # Don't halt orchestrator for incomplete position data
             if unrealized_pnl is None or entry_price is None or quantity is None:
-                raise RuntimeError(
-                    f"Sector drawdown check: position missing P&L/cost-basis data (sector={sector})"
+                logger.warning(
+                    f"Sector drawdown check: skipping position with missing P&L/cost-basis data (sector={sector}, "
+                    f"pnl={unrealized_pnl}, price={entry_price}, qty={quantity})"
                 )
-            cost_basis = float(entry_price) * float(quantity)
-            if cost_basis <= 0:
-                raise RuntimeError(f"Sector drawdown check: invalid cost basis for sector {sector}")
+                skipped_positions += 1
+                continue
+            try:
+                cost_basis = float(entry_price) * float(quantity)
+                if cost_basis <= 0:
+                    logger.warning(f"Sector drawdown check: skipping position with invalid cost basis (sector={sector}, basis={cost_basis})")
+                    skipped_positions += 1
+                    continue
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Sector drawdown check: skipping position - cost basis conversion error: {e}")
+                skipped_positions += 1
+                continue
             sector_pnl[sector] = sector_pnl.get(sector, 0.0) + float(unrealized_pnl)
             sector_basis[sector] = sector_basis.get(sector, 0.0) + cost_basis
+
+        # If we skipped all positions, insufficient data to calculate sector drawdown
+        if not sector_pnl:
+            logger.info(f"Sector drawdown check: all {skipped_positions} positions skipped due to missing data - insufficient data for sector drawdown calculation")
+            return {"halted": False, "reason": "Insufficient data for sector drawdown check (positions missing P&L data)"}
 
         sector_returns = {s: sector_pnl[s] / sector_basis[s] * 100 for s in sector_pnl}
         worst_sector = min(sector_returns, key=lambda s: sector_returns[s])

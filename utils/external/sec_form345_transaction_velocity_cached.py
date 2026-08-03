@@ -26,7 +26,7 @@ CACHE_TIMEOUT_SECONDS = 5 * 60  # 5 minute cache for metadata
 class CachedForm345Aggregator:
     """Thread-safe cached wrapper around Form345TransactionVelocityAggregator."""
 
-    def __init__(self, lookback_quarters: int = 12, timeout_seconds: int = 300):
+    def __init__(self, lookback_quarters: int = 12, timeout_seconds: int = 300) -> None:
         """Initialize cached aggregator.
 
         Args:
@@ -35,13 +35,13 @@ class CachedForm345Aggregator:
         """
         self._lookback_quarters = lookback_quarters
         self._timeout_seconds = timeout_seconds
-        self._aggregator = None
-        self._build_thread = None
-        self._build_exception = None
+        self._aggregator: Form345TransactionVelocityAggregator | None = None
+        self._build_thread: threading.Thread | None = None
+        self._build_exception: Exception | None = None
         self._build_complete = threading.Event()
         self._lock = threading.Lock()
 
-    def get_velocity_metrics(self, symbol: str, measurement_date=None, wait_for_download: bool = False) -> VelocityMetrics:
+    def get_velocity_metrics(self, symbol: str, measurement_date: datetime | None = None, wait_for_download: bool = False) -> VelocityMetrics:
         """Get insider transaction velocity for a symbol.
 
         Args:
