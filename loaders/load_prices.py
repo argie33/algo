@@ -2456,11 +2456,28 @@ class PriceLoader(OptimalLoader):
                         "re-fetch after batch returned empty (BATCH_NAN_RECOVERY)"
                     )
                 else:
-                    logger.debug(
-                        f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping",
+                    # FIX 2026-08-04: this used to count as symbols_skipped_by_watermark +
+                    # symbols_processed ("watermark current, no new data needed, not a
+                    # failure") - i.e. treated as a legitimate no-op success. But a batch
+                    # AND a singleton re-fetch both returning empty for a symbol whose
+                    # watermark is only 1-2 days stale (an actively-traded symbol that
+                    # should have yesterday's close) is not confirmation of "no new data" -
+                    # it's an unconfirmed fetch gap. Live-reproduced: 103 actively-attempted
+                    # symbols (incl. GAMB/GV, the same tickers BATCH_NAN_RECOVERY above was
+                    # built to catch) vanished from price_daily silently, day after day,
+                    # with zero rows, no data_unavailable marker, and zero symbols_failed
+                    # count - completion stuck at ~96.2% with no visible cause. Counting
+                    # this as a real failure (not a skip) makes the gap visible to the
+                    # fail-rate gate and lets the existing watermark_age_days > 2 branch
+                    # above properly resolve it via _confirm_no_data_in_30_days on a
+                    # subsequent run, instead of silently freezing it as "handled" forever.
+                    logger.error(
+                        f"[{self.table_name}] {symbol}: batch and single-symbol re-fetch both "
+                        f"returned empty (watermark {watermark_age_days}d old). Not confirmed as "
+                        "genuinely unavailable - marking as failed to trigger retry."
                     )
-                    self._stats["symbols_skipped_by_watermark"] += 1
-                    self._stats["symbols_processed"] += 1  # Count as processed (no new data needed, not a failure)
+                    self._stats["symbols_failed"] += 1
+                    self._stats["symbols_processed"] += 1
                     continue
 
             logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")

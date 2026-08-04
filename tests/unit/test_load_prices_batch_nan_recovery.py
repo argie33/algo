@@ -10,8 +10,10 @@ FCUV, GAMB, GV, JDZG, MBAV, MYGN, NFBK, UBXG) that lagged 1-3 days in price_dail
 yf.download(symbol) returning real data for each individually.
 
 Fix: before accepting "watermark current, no rows" at face value, retry with a
-single-symbol fetch. If that recovers rows, use them; only skip as before if the
-single-symbol retry also comes back empty.
+single-symbol fetch. If that recovers rows, use them; if the single-symbol retry also
+comes back empty, that's unconfirmed (not proof of "no new data") and must count as a
+real failure - not a silent skip. See test_symbol_counted_as_failed_when_individual_
+refetch_also_empty for the 2026-08-04 fix to a second gap in this same recovery path.
 """
 
 from datetime import datetime, timedelta
@@ -96,9 +98,15 @@ class TestBatchNanRecovery:
         # Confirms the individual re-fetch actually happened, not just a re-read of the batch result.
         loader.fetch_batch_incremental.assert_any_call(["THINVOL"], recent_watermark)
 
-    def test_symbol_stays_skipped_when_individual_refetch_also_empty(self):
-        """If the single-symbol retry agrees with the batch (genuinely no new data),
-        the original safe behavior (skip, not a failure) must be preserved."""
+    def test_symbol_counted_as_failed_when_individual_refetch_also_empty(self):
+        """FIX 2026-08-04: if the single-symbol retry ALSO comes back empty, that is not
+        confirmation of "genuinely no new data" - it used to be silently accepted as a
+        skip/success, which let symbols vanish from price_daily forever with no
+        data_unavailable marker and no symbols_failed count (live-reproduced: 103 actively
+        traded symbols, including GAMB/GV named in this same BATCH_NAN_RECOVERY comment,
+        stuck missing day after day). It must now count as a real failure so the fail-rate
+        gate sees it and the existing >2-day-stale escalation path can resolve it on a
+        later run."""
         loader = _make_loader()
         today = datetime.now(EASTERN_TZ).date()
         recent_watermark = today - timedelta(days=1)
@@ -113,7 +121,7 @@ class TestBatchNanRecovery:
             if symbols == ["AAPL", "QUIET"]:
                 return {"AAPL": [dict(good_row)], "QUIET": []}
             if symbols == ["QUIET"]:
-                # Genuinely no new data - both batch and individual fetch agree.
+                # Both batch and individual fetch came back empty - unconfirmed, not proof.
                 return {"QUIET": []}
             raise AssertionError(f"Unexpected symbols argument: {symbols}")
 
@@ -121,8 +129,8 @@ class TestBatchNanRecovery:
 
         loader._load_batch(["AAPL", "QUIET"])
 
-        assert loader._stats["symbols_skipped_by_watermark"] == 1
-        assert loader._stats["symbols_failed"] == 0
+        assert loader._stats["symbols_skipped_by_watermark"] == 0
+        assert loader._stats["symbols_failed"] == 1
         assert loader._stats["symbols_processed"] == 2
 
         inserted_rows = loader._bulk_insert_mgr.bulk_insert.call_args[0][0]
@@ -131,7 +139,8 @@ class TestBatchNanRecovery:
     def test_singleton_batch_does_not_retry_itself(self):
         """When _load_batch is already called with a single symbol (e.g. the
         SYMBOL_FALLBACK per-symbol retry path), an empty result must not trigger a
-        second, pointless individual re-fetch of the same symbol."""
+        second, pointless individual re-fetch of the same symbol - and (2026-08-04) is
+        counted as a real failure, not a silent skip."""
         loader = _make_loader()
         today = datetime.now(EASTERN_TZ).date()
         recent_watermark = today - timedelta(days=1)
@@ -142,5 +151,5 @@ class TestBatchNanRecovery:
         loader._load_batch(["SOLO"])
 
         loader.fetch_batch_incremental.assert_called_once_with(["SOLO"], recent_watermark)
-        assert loader._stats["symbols_skipped_by_watermark"] == 1
-        assert loader._stats["symbols_failed"] == 0
+        assert loader._stats["symbols_skipped_by_watermark"] == 0
+        assert loader._stats["symbols_failed"] == 1
