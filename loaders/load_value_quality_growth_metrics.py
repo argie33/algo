@@ -496,6 +496,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
         # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
         # yfinance-sourced forward-EPS consensus, since SEC filings never carry forward estimates).
+        # ev_ebitda reason: was hardcoded "depreciation_amortization_not_loaded" regardless of
+        # actual cause. Live audit of the universe found that's wrong for the overwhelming
+        # majority of the 3256 NULL cases: load_sec_valuations.py computes ebitda from
+        # operating_income alone whenever D&A is missing (D&A is additive, never required), so
+        # ebitda is only ever None when operating_income itself is unavailable that fiscal year
+        # (1336 cases) - and of the cases where ebitda IS present, ~1900 are simply <= 0
+        # (real negative/zero-EBITDA companies, for which EV/EBITDA is not a meaningful ratio,
+        # same "not applicable" class as non_dividend_paying_stock) rather than any missing data.
+        ebitda_raw = row_dict.get("ebitda")
+        if ebitda_raw is not None and ebitda_raw <= 0:
+            ev_ebitda_reason = "unprofitable_stock"
+        elif ebitda_raw is None:
+            ev_ebitda_reason = "ebitda_not_extracted"
+        else:
+            ev_ebitda_reason = "missing_sec_data"  # ebitda>0 present, enterprise_value missing or out of bounds
+
         forward_pe = None
         current_price = row_dict.get("current_price")
         if current_price is not None and current_price > 0:
@@ -522,14 +538,43 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # If dividend_yield is None, check if stock is a known dividend payer
         dividend_yield_reason = None
         if dividend_yield is None:
-            # Check if stock has paid dividends (present in dividend_data)
+            # Check if stock has paid dividends (present in dividend_data). MUST filter
+            # data_unavailable=FALSE: load_dividend_data.py writes an explicit "confirmed no
+            # dividend" marker row (data_unavailable=TRUE, e.g. reason="no_dividend_xbrl_
+            # concepts") for every symbol it checks, not just ones that pay. Without this
+            # filter, `fetchone() is not None` matched those marker rows too, so 3586 of the
+            # universe's genuine non-dividend-payers (93% of this reason's NULLs) were
+            # mislabeled "missing_sec_data" instead of "non_dividend_paying_stock".
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT 1 FROM dividend_data WHERE symbol = %s LIMIT 1",
+                    "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
                     (symbol,)
                 )
                 has_dividend_history = cur.fetchone() is not None
             dividend_yield_reason = "missing_sec_data" if has_dividend_history else "non_dividend_paying_stock"
+
+        # pe_ratio reason: was hardcoded "missing_sec_data" regardless of cause. load_sec_
+        # valuations.py only computes pe_ratio when ttm_eps > 0 (a negative/zero-EPS company
+        # has no meaningful P/E, same "not applicable" class as non_dividend_paying_stock).
+        # Live audit: 2283 of 2519 universe pe_ratio NULLs are unprofitable companies with a
+        # real, present EPS that's just <= 0 - only 126 are genuine missing-EPS gaps. peg_ratio
+        # requires pe_ratio, so it inherits the same reason when pe_ratio itself is the blocker.
+        pe_ratio_reason = None
+        if pe is None:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT earnings_per_share FROM annual_income_statement
+                    WHERE symbol = %s AND earnings_per_share IS NOT NULL
+                    ORDER BY fiscal_year DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                eps_row = cur.fetchone()
+            latest_eps = eps_row[0] if eps_row else None
+            pe_ratio_reason = "unprofitable_stock" if latest_eps is not None and latest_eps <= 0 else "missing_sec_data"
+
+        peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else ("missing_sec_data" if peg is None else None)
 
         # Track which fields are unavailable (Session 389)
         return {
@@ -545,14 +590,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "ev_ebitda": ev_ebitda,
             "ev_revenue": ev_revenue,
             "value_score": None,  # Computed in load_stock_scores, copied here for convenience
-            "pe_ratio_unavailable_reason": "missing_sec_data" if pe is None else None,
+            "pe_ratio_unavailable_reason": pe_ratio_reason,
             "pb_ratio_unavailable_reason": "missing_sec_data" if pb is None else None,
             "ps_ratio_unavailable_reason": "missing_sec_data" if ps is None else None,
-            "peg_ratio_unavailable_reason": "missing_sec_data" if peg is None else None,
+            "peg_ratio_unavailable_reason": peg_ratio_reason,
             "dividend_yield_unavailable_reason": dividend_yield_reason,
             "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
             "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
-            "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded" if ev_ebitda is None else None,
+            "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": "missing_sec_data" if ev_revenue is None else None,
             "market_cap_unavailable_reason": None,  # Market cap in stock_symbols, not here
             "held_percent_insiders_unavailable_reason": None,  # In positioning_metrics, not here
@@ -861,36 +906,105 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # NOL/credit swing) would distort NOPAT worse than marking unavailable. A prior
             # session reintroduced 0.21/0.25 fallback assumptions here - reverted, they are
             # exactly the kind of fabricated-data-source problem migration 1178 fixed.
+            # Same "single fiscal year can't have everything" issue the interest_expense
+            # fallback above fixes also hits ROIC's tax/pretax pair: the year picked for FCF
+            # availability only carries income_tax_expense+pretax_income together ~69%/68% of
+            # the time, even when a different year has both. Live-verified: 2094 of 4314
+            # universe symbols missing roic_pct have a self-consistent tax/pretax/operating
+            # income triple available in some other fiscal year. Pulled as one row (not three
+            # independent lookups) so NOPAT never mixes mismatched years internally.
+            roic_tax_expense, roic_pretax_income, roic_operating_income = (
+                income_tax_expense,
+                pretax_income,
+                operating_income,
+            )
+            if income_tax_expense is None or pretax_income is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT income_tax_expense, pretax_income, operating_income
+                        FROM annual_income_statement
+                        WHERE symbol = %s AND income_tax_expense IS NOT NULL
+                          AND pretax_income IS NOT NULL AND operating_income IS NOT NULL
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_tax_row = cur.fetchone()
+                if fallback_tax_row:
+                    roic_tax_expense = self._nan_to_none(
+                        safe_float(fallback_tax_row[0], f"{symbol}.income_tax_expense_fallback_year", allow_none=True)
+                    )
+                    roic_pretax_income = self._nan_to_none(
+                        safe_float(fallback_tax_row[1], f"{symbol}.pretax_income_fallback_year", allow_none=True)
+                    )
+                    roic_operating_income = self._nan_to_none(
+                        safe_float(fallback_tax_row[2], f"{symbol}.operating_income_fallback_year", allow_none=True)
+                    )
+
+            # FIXED (migration 1178): a hardcoded tax-rate assumption was correctly rejected as
+            # synthetic (real effective rates vary 5-35%+ by jurisdiction/structure) - only the
+            # real SEC-reported IncomeTaxExpenseBenefit/pretax_income concepts are used. Bounded
+            # to [0%, 60%]: a real but implausible rate (pretax income near zero from a one-time
+            # NOL/credit swing) would distort NOPAT worse than marking unavailable. A prior
+            # session reintroduced 0.21/0.25 fallback assumptions here - reverted, they are
+            # exactly the kind of fabricated-data-source problem migration 1178 fixed.
             effective_tax_rate = None
-            if income_tax_expense is not None and pretax_income is not None and pretax_income > 0:
-                candidate_rate = income_tax_expense / pretax_income
+            if roic_tax_expense is not None and roic_pretax_income is not None and roic_pretax_income > 0:
+                candidate_rate = roic_tax_expense / roic_pretax_income
                 if 0.0 <= candidate_rate <= 0.60:
                     effective_tax_rate = candidate_rate
 
             # Invested Capital = Stockholders' Equity + Total Debt - Cash & Equivalents
-            # Use total_debt_ev (from sec_valuations, 79% available) as primary source
+            # Use total_debt_ev (from sec_valuations, 81% available) as primary source
             # Fall back to long_term_debt_bs (from balance_sheet, only 22% available) if needed
             # ROIC requires complete balance sheet data, not partial guesses. A prior session
             # added a (total_liabilities - current_liabilities) debt estimate - reverted: that
             # includes non-debt liabilities (AP, accrued expenses, deferred revenue, pensions),
             # so it is not a real "total debt" figure.
+            #
+            # stockholders_equity/cash_and_equivalents get the same same-year-substitute
+            # treatment as the tax triple above, for the same reason (76% cash coverage in the
+            # FCF-prioritized row vs a different year that has it).
+            roic_stockholders_equity, roic_cash_and_equivalents = stockholders_equity, cash_and_equivalents_bs
+            if stockholders_equity is None or cash_and_equivalents_bs is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT stockholders_equity, cash_and_equivalents
+                        FROM annual_balance_sheet
+                        WHERE symbol = %s AND stockholders_equity IS NOT NULL
+                          AND cash_and_equivalents IS NOT NULL
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_bs_row = cur.fetchone()
+                if fallback_bs_row:
+                    roic_stockholders_equity = self._nan_to_none(
+                        safe_float(fallback_bs_row[0], f"{symbol}.stockholders_equity_fallback_year", allow_none=True)
+                    )
+                    roic_cash_and_equivalents = self._nan_to_none(
+                        safe_float(fallback_bs_row[1], f"{symbol}.cash_and_equivalents_fallback_year", allow_none=True)
+                    )
+
             invested_capital = None
             debt_for_roic = total_debt_ev if total_debt_ev is not None else long_term_debt_bs
 
             if (
-                stockholders_equity is not None
+                roic_stockholders_equity is not None
                 and debt_for_roic is not None
-                and cash_and_equivalents_bs is not None
+                and roic_cash_and_equivalents is not None
             ):
-                invested_capital = stockholders_equity + debt_for_roic - cash_and_equivalents_bs
+                invested_capital = roic_stockholders_equity + debt_for_roic - roic_cash_and_equivalents
 
             if (
                 effective_tax_rate is not None
-                and operating_income is not None
+                and roic_operating_income is not None
                 and invested_capital is not None
                 and invested_capital > 0
             ):
-                nopat = operating_income * (1 - effective_tax_rate)
+                nopat = roic_operating_income * (1 - effective_tax_rate)
                 metrics["roic_pct"] = float((nopat / invested_capital) * 100)
             else:
                 failed_metrics.append("roic_pct")
@@ -908,10 +1022,32 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 failed_metrics.append("ocf_to_net_income")
 
             # Payout Ratio = Dividends / Net Income (% of earnings paid out)
+            # Reason split (live audit of 3965 universe-wide NULLs, all previously labeled the
+            # same generic "missing_sec_data"): 385 have real dividends_paid data for the chosen
+            # year but net_income <= 0 that year - payout ratio on a loss is not a meaningful
+            # percentage, "not applicable" rather than a data gap. Of the rest, ~3215 have NO
+            # real dividend_data payment history anywhere (genuine non-payers, same
+            # data_unavailable=FALSE filter fixed above for dividend_yield_reason - without it
+            # every symbol matches dividend_data's "confirmed no dividend" marker rows too);
+            # only ~92 have real dividend history elsewhere but the SEC concept wasn't
+            # extracted for this fiscal year - a true data gap.
+            payout_ratio_reason = None
             if dividends_paid is not None and net_income is not None and net_income > 0:
                 metrics["payout_ratio"] = float((dividends_paid / net_income) * 100)
             else:
                 failed_metrics.append("payout_ratio")
+                if dividends_paid is not None and net_income is not None and net_income <= 0:
+                    payout_ratio_reason = "unprofitable_stock"
+                else:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
+                            (symbol,),
+                        )
+                        has_real_dividend_history = cur.fetchone() is not None
+                    payout_ratio_reason = (
+                        "missing_sec_data" if has_real_dividend_history else "non_dividend_paying_stock"
+                    )
 
             # Absolute cash flow values
             if free_cash_flow is not None:
@@ -968,10 +1104,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # TREND FIELDS (new fields for enhanced scoring)
             # Net Income Growth YoY - only if actual prior net income available
+            # Bounded by MAX_TREND_PERCENTAGE_POINTS (same guard as roe_trend below): a prior-
+            # year base that's real but near-zero (live-confirmed ANET FY2024 net_income of
+            # $2,852 against a real ~$1B current year - a genuine SEC data-scale artifact, not
+            # a bug in this loader) produces a growth ratio in the hundreds of thousands of
+            # percent, which overflows this column's NUMERIC(10,4) (max magnitude 999,999.9999)
+            # and previously crashed the INSERT for the entire quality_metrics row - losing
+            # every other valid metric for the symbol, not just this one field.
             if net_income is not None and prior_year_net_income is not None and prior_year_net_income != 0:
                 try:
                     ni_growth = ((net_income - prior_year_net_income) / abs(prior_year_net_income)) * 100
-                    metrics["net_income_growth_yoy"] = float(round(ni_growth, 2))
+                    if abs(ni_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["net_income_growth_yoy"] = float(round(ni_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError) as e:
                     logger.warning(
                         f"[{symbol}] Failed to calculate net_income_growth_yoy: {type(e).__name__}. "
@@ -982,7 +1126,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if operating_income is not None and prior_year_operating_income is not None and prior_year_operating_income != 0:
                 try:
                     oi_growth = ((operating_income - prior_year_operating_income) / abs(prior_year_operating_income)) * 100
-                    metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
+                    if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -1029,7 +1174,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     roe_pct = (net_income / stockholders_equity)
                     retention_ratio = 1.0 - (dividends_paid / abs(net_income)) if net_income != 0 else 0.0
                     try:
-                        metrics["sustainable_growth_rate"] = float(round(roe_pct * retention_ratio * 100, 2))
+                        sgr = round(roe_pct * retention_ratio * 100, 2)
+                        # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as the growth_yoy
+                        # fields above - a near-zero stockholders_equity base blows up roe_pct
+                        # the same way a near-zero prior-year base blows up those ratios.
+                        if abs(sgr) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["sustainable_growth_rate"] = float(sgr)
                     except (ValueError, TypeError, ZeroDivisionError):
                         pass
 
@@ -1046,10 +1196,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     pass
 
             # FCF Growth YoY - only if actual prior FCF available
+            # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as net_income_growth_yoy above -
+            # these three share the identical NUMERIC(10,4) column and tiny-prior-year-base risk.
             if free_cash_flow is not None and prior_year_free_cash_flow is not None and prior_year_free_cash_flow != 0:
                 try:
                     fcf_growth = ((free_cash_flow - prior_year_free_cash_flow) / abs(prior_year_free_cash_flow)) * 100
-                    metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
+                    if abs(fcf_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["fcf_growth_yoy"] = float(round(fcf_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -1057,7 +1210,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if operating_cash_flow is not None and prior_year_operating_cash_flow is not None and prior_year_operating_cash_flow != 0:
                 try:
                     ocf_growth = ((operating_cash_flow - prior_year_operating_cash_flow) / abs(prior_year_operating_cash_flow)) * 100
-                    metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
+                    if abs(ocf_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -1065,7 +1219,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if total_assets is not None and prior_year_total_assets is not None and prior_year_total_assets != 0:
                 try:
                     asset_growth = ((total_assets - prior_year_total_assets) / abs(prior_year_total_assets)) * 100
-                    metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
+                    if abs(asset_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
@@ -1189,7 +1344,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["ocf_to_net_income_unavailable_reason"] = (
                 "missing_sec_data" if "ocf_to_net_income" in failed_metrics else None
             )
-            metrics["payout_ratio_unavailable_reason"] = "missing_sec_data" if "payout_ratio" in failed_metrics else None
+            metrics["payout_ratio_unavailable_reason"] = payout_ratio_reason
             metrics["free_cash_flow_unavailable_reason"] = "missing_sec_data" if "free_cash_flow" in failed_metrics else None
             metrics["operating_cash_flow_unavailable_reason"] = (
                 "missing_sec_data" if "operating_cash_flow" in failed_metrics else None

@@ -68,11 +68,16 @@ class PositioningMetricsLoader(OptimalLoader):
                 # Fetch last 252 days of OHLCV data for A/D calculation
                 # NOTE: Removed data_unavailable = FALSE filter to allow computation
                 # even if price_daily may have some unavailable flags
+                # volume IS NOT NULL: thinly-traded days can carry a real OHLC print with no
+                # reported volume (live-confirmed on HCMA and 599 other symbols) - safe_float's
+                # allow_none=False crashed the whole A/D calc on those rows instead of just
+                # excluding them, so every symbol with even one such day lost its A/D rating
+                # entirely (masqueraded as ad_calculation_error, not insufficient_price_history).
                 cur.execute(
                     """
                     SELECT date, high, low, close, volume
                     FROM price_daily
-                    WHERE symbol = %s
+                    WHERE symbol = %s AND volume IS NOT NULL
                     ORDER BY date ASC
                     """,
                     (symbol,),
