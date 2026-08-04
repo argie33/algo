@@ -419,7 +419,7 @@ def run(  # noqa: C901
             log_level="critical",
         )
         log_phase_error(2, error, log_phase_result_fn)
-        logger.critical(f"[PHASE 2] Circuit breaker check failed (validation error): {str(e)[:100]}")
+        logger.critical(f"[PHASE 2] Circuit breaker check failed (validation error): {str(e)[:500]}")
         return PhaseResult(
             2,
             "circuit_breakers",
@@ -437,7 +437,7 @@ def run(  # noqa: C901
             log_level="critical",
         )
         log_phase_error(2, error, log_phase_result_fn)
-        logger.critical(f"[PHASE 2] Circuit breaker check failed: {str(e)[:100]}")
+        logger.critical(f"[PHASE 2] Circuit breaker check failed: {str(e)[:500]}")
         log_phase_result_fn(2, "circuit_breakers", "halt", f"Check failed: {str(e)[:50]}")
         return PhaseResult(
             2,

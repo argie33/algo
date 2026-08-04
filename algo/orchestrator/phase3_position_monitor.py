@@ -404,13 +404,13 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         updated += 1
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s (DB error): %s", symbol, str(e)[:200])
-                        update_errors.append((symbol, str(e)[:100]))
+                        update_errors.append((symbol, str(e)[:500]))
                     except (ValueError, TypeError) as e:
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s (data error): %s", symbol, str(e)[:200])
-                        update_errors.append((symbol, str(e)[:100]))
+                        update_errors.append((symbol, str(e)[:500]))
                     except ArithmeticError as e:
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s (arithmetic error): %s", symbol, str(e)[:200])
-                        update_errors.append((symbol, str(e)[:100]))
+                        update_errors.append((symbol, str(e)[:500]))
 
                 # GOVERNANCE: Fail-fast on ALL update errors. The code above explicitly fails on:
                 # - Missing current_price (lines 292-303)
@@ -484,7 +484,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
                         if attempt < max_retries - 1:
                             logger.warning(
-                                f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying with fresh cursor: {error_str[:100]}"
+                                f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying with fresh cursor: {error_str[:500]}"
                             )
                             # CRITICAL FIX: Don't try to ROLLBACK the poisoned cursor - it won't work.
                             # Instead, next iteration will use a fresh cursor via DatabaseContext.
@@ -718,7 +718,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
                     if attempt < max_retries - 1:
                         logger.warning(
-                            f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:100]}"
+                            f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:500]}"
                         )
                         import time
                         time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
@@ -738,7 +738,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     # Non-transient error - raise with explicit context
                     raise RuntimeError(
                         f"[PHASE 3] Position halt review failed: {type(review_err).__name__}: "
-                        f"{str(review_err)[:100].replace('%', '%%')}"
+                        f"{str(review_err)[:500].replace('%', '%%')}"
                     ) from review_err
 
         # ISSUE 5: Handle degraded mode where recommendations is empty due to retry exhaustion

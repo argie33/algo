@@ -370,7 +370,7 @@ def run(
             "max_new_positions_today": 0,
             "halt_new_entries": True,
             "max_concentration_pct": 0.0,
-            "halt_reason": f"Exposure policy error: {str(e)[:100]}. No entries allowed until resolved.",
+            "halt_reason": f"Exposure policy error: {str(e)[:500]}. No entries allowed until resolved.",
         }
         # ISSUE 15 FIX: Validate halt constraints before returning
         validate_constraint_dict(fail_halt_constraints)

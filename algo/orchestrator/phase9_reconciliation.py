@@ -1430,7 +1430,7 @@ def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None
             "Positions will be retried on next reconciliation run."
         )
         try:
-            log_phase_result_fn(9, "orphan_cleanup", "warn", f"failed: {str(e)[:100]}")
+            log_phase_result_fn(9, "orphan_cleanup", "warn", f"failed: {str(e)[:500]}")
         except Exception as log_err:
             logger.warning(f"[PHASE 9] Failed to log orphan cleanup warning: {log_err}")
 
@@ -1707,14 +1707,17 @@ def run(
             "Setting halt flag to prevent further trading until broker is accessible.",
             exc_info=True,
         )
-        # CRITICAL: Include full traceback in summary so it persists to execution log
-        error_summary = f"{error_type}: {error_msg[:100]}\n{full_traceback[:500]}"
+        # CRITICAL: Include full traceback in summary so it persists to execution log.
+        # Was truncating error_msg to 100 chars, which cut real Postgres errors (e.g.
+        # "column X of relation Y does not exist") off mid-word before the useful part -
+        # exactly the "halted, not sure why" blind spot this logging exists to prevent.
+        error_summary = f"{error_type}: {error_msg[:500]}\n{full_traceback[:1500]}"
         log_phase_result_fn(9, "reconciliation", "error", error_summary)
         return PhaseResult(
             9,
             "reconciliation",
             "error",
-            {"status": "error", "reason": f"Phase 9 error ({error_type}): {error_msg[:100]}", "positions": 0},
+            {"status": "error", "reason": f"Phase 9 error ({error_type}): {error_msg[:500]}", "positions": 0},
             True,
-            f"Phase 9 error ({error_type}): {error_msg[:100]}",
+            f"Phase 9 error ({error_type}): {error_msg[:500]}",
         )

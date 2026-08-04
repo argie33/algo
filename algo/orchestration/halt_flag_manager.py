@@ -240,7 +240,7 @@ class HaltFlagManager:
                             0,
                             "halt_flag_detected",
                             "halted",
-                            f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {reason[:100]})",
+                            f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {reason[:500]})",
                         )
                         return True
 
@@ -267,7 +267,7 @@ class HaltFlagManager:
                     0,
                     "halt_flag_detected",
                     "halted",
-                    f"Halt flag detected: {reason[:100]}",
+                    f"Halt flag detected: {reason[:500]}",
                 )
                 return True
 
@@ -518,7 +518,7 @@ class HaltFlagManager:
                                         f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
                                         f"Halt #{halt_count} in same day. "
                                         f"First at {first_time}, now at {now_time}. "
-                                        f"Reason: {reason[:100]}"
+                                        f"Reason: {reason[:500]}"
                                     )
                                     if halt_count >= 2:
                                         try:
@@ -530,7 +530,7 @@ class HaltFlagManager:
                                                 {
                                                     "halt_count": halt_count,
                                                     "first_at": first_trigger,
-                                                    "latest_reason": reason[:100],
+                                                    "latest_reason": reason[:500],
                                                 },
                                             )
                                         except (ValueError, ZeroDivisionError, TypeError) as alert_err:

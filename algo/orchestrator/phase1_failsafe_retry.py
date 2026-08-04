@@ -475,7 +475,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                         "loader": table_name,
                         "completion_pct": completion_pct,  # Preserve NULL (unknown) vs 0 (failed)
                         "symbols_missing": symbols_missing,
-                        "error": error_msg[:100] if error_msg else None,
+                        "error": error_msg[:500] if error_msg else None,
                         "is_critical": is_crit,
                     }
                 )

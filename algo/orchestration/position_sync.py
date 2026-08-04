@@ -192,7 +192,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             error_details.append({"symbol": symbol, "reason": error_reason})
 
                 except Exception as e:
-                    error_reason = f"{type(e).__name__}: {str(e)[:100]}"
+                    error_reason = f"{type(e).__name__}: {str(e)[:500]}"
                     logger.error(
                         f"[POSITION_SYNC] Error syncing {symbol}: {type(e).__name__}: {e}",
                         exc_info=True

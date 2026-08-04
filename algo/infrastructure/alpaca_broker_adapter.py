@@ -228,7 +228,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     f"Authentication failure: credentials invalid or account restricted. "
                     f"Check API credentials in AWS Secrets Manager."
                 )
-            raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
+            raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:500]}")
         except (
             requests.RequestException,
             requests.Timeout,

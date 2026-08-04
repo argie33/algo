@@ -225,39 +225,55 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         run_history = []
 
         for row in run_rows:
-            run_dict = safe_dict_convert(row)
-            row_data = safe_json_serialize(run_dict)
+            # DEFENSIVE (2026-08-04): one malformed row (e.g. legacy/hand-patched
+            # phase_results shape) used to 500 this entire dashboard endpoint - a
+            # `TypeError`/`AttributeError` anywhere in this per-row block was caught by
+            # the outer db_route_handler as a generic "Invalid request" with no indication
+            # which run_id caused it (live-observed 2026-08-03 14:50-14:55, never
+            # reproduced afterward - the bad row/state was transient, but nothing here
+            # stopped it from taking every other row down with it). Skip the offending
+            # row and keep serving the rest instead of failing the whole response.
+            try:
+                run_dict = safe_dict_convert(row)
+                row_data = safe_json_serialize(run_dict)
 
-            # Parse phase results
-            phase_results = row_data.get("phase_results")
-            phases_list = []
-            if phase_results:
-                try:
-                    if isinstance(phase_results, str):
-                        phase_results = json.loads(phase_results)
-                    if isinstance(phase_results, list):
-                        phases_list = phase_results
-                except (ValueError, TypeError):
-                    pass
+                # Parse phase results
+                phase_results = row_data.get("phase_results")
+                phases_list = []
+                if phase_results:
+                    try:
+                        if isinstance(phase_results, str):
+                            phase_results = json.loads(phase_results)
+                        if isinstance(phase_results, list):
+                            phases_list = [p for p in phase_results if isinstance(p, dict)]
+                    except (ValueError, TypeError):
+                        pass
 
-            # Build phase badge summary
-            phase_summary = {
-                "completed": len([p for p in phases_list if p.get("status") in ("ok", "success")]),
-                "halted": len([p for p in phases_list if p.get("status") in ("halt", "halted", "warn", "degraded")]),
-                "skipped": len([p for p in phases_list if p.get("status") == "skipped"]),
-                "errored": len([p for p in phases_list if p.get("status") in ("error", "failed")]),
-            }
+                # Build phase badge summary
+                phase_summary = {
+                    "completed": len([p for p in phases_list if p.get("status") in ("ok", "success")]),
+                    "halted": len([p for p in phases_list if p.get("status") in ("halt", "halted", "warn", "degraded")]),
+                    "skipped": len([p for p in phases_list if p.get("status") == "skipped"]),
+                    "errored": len([p for p in phases_list if p.get("status") in ("error", "failed")]),
+                }
 
-            run_history.append({
-                "run_id": row_data.get("run_id"),
-                "run_date": row_data.get("run_date"),
-                "status": row_data.get("overall_status"),
-                "started_at": row_data.get("started_at"),
-                "completed_at": row_data.get("completed_at"),
-                "halt_reason": row_data.get("halt_reason"),
-                "phase_summary": phase_summary,
-                "phases": phases_list[:9],  # All 9 phases
-            })
+                run_history.append({
+                    "run_id": row_data.get("run_id"),
+                    "run_date": row_data.get("run_date"),
+                    "status": row_data.get("overall_status"),
+                    "started_at": row_data.get("started_at"),
+                    "completed_at": row_data.get("completed_at"),
+                    "halt_reason": row_data.get("halt_reason"),
+                    "phase_summary": phase_summary,
+                    "phases": phases_list[:9],  # All 9 phases
+                })
+            except Exception as row_err:
+                bad_run_id = row[0] if row else "unknown"
+                logger.warning(
+                    f"[FRESHNESS_EXTENDED] Skipping malformed run_history row (run_id={bad_run_id}): "
+                    f"{type(row_err).__name__}: {row_err}"
+                )
+                continue
 
         # 2. Calculate phase-level health (success rates for each phase across 30 days)
         phase_health = {}
@@ -282,16 +298,20 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         """)
 
         for row in cur.fetchall():
-            row_dict = safe_dict_convert(row)
-            phase_num = row_dict.get("phase_num")
-            total = row_dict.get("total_runs") or 0
-            success = row_dict.get("successful_runs") or 0
-            success_rate = (success / total * 100) if total > 0 else 0
-            phase_health[phase_num] = {
-                "total_runs": total,
-                "successful_runs": success,
-                "success_rate": round(success_rate, 1),
-            }
+            try:
+                row_dict = safe_dict_convert(row)
+                phase_num = row_dict.get("phase_num")
+                total = row_dict.get("total_runs") or 0
+                success = row_dict.get("successful_runs") or 0
+                success_rate = (success / total * 100) if total > 0 else 0
+                phase_health[phase_num] = {
+                    "total_runs": total,
+                    "successful_runs": success,
+                    "success_rate": round(success_rate, 1),
+                }
+            except Exception as row_err:
+                logger.warning(f"[FRESHNESS_EXTENDED] Skipping malformed phase_health row: {type(row_err).__name__}: {row_err}")
+                continue
 
         # 3. Get failure patterns (most common halt reasons)
         cur.execute("""
@@ -347,23 +367,27 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         loader_health = []
         for row in cur.fetchall():
             loader_health_total_tracked += 1
-            row_dict = safe_dict_convert(row)
-            table_name = row_dict.get("table_name")
-            status = row_dict.get("status")
-            cons_failures = row_dict.get("consecutive_failures") or 0
-            retry_count = row_dict.get("retry_count") or 0
-            last_success = row_dict.get("last_success_at")
-            is_unhealthy = cons_failures > 0 or status not in healthy_loader_statuses
+            try:
+                row_dict = safe_dict_convert(row)
+                table_name = row_dict.get("table_name")
+                status = row_dict.get("status")
+                cons_failures = row_dict.get("consecutive_failures") or 0
+                retry_count = row_dict.get("retry_count") or 0
+                last_success = row_dict.get("last_success_at")
+                is_unhealthy = cons_failures > 0 or status not in healthy_loader_statuses
 
-            if is_unhealthy:
-                loader_health.append({
-                    "table_name": table_name,
-                    "status": status,
-                    "consecutive_failures": cons_failures,
-                    "retry_count": retry_count,
-                    "last_success_at": last_success,
-                    "is_unhealthy": is_unhealthy,
-                })
+                if is_unhealthy:
+                    loader_health.append({
+                        "table_name": table_name,
+                        "status": status,
+                        "consecutive_failures": cons_failures,
+                        "retry_count": retry_count,
+                        "last_success_at": last_success,
+                        "is_unhealthy": is_unhealthy,
+                    })
+            except Exception as row_err:
+                logger.warning(f"[FRESHNESS_EXTENDED] Skipping malformed loader_health row: {type(row_err).__name__}: {row_err}")
+                continue
 
         loader_health_total_unhealthy = len(loader_health)
 

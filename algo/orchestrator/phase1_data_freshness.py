@@ -521,7 +521,7 @@ def run(  # noqa: C901
                     else:
                         # Permanent error or last attempt
                         logger.error(f"[PHASE 1] stock_symbols check failed (attempt {attempt + 1}): {query_err}")
-                        last_error = f"{type(query_err).__name__}: {str(query_err)[:100]}"
+                        last_error = f"{type(query_err).__name__}: {str(query_err)[:500]}"
                         break
 
             if symbol_count is None or symbol_count == 0:
@@ -1094,7 +1094,7 @@ def run(  # noqa: C901
                     1,
                     "table_freshness_check_error",
                     "halt",
-                    f"Could not verify table freshness: {str(e)[:100]}",
+                    f"Could not verify table freshness: {str(e)[:500]}",
                 )
                 return PhaseResult(
                     1,
@@ -1102,7 +1102,7 @@ def run(  # noqa: C901
                     "halted",
                     {},
                     True,
-                    f"Table freshness check failed (cannot distinguish stale from error): {str(e)[:100]}",
+                    f"Table freshness check failed (cannot distinguish stale from error): {str(e)[:500]}",
                 )
 
             if warn_stale:
@@ -1284,7 +1284,7 @@ def run(  # noqa: C901
                             f"GOVERNANCE requires fail-fast on metric validation failure. "
                             f"Root cause must be resolved before trading resumes."
                         )
-                        halt_reason = f"Metric loader validation failed: {metric_error[:100]}"
+                        halt_reason = f"Metric loader validation failed: {metric_error[:500]}"
                         log_phase_result_fn(1, "metric_validation_failed", "halt", halt_reason)
                         return PhaseResult(
                             1,
@@ -1296,7 +1296,7 @@ def run(  # noqa: C901
                         )
                     else:
                         logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
-                        halt_reason = f"Required metric loaders not ready: {metric_error[:100]}"
+                        halt_reason = f"Required metric loaders not ready: {metric_error[:500]}"
                         log_phase_result_fn(1, "metric_loaders_not_ready", "halt", halt_reason)
                         return PhaseResult(
                             1,
@@ -1317,7 +1317,7 @@ def run(  # noqa: C901
                     # "all_tables_fresh"/"success" logging further down, masking the original
                     # critical metric-validation failure as a clean pass - the DB error ate the
                     # halt, rather than the halt surviving the DB error.
-                    halt_reason = f"Could not verify metric availability (DB error): {str(check_err)[:100]}"
+                    halt_reason = f"Could not verify metric availability (DB error): {str(check_err)[:500]}"
                     logger.critical(
                         f"[PHASE 1] {halt_reason}. Original metric validation failure: {metric_error}"
                     )
@@ -1331,7 +1331,7 @@ def run(  # noqa: C901
                         halt_reason,
                     )
                 except (RuntimeError, ValueError, KeyError) as check_err:
-                    halt_reason = f"Could not verify metric availability (validation error): {str(check_err)[:100]}"
+                    halt_reason = f"Could not verify metric availability (validation error): {str(check_err)[:500]}"
                     logger.error(f"[PHASE 1] {halt_reason}")
                     logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
                     log_phase_result_fn(1, "metric_verification_error", "halt", halt_reason)

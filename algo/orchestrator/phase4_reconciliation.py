@@ -261,7 +261,7 @@ def run(  # noqa: C901
                     4,
                     "reconciliation",
                     "error",
-                    f"Broker unavailable ({error_msg[:100]}). Positions cannot be reconciled. Check Alpaca API status.",
+                    f"Broker unavailable ({error_msg[:500]}). Positions cannot be reconciled. Check Alpaca API status.",
                 )
             else:
                 # CRITICAL: Always use explicit error message, don't default to generic

@@ -361,7 +361,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
         error = PhaseError(
             category=ErrorCategory.DATABASE_ERROR,
             message="Cannot check upstream data quality drift (DB error)",
-            root_cause=f"Database query failed: {str(e)[:100]}",
+            root_cause=f"Database query failed: {str(e)[:500]}",
             recoverable=False,
             log_level="critical",
         )
@@ -1564,7 +1564,7 @@ def run(  # noqa: C901
             7,
             "signal_generation",
             "halt",
-            f"Market regime halted entries: {reasons[:100]}",
+            f"Market regime halted entries: {reasons[:500]}",
         )
         return PhaseResult(
             7,
@@ -1572,7 +1572,7 @@ def run(  # noqa: C901
             "halted",
             {"qualified_trades": [], "liquidity_passed": 0},
             True,
-            reasons[:100],
+            reasons[:500],
         )
 
     # ISSUE #7 FIX: Exposure policy gate - fail-closed if constraints not provided

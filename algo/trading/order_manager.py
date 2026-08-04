@@ -947,7 +947,7 @@ class OrderManager:
                                 else:
                                     logger.warning(
                                         f"[SEND_EXIT] {symbol}: Close-position endpoint returned "
-                                        f"{close_resp.status_code}: {close_resp.text[:100]}"
+                                        f"{close_resp.status_code}: {close_resp.text[:500]}"
                                     )
                     except (ValueError, TypeError, json.JSONDecodeError) as e:
                         logger.error(

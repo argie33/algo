@@ -1208,7 +1208,7 @@ def run(
             6,
             "exit_execution",
             "halted",
-            {"status": "halted", "reason": f"Exit execution error: {str(e)[:100]}", "exits_executed": 0},
+            {"status": "halted", "reason": f"Exit execution error: {str(e)[:500]}", "exits_executed": 0},
             True,
             str(e),
         )
