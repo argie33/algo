@@ -1419,11 +1419,12 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
                     logger.info("[DEV_AUTH] Development token accepted (local dev mode)")
                     return (True, True, None, claims)
             else:
-                # In local dev mode, allow unauthenticated access with default dev claims
-                claims = get_dev_claims("dev-user")
+                # In local dev mode, allow unauthenticated access with default admin claims for dashboard
+                # Dashboard requires admin access for positions, portfolio, trades, etc.
+                claims = get_dev_claims("dev-admin")
                 if claims:
                     logger.info(
-                        "[DEV_AUTH] Local dev mode: allowing unauthenticated access with default dev-user claims"
+                        "[DEV_AUTH] Local dev mode: allowing unauthenticated access with default dev-admin claims"
                     )
                     return (True, True, None, claims)
         except ImportError:
