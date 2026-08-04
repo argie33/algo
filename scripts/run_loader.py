@@ -73,7 +73,7 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
         # Get all active symbols from stock_symbols table
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
 
         if not symbols:
@@ -130,7 +130,7 @@ def run_price_loader(symbols=None, backfill_days=0):
         try:
             conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
             cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
@@ -154,7 +154,7 @@ def run_technical_indicators_loader(backfill_days=0):
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -216,7 +216,7 @@ def run_value_quality_growth_loader():
         try:
             conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
             cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
@@ -285,7 +285,7 @@ def run_analyst_earnings_estimates_loader():
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -310,7 +310,7 @@ def run_stock_scores_loader(limit=None):
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -350,7 +350,7 @@ def run_buy_sell_daily_loader():
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -375,7 +375,7 @@ def run_positioning_metrics_loader():
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -400,7 +400,7 @@ def run_stability_metrics_loader():
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
