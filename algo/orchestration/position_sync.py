@@ -49,6 +49,8 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
         (inserted_count, updated_count, error_count, error_details)
         where error_details is list of {symbol: str, reason: str} dicts
     """
+    import psycopg2
+
     inserted = 0
     updated = 0
     errors = 0
@@ -70,23 +72,29 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
             logger.info(f"[POSITION_SYNC] Found {len(open_positions)} open positions in trades")
 
             for symbol, total_qty in open_positions:
+                savepoint = f"sp_{symbol.replace('-', '_')}"
                 try:
-                    # Check if position exists
+                    # Create savepoint before each symbol to isolate transaction errors
+                    cur.execute(f"SAVEPOINT {savepoint}")
+
+                    # Check if position exists (open or closed - reopen if needed)
                     cur.execute(
-                        'SELECT id FROM algo_positions WHERE symbol = %s AND status = %s',
-                        (symbol, 'open')
+                        'SELECT id, status FROM algo_positions WHERE symbol = %s ORDER BY updated_at DESC LIMIT 1',
+                        (symbol,)
                     )
                     existing = cur.fetchone()
 
                     if existing:
-                        # Update existing position
+                        existing_id, existing_status = existing
+                        # Update existing position and reopen if it was closed
                         cur.execute(
-                            'UPDATE algo_positions SET quantity = %s, updated_at = NOW() '
-                            'WHERE symbol = %s AND status = %s',
-                            (total_qty, symbol, 'open')
+                            'UPDATE algo_positions SET quantity = %s, status = %s, updated_at = NOW() '
+                            'WHERE symbol = %s',
+                            (total_qty, 'open', symbol)
                         )
                         updated += 1
-                        logger.debug(f"[POSITION_SYNC] Updated {symbol}: {total_qty:.2f} shares")
+                        action = "reopened" if existing_status == 'closed' else "updated"
+                        logger.debug(f"[POSITION_SYNC] {action.capitalize()} {symbol}: {total_qty:.2f} shares (was {existing_status})")
                     else:
                         # Get entry_price and risk/position-linkage fields from first trade.
                         # algo_positions requires position_id, avg_entry_price, stop_loss_price,
@@ -199,7 +207,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                     )
                     errors += 1
                     error_details.append({"symbol": symbol, "reason": error_reason})
-                    # Continue to next symbol - per-symbol errors don't halt entire sync
+                    # Rollback to savepoint to recover from transaction abort
+                    # This allows continuing to process remaining symbols even if one fails
+                    try:
+                        cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    except psycopg2.Error as rollback_err:
+                        logger.error(f"[POSITION_SYNC] Savepoint rollback failed for {symbol}: {rollback_err}")
+                        # Continue anyway - the per-symbol error already logged
 
     except Exception as e:
         logger.error(f"[POSITION_SYNC] CRITICAL: Failed to sync positions: {e}")

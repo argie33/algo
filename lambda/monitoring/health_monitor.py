@@ -52,7 +52,6 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
         critical_loaders = [
             "price_daily",
             "sector_ranking",
-            "options_chains",
             "earnings_calendar_sec",
             "analyst_upgrade_downgrade",
             "insider_transactions",

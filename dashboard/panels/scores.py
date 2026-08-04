@@ -103,7 +103,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         box=box.SIMPLE_HEAD,
         show_header=True,
         header_style="dim",
-        padding=(0, 1),
+        padding=(1, 1),
         # expand=True stretches every fixed-width column proportionally to fill the
         # console (Rich distributes leftover space across ALL columns, not just wide
         # ones), which reads as huge gaps once the Company column pushes the natural
@@ -198,14 +198,14 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
         # Build small table for top 15 with rank numbers
         t = Table(
             box=box.SIMPLE_HEAD,
-            show_header=True,
+            show_header=False,
             header_style="dim",
-            padding=(0, 0),
+            padding=(0, 1),
             expand=False,
             row_styles=["", "dim"],
         )
         t.add_column("#", style="dim", justify="right", no_wrap=True, width=2)
-        t.add_column("S", style="bold white", no_wrap=True, width=4)
+        t.add_column("S", style="bold white", no_wrap=True, width=5)
         t.add_column(factor_name[:2], justify="right", no_wrap=True, width=4)
 
         for rank, (score_val, sc) in enumerate(sorted_scores[:15], 1):

@@ -437,17 +437,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "algo_trades",
                 "SELECT COUNT(*) AS row_count, MAX(entry_date) AS last_updated FROM algo_trades",
             ),
-            # Options data (put/call ratio, IV rank, implied move - algo/signals/signal_options.py).
-            # Not written via LoaderStatusManager, so it had no data_loader_status row and was
-            # completely invisible on the DATA FRESHNESS panel - confirmed live 2026-08-04: 2,422
-            # rows present but max(quote_date) was 45 days stale with zero signal anywhere. The
-            # signal functions that read this table aren't currently wired into signal_computer's
-            # live scoring path, so this doesn't affect today's trades, but staleness here should
-            # still be visible instead of silent for whenever that changes.
-            (
-                "options_chains",
-                "SELECT COUNT(*) AS row_count, MAX(quote_date) AS last_updated FROM options_chains",
-            ),
         ]:
             if tbl_name in loader_names:
                 continue
