@@ -747,12 +747,16 @@ def _get_algo_portfolio(cur: cursor) -> Any:
 @db_route_handler("get daily return histogram")
 def _get_daily_return_histogram(cur: cursor) -> Any:
     try:
+        # No LIMIT: this feeds the mean/std (volatility) stats on the histogram panel. A
+        # hardcoded LIMIT 250 here would silently drop everything before the most recent
+        # ~250 daily snapshots with no signal to the caller once history grows past that
+        # (currently well under it - only rows with non-NULL daily_return_pct qualify -
+        # but the cap was arbitrary and would bite silently later). Full history is cheap
+        # here (one float column, no per-row work) so there's no performance reason to cap it.
         cur.execute("""
             SELECT daily_return_pct
             FROM algo_portfolio_snapshots
             WHERE daily_return_pct IS NOT NULL
-            ORDER BY snapshot_date DESC
-            LIMIT 250
         """)
         rows = cur.fetchall()
         returns = [float(r["daily_return_pct"]) for r in rows if r.get("daily_return_pct") is not None]
@@ -799,6 +803,10 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
 
 @db_route_handler("get holding period distribution")
 def _get_holding_period_distribution(cur: cursor) -> Any:
+    # No LIMIT: this is a full-history distribution of every closed trade's holding
+    # period, not a recent-activity feed. A hardcoded LIMIT 500 here would silently
+    # exclude older trades from the bucket counts once total closed trades passes 500 -
+    # same silent-truncation pattern fixed on the daily-return histogram above.
     cur.execute("""
         SELECT CASE
             WHEN trade_duration_days IS NOT NULL AND trade_duration_days > 0 THEN trade_duration_days
@@ -806,8 +814,6 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
         END AS trade_duration_days
         FROM algo_trades
         WHERE status = 'closed' AND exit_date IS NOT NULL
-        ORDER BY exit_date DESC
-        LIMIT 500
     """)
     rows = cur.fetchall()
     durations = [int(r["trade_duration_days"]) for r in rows if r.get("trade_duration_days") is not None]
@@ -1188,12 +1194,12 @@ def _get_stage_distribution(cur: cursor) -> Any:
 
 @db_route_handler("get trade distribution")
 def _get_trade_distribution(cur: cursor) -> Any:
+    # No LIMIT: full-history R-multiple distribution across every closed trade - same
+    # silent-truncation reasoning as the holding-period distribution above.
     cur.execute("""
         SELECT exit_r_multiple
         FROM algo_trades
         WHERE exit_r_multiple IS NOT NULL AND status = 'closed'
-        ORDER BY exit_date DESC
-        LIMIT 500
     """)
     rows = cur.fetchall()
     r_multiples = [float(r["exit_r_multiple"]) for r in rows if r.get("exit_r_multiple") is not None]
