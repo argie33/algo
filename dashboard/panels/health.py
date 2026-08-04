@@ -516,10 +516,10 @@ def _build_phase_execution_panel(
                 phase_rows.append(Text.from_markup(f"      [{R}]ERROR: Missing circuit breaker status[/]"))
             else:
                 any_triggered = phase_data["any_triggered"]
-                dd = phase_data.get("drawdown_pct")
-                dl = phase_data.get("daily_loss_pct")
-                vix = phase_data.get("vix_level")
-                var95 = phase_data.get("var95")
+                dd = safe_float(phase_data.get("drawdown_pct"), default=None)
+                dl = safe_float(phase_data.get("daily_loss_pct"), default=None)
+                vix = safe_float(phase_data.get("vix_level"), default=None)
+                var95 = safe_float(phase_data.get("var95"), default=None)
 
                 triggered_status = "TRIGGERED" if any_triggered else "OK"
                 triggered_color = R if any_triggered else G
@@ -539,10 +539,10 @@ def _build_phase_execution_panel(
                     phase_rows.append(Text.from_markup(f"      [dim]VaR 95%:[/] [{var_color}]{var95:.2f}%[/]"))
 
         elif phase_num == 3:  # Position Monitor
-            open_positions = phase_data.get("open_positions")
-            oldest_days = phase_data.get("oldest_days")
-            max_loss_pct = phase_data.get("max_loss_pct")
-            total_unrealized = phase_data.get("total_unrealized_pnl")
+            open_positions = safe_int(phase_data.get("open_positions"), default=None)
+            oldest_days = safe_int(phase_data.get("oldest_days"), default=None)
+            max_loss_pct = safe_float(phase_data.get("max_loss_pct"), default=None)
+            total_unrealized = safe_float(phase_data.get("total_unrealized_pnl"), default=None)
 
             if open_positions is not None:
                 pos_color = G if open_positions == 0 else Y if open_positions <= 5 else R
@@ -557,9 +557,9 @@ def _build_phase_execution_panel(
                 phase_rows.append(Text.from_markup(f"      [dim]Total P&L:[/] [{pnl_color}]${total_unrealized:,.0f}[/]"))
 
         elif phase_num == 4:  # Broker Reconciliation
-            sync_count = phase_data.get("sync_count")
-            avg_match_pct = phase_data.get("avg_match_pct")
-            errors_found = phase_data.get("errors_found")
+            sync_count = safe_int(phase_data.get("sync_count"), default=None)
+            avg_match_pct = safe_float(phase_data.get("avg_match_pct"), default=None)
+            errors_found = safe_int(phase_data.get("errors_found"), default=None)
 
             if sync_count is not None:
                 phase_rows.append(Text.from_markup(f"      [dim]Syncs attempted:[/] {sync_count}"))
@@ -596,14 +596,14 @@ def _build_phase_execution_panel(
                         phase_rows.append(Text.from_markup(f"      [dim]Reason:[/] {halt_reason[:60]}"))
 
         elif phase_num == 6:  # Exit Execution
-            exits_executed = phase_data.get("exits_executed")
-            success_rate = phase_data.get("success_rate")
-            avg_profit = phase_data.get("avg_profit")
+            exits_executed = safe_int(phase_data.get("exits_executed"), default=None)
+            success_rate = safe_float(phase_data.get("success_rate"), default=None)
+            avg_profit = safe_float(phase_data.get("avg_profit"), default=None)
             symbols_exited = phase_data.get("symbols_exited")
 
             if exits_executed is not None:
                 phase_rows.append(Text.from_markup(f"      [dim]Exits executed:[/] {exits_executed}"))
-            if success_rate is not None and exits_executed and exits_executed > 0:
+            if success_rate is not None and exits_executed is not None and exits_executed > 0:
                 sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
                 phase_rows.append(Text.from_markup(f"      [dim]Success rate:[/] [{sr_color}]{success_rate:.0f}%[/]"))
             if avg_profit is not None:
@@ -616,10 +616,10 @@ def _build_phase_execution_panel(
                     phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_exited[:5])}"))
 
         elif phase_num == 7:  # Signal Generation
-            signals_generated = phase_data.get("signals_generated")
-            buy_signals = phase_data.get("buy_signals")
-            sell_signals = phase_data.get("sell_signals")
-            avg_strength = phase_data.get("avg_strength")
+            signals_generated = safe_int(phase_data.get("signals_generated"), default=None)
+            buy_signals = safe_int(phase_data.get("buy_signals"), default=None)
+            sell_signals = safe_int(phase_data.get("sell_signals"), default=None)
+            avg_strength = safe_float(phase_data.get("avg_strength"), default=None)
             symbols_with_signals = phase_data.get("symbols_with_signals")
 
             if signals_generated is not None:
@@ -638,14 +638,14 @@ def _build_phase_execution_panel(
                     phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_with_signals[:5])}"))
 
         elif phase_num == 8:  # Entry Execution
-            entries_executed = phase_data.get("entries_executed")
-            success_rate = phase_data.get("success_rate")
-            avg_entry_price = phase_data.get("avg_entry_price")
+            entries_executed = safe_int(phase_data.get("entries_executed"), default=None)
+            success_rate = safe_float(phase_data.get("success_rate"), default=None)
+            avg_entry_price = safe_float(phase_data.get("avg_entry_price"), default=None)
             symbols_entered = phase_data.get("symbols_entered")
 
             if entries_executed is not None:
                 phase_rows.append(Text.from_markup(f"      [dim]Entries executed:[/] [{G}]{entries_executed}[/]"))
-            if success_rate is not None and entries_executed and entries_executed > 0:
+            if success_rate is not None and entries_executed is not None and entries_executed > 0:
                 sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
                 phase_rows.append(Text.from_markup(f"      [dim]Success rate:[/] [{sr_color}]{success_rate:.0f}%[/]"))
             if avg_entry_price is not None:
@@ -657,9 +657,9 @@ def _build_phase_execution_panel(
                     phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_entered[:5])}"))
 
         elif phase_num == 9:  # Portfolio Snapshot
-            portfolio_value = phase_data.get("portfolio_value")
-            cash_available = phase_data.get("cash_available")
-            total_return_pct = phase_data.get("total_return_pct")
+            portfolio_value = safe_float(phase_data.get("portfolio_value"), default=None)
+            cash_available = safe_float(phase_data.get("cash_available"), default=None)
+            total_return_pct = safe_float(phase_data.get("total_return_pct"), default=None)
             latest_snapshot = phase_data.get("latest_snapshot")
 
             if portfolio_value is not None:
@@ -1237,6 +1237,7 @@ def _build_freshness_panel(
         tbl.add_column("Rows", no_wrap=True, min_width=7, justify="right")
         tbl.add_column("Duration", no_wrap=True, min_width=7, justify="right")
         tbl.add_column("Last Success", no_wrap=True, min_width=10, justify="right")
+        tbl.add_column("Fails", no_wrap=True, min_width=4, justify="right")
         tbl.add_column("Status", no_wrap=True, min_width=5)
 
         for r in items:
@@ -1291,12 +1292,25 @@ def _build_freshness_panel(
                 last_success_s = "--"
 
             st_label = "ok" if ok else st.upper()[:3]
+
+            # Consecutive-failure count as its own always-visible column - previously this
+            # only showed up in a separate "Repeated failures" list further down the panel,
+            # so a table with a fresh "ok" status (e.g. it succeeded again after failing all
+            # day) gave zero indication in its own row that the loader had been failing
+            # repeatedly. Surfacing it here means the loader's operational health and the
+            # table's data freshness are both visible on the same row, instead of one
+            # masking the other.
+            cons_fail = r.get("consecutive_failures")
+            cons_fail_n = cons_fail if isinstance(cons_fail, (int, float)) and cons_fail > 0 else None
+            fails_s = str(int(cons_fail_n)) if cons_fail_n is not None else "-"
+
             tbl.add_row(
                 Text.from_markup(f"[{ic}]{ii}[/] {nm}"),
                 Text(_fmt_age(r), style=DIM if ok else Y),
                 Text(rc_s, style="dim"),
                 Text(duration_s, style="dim"),
                 Text(last_success_s, style="dim"),
+                Text(fails_s, style=R if cons_fail_n else "dim"),
                 Text(st_label, style=G if ok else (Y if st == "empty" else R)),
             )
         return tbl
@@ -1321,10 +1335,16 @@ def _build_freshness_panel(
     # mid-run right now. This data is written by every loader (LoaderStatusManager) but a
     # bare "STALE"/"EMPTY" badge above gives no way to tell "loader never ran" from "loader
     # is failing every day with an auth/rate-limit error" without reading raw logs.
+    # CRITICAL FIX 2026-08-03: previously gated on `st != "ok"`, so a table with a genuinely
+    # fresh "ok" status (its last SUCCESSFUL run met the freshness window) still hid its own
+    # error_message/loader_run_status even when other recent runs had been failing - the
+    # freshness verdict and the loader's operational health are different signals (see the
+    # last_success_at fix in lambda/api/routes/algo_handlers/market.py's _get_data_status);
+    # a table can be "ok" and still have a real, current loader_error worth showing.
     loader_errors = [
         (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
         for r in sorted_items
-        if r.get("st") != "ok" and r.get("loader_error")
+        if r.get("loader_error")
     ]
     if loader_errors:
         left_rows.append(Rule(style="dim"))
@@ -2573,27 +2593,41 @@ def _format_comprehensive_table_loader_health(
         hlth = hlth_dict.get(tbl, {})
         load = loader_dict.get(tbl, {})
 
+        # CRITICAL FIX 2026-08-03: freshness status (hlth's "st": ok/stale/critical/empty) and
+        # loader operational health (consecutive_failures, loader run status) are independent
+        # signals - a table can be freshness-"ok" (its last SUCCESSFUL run met the freshness
+        # window) while the loader has failed on every attempt since. This used to
+        # short-circuit straight into "healthy" whenever status == "ok" with no look at
+        # consecutive_failures/loader status at all, so a table with dozens of consecutive
+        # failures (live-confirmed: price_daily at consecutive_failures=42) could render as a
+        # plain "healthy" entry with zero indication anything was wrong. Check loader health
+        # up front, independent of the status branch below.
+        cons_failures = hlth.get("consecutive_failures")
+        if not isinstance(cons_failures, (int, float)):
+            cons_failures = load.get("consecutive_failures")
+        loader_run_status = str(hlth.get("loader_run_status") or load.get("status") or "").lower()
+        loader_unhealthy = (isinstance(cons_failures, (int, float)) and cons_failures > 0) or loader_run_status in (
+            "error",
+            "failed",
+            "timeout",
+        )
+
         # Determine primary status from health data
         status = hlth.get("st", "unknown")
-        if status == "ok":
-            categories["healthy"].append((tbl, hlth, load))
-        elif status == "stale":
-            categories["stale"].append((tbl, hlth, load))
-        elif status == "critical":
+        if status == "critical":
             categories["critical"].append((tbl, hlth, load))
         elif status == "empty":
             categories["empty"].append((tbl, hlth, load))
+        elif loader_unhealthy:
+            categories["error"].append((tbl, hlth, load))
+        elif status == "ok":
+            categories["healthy"].append((tbl, hlth, load))
+        elif status == "stale":
+            categories["stale"].append((tbl, hlth, load))
         else:
-            # Check loader status if health status unclear
-            loader_status = load.get("status", "").lower()
-            if loader_status in ("error", "failed"):
-                categories["error"].append((tbl, hlth, load))
-            elif status == "unknown" or not hlth_dict.get(tbl):
-                # Loader-only tables (orchestrator-generated)
-                if loader_status in ("running", "loading", "not_started"):
-                    categories["stale"].append((tbl, hlth, load))
-                else:
-                    categories["healthy"].append((tbl, hlth, load))
+            # Loader-only tables (orchestrator-generated) with unclear freshness status
+            if loader_run_status in ("running", "loading", "not_started"):
+                categories["stale"].append((tbl, hlth, load))
             else:
                 categories["healthy"].append((tbl, hlth, load))
 
@@ -2651,8 +2685,11 @@ def _format_table_with_loader(
     # Table name (left-aligned, 16 chars)
     tbl_display = table_name[:16].ljust(16)
 
-    # Loader status badge
-    loader_status = load.get("status", "").lower() if load else ""
+    # Loader status badge - fall back to hlth's own loader_run_status when the separate
+    # `load` lookup has no entry for this table (it's sourced from a different fetch than
+    # hlth_items, so isn't guaranteed to cover every table hlth_items does).
+    loader_status_raw = (load.get("status") if load else None) or hlth.get("loader_run_status") or ""
+    loader_status = str(loader_status_raw).lower()
     if loader_status in ("running", "loading"):
         badge = f"[{CY}]●[/]"
         completion = load.get("completion_pct")
@@ -2696,16 +2733,19 @@ def _format_table_with_loader(
     # Build line
     line = f"  {badge} [{color}]{tbl_display}[/] [dim]{age_text}{row_text}[/]"
 
-    # Add error/loader details if showing errors
+    # Add error/loader details if showing errors - same load-then-hlth fallback as the badge
+    # above, so a table only present in hlth_items still shows its real failure reason/count.
     if show_error:
-        error_msg = load.get("error_message", "")
+        error_msg = load.get("error_message") or hlth.get("loader_error") or ""
         if error_msg:
-            line += f" [dim]{error_msg[:30]}[/]"
+            line += f" [dim]{str(error_msg)[:30]}[/]"
 
         # Show consecutive failures for repeated failures
         consecutive = load.get("consecutive_failures")
-        if consecutive and consecutive > 1:
-            line += f" [yellow]({consecutive} failures)[/]"
+        if not isinstance(consecutive, (int, float)):
+            consecutive = hlth.get("consecutive_failures")
+        if isinstance(consecutive, (int, float)) and consecutive > 1:
+            line += f" [yellow]({int(consecutive)} failures)[/]"
 
     if status_text:
         line += f"[{CY}]{status_text}[/]"
@@ -4177,10 +4217,13 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
 
     # ── LOADER ERRORS ──────────────────────────────────────────
     # Show which loaders are failing and why
+    # See _build_freshness_panel's matching fix: st=="ok" (freshness) and loader_error
+    # (operational health) are independent signals - don't hide a real error behind a fresh
+    # status.
     loader_errors = [
         (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
         for r in hlth_items
-        if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_error")
+        if isinstance(r, dict) and r.get("loader_error")
     ]
     if loader_errors:
         rows.append(Rule(style="dim"))
