@@ -27,6 +27,7 @@ import pandas as pd
 import requests
 
 from loaders.runner import run_loader
+from utils.db import DatabaseContext
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
@@ -111,14 +112,25 @@ EXCLUSION_PATTERNS = [
 # against the full live nasdaqlisted.txt/otherlisted.txt feeds: this change flips exactly
 # AGNC and SAR to included and leaves every SPAC-family row (units/warrants/rights/base
 # shares) excluded, same as before.
-INVESTMENT_CORP_PATTERN = re.compile(r"\binvestment corp\b", re.IGNORECASE)
+#
+# GOVERNANCE 2026-08-04: `\binvestment corp\b` alone missed the more common SPAC-sponsor
+# naming convention, "... Acquisition Corp[oration]" (Abony Acquisition Corp. I, Alpex
+# Acquisition Corporation, Iron Dome Acquisition I Corp., etc.) - live-confirmed 75
+# already-active symbols in the local DB whose base "Class A Ordinary Share(s)" equity
+# line was never excluded by any pattern (their units/rights lines already were), showing
+# up as chronic "missing" gaps against price_daily since yfinance has no ticker for them.
+# Same false-positive guard as above applies here: only excludes when the SPAC
+# "Ordinary Shares"/"Rights" share-class language is also present, so a real operating
+# company that happens to have "Acquisition Corp" in its legal name but lists "Common
+# Stock" is untouched.
+CORP_SPONSOR_PATTERN = re.compile(r"\b(investment|acquisition) corp(oration)?\b", re.IGNORECASE)
 SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.IGNORECASE)
 
 
 def should_exclude(name: str) -> bool:
     if any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS):
         return True
-    if INVESTMENT_CORP_PATTERN.search(name) and SPAC_SHARE_CLASS_PATTERN.search(name):
+    if CORP_SPONSOR_PATTERN.search(name) and SPAC_SHARE_CLASS_PATTERN.search(name):
         return True
     return False
 
@@ -129,6 +141,46 @@ class MarketConstituentsLoader(OptimalLoader):
     table_name = "stock_symbols"
     primary_key = ("symbol",)
     watermark_field = "created_at"
+
+    def _deactivate_stale_excluded_symbols(self) -> None:
+        """Re-apply should_exclude() to already-`active=true` rows and flip any new matches.
+
+        GOVERNANCE 2026-08-04: excluded symbols are simply omitted from the `rows` list
+        fetch_global() returns, so the bulk-insert write path below never touches them -
+        a symbol that was `active=true` under an OLDER, looser EXCLUSION_PATTERNS/
+        CORP_SPONSOR_PATTERN stays `active=true` forever, even after a pattern tightens to
+        newly cover it. Live-confirmed: the 2026-08-03 `\\brights?\\b` pattern addition left
+        59 already-active SPAC-rights symbols (AACPR, AESPR, ...) untouched, silently
+        inflating price_daily's "active universe" denominator and pinning its completion %
+        below the 98% mark_completed() safety threshold every single day since - the
+        dashboard's Data Freshness table showed price_daily as chronically FAILED for a
+        reason with nothing to do with the price loader itself. This reconciles existing
+        rows against the CURRENT patterns on every run, using each row's own stored
+        security_name (no need to re-fetch anything).
+        """
+        with DatabaseContext("read") as cur:
+            cur.execute("SELECT symbol, security_name FROM stock_symbols WHERE active = true")
+            active_rows = cur.fetchall()
+
+        stale = [symbol for symbol, name in active_rows if name and should_exclude(name)]
+        if not stale:
+            return
+
+        logger.warning(
+            f"[MARKET_CONSTITUENTS] Deactivating {len(stale)} already-active symbol(s) that now "
+            f"match should_exclude() under current patterns: {stale[:10]}"
+            + (f" ...and {len(stale) - 10} more" if len(stale) > 10 else "")
+        )
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                UPDATE stock_symbols
+                SET active = false, data_unavailable = true,
+                    data_unavailable_reason = 'excluded_by_naming_pattern'
+                WHERE symbol = ANY(%s)
+                """,
+                (stale,),
+            )
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch all symbols and mark index membership.
@@ -145,6 +197,8 @@ class MarketConstituentsLoader(OptimalLoader):
         socket.setdefaulttimeout(15.0)
 
         try:
+            self._deactivate_stale_excluded_symbols()
+
             # STEP 1: Fetch NASDAQ/NYSE symbols
             logger.info("STEP 1/3: Fetching NASDAQ/NYSE tradable symbols")
             base_symbols = self._fetch_nasdaq_symbols()
