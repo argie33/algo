@@ -35,6 +35,17 @@ def _get_lock_retry_policy(self) -> dict:
 
 ### 2. CRITICAL: Price Loader 95.75% Completion Issue (data_loading_incomplete_loads.md)
 
+**RESOLVED 2026-08-03** (superseding the original note below, kept for history): root cause
+found and fixed at the source, not just mitigated. `utils/data/source_router.py`'s
+`_normalize_yfinance_symbol()` now translates `.`-suffix multi-class-share tickers
+(`AGM.A`→`AGM-A`) and `$`-suffix preferred-share tickers (`BAC$E`→`BAC-PE`) before every
+yfinance fallback call, and `loaders/load_prices.py`'s `_confirm_no_data_in_30_days`/
+`_mark_symbol_permanently_unavailable` stop permanently-delisted symbols from perpetually
+dragging down completion%. This was the real cause of most of the 233-symbol gap, not an
+API timeout/rate-limit issue.
+
+<details><summary>Original note (2026-08-04, now stale)</summary>
+
 **Issue:** Price loader has been at 95.75% completion (5253/5486 symbols) since 2026-07-31
 - Status: Marked COMPLETE despite being below 98% threshold (price loader requires 2% max_fail_rate)
 - Root cause: Underlying issue why 233 symbols are missing - API timeout? Rate limiting?
@@ -45,6 +56,8 @@ def _get_lock_retry_policy(self) -> dict:
 3. **Action:** Re-run price loader in next production environment availability
 
 **Status:** ✅ MITIGATED (safety check in place), ⚠️ AWAITING RERUN
+
+</details>
 
 ---
 
