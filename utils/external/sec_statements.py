@@ -71,6 +71,19 @@ _INCOME_IFRS_ALIASES = [
     # Session 398: EBITDA extraction from IFRS filers
     ("DepreciationAndAmortisation", "depreciation_and_amortization"),
     ("DepreciationExpense", "depreciation"),
+    # FIXED 2026-08-03: no IFRS income-tax/pretax-income aliases existed at all, so
+    # roic_pct's NOPAT computation (needs both to derive an effective tax rate) was stuck
+    # at "SEC data not available" for every IFRS-only filer regardless of how much other
+    # data they reported. Live-confirmed via real companyfacts JSON: WPM (Wheaton Precious
+    # Metals) reports both IncomeTaxExpenseContinuingOperations and ProfitLossBeforeTax for
+    # every fiscal year back to 2015. target_key values match the us-gaap concepts'
+    # existing snake-cased names so no field_mapping changes are needed (same convention as
+    # every other alias in this list).
+    ("IncomeTaxExpenseContinuingOperations", "income_tax_expense_benefit"),
+    (
+        "ProfitLossBeforeTax",
+        "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest",
+    ),
 ]
 
 _CASHFLOW_IFRS_ALIASES = [
@@ -81,6 +94,13 @@ _CASHFLOW_IFRS_ALIASES = [
         "PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # FIXED 2026-08-03: no IFRS dividend concept was mapped at all, so every dividend-paying
+    # IFRS filer (live-confirmed: WPM/Wheaton Precious Metals, real ifrs-full:DividendsPaid
+    # data present back to FY2015, $296M for FY2025) got payout_ratio/dividend_yield
+    # permanently stuck at "SEC data not available" despite the underlying SEC data
+    # existing - same target_key as the us-gaap PaymentsOfDividends* concepts below so
+    # field_mapping needs no changes.
+    ("DividendsPaid", "payments_of_dividends"),
     # ("DepreciationExpense", "depreciation") REMOVED 2026-07-28 - see get_cash_flow()'s
     # comment: no destination column exists for cash-flow-context depreciation.
 ]
@@ -117,6 +137,26 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "Liabilities",
         "LiabilitiesCurrent",
         "StockholdersEquity",
+        # FIXED 2026-08-03: two fallback cash concepts added below, both mapped to the same
+        # cash_and_equivalents column via field_mapping in load_financial_statements.py.
+        # _aggregate_concepts keeps the LAST-processed concept's value on overwrite when a
+        # filer reports more than one for the same fiscal year (same convention as this
+        # file's revenue-concept ordering), so the two lower-fidelity fallbacks are listed
+        # BEFORE the standard concept to keep it authoritative whenever a filer reports it.
+        #
+        # Post-ASU-2016-18 (effective 2018) combined concept: many non-bank filers now tag
+        # period-end cash together with restricted cash in one XBRL fact instead of the
+        # plain concept below. Least preferred - includes restricted cash where a filer
+        # only tags this combined figure, but recovers real data for filers that otherwise
+        # report zero cash at all.
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+        # Live-confirmed via real companyfacts JSON that banks (ZION and others) never tag
+        # the standard concept below at all - their balance sheet reports "Cash and due
+        # from banks" as a distinct line item tagged CashAndDueFromBanks instead. Found
+        # while tracing why 1869/5486 symbols with real total_assets had NULL
+        # cash_and_equivalents; ZION's balance sheet was reloaded the same day this was
+        # found and still came back NULL, ruling out staleness for this subset.
+        "CashAndDueFromBanks",
         "CashAndCashEquivalentsAtCarryingValue",
         "AccountsReceivableNetCurrent",
         "InventoryNet",

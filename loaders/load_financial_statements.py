@@ -197,6 +197,13 @@ _BALANCE_FIELD_MAPPING = {
     # regression's effect worked through the existing per-symbol watermark backlog) - a real,
     # ~1-month-old active data-loss regression, not historically-always-missing data.
     "cash_and_cash_equivalents_at_carrying_value": "cash_and_equivalents",
+    # FIXED 2026-08-03: two fallback concepts for filers that never tag the standard
+    # concept above - banks (ZION live-confirmed) tag CashAndDueFromBanks instead, some
+    # non-bank filers only tag the post-ASU-2016-18 combined cash+restricted-cash concept.
+    # This dict is a flat lookup, not a priority order - actual overwrite precedence comes
+    # from sec_statements.py's get_balance_sheet() concept list order (see its comment).
+    "cash_and_due_from_banks": "cash_and_equivalents",
+    "cash_cash_equivalents_restricted_cash_and_restricted_cash_equivalents": "cash_and_equivalents",
     "accounts_receivable_net_current": "accounts_receivable",
     "inventory_net": "inventory",
     "property_plant_and_equipment_net": "ppe_net",
