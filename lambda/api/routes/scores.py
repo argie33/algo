@@ -139,6 +139,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     vm.ev_ebitda,
                     vm.ev_ebitda_unavailable_reason,
                     vm.ev_revenue,
+                    vm.market_cap,
+                    vm.market_cap_unavailable_reason,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
@@ -494,6 +496,8 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
 
             # Value Inputs
             data["value_inputs"] = {
+                "market_cap": data.get("market_cap"),
+                "market_cap_unavailable_reason": data.get("market_cap_unavailable_reason"),
                 "stock_pe": data.get("trailing_pe"),
                 "stock_pe_unavailable_reason": data.get("pe_ratio_unavailable_reason"),
                 "stock_forward_pe": data.get("forward_pe"),
@@ -830,6 +834,8 @@ def _get_stock_scores(  # noqa: C901
                     vm.ev_ebitda,
                     vm.ev_ebitda_unavailable_reason,
                     vm.ev_revenue,
+                    vm.market_cap,
+                    vm.market_cap_unavailable_reason,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,

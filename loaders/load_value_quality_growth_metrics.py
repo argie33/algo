@@ -492,6 +492,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         enterprise_value = row_dict.get("enterprise_value")
         ev_ebitda = row_dict.get("ev_ebitda")
         ev_revenue = row_dict.get("ev_revenue")
+        market_cap = row_dict.get("market_cap")
 
         # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
         # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
@@ -589,6 +590,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "enterprise_value": enterprise_value,
             "ev_ebitda": ev_ebitda,
             "ev_revenue": ev_revenue,
+            "market_cap": market_cap,
             "value_score": None,  # Computed in load_stock_scores, copied here for convenience
             "pe_ratio_unavailable_reason": pe_ratio_reason,
             "pb_ratio_unavailable_reason": "missing_sec_data" if pb is None else None,
@@ -599,7 +601,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
             "ev_ebitda_unavailable_reason": ev_ebitda_reason if ev_ebitda is None else None,
             "ev_revenue_unavailable_reason": "missing_sec_data" if ev_revenue is None else None,
-            "market_cap_unavailable_reason": None,  # Market cap in stock_symbols, not here
+            "market_cap_unavailable_reason": "missing_sec_data" if market_cap is None else None,
             "held_percent_insiders_unavailable_reason": None,  # In positioning_metrics, not here
             "held_percent_institutions_unavailable_reason": None,  # In positioning_metrics, not here
             "data_unavailable": False,
@@ -1540,11 +1542,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, value_score, data_unavailable, reason, data_source, updated_at,
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, market_cap, value_score, data_unavailable, reason, data_source, updated_at,
              pe_ratio_unavailable_reason, pb_ratio_unavailable_reason, ps_ratio_unavailable_reason, peg_ratio_unavailable_reason,
              dividend_yield_unavailable_reason, fcf_yield_unavailable_reason, forward_pe_unavailable_reason, ev_ebitda_unavailable_reason, ev_revenue_unavailable_reason,
              market_cap_unavailable_reason, held_percent_insiders_unavailable_reason, held_percent_institutions_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -1556,6 +1558,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 enterprise_value = EXCLUDED.enterprise_value,
                 ev_ebitda = EXCLUDED.ev_ebitda,
                 ev_revenue = EXCLUDED.ev_revenue,
+                market_cap = EXCLUDED.market_cap,
                 value_score = EXCLUDED.value_score,
                 pe_ratio_unavailable_reason = EXCLUDED.pe_ratio_unavailable_reason,
                 pb_ratio_unavailable_reason = EXCLUDED.pb_ratio_unavailable_reason,
@@ -1586,6 +1589,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("enterprise_value"),
                 row.get("ev_ebitda"),
                 row.get("ev_revenue"),
+                row.get("market_cap"),
                 row.get("value_score"),
                 row["data_unavailable"],
                 row.get("reason"),
@@ -1930,7 +1934,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "fcf_yield_unavailable_reason": "missing_sec_data",
                 "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings",
                 "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded",
-                "market_cap_unavailable_reason": None,
+                "market_cap": None,
+                "market_cap_unavailable_reason": "missing_sec_data",
                 "held_percent_insiders_unavailable_reason": None,
                 "held_percent_institutions_unavailable_reason": None,
                 "data_unavailable": True,
