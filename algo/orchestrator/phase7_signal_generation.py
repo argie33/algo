@@ -1237,8 +1237,15 @@ def run(  # noqa: C901
         today_scores_exist = False
         try:
             with DatabaseContext("read") as cur:
+                # Use run_date (the caller's Eastern trading date), not bare CURRENT_DATE -
+                # CURRENT_DATE resolves in the DB session's timezone, which may not track
+                # the Eastern trading day (e.g. UTC flips over ~4-5h before Eastern midnight,
+                # so an evening run would see "today" as tomorrow and wrongly conclude no
+                # scores exist yet, re-running the loader unnecessarily and reintroducing the
+                # lock-contention this check exists to prevent).
                 cur.execute(
-                    "SELECT COUNT(*) FROM signal_quality_scores WHERE date = CURRENT_DATE"
+                    "SELECT COUNT(*) FROM signal_quality_scores WHERE date = %s",
+                    (run_date,),
                 )
                 result = cur.fetchone()
                 count = result[0] if result else 0
