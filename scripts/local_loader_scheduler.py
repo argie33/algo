@@ -24,7 +24,15 @@ PIPELINES = {
         "market_status",
     ],
     "metrics": [
+        # FIXED 2026-08-03: registered in loader_registry.py but never scheduled anywhere -
+        # see scripts/run_loader.py's run_analyst_earnings_estimates_loader() docstring.
+        # Must run BEFORE value_quality_growth - that loader joins this table by symbol to
+        # compute forward_pe (see load_analyst_earnings_estimates.py's module docstring).
+        "analyst_earnings_estimates",
         "value_quality_growth",
+        # FIXED 2026-08-03: same orphaned-loader bug - see run_enhanced_quality_growth_loader()
+        # docstring. Must run after value_quality_growth (enhances its output rows).
+        "enhanced_quality_growth",
         "positioning_metrics",
         "stability_metrics",
     ],

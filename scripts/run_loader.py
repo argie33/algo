@@ -231,6 +231,75 @@ def run_value_quality_growth_loader():
     return result
 
 
+def run_enhanced_quality_growth_loader():
+    """Run enhanced quality/growth metrics loader (trend fields + earnings-surprise fields).
+
+    FIXED 2026-08-03: this loader (adds earnings_surprise_avg, earnings_beat_rate,
+    consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability to
+    quality_metrics) was registered in loaders/loader_registry.py but had zero invocation
+    path anywhere - not here, not in scripts/local_loader_scheduler.py, not in any
+    terraform Lambda. Every symbol showed "No data" for these fields regardless of how
+    much real SEC/yfinance data existed, because the code that computes them from already-
+    loaded quarterly_income_statement/yfinance earnings_dates simply never ran. Must run
+    after value_quality_growth (enhances its output rows), matching the loader's own
+    docstring.
+    """
+    import psycopg2
+
+    from loaders.load_enhanced_quality_growth_metrics import EnhancedQualityGrowthMetricsLoader
+
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT symbol FROM yfinance_snapshot
+            WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL
+            ORDER BY symbol
+        """)
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols with yfinance data for enhanced quality/growth metrics")
+    except Exception as e:
+        logger.warning(f"Could not load yfinance symbols: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+
+    loader = EnhancedQualityGrowthMetricsLoader()
+    result = loader.run(symbols=symbols)
+    logger.info(f"Enhanced quality/growth metrics loader result: {result}")
+    return result
+
+
+def run_analyst_earnings_estimates_loader():
+    """Run analyst forward-EPS estimates loader (feeds value_metrics.forward_pe).
+
+    FIXED 2026-08-03: same orphaned-loader bug as run_enhanced_quality_growth_loader() -
+    registered in loaders/loader_registry.py, zero invocation path anywhere. Every symbol
+    showed forward_pe_unavailable_reason="no_analyst_estimates" regardless of real yfinance
+    coverage, because this loader's daily forward-EPS snapshot never actually ran.
+    """
+    import psycopg2
+
+    from loaders.load_analyst_earnings_estimates import AnalystEarningsEstimatesLoader
+
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for analyst earnings estimates")
+    except Exception as e:
+        logger.warning(f"Could not load symbols: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+
+    loader = AnalystEarningsEstimatesLoader()
+    result = loader.run(symbols=symbols)
+    logger.info(f"Analyst earnings estimates loader result: {result}")
+    return result
+
+
 def run_stock_scores_loader(limit=None):
     """Run stock scores loader."""
     import psycopg2
@@ -350,7 +419,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
         "loader",
-        choices=["prices", "technical", "scores", "buy_sell", "market_status", "value_quality_growth", "positioning_metrics", "stability_metrics"],
+        choices=["prices", "technical", "scores", "buy_sell", "market_status", "value_quality_growth", "enhanced_quality_growth", "analyst_earnings_estimates", "positioning_metrics", "stability_metrics"],
         help="Loader to run (use consolidated loader names)"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
@@ -376,6 +445,8 @@ def main():
             "technical": ["technical_data_daily"],
             "market_status": ["market_health_daily"],
             "value_quality_growth": ["value_metrics", "quality_metrics", "growth_metrics"],
+            "enhanced_quality_growth": ["quality_metrics", "growth_metrics"],
+            "analyst_earnings_estimates": ["analyst_earnings_estimates"],
             "scores": ["stock_scores"],
             "buy_sell": ["buy_sell_daily"],
             "positioning_metrics": ["positioning_metrics"],
@@ -418,6 +489,12 @@ def main():
 
         elif args.loader == "value_quality_growth":
             run_value_quality_growth_loader()
+
+        elif args.loader == "enhanced_quality_growth":
+            run_enhanced_quality_growth_loader()
+
+        elif args.loader == "analyst_earnings_estimates":
+            run_analyst_earnings_estimates_loader()
 
         elif args.loader == "scores":
             run_stock_scores_loader(limit=args.limit)
