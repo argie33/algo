@@ -553,6 +553,7 @@ const MOMENTUM_SCHEMA = [
 ];
 
 const VALUE_SCHEMA = [
+  { key: 'market_cap', label: 'Market Cap', fmt: money },
   { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '20%' },
   { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_pb', label: 'P/B', fmt: v => num(v, 2), used: true, weight: '15%' },
