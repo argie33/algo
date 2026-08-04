@@ -347,7 +347,7 @@ class StockScoresLoader(OptimalLoader):
             # signal for which direction it's moving.
             cur.execute(
                 "SELECT symbol, institutional_ownership_pct, insider_ownership_pct, short_interest_pct, "
-                "shares_short_prior_month, short_interest_trend, data_unavailable FROM positioning_metrics"
+                "shares_short_prior_month, short_interest_trend, ad_rating, data_unavailable FROM positioning_metrics"
             )
             self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -1002,9 +1002,10 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 4 columns (institutional_ownership, insider_ownership,
-          short_interest_percent, data_unavailable)
-        - Schema mismatch (len(row) < 4) → raises ValueError immediately
+        - Row length validation: Must have 7 columns (institutional_ownership, insider_ownership,
+          short_interest_percent, shares_short_prior_month, short_interest_trend, ad_rating,
+          data_unavailable)
+        - Schema mismatch (len(row) < 7) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_positioning_metrics_found"
@@ -1018,13 +1019,13 @@ class StockScoresLoader(OptimalLoader):
         """
         row = self._positioning_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 6 columns before accessing indices
-            if len(row) < 6:
+            # CRITICAL: Validate row has expected 7 columns before accessing indices
+            if len(row) < 7:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 6. "
+                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 7. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[5]
+            data_unavailable = row[6]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -1041,6 +1042,7 @@ class StockScoresLoader(OptimalLoader):
                     row[3], f"{symbol}.shares_short_prior_month", allow_none=True
                 ),
                 "short_interest_trend": row[4],  # text enum ('increasing'/'decreasing'/'stable'), not numeric
+                "ad_rating": safe_float(row[5], f"{symbol}.ad_rating", allow_none=True),
             }
         # No row exists at all
         logger.debug(
@@ -1640,7 +1642,9 @@ class StockScoresLoader(OptimalLoader):
     def _score_positioning(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score positioning metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Institutional ownership (55%) + Insider ownership (20%) + Short interest (25%).
+        Uses weighted scoring (weights normalized over whichever fields are present):
+        Institutional ownership (55%) + Insider ownership (20%) + Short interest (25%)
+        + Short interest trend (10%) + A/D rating (15%).
         Higher institutional + insider ownership and lower short interest signal positive positioning.
 
         RETURN TYPES (STRICT):
@@ -1712,6 +1716,16 @@ class StockScoresLoader(OptimalLoader):
             if trend_score is not None:
                 weighted_sum += trend_score * 0.10
                 total_weight += 0.10
+
+        # A/D (Accumulation/Distribution) rating: volume-confirmed price-trend signal from
+        # load_positioning_metrics.py (loaders/technical_indicators.py::compute_ad_rating) -
+        # already a 0-100 score (100=volume confirms uptrend, 60=bullish divergence, 30=bearish),
+        # no tiering needed. 93.5% populated (2026-08-04 live check), written and displayed on
+        # the scores page since it was added, but never weighted into positioning_score - same
+        # "displayed but never weighted" bug class as short_interest_trend above.
+        if metrics.get("ad_rating") is not None:
+            weighted_sum += metrics["ad_rating"] * 0.15
+            total_weight += 0.15
 
         if total_weight > 0:
             return weighted_sum / total_weight
