@@ -987,7 +987,12 @@ class VectorizedTechnicalLoader:
             )
 
 
-def _update_tech_loader_status(status: str, error_message: str | None = None, latest_date: date | None = None) -> None:
+def _update_tech_loader_status(
+    status: str,
+    error_message: str | None = None,
+    latest_date: date | None = None,
+    execution_duration_sec: float | None = None,
+) -> None:
     # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
     # Map old status values to LoaderStatusManager methods
     status_mgr = LoaderStatusManager("technical_data_daily")
@@ -995,7 +1000,7 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
     if status == "RUNNING":
         status_mgr.mark_running()
     elif status == "COMPLETED":
-        status_mgr.mark_completed(latest_date=latest_date)
+        status_mgr.mark_completed(latest_date=latest_date, execution_duration_sec=execution_duration_sec)
     elif status == "FAILED":
         status_mgr.mark_failed(error_message=error_message or "Unknown error")
     else:
@@ -1131,19 +1136,25 @@ def main() -> int:
 
         # Update status to COMPLETED or FAILED based on result
         if result["rows_inserted"] > 0:
-            _update_tech_loader_status("COMPLETED", latest_date=result["latest_date"])
+            _update_tech_loader_status(
+                "COMPLETED", latest_date=result["latest_date"], execution_duration_sec=result.get("duration_sec")
+            )
             final_status = "completed"
             exit_code = 0
         elif not result["data_available"] and result["error"] is None:
             # Data unavailable (market closed, etc) - this is NO_DATA, not an error
-            _update_tech_loader_status("COMPLETED", latest_date=result["latest_date"])
+            _update_tech_loader_status(
+                "COMPLETED", latest_date=result["latest_date"], execution_duration_sec=result.get("duration_sec")
+            )
             final_status = "no_data"
             exit_code = 2
             logger.info("[LOADER] Technical data unavailable (market closed?). Exit code 2 (NO_DATA).")
         elif result["rows_inserted"] == 0 and result["data_available"] and result["error"] is None:
             # No new rows but data available (non-trading day, or already cached)
             # This is normal and expected - market data isn't changing when market is closed
-            _update_tech_loader_status("COMPLETED", latest_date=result["latest_date"])
+            _update_tech_loader_status(
+                "COMPLETED", latest_date=result["latest_date"], execution_duration_sec=result.get("duration_sec")
+            )
             final_status = "completed"
             exit_code = 0
             logger.info("[LOADER] No new technical data to load (market closed or data already cached). Exit code 0.")

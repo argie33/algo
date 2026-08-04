@@ -34,6 +34,7 @@ Run: python3 loaders/load_value_quality_growth_metrics.py [--symbols AAPL,MSFT]
 
 import logging
 import sys
+import time
 from datetime import date
 from math import isnan
 from typing import Any
@@ -105,6 +106,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         """
         from utils.loaders.config import get_default_parallelism
 
+        start_time = time.time()
         value_inserts = 0
         quality_inserts = 0
         growth_inserts = 0
@@ -246,11 +248,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     result = cur.fetchone()
                     actual_latest_date = result[0] if result and result[0] else None
 
+            execution_duration = time.time() - start_time
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                 manager = managers.get(table) or LoaderStatusManager(table)
                 # Update progress to mark all symbols as loaded (this loader loads all at once, not per-symbol)
                 manager.update_progress(symbols_loaded=len(symbols), symbol_count=len(symbols), completion_pct=100.0)
-                manager.mark_completed()
+                manager.mark_completed(execution_duration_sec=execution_duration)
 
             logger.info(
                 f"[VALUE_QUALITY_GROWTH] Consolidated load complete: "
