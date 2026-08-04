@@ -2049,12 +2049,6 @@ const QUALITY_SCHEMA = [
   { key: "total_cash", label: "Total Cash", fmt: money },
   { key: "cash_per_share", label: "Cash / Share", fmt: (v) => `$${num(v, 2)}` },
   {
-    key: "earnings_growth_pct",
-    label: "Earnings Growth",
-    fmt: (v) => pct(v, 2),
-  },
-  { key: "revenue_growth_pct", label: "Revenue Growth", fmt: (v) => pct(v, 2) },
-  {
     key: "earnings_growth_4q_avg",
     label: "Earnings Growth 4Q Avg",
     fmt: (v) => pct(v, 2),
