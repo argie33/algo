@@ -68,3 +68,24 @@ def test_exclude_etfs_query_excludes_data_unavailable(monkeypatch) -> None:
     assert sql is not None
     assert "data_unavailable" in sql
     _reset_cache()
+
+
+def test_exclude_etfs_query_does_not_reference_nonexistent_etf_column(monkeypatch) -> None:
+    """Regression test for the 2026-08-03 fix: stock_symbols.etf was never created by any
+    migration or schema.sql, so the exclude_etfs=True branch's `(etf IS NULL OR etf = 'N')`
+    clause raised UndefinedColumn unconditionally - live-confirmed against a real DB with
+    active/data_unavailable already present. Also dead weight even where the column did
+    exist: load_market_constituents.py diverts real ETFs into a separate etf_symbols table
+    before any row reaches stock_symbols, hardcoding etf="N" for the rest - so the clause
+    could only ever evaluate true.
+    """
+    _reset_cache()
+    fake_ctx = _FakeDatabaseContext(rows=[("AAPL",)])
+    monkeypatch.setattr(helpers_module, "DatabaseContext", fake_ctx)
+
+    get_active_symbols(exclude_etfs=True)
+
+    sql = fake_ctx._cursor.last_sql
+    assert sql is not None
+    assert "etf" not in sql
+    _reset_cache()

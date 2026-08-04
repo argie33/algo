@@ -92,7 +92,7 @@ def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
     return data
 
 
-@db_route_handler("get algo metrics")  # type: ignore[untyped-decorator]
+@db_route_handler("get algo metrics")
 def _get_algo_metrics(cur: cursor) -> Any:
     try:
         cur.execute("""
@@ -164,8 +164,8 @@ def _get_algo_metrics(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("calculate performance")  # type: ignore[untyped-decorator]
-@validate_api_response("perf")  # type: ignore[untyped-decorator]
+@db_route_handler("calculate performance")
+@validate_api_response("perf")
 def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     """Get comprehensive algo performance metrics.
 
@@ -574,8 +574,8 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get algo portfolio")  # type: ignore[untyped-decorator]
-@validate_api_response("port")  # type: ignore[untyped-decorator]
+@db_route_handler("get algo portfolio")
+@validate_api_response("port")
 def _get_algo_portfolio(cur: cursor) -> Any:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown.
 
@@ -744,7 +744,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
 
 
-@db_route_handler("get daily return histogram")  # type: ignore[untyped-decorator]
+@db_route_handler("get daily return histogram")
 def _get_daily_return_histogram(cur: cursor) -> Any:
     try:
         cur.execute("""
@@ -797,7 +797,7 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
         return error_response(500, "internal_error", "Failed to generate histogram")
 
 
-@db_route_handler("get holding period distribution")  # type: ignore[untyped-decorator]
+@db_route_handler("get holding period distribution")
 def _get_holding_period_distribution(cur: cursor) -> Any:
     cur.execute("""
         SELECT CASE
@@ -854,8 +854,8 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
     return list_response(buckets, total=len(buckets), limit=None, offset=None)
 
 
-@db_route_handler("get performance analytics")  # type: ignore[untyped-decorator]
-@validate_api_response("perf_anl")  # type: ignore[untyped-decorator]
+@db_route_handler("get performance analytics")
+@validate_api_response("perf_anl")
 def _get_performance_analytics(cur: cursor) -> Any:
     """Rolling performance analytics (Sharpe/Sortino/Calmar/expectancy).
 
@@ -955,8 +955,8 @@ def _get_performance_analytics(cur: cursor) -> Any:
         raise RuntimeError(f"Failed to fetch performance analytics: {type(e).__name__}") from e
 
 
-@db_route_handler("get performance metrics endpoint")  # type: ignore[untyped-decorator]
-@validate_api_response("perf")  # type: ignore[untyped-decorator]
+@db_route_handler("get performance metrics endpoint")
+@validate_api_response("perf")
 def _get_performance_metrics_endpoint(cur: cursor) -> Any:
     """Reads algo_performance_daily - see _get_algo_performance's docstring above:
     algo_performance_metrics (the previous source) has had no writer since 2026-06-30.
@@ -997,7 +997,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get portfolio summary")  # type: ignore[untyped-decorator]
+@db_route_handler("get portfolio summary")
 # NOTE: not @validate_api_response("port") - "port" is the schema for the separate
 # /api/algo/portfolio endpoint (_get_algo_portfolio below), whose required fields
 # (total_portfolio_value, total_cash, position_count) don't match this endpoint's
@@ -1069,8 +1069,8 @@ def _get_portfolio_summary(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("get risk metrics")  # type: ignore[untyped-decorator]
-@validate_api_response("risk")  # type: ignore[untyped-decorator]
+@db_route_handler("get risk metrics")
+@validate_api_response("risk")
 def _get_risk_metrics(cur: cursor) -> Any:
     try:
         cur.execute("SAVEPOINT risk_metrics")
@@ -1155,7 +1155,7 @@ def _get_risk_metrics(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get stage distribution")  # type: ignore[untyped-decorator]
+@db_route_handler("get stage distribution")
 def _get_stage_distribution(cur: cursor) -> Any:
     cur.execute("""
         SELECT
@@ -1186,7 +1186,7 @@ def _get_stage_distribution(cur: cursor) -> Any:
     return list_response(distribution, total=len(distribution), limit=None, offset=None)
 
 
-@db_route_handler("get trade distribution")  # type: ignore[untyped-decorator]
+@db_route_handler("get trade distribution")
 def _get_trade_distribution(cur: cursor) -> Any:
     cur.execute("""
         SELECT exit_r_multiple

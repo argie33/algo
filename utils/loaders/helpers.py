@@ -154,11 +154,25 @@ def get_active_symbols(
                         # and CZWI (Citizens Community matches %UNIT% via "community"→"UNIT"). Changed to
                         # word-boundary regex matching (~*) which only catches whole-word matches, fixing
                         # 250+ stale data symbols from the metrics loader.
+                        # FIXED 2026-08-03: `(etf IS NULL OR etf = 'N')` referenced a
+                        # stock_symbols.etf column that has never existed in any migration
+                        # or schema.sql - confirmed via a full repo grep and live against a
+                        # local DB with active/data_unavailable freshly added (migrations
+                        # 062/1001), still UndefinedColumn on etf alone. Live-caught: this
+                        # crashed get_active_symbols(exclude_etfs=True) unconditionally,
+                        # the default path for load_prices.py, load_buy_sell_daily.py,
+                        # load_institutional_holdings_13f.py, load_financial_statements.py,
+                        # and runner.py. Also dead weight even if the column did exist:
+                        # load_market_constituents.py diverts every real ETF (ETF == 'Y')
+                        # into etf_rows -> the separate etf_symbols table before rows ever
+                        # reach this table, hardcoding "etf": "N" for every row that does
+                        # land in stock_symbols - so the clause could only ever evaluate
+                        # true. Removing it is a no-op on the result set, not a behavior
+                        # change.
                         sql = """
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
                               AND data_unavailable IS NOT TRUE
-                              AND (etf IS NULL OR etf = 'N')
                               AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto)\\b'
                             ORDER BY symbol
                         """

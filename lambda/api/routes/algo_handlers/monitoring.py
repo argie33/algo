@@ -35,8 +35,8 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get algo audit log")  # type: ignore[untyped-decorator]
-@validate_api_response("audit")  # type: ignore[untyped-decorator]
+@db_route_handler("get algo audit log")
+@validate_api_response("audit")
 def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None) -> Any:
     if action_type:
         cur.execute(
@@ -88,8 +88,8 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 # FIXED Issue #6: Orchestrator execution history endpoints
 
 
-@db_route_handler("get last run")  # type: ignore[untyped-decorator]
-@validate_api_response("run")  # type: ignore[untyped-decorator]
+@db_route_handler("get last run")
+@validate_api_response("run")
 def _get_last_run(cur: cursor) -> Any:
     # Phase-level detail lives in orchestrator_execution_log (written by
     # OrchestratorExecutionTracker with the same run_id) -- the orchestrator's own
@@ -196,8 +196,8 @@ def _get_last_run(cur: cursor) -> Any:
     return json_response(200, response_data)
 
 
-@db_route_handler("get orchestrator history extended")  # type: ignore[untyped-decorator]
-@validate_api_response("freshness_extended")  # type: ignore[untyped-decorator]
+@db_route_handler("get orchestrator history extended")
+@validate_api_response("freshness_extended")
 def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | None = None) -> Any:
     """Get extended orchestrator run history with phase breakdown, failure patterns, and loader health.
 
@@ -402,8 +402,8 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch notifications")  # type: ignore[untyped-decorator]
-@validate_api_response("notifs")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch notifications")
+@validate_api_response("notifs")
 def _get_notifications(
     cur: cursor, params: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None
 ) -> Any:
@@ -479,8 +479,8 @@ def _get_notifications(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get patrol log")  # type: ignore[untyped-decorator]
-@validate_api_response("health")  # type: ignore[untyped-decorator]
+@db_route_handler("get patrol log")
+@validate_api_response("health")
 def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
     row = cur.fetchone()
@@ -510,7 +510,7 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
 
 
-@db_route_handler("trigger data patrol")  # type: ignore[untyped-decorator]
+@db_route_handler("trigger data patrol")
 def _trigger_data_patrol() -> Any:
     """Trigger async data patrol ECS task."""
     try:

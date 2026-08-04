@@ -36,8 +36,8 @@ from .signals import _TIER_CONFIG
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get data quality")  # type: ignore[untyped-decorator]
-@validate_api_response("health")  # type: ignore[untyped-decorator]
+@db_route_handler("get data quality")
+@validate_api_response("health")
 def _get_data_quality(cur: cursor) -> Any:
     try:
         # Get patrol log entries from last 24 hours
@@ -166,8 +166,8 @@ def _rollback_after_error(cur: cursor) -> None:
         logger.debug(f"[DATA_STATUS] Failed to rollback after query error: {rollback_err}")
 
 
-@db_route_handler("fetch data status")  # type: ignore[untyped-decorator]
-@validate_api_response("health")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch data status")
+@validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -573,6 +573,22 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             last_updated = row["last_updated"]
             row_count = row.get("row_count")
 
+            # CRITICAL FIX 2026-08-03: freshness status/age must be judged by the loader's
+            # last GENUINE success, not its last attempt. data_loader_status.last_updated is
+            # bumped to NOW() by LoaderStatusManager.mark_failed() too (see utils/loaders/
+            # status_manager.py) - a loader that keeps failing today while its last real
+            # success was days ago still touches last_updated every failed run, so using it
+            # here made the table look freshly-updated regardless of whether the run actually
+            # succeeded. last_success_at (migration 1163) only advances on mark_completed(),
+            # so prefer it for the freshness/age calc; fall back to last_updated for algo_rows
+            # (orchestrator-written tables with no loader run, so no last_success_at at all).
+            # Live-confirmed 2026-08-03: price_daily had status=FAILED, consecutive_failures=42,
+            # last_updated stamped by the latest failed attempt - freshness would read "ok" off
+            # that alone with no visible signal the loader itself was stuck failing.
+            freshness_reference = row.get("last_success_at")
+            if freshness_reference is None:
+                freshness_reference = last_updated
+
             # Get freshness rule once per table (consolidate lookups)
             rule = _fr.get(table_name)
 
@@ -599,10 +615,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
             if row_count is None or row_count == 0:
                 status = "empty"
-            elif last_updated is None:
+            elif freshness_reference is None:
                 status = "empty"
             else:
-                data_date = last_updated.date() if hasattr(last_updated, "date") else last_updated
+                data_date = freshness_reference.date() if hasattr(freshness_reference, "date") else freshness_reference
                 if max_age <= 1:
                     # Daily tables: use trading-day-aware comparison
                     status = "stale" if data_date < expected_date else "ok"
@@ -610,8 +626,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     # Weekly/biweekly tables: use simple calendar-day age threshold
                     status = "stale" if (today - data_date).days > max_age else "ok"
 
-            # Calculate age in hours for display
-            utc_result = normalize_to_utc_datetime(last_updated, naive_tz)
+            # Calculate age in hours for display - same last-genuine-success reference as
+            # status above, so the displayed "Age" can't disagree with the ok/stale verdict.
+            utc_result = normalize_to_utc_datetime(freshness_reference, naive_tz)
             if isinstance(utc_result, datetime):
                 age_h = (datetime.now(timezone.utc) - utc_result).total_seconds() / 3600
             else:
@@ -1285,8 +1302,8 @@ def _normalize_exposure(exp: dict[str, Any]) -> Any:
     }
 
 
-@db_route_handler("get market")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get market")
+@validate_api_response("mkt")
 def _get_market(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -1416,7 +1433,7 @@ def _get_market(cur: cursor) -> Any:
         return error_response(503, "service_unavailable", "Failed to fetch market data")
 
 
-@db_route_handler("get market factors")  # type: ignore[untyped-decorator]
+@db_route_handler("get market factors")
 def _get_market_factors(cur: cursor) -> Any:
     logger.debug("[MARKET_FACTORS] Function called - no validation decorator")
     try:
@@ -1469,8 +1486,8 @@ def _get_market_factors(cur: cursor) -> Any:
         return error_response(503, "service_unavailable", "Failed to fetch market factors")
 
 
-@db_route_handler("get market sentiment")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get market sentiment")
+@validate_api_response("mkt")
 def _get_market_sentiment(cur: cursor) -> Any:
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score.
     # bullish/bearish/neutral breakdown is not available in this view (AAII survey data lives in
@@ -1519,8 +1536,8 @@ def _get_market_sentiment(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("get markets")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get markets")
+@validate_api_response("mkt")
 def _get_markets(cur: cursor) -> Any:  # noqa: C901
     try:
         # Latest exposure row (skip non-trading days to get last valid trading day)
@@ -1867,8 +1884,8 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         )
 
 
-@db_route_handler("get trend criteria")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get trend criteria")
+@validate_api_response("mkt")
 def _get_trend_criteria(cur: cursor) -> Any:
     cur.execute("""
         SELECT

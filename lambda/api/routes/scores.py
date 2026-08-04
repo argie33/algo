@@ -38,10 +38,10 @@ def handle(
     try:
         # Handle /api/scores/details/:symbol endpoint (new)
         if path.startswith("/api/scores/details/"):
-            symbol = path.split("/api/scores/details/")[-1].upper()
-            if not symbol or not symbol.replace("-", "").replace("^", "").isalnum():
+            detail_symbol = path.split("/api/scores/details/")[-1].upper()
+            if not detail_symbol or not detail_symbol.replace("-", "").replace("^", "").isalnum():
                 return error_response(400, "bad_request", "Invalid symbol format")
-            return _get_stock_details(cur, symbol)
+            return _get_stock_details(cur, detail_symbol)
 
         if path in [
             "/api/scores",

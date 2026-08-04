@@ -18,7 +18,7 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get table inventory")  # type: ignore[untyped-decorator]
+@db_route_handler("get table inventory")
 def _get_table_inventory(cur: cursor) -> Any:
     """Get COMPLETE table inventory - all tracked, deprecated, untracked tables with staleness status.
 

@@ -27,18 +27,22 @@ This file re-exports utils.DatabaseContext with API-appropriate defaults.
 from __future__ import annotations
 
 # Import the unified implementation from utils
+import os
 import sys
 from typing import Any
 
 from psycopg2.extras import DictCursor
 
-sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
+# Navigate to repo root (3 levels up from lambda/api/api_utils/), OS-path-safe
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 from utils.db.context import DatabaseContext as _DatabaseContext
 
 __all__ = ["DatabaseContext"]
 
 
-class DatabaseContext(_DatabaseContext):
+# mypy is invoked per-directory here (`cd lambda/api && mypy .`, see Makefile), so it
+# cannot resolve utils.db.context outside this search root and treats it as Any.
+class DatabaseContext(_DatabaseContext):  # type: ignore[misc]
     """REST API database context with disabled correlation tracking.
 
     Re-exports utils.DatabaseContext but:

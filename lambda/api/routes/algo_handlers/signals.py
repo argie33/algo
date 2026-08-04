@@ -287,7 +287,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("calculate trade preview")  # type: ignore[untyped-decorator]
+@db_route_handler("calculate trade preview")
 def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
     """Calculate position preview before trade entry.
 
@@ -399,8 +399,8 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch rejection funnel")  # type: ignore[untyped-decorator]
-@validate_api_response("sig_eval")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch rejection funnel")
+@validate_api_response("sig_eval")
 def _get_rejection_funnel(cur: cursor) -> Any:
     """Get signal evaluation funnel stats from stock_scores composite_score.
 
@@ -579,8 +579,8 @@ def _get_rejection_reason_description(reason: str) -> str:
     return reason or "Unknown rejection reason"
 
 
-@db_route_handler("fetch stock scores")  # type: ignore[untyped-decorator]
-@validate_api_response("scores")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch stock scores")
+@validate_api_response("scores")
 def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> Any:
     """Get top stock candidates by composite score (SWING SCORE MIGRATION: now uses stock_scores).
 
@@ -655,8 +655,8 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch stock scores history")  # type: ignore[untyped-decorator]
-@validate_api_response("scores")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch stock scores history")
+@validate_api_response("scores")
 def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
