@@ -252,6 +252,16 @@ def run_stock_scores_loader(limit=None):
 
     loader = StockScoresLoader()
     result = loader.run(symbols=symbols)
+    # RS% FIX (2026-08-03): loaders/runner.py's run_loader() wrapper calls loader.post_run()
+    # after the main per-symbol loop (StockScoresLoader.post_run computes rs_percentile via a
+    # batch PERCENT_RANK query - see load_stock_scores.py). This script calls loader.run()
+    # directly instead of going through that wrapper, so post_run() was never invoked here.
+    # Live-verified: a run through this path reset rs_percentile to its NULL per-symbol
+    # placeholder for 5445/5459 momentum-scored symbols and left it there, which is what fed
+    # the scores/signals panels' "RS% always --" symptom - the underlying value never got
+    # backfilled by the batch rank pass because that pass never ran.
+    if hasattr(loader, "post_run"):
+        loader.post_run()
     logger.info(f"Stock scores loader result: {result}")
     return result
 

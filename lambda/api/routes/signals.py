@@ -121,7 +121,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch stock signals")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch stock signals")
 def _get_signals_stocks(
     cur: cursor,
     limit: int = 500,
@@ -197,7 +197,12 @@ def _get_signals_stocks(
                 b.atr,
                 b.adx,
                 b.mansfield_rs,
-                b.rs_rating,
+                -- RS% FIX (2026-08-03): b.rs_rating is only backfilled from stock_scores.rs_percentile
+                -- by a same-day sync (load_signal_quality_scores.py) that runs before buy_sell_daily's
+                -- own daily load, so rows for the current day are never stamped and read blank. Fall
+                -- back to the live stock_scores value so today's signals aren't always empty; older
+                -- rows keep their already-stamped historical value.
+                COALESCE(b.rs_rating, ss.rs_percentile) AS rs_rating,
                 b.volume_surge_pct,
                 b.risk_reward_ratio,
                 b.buylevel,
@@ -223,6 +228,7 @@ def _get_signals_stocks(
             FROM buy_sell_daily b
             LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
             LEFT JOIN company_profile cp ON cp.symbol = b.symbol
+            LEFT JOIN stock_scores ss ON ss.symbol = b.symbol
             WHERE b.date >= CURRENT_DATE - {interval_90d}
             {buy_sell_filter}
             {symbol_clause}
@@ -254,7 +260,7 @@ def _get_signals_stocks(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch ETF signals")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch ETF signals")
 def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
     """Get ETF market-regime signals from price_daily + trend_template_data.
 

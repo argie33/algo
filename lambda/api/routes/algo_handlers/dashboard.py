@@ -46,8 +46,8 @@ _positions_cache_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("fetch algo positions")  # type: ignore[untyped-decorator]
-@validate_api_response("pos")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo positions")
+@validate_api_response("pos")
 def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa: C901
     """Get current open positions with computed fields.
 
@@ -662,8 +662,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     return cached_response
 
 
-@db_route_handler("fetch algo status")  # type: ignore[untyped-decorator]
-@validate_api_response("run")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo status")
+@validate_api_response("run")
 def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
     """Get latest algo execution status plus latest portfolio snapshot.
 
@@ -895,8 +895,8 @@ def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
     )
 
 
-@db_route_handler("fetch algo trades")  # type: ignore[untyped-decorator]
-@validate_api_response("trades")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo trades")
+@validate_api_response("trades")
 def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
     """Get recent trades with all fields for frontend.
 
@@ -949,8 +949,8 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     return json_response(200, sanitized, data_freshness=freshness)
 
 
-@db_route_handler("fetch circuit breakers")  # type: ignore[untyped-decorator]
-@validate_api_response("cb")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch circuit breakers")
+@validate_api_response("cb")
 def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
     try:
         today = date.today()
@@ -1637,8 +1637,8 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch dashboard signals")  # type: ignore[untyped-decorator]
-@validate_api_response("sig")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch dashboard signals")
+@validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data from algo_signals table.
 
@@ -1699,6 +1699,16 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             # Top active signals with quality scores - cast date to text at source.
             # LATERAL-join the latest buy_sell_daily row per symbol for entry/target/exit and
             # technical fields (algo_signals itself only tracks symbol/price/quality-score).
+            #
+            # RS% FIX (2026-08-03): this query never selected any relative-strength field, so
+            # the dashboard's RS% column was unconditionally blank for every signal regardless
+            # of data availability. stock_scores.rs_percentile is the real IBD-style RS
+            # percentile (verified live-populated, ~98% coverage). There's also a
+            # buy_sell_daily.rs_rating column meant to carry a copy of it (backfilled by
+            # load_signal_quality_scores.py's _sync_scores_to_buy_sell), but that copy is
+            # timing-fragile - it only fills NULL rows, and today it ran (09:39) before
+            # load_buy_sell_daily.py inserted today's rows (16:14), so it copied 0 rows.
+            # Join stock_scores directly instead of depending on that copy's timing.
             cur.execute("""
                 SELECT * FROM (
                     SELECT DISTINCT ON (s.symbol)
@@ -1718,7 +1728,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                                WHEN 3 THEN 'Stage 3 - Topping'
                                WHEN 4 THEN 'Stage 4'
                            END AS market_stage,
-                           t.weinstein_stage AS stage_number
+                           t.weinstein_stage AS stage_number,
+                           ss.rs_percentile
                     FROM algo_signals s
                     LEFT JOIN company_profile cp ON cp.symbol = s.symbol
                     LEFT JOIN LATERAL (
@@ -1733,6 +1744,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                         LIMIT 1
                     ) b ON TRUE
                     LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
+                    LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
                     WHERE s.execution_status != 'expired' AND s.signal_date >= CURRENT_DATE - 7
                         -- Exclude signals with no buy_sell_daily match at all: these have been
                         -- active (signal_active=true, never flipped off - nothing in the codebase
@@ -1878,8 +1890,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
-@validate_api_response("scores")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch dashboard scores")
+@validate_api_response("scores")
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     # VERSION: 20260714-153700 (COALESCE fix deployed)
     try:
@@ -2065,7 +2077,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch equity curve")
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
