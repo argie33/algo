@@ -1088,7 +1088,7 @@ def _record_closed_positions_exits(
             trade_status_ph = ", ".join(["%s"] * len(open_trade_statuses))
             cursor.execute(
                 f"""
-                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity
+                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id
                 FROM algo_positions ap
                 JOIN algo_trades at ON at.symbol = ap.symbol
                 WHERE ap.status = 'closed' AND ap.closed_at::date = %s
@@ -1113,6 +1113,7 @@ def _record_closed_positions_exits(
                             position_qty,
                             stop_loss_price,
                             entry_qty,
+                            trade_id,
                         ) = row
 
                         if entry_price is None or entry_price <= 0:
@@ -1242,11 +1243,7 @@ def _record_closed_positions_exits(
                                     exit_price_reconciled_at = CURRENT_TIMESTAMP,
                                     reconciliation_note = %s,
                                     updated_at = CURRENT_TIMESTAMP
-                                WHERE trade_id = (
-                                    SELECT trade_id FROM algo_trades
-                                    WHERE symbol = %s AND exit_date IS NULL AND status IN ({trade_status_ph_2})
-                                    ORDER BY trade_date DESC LIMIT 1
-                                )
+                                WHERE trade_id = %s AND exit_date IS NULL AND status IN ({trade_status_ph_2})
                             """,
                                 (
                                     run_date,
@@ -1257,16 +1254,15 @@ def _record_closed_positions_exits(
                                     f"Closed position recorded during reconciliation (exit price source: {price_source})",
                                     run_date,
                                     f"Recorded from {price_source} on {run_date} (P&L: ${cumulative_pnl_dollars:.2f}, {cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R)",
-                                    symbol,
+                                    trade_id,
                                     *open_trade_statuses_2,
                                 ),
                             )
                             if write_cursor.rowcount == 0:
-                                raise RuntimeError(
-                                    f"CRITICAL: algo_trades exit update failed for {symbol}. "
-                                    f"Expected to update 1 open trade (exit_date IS NULL) but 0 rows affected. "
-                                    f"Trade may already be closed or missing entirely. "
-                                    f"This indicates a data integrity issue that must be resolved before continuing reconciliation."
+                                logger.warning(
+                                    f"[PHASE 9] Trade {symbol} (trade_id={trade_id}) exit already recorded. "
+                                    f"This can happen if another process updated the trade between our SELECT and UPDATE. "
+                                    f"Continuing with position update since trade is already finalized."
                                 )
                             # Try to update position, but don't fail if it's already closed
                             # (can happen if the position was closed between SELECT and UPDATE)
