@@ -11,15 +11,7 @@
  */
 
 import React, { useMemo } from "react";
-import {
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  Clock,
-  Zap,
-  AlertCircle,
-  Loader,
-} from "lucide-react";
+import { XCircle, Loader } from "lucide-react";
 
 // Color palette - matches Python dashboard
 const COLORS = {
