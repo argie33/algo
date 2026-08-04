@@ -346,7 +346,7 @@ def _get_most_critical_issues(hlth_items: list[Any]) -> list[str]:
             elif st == "empty":
                 issues.append(f"{tbl_name} has no data")
             elif st == "error":
-                err = r.get("loader_error", "unknown error")
+                err = r.get("loader_error") or "unknown error"
                 issues.append(f"{tbl_name} loading failed: {err[:40]}")
             else:
                 issues.append(f"{tbl_name} unavailable ({st})")
@@ -1177,8 +1177,8 @@ def _build_freshness_panel(
     inventory: dict[str, Any] | None = None,
     data_coverage: dict[str, Any] | None = None,
     signal_freshness: dict[str, Any] | None = None,
-) -> Panel:
-    """Build the standalone DATA FRESHNESS - EXPANDED panel: full table freshness detail.
+) -> Group:
+    """Build the DATA FRESHNESS - EXPANDED content: full table freshness detail.
 
     Args:
         hlth_items: Validated list of health status items
@@ -1195,12 +1195,12 @@ def _build_freshness_panel(
             _build_system_status_section for why this can't come from hlth_dict.
 
     Returns:
-        Rich Panel with freshness table
+        Rich renderable (Group) with the freshness table content, unwrapped - the caller
+        is responsible for the outer Panel/title, since this content is also embedded
+        inline inside panel_data_freshness_expanded's combined orchestrator+freshness
+        panel and must not carry its own nested border/title there.
     """
     hlth_dict = hlth_dict if hlth_dict is not None else {}
-    as_of = hlth_dict.get("as_of")
-    age_s = f"  [dim]{fmt_age(as_of)}[/]" if as_of else ""
-    title = rf"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim]\[l] return[/]"
 
     left_rows: list[Text | Table | Layout | Rule] = []
 
@@ -1221,12 +1221,7 @@ def _build_freshness_panel(
         msg = "⚠ Data health unavailable - loaders may not have run yet.\n"
         msg += "Check Phase 1 orchestrator status or monitor logs."
         left_rows.append(Text(msg, style="dim"))
-        return Panel(
-            Group(*left_rows),
-            title=title,
-            border_style="yellow",
-            padding=(0, 1),
-        )
+        return Group(*left_rows)
 
     stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
     # BUG FIX: This used to flag ANY non-"ok" table (role CRIT/IMP/NORM alike) under the
@@ -1590,12 +1585,7 @@ def _build_freshness_panel(
             if len(missing) > 10:
                 left_rows.append(Text.from_markup(f"  [dim]...and {len(missing) - 10} more[/]"))
 
-    return Panel(
-        Group(*left_rows),
-        title=title,
-        border_style="yellow",
-        padding=(0, 1),
-    )
+    return Group(*left_rows)
 
 
 def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rule]:
@@ -2396,9 +2386,9 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
                 ph_s = f"  [dim]({lph})[/]"
             else:
                 ph_s = ""
-            rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
+            rows.append(Text.from_markup(f"  [{Y}]→ {body[:55]}[/]{ph_s}"))
         elif body == "[dim]-[/] halt reason unavailable":
-            rows.append(Text.from_markup(f"  [{Y}]a†³ {body}[/]"))
+            rows.append(Text.from_markup(f"  [{Y}]→ {body}[/]"))
 
     return rows
 
@@ -3614,7 +3604,7 @@ def panel_status(
                 pr_val = []
             for label, detail in _best_halt_reason(halt_r, pr_val):
                 prefix = f"{label}: " if label else ""
-                rows.append(Text.from_markup(f"[{Y}]a†³ {prefix}{detail[:60]}[/]"))
+                rows.append(Text.from_markup(f"[{Y}]→ {prefix}{detail[:60]}[/]"))
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
@@ -3666,7 +3656,7 @@ def panel_status(
             elif not isinstance(pdata, dict) and pdata is not None:
                 pdata = None
             if err and ps not in PHASE_SUCCESS_STATES:
-                rows.append(Text.from_markup(f"  [{sc}]a†³ {err[:62]}[/]"))
+                rows.append(Text.from_markup(f"  [{sc}]→ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
                 halt_reason_val = pdata.get("halt_reason")
                 if halt_reason_val is None:
@@ -3676,7 +3666,7 @@ def panel_status(
                     reason_val = ""
                 reason = (halt_reason_val if halt_reason_val else (reason_val if reason_val else ""))[:55]
                 if reason:
-                    rows.append(Text.from_markup(f"  [{Y}]a†³ {reason}[/]"))
+                    rows.append(Text.from_markup(f"  [{Y}]→ {reason}[/]"))
             elif ps in PHASE_SUCCESS_STATES and pdata:
                 # Surface a key metric per phase if available
                 for key in (
@@ -4621,9 +4611,10 @@ def _build_results_panel(
     cross-run phase reliability trend.
 
     Dedicated fullscreen view focused on phase execution with maximum detail:
-    - Shows all 9 phases with comprehensive metrics for the latest run
-    - Uses full window space for phase information
-    - 2-column layout for phases (1-5 left, 6-9 right)
+    - Shows all 9 phases with comprehensive metrics for the latest run, in a single
+      narrowed left column - freeing the right column for loader-operational detail
+      moved over from the DATA FRESHNESS panel (see _build_loader_operational_detail_rows,
+      same treatment already applied to the compact panel_algo_health's phase section)
     - Every available detail for each phase displayed
     - Phase Reliability: 30-day cross-run trend of which phases halt/error most, and why
       (is this phase failing all the time, or was this a one-off?)
@@ -4699,9 +4690,10 @@ def _build_results_panel(
         # Explicit error marker when risk data is missing - fail-fast visibility
         header_rows.append(Text.from_markup(f"[{R}]⚠ Risk data unavailable[/]"))
 
-    # Build phase details - split into left and right columns
+    # Build phase details - single narrowed column, loader-operational detail (moved
+    # over from the DATA FRESHNESS panel) fills the freed right column below.
     left_phase_rows: list[Text | Rule] = []
-    right_phase_rows: list[Text | Rule] = []
+    hlth_items, _ = extract_health_items(hlth if hlth is not None else {})
 
     if hlth and isinstance(hlth, dict):
         execution_health = hlth.get("execution_health")
@@ -4776,8 +4768,7 @@ def _build_results_panel(
                 # Phase header with status
                 phase_header = Text.from_markup(f"{status_icon} [bold {color}]{phase_name}[/] [{color}]{status_label}[/]")
 
-                # Determine which column this phase goes to (1-5 left, 6-9 right)
-                target_rows = left_phase_rows if phase_num <= 5 else right_phase_rows
+                target_rows = left_phase_rows
 
                 target_rows.append(phase_header)
 
@@ -4968,12 +4959,21 @@ def _build_results_panel(
 
                 target_rows.append(Text(""))  # Spacing between phases
 
-    # Build layout with 2 columns for phases
-    layout = Layout()
-    layout.split_row(
-        Layout(Group(*left_phase_rows), ratio=1, name="left_phases"),
-        Layout(Group(*right_phase_rows), ratio=1, name="right_phases"),
-    )
+    # Narrow the phase list into its own left column, freeing room on the right for
+    # loader-operational detail moved over from the DATA FRESHNESS panel - same
+    # treatment as _build_phase_execution_panel's compact-panel version. Phase content
+    # itself is unchanged, only the layout: single column instead of split across
+    # two phase-only columns.
+    loader_detail_rows = _build_loader_operational_detail_rows(hlth_items)
+    layout: Layout | Group
+    if loader_detail_rows:
+        layout = Layout()
+        layout.split_row(
+            Layout(Group(*left_phase_rows), ratio=3, name="left_phases"),
+            Layout(Group(*loader_detail_rows), ratio=2, name="loader_detail"),
+        )
+    else:
+        layout = Group(*left_phase_rows)
 
     # Cross-run trend (30d) - is this phase failing all the time, or was this a one-off?
     reliability_rows = _build_phase_reliability_section(exec_patterns)
@@ -5097,8 +5097,9 @@ def panel_data_freshness_expanded(
     hlth_dict = hlth if isinstance(hlth, dict) else {}
     hlth_items, ready_to_trade = extract_health_items(hlth if hlth is not None else {})
 
-    # Get the freshness panel (preserves all existing data)
-    freshness_panel = _build_freshness_panel(
+    # Get the freshness content (preserves all existing data) - a raw Group, not a Panel,
+    # so it can be embedded below without a redundant nested border/title.
+    freshness_content = _build_freshness_panel(
         hlth_items,
         ready_to_trade,
         hlth_dict,
@@ -5106,6 +5107,9 @@ def panel_data_freshness_expanded(
         data_coverage=data_coverage,
         signal_freshness=signal_freshness,
     )
+
+    as_of = hlth_dict.get("as_of")
+    age_s = f"  [dim]{fmt_age(as_of)}[/]" if as_of else ""
 
     # If we have extended orchestrator data, prepend the new sections
     # (run history / phase health / failure patterns live on the [h] panel now - see
@@ -5129,23 +5133,29 @@ def panel_data_freshness_expanded(
         if trend_rows:
             rows.extend(trend_rows)
 
-        # Combine new sections with existing freshness panel
+        # Combine new sections with the freshness content in a single bordered panel -
+        # no nested Panel-in-Panel, so the two sections share one title/border.
         if rows:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup(f"[bold {CY}]Data Freshness Table:[/]"))
             rows.append(Rule(style="dim"))
-            rows.append(freshness_panel)
+            rows.append(freshness_content)
 
             all_content = Group(*rows)
             return Panel(
                 all_content,
-                title=r"[bold yellow]ORCHESTRATOR & DATA FRESHNESS[/]  [dim]\[l] return[/]",
+                title=rf"[bold yellow]ORCHESTRATOR & DATA FRESHNESS[/]{age_s}  [dim]\[l] return[/]",
                 border_style="yellow",
                 padding=(0, 1),
             )
 
-    # If no extended data, just return the existing freshness panel (no data loss)
-    return freshness_panel
+    # If no extended data, wrap the freshness content in its own panel (no data loss)
+    return Panel(
+        freshness_content,
+        title=rf"[bold yellow]DATA FRESHNESS - EXPANDED[/]{age_s}  [dim]\[l] return[/]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
 
 
 __all__ = [
