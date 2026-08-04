@@ -1662,9 +1662,9 @@ def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rul
         if started_at:
             try:
                 if hasattr(started_at, "strftime"):
-                    time_str = started_at.strftime("%H:%M:%S")
+                    time_str = started_at.strftime("%m/%d %H:%M:%S")
                 elif isinstance(started_at, str) and len(started_at) >= 19:
-                    time_str = started_at[11:19]
+                    time_str = started_at[5:10] + " " + started_at[11:19]
             except (AttributeError, TypeError):
                 pass
 
@@ -5202,8 +5202,6 @@ def panel_data_freshness_expanded(
         # Combine new sections with the freshness content in a single bordered panel -
         # no nested Panel-in-Panel, so the two sections share one title/border.
         if rows:
-            rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup(f"[bold {CY}]Data Freshness Table:[/]"))
             rows.append(Rule(style="dim"))
             rows.append(freshness_content)
 

@@ -58,7 +58,10 @@ EXCLUSION_PATTERNS = [
     r"\bspecial purpose\b",
     r"\betn\b",
     r"\bexchange[- ]traded note\b",
-    r"\betf\b",
+    # NOTE: Removed bare \betf\b pattern that was excluding ALL ETFs (SPY, IWM, GLD, etc.)
+    # These broad-market index ETFs are tradeable instruments.  Only exclude leveraged/inverse:
+    r"\b[2-9]x\b",  # Leveraged ETFs (2x, 3x, etc.) - covered separately below
+    r"\binverse\b",  # Inverse ETFs - covered separately below
     r"\bnotes?\b.*\bdue\b",  # bonds/notes with maturity date
     r"\bclosed[- ]end\b",
     r"\b2x\b",
