@@ -599,6 +599,21 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 "debt_to_assets": data.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": data.get("debt_to_assets_unavailable_reason"),
+                # FIXED 2026-08-04: debt_to_equity/current_ratio/quick_ratio/cash_per_share
+                # already feed _score_stability's Financial Stability sub-component
+                # (_score_financial_stability, loaders/load_stock_scores.py - 30%/30%(avg
+                # of current+quick)/15% of that sub-score's own weighting) but were only
+                # ever surfaced under quality_inputs, not stability_inputs - already
+                # selected in this same query (qm.debt_to_equity etc. above), so no new SQL
+                # needed. Real, live-used Stability inputs were invisible on the Stability tab.
+                "debt_to_equity": data.get("debt_to_equity"),
+                "debt_to_equity_unavailable_reason": data.get("debt_to_equity_unavailable_reason"),
+                "current_ratio": data.get("current_ratio_val"),
+                "current_ratio_unavailable_reason": data.get("current_ratio_unavailable_reason"),
+                "quick_ratio": data.get("quick_ratio_val"),
+                "quick_ratio_unavailable_reason": data.get("quick_ratio_unavailable_reason"),
+                "cash_per_share": data.get("cash_per_share"),
+                "cash_per_share_unavailable_reason": data.get("cash_per_share_unavailable_reason"),
                 # sec_segment_metrics (real XBRL segment disclosures) already feeds
                 # _score_stability's 0.10-weight diversification sub-component
                 # (loaders/load_stock_scores.py) but was never surfaced here - the input
@@ -1279,6 +1294,16 @@ def _get_stock_scores(  # noqa: C901
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
+                # FIXED 2026-08-04: same "invisible Financial Stability inputs" fix as the
+                # other stability_inputs block above - see that comment for details.
+                "debt_to_equity": d.get("debt_to_equity"),
+                "debt_to_equity_unavailable_reason": d.get("debt_to_equity_unavailable_reason"),
+                "current_ratio": d.get("current_ratio_val"),
+                "current_ratio_unavailable_reason": d.get("current_ratio_unavailable_reason"),
+                "quick_ratio": d.get("quick_ratio_val"),
+                "quick_ratio_unavailable_reason": d.get("quick_ratio_unavailable_reason"),
+                "cash_per_share": d.get("cash_per_share"),
+                "cash_per_share_unavailable_reason": d.get("cash_per_share_unavailable_reason"),
                 "revenue_concentration_hhi": d.get("segment_revenue_concentration_hhi"),
                 "segment_count": d.get("segment_count"),
                 "largest_segment_revenue_pct": d.get("largest_segment_revenue_pct"),

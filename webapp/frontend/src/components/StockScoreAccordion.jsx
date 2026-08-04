@@ -636,18 +636,28 @@ const POSITIONING_SCHEMA = [
 ];
 
 // FIXED 2026-08-04: volatility weight badges were stale vs. _score_stability's actual
-// constants (252d/"12M" 40% not 35%, 60D 20% not 18%, 30D 15% not 12%). debt_to_assets's
-// "10%" badge below is left as an approximation - it's a real input, but nested two
-// levels deep (25% of the Financial Stability sub-score, itself 20% of overall
-// Stability), not a flat top-level weight; the same applies to debt_to_equity/current_
-// ratio/quick_ratio/cash_per_share which feed that same sub-score but aren't in this
-// tab's schema at all - flagged as a follow-up, not fixed this pass.
+// constants (252d/"12M" 40% not 35%, 60D 20% not 18%, 30D 15% not 12%).
+//
+// FIXED 2026-08-04 (second pass): debt_to_assets/debt_to_equity/current_ratio/
+// quick_ratio/cash_per_share all feed _score_financial_stability, a sub-score that is
+// itself 20% of overall Stability (_score_stability) - not flat top-level weights, so
+// they're labeled "part of 20%" rather than a fabricated precise percentage (their
+// internal 30%/30%(avg of current+quick)/25%/15% split self-normalizes over whichever
+// of the four are present, same as every other self-normalizing weight group in this
+// file). debt_to_equity/current_ratio/quick_ratio/cash_per_share were previously only
+// surfaced under the Quality tab's quality_inputs (unweighted there too, since none of
+// them feed quality_score) and were completely absent from stability_inputs - added
+// server-side in lambda/api/routes/scores.py (already-selected columns, no new SQL).
 const STABILITY_SCHEMA = [
   { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '40%' },
   { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '20%' },
   { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '15%' },
   { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: '10%' },
+  { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: 'part of 20%' },
+  { key: 'debt_to_equity',           label: 'Debt / Equity',        fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
+  { key: 'current_ratio',            label: 'Current Ratio',        fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
+  { key: 'quick_ratio',              label: 'Quick Ratio',          fmt: v => num(v, 2), used: true, weight: 'part of 20%' },
+  { key: 'cash_per_share',           label: 'Cash / Share',         fmt: v => `$${num(v, 2)}`, used: true, weight: 'part of 20%' },
   { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2), used: true, weight: '15%' },
   { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2) },
   { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2) },
