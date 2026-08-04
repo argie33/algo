@@ -123,7 +123,26 @@ EXCLUSION_PATTERNS = [
 # "Ordinary Shares"/"Rights" share-class language is also present, so a real operating
 # company that happens to have "Acquisition Corp" in its legal name but lists "Common
 # Stock" is untouched.
-CORP_SPONSOR_PATTERN = re.compile(r"\b(investment|acquisition) corp(oration)?\b", re.IGNORECASE)
+#
+# GOVERNANCE 2026-08-04 (same day, follow-up): the pattern above required "acquisition"/
+# "investment" immediately adjacent to "corp", but the most common real-world SPAC-sponsor
+# convention numbers the entity BETWEEN those two words ("Acquisition I Corp", "Acquisition
+# II Corp.", "M3-Brigade Acquisition V Corp.", "StoneBridge Acquisition II Corporation") -
+# including the exact "Iron Dome Acquisition I Corp." example cited above, which the
+# adjacency-only regex never actually matched. Live-confirmed 2026-08-04: 16 already-active
+# symbols in the local DB (APAC, DBCA, DMII, IDAC, LCCC, MBVI, NCO, PACH, MBAV, AESP, TVA,
+# TVIV, VLOS, ARCL, MCAH, BCAR among them) still slipping through - all real, currently
+# yfinance-quotable pre-merger SPAC units trading near their ~$10 trust value, not
+# no-data symbols, so they were silently inflating the tradable universe with shells that
+# provide no real operating signal rather than showing up as a data gap. Allow an optional
+# short numbering token (roman numeral, plain digit, or ordinal like "1st") between the
+# sponsor word and "corp" - bounded to avoid matching arbitrary intervening company-name
+# words. No "Corp <numeral>" (numeral-after-corp) ordering found in current live data;
+# add that ordering here too if a future audit finds one.
+CORP_SPONSOR_PATTERN = re.compile(
+    r"\b(investment|acquisition)\s+(?:[ivxlcdm]+|\d+(?:st|nd|rd|th)?)?\s*corp(oration)?\b",
+    re.IGNORECASE,
+)
 SPAC_SHARE_CLASS_PATTERN = re.compile(r"\bordinary share(s)?\b|\brights?\b", re.IGNORECASE)
 
 
