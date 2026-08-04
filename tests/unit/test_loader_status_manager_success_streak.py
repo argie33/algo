@@ -57,6 +57,37 @@ def test_mark_completed_resets_streak_and_stamps_success():
         assert "http_status_code" in update_sql
 
 
+def test_mark_completed_persists_symbols_failed():
+    """Regression test for the 2026-08-03 fix (migration 1196): runner.py computes an
+    accurate per-run symbols_failed count and passes it to mark_completed(), but it was
+    only ever logger.warning()'d, never written to any column - a loader that partially
+    fails every run (under max_fail_rate, so never FAILED/consecutive_failures) looked
+    identical to a fully healthy one anywhere the dashboard/API reads this table."""
+    manager = _make_manager()
+    with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:
+        mock_cur = MagicMock()
+        mock_db_ctx.return_value.__enter__.return_value = mock_cur
+        mock_db_ctx.return_value.__exit__.return_value = False
+        mock_cur.fetchone.side_effect = [
+            (5486, 5380, 99.0),
+            (None, None, None, None, None, None, None),
+        ]
+        mock_cur.rowcount = 1
+
+        manager.mark_completed(symbols_failed=12)
+
+        update_call = None
+        for call in mock_cur.execute.call_args_list:
+            sql = call[0][0]
+            if "UPDATE data_loader_status" in sql:
+                update_call = call
+                break
+
+        assert update_call is not None, "UPDATE query not found in execute calls"
+        assert "symbols_failed = %s" in update_call[0][0]
+        assert 12 in update_call[0][1]
+
+
 def test_mark_failed_increments_streak_without_touching_last_success(monkeypatch=None):
     manager = _make_manager()
     with patch("utils.loaders.status_manager.DatabaseContext") as mock_db_ctx:

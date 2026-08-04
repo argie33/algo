@@ -362,12 +362,12 @@ class LoaderStatusManager:
                             last_success_at = NOW(), consecutive_failures = 0,
                             execution_duration_sec = %s, http_status_code = %s,
                             rate_limit_quota = %s, symbols_per_second = %s, latest_date = %s,
-                            symbol_count = %s, symbols_loaded = %s
+                            symbol_count = %s, symbols_loaded = %s, symbols_failed = %s
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
                          rate_limit_quota, symbols_per_sec, latest_date, total_symbols, loaded_symbols,
-                         self.table_name),
+                         symbols_failed, self.table_name),
                     )
                     if cur.rowcount != 1:
                         raise RuntimeError(
@@ -383,11 +383,12 @@ class LoaderStatusManager:
                             last_success_at = NOW(), consecutive_failures = 0,
                             execution_duration_sec = %s, http_status_code = %s,
                             rate_limit_quota = %s, symbols_per_second = %s,
-                            symbol_count = %s, symbols_loaded = %s
+                            symbol_count = %s, symbols_loaded = %s, symbols_failed = %s
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
-                         rate_limit_quota, symbols_per_sec, total_symbols, loaded_symbols, self.table_name),
+                         rate_limit_quota, symbols_per_sec, total_symbols, loaded_symbols, symbols_failed,
+                         self.table_name),
                     )
                 if cur.rowcount != 1:
                     raise RuntimeError(
