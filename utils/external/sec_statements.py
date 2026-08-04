@@ -33,7 +33,14 @@ _BALANCE_IFRS_ALIASES = [
     ("Inventories", "inventory_net"),
     ("PropertyPlantAndEquipment", "property_plant_and_equipment_net"),
     ("Goodwill", "goodwill"),
-    ("NoncurrentLiabilities", "long_term_debt"),
+    # FIXED 2026-08-04: "NoncurrentLiabilities" (total non-current liabilities, a
+    # different line item) was never a real long-term-debt concept - live-checked
+    # against ASR's actual ifrs-full facts, which don't even report that tag. The real
+    # IFRS taxonomy element filers use for long-term debt is "LongtermBorrowings"
+    # (paired with "ShorttermBorrowings" for the current portion, same convention as
+    # us-gaap's LongTermDebt); live-confirmed present with real 2018-2024 values for
+    # ASR. This alias had never worked for any filer.
+    ("LongtermBorrowings", "long_term_debt"),
 ]
 
 _INCOME_IFRS_ALIASES = [
@@ -84,6 +91,14 @@ _INCOME_IFRS_ALIASES = [
         "ProfitLossBeforeTax",
         "income_loss_from_continuing_operations_before_income_taxes_extraordinary_items_noncontrolling_interest",
     ),
+    # FIXED 2026-08-04: no IFRS interest-expense alias existed, so interest_coverage was
+    # stuck at "SEC data not available" for every IFRS-only filer even when the underlying
+    # data existed. "FinanceCosts" is the standard IAS 1 income-statement line IFRS filers
+    # use in place of us-gaap's InterestExpense - live-confirmed via ASR (Grupo Aeroportuario
+    # del Sureste): real ifrs-full:FinanceCosts data for every fiscal year, $826.7M for
+    # FY2024. target_key matches the us-gaap concept's existing column so no field_mapping
+    # changes are needed (same convention as every other alias in this list).
+    ("FinanceCosts", "interest_expense"),
 ]
 
 _CASHFLOW_IFRS_ALIASES = [
@@ -437,19 +452,40 @@ def _aggregate_concepts(
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 
-    # (xbrl_concept_name, target_key) pairs to look up, us-gaap first (preserves
-    # exact prior behavior/column names), then IFRS aliases for foreign filers, then
-    # dei aliases (looked up only in dei_facts - see this function's dei_aliases
+    # (xbrl_concept_name, target_key, source) triples to look up: "gaap" specs check
+    # us-gaap first and fall back to ifrs-full only if us-gaap has nothing at all for
+    # that concept name; "ifrs" alias specs go straight to ifrs-full, never through
+    # us-gaap first (preserves exact prior behavior/column names for plain concepts),
+    # then dei aliases (looked up only in dei_facts - see this function's dei_aliases
     # docstring for why these must never share a target_key with a us-gaap/ifrs concept).
-    concept_specs: list[tuple[str, str, bool]] = [(c, _to_snake(c), False) for c in concepts]
+    #
+    # FIXED 2026-08-04: ifrs_aliases used to share the exact same us-gaap-first lookup
+    # as plain concepts. That's a silent no-op whenever an ifrs alias's concept name is
+    # spelled identically to a real us-gaap concept name ("Assets", "Liabilities",
+    # "Goodwill" are valid tags in BOTH taxonomies) and the filer has ANY us-gaap entry
+    # under that name - even a stale one from years before they were IFRS-only. Live-
+    # confirmed via ASR (Grupo Aeroportuario del Sureste): us-gaap:Assets has exactly 2
+    # entries (FY2016-2017, filed 2018), so both the plain spec AND the "Assets" ifrs
+    # alias spec found that same stale us-gaap data and neither ever reached
+    # ifrs-full:Assets's real 2018-2024 entries - total_assets/total_liabilities came
+    # back NULL every year since 2018 despite current_assets/current_liabilities/
+    # stockholders_equity (different-spelled ifrs concepts, no collision) working fine.
+    # Confirmed via a live DB scan: 58 symbols affected today (HMC, TM, SONY, PBR, VALE,
+    # WPP, FRO, ALC, FMS among them) - total_assets NULL for fiscal_year >= 2022 despite
+    # current_assets present. IFRS alias specs must always read ifrs-full directly; the
+    # existing latest-filed-wins merge per fiscal year (below) already handles combining
+    # both sources correctly when a company legitimately has both.
+    concept_specs: list[tuple[str, str, str]] = [(c, _to_snake(c), "gaap") for c in concepts]
     if ifrs_aliases:
-        concept_specs.extend((c, k, False) for c, k in ifrs_aliases)
+        concept_specs.extend((c, k, "ifrs") for c, k in ifrs_aliases)
     if dei_aliases:
-        concept_specs.extend((c, k, True) for c, k in dei_aliases)
+        concept_specs.extend((c, k, "dei") for c, k in dei_aliases)
 
-    for concept, target_key, is_dei in concept_specs:
-        if is_dei:
+    for concept, target_key, source in concept_specs:
+        if source == "dei":
             concept_data = dei_facts.get(concept) if dei_facts is not None else None
+        elif source == "ifrs":
+            concept_data = ifrs_facts.get(concept) if ifrs_facts is not None else None
         else:
             concept_data = us_gaap_facts.get(concept) if us_gaap_facts is not None else None
             if concept_data is None:
@@ -473,7 +509,7 @@ def _aggregate_concepts(
                 # pre-restructuring Swiss AG share count, live-caught via a market-cap
                 # sanity check) and reverted it. Restrict dei facts to domestic forms only
                 # to avoid reintroducing the same class of silent unit-mismatch error.
-                if is_dei and entry.get("form") in ("20-F", "40-F", "6-K"):
+                if source == "dei" and entry.get("form") in ("20-F", "40-F", "6-K"):
                     continue
                 fp = entry.get("fp")
                 # Fixed 2026-07-31: For annual extraction, accept quarterly (Q1-Q4), annual (FY),
