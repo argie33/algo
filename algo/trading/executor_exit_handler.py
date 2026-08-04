@@ -382,7 +382,7 @@ class ExitHandler:
 
     def _validate_and_convert_trade_data(
         self, cur: PsycopgCursor[Any], trade_id: int, row: tuple[Any, ...]
-    ) -> tuple[str, float, int, float, str, int | None, float, int, str]:
+    ) -> tuple[str, float, float, float, str, int | None, float, int, str]:
         """Validate and type-convert fetched trade data.
 
         Args:
@@ -417,7 +417,13 @@ class ExitHandler:
             )
 
         entry_price_f = float(entry_price)
-        entry_qty_i = int(entry_qty)
+        # float (not int): algo_trades.entry_quantity is NUMERIC(18,4) - fractional-share
+        # entries are real in this DB (e.g. 5.5, 1.25 shares). int() truncation here fed a
+        # too-small cost basis/risk denominator into _compute_cumulative_pnl's
+        # cumulative_pnl_pct and cumulative_r_multiple for multi-leg exits on fractional
+        # positions - same bug class as the entry_quantity int-truncation bugs already fixed
+        # in alpaca_sync_manager.py and reconciliation.py's check_partial_fills().
+        entry_qty_f = float(entry_qty)
         stop_loss_price_f = float(stop_loss_price)
 
         if current_qty is None:
@@ -430,7 +436,7 @@ class ExitHandler:
         return (
             symbol,
             entry_price_f,
-            entry_qty_i,
+            entry_qty_f,
             stop_loss_price_f,
             alpaca_order_id,
             position_id,
@@ -501,7 +507,7 @@ class ExitHandler:
         pnl_pct: float,
         r_multiple: float,
         entry_price: float,
-        entry_qty: int,
+        entry_qty: float,
         risk_per_share: Decimal,
         full_exit: bool,
         is_estimated_price: bool,

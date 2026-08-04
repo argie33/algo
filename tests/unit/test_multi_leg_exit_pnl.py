@@ -150,6 +150,36 @@ class TestComputeCumulativePnl:
         assert pnl_pct == pytest.approx(4.0)  # 200 / (100*50) * 100
         assert r_multiple == pytest.approx(1.0)  # 200 / (4.0*50)
 
+    def test_multi_leg_exit_with_fractional_entry_qty_not_truncated(self):
+        """algo_trades.entry_quantity is NUMERIC(18,4) - fractional-share entries are real
+        (live-confirmed in prod DB, e.g. 5.5, 1.25 shares). _validate_and_convert_trade_data
+        used to int()-truncate entry_qty before it reached here, understating the cost-basis/
+        risk denominator used for cumulative_pnl_pct and cumulative_r_multiple on multi-leg
+        exits of fractional positions. 10.5 shares truncated to 10 would have overstated both
+        by 5%; this asserts they're computed against the true 10.5."""
+        handler = _make_handler()
+        cur = _cur_with_prior_partial_sum(200.0)
+
+        pnl_dollars, pnl_pct, r_multiple = handler._compute_cumulative_pnl(
+            cur,
+            trade_id=13,
+            symbol="AAPL",
+            pnl_dollars=0.0,
+            pnl_pct=0.0,
+            r_multiple=0.0,
+            entry_price=50.0,
+            entry_qty=10.5,
+            risk_per_share=Decimal("2.0"),
+            full_exit=True,
+            is_estimated_price=False,
+        )
+
+        assert pnl_dollars == 200.0
+        # Values are quantized to 2dp (ROUND_HALF_UP) by the code under test, same as its
+        # sibling assertions above - round the expected value to match, don't compare raw.
+        assert pnl_pct == pytest.approx(round(200 / (50 * 10.5) * 100, 2))  # not 200/(50*10)*100 == 40.0
+        assert r_multiple == pytest.approx(round(200 / (2.0 * 10.5), 2))  # not 200/(2.0*10) == 10.0
+
     def test_query_scopes_to_this_trade_id_and_partial_legs_only(self):
         """The aggregation query must filter by this specific trade_id and exclude any
         already-recorded full-exit row (there should never be one prior to this call, but
