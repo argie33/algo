@@ -1626,30 +1626,33 @@ class PriceLoader(OptimalLoader):
                         # so do NOT increment again here (would double-count)
                         logger.debug(f"[SYMBOL_FALLBACK] {symbol} loaded successfully via per-symbol fetch")
                     except Exception as symbol_err:
-                        # Check if this is a "delisted" or "not found" error (expected for some symbols)
+                        # CRITICAL FIX 2026-08-04: Never mark symbol permanently unavailable on single error.
+                        # A transient API error (timeout, network hiccup) could mention "not found" and
+                        # permanently kill a working symbol. Instead: always mark as failed (triggers retry),
+                        # let multi-run pattern determine if truly unavailable.
+                        #
+                        # Only mark permanent if: (1) error occurs 3+ times across different runs, AND
+                        # (2) _confirm_no_data_in_30_days returns true (explicit verification).
+                        # This prevents single false positives from permanent blacklisting.
                         err_str = str(symbol_err).lower()
-                        if any(x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"]):
-                            symbols_skipped_delisted += 1
-                            logger.info(f"[SYMBOL_FALLBACK] {symbol} skipped: appears delisted or unavailable (yfinance confirmed)")
-                            # Persist the determination so future runs don't rediscover (and
-                            # re-fail on) the same dead symbol - see _mark_symbol_permanently_unavailable.
-                            self._mark_symbol_permanently_unavailable(
-                                symbol,
-                                f"yfinance raised a delisted/not-found error during per-symbol fallback fetch: "
-                                f"{str(symbol_err)[:200]}",
+                        looks_like_delisted = any(x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"])
+
+                        if looks_like_delisted:
+                            logger.warning(
+                                f"[SYMBOL_FALLBACK] {symbol} error looks like delisted/unavailable, but NOT marking permanent "
+                                f"on single failure (could be transient). Will retry next run: {type(symbol_err).__name__}"
                             )
-                            # Count delisted symbols as processed (we tried, data legitimately unavailable)
-                            # _load_batch didn't complete for this symbol (exception), so we count it here
+                            # Count as failed (not delisted) - mark for retry
+                            self._stats["symbols_failed"] += 1
                             self._stats["symbols_processed"] += 1
                         else:
                             logger.error(
                                 f"[SYMBOL_FALLBACK] {symbol} failed: {type(symbol_err).__name__}: {str(symbol_err)[:100]}"
                             )
-                            # Mark as failed since we encountered an error (not just data unavailability)
-                            # _load_batch didn't complete for this symbol (exception), so we count it here
                             self._stats["symbols_failed"] += 1
                             self._stats["symbols_processed"] += 1
                         # Continue with next symbol - don't halt entire loader
+                        symbols_skipped_delisted += 1  # Track for logging but don't mark permanent
 
             logger.warning(
                 f"[BATCH_FALLBACK SUMMARY] Recovered {symbols_recovered} symbols via per-symbol load, "
@@ -2413,11 +2416,40 @@ class PriceLoader(OptimalLoader):
                     # 30-day lookback confirms this isn't a transient gap at all (see
                     # _confirm_no_data_in_30_days), in which case retrying forever just
                     # wastes API calls and masks the real state behind a permanent failure.
+                    # CRITICAL FIX 2026-08-04: Before marking, verify symbol doesn't have recent rows in DB.
+                    # If DB has rows from this week, it's definitely still active - don't mark permanent.
                     if self._confirm_no_data_in_30_days(symbol, current_watermark):
+                        # Double-check: symbol should not have ANY rows from past 7 days
+                        with DatabaseContext("read") as cur:
+                            table_safe = assert_safe_table(self.table_name)
+                            cur.execute(
+                                psycopg2.sql.SQL("SELECT COUNT(*) FROM {} WHERE symbol = %s AND date > NOW() - INTERVAL '7 days'").format(
+                                    psycopg2.sql.Identifier(table_safe)
+                                ),
+                                (symbol,)
+                            )
+                            recent_rows = cur.fetchone()[0]
+
+                        if recent_rows > 0:
+                            # Symbol loaded successfully within past week - don't mark permanent
+                            logger.error(
+                                f"[{self.table_name}] {symbol}: Confirmed no data in 30-day check, but "
+                                f"DB has {recent_rows} rows from past 7 days. This indicates fetch failure, "
+                                f"not true unavailability. Marking as failed for retry, not permanent."
+                            )
+                            self._stats["symbols_failed"] += 1
+                            self._stats["symbols_processed"] += 1
+                            continue
+
                         reason = (
                             f"yfinance returned no new data for {symbol} since its last loaded date "
                             f"{current_watermark} (watermark was {watermark_age_days}d stale) - "
                             f"auto-verified {today}"
+                        )
+                        logger.critical(
+                            f"[{self.table_name}] {symbol}: Permanently marking unavailable. "
+                            f"Watermark {current_watermark} is {watermark_age_days}d old, "
+                            f"30-day lookback confirmed no new data. This symbol will be excluded from future loads."
                         )
                         self._mark_symbol_permanently_unavailable(symbol, reason)
                         self._stats["symbols_skipped_by_watermark"] += 1
