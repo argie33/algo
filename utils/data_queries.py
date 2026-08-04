@@ -66,6 +66,21 @@ def get_trade_win_loss_stats(cur: cursor, limit: int = 30) -> dict[str, int | No
 
     Single source of truth for trade performance metrics used by circuit breakers.
 
+    Mirrors the exclusions in algo/risk/circuit_breaker.py::_check_win_rate_floor
+    (the live pretrade halt gate) and loaders/compute_circuit_breakers.py::_compute_win_rate
+    (the reporting loader): reconciliation/force-close/delisted/DATA-QC/CONCENTRATION exits
+    and EXT- synthetic trades are not real strategy outcomes and must not count toward win
+    rate, and exit_r_multiple IS NOT NULL + a deterministic exit_time/id tiebreak are required
+    for the same reasons documented there. Confirmed live 2026-08-03: this was the one CB9
+    win-rate implementation the CONCENTRATION-exclusion fix (commit 3078163b2) missed - this
+    dashboard endpoint (lambda/api/routes/algo_handlers/dashboard.py CB9) kept reporting a
+    contaminated 24.0% (8 of the most recent 30 trades were POSITION_SIZE_CONCENTRATION force-
+    exits / a reconciliation close) alongside the already-patched consecutive_losses=0 from
+    circuit_breaker_status, producing exactly the "consecutive_losses is 0 but win_rate_floor
+    triggered" confusion this was reported under - the two breakers were reading from
+    differently-filtered trade sets, not disagreeing on real performance. The live trading
+    gate was never affected (it already had this fix); only this dashboard display was wrong.
+
     Args:
         cur: Database cursor
         limit: Number of recent closed trades to analyze
@@ -84,10 +99,17 @@ def get_trade_win_loss_stats(cur: cursor, limit: int = 30) -> dict[str, int | No
             SELECT profit_loss_pct
             FROM algo_trades
             WHERE status = 'closed' AND exit_date IS NOT NULL
-            ORDER BY exit_date DESC LIMIT %s
+              AND exit_r_multiple IS NOT NULL
+              AND trade_id NOT LIKE 'EXT-%%'
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+            ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC LIMIT %s
         ) recent_trades
     """,
-        (limit,),
+        ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%", limit),
     )
     row = cur.fetchone()
     if not row:
