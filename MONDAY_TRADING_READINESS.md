@@ -1,115 +1,86 @@
-# Monday Trading Readiness Checklist - 2026-08-05
+# Trading Readiness Status
 
-**Status**: VERIFIED READY FOR REAL-MONEY TRADING
+**Status as of 2026-08-04: NOT independently re-verified for real-money go-live.**
+**Known blocker: no alert channel configured — see below. Do not go live until resolved.**
 
-## Critical Fixes Verified
+> This document previously claimed "VERIFIED READY FOR REAL-MONEY TRADING" as of
+> 2026-08-02. That claim is retracted: at least a dozen critical bugs (several rated
+> CRITICAL - frozen stop-loss prices, Phase 3 broken for real positions, Phase 6 wrong
+> concentration denominator false-halting the orchestrator, circuit breaker
+> miscounting forced exits as real losses, hardcoded-zero re-entry cap, orphaned live
+> bracket orders on Alpaca "new" status, DB session timezone mislabeling all naive UTC
+> timestamps, and more) were found and fixed in the two days *after* this doc declared
+> the system verified. A stale "verified ready" doc is actively dangerous with real
+> money on the line — it creates false confidence. Treat NOTHING in this file as
+> current without re-checking the commands below yourself. See
+> `MEMORY.md`/`git log` for the full, dated fix history instead of trusting a
+> point-in-time snapshot like this one.
 
-### Phase 6 Exit Execution - Decimal/Float Arithmetic
-- **Issue**: Exit execution halted on 2026-08-01 with "unsupported operand type(s) for -: 'decimal.Decimal' and 'float'"
-- **Root Cause**: psycopg2 Decimal types from PostgreSQL weren't being converted before arithmetic
-- **Fix**: Commit 6daab0c1d - Added _ensure_float() and _ensure_int() with triple-conversion and type verification
-- **Status**: ✓ IMPLEMENTED, ✓ TESTED, ✓ VERIFIED IN UNIT TESTS
+## The one confirmed hard blocker
 
-### Phase 5 Halt Behavior
-- **Issue**: Phase 5 halt had regressed to allow minimal entries when constraints unknown (safety violation)
-- **Fix**: Commit aa6814a33 - Reverted to conservative halt defaults (all constraints disabled)
-- **Status**: ✓ IMPLEMENTED, ✓ VERIFIED IN TESTS
+**No alert channel is configured.** `ALERT_EMAIL_TO`/`ALERT_SMTP_SECRET_ARN` and
+`ALERTS_SNS_TOPIC` are both unset (`grep -i ALERT .env.local` → 0 matches, no `.env`
+file exists). Every halt/circuit-breaker-trip/exit-failure now correctly persists to
+`algo_notifications` (code-side gap fixed), but **no human gets paged** — the
+dashboard must be open and watched. This is a real-credentials gap only the user can
+close; it is not fixable in code. Do not go live with real money until one of these
+is set.
 
-### Thread-Safe Database Connection Pool
-- **Status**: ✓ Using ThreadedConnectionPool (not SimpleConnectionPool)
-- **Verified**: dev_server dashboard concurrent fetches work correctly
+## How to actually check current readiness (don't trust a written snapshot)
 
-## Test Coverage
+```bash
+# Data freshness - run fresh, right before trading
+python scripts/monitor_data_staleness.py
 
-- **Total Tests**: 2107
-- **Passed**: 2107 (100%)
-- **Skipped**: 14 (expected)
-- **Failed**: 0
-- **Status**: ✓ GREEN
+# Full test suite - should be 100% pass, 0 fail
+python -m pytest tests/ -q
 
-## Data Readiness
+# Type safety (must match .pre-commit-config.yaml exactly - see
+# lambda_routes_untyped_decorator_mypy_gap memory for why a freehand
+# `python -m mypy .` invocation gives a false read)
+pre-commit run mypy-core mypy-lambda-api --all-files
 
-### Critical Data Loaders
-| Loader | Latest Date | Age | Status |
-|--------|-------------|-----|--------|
-| price_daily | 2026-07-31 | 1 day | HEALTHY |
-| buy_sell_daily | 2026-07-31 | 2 days | COMPLETED |
-| economic_data | 2026-07-30 | 2 days | HEALTHY |
-| stock_scores | 2026-08-02 | 0 days | COMPLETED |
+# Orchestrator halt/error history - the ground truth for "did it actually run clean"
+python -c "
+from utils.db.connection import get_db_connection
+with get_db_connection() as conn:
+    cur = conn.cursor()
+    cur.execute('''SELECT run_id, overall_status, halt_reason, started_at
+                   FROM orchestrator_execution_log
+                   WHERE overall_status NOT IN ('ok','skipped')
+                   ORDER BY started_at DESC LIMIT 20''')
+    for row in cur.fetchall():
+        print(row)
+"
+```
 
-### Financial Data Backfill
-- **Status**: Running in background (SEC API rate-limited)
-- **Scope**: 730 days historical data for 5,481 symbols
-- **Target**: Reduce NULL % for 8 critical financial columns
-- **ETA**: Completes during non-trading hours (4-8 hours)
+## Fixed 2026-08-04 (this pass)
 
-## Safety Gates Verified
+- **Live-breaking:** `algo/orchestrator/phase8_entry_execution.py` had unresolved
+  `git stash pop` conflict markers (`<<<<<<< Updated upstream` / `>>>>>>> Stashed
+  changes`) sitting uncommitted in the working tree — a syntax error that crashed
+  the entire orchestrator on import (Phase 8 is imported at module load time by
+  `orchestrator.py`). Confirmed via `python scripts/run_local_orchestrator.py`.
+  Resolved in favor of the already-correct `constraints_dict`-based code (matches
+  what was already committed on `main`); a stray unrelated stash (`WIP on main:
+  9d3a0926a fix: Harden dev server startup`) remains in `git stash list`,
+  untouched — review it separately if that dev-server work is still wanted.
+- ~30 call sites across orchestrator phases 1-9, `executor.py`, `order_manager.py`,
+  `position_sync.py`, `halt_flag_manager.py`, and the Alpaca adapter truncated
+  exception text to `str(e)[:100]` before persisting it as `halt_reason` - live
+  cutting a real Postgres error off mid-word before the useful part. This is the
+  direct mechanism behind "exit execution halted, not sure why" reports. Bumped to
+  500 chars (1500 for Phase 9's traceback).
+- `positioning_metrics.ad_rating` was displayed on the scores page but never
+  weighted into `positioning_score` (same "displayed but never weighted" class as
+  the earlier `short_interest_trend` fix).
 
-### Entry Execution (Phase 8)
-- ✓ Entry blocked when Phase 5 halts (halt_new_entries=True)
-- ✓ Entry blocked on missing price data
-- ✓ Entry blocked on data staleness (>threshold minutes)
-- ✓ Max concurrent entries limited (phase8_max_concurrent_entries)
+## Before every real go-live decision
 
-### Exit Execution (Phase 6)
-- ✓ Concentration checks cannot halt with Decimal/float errors (fixed)
-- ✓ Position data integrity verified (NULL checks)
-- ✓ Trade data linked correctly (trade_id fetches)
-- ✓ Sector concentration enforced (force-exit oversized positions)
-- ✓ Position size concentration enforced (force-exit > max_position_size_pct)
-
-### Risk Management (Phase 5)
-- ✓ Position sizing constraints calculated
-- ✓ Max daily loss checked
-- ✓ Sector drawdown monitored
-- ✓ VIX threshold enforced
-
-## Monday Morning Pre-Trading Tasks
-
-1. **6:30 AM ET** - Check data freshness
-   ```bash
-   python scripts/monitor_data_staleness.py
-   ```
-
-2. **7:00 AM ET** - Start dashboard
-   ```bash
-   python start_dashboard_dev.py
-   ```
-
-3. **8:00 AM ET** - Verify all loaders completed successfully
-
-4. **9:00 AM ET** - Ready for market open at 9:30 AM ET
-   - Orchestrator will auto-execute on market open
-   - Phase 1: Data freshness checks
-   - Phase 2-9: Full trading orchestration
-
-## Known Limitations (Acceptable)
-
-- Financial data backfill has 730-day delay (not all historical data available)
-- Economic data on daily lag (FRED API updates overnight)
-- Analyst ratings from yfinance (free tier, daily lag)
-
-## Contingency Plans
-
-**If any loader fails Monday morning:**
-1. Check loader-specific error logs
-2. Verify data source availability (SEC, FRED, Alpaca, yfinance)
-3. Run fallback freshness check
-4. Escalate only if critical loaders (price_daily, buy_sell_daily) fail
-
-**If orchestrator halts:**
-1. Check execution_log table for halt_reason
-2. Review logs in order: Phase 1→Phase 2→...→Phase 6
-3. Verify data quality hasn't degraded overnight
-4. Do NOT bypass safety halts - investigate root cause
-
-## Final Verification
-
-All items above verified on 2026-08-02 at approximately 17:00 ET.
-
-System is ready for real-money trading with full safety gates enabled.
-
----
-**Prepared by**: Claude Code AI  
-**Date**: 2026-08-02 (Sunday)  
-**For Trading Day**: 2026-08-05 (Monday)
+1. Run the four checks above fresh - do not reuse numbers from this file.
+2. Confirm the alert-channel blocker above is closed.
+3. Check `git status` / `git stash list` for anything uncommitted or unresolved in
+   the working tree - the Phase 8 incident above shows a leftover merge conflict can
+   sit invisibly until the exact module is imported.
+4. Do NOT bypass safety halts to make a demo/deadline - investigate root cause
+   (see `feedback_dont_bypass_safety_halts_to_satisfy_goal_hook` memory).
