@@ -175,31 +175,31 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             )
 
                         # Insert new position
-                            cur.execute('''
-                                INSERT INTO algo_positions (
-                                    position_id, symbol, quantity, avg_entry_price, entry_price,
-                                    current_price, status, entry_date,
-                                    stop_loss_price, current_stop_price,
-                                    target_1_price, target_2_price, target_3_price,
-                                    target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                                    cognito_sub, created_at, updated_at
-                                )
-                                VALUES (
-                                    %s, %s, %s, %s, %s,
-                                    %s, %s, NOW(),
-                                    %s, %s,
-                                    %s, %s, %s,
-                                    %s, %s, %s,
-                                    %s, NOW(), NOW()
-                                )
-                            ''', (
-                                trade_position_id, symbol, total_qty, entry_price, entry_price,
-                                entry_price, 'open',
-                                stop_loss_price, stop_loss_price,
+                        cur.execute('''
+                            INSERT INTO algo_positions (
+                                position_id, symbol, quantity, avg_entry_price, entry_price,
+                                current_price, status, entry_date,
+                                stop_loss_price, current_stop_price,
                                 target_1_price, target_2_price, target_3_price,
                                 target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                                get_algo_owner_cognito_sub(),
-                            ))
+                                cognito_sub, created_at, updated_at
+                            )
+                            VALUES (
+                                %s, %s, %s, %s, %s,
+                                %s, %s, NOW(),
+                                %s, %s,
+                                %s, %s, %s,
+                                %s, %s, %s,
+                                %s, NOW(), NOW()
+                            )
+                        ''', (
+                            trade_position_id, symbol, total_qty, entry_price, entry_price,
+                            entry_price, 'open',
+                            stop_loss_price, stop_loss_price,
+                            target_1_price, target_2_price, target_3_price,
+                            target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                            get_algo_owner_cognito_sub(),
+                        ))
                         inserted += 1
                         logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
 
