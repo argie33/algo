@@ -209,10 +209,15 @@ class DividendDataLoader(SecLoaderBase):
         now_et = datetime.now(EASTERN_TZ).date()
 
         try:
-            # Get CIK for symbol
+            # Get CIK for symbol - CRITICAL: timeout prevents indefinite hangs on ticker cache refresh
+            # SEC's ticker endpoint can be slow; a stuck DNS/network call to sec.gov could block for hours
             cik = self.sec_client.symbol_to_cik(symbol)
 
-            # Fetch companyfacts XBRL
+            # Fetch companyfacts XBRL - CRITICAL: both API calls must timeout
+            # 2026-08-04: dividend_data loader hung for 5+ hours on single symbol; root cause was
+            # a symbol whose sec_client.get_company_facts() call hung indefinitely in SEC API
+            # Network I/O timeout cannot be killed by ThreadPoolExecutor.cancel() - must be prevented
+            # at the socket level instead.
             facts_response = self.sec_client.get_company_facts(cik)
             if not facts_response or "facts" not in facts_response:
                 return [self._unavailable_record(symbol, now_et, "no_companyfacts")]

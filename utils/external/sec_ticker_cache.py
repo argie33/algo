@@ -72,7 +72,12 @@ class TickerCache:
         self._timeout = timeout
         self._rate_limiter = rate_limiter
         self._session = session or requests.Session()
-        self._ticker_cache_file = Path("/tmp/sec_ticker_cache.json")
+        # CRITICAL FIX: Use platform-appropriate temp directory instead of hardcoded /tmp
+        # On Windows, /tmp is a relative path (./tmp) which could cause permission errors
+        # and file lock issues that hang the loader. Use tempfile.gettempdir() for cross-platform safety.
+        import tempfile
+        temp_dir = Path(tempfile.gettempdir())
+        self._ticker_cache_file = temp_dir / "sec_ticker_cache.json"
         self._load_ticker_cache_from_file()
 
     def _load_ticker_cache_from_file(self) -> None:

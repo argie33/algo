@@ -164,15 +164,14 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     return rows
 
 
-def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
+def _build_factor_top5_tables(top_scores: list[Any]) -> Table | Group:
     """Build 6 tables showing top 15 for each factor score, arranged in 2 rows x 3 columns.
 
     Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Stability, Positioning).
+    Returns a Group to keep vertical height compact instead of expanding to fill layout space.
     """
     if not isinstance(top_scores, list) or not top_scores:
-        layout = Layout()
-        layout.update(Text.from_markup("[dim]No score data[/]"))
-        return layout
+        return Group(Text.from_markup("[dim]No score data[/]"))
 
     # Define factors with their field names and colors
     factors = [
@@ -200,7 +199,7 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
             box=box.SIMPLE_HEAD,
             show_header=False,
             header_style="dim",
-            padding=(1, 1),
+            padding=(0, 1),
             expand=False,
             row_styles=["", "dim"],
         )
@@ -220,30 +219,17 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
             t,
             title=f"[bold dim]{factor_name}[/]",
             border_style="dim",
-            padding=(1, 1),
+            padding=(0, 0),
         ))
 
-    # Arrange in 2 rows x 3 columns layout
-    layout = Layout()
-    layout.split_row(
-        Layout(name="col1", ratio=1),
-        Layout(name="col2", ratio=1),
-        Layout(name="col3", ratio=1),
-    )
-    layout["col1"].split_column(
-        Layout(factor_panels[0], name="m", ratio=1),
-        Layout(factor_panels[3], name="g", ratio=1),
-    )
-    layout["col2"].split_column(
-        Layout(factor_panels[1], name="q", ratio=1),
-        Layout(factor_panels[4], name="s", ratio=1),
-    )
-    layout["col3"].split_column(
-        Layout(factor_panels[2], name="v", ratio=1),
-        Layout(factor_panels[5], name="p", ratio=1),
-    )
+    # Arrange in 2 rows x 3 columns using Table.grid for compact sizing
+    grid = Table.grid(expand=False, padding=(0, 1))
+    # Row 1: Momentum, Quality, Value
+    grid.add_row(factor_panels[0], factor_panels[1], factor_panels[2])
+    # Row 2: Growth, Stability, Positioning
+    grid.add_row(factor_panels[3], factor_panels[4], factor_panels[5])
 
-    return layout
+    return grid
 
 
 @register_panel(
@@ -344,14 +330,14 @@ def panel_scores_expanded(scores: Any) -> Panel:
     main_layout = Layout()
     main_layout.split_row(
         Layout(Group(*left_rows), ratio=5, name="main"),
-        Layout(factor_layout, ratio=3, name="factors"),
+        Layout(factor_layout, ratio=2, name="factors"),
     )
 
     return Panel(
         main_layout,
         title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
         border_style="cyan",
-        padding=(0, 1),
+        padding=(0, 0),
     )
 
 
