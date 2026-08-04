@@ -34,8 +34,8 @@ def _make_read_cursor(rows):
 def test_db_error_recording_exit_raises_instead_of_silently_continuing():
     """A transient DB error on the exit-recording UPDATE must halt Phase 9, not be
     swallowed - swallowing it creates a permanent, un-retryable audit-trail gap."""
-    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
-    closed_row = ("AAPL", 150.0, 10, 145.0, 10)  # symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
+    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123)  # symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id
     read_cur = _make_read_cursor([closed_row])
 
     write_cur = MagicMock()
@@ -72,18 +72,14 @@ def test_db_error_recording_exit_raises_instead_of_silently_continuing():
     assert mock_notify.called, "notify() must be called so a human can fix the audit gap manually"
 
 
-def test_algo_trades_zero_rowcount_raises_before_touching_positions():
-    """cursor.rowcount reflects only the most recently executed statement. If the
-    algo_trades UPDATE's subquery (WHERE symbol=%s AND exit_date IS NULL) matches
-    nothing, that UPDATE silently affects 0 rows - no exception - and the *next*
-    execute() call (the unconditional algo_positions UPDATE on WHERE symbol=%s)
-    overwrites rowcount with its own non-zero result. Without a dedicated check right
-    after the algo_trades UPDATE, this 0-row failure is invisible: algo_positions is
-    still marked closed, exits_recorded still increments, and algo_trades.exit_date is
-    never set - the same permanent, un-retryable audit-trail gap this function's other
-    checks exist to prevent."""
-    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
-    closed_row = ("AAPL", 150.0, 10, 145.0, 10)  # symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity
+def test_algo_trades_zero_rowcount_gracefully_continues():
+    """After using direct trade_id (not subquery), if algo_trades UPDATE gets rowcount=0,
+    it means another process already finalized the trade between our SELECT and UPDATE.
+    This is a legitimate race condition, not an error - trade is already closed,
+    so we just log and continue with position update. The trade/position is correctly
+    finalized; we're just a second process attempting to finalize again."""
+    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id
+    closed_row = ("AAPL", 150.0, 10, 145.0, 10, 123)  # symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id
     read_cur = _make_read_cursor([closed_row])
 
     write_cur = MagicMock()
@@ -91,7 +87,7 @@ def test_algo_trades_zero_rowcount_raises_before_touching_positions():
 
     def execute_side_effect(sql, params=None):
         if "UPDATE algo_trades" in sql and "exit_date" in sql:
-            write_cur.rowcount = 0  # no matching open trade for this symbol
+            write_cur.rowcount = 0  # another process already closed the trade
         elif "UPDATE algo_positions" in sql:
             positions_update_reached.append(True)
             write_cur.rowcount = 1
@@ -115,10 +111,10 @@ def test_algo_trades_zero_rowcount_raises_before_touching_positions():
         mock_ctx.return_value.__enter__.side_effect = [read_cur, write_cur]
         mock_ctx.return_value.__exit__.return_value = False
 
-        with pytest.raises(RuntimeError, match="AAPL"):
-            _record_closed_positions_exits({}, run_date=None, log_phase_result_fn=fake_log)
+        # Should NOT raise - should continue gracefully
+        _record_closed_positions_exits({}, run_date=None, log_phase_result_fn=fake_log)
 
-    assert not positions_update_reached, (
-        "algo_positions must not be marked closed when the algo_trades exit "
-        "write silently affected 0 rows - that would hide the audit gap entirely"
+    assert positions_update_reached, (
+        "algo_positions update should still proceed even if trade was already closed "
+        "by another process - both are attempting to finalize the same exit"
     )
