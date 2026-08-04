@@ -33,7 +33,7 @@ def test_consecutive_losses_query_excludes_non_representative_closes():
 
     assert "EXT-%%" in sql
     assert "exit_time DESC NULLS LAST" in sql
-    assert params == ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%")
+    assert params == ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%")
 
 
 def test_consecutive_losses_skips_null_pnl_and_stops_at_first_win():
@@ -66,7 +66,7 @@ def test_win_rate_query_excludes_non_representative_closes_and_includes_open_pos
     assert "exit_r_multiple IS NOT NULL" in sql
     assert "unrealized_pnl_pct" in sql
     assert "status = 'open'" in sql
-    assert params == ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%")
+    assert params == ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%")
 
 
 def test_daily_loss_uses_adjusted_equity_not_raw_return_column():

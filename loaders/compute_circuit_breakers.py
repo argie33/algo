@@ -326,12 +326,15 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
 
 def _compute_consecutive_losses(cur: Any) -> int:
     # Mirrors algo/risk/circuit_breaker.py's _check_consecutive_losses (the live trading
-    # gate) - same exclusions (reconciliation/force-close/delisted/DATA-QC closes aren't
-    # real strategy losses) and same exit_time-based tiebreak (exit_date DESC alone is not
-    # deterministic when 2+ trades close same day). Without this, this reporting table
-    # disagreed with the live gate it's supposed to be reflecting on the dashboard -
-    # confirmed live 2026-07-27: this query kept reporting the live gate's already-fixed,
-    # already-excluded bug-induced closes as real losses for the rest of the day.
+    # gate) - same exclusions (reconciliation/force-close/delisted/DATA-QC/CONCENTRATION
+    # closes aren't real strategy losses) and same exit_time-based tiebreak (exit_date DESC
+    # alone is not deterministic when 2+ trades close same day). Without this, this
+    # reporting table disagreed with the live gate it's supposed to be reflecting on the
+    # dashboard - confirmed live 2026-07-27: this query kept reporting the live gate's
+    # already-fixed, already-excluded bug-induced closes as real losses for the rest of the
+    # day. CONCENTRATION added 2026-08-03 alongside the same fix in the live gate: it was
+    # missing there too, so POSITION_SIZE_CONCENTRATION/SECTOR_CONCENTRATION force-exits
+    # (portfolio rebalancing, not a strategy call) counted as real losses on both sides.
     cur.execute(
         """
         SELECT profit_loss_pct FROM algo_trades
@@ -341,10 +344,11 @@ def _compute_consecutive_losses(cur: Any) -> int:
           AND exit_reason NOT LIKE %s
           AND exit_reason NOT LIKE %s
           AND exit_reason NOT LIKE %s
+          AND exit_reason NOT LIKE %s
         ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
         LIMIT 10
         """,
-        ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"),
+        ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
     )
     rows = cur.fetchall()
     if not rows:
@@ -536,13 +540,15 @@ def _compute_spy_change(cur: Any, today: date) -> float:
 
 def _compute_win_rate(cur: Any) -> float:
     # Mirrors algo/risk/circuit_breaker.py's _check_win_rate_floor (the live trading gate):
-    # same exclusions (reconciliation/force-close/delisted/DATA-QC closes and EXT- trades
-    # aren't real strategy outcomes), same exit_r_multiple IS NOT NULL guard, same
-    # exit_time-based tiebreak, and same inclusion of open positions' unrealized P&L so a
-    # good closed-trade history can't mask live bleeding. Without this, this reporting
+    # same exclusions (reconciliation/force-close/delisted/DATA-QC/CONCENTRATION closes and
+    # EXT- trades aren't real strategy outcomes), same exit_r_multiple IS NOT NULL guard,
+    # same exit_time-based tiebreak, and same inclusion of open positions' unrealized P&L so
+    # a good closed-trade history can't mask live bleeding. Without this, this reporting
     # table disagreed with the live gate - confirmed live 2026-07-27: this query reported
     # 40.0% (dragged down by the live gate's already-excluded bug-induced DATA-QC closes)
-    # while the live gate's own win_rate_floor check reported the real 61.1%.
+    # while the live gate's own win_rate_floor check reported the real 61.1%. CONCENTRATION
+    # added 2026-08-03 alongside the same fix in the live gate - see
+    # _compute_consecutive_losses above for the live-reproduced incident.
     cur.execute("""
         SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
                COUNT(*) FILTER (WHERE pnl_pct < 0) as losses
@@ -558,6 +564,7 @@ def _compute_win_rate(cur: Any) -> float:
                   AND exit_reason NOT LIKE %s
                   AND exit_reason NOT LIKE %s
                   AND exit_reason NOT LIKE %s
+                  AND exit_reason NOT LIKE %s
                 ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
                 LIMIT 30
             ) recent_closed
@@ -567,7 +574,7 @@ def _compute_win_rate(cur: Any) -> float:
             WHERE status = 'open'
               AND quantity > 0
         ) recent_trades
-    """, ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"))
+    """, ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"))
     row = cur.fetchone()
     if not row:
         raise ValueError("Win rate query failed")

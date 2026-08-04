@@ -513,6 +513,17 @@ class CircuitBreaker:
         # streak - yet this check counted all 9 toward the halt with no way to exclude them.
         # DATA-QC is the short marker this session appended to those 9 trades'
         # exit_reason after verifying the root-cause fix (commits c6d399ba4, 5f1e8f8e1).
+        # CRITICAL FIX: same gap for POSITION_SIZE_CONCENTRATION/SECTOR_CONCENTRATION
+        # force-exits (phase6_exit_execution.py) - these are portfolio-construction/
+        # risk-limit rebalancing, not a strategy call gone wrong, exactly like the
+        # force-close/reconciliation/delisted exits already excluded above. Confirmed
+        # live 2026-08-03: the position-size-concentration denominator bug (fixed in
+        # b22e66d3b) force-exited 6 real positions within 7 minutes citing 17-42%
+        # concentration (impossible for a diversified portfolio), 3 of them losses,
+        # which this check counted as 3 real consecutive losses and halted trading via
+        # circuit_breaker_halt at 09:20:30 - a structural/denominator bug pretending to
+        # be a losing streak. Even with that bug now fixed, concentration force-exits
+        # remain structurally not a strategy decision and should never count here.
         cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
@@ -522,10 +533,11 @@ class CircuitBreaker:
               AND exit_reason NOT LIKE %s
               AND exit_reason NOT LIKE %s
               AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
             ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
             LIMIT 10
             """,
-            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"),
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
         )
         rows = cur.fetchall()
         if not rows:
@@ -587,6 +599,7 @@ class CircuitBreaker:
                       AND exit_reason NOT LIKE %s
                       AND exit_reason NOT LIKE %s
                       AND exit_reason NOT LIKE %s
+                      AND exit_reason NOT LIKE %s
                     -- CRITICAL FIX: exit_time is frequently NULL on this table (several close
                     -- paths didn't set it until this same fix round - see
                     -- _check_consecutive_losses's comment above), so NULLS LAST alone left ties
@@ -604,7 +617,7 @@ class CircuitBreaker:
                   AND quantity > 0
             ) all_trades
             """,
-            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%"),
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
         )
         row = cur.fetchone()
         if row is None:
@@ -645,8 +658,9 @@ class CircuitBreaker:
               AND exit_reason NOT LIKE %s
               AND exit_reason NOT LIKE %s
               AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
         """,
-            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%"),
+            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%CONCENTRATION%"),
         )
         closed_row = cur.fetchone()
         # CRITICAL FIX: Do NOT default closed_count to 0 if query fails.

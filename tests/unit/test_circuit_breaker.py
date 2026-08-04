@@ -408,6 +408,7 @@ class TestConsecutiveLossesOrdering:
         assert "%force%close%" in params
         assert "%delisted%" in params
         assert "%DATA-QC%" in params
+        assert "%CONCENTRATION%" in params
 
 
 class TestCircuitBreakerTotalRisk:
