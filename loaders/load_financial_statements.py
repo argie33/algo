@@ -101,6 +101,11 @@ _INCOME_FIELD_MAPPING = {
     # financial services companies since 2020. Ordering in sec_statements.py
     # ensures last-listed concept (this one for banks) wins on overwrite.
     "revenues_net_of_interest_expense": "revenue",
+    # FIXED 2026-08-03: mortgage REITs (AGNC, NLY live-confirmed) report gross interest
+    # income as their revenue-equivalent line, not any concept above - see sec_statements.py's
+    # comment on InterestIncomeOperating for why InterestIncomeExpenseNet (which goes negative
+    # in real years) was rejected in favor of this gross, always-positive figure.
+    "interest_income_operating": "revenue",
     # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC, and others - live-confirmed
     # via real SEC companyfacts JSON for all three) report neither standard revenue concepts
     # nor RevenuesNetOfInterestExpense (that one's used by larger banks like MS/WFC) - their
@@ -132,6 +137,24 @@ _INCOME_FIELD_MAPPING = {
     # FIXED (migration 1192): fallback share count column, kept separate from
     # shares_outstanding_basic above - see sec_statements.py's comment on this concept.
     "weighted_average_number_of_diluted_shares_outstanding": "shares_outstanding_diluted",
+    # FIXED 2026-08-03: point-in-time/blended share-count fallbacks for filers that tag
+    # neither weighted-average concept above - see sec_statements.py's comments on
+    # CommonStockSharesOutstanding/WeightedAverageNumberOfShareOutstandingBasicAndDiluted/
+    # NumberOfSharesOutstanding (IFRS) for the live-verified filers (PLNT/WHD/YOU/SPT/JG/
+    # BNR/TV/FMX) this recovers. All three map to shares_outstanding_basic, same as the
+    # real weighted-average concept, since these filers have no separate weighted-average
+    # tag to prefer instead.
+    # FIXED (migration 1195): shares issued (can include treasury stock, so listed before
+    # common_stock_shares_outstanding in sec_statements.py's concepts list to lose on
+    # overwrite whenever the real outstanding count is also present).
+    "common_stock_shares_issued": "shares_outstanding_basic",
+    "common_stock_shares_outstanding": "shares_outstanding_basic",
+    "weighted_average_number_of_share_outstanding_basic_and_diluted": "shares_outstanding_basic",
+    # FIXED (migration 1195): dei:EntityCommonStockSharesOutstanding cover-page fact -
+    # own column, not shares_outstanding_basic, per sec_statements.py's dei_aliases
+    # docstring (this fact is present even for filers that already report a real
+    # weighted-average count, so sharing a column risks a silent downgrade).
+    "entity_common_stock_shares_outstanding": "shares_outstanding_dei",
     "interest_expense": "interest_expense",
     # FIXED 2026-08-03: real, live-confirmed concepts some filers use INSTEAD of plain
     # "InterestExpense" - see sec_statements.py's comment above these concepts. WMT never
@@ -257,6 +280,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "amortization_expense",
                     "shares_outstanding_basic",
                     "shares_outstanding_diluted",
+                    "shares_outstanding_dei",
                     "income_tax_expense",
                     "pretax_income",
                     "created_at",
@@ -287,6 +311,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "amortization_expense",
                     "shares_outstanding_basic",
                     "shares_outstanding_diluted",
+                    "shares_outstanding_dei",
                     "income_tax_expense",
                     "pretax_income",
                     "created_at",

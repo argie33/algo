@@ -55,6 +55,19 @@ _INCOME_IFRS_ALIASES = [
     ("ComprehensiveIncome", "net_income_loss"),
     ("BasicEarningsLossPerShare", "earnings_per_share_basic"),
     ("DilutedEarningsLossPerShare", "earnings_per_share_diluted"),
+    # TRIED AND REJECTED 2026-08-03: ("NumberOfSharesOutstanding", "shares_outstanding_basic")
+    # as an IFRS alias for foreign 20-F filers (TV/Grupo Televisa, FMX/Femsa, SRAD/Sportradar
+    # all lack this data any other way). Live-verified this produces dangerously wrong
+    # market caps, not just stale ones: TV computed at $883B (real ~$2-3B), FMX at $2.25T
+    # (real ~$25-35B) - both ~100-1000x too high. Root cause: unlike us-gaap filers (where
+    # SEC convention requires the cover-page share count to already be expressed in the
+    # security being registered, i.e. ADS-equivalent), IFRS-taxonomy foreign filers report
+    # this concept in local/home-market share units with no ADS-ratio or corporate-action
+    # (splits/restructuring) correction available in XBRL - SRAD's value was also from a
+    # stale pre-restructuring Swiss AG share count. No reliable way to detect or correct
+    # the unit mismatch from XBRL data alone. Leaving these symbols shares_outstanding_unavailable
+    # (honest gap) is correct; do not re-add this concept without a verified per-filer
+    # ADS-ratio source.
     # Session 398: EBITDA extraction from IFRS filers
     ("DepreciationAndAmortisation", "depreciation_and_amortization"),
     ("DepreciationExpense", "depreciation"),
@@ -70,6 +83,20 @@ _CASHFLOW_IFRS_ALIASES = [
     ),
     # ("DepreciationExpense", "depreciation") REMOVED 2026-07-28 - see get_cash_flow()'s
     # comment: no destination column exists for cash-flow-context depreciation.
+]
+
+_INCOME_DEI_ALIASES = [
+    # FIXED (migration 1195): the universal SEC cover-page share count, present for
+    # virtually every registrant regardless of accounting standard - live-confirmed real,
+    # recent (2024+) data for filers with NO us-gaap share-count concept at all (PFLT,
+    # TRAD, TRAX, ORKA, KLRA, AIAI, BRR, FRNM, KBON). target_key is intentionally distinct
+    # from "common_stock_shares_outstanding" - see this file's _aggregate_concepts
+    # docstring on dei_aliases for why sharing a target_key with a us-gaap concept would be
+    # unsafe here (unlike ifrs_aliases, dei facts are present even for well-covered
+    # domestic filers). Restricted to domestic filing forms only (10-K/10-Q) inside
+    # _aggregate_concepts - see the form-check comment there for the foreign-filer
+    # unit-mismatch trap this avoids repeating.
+    ("EntityCommonStockSharesOutstanding", "entity_common_stock_shares_outstanding"),
 ]
 
 
@@ -134,6 +161,19 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # SalesRevenueNet/legacy Revenues so they don't overwrite with zero values.
         # Live-verified: MS has 2020-2026 data, WFC has 2018-2026 data.
         "RevenuesNetOfInterestExpense",
+        # FIXED 2026-08-03: mortgage REITs (AGNC, NLY live-confirmed via real companyfacts
+        # JSON) have none of the revenue concepts above - their primary revenue-equivalent
+        # line is gross interest income (before subtracting interest expense on their own
+        # borrowings). Deliberately did NOT use InterestIncomeExpenseNet (interest income
+        # MINUS interest expense) for this - live-confirmed it goes NEGATIVE in real years
+        # (AGNC FY2023: -246M) unlike a normal top-line revenue figure, which would distort
+        # downstream margin/ratio calculations that assume revenue >= 0.
+        # InterestIncomeOperating (gross, always positive in both AGNC's and NLY's real data)
+        # is the correct analog instead. MUST be listed BEFORE InterestAndDividendIncomeOperating:
+        # some community banks (FNWB, OCFC live-confirmed) report BOTH concepts, and the
+        # "+dividend" variant is the more complete figure for them - it must win the
+        # last-listed-wins overwrite, not this narrower one.
+        "InterestIncomeOperating",
         # FIXED 2026-08-03: community banks/thrifts (FNWB, AMAL, OCFC live-confirmed via real
         # companyfacts JSON) have neither the concepts above nor RevenuesNetOfInterestExpense
         # (that one's for larger banks). Listed last in this revenue group so it only wins on
@@ -154,6 +194,26 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "NetIncomeLoss",
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
+        # FIXED 2026-08-03: live-confirmed against real companyfacts JSON that several
+        # filers never tag EITHER weighted-average concept below, but do tag a
+        # point-in-time balance-sheet/cover-page share count instead: PLNT (Planet
+        # Fitness), WHD (Cactus Inc), YOU (Clear Secure) all have real
+        # CommonStockSharesOutstanding but zero WeightedAverageNumberOfShares*; SPT
+        # (Sprout Social), JG (Aurora Mobile), BNR (Burning Rock Biotech) only tag the
+        # combined WeightedAverageNumberOfShareOutstandingBasicAndDiluted concept
+        # (smaller/foreign filers often report one blended number instead of separate
+        # Basic/Diluted tags). Listed BEFORE the two concepts below so a filer that
+        # reports the real weighted-average correctly still wins on overwrite (same
+        # "last-listed wins" convention as RevenuesNetOfInterestExpense above) - these
+        # are lower-quality point-in-time fallbacks, not a preferred source.
+        # FIXED (migration 1195): CommonStockSharesIssued (shares issued, which can exceed
+        # shares outstanding if the filer holds treasury stock) - listed BEFORE
+        # CommonStockSharesOutstanding so the real outstanding count wins on overwrite
+        # whenever a filer reports both; only wins for filers with neither weighted-average
+        # concept nor CommonStockSharesOutstanding.
+        "CommonStockSharesIssued",
+        "CommonStockSharesOutstanding",
+        "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
         # FIXED 2026-07-28: real, officially-reported weighted-average basic share count -
         # now mapped to annual/quarterly_income_statement.shares_outstanding_basic (migration
         # 1171). Previously fetched every run and silently discarded (no field_mapping entry),
@@ -209,7 +269,9 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
         "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
     ]
-    return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES)
+    return _aggregate_concepts(
+        client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES, dei_aliases=_INCOME_DEI_ALIASES
+    )
 
 
 def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -260,6 +322,7 @@ def _aggregate_concepts(
     concepts: list[str],
     period: str,
     ifrs_aliases: list[tuple[str, str]] | None = None,
+    dei_aliases: list[tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
 
@@ -277,6 +340,14 @@ def _aggregate_concepts(
             report no us-gaap concepts at all. target_key is the snake_cased key the
             equivalent us-gaap concept would have produced, so callers/field_mapping
             downstream don't need to know which taxonomy a row actually came from.
+        dei_aliases: Optional (dei_concept, target_key) pairs checked against the "dei"
+            (Document and Entity Information) taxonomy - cover-page facts like the
+            as-of-filing-date share count, reported by virtually every registrant
+            regardless of accounting standard. Unlike ifrs_aliases, dei facts are present
+            even for well-covered us-gaap filers, so target_key MUST be distinct from any
+            us-gaap/ifrs target_key sharing a downstream db column, or a cruder cover-page
+            fact could silently overwrite a better weighted-average figure - see
+            load_financial_statements.py's field_mapping comment on shares_outstanding_dei.
 
     Returns:
         List of dicts with aggregated concept data
@@ -315,6 +386,7 @@ def _aggregate_concepts(
 
     us_gaap_facts = facts.get("us-gaap")
     ifrs_facts = facts.get("ifrs-full")
+    dei_facts = facts.get("dei")
     if not us_gaap_facts and not ifrs_facts:
         raise ValueError(
             f"[SEC_EDGAR] SEC API has no US-GAAP or IFRS facts for {symbol} (CIK {cik}). "
@@ -326,15 +398,22 @@ def _aggregate_concepts(
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 
     # (xbrl_concept_name, target_key) pairs to look up, us-gaap first (preserves
-    # exact prior behavior/column names), then IFRS aliases for foreign filers.
-    concept_specs: list[tuple[str, str]] = [(c, _to_snake(c)) for c in concepts]
+    # exact prior behavior/column names), then IFRS aliases for foreign filers, then
+    # dei aliases (looked up only in dei_facts - see this function's dei_aliases
+    # docstring for why these must never share a target_key with a us-gaap/ifrs concept).
+    concept_specs: list[tuple[str, str, bool]] = [(c, _to_snake(c), False) for c in concepts]
     if ifrs_aliases:
-        concept_specs.extend(ifrs_aliases)
+        concept_specs.extend((c, k, False) for c, k in ifrs_aliases)
+    if dei_aliases:
+        concept_specs.extend((c, k, True) for c, k in dei_aliases)
 
-    for concept, target_key in concept_specs:
-        concept_data = us_gaap_facts.get(concept) if us_gaap_facts is not None else None
-        if concept_data is None:
-            concept_data = ifrs_facts.get(concept) if ifrs_facts is not None else None
+    for concept, target_key, is_dei in concept_specs:
+        if is_dei:
+            concept_data = dei_facts.get(concept) if dei_facts is not None else None
+        else:
+            concept_data = us_gaap_facts.get(concept) if us_gaap_facts is not None else None
+            if concept_data is None:
+                concept_data = ifrs_facts.get(concept) if ifrs_facts is not None else None
         if concept_data is None:
             continue
 
@@ -344,6 +423,18 @@ def _aggregate_concepts(
 
         for _unit, entries in units.items():
             for entry in entries:
+                # dei facts (e.g. EntityCommonStockSharesOutstanding) are reported in
+                # whatever share unit the local filing uses - domestic 10-K/10-Q filers
+                # report it in the actual registered security's units, but foreign 20-F/
+                # 40-F/6-K filers often report it in home-market local shares with no
+                # ADS-ratio conversion available in XBRL. A prior session in this file hit
+                # exactly this trap with a different IFRS shares concept (see the removed-
+                # concept comment above _INCOME_IFRS_ALIASES: SRAD's value was a stale
+                # pre-restructuring Swiss AG share count, live-caught via a market-cap
+                # sanity check) and reverted it. Restrict dei facts to domestic forms only
+                # to avoid reintroducing the same class of silent unit-mismatch error.
+                if is_dei and entry.get("form") in ("20-F", "40-F", "6-K"):
+                    continue
                 fp = entry.get("fp")
                 # Fixed 2026-07-31: For annual extraction, accept quarterly (Q1-Q4), annual (FY),
                 # and proxy-statement (fp=None) data. This handles:

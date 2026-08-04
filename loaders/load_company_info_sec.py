@@ -19,6 +19,7 @@ Run:
 """
 
 import logging
+import re
 import sys
 from datetime import date, datetime
 from typing import Any
@@ -101,6 +102,18 @@ class CompanyInfoSECLoader(SecLoaderBase):
             sic_description = submissions.get("sicDescription")
             entity_type = submissions.get("entityType")
 
+            # FIXED (migration 1193): whether this entity has ever filed a 10-K/10-K-A
+            # (domestic annual report) or 20-F/20-F-A (foreign private issuer annual report)
+            # - the two filing types this pipeline's loaders parse for annual_income_statement/
+            # annual_balance_sheet data. Live-verified: closed-end funds (BGT, GAB) file
+            # neither - only fund-specific forms (N-Q, NPORT-P, 40-17G) - while real operating
+            # companies have 10-K and foreign filers (IBN) have 20-F. Directly answers "can
+            # this pipeline structurally ever have annual financial data for this symbol",
+            # unlike sic_code which comes back blank for CEFs (same as some real operating
+            # companies, e.g. Bank OZK - not usable as a CEF signal).
+            recent_forms = submissions.get("filings", {}).get("recent", {}).get("form", [])
+            has_annual_report_filing = any(f in ("10-K", "10-K/A", "20-F", "20-F/A") for f in recent_forms)
+
             # Get shares outstanding from DEI facts (if available)
             shares_outstanding = None
             try:
@@ -160,6 +173,20 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 )
                 raise
 
+            # Last-resort fallback: parse the raw 10-K/10-K-A/20-F/20-F-A filing text directly.
+            # Live-confirmed root cause (2026-08-03): some real, well-established filers
+            # (Planet Fitness/PLNT, and likely other multi-share-class companies) DO tag
+            # dei:EntityCommonStockSharesOutstanding as inline XBRL directly in their filing
+            # HTML - PLNT's most recent 10-K has it twice, once per share class (Class A:
+            # 79,697,889; Class B: 316,128) - but this fact never appears in the aggregated
+            # companyfacts JSON endpoint above for these filers (confirmed empty for PLNT/GEF/
+            # DGICA/ERIE/HVT/MC/BP/TV/SEI/SRAD/VTVT via direct API check), most likely because
+            # SEC's per-entity aggregation drops or mishandles facts reported under multiple
+            # contexts (one per share class) within a single filing. The real number still
+            # exists in the filing itself, just not in the convenient pre-aggregated API.
+            if shares_outstanding is None:
+                shares_outstanding = self._fetch_shares_outstanding_from_filing_text(symbol, cik, submissions)
+
             return [
                 {
                     "symbol": symbol,
@@ -169,6 +196,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     "sic_description": sic_description,
                     "entity_type": entity_type,
                     "shares_outstanding": shares_outstanding,
+                    "has_annual_report_filing": has_annual_report_filing,
                     "data_unavailable": False,
                     "reason": None,
                     "data_source": "sec_edgar_submissions",
@@ -185,6 +213,85 @@ class CompanyInfoSECLoader(SecLoaderBase):
             # Try to handle via classification, or fail-fast if unexpected
             return self._wrap_exception_handler(symbol, e, "fetching company info")
 
+    # Same floor as load_sec_valuations.py's MIN_PLAUSIBLE_SHARES_OUTSTANDING - a real SEC
+    # filing can contain an implausible inline-XBRL value (e.g. a stray context reused from
+    # an unrelated fact, or a pre-float placeholder), and this fallback has no independent
+    # way to cross-check a parsed number the way the companyfacts JSON path can. Reject
+    # anything below this floor rather than trust it blindly.
+    _MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
+
+    # Matches inline-XBRL <ix:nonFraction ... name="dei:EntityCommonStockSharesOutstanding"
+    # ...>VALUE</ix:nonFraction> tags regardless of attribute order (real filings, e.g. PLNT's,
+    # put name= after unitRef=/contextRef=). Non-greedy tag-attribute match, then capture the
+    # numeric text content up to the closing tag.
+    _INLINE_XBRL_SHARES_OUTSTANDING_RE = re.compile(
+        r'<ix:nonFraction\b[^>]*name="dei:EntityCommonStockSharesOutstanding"[^>]*>([\d,.]+)</ix:nonFraction>',
+        re.IGNORECASE,
+    )
+
+    def _fetch_shares_outstanding_from_filing_text(
+        self, symbol: str, cik: str, submissions: dict[str, Any]
+    ) -> int | None:
+        """Parse the raw text of the most recent annual filing for the cover-page share count.
+
+        Fallback for filers whose dei:EntityCommonStockSharesOutstanding fact never makes it
+        into the aggregated companyfacts JSON endpoint (live-confirmed: PLNT and others - see
+        call site comment). Best-effort only: any failure here just leaves shares_outstanding
+        None, same as if this fallback didn't exist.
+        """
+        recent = submissions.get("filings", {}).get("recent", {})
+        forms = recent.get("form", [])
+        accessions = recent.get("accessionNumber", [])
+        # Domestic 10-K/10-K-A only, NOT 20-F/20-F-A. Live-caught: BP and TV (Grupo
+        # Televisa) both 20-F filers, produced market caps of $729B and $310B respectively
+        # (real values: ~$90B and ~$2B) when their cover-page share count was trusted here -
+        # same foreign-filer unit-mismatch trap already documented and reverted once this
+        # session for a different IFRS concept (see sec_statements.py's removed-concept
+        # comment and the dei_aliases form-check in _aggregate_concepts): 20-F filers can
+        # report the cover-page count in local/home-market share units with no ADS-ratio
+        # conversion available anywhere in the filing text this regex can see.
+        annual_forms = {"10-K", "10-K/A"}
+        accession = next(
+            (accessions[i] for i, f in enumerate(forms) if f in annual_forms and i < len(accessions)),
+            None,
+        )
+        if not accession:
+            return None
+
+        try:
+            text = self.sec_client.get_filing_plaintext(cik, accession)
+        except (FileNotFoundError, TimeoutError, RuntimeError) as e:
+            logger.debug(f"[{symbol}] Could not fetch filing text for shares_outstanding fallback: {e}")
+            return None
+
+        matches = self._INLINE_XBRL_SHARES_OUTSTANDING_RE.findall(text)
+        if not matches:
+            return None
+
+        values = []
+        for m in matches:
+            try:
+                values.append(float(m.replace(",", "")))
+            except ValueError:
+                continue
+        plausible = [v for v in values if v > self._MIN_PLAUSIBLE_SHARES_OUTSTANDING]
+        if not plausible:
+            return None
+
+        # Multi-class filers (e.g. PLNT: Class A 79,697,889 / Class B 316,128) tag the fact
+        # once per context/class with no class label surviving into plain text - the publicly
+        # traded class is virtually always the larger figure (closely-held founder/family
+        # classes are the minority share count), so take the max rather than guess further.
+        # int(), not float() - shares_outstanding is a bigint column; a float like
+        # "25850270.0" fails psycopg2's implicit cast (live-confirmed: GEF/DGICA both failed
+        # with "invalid input syntax for type bigint" before this cast was added).
+        result = int(max(plausible))
+        logger.info(
+            f"[{symbol}] Recovered shares_outstanding={result:,.0f} from raw filing text "
+            f"(accession {accession}) - not present in companyfacts JSON"
+        )
+        return result
+
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""
         return [
@@ -196,6 +303,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 "sic_description": None,
                 "entity_type": None,
                 "shares_outstanding": None,
+                "has_annual_report_filing": None,
                 "data_unavailable": True,
                 "reason": reason,
                 "data_source": "none",

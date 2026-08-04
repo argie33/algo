@@ -651,10 +651,53 @@ def _get_stock_scores(  # noqa: C901
         # by loaders/load_company_info_sec.py, just never used for this filter before - a
         # strictly more reliable, name-independent signal than pattern matching heterogeneous
         # SPAC naming conventions.
+        #
+        # SIC-CODE ROYALTY TRUST FILTERING (2026-08-03, same follow-up): oil/gas royalty
+        # trusts (CRT, MTR, PBT, SBR, SJT - ~5 symbols) have the identical "no operating
+        # business, nothing for SEC EDGAR to report" problem as SPAC shells, but with their
+        # own distinct, clean SIC code: 6792 ("Oil Royalty Traders"), live-verified for all 5.
+        # No false-positive risk from real oil/gas producers - XOM/CVX (2911 Petroleum
+        # Refining) and OXY (1311 Crude Petroleum & Natural Gas) live-confirmed as different
+        # codes. Closed-end funds/investment trusts (~60+ symbols, the largest remaining
+        # bucket) were also tested this same way and do NOT have a usable SIC signal - their
+        # SIC field is blank/empty via this endpoint, identical to real operating companies
+        # like OZK (Bank OZK) that were already a known false-positive risk for name-based
+        # filtering. Solved instead via `has_annual_report_filing` below (migration 1193).
+        #
+        # SIC-CODE STRUCTURED-NOTE FILTERING (2026-08-03, same follow-up): trust-preferred/
+        # structured-note certificates (GJH/GJO/GJP/GJR/GJS/GJT "STRATS", KTN "CorTS", PYT
+        # "PPlus Trust" - a securitization wrapper around another company's bonds, no
+        # operating business of its own) live-verified with their own distinct SIC code:
+        # 6189 ("Asset-Backed Securities"), consistent across all 6 checked. Note:
+        # ELC/EMP/ENJ/ENO ("Entergy First Mortgage Bonds") were checked too but their ticker
+        # resolves to the PARENT operating utility's own CIK/SIC (real Entergy subsidiaries
+        # with real SEC filings), not a separate securitization vehicle - those are a
+        # different, not-yet-understood problem, NOT fixed by this filter and not added here.
+        #
+        # HAS_ANNUAL_REPORT_FILING FILTERING (2026-08-03, migration 1193): closed-end funds/
+        # investment trusts (~60+ symbols, the LARGEST remaining "No SEC data" bucket - real
+        # 40-Act funds like BlackRock/Eaton Vance/Gabelli/Invesco/Franklin CEFs) have no
+        # usable SIC signal (blank sic_code, same as some real operating companies - see
+        # comment above). Different, more direct signal: whether SEC EDGAR submissions.
+        # filings.recent.form has EVER included 10-K/10-K-A (domestic annual report) or
+        # 20-F/20-F-A (foreign private issuer annual report) - the two filing types this
+        # pipeline's loaders actually parse for annual_income_statement/annual_balance_sheet.
+        # Live-verified via loaders/load_company_info_sec.py: CEFs (BGT, GAB) file NEITHER -
+        # only fund-specific forms (N-Q, NPORT-P, 40-17G, N-30B-2, DEF 14A) - while real
+        # operating companies (AAPL, FNWB) have 10-K and foreign filers (IBN/ICICI Bank) have
+        # 20-F, so this correctly leaves foreign 20-F filers unaffected (a separate, sparser-
+        # coverage problem, not "no data at all"). `has_annual_report_filing IS NOT FALSE`
+        # (not `= TRUE`) deliberately includes NULL (not yet checked for this symbol, or no
+        # company_info_sec row at all) - only excludes symbols explicitly confirmed to have
+        # neither filing type, same "fail open on unknown" posture as the ETF/SPAC filters
+        # above.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
-            AND ss.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6770)
+            AND ss.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6770, 6792, 6189))
+            AND ss.symbol NOT IN (
+                SELECT symbol FROM company_info_sec WHERE has_annual_report_filing = FALSE
+            )
             AND (ss.security_name IS NULL OR (
                 ss.security_name !~* '(Rights?|Warrants?)$'
                 AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'

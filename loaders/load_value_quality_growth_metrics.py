@@ -56,6 +56,20 @@ logger = logging.getLogger(__name__)
 # data gap that must be flagged, not silently scored as current.
 MAX_FISCAL_YEAR_AGE_YEARS = 3
 
+# Sanity bound for the 4 percentage-point-delta trend fields below (gross/operating/net
+# margin trend, ROE trend) - all stored in NUMERIC(10,4) columns (max abs value < 10^6).
+# A near-zero prior-year denominator (stockholders_equity/revenue close to $0, common for
+# a company that just crossed from negative to barely-positive equity/revenue) makes the
+# prior-period ratio - and therefore the delta - mathematically enormous despite being a
+# "real" computation, not a data-fetch bug. Live-confirmed: ORKA's roe_trend computed as
+# 8,372,395.55 (prior_year_stockholders_equity was a few dollars from a recent capital
+# raise/burn crossover), which overflowed the DB column and rolled back the entire
+# 3-table (value/quality/growth) write transaction for that symbol - not just quality_metrics,
+# also discarding an otherwise-good value_metrics row. Treating an implausible delta as
+# unavailable (like the existing ROIC tax-rate bound elsewhere in this file) instead of
+# storing it prevents that crash without fabricating a fake capped number.
+MAX_TREND_PERCENTAGE_POINTS = 100_000.0
+
 # Computed once in _compute_quality_metrics (needs balance-sheet data _compute_growth_metrics
 # doesn't have), then mirrored into growth_dict in fetch_incremental - see that call site for
 # why quality_metrics and growth_metrics each carry their own copy of the same 11 values.
@@ -584,6 +598,38 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
             )
+            # FIXED 2026-08-03: quality_row above is ONE joined (balance_sheet, income_statement,
+            # cash_flow) row for a SINGLE fiscal_year, chosen to prioritize free_cash_flow
+            # availability (see the ORDER BY above) - a live audit found interest_expense
+            # populated for 66.5% of the scored universe across SOME fiscal year, but
+            # interest_coverage only landing in quality_metrics for 17.2% of symbols, because
+            # the year picked for its FCF data often has NULL interest_expense even when an
+            # older year has real data. Same "single year can't have everything" issue already
+            # solved for shares_outstanding_basic (search all fiscal years) - apply the same
+            # fix here, fetching operating_income from the SAME fallback year so the ratio
+            # doesn't mix mismatched years.
+            interest_coverage_operating_income = operating_income
+            if interest_expense is None or interest_expense <= 0:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """
+                        SELECT fiscal_year, interest_expense, operating_income
+                        FROM annual_income_statement
+                        WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    fallback_ie_row = cur.fetchone()
+                if fallback_ie_row:
+                    interest_expense = self._nan_to_none(
+                        safe_float(fallback_ie_row[1], f"{symbol}.interest_expense_fallback_year", allow_none=True)
+                    )
+                    interest_coverage_operating_income = self._nan_to_none(
+                        safe_float(
+                            fallback_ie_row[2], f"{symbol}.operating_income_fallback_year", allow_none=True
+                        )
+                    )
             shares_outstanding = self._nan_to_none(
                 safe_float(quality_row[11], f"{symbol}.shares_outstanding", allow_none=True)
             )
@@ -754,8 +800,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # no interest_expense column until migration 1145. Only computed when
             # interest_expense > 0 (zero debt service is a real "not applicable" case, not
             # an infinite/undefined ratio to fake a max score for).
-            if interest_expense is not None and interest_expense > 0 and operating_income is not None:
-                metrics["interest_coverage"] = float(operating_income / interest_expense)
+            if (
+                interest_expense is not None
+                and interest_expense > 0
+                and interest_coverage_operating_income is not None
+            ):
+                metrics["interest_coverage"] = float(interest_coverage_operating_income / interest_expense)
             else:
                 failed_metrics.append("interest_coverage")
 
@@ -930,7 +980,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     prior_gm = ((prior_year_revenue - prior_year_cost_of_revenue) / prior_year_revenue) * 100 if prior_year_revenue > 0 else None
                     if curr_gm is not None and prior_gm is not None:
                         try:
-                            metrics["gross_margin_trend"] = float(round(curr_gm - prior_gm, 2))
+                            gm_trend = round(curr_gm - prior_gm, 2)
+                            if abs(gm_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                                metrics["gross_margin_trend"] = float(gm_trend)
                         except (ValueError, TypeError, ZeroDivisionError):
                             pass
 
@@ -939,7 +991,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     curr_om = (operating_income / revenue) * 100
                     prior_om = (prior_year_operating_income / prior_year_revenue) * 100
                     try:
-                        metrics["operating_margin_trend"] = float(round(curr_om - prior_om, 2))
+                        om_trend = round(curr_om - prior_om, 2)
+                        if abs(om_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["operating_margin_trend"] = float(om_trend)
                     except (ValueError, TypeError, ZeroDivisionError):
                         pass
 
@@ -948,7 +1002,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     curr_nm = (net_income / revenue) * 100
                     prior_nm = (prior_year_net_income / prior_year_revenue) * 100
                     try:
-                        metrics["net_margin_trend"] = float(round(curr_nm - prior_nm, 2))
+                        nm_trend = round(curr_nm - prior_nm, 2)
+                        if abs(nm_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["net_margin_trend"] = float(nm_trend)
                     except (ValueError, TypeError, ZeroDivisionError):
                         pass
 
@@ -969,7 +1025,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 curr_roe = (net_income / stockholders_equity) * 100
                 prior_roe = (prior_year_net_income / prior_year_stockholders_equity) * 100
                 try:
-                    metrics["roe_trend"] = float(round(curr_roe - prior_roe, 2))
+                    roe_trend = round(curr_roe - prior_roe, 2)
+                    if abs(roe_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["roe_trend"] = float(roe_trend)
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 

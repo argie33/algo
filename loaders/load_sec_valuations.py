@@ -70,6 +70,15 @@ class SecValuationsLoader(OptimalLoader):
                 # CRITICAL: Use NULL checks instead of COALESCE(col, 0) to detect missing financial data
                 # Defaulting to 0 for revenue/EPS would cause wrong valuations (zero division, phantom metrics)
                 # NOTE: Removed data_unavailable = FALSE filter to prevent premature early exit
+                # FIXED: plain `ORDER BY fiscal_year DESC` picked the latest fiscal year even when
+                # it's a partial/estimate-stage filing with NULL revenue AND NULL EPS, while an
+                # older year has real data - same "latest year is empty" bug class as the FCF fix
+                # in load_value_quality_growth_metrics.py. Live-confirmed: MC (Moelis), CLSK
+                # (CleanSpark), FRD (Friedman Industries) all have real revenue/net_income one
+                # fiscal year back but were failing "income_statement_revenue_and_eps_null" on the
+                # latest year alone. Prioritizing rows with revenue or EPS present, then by
+                # fiscal_year DESC, still returns two genuinely consecutive fiscal years for the
+                # prior_year_eps growth-rate calc below (whichever two are most recent AND usable).
                 cur.execute(
                     """
                     SELECT
@@ -82,7 +91,8 @@ class SecValuationsLoader(OptimalLoader):
                         shares_outstanding_basic
                     FROM annual_income_statement
                     WHERE symbol = %s
-                    ORDER BY fiscal_year DESC LIMIT 2
+                    ORDER BY (CASE WHEN revenue IS NOT NULL OR earnings_per_share IS NOT NULL OR net_income IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
+                    LIMIT 2
                     """,
                     (symbol,),
                 )
@@ -110,8 +120,15 @@ class SecValuationsLoader(OptimalLoader):
                 prior_year_eps = income_rows[1][2] if len(income_rows) > 1 else None  # Index 2 = earnings_per_share
 
                 # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
-                # Allow revenue-only companies: can compute PS ratio even without EPS
-                if ttm_revenue is None and ttm_eps_basic is None:
+                # Allow revenue-only companies: can compute PS ratio even without EPS. Also
+                # allow net_income-only companies (live-confirmed: PFLT/PennantPark - a BDC
+                # reporting NetInvestmentIncome instead of Revenue/EPS under an entirely
+                # separate XBRL taxonomy; TRAX/FRNM - pre-revenue biotechs with real
+                # net_income but no EPS tagged) to proceed: _compute_valuations already
+                # handles ttm_revenue=None (skips PS) and ttm_eps=None (skips PE)
+                # gracefully per-field, and PB/EV/FCF-yield don't depend on either at all -
+                # the only real requirement is SOME income-statement signal to work with.
+                if ttm_revenue is None and ttm_eps_basic is None and _ttm_net_income is None:
                     return [self._unavailable_marker(symbol, "income_statement_revenue_and_eps_null")]
 
                 # Prefer the real, officially-reported weighted-average basic share count
@@ -122,18 +139,34 @@ class SecValuationsLoader(OptimalLoader):
                 # fetched from SEC every run but silently discarded (see sec_statements.py),
                 # so the derived proxy ran unconditionally despite this docstring's own claim
                 # (line 11 above) that the real concept was already the source.
+                # Apply the same plausibility floor as the fallback tiers below (see
+                # MIN_PLAUSIBLE_SHARES_OUTSTANDING) - live-confirmed AIAI reports a real,
+                # non-NULL shares_outstanding_basic of 1000 for its latest fiscal year (a
+                # pre-float/shell-stage founder-share figure, not a data-fetch bug), which
+                # produced a nonsensical ~$4,900 market cap when trusted directly. The
+                # fallback tiers already guard against this class of bad data; the primary
+                # reported value needs the same guard.
                 shares_out = None
-                if reported_shares_outstanding and reported_shares_outstanding > 0:
+                if (
+                    reported_shares_outstanding
+                    and reported_shares_outstanding > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
+                ):
                     shares_out = float(reported_shares_outstanding)
                     logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
 
                 # Fallback: compute shares outstanding from SEC financial data: shares = net_income / eps.
                 # If both net_income and eps are available, we can compute shares directly from SEC audited data.
+                # This mathematically reconstructs whatever share count the filer itself used
+                # to compute EPS - if that was the same implausible pre-float figure rejected
+                # above (live-confirmed: AIAI's derived value is ~1000, matching its rejected
+                # reported shares_outstanding_basic exactly), the same floor must apply here too.
                 if not shares_out and ttm_eps_basic and ttm_eps_basic != 0 and _ttm_net_income and _ttm_net_income != 0:
                     try:
                         # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
-                        shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
-                        logger.debug(f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}")
+                        derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
+                        if derived_shares_out > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING:
+                            shares_out = derived_shares_out
+                            logger.debug(f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}")
                     except (ValueError, ZeroDivisionError):
                         pass  # If computation fails, shares_out stays None and we fail below
 
@@ -163,10 +196,10 @@ class SecValuationsLoader(OptimalLoader):
                     cur.execute(
                         """
                         SELECT shares_outstanding FROM company_info_sec
-                        WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                        WHERE symbol = %s AND shares_outstanding > %s
                         ORDER BY filing_date DESC LIMIT 1
                         """,
-                        (symbol,),
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
                     )
                     shares_row = cur.fetchone()
                     if shares_row and shares_row[0]:
@@ -193,6 +226,30 @@ class SecValuationsLoader(OptimalLoader):
                     if diluted_shares_row and diluted_shares_row[0]:
                         shares_out = float(diluted_shares_row[0])
                         logger.debug(f"[{symbol}] Using shares_outstanding_diluted (no basic count reported): {shares_out:,.0f}")
+
+                # Final fallback: the SEC cover-page share count (migration 1195). Some real
+                # operating companies (live-confirmed: GEF/Greif 19yrs, DGICA/Donegal Group
+                # 18yrs, MC/Moelis 15yrs of real net_income) tag NO weighted-average or
+                # CommonStockShares* concept at all in their us-gaap facts - the only
+                # share-count data SEC XBRL has for them is the universal
+                # dei:EntityCommonStockSharesOutstanding cover-page fact. Restricted to
+                # domestic filing forms only inside sec_statements.py's _aggregate_concepts
+                # (foreign 20-F/40-F filers report this in local/home-market units with no
+                # ADS-ratio conversion - see that file's removed-IFRS-concept comment for the
+                # exact 100-1000x-wrong-market-cap trap this avoids repeating).
+                if not shares_out:
+                    cur.execute(
+                        """
+                        SELECT shares_outstanding_dei FROM annual_income_statement
+                        WHERE symbol = %s AND shares_outstanding_dei > %s
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol, self.MIN_PLAUSIBLE_SHARES_OUTSTANDING),
+                    )
+                    dei_shares_row = cur.fetchone()
+                    if dei_shares_row and dei_shares_row[0]:
+                        shares_out = float(dei_shares_row[0])
+                        logger.debug(f"[{symbol}] Using shares_outstanding_dei cover-page count (no us-gaap share concept reported): {shares_out:,.0f}")
 
                 # Fail if still no shares outstanding available
                 if not shares_out or shares_out <= 0:
