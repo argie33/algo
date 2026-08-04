@@ -989,16 +989,32 @@ class HaltFlagManager:
                 try:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
 
+                    import json
+
                     now_utc = datetime.now(timezone.utc)
+                    msg = reason or "Phase 1 verified: data is fresh, resuming normal trading"
+                    # CRITICAL FIX: this previously left halt_triggered_at and state_value (the
+                    # raw crash/halt detail JSON written by _set_halt_flag_rds) untouched on
+                    # clear - only halt_flag/halt_reason/halt_count were reset. Anyone inspecting
+                    # algo_runtime_state after a halt cleared (this session included, mid-audit)
+                    # would see a stale halt_triggered_at timestamp and a stale state_value crash
+                    # reason from the LAST halt, indistinguishable from an active/recent one
+                    # without separately checking halt_flag==False first. Clear all three
+                    # halt-detail fields together so a cleared halt reads as cleared everywhere.
                     cur.execute(
                         """
                         UPDATE algo_runtime_state
-                        SET halt_flag = FALSE, halt_count = 0, halt_reason = %s, last_updated_at = %s
+                        SET halt_flag = FALSE, halt_count = 0, halt_reason = %s,
+                            halt_triggered_at = NULL, state_value = %s, last_updated_at = %s
                         WHERE state_key = %s
                         """,
-                        (reason or "Phase 1 verified: data is fresh", now_utc, self.HALT_FLAG_DYNAMODB_KEY),
+                        (
+                            reason or "Phase 1 verified: data is fresh",
+                            json.dumps({"halt_triggered_by": None, "reason": None, "cleared_at": now_utc.isoformat()}),
+                            now_utc,
+                            self.HALT_FLAG_DYNAMODB_KEY,
+                        ),
                     )
-                    msg = reason or "Phase 1 verified: data is fresh, resuming normal trading"
                     logger.info(f"[HALT_FLAG_CLEARED] {msg} (via RDS fallback)")
                     return True
                 finally:
