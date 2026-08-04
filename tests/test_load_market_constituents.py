@@ -80,6 +80,43 @@ def test_preferred_share_still_excluded_by_name_not_symbol_shape() -> None:
     assert "BRK.A" in symbols
 
 
+def test_known_etf_misclassification_override_survives_upstream_flag() -> None:
+    """JHDV/JVAL are flagged ETF='N' by NASDAQ's own otherlisted.txt feed (confirmed live,
+    see migration 069) - without the KNOWN_ETF_MISCLASSIFICATIONS override, they'd land in
+    stock_symbols as ordinary stocks and get silently dropped from etf_symbols on every
+    TRUNCATE+rebuild in _upsert_etf_symbols, undoing migration 069's one-time DB patch
+    again on the very next loader run.
+    """
+    other_text = "\n".join(
+        [
+            _HEADER,
+            _row("JHDV", "Janus Henderson U.S. Dividend Factor ETF"),
+            _row("JVAL", "Janus Henderson U.S. Deep Value ETF"),
+            _row("REAL", "Some Real Company Common Stock"),
+        ]
+    )
+    nasdaq_response = MagicMock(text=_HEADER)
+    other_response = MagicMock(text=other_text)
+
+    loader = _make_loader()
+    with patch(
+        "loaders.load_market_constituents.requests.get",
+        side_effect=[nasdaq_response, other_response],
+    ), patch("loaders.load_market_constituents.validate_url", return_value=(True, "")), patch.object(
+        MarketConstituentsLoader, "_upsert_etf_symbols"
+    ) as mock_upsert:
+        rows = loader._fetch_nasdaq_symbols()
+
+    stock_symbols = {r["symbol"] for r in rows}
+    assert "JHDV" not in stock_symbols
+    assert "JVAL" not in stock_symbols
+    assert "REAL" in stock_symbols
+
+    assert mock_upsert.call_count == 1
+    etf_symbols = {r["symbol"] for r in mock_upsert.call_args[0][0]}
+    assert etf_symbols == {"JHDV", "JVAL"}
+
+
 def test_test_issue_flag_still_excludes_dot_suffix_test_symbols() -> None:
     nasdaq_text = "\n".join(
         [
