@@ -410,12 +410,18 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
     try:
         interval_1d = get_interval_sql("1d")
+        # COUNT(*) OVER() reports the true row count in the `days` window alongside the
+        # LIMIT 100 page - verified live 2026-08-04: algo_position_sizing_audit had 495
+        # rows in the trailing 30 days, so this endpoint was silently discarding ~80% of
+        # the window with no signal to the caller that anything was cut. total is now
+        # threaded through list_response(total=...) so truncation is visible, not silent.
         audit_rows = execute_with_timeout(
             cur,
             f"""
             SELECT symbol, signal_date, entry_price, stop_loss_price,
                    base_shares, final_shares, position_size_pct,
-                   cascade_multiplier, reasons_json, created_at
+                   cascade_multiplier, reasons_json, created_at,
+                   COUNT(*) OVER() AS total_count
             FROM algo_position_sizing_audit
             WHERE created_at >= NOW() - {interval_1d} * %s
             ORDER BY created_at DESC
@@ -424,6 +430,7 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
             (days,),
             timeout_sec=10,
         )
+        total_count = int(audit_rows[0]["total_count"]) if audit_rows else 0
 
         items = []
         for row in audit_rows:
@@ -485,7 +492,7 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
                 }
             )
 
-        return list_response(items)
+        return list_response(items, total=total_count, limit=100)
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch position sizing audit")
         return error_response(code, error_type, message)
@@ -495,10 +502,13 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
         interval_1d_stop = get_interval_sql("1d")
+        # COUNT(*) OVER() reports the true row count in the `days` window alongside the
+        # LIMIT 100 page - same silent-truncation fix as _get_position_sizing_audit above.
         cur.execute(
             f"""
             SELECT symbol, signal_date, entry_price, stop_loss_price,
-                   distance_pct, stop_method, stop_reasoning, candidates_json, created_at
+                   distance_pct, stop_method, stop_reasoning, candidates_json, created_at,
+                   COUNT(*) OVER() AS total_count
             FROM algo_stop_loss_audit
             WHERE created_at >= NOW() - {interval_1d_stop} * %s
             ORDER BY created_at DESC
@@ -507,8 +517,11 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
             (days,),
         )
 
+        stop_loss_rows = cur.fetchall()
+        total_count = int(stop_loss_rows[0]["total_count"]) if stop_loss_rows else 0
+
         items = []
-        for row in cur.fetchall():
+        for row in stop_loss_rows:
             if row["distance_pct"] is None:
                 error_msg = (
                     f"Stop loss audit incomplete for {row['symbol']}: distance_pct missing. "
@@ -565,7 +578,7 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
                 }
             )
 
-        return list_response(items)
+        return list_response(items, total=total_count, limit=100)
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch stop loss audit")
         return error_response(code, error_type, message)
