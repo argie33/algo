@@ -505,21 +505,34 @@ export default StockScoreAccordion;
 // collected: false -> live-DB audit found ~0% population across the whole
 //   universe (i.e. this isn't a per-stock gap, the pipeline doesn't produce it)
 
+// FIXED 2026-08-04: quality_score (load_stock_scores.py::_score_quality) is NOT a
+// 6-input linear weighting of ROE/ROA/ROIC/Profit Margin/Op Margin/Debt-Equity as this
+// schema previously claimed - it's an equal-weighted average of up to 6 DIFFERENT
+// components (roe, roa, operating_margin, net_margin, debt_to_assets inverted,
+// interest_coverage - each ~17% when all present, self-normalizing over whichever are
+// available), then adjusted +/-10 points by _enhance_quality_score using a separate set
+// of signals (margins_avg, earnings_growth_yoy, fcf_to_net_income, roic_pct,
+// ocf_to_net_income). debt_to_equity is NOT read anywhere in quality scoring at all -
+// it's a real input, but to the Financial Stability sub-score under the Stability tab
+// (_score_financial_stability, 30% of that sub-score's own internal weighting) - so its
+// weight badge here was attributing a real, live-used input to the wrong factor
+// entirely. ROIC/FCF-to-NI/OCF-to-NI are real inputs but are bounded +/- point
+// adjustments, not proportional weights, hence the "adj" labels below instead of a %.
 const QUALITY_SCHEMA = [
-  { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1), used: true, weight: '20%' },
-  { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1), used: true, weight: '15%' },
-  { key: 'return_on_invested_capital_pct', label: 'ROIC',                     fmt: v => pct(v, 1), used: true, weight: '15%' },
-  { key: 'profit_margin_pct',              label: 'Profit Margin',            fmt: v => pct(v, 1), used: true, weight: '20%' },
-  { key: 'operating_margin_pct',           label: 'Operating Margin',         fmt: v => pct(v, 1), used: true, weight: '15%' },
-  { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'gross_margin_pct',               label: 'Gross Margin',             fmt: v => pct(v, 1) },
-  { key: 'ebitda_margin_pct',              label: 'EBITDA Margin',            fmt: v => pct(v, 1) },
-  { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2) },
-  { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2) },
+  { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
+  { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
+  { key: 'return_on_invested_capital_pct', label: 'ROIC',                     fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
+  { key: 'profit_margin_pct',              label: 'Profit Margin',            fmt: v => pct(v, 1), used: true, weight: '~17%' },
+  { key: 'operating_margin_pct',           label: 'Operating Margin',         fmt: v => pct(v, 1), used: true, weight: '~17%' },
+  { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2) },
+  { key: 'gross_margin_pct',               label: 'Gross Margin',             fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
+  { key: 'ebitda_margin_pct',              label: 'EBITDA Margin',            fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
+  { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
+  { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'current_ratio',                  label: 'Current Ratio',            fmt: v => num(v, 2) },
   { key: 'quick_ratio',                    label: 'Quick Ratio',              fmt: v => num(v, 2) },
-  { key: 'interest_coverage',              label: 'Interest Coverage',        fmt: v => num(v, 2) },
-  { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v, 1) },
+  { key: 'interest_coverage',              label: 'Interest Coverage',        fmt: v => num(v, 2), used: true, weight: '~17%' },
+  { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'earnings_surprise_avg',          label: 'Earnings Surprise (4Q)',   fmt: v => pct(v, 2) },
   { key: 'eps_growth_stability',           label: 'EPS Growth Stability',     fmt: v => num(v, 2) },
   { key: 'earnings_beat_rate',             label: 'Earnings Beat Rate',       fmt: v => pct(v, 1) },
@@ -538,29 +551,42 @@ const QUALITY_SCHEMA = [
   { key: 'earnings_growth_4q_avg',         label: 'Earnings Growth 4Q Avg',   fmt: v => pct(v, 2) },
 ];
 
+// FIXED 2026-08-04: momentum_score (load_stock_scores.py::_score_momentum) weights were
+// stale here (25%/25%/25% for 3m/6m/12m) vs. the code's actual 16%/14%/9%, and
+// momentum_1m (16% weight - tied for the second-highest input in the whole formula) was
+// missing from this schema entirely despite being fetched by the API (scores.py
+// momentum_1m_val) - a real, live-used, meaningfully-weighted score input was completely
+// invisible on the scores page. Also added the ROC composite (avg of roc_20d/60d/120d/
+// 252d, 12%) and SMA composite (avg of price_vs_sma_50/200, 8%) weight badges - both
+// real inputs that were displayed as plain unweighted numbers before.
 const MOMENTUM_SCHEMA = [
-  { key: 'momentum_3m', label: 'Momentum (3M)', fmt: v => pct(v, 2), used: true, weight: '25%' },
-  { key: 'momentum_6m', label: 'Momentum (6M)', fmt: v => pct(v, 2), used: true, weight: '25%' },
-  { key: 'momentum_12_3', label: 'Momentum (12M)', fmt: v => pct(v, 2), used: true, weight: '25%' },
+  { key: 'momentum_1m', label: 'Momentum (1M)', fmt: v => pct(v, 2), used: true, weight: '16%' },
+  { key: 'momentum_3m', label: 'Momentum (3M)', fmt: v => pct(v, 2), used: true, weight: '16%' },
+  { key: 'momentum_6m', label: 'Momentum (6M)', fmt: v => pct(v, 2), used: true, weight: '14%' },
+  { key: 'momentum_12_3', label: 'Momentum (12M)', fmt: v => pct(v, 2), used: true, weight: '9%' },
   { key: 'rsi', label: 'RSI (14)', fmt: v => num(v, 1), used: true, weight: '15%' },
   { key: 'macd', label: 'MACD Line', fmt: v => num(v, 3), used: true, weight: '10%' },
   { key: 'price_vs_52w_high', label: 'Price vs 52W High', fmt: v => pct(v, 2) },
-  { key: 'price_vs_sma_50', label: 'Price vs 50-SMA', fmt: v => pct(v, 2) },
-  { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2) },
+  { key: 'price_vs_sma_50', label: 'Price vs 50-SMA', fmt: v => pct(v, 2), used: true, weight: '8% avg' },
+  { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2), used: true, weight: '8% avg' },
   { key: 'current_price', label: 'Current Price', fmt: v => `$${num(v, 2)}` },
 ];
 
+// FIXED 2026-08-04: value_score (load_stock_scores.py::_score_value) weight badges were
+// stale here vs. the code's actual constants (P/E 45% not 20%, P/B 20% not 15%, FCF
+// Yield 12% not 20%), and dividend_yield (8% weight, a real input since migration 1146)
+// was displayed as a plain unweighted number despite being scored.
 const VALUE_SCHEMA = [
   { key: 'market_cap', label: 'Market Cap', fmt: money },
-  { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '20%' },
+  { key: 'stock_pe', label: 'P/E', fmt: v => num(v, 2), used: true, weight: '45%' },
   { key: 'stock_forward_pe', label: 'Forward P/E', fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'stock_pb', label: 'P/B', fmt: v => num(v, 2), used: true, weight: '15%' },
+  { key: 'stock_pb', label: 'P/B', fmt: v => num(v, 2), used: true, weight: '20%' },
   { key: 'stock_ps', label: 'P/S', fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'stock_ev_ebitda', label: 'EV / EBITDA', fmt: v => num(v, 2), used: true, weight: '12%' },
   { key: 'stock_ev_revenue', label: 'EV / Revenue', fmt: v => num(v, 2), used: true, weight: '10%' },
   { key: 'peg_ratio', label: 'PEG', fmt: v => num(v, 2), used: true, weight: '15%' },
-  { key: 'stock_dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2) },
-  { key: 'fcf_yield', label: 'FCF Yield', fmt: v => pct(v, 2), used: true, weight: '20%' },
+  { key: 'stock_dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2), used: true, weight: '8%' },
+  { key: 'fcf_yield', label: 'FCF Yield', fmt: v => pct(v, 2), used: true, weight: '12%' },
 ];
 
 const GROWTH_SCHEMA = [
@@ -577,35 +603,49 @@ const GROWTH_SCHEMA = [
   { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
   { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2), used: true, weight: '3%' },
   { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2), used: true, weight: '6%' },
-  // collected: false - verified live (2026-08-03): quality_metrics.quarterly_growth_momentum
-  // is 0/5682 populated universe-wide. No computation path exists for this column anywhere
-  // in load_value_quality_growth_metrics.py (unlike its 10 sibling trend fields, which all
-  // have a real "if X and prior_year_X: compute" block) - a dead/never-implemented field,
-  // not a per-stock data gap, so it gets the honest system-wide badge instead of "No data".
-  { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp`, collected: false },
+  // FIXED 2026-08-04: previously flagged collected:false ("quality_metrics.quarterly_growth_momentum
+  // is 0/5682 populated, no computation path exists") - that was true only of
+  // load_value_quality_growth_metrics.py. load_enhanced_quality_growth_metrics.py (wired into the
+  // metrics pipeline as of 548dc99f5) computes this from quarterly_income_statement and writes it
+  // into growth_metrics.quarterly_growth_momentum - live-verified real non-NULL value for AAPL.
+  // Per-symbol "No data" now means a genuine per-stock gap (e.g. <4 quarters of history), not a
+  // system-wide dead field.
+  { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp` },
   { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '4%' },
   { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2), used: true, weight: '5%' },
   { key: 'earnings_growth_4q_avg',     label: 'Earnings Growth 4Q Avg',  fmt: v => pct(v, 2) },
 ];
 
+// FIXED 2026-08-04: positioning_score (load_stock_scores.py::_score_positioning) weight
+// badges were stale here vs. the code's actual constants (institutional 55% not 35%,
+// insider 20% not 30%, short interest 25% not 35%), and ad_rating (15% weight, wired
+// into positioning_score by commit 2bd12fcb5 the same day) was still shown as a plain
+// unweighted number - the display never caught up with that fix.
 const POSITIONING_SCHEMA = [
-  { key: 'institutional_ownership_pct', label: 'Institutional Own %', fmt: v => pct(v, 1), used: true, weight: '35%' },
-  { key: 'insider_ownership_pct',       label: 'Insider Own %',       fmt: v => pct(v, 1), used: true, weight: '30%' },
-  { key: 'short_interest_pct',          label: 'Short Interest %',    fmt: v => pct(v, 2), used: true, weight: '35%' },
+  { key: 'institutional_ownership_pct', label: 'Institutional Own %', fmt: v => pct(v, 1), used: true, weight: '55%' },
+  { key: 'insider_ownership_pct',       label: 'Insider Own %',       fmt: v => pct(v, 1), used: true, weight: '20%' },
+  { key: 'short_interest_pct',          label: 'Short Interest %',    fmt: v => pct(v, 2), used: true, weight: '25%' },
   { key: 'top_10_institutions_pct',     label: 'Top 10 Institutions %', fmt: v => pct(v, 1) },
   { key: 'institutional_holders_count', label: 'Institutional Holders', fmt: v => num(v, 0) },
   { key: 'short_percent_of_float',      label: 'Short % of Shares O/S', fmt: v => pct(v, 1) },
   { key: 'short_interest_trend',        label: 'Short Interest Trend', fmt: v => v == null ? '—' : v.charAt(0).toUpperCase() + v.slice(1), used: true, weight: '10%' },
   { key: 'shares_short_prior_month',    label: 'Shares Short (Prior Month)', fmt: v => num(v, 0) },
   { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },
-  { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1) },
+  { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1), used: true, weight: '15%' },
 ];
 
+// FIXED 2026-08-04: volatility weight badges were stale vs. _score_stability's actual
+// constants (252d/"12M" 40% not 35%, 60D 20% not 18%, 30D 15% not 12%). debt_to_assets's
+// "10%" badge below is left as an approximation - it's a real input, but nested two
+// levels deep (25% of the Financial Stability sub-score, itself 20% of overall
+// Stability), not a flat top-level weight; the same applies to debt_to_equity/current_
+// ratio/quick_ratio/cash_per_share which feed that same sub-score but aren't in this
+// tab's schema at all - flagged as a follow-up, not fixed this pass.
 const STABILITY_SCHEMA = [
-  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '35%' },
-  { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '18%' },
-  { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '12%' },
+  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '40%' },
+  { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '20%' },
+  { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '15%' },
   { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
   { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: '10%' },
   { key: 'downside_volatility_252d', label: 'Downside Volatility (252D)', fmt: v => pct(v, 2), used: true, weight: '15%' },

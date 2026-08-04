@@ -317,10 +317,10 @@ class StockScoresLoader(OptimalLoader):
             # out from under it, crashing every fetch_incremental() call before it could compute
             # these fields at all) - once the schema was fixed, live-verified these 5 populate
             # with real, differentiated values (not NULL), disproving the prior "structurally
-            # always NULL" premise. quarterly_growth_momentum is NOT included here - unlike the
-            # other 5, it has no computation logic anywhere in load_value_quality_growth_metrics.py
-            # (this loader only ever fetches annual data, no quarterly source to derive it from),
-            # so it genuinely is dead and stays excluded.
+            # always NULL" premise. quarterly_growth_momentum is NOT included here - it's now
+            # computed (by load_enhanced_quality_growth_metrics.py, wired in as of 548dc99f5) and
+            # populated with real values, but was never wired into this score formula; excluding
+            # it is a deliberate scope decision now, not a data-availability limitation.
             cur.execute(
                 "SELECT symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, "
                 "eps_growth_1y, eps_growth_3y, eps_growth_5y, "

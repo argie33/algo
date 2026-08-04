@@ -46,6 +46,13 @@ from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
+# Guards against a near-zero EPS-estimate base blowing up a percentage-change calculation
+# into a value that overflows this table's NUMERIC(10,4) revision columns (max magnitude
+# 999,999.9999) - same class of guard as load_value_quality_growth_metrics.py's
+# MAX_TREND_PERCENTAGE_POINTS, applied here to estimate_momentum_60d/90d and
+# revision_trend_score.
+MAX_TREND_PERCENTAGE_POINTS = 100_000.0
+
 
 class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     """Adds 21 new computed metrics to existing quality_metrics and growth_metrics.
@@ -365,12 +372,18 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if computed_surprise:
                 logger.info(f"[ENHANCED_METRICS] {symbol}: Computed surprise metrics: {computed_surprise}")
 
-            # Initialize remaining missing analyst estimate fields as None (not yet loaded by any loader)
-            # These require more complex data tracking (revision activity, momentum trends)
-            for field in [
+            # Compute estimate revision trend metrics from yfinance eps_trend/eps_revisions
+            self._compute_estimate_revision_metrics(symbol, metrics)
+
+            revision_fields = [
                 "estimate_revision_direction", "revision_activity_30d",
                 "estimate_momentum_60d", "estimate_momentum_90d", "revision_trend_score"
-            ]:
+            ]
+            computed_revision = {k: v for k, v in metrics.items() if k in revision_fields and v is not None}
+            if computed_revision:
+                logger.info(f"[ENHANCED_METRICS] {symbol}: Computed revision metrics: {computed_revision}")
+
+            for field in revision_fields:
                 if field not in metrics:
                     metrics[field] = None
 
@@ -426,6 +439,66 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except Exception as e:
             # yfinance may not have data or may be rate-limited
             logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise: {type(e).__name__}: {e}")
+
+    def _compute_estimate_revision_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
+        """Compute analyst estimate revision trend metrics from yfinance eps_trend/eps_revisions.
+
+        Live-verified 2026-08-04: yf.Ticker(symbol).eps_trend is a real DataFrame indexed by
+        period ('0q'/'+1q'/'0y'/'+1y') with current/7daysAgo/30daysAgo/60daysAgo/90daysAgo
+        consensus EPS columns; yf.Ticker(symbol).eps_revisions is a real DataFrame (same index)
+        with upLast7days/upLast30days/downLast30days/downLast7Days analyst-revision counts.
+        Uses the '0q' (current-quarter) row - the most immediately actionable estimate window,
+        matching the same non-`.info` API family already used for forward_eps
+        (utils/external/yfinance_analyst_ratings.py) and upgrades_downgrades.
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+
+            eps_trend = ticker.eps_trend
+            eps_revisions = ticker.eps_revisions
+
+            if eps_trend is not None and not eps_trend.empty and "0q" in eps_trend.index:
+                row = eps_trend.loc["0q"]
+                current = row.get("current")
+                ago_60 = row.get("60daysAgo")
+                ago_90 = row.get("90daysAgo")
+
+                if current is not None and ago_60 not in (None, 0):
+                    momentum_60d = ((current - ago_60) / abs(ago_60)) * 100
+                    if abs(momentum_60d) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["estimate_momentum_60d"] = float(round(momentum_60d, 2))
+
+                if current is not None and ago_90 not in (None, 0):
+                    momentum_90d = ((current - ago_90) / abs(ago_90)) * 100
+                    if abs(momentum_90d) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["estimate_momentum_90d"] = float(round(momentum_90d, 2))
+
+                momentum_values = [
+                    v for v in (metrics.get("estimate_momentum_60d"), metrics.get("estimate_momentum_90d"))
+                    if v is not None
+                ]
+                if momentum_values:
+                    metrics["revision_trend_score"] = float(round(sum(momentum_values) / len(momentum_values), 2))
+            else:
+                logger.debug(f"[ENHANCED_METRICS] {symbol}: No eps_trend '0q' row from yfinance")
+
+            if eps_revisions is not None and not eps_revisions.empty and "0q" in eps_revisions.index:
+                row = eps_revisions.loc["0q"]
+                up_30d = row.get("upLast30days")
+                down_30d = row.get("downLast30days")
+
+                if up_30d is not None and down_30d is not None:
+                    metrics["revision_activity_30d"] = float(up_30d + down_30d)
+                    metrics["estimate_revision_direction"] = float(up_30d - down_30d)
+            else:
+                logger.debug(f"[ENHANCED_METRICS] {symbol}: No eps_revisions '0q' row from yfinance")
+
+        except ImportError:
+            logger.debug(f"[ENHANCED_METRICS] {symbol}: yfinance not available")
+        except Exception as e:
+            # yfinance may not have data or may be rate-limited
+            logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch estimate revisions: {type(e).__name__}: {e}")
 
     def _compute_quarterly_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
         """Compute metrics from quarterly earnings data."""
