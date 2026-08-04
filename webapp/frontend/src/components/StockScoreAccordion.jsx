@@ -72,6 +72,7 @@ const formatReasonDisplay = (reason) => {
     reit_special_entity: "REIT/special entity - different accounting",
     foreign_20f_filer: "Foreign 20-F filer - XBRL data limited",
     bank_special_reporting: "Financial institution - alternative metrics",
+    insufficient_prior_year_data: "Prior fiscal year data unavailable",
   };
   return reasonMap[reason] || reason;
 };
@@ -88,6 +89,7 @@ const reasonTooltips = {
   reit_special_entity: "REITs and special entities use different accounting; traditional financial metrics may not apply",
   foreign_20f_filer: "Foreign companies filing 20-F use different XBRL data structure; full metrics extraction limited",
   bank_special_reporting: "Banks and financial institutions use specialized accounting; different metrics apply",
+  insufficient_prior_year_data: "This company's prior fiscal year filing doesn't report the comparison figure needed for this trend/growth calculation",
 };
 
 const FACTORS = [
@@ -575,7 +577,12 @@ const GROWTH_SCHEMA = [
   { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp`, used: true, weight: '3%' },
   { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2), used: true, weight: '3%' },
   { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2), used: true, weight: '6%' },
-  { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp` },
+  // collected: false - verified live (2026-08-03): quality_metrics.quarterly_growth_momentum
+  // is 0/5682 populated universe-wide. No computation path exists for this column anywhere
+  // in load_value_quality_growth_metrics.py (unlike its 10 sibling trend fields, which all
+  // have a real "if X and prior_year_X: compute" block) - a dead/never-implemented field,
+  // not a per-stock data gap, so it gets the honest system-wide badge instead of "No data".
+  { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp`, collected: false },
   { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '4%' },
   { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2), used: true, weight: '5%' },

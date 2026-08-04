@@ -183,6 +183,25 @@ export const extractData = (response) => {
         ...(data.data.stale_alerts && { stale_alerts: data.data.stale_alerts }),
         ...(data.data.data_freshness && { data_freshness: data.data.data_freshness }),
         ...(data.data.breakers && { breakers: data.data.breakers }),
+        // /api/algo/data-status (lambda/api/routes/algo_handlers/market.py's _get_data_status)
+        // sets these directly on response["data"] alongside "items" - none of them were in
+        // this whitelist, so they were silently dropped on every call. ServiceHealth.jsx reads
+        // dataStatus.sources/.summary/.ready_to_trade/.critical_stale directly (not .items),
+        // so the entire "Data Sources" table rendered permanently empty ("Data Sources (0)" /
+        // "No data") regardless of what the API actually returned. Explicit `!== undefined`
+        // (not `&&`) because ready_to_trade is a boolean - `false && {...}` would silently drop
+        // a real "not ready" value, which is the one case that matters most here.
+        ...(data.data.sources !== undefined && { sources: data.data.sources }),
+        ...(data.data.ready_to_trade !== undefined && { ready_to_trade: data.data.ready_to_trade }),
+        ...(data.data.trading_halted !== undefined && { trading_halted: data.data.trading_halted }),
+        ...(data.data.trading_halt_reason !== undefined && {
+          trading_halt_reason: data.data.trading_halt_reason,
+        }),
+        ...(data.data.summary !== undefined && { summary: data.data.summary }),
+        ...(data.data.critical_stale !== undefined && { critical_stale: data.data.critical_stale }),
+        ...(data.data.expected_date !== undefined && { expected_date: data.data.expected_date }),
+        ...(data.data.as_of !== undefined && { as_of: data.data.as_of }),
+        ...(data.data.execution_health !== undefined && { execution_health: data.data.execution_health }),
         statusCode: httpStatus,
         success: true,
       };

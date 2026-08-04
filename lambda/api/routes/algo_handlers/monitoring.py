@@ -313,33 +313,59 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
             })
 
         # 4. Get loader health (failure streaks and success rates)
+        #
+        # data_loader_status.status is written by two independent, competing vocabularies
+        # that share this one column (see utils/loader_infrastructure.py's
+        # update_loader_status docstring): the loader's own execution result
+        # (COMPLETED/FAILED/success/OK) and algo/monitoring/pipeline_health.py's
+        # unconditional per-run freshness sweep (HEALTHY/STALE/VERY_STALE/MISSING/ERROR/
+        # DEPRECATED), which overwrites the same column for ~95 tracked tables on every
+        # orchestrator run and, per that sweep's own comments, leaves most tables sitting
+        # on "HEALTHY" far more often than "COMPLETED". A naive `status != "COMPLETED"`
+        # check flags every one of those as a false "loader issue" - this is the same
+        # multi-vocabulary trap loaders/load_buy_sell_daily.py's own upstream-readiness
+        # check already had to whitelist around. DEPRECATED tables are intentionally
+        # frozen (see pipeline_health.py's TableHealth.is_healthy) and count as healthy
+        # too, not unhealthy.
+        # No LIMIT here: consecutive_failures DESC would silently drop genuinely-unhealthy
+        # tables that happen to sit at 0 consecutive_failures (e.g. STALE/ERROR/MISSING from
+        # the pipeline_health.py sweep, which never touches consecutive_failures) once more
+        # than ~30 tables are tracked - the table count (~95 per pipeline_health.py) already
+        # exceeds that. Fetch every row and let Python separate healthy from unhealthy so the
+        # unhealthy count below is real, not truncated before it's even computed.
         cur.execute("""
             SELECT table_name, status, consecutive_failures, retry_count, last_success_at,
                    execution_completed, completion_pct
             FROM data_loader_status
             WHERE table_name IS NOT NULL
             ORDER BY consecutive_failures DESC, table_name ASC
-            LIMIT 30
         """)
 
+        healthy_loader_statuses = ("COMPLETED", "success", "OK", "ok", "HEALTHY", "DEPRECATED")
+
+        loader_health_total_tracked = 0
         loader_health = []
         for row in cur.fetchall():
+            loader_health_total_tracked += 1
             row_dict = safe_dict_convert(row)
             table_name = row_dict.get("table_name")
             status = row_dict.get("status")
             cons_failures = row_dict.get("consecutive_failures") or 0
             retry_count = row_dict.get("retry_count") or 0
             last_success = row_dict.get("last_success_at")
+            is_unhealthy = cons_failures > 0 or status not in healthy_loader_statuses
 
-            if cons_failures > 0 or status != "COMPLETED":
+            if is_unhealthy:
                 loader_health.append({
                     "table_name": table_name,
                     "status": status,
                     "consecutive_failures": cons_failures,
                     "retry_count": retry_count,
                     "last_success_at": last_success,
-                    "is_unhealthy": cons_failures > 0 or status != "COMPLETED",
+                    "is_unhealthy": is_unhealthy,
                 })
+
+        loader_health_total_unhealthy = len(loader_health)
 
         # 5. Calculate trend summary (7-day vs 30-day comparison)
         cur.execute("""
@@ -390,7 +416,9 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
             "run_history": run_history,
             "phase_health": phase_health,
             "failure_patterns": failure_patterns,
-            "loader_health": [lh for lh in loader_health if lh["is_unhealthy"]][:10],
+            "loader_health": loader_health[:15],
+            "loader_health_total_unhealthy": loader_health_total_unhealthy,
+            "loader_health_total_tracked": loader_health_total_tracked,
             "trend_summary": trend_summary,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }

@@ -88,8 +88,12 @@ function TableRow({ tableName, health, loader, statusColor }) {
   const ageHours = health?.age_hours;
   const ageDays = health?.age;
   const rowCount = health?.row_count || loader?.row_count;
-  const errorMsg = loader?.error_message;
-  const consecutiveFails = loader?.consecutive_failures;
+  // Fall back to health's own fields when the loader lookup has nothing for this table -
+  // health items always carry these directly from the API (see market.py's _get_data_status),
+  // so a table shouldn't lose its failure reason/count just because a separate loader-status
+  // fetch didn't cover it.
+  const errorMsg = loader?.error_message || health?.loader_error;
+  const consecutiveFails = loader?.consecutive_failures ?? health?.consecutive_failures;
 
   const completion = loader?.completion_pct;
   const completionText =
@@ -306,31 +310,43 @@ export function LoaderHealthPanel({ healthData, loading = false, error = null })
       const hlth = healthDict[tbl];
       const load = loaderDict[tbl] || {};
       const status = hlth.st || "unknown";
+      const loaderStatus = load.status?.toLowerCase?.() || "";
+
+      // Freshness status (hlth.st: ok/stale/critical/empty) and loader operational health
+      // (consecutive_failures, loader run status) are independent signals - a table can be
+      // freshness-"ok" (its last SUCCESSFUL run met the freshness window) while the loader
+      // has failed on every attempt since. This used to short-circuit straight to "healthy"
+      // whenever status === "ok" with no look at consecutive_failures/loader status at all,
+      // so a table with dozens of consecutive failures (e.g. price_daily) rendered as a plain
+      // collapsed "healthy" entry with zero indication anything was wrong. Mirrors the same
+      // fix in dashboard/panels/health.py's _format_comprehensive_table_loader_health().
+      const cons = load.consecutive_failures ?? hlth.consecutive_failures;
+      const loaderUnhealthy =
+        (typeof cons === "number" && cons > 0) ||
+        loaderStatus === "error" ||
+        loaderStatus === "failed" ||
+        loaderStatus === "timeout";
 
       const tableData = { tbl, hlth, load };
 
-      if (status === "ok") {
-        categories.healthy.push(tableData);
-      } else if (status === "critical") {
+      if (status === "critical") {
         categories.critical.push(tableData);
-      } else if (status === "stale") {
-        categories.stale.push(tableData);
       } else if (status === "empty") {
         categories.empty.push(tableData);
+      } else if (loaderUnhealthy) {
+        categories.error.push(tableData);
+      } else if (status === "ok") {
+        categories.healthy.push(tableData);
+      } else if (status === "stale") {
+        categories.stale.push(tableData);
+      } else if (
+        loaderStatus === "running" ||
+        loaderStatus === "loading" ||
+        loaderStatus === "not_started"
+      ) {
+        categories.stale.push(tableData);
       } else {
-        // Check loader status if health status unclear
-        const loaderStatus = load.status?.toLowerCase?.() || "";
-        if (loaderStatus === "error" || loaderStatus === "failed") {
-          categories.error.push(tableData);
-        } else if (
-          loaderStatus === "running" ||
-          loaderStatus === "loading" ||
-          loaderStatus === "not_started"
-        ) {
-          categories.stale.push(tableData);
-        } else {
-          categories.healthy.push(tableData);
-        }
+        categories.healthy.push(tableData);
       }
     });
 

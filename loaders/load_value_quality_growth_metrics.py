@@ -448,6 +448,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 for field in _SHARED_TREND_FIELDS:
                     if quality_dict.get(field) is not None:
                         growth_dict[field] = quality_dict[field]
+                    reason_field = f"{field}_unavailable_reason"
+                    if quality_dict.get(reason_field) is not None:
+                        growth_dict[reason_field] = quality_dict[reason_field]
 
             return [(value_dict, quality_dict, growth_dict)]
 
@@ -1078,6 +1081,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if field not in metrics:
                     metrics[field] = None
 
+            # TREND FIELD REASONS: every guard above follows "if X and prior_year_X:
+            # compute" (calculation errors are caught separately, above) - so a NULL
+            # result here always means the prior fiscal year's row was missing that
+            # specific input, never a math failure. Surface that instead of leaving the
+            # frontend with no reason code (renders as the ambiguous, unlabeled "No data"
+            # badge instead of an explained one). quarterly_growth_momentum excluded: it
+            # has no computation path at all (dead field, not a per-symbol data gap).
+            for field in (
+                "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
+                "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
+                "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+            ):
+                if metrics.get(field) is None:
+                    metrics[f"{field}_unavailable_reason"] = "insufficient_prior_year_data"
+
             # Mark unavailable if all metrics are None
             if all(
                 metrics[k] is None
@@ -1527,6 +1545,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 cash_per_share_unavailable_reason = EXCLUDED.cash_per_share_unavailable_reason,
                 earnings_growth_yoy_unavailable_reason = EXCLUDED.earnings_growth_yoy_unavailable_reason,
                 revenue_growth_yoy_unavailable_reason = EXCLUDED.revenue_growth_yoy_unavailable_reason,
+                net_income_growth_yoy_unavailable_reason = EXCLUDED.net_income_growth_yoy_unavailable_reason,
+                operating_income_growth_yoy_unavailable_reason = EXCLUDED.operating_income_growth_yoy_unavailable_reason,
+                gross_margin_trend_unavailable_reason = EXCLUDED.gross_margin_trend_unavailable_reason,
+                operating_margin_trend_unavailable_reason = EXCLUDED.operating_margin_trend_unavailable_reason,
+                net_margin_trend_unavailable_reason = EXCLUDED.net_margin_trend_unavailable_reason,
+                roe_trend_unavailable_reason = EXCLUDED.roe_trend_unavailable_reason,
+                sustainable_growth_rate_unavailable_reason = EXCLUDED.sustainable_growth_rate_unavailable_reason,
+                quarterly_growth_momentum_unavailable_reason = EXCLUDED.quarterly_growth_momentum_unavailable_reason,
+                fcf_growth_yoy_unavailable_reason = EXCLUDED.fcf_growth_yoy_unavailable_reason,
+                ocf_growth_yoy_unavailable_reason = EXCLUDED.ocf_growth_yoy_unavailable_reason,
+                asset_growth_yoy_unavailable_reason = EXCLUDED.asset_growth_yoy_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -1607,17 +1636,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("cash_per_share_unavailable_reason"),
                 row.get("earnings_growth_yoy_unavailable_reason"),
                 row.get("revenue_growth_yoy_unavailable_reason"),
-                None,  # net_income_growth_yoy_unavailable_reason
-                None,  # operating_income_growth_yoy_unavailable_reason
-                None,  # gross_margin_trend_unavailable_reason
-                None,  # operating_margin_trend_unavailable_reason
-                None,  # net_margin_trend_unavailable_reason
-                None,  # roe_trend_unavailable_reason
-                None,  # sustainable_growth_rate_unavailable_reason
-                None,  # quarterly_growth_momentum_unavailable_reason
-                None,  # fcf_growth_yoy_unavailable_reason
-                None,  # ocf_growth_yoy_unavailable_reason
-                None,  # asset_growth_yoy_unavailable_reason
+                row.get("net_income_growth_yoy_unavailable_reason"),
+                row.get("operating_income_growth_yoy_unavailable_reason"),
+                row.get("gross_margin_trend_unavailable_reason"),
+                row.get("operating_margin_trend_unavailable_reason"),
+                row.get("net_margin_trend_unavailable_reason"),
+                row.get("roe_trend_unavailable_reason"),
+                row.get("sustainable_growth_rate_unavailable_reason"),
+                None,  # quarterly_growth_momentum_unavailable_reason - dead field, no computation path
+                row.get("fcf_growth_yoy_unavailable_reason"),
+                row.get("ocf_growth_yoy_unavailable_reason"),
+                row.get("asset_growth_yoy_unavailable_reason"),
             ),
         )
 

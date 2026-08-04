@@ -416,6 +416,19 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     )
                 row[db_field] = value
 
+            # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
+            # filers don't tag) - derive it from operating_cash_flow - capex, the standard
+            # formula, whenever both real inputs are present. Confirmed live 2026-08-03:
+            # annual_cash_flow.free_cash_flow was NULL for every row in the table (0/206)
+            # despite operating_cash_flow and capex both being populated - nothing ever
+            # computed it, cascading into fcf_yield/fcf_to_net_income/fcf_growth_yoy being
+            # NULL universe-wide downstream in load_value_quality_growth_metrics.py.
+            if self.statement_type == "cashflow":
+                ocf = row.get("operating_cash_flow")
+                capex = row.get("capex")
+                if ocf is not None and capex is not None:
+                    row["free_cash_flow"] = ocf - capex
+
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
                 quarter_str = row["fiscal_quarter"]
                 quarter_map = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}

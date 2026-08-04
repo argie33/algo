@@ -1002,6 +1002,8 @@ DASHBOARD_ENDPOINTS = {
                 "phase_health",
                 "failure_patterns",
                 "loader_health",
+                "loader_health_total_unhealthy",
+                "loader_health_total_tracked",
                 "trend_summary",
                 "generated_at",
             ],
@@ -1010,6 +1012,8 @@ DASHBOARD_ENDPOINTS = {
                 "phase_health": dict,
                 "failure_patterns": list,
                 "loader_health": list,
+                "loader_health_total_unhealthy": int,
+                "loader_health_total_tracked": int,
                 "trend_summary": dict,
             },
             description="Cross-run orchestrator health: history, phase success rates, "

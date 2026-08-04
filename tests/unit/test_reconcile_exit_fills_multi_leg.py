@@ -87,6 +87,32 @@ class TestReconcileExitFillsMultiLeg:
         assert pnl_pct == 4.0  # 200 / (50*100) * 100
         assert exit_r_multiple == 0.4  # 200 / ((50-45)*100)
 
+    def test_multi_leg_fractional_entry_qty_not_truncated(self):
+        """algo_trades.entry_quantity is NUMERIC(18,4) - fractional-share entries are real
+        (live-confirmed in prod DB, e.g. 5.5, 1.25 shares). reconcile_exit_fills() used to
+        int()-truncate entry_qty before computing original_cost_basis/original_risk_dollars
+        for a multi-leg fill, understating both and overstating pnl_pct/exit_r_multiple.
+        10.5 shares truncated to 10 would overstate both by 5%; asserts they're computed
+        against the true 10.5."""
+        recon = _make_recon([_sell_order(filled_qty="6.3", filled_avg_price="50.00")])
+        cur = MagicMock()
+        cur.fetchone.side_effect = [
+            (13, 50.0, 45.0, 10.5),  # entry_qty=10.5 (fractional)
+            (Decimal("200.0"),),  # prior partial leg already realized +$200
+            None,  # estimated_exit_price lookup
+        ]
+
+        result = recon.reconcile_exit_fills(cur, reconcile_date=None)
+
+        assert result["updated"] == 1
+        update_call = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]][0]
+        params = update_call.args[1]
+        pnl_pct, pnl_dollars, exit_r_multiple = params[1], params[2], params[3]
+        assert pnl_dollars == 200.0
+        # Quantized to 2dp (ROUND_HALF_UP) by the code under test - round expected to match.
+        assert pnl_pct == round(200 / (50 * 10.5) * 100, 2)  # not 200/(50*10)*100 == 40.0
+        assert exit_r_multiple == round(200 / (5 * 10.5), 2)  # not 200/(5*10) == 4.0
+
     def test_multi_leg_final_leg_loss_still_sums_correctly(self):
         """T1 took +$300 profit, final 60sh leg exits at a loss - net must be the
         correct sum, not just the final leg's own loss."""

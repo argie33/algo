@@ -354,9 +354,71 @@ def _get_most_critical_issues(hlth_items: list[Any]) -> list[str]:
     return issues[:3]
 
 
+def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[Text | Rule]:
+    """Loader errors, repeated failures, and never-started loaders.
+
+    Moved here (into PHASE EXECUTION DETAILS' right column) from the DATA FRESHNESS
+    panel: narrowing the phase list into its own left column freed room on the right
+    for this operational detail instead of it living in a fully separate panel.
+    """
+    rows: list[Text | Rule] = []
+    if not hlth_items:
+        return rows
+
+    loader_errors = [
+        (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
+        for r in hlth_items
+        if isinstance(r, dict) and r.get("loader_error")
+    ]
+    repeated_failures: list[tuple[str, int, Any]] = []
+    for r in hlth_items:
+        if isinstance(r, dict):
+            n_fail_raw = r.get("consecutive_failures")
+            if isinstance(n_fail_raw, (int, float)) and n_fail_raw >= 2:
+                repeated_failures.append((r.get("tbl") or "unknown", int(n_fail_raw), r.get("last_success_at")))
+    never_started = [
+        r.get("tbl") or "unknown"
+        for r in hlth_items
+        if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
+    ]
+
+    if not (loader_errors or repeated_failures or never_started):
+        return rows
+
+    rows.append(Text.from_markup("[bold cyan]Loader Health[/]"))
+
+    if loader_errors:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
+        for tbl_name, err, lrs in loader_errors[:5]:
+            tag = f"[{lrs}] " if lrs in ("TIMEOUT", "FAILED") else ""
+            rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:50]}[/]"))
+        if len(loader_errors) > 5:
+            rows.append(Text.from_markup(f"  [dim]...and {len(loader_errors) - 5} more[/]"))
+
+    if repeated_failures:
+        repeated_failures.sort(key=lambda t: t[1], reverse=True)
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Repeated failures:[/]"))
+        for tbl_name, n_fail, last_ok in repeated_failures[:5]:
+            last_ok_s = f"last ok {fmt_age(last_ok)}" if last_ok else "never succeeded"
+            rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{n_fail}x, {last_ok_s}[/]"))
+        if len(repeated_failures) > 5:
+            rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 5} more[/]"))
+
+    if never_started:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Never run:[/]  " + "  ".join(f"[white]{n}[/]" for n in never_started[:6])))
+        if len(never_started) > 6:
+            rows.append(Text.from_markup(f"  [dim]...and {len(never_started) - 6} more[/]"))
+
+    return rows
+
+
 def _build_phase_execution_panel(
     execution_health: dict[str, Any] | None,
     run: dict[str, Any] | None = None,
+    hlth_items: list[Any] | None = None,
 ) -> Panel | None:
     """Build PHASE EXECUTION HEALTH panel showing ALL 9 phases with expanded details.
 
@@ -679,9 +741,25 @@ def _build_phase_execution_panel(
     # Build summary header
     summary = f"[dim]{executed}✓  {halted}~  {errored}✗  {skipped + not_run}⊘[/]"
 
+    # Narrow the phase list into its own left column, freeing room on the right for
+    # loader-operational detail moved over from the DATA FRESHNESS panel (see
+    # _build_loader_operational_detail_rows). Phase content itself is unchanged -
+    # only the layout is split, nothing is dropped.
+    loader_detail_rows = _build_loader_operational_detail_rows(hlth_items)
+    body: Group | Layout
+    if loader_detail_rows:
+        two_col = Layout()
+        two_col.split_row(
+            Layout(Group(*phase_rows), ratio=3, name="phase_list"),
+            Layout(Group(*loader_detail_rows), ratio=2, name="loader_detail"),
+        )
+        body = two_col
+    else:
+        body = Group(*phase_rows)
+
     # Build panel with all phases
     return Panel(
-        Group(*phase_rows),
+        body,
         title=f"[bold cyan]PHASE EXECUTION DETAILS[/]  {summary}",
         border_style="cyan",
         padding=(0, 1),
@@ -1701,24 +1779,43 @@ def _build_halt_reason_pattern_section(failure_patterns: list[Any] | None) -> li
     return rows
 
 
-def _build_loader_health_section(loader_health: list[Any] | None) -> list[Text | Rule]:
+def _build_loader_health_section(
+    loader_health: list[Any] | None,
+    total_unhealthy: int | None = None,
+    total_tracked: int | None = None,
+) -> list[Text | Rule]:
     """Build loader reliability section showing tables with failure streaks.
+
+    Args:
+        loader_health: Unhealthy-loader rows from /api/algo/freshness/extended - the
+            backend already filters to unhealthy-only and caps the list (see
+            lambda/api/routes/algo_handlers/monitoring.py), so this is a page, not the
+            full picture.
+        total_unhealthy: True count of unhealthy loaders before capping - lets this
+            section report an honest "...and N more" instead of silently under-reporting
+            once there are more issues than fit in loader_health.
+        total_tracked: Total tables tracked in data_loader_status - shown alongside the
+            healthy-state message so "all healthy" reads as "all N tracked tables", not
+            an unscoped claim.
 
     Returns list of Rich Text/Rule objects for display.
     """
     rows: list[Text | Rule] = []
 
-    if not loader_health or not isinstance(loader_health, list):
-        return rows
+    unhealthy = [lh for lh in loader_health if isinstance(lh, dict) and lh.get("is_unhealthy")] if isinstance(loader_health, list) else []
+    # total_unhealthy is the authoritative count (computed backend-side before any
+    # capping) - fall back to len(unhealthy) only when the backend didn't send it, e.g.
+    # against an older cached response.
+    unhealthy_count = total_unhealthy if total_unhealthy is not None else len(unhealthy)
 
-    unhealthy = [lh for lh in loader_health if isinstance(lh, dict) and lh.get("is_unhealthy")]
-    if not unhealthy:
+    if unhealthy_count == 0:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[bold {G}]Loader Health:[/] All loaders healthy ✓"))
+        tracked_str = f" ({total_tracked} tracked)" if total_tracked is not None else ""
+        rows.append(Text.from_markup(f"[bold {G}]Loader Health:[/] All loaders healthy ✓{tracked_str}"))
         return rows
 
     rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup(f"[bold {Y}]Loader Issues ({len(unhealthy)} tables):[/]"))
+    rows.append(Text.from_markup(f"[bold {Y}]Loader Issues ({unhealthy_count} tables):[/]"))
 
     for loader in unhealthy[:10]:
         table_name = loader.get("table_name", "unknown")
@@ -1733,8 +1830,8 @@ def _build_loader_health_section(loader_health: list[Any] | None) -> list[Text |
 
         rows.append(Text.from_markup(line))
 
-    if len(unhealthy) > 10:
-        rows.append(Text.from_markup(f"  [dim]...and {len(unhealthy) - 10} more[/]"))
+    if unhealthy_count > 10:
+        rows.append(Text.from_markup(f"  [dim]...and {unhealthy_count - 10} more[/]"))
 
     return rows
 
@@ -4010,7 +4107,7 @@ def panel_algo_health(
     if hlth and isinstance(hlth, dict):
         execution_health = hlth.get("execution_health")
         if execution_health is not None:
-            phase_panel = _build_phase_execution_panel(execution_health, run)
+            phase_panel = _build_phase_execution_panel(execution_health, run, hlth_items)
             if phase_panel:
                 rows.append(phase_panel)
 
@@ -4215,55 +4312,23 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         if len(stale_detail) > 5:
             rows.append(Text.from_markup(f"  [dim]...and {len(stale_detail) - 5} more[/]"))
 
-    # ── LOADER ERRORS ──────────────────────────────────────────
-    # Show which loaders are failing and why
-    # See _build_freshness_panel's matching fix: st=="ok" (freshness) and loader_error
-    # (operational health) are independent signals - don't hide a real error behind a fresh
-    # status.
-    loader_errors = [
-        (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
-        for r in hlth_items
-        if isinstance(r, dict) and r.get("loader_error")
-    ]
-    if loader_errors:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
-        for tbl_name, err, lrs in loader_errors[:5]:
-            tag = f"[{lrs}] " if lrs in ("TIMEOUT", "FAILED") else ""
-            rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:70]}[/]"))
-        if len(loader_errors) > 5:
-            rows.append(Text.from_markup(f"  [dim]...and {len(loader_errors) - 5} more[/]"))
+    # Loader errors / repeated failures / never-started loaders moved to the ALGO HEALTH
+    # panel's PHASE EXECUTION DETAILS right column (see _build_loader_operational_detail_rows)
+    # so that panel could narrow its phase list into a left column without losing content.
+    def _has_loader_detail(r: Any) -> bool:
+        if not isinstance(r, dict):
+            return False
+        if r.get("loader_error"):
+            return True
+        n_fail = r.get("consecutive_failures")
+        if isinstance(n_fail, (int, float)) and n_fail >= 2:
+            return True
+        return bool(r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED")
 
-    # ── REPEATED FAILURES ──────────────────────────────────────
-    # Distinguish stuck loaders from transient blips
-    repeated_failures: list[tuple[str, int, Any]] = []
-    for r in hlth_items:
-        if isinstance(r, dict):
-            n_fail_raw = r.get("consecutive_failures")
-            if isinstance(n_fail_raw, (int, float)) and n_fail_raw >= 2:
-                repeated_failures.append((r.get("tbl") or "unknown", int(n_fail_raw), r.get("last_success_at")))
-    if repeated_failures:
-        repeated_failures.sort(key=lambda t: t[1], reverse=True)
+    has_loader_detail = any(_has_loader_detail(r) for r in hlth_items)
+    if has_loader_detail:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[bold {R}]Repeated failures:[/]"))
-        for tbl_name, n_fail, last_ok in repeated_failures[:5]:
-            last_ok_s = f"last ok {fmt_age(last_ok)}" if last_ok else "never succeeded"
-            rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{n_fail}x in a row, {last_ok_s}[/]"))
-        if len(repeated_failures) > 5:
-            rows.append(Text.from_markup(f"  [dim]...and {len(repeated_failures) - 5} more[/]"))
-
-    # ── NEVER STARTED LOADERS ──────────────────────────────────
-    # Flag tables tracked but never initialized
-    never_started = [
-        r.get("tbl") or "unknown"
-        for r in hlth_items
-        if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
-    ]
-    if never_started:
-        rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[bold {R}]Never run:[/]  " + "  ".join(f"[white]{n}[/]" for n in never_started[:6])))
-        if len(never_started) > 6:
-            rows.append(Text.from_markup(f"  [dim]...and {len(never_started) - 6} more[/]"))
+        rows.append(Text.from_markup("[dim]Loader errors, repeated failures & never-run → ALGO HEALTH panel[/]"))
 
     # ── LOADER QUEUE DEPTH & ETA (NEW) ─────────────────────────────────────────
     # Show pipeline status and estimated completion
@@ -5050,7 +5115,11 @@ def panel_data_freshness_expanded(
 
         # Add loader health
         loader_health = orch_extended.get("loader_health", [])
-        loader_health_rows = _build_loader_health_section(loader_health)
+        loader_health_rows = _build_loader_health_section(
+            loader_health,
+            total_unhealthy=orch_extended.get("loader_health_total_unhealthy"),
+            total_tracked=orch_extended.get("loader_health_total_tracked"),
+        )
         if loader_health_rows:
             rows.extend(loader_health_rows)
 

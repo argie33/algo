@@ -1620,7 +1620,13 @@ class DailyReconciliation:
                     try:
                         entry_price = float(entry_price)
                         stop_loss_price = float(stop_loss_price)
-                        entry_qty = int(entry_qty)
+                        # float (not int): algo_trades.entry_quantity is NUMERIC(18,4) - real
+                        # fractional-share entries exist in this DB. int() truncation here fed
+                        # a too-small cost basis/risk denominator into original_cost_basis/
+                        # original_risk_dollars below for multi-leg fills - same bug class
+                        # already fixed in executor_exit_handler.py's _compute_cumulative_pnl
+                        # (the synchronous exit path this function mirrors for async fills).
+                        entry_qty = float(entry_qty)
                     except (ValueError, TypeError) as e:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         raise ValueError(
