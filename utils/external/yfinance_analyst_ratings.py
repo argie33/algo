@@ -242,6 +242,57 @@ def fetch_forward_eps(symbol: str) -> float | None:
     return val
 
 
+def fetch_earnings_calendar(symbol: str) -> list[dict[str, Any]] | None:
+    """Fetch recent-past and upcoming earnings dates for one symbol from yfinance.
+
+    Uses Ticker.earnings_dates (real DataFrame indexed by earnings timestamp, columns
+    'EPS Estimate'/'Reported EPS'/'Surprise(%)', ~12 past + 1 upcoming row by default) -
+    same non-`.info` API family as upgrades_downgrades/recommendations_summary/
+    earnings_estimate above. Feeds earnings_calendar, consumed by
+    algo/risk/earnings_blackout.py to gate entries around real earnings announcements -
+    see loaders/load_earnings_calendar.py's module docstring for why this table needed a
+    live writer restored.
+
+    Returns:
+        List of row dicts (symbol, earnings_date, eps_estimate, actual_eps, surprise_pct),
+        or None if the symbol has no earnings-date coverage (not an error - some
+        OTC/delisted/pre-IPO symbols genuinely have none).
+
+    Raises:
+        RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
+    """
+    df = _fetch_with_circuit_breaker(symbol, "earnings_dates")
+    if df is None or df.empty:
+        return None
+
+    def _num(row: Any, col: str) -> float | None:
+        val = row.get(col)
+        try:
+            val = float(val)
+        except (TypeError, ValueError):
+            return None
+        return None if val != val else val  # NaN check
+
+    rows: list[dict[str, Any]] = []
+    for ts, row in df.iterrows():
+        try:
+            earnings_date = ts.date() if hasattr(ts, "date") else ts
+        except (AttributeError, ValueError):
+            continue
+
+        rows.append(
+            {
+                "symbol": symbol,
+                "earnings_date": earnings_date,
+                "eps_estimate": _num(row, "EPS Estimate"),
+                "actual_eps": _num(row, "Reported EPS"),
+                "surprise_pct": _num(row, "Surprise(%)"),
+            }
+        )
+
+    return rows or None
+
+
 def _clean_str(value: Any) -> str | None:
     if value is None:
         return None

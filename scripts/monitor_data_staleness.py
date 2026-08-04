@@ -148,6 +148,25 @@ THRESHOLDS = {
         "stale": 2160,
         "critical": 2880,
     },
+    "earnings_calendar": {
+        # ADDED 2026-08-04: was entirely absent from this script despite being halt-critical
+        # in algo/orchestrator/phase1_data_freshness.py (earnings-blackout gating) - see
+        # loaders/load_earnings_calendar.py's module docstring for the incident (12+ days
+        # with no active loader, invisible to every diagnostic tool because Phase 1's own
+        # check compared against a forward-looking calendar column instead of a load
+        # timestamp). Unlike the legacy loader this replaces, load_earnings_calendar.py
+        # explicitly bumps updated_at=now on every row it touches (not just new inserts -
+        # see its fetch_incremental() docstring), so MAX(updated_at) reflects "did the loader
+        # run today" for every symbol, not just symbols with a newly-announced date. Safe to
+        # use the same once-per-trading-day cadence as buy_sell_daily/growth_metrics above.
+        # Deliberately NOT the lenient 30-day SLA used by algo/monitoring/pipeline_health.py's
+        # CRITICAL_TABLES/orchestrator.py's _check_loader_health() - those key off the
+        # loader's own execution-status timestamp (a valid, coarser "is the loader
+        # scheduled at all" signal), whereas this script diagnoses actual row content.
+        "fresh": 1440,  # 24 hours
+        "stale": 2160,  # 36 hours
+        "critical": 2880,  # 48 hours
+    },
     "algo_performance_daily": {
         # CRITICAL FIX 2026-08-03: this used to watch algo_performance_metrics, a table
         # with no writer since 2026-06-30 (see algo/reporting/daily_report.py,
@@ -212,6 +231,7 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "trend_template_data": "created_at",
                 "buy_sell_daily": "updated_at",
                 "algo_performance_daily": "updated_at",
+                "earnings_calendar": "updated_at",
             }
 
             if table_name not in timestamp_cols:
@@ -403,6 +423,7 @@ def check_all_tables() -> dict:
                     # once-per-trading-day cadence as the tables above, so it needs the
                     # same weekend/holiday gap allowance to avoid a false weekend alarm.
                     "algo_performance_daily",
+                    "earnings_calendar",
                 )
                 and spans_gap
             ):

@@ -41,6 +41,13 @@ LOADER_TABLES: dict[str, list[str]] = {
     "load_short_interest_finra.py": ["short_interest_finra"],
     "load_company_info_sec.py": ["company_info_sec"],
     "load_earnings_calendar_sec.py": ["earnings_calendar_sec"],
+    # Restored 2026-08-04: this table (real earnings announcement dates + EPS estimates/
+    # actuals, used by algo/risk/earnings_blackout.py's blackout-window gating) had no
+    # active loader since load_yfinance_derived_metrics.py was deleted 2026-07-19,
+    # "believed superseded" by earnings_calendar_sec - which is actually a different
+    # concept (SEC 10-K/10-Q *filing* dates, not earnings *announcement* dates). See
+    # loaders/load_earnings_calendar.py's module docstring for the full incident.
+    "load_earnings_calendar.py": ["earnings_calendar"],
     "load_market_constituents.py": ["stock_symbols", "etf_symbols"],
     # ttm_income_statement/ttm_cash_flow are deliberately excluded: the loader's
     # statement-type config still lists them as write targets, but

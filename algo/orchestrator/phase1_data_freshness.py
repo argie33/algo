@@ -901,10 +901,18 @@ def run(  # noqa: C901
             stale_table_details: list[dict[str, Any]] = []
 
             # Tables checked by MAX(date) vs price_daily latest date
-            # Note: earnings_calendar uses earnings_date instead of date
             # Note: metrics tables (growth, quality, value, positioning, stability) use updated_at instead of date
             date_column_overrides = {
-                "earnings_calendar": "earnings_date",
+                # FIXED 2026-08-04: was "earnings_date" - a forward-looking calendar column
+                # populated years ahead for scheduled earnings, not a load timestamp. That made
+                # this halt-critical check structurally blind to loader staleness: confirmed
+                # live, earnings_calendar's writer was deleted 2026-07-19 and its data frozen
+                # since 2026-07-23, yet MAX(earnings_date) still read out to 2026-12-08 and
+                # passed every freshness check. load_earnings_calendar.py (restored the same day
+                # as this fix) now explicitly sets updated_at=now on every row it touches, so
+                # this reflects real elapsed time since the loader last ran - same convention as
+                # growth_metrics/quality_metrics/etc. below.
+                "earnings_calendar": "updated_at",
                 "growth_metrics": "updated_at",
                 "quality_metrics": "updated_at",
                 "value_metrics": "updated_at",
