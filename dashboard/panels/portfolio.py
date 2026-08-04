@@ -924,9 +924,9 @@ def panel_portfolio_perf_expanded(
         )
         anl.add_row(
             "Avg Win R (50T):",
-            Text(f"{avg_w_r:.2f}R" if avg_w_r else "--", style=G),
+            Text(f"{avg_w_r:.2f}R" if avg_w_r is not None else "--", style=G),
             "Avg Loss R (50T):",
-            Text(f"{avg_l_r:.2f}R" if avg_l_r else "--", style=R),
+            Text(f"{avg_l_r:.2f}R" if avg_l_r is not None else "--", style=R),
         )
         if exp2 is not None or maxdd2 is not None:
             # DIM (not R) when unavailable - matches maxdd_style's handling right below.

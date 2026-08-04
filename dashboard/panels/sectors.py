@@ -76,7 +76,7 @@ from .data_extractors import safe_get_field
 
 def _rdelta(r: Any, wk: str = "rank_1w_ago", wk4: str | None = None) -> str:
     """Format rank delta: show change and direction arrow."""
-    cur = safe_get_field(r, "rank")
+    cur = safe_get_field(r, "current_rank")
     prev = safe_get_field(r, wk)
     if cur is None or prev is None:
         return "--"

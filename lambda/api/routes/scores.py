@@ -591,10 +591,6 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 "debt_to_assets": data.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": data.get("debt_to_assets_unavailable_reason"),
-                "dividend_yield": data.get("dividend_yield"),
-                "dividend_yield_unavailable_reason": data.get("dividend_yield_unavailable_reason"),
-                "payout_ratio": data.get("payout_ratio"),
-                "payout_ratio_unavailable_reason": data.get("payout_ratio_unavailable_reason"),
             }
 
         _build_factor_inputs(d)
@@ -711,6 +707,19 @@ def _get_stock_scores(  # noqa: C901
         # company_info_sec row at all) - only excludes symbols explicitly confirmed to have
         # neither filing type, same "fail open on unknown" posture as the ETF/SPAC filters
         # above.
+        #
+        # DEBT/PREFERRED-CERTIFICATE FILTERING (2026-08-03): subordinated debentures/mortgage
+        # bonds (AFGB/AFGC/AFGD/AFGE - American Financial Group; ELC/EMP/ENJ/ENO/EAI - Entergy
+        # utility subsidiaries) trade under their own ticker but share the parent operating
+        # company's CIK, so they inherit real revenue/net_income data yet aren't common equity
+        # and structurally have no separate balance sheet of their own to compute ROE/margins
+        # from. Live-verified zero false-positive risk: `security_name ~*
+        # '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'`
+        # matched exactly these 5 tickers across the ENTIRE active universe, nothing else.
+        # Deliberately did NOT extend this to a broader "Trust N" pattern (e.g. for SCE$L "SCE
+        # TRUST VI") - live-checked and found it collides with real closed-end funds (VLT
+        # "Invesco High Income Trust II"), the same false-positive trap already documented for
+        # CEF name-matching above.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
@@ -721,6 +730,7 @@ def _get_stock_scores(  # noqa: C901
             AND (ss.security_name IS NULL OR (
                 ss.security_name !~* '(Rights?|Warrants?)$'
                 AND ss.security_name NOT ILIKE '%%Acquisition Corp%%'
+                AND ss.security_name !~* '(Subordinated Debentures?|First Mortgage Bonds?|Collateral Trust Mortgage Bonds?)'
             ))
             """
         params_list: list[Any] = []

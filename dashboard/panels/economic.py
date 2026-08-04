@@ -434,11 +434,11 @@ def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:
     ytbl.add_column("label2", style="dim")
     ytbl.add_column("val2", style="white")
     _y = [
-        ("3M T-Bill", f"{t3m:.2f}%" if t3m else "--"),
-        ("6M T-Bill", f"{t6m:.2f}%" if t6m else "--"),
-        ("2Y Note", f"{t2:.2f}%" if t2 else "--"),
-        ("10Y Note", f"{t10:.2f}%" if t10 else "--"),
-        ("Fed Funds Rate", f"{fed_funds:.2f}%" if fed_funds else "--"),
+        ("3M T-Bill", f"{t3m:.2f}%" if t3m is not None else "--"),
+        ("6M T-Bill", f"{t6m:.2f}%" if t6m is not None else "--"),
+        ("2Y Note", f"{t2:.2f}%" if t2 is not None else "--"),
+        ("10Y Note", f"{t10:.2f}%" if t10 is not None else "--"),
+        ("Fed Funds Rate", f"{fed_funds:.2f}%" if fed_funds is not None else "--"),
     ]
     spreads_data = []
     if yc10_2 is not None:

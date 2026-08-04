@@ -191,7 +191,7 @@ def mascot_pose(data: dict[str, Any], frame: int) -> int:
     """Determine mascot pose based on circuit breaker status."""
     cb = data.get("cb")
     cb_dict = cb if isinstance(cb, dict) else {}
-    any_breaker = cb_dict.get("any")
+    any_breaker = cb_dict.get("any_triggered")
     if any_breaker is None:
         logger.debug("[MASCOT] Circuit breaker status 'any' field missing - defaulting to no breakers")
         any_breaker = False

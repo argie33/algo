@@ -155,7 +155,7 @@ class MoneyFormatter(FormatterStrategy):
         s = "-" if is_neg else ""
 
         if self.short:
-            if av >= 1e6:
+            if av >= 999_500:
                 return f"{s}${av / 1e6:.1f}M"
             if av >= 1e3:
                 return f"{s}${av / 1e3:.0f}K"
@@ -174,7 +174,7 @@ class MoneyFormatter(FormatterStrategy):
         s = "-" if is_neg else ""
 
         if self.short:
-            if av >= Decimal("1e6"):
+            if av >= Decimal("999500"):
                 result = (av / Decimal("1e6")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
                 return f"{s}${result}M"
             if av >= Decimal("1e3"):

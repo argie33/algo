@@ -304,7 +304,7 @@ def hbar(cur: Any, thr: Any, w: int = 6) -> str:
     thr_f = float(thr)
     cur_f = float(cur)
     if thr_f > 0:
-        r = min(cur_f / thr_f, 1.0) if thr_f != 0 else 0
+        r = max(0.0, min(cur_f / thr_f, 1.0))
     elif thr_f < 0 and cur_f < 0:
         r = min(cur_f / thr_f, 1.0) if thr_f != 0 else 0
     else:

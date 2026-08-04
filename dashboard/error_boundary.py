@@ -350,7 +350,7 @@ def error_summary_panel(data: dict[str, Any]) -> Panel | None:
     if not isinstance(data, dict):
         logger.error(f"error_summary_panel received non-dict: {type(data).__name__}")
         return Panel(
-            Text(f"[red]Error panel data invalid (expected dict, got {type(data).__name__})[/]"),
+            Text.from_markup(f"[red]Error panel data invalid (expected dict, got {type(data).__name__})[/]"),
             title="[red]Data Format Error[/]",
             style="red",
             border_style="red",
@@ -403,7 +403,7 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
     if not isinstance(data, dict):
         logger.error(f"error_summary_panel_expanded received non-dict: {type(data).__name__}")
         return Panel(
-            Text(f"[red]Error panel data invalid (expected dict, got {type(data).__name__})[/]"),
+            Text.from_markup(f"[red]Error panel data invalid (expected dict, got {type(data).__name__})[/]"),
             title="[red]Data Format Error[/]",
             style="red",
             border_style="red",
