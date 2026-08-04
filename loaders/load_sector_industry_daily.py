@@ -47,6 +47,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
     primary_key = ("sector", "date")
     watermark_field = "date"
     is_symbol_based = False
+    output_tables = ["sector_performance", "sector_ranking", "industry_ranking"]  # All tables written by this loader
 
     def load_global(self) -> int:
         """Override load_global() to return row count directly (side-effect loader)."""

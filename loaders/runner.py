@@ -241,6 +241,14 @@ def run_loader(
                 symbols_failed=symbols_failed if symbols_failed > 0 else None  # Only log if there were failures
             )
 
+            # For loaders that write to multiple tables, also record execution time for secondary tables
+            # (e.g., load_sector_industry_daily writes to sector_performance, sector_ranking, industry_ranking)
+            if hasattr(loader, 'output_tables') and loader.output_tables:
+                for secondary_table in loader.output_tables:
+                    if secondary_table != loader.table_name:
+                        secondary_mgr = LoaderStatusManager(secondary_table)
+                        secondary_mgr.mark_completed(execution_duration_sec=execution_duration)
+
             return 0
     except Exception as e:
         loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
