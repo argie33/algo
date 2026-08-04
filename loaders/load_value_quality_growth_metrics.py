@@ -1173,11 +1173,33 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         pass
 
             # Sustainable Growth Rate = ROE * Retention Ratio - only with real data
+            # FIXED 2026-08-04: dividends_paid is None (not 0) for genuine non-dividend-payers,
+            # since SEC XBRL simply omits the PaymentsOfDividends concept when nothing was paid
+            # - the same "confirmed non-payer vs missing data" ambiguity already resolved above
+            # for dividend_yield/payout_ratio via the dividend_data has_real_dividend_history
+            # marker. Without this, SGR was unconditionally unavailable for every non-payer even
+            # though the formula is fully computable for them (retention_ratio = 1.0, all
+            # earnings retained). Live-verified: 3212 of 3423 universe-wide dividends_paid-
+            # blocked SGR NULLs are confirmed non-payers via that same marker.
+            sgr_reason = None
+            sgr_dividends_paid = dividends_paid
+            if sgr_dividends_paid is None and stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
+                        (symbol,),
+                    )
+                    has_real_dividend_history = cur.fetchone() is not None
+                if has_real_dividend_history:
+                    sgr_reason = "missing_sec_data"
+                else:
+                    sgr_dividends_paid = 0.0
+
             if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
-                if dividends_paid is not None and net_income != 0:
+                if sgr_dividends_paid is not None and net_income != 0:
                     # Actual retention ratio = (earnings - dividends) / earnings
                     roe_pct = (net_income / stockholders_equity)
-                    retention_ratio = 1.0 - (dividends_paid / abs(net_income)) if net_income != 0 else 0.0
+                    retention_ratio = 1.0 - (sgr_dividends_paid / abs(net_income)) if net_income != 0 else 0.0
                     try:
                         sgr = round(roe_pct * retention_ratio * 100, 2)
                         # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as the growth_yoy
@@ -1185,8 +1207,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         # the same way a near-zero prior-year base blows up those ratios.
                         if abs(sgr) < MAX_TREND_PERCENTAGE_POINTS:
                             metrics["sustainable_growth_rate"] = float(sgr)
+                        elif sgr_reason is None:
+                            sgr_reason = "missing_sec_data"
                     except (ValueError, TypeError, ZeroDivisionError):
-                        pass
+                        if sgr_reason is None:
+                            sgr_reason = "missing_sec_data"
+                elif sgr_reason is None:
+                    sgr_reason = "missing_sec_data"
+            elif sgr_reason is None:
+                sgr_reason = "missing_sec_data"
 
             # ROE Trend = Current ROE - Prior ROE (now can compute with prior-year equity)
             if (stockholders_equity is not None and net_income is not None and stockholders_equity > 0 and
@@ -1248,13 +1277,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # frontend with no reason code (renders as the ambiguous, unlabeled "No data"
             # badge instead of an explained one). quarterly_growth_momentum excluded: it
             # has no computation path at all (dead field, not a per-symbol data gap).
+            # sustainable_growth_rate excluded from this blanket loop: FIXED 2026-08-04 -
+            # unlike every other field here it uses NO prior-year data at all (see its own
+            # computation above), so "insufficient_prior_year_data" was always a factually
+            # wrong label for it. It gets its own explicit sgr_reason instead.
             for field in (
                 "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
-                "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
+                "operating_margin_trend", "net_margin_trend", "roe_trend",
                 "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
             ):
                 if metrics.get(field) is None:
                     metrics[f"{field}_unavailable_reason"] = "insufficient_prior_year_data"
+            if metrics.get("sustainable_growth_rate") is None:
+                metrics["sustainable_growth_rate_unavailable_reason"] = sgr_reason or "missing_sec_data"
 
             # Mark unavailable if all metrics are None
             if all(
