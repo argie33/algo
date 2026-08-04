@@ -36,6 +36,14 @@ NASDAQ_URL = os.getenv("NASDAQ_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynam
 OTHER_URL = os.getenv("OTHER_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt")
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
+# GOVERNANCE 2026-08-04: symbols the upstream NASDAQ/NYSE symbol directory's "ETF" column
+# misclassifies as non-ETF (root cause of migration 069's JHDV/JVAL data patch). Without
+# this override, _upsert_etf_symbols()'s TRUNCATE+rebuild silently drops them from
+# etf_symbols again (and stock_symbols.etf reverts to 'N') on the very next loader run,
+# undoing that migration - the loader itself must correct this every run, not a one-off
+# manual DB patch. Add future confirmed upstream misclassifications here.
+KNOWN_ETF_MISCLASSIFICATIONS = {"JHDV", "JVAL"}
+
 EXCLUSION_PATTERNS = [
     r"\bpreferred\b",
     r"\bwarrant(s)?\b",
@@ -347,7 +355,7 @@ class MarketConstituentsLoader(OptimalLoader):
                                 f"Cannot safely classify security. Available fields: {list(r.keys())}"
                             )
 
-                    if r["ETF"].upper() == "Y":
+                    if r["ETF"].upper() == "Y" or sym in KNOWN_ETF_MISCLASSIFICATIONS:
                         etf_rows.append(
                             {
                                 "symbol": sym,
