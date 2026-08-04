@@ -282,6 +282,10 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     mm.momentum_12m AS momentum_12m_val,
                     (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable,
                     segm.revenue_concentration_hhi AS segment_revenue_concentration_hhi,
+                    segm.segment_count,
+                    segm.largest_segment_revenue_pct,
+                    segm.is_diversified,
+                    segm.reason AS segment_unavailable_reason,
                     (segm.symbol IS NULL OR segm.data_unavailable = TRUE) AS _segment_data_unavailable
                 FROM stock_scores sc
                 JOIN stock_symbols ss ON ss.symbol = sc.symbol
@@ -591,6 +595,19 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "beta_unavailable_reason": data.get("beta_unavailable_reason"),
                 "debt_to_assets": data.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": data.get("debt_to_assets_unavailable_reason"),
+                # sec_segment_metrics (real XBRL segment disclosures) already feeds
+                # _score_stability's 0.10-weight diversification sub-component
+                # (loaders/load_stock_scores.py) but was never surfaced here - the input
+                # was used in scoring while being completely invisible on the page.
+                "revenue_concentration_hhi": data.get("segment_revenue_concentration_hhi"),
+                "segment_count": data.get("segment_count"),
+                "largest_segment_revenue_pct": data.get("largest_segment_revenue_pct"),
+                "is_diversified": data.get("is_diversified"),
+                "revenue_concentration_hhi_unavailable_reason": (
+                    data.get("segment_unavailable_reason")
+                    if data.get("segment_revenue_concentration_hhi") is None
+                    else None
+                ),
             }
 
         _build_factor_inputs(d)
@@ -956,6 +973,10 @@ def _get_stock_scores(  # noqa: C901
                     mm.momentum_12m AS momentum_12m_val,
                     (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable,
                     segm.revenue_concentration_hhi AS segment_revenue_concentration_hhi,
+                    segm.segment_count,
+                    segm.largest_segment_revenue_pct,
+                    segm.is_diversified,
+                    segm.reason AS segment_unavailable_reason,
                     (segm.symbol IS NULL OR segm.data_unavailable = TRUE) AS _segment_data_unavailable
                 FROM filtered_scores fs
                 LEFT JOIN company_profile cp ON cp.symbol = fs.symbol
@@ -1252,10 +1273,13 @@ def _get_stock_scores(  # noqa: C901
                 "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
                 "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
-                "dividend_yield": d.get("dividend_yield"),
-                "dividend_yield_unavailable_reason": d.get("dividend_yield_unavailable_reason"),
-                "payout_ratio": d.get("payout_ratio"),
-                "payout_ratio_unavailable_reason": d.get("payout_ratio_unavailable_reason"),
+                "revenue_concentration_hhi": d.get("segment_revenue_concentration_hhi"),
+                "segment_count": d.get("segment_count"),
+                "largest_segment_revenue_pct": d.get("largest_segment_revenue_pct"),
+                "is_diversified": d.get("is_diversified"),
+                "revenue_concentration_hhi_unavailable_reason": (
+                    d.get("segment_unavailable_reason") if d.get("segment_revenue_concentration_hhi") is None else None
+                ),
             }
 
         items: list[dict[str, Any]] = []

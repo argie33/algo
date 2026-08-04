@@ -901,6 +901,7 @@ function _formatReasonDisplay(reason) {
     missing_price_or_shares: "Missing price/shares",
     missing_finra_data: "FINRA data unavailable",
     missing_price_data: "Price data unavailable",
+    no_segment_disclosure: "Single-segment filer",
   };
   return reasonMap[reason] || reason;
 }
@@ -2221,6 +2222,10 @@ const STABILITY_SCHEMA = [
   { key: "beta", label: "Beta vs Market", fmt: (v) => num(v, 2) },
   { key: "debt_to_assets", label: "Debt / Assets", fmt: (v) => pct(v, 1) },
   { key: "max_drawdown_1y", label: "Max Drawdown (1Y)", fmt: (v) => pct(v, 2) },
-  { key: "dividend_yield", label: "Dividend Yield", fmt: (v) => pct(v, 2) },
-  { key: "payout_ratio", label: "Payout Ratio", fmt: (v) => pct(v, 1) },
+  // Fed into _score_stability's diversification sub-weight (loaders/load_stock_scores.py)
+  // since 2026-07-27 but never had a place to render on this page until now.
+  { key: "revenue_concentration_hhi", label: "Revenue Concentration (HHI)", fmt: (v) => (v == null ? null : Math.round(v).toLocaleString()) },
+  { key: "segment_count", label: "Business Segments", fmt: (v) => num(v, 0) },
+  { key: "largest_segment_revenue_pct", label: "Largest Segment %", fmt: (v) => pct(v, 1) },
+  { key: "is_diversified", label: "Diversified", fmt: (v) => (v === null || v === undefined ? null : v ? "Yes" : "No") },
 ];

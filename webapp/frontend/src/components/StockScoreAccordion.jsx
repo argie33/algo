@@ -73,6 +73,7 @@ const formatReasonDisplay = (reason) => {
     foreign_20f_filer: "Foreign 20-F filer - XBRL data limited",
     bank_special_reporting: "Financial institution - alternative metrics",
     insufficient_prior_year_data: "Prior fiscal year data unavailable",
+    no_segment_disclosure: "Single-segment filer",
   };
   return reasonMap[reason] || reason;
 };
@@ -612,6 +613,8 @@ const STABILITY_SCHEMA = [
   { key: 'downside_volatility_60d',  label: 'Downside Volatility (60D)',  fmt: v => pct(v, 2) },
   { key: 'downside_volatility_30d',  label: 'Downside Volatility (30D)',  fmt: v => pct(v, 2) },
   { key: 'max_drawdown_1y',          label: 'Max Drawdown (1Y)',     fmt: v => pct(v, 2), used: true, weight: '10%' },
-  { key: 'dividend_yield',           label: 'Dividend Yield',       fmt: v => pct(v, 2) },
-  { key: 'payout_ratio',             label: 'Payout Ratio',         fmt: v => pct(v, 1) },
+  { key: 'revenue_concentration_hhi', label: 'Revenue Concentration (HHI)', fmt: v => v == null ? '—' : Math.round(v).toLocaleString(), used: true, weight: '10%' },
+  { key: 'segment_count',            label: 'Business Segments',    fmt: v => num(v, 0) },
+  { key: 'largest_segment_revenue_pct', label: 'Largest Segment %', fmt: v => pct(v, 1) },
+  { key: 'is_diversified',           label: 'Diversified',          fmt: v => v == null ? '—' : (v ? 'Yes' : 'No') },
 ];

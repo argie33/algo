@@ -519,8 +519,6 @@ router.get("/details/:symbol", async (req, res) => {
       debt_to_assets: row?.debt_to_assets,
       max_drawdown_1y: row?.max_drawdown_1y,
       max_drawdown_1y_unavailable_reason: row?.max_drawdown_1y_unavailable_reason,
-      dividend_yield: row?.dividend_yield,
-      payout_ratio: row?.payout_ratio,
     });
 
     const result = {
