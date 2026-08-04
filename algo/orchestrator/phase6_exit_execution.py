@@ -1120,12 +1120,22 @@ def run(
         # get no exit/stop coverage for this run (see check_and_execute_exits errors above).
 
         # DRY-RUN: Always degraded (no real execution), but include counts of what would happen
-        # LIVE: Degraded if errors, success otherwise
+        # LIVE: Degraded if errors, ok otherwise
+        # FIX 2026-08-04: this used "success" (not the canonical "ok" every other phase and
+        # this function's own final PhaseResult return use) for the log_phase_result_fn call
+        # below. Never observed locally - dry_run is always True in local dev (no real Alpaca
+        # creds), so this branch only fires the first time Phase 6 executes live with zero
+        # errors. The orchestrator's phase_num-vs-phase_result.status reconciliation
+        # (orchestrator.py _execute_phases) catches this for any_error/any_degraded/
+        # overall_status aggregation, but the raw "success" string still landed permanently in
+        # algo_audit_log and was pushed live via the event hub's PhaseCompletedEvent before
+        # that correction ran - same non-canonical-status-string bug class as the phase 7
+        # "no_signals" fix, just not yet exercised because this code path is dead in dry-run.
         if dry_run:
             phase_status = "degraded"
             detail_text = f"DRY-RUN: execution skipped (no real trades) - would have: {exit_count} exits, {stop_raises} stop-raises"
         else:
-            phase_status = "degraded" if errors > 0 else "success"
+            phase_status = "degraded" if errors > 0 else "ok"
             detail_text = f"{exit_count} exits, {stop_raises} stop-raises, {engine_forced_closes_no_price} forced_closes_no_price, {errors} errors"
             if errors > 0:
                 # Exit-check failures mean open positions lost stop/target/time-exit coverage
