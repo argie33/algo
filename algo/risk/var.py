@@ -835,26 +835,43 @@ class ValueAtRisk:
             try:
                 beta = self.beta_exposure()
             except Exception as e:
-                logger.warning(f"Beta exposure unavailable: {e}")
-                beta = None
-
-            # Ensure beta is a dict with portfolio_beta key - if calculation failed or returned None,
-            # use default zero exposure
-            if not beta or "portfolio_beta" not in beta:
-                logger.warning(f"Beta calculation missing or incomplete: {beta}. Using zero market exposure default.")
-                beta = {"portfolio_beta": 0.0}
+                # CRITICAL FIX: beta_exposure() already returns an explicit
+                # {"portfolio_beta": 0.0, "data_unavailable": False} dict for the genuine
+                # "no open positions" case - any exception reaching here (stale/missing
+                # portfolio snapshot, corrupted position data, insufficient SPY/stock
+                # history) is a real failure, not "zero exposure". Silently substituting
+                # 0.0 previously made the `beta > 2.0` alert below unable to ever fire when
+                # the real beta calculation broke, indistinguishable from a genuinely
+                # flat portfolio. Fail the report instead, same as stressed_var above.
+                logger.critical(f"[CRITICAL] Beta exposure calculation failed: {e}")
+                raise RuntimeError(
+                    f"Cannot generate risk report: beta exposure is REQUIRED for leverage risk assessment. "
+                    f"Error: {e}. A failed beta calculation must not be silently reported as zero market exposure."
+                ) from e
+            if "portfolio_beta" not in beta:
+                raise RuntimeError(
+                    f"[BETA CRITICAL] beta_exposure() returned a dict without 'portfolio_beta'. "
+                    f"Available keys: {list(beta.keys())}"
+                )
 
             try:
                 concentration = self.concentration_report()
             except Exception as e:
-                logger.warning(f"Concentration report unavailable: {e}")
-                concentration = None
-
-            # Ensure concentration is a dict with top_5_concentration_pct key - if calculation failed or returned None,
-            # use default zero concentration
-            if not concentration or "top_5_concentration_pct" not in concentration:
-                logger.warning(f"Concentration calculation missing or incomplete: {concentration}. Using zero concentration default.")
-                concentration = {"top_5_concentration_pct": 0.0}
+                # CRITICAL FIX: same fabrication bug as beta above - concentration_report()
+                # already returns an explicit zero dict for "no open positions"; any
+                # exception here is a real failure and must not be reported as zero
+                # concentration, which would silently defeat the `concentration > 30%`
+                # alert below.
+                logger.critical(f"[CRITICAL] Concentration report calculation failed: {e}")
+                raise RuntimeError(
+                    f"Cannot generate risk report: concentration is REQUIRED for position-sizing risk assessment. "
+                    f"Error: {e}. A failed concentration calculation must not be silently reported as zero concentration."
+                ) from e
+            if "top_5_concentration_pct" not in concentration:
+                raise RuntimeError(
+                    f"[CONCENTRATION CRITICAL] concentration_report() returned a dict without 'top_5_concentration_pct'. "
+                    f"Available keys: {list(concentration.keys())}"
+                )
 
             logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <insufficient data>")
             logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <insufficient data>")
@@ -930,9 +947,11 @@ class ValueAtRisk:
                     var_pct_val = float(var_metrics["var_pct"]) if var_metrics else None
                     cvar_pct_val = float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
                     stressed_var_pct_val = float(stressed_var["stressed_var_pct"]) if stressed_var else None
-                    # Beta and Concentration are now REQUIRED to be non-None (default to 0.0 on error)
-                    portfolio_beta_val = float(beta["portfolio_beta"]) if beta and "portfolio_beta" in beta else 0.0
-                    top_5_conc_val = float(concentration["top_5_concentration_pct"]) if concentration and "top_5_concentration_pct" in concentration else 0.0
+                    # Beta and concentration are guaranteed present with valid keys here -
+                    # generate_daily_risk_report() raises above instead of reaching this
+                    # point with a failed/incomplete calculation (see fix above).
+                    portfolio_beta_val = float(beta["portfolio_beta"])
+                    top_5_conc_val = float(concentration["top_5_concentration_pct"])
 
                     cur.execute(
                         """
