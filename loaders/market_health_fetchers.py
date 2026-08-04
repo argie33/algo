@@ -164,6 +164,9 @@ class PutCallRatioFetcher:
             importance=DataImportance.OPTIONAL,
         )
         self._cache: dict[str, dict[str, Any]] = {}
+        # Set by _fetch_from_yfinance when it returns None for a known data-quality
+        # reason (as opposed to the circuit breaker skipping the call outright).
+        self._last_none_reason: str | None = None
 
     def fetch(self, eval_date: date) -> dict[str, Any]:
         """Fetch put/call ratio from yfinance SPY options data.
@@ -178,6 +181,7 @@ class PutCallRatioFetcher:
             return self._cache[eval_date_iso]
 
         try:
+            self._last_none_reason = None
             result = self.breaker.execute(
                 fetch_func=lambda: self._fetch_from_yfinance(),
                 importance=DataImportance.OPTIONAL,
@@ -185,9 +189,14 @@ class PutCallRatioFetcher:
             )
 
             if result is None:
+                # _last_none_reason is only set when _fetch_from_yfinance itself ran and
+                # declined to produce a ratio (e.g. zero/stale open interest). If it's still
+                # None here, the breaker skipped the call entirely (circuit actually open) or
+                # the fetch raised - both genuinely are "breaker unavailable".
                 unavailable_marker = {
                     "data_unavailable": True,
-                    "reason": "Circuit breaker: put/call options data temporarily unavailable",
+                    "reason": self._last_none_reason
+                    or "Circuit breaker: put/call options data temporarily unavailable",
                 }
             else:
                 unavailable_marker = {
@@ -223,6 +232,7 @@ class PutCallRatioFetcher:
             expirations = spy.options
             if not expirations:
                 logger.warning("[PUT_CALL_RATIO] No SPY option expirations available")
+                self._last_none_reason = "No SPY option expirations available from yfinance"
                 return None
 
             # Get options chain for nearest expiration
@@ -238,6 +248,10 @@ class PutCallRatioFetcher:
 
                 if calls_oi == 0:
                     logger.warning("[PUT_CALL_RATIO] No call open interest data available")
+                    self._last_none_reason = (
+                        f"No call open interest reported by yfinance for {nearest_exp} expiry "
+                        "(open interest often lags/reads 0 pre-market or for same-day expiries)"
+                    )
                     return None
 
                 ratio = float(puts_oi) / float(calls_oi)
@@ -248,6 +262,11 @@ class PutCallRatioFetcher:
                     logger.warning(
                         f"[PUT_CALL_RATIO] Ratio {ratio:.3f} outside realistic range (0.2-3.0). "
                         f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}. Treating as unavailable."
+                    )
+                    self._last_none_reason = (
+                        f"Ratio {ratio:.3f} outside realistic range (0.2-3.0) for {nearest_exp} expiry "
+                        f"(puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}) - likely incomplete/stale open "
+                        "interest data from yfinance rather than an actual circuit breaker trip"
                     )
                     return None
 
@@ -265,6 +284,7 @@ class PutCallRatioFetcher:
             except (KeyError, ValueError, TypeError) as data_err:
                 # Data format issues - data genuinely unavailable
                 logger.warning(f"[PUT_CALL_RATIO] Could not parse options chain format: {data_err}")
+                self._last_none_reason = f"Could not parse options chain format: {data_err}"
                 return None
             except Exception as chain_err:
                 # Other unexpected errors - fail-fast
@@ -273,6 +293,7 @@ class PutCallRatioFetcher:
                 ) from chain_err
         except ImportError:
             logger.warning("[PUT_CALL_RATIO] yfinance not installed - put/call ratio unavailable")
+            self._last_none_reason = "yfinance not installed"
             return None
         except RuntimeError:
             # Re-raise RuntimeError from chain parsing

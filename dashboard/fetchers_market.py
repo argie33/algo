@@ -312,6 +312,11 @@ def fetch_market(c: None) -> dict[str, Any]:
             # Upstream says data is unavailable
             result["pcr_unavailable"] = True
 
+        if result.get("pcr_unavailable"):
+            pcr_reason = market_health.get("put_call_ratio_unavailable_reason")
+            if pcr_reason:
+                result["pcr_unavailable_reason"] = pcr_reason
+
         # Yield curve slope is optional enrichment data
         ycs_val = market_health.get("yield_curve_slope")
         if ycs_val is not None:

@@ -245,7 +245,10 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
     else:
-        logger.debug("[MARKET_PANEL] Put/call ratio not available - optional enrichment incomplete")
+        logger.debug(
+            "[MARKET_PANEL] Put/call ratio not available - optional enrichment incomplete (reason: %s)",
+            mkt.get("pcr_unavailable_reason", "unknown"),
+        )
     if bmom is not None:
         bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)
         bmom_pcr.append(f"[dim]Breadth Momentum:[/][{bmc}]{bmom:.2f}[/]")
@@ -535,7 +538,10 @@ def panel_header_market(  # noqa: C901
             pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
             parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
         else:
-            logger.debug("[MARKET_HEADER] Put/Call ratio not available - optional enrichment missing")
+            logger.debug(
+                "[MARKET_HEADER] Put/Call ratio not available - optional enrichment missing (reason: %s)",
+                mkt.get("pcr_unavailable_reason", "unknown"),
+            )
             parts4.append("[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)

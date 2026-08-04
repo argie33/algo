@@ -626,6 +626,21 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     # Weekly/biweekly tables: use simple calendar-day age threshold
                     status = "stale" if (today - data_date).days > max_age else "ok"
 
+            # CRITICAL FIX 2026-08-04: a fresh-looking last_success_at/row_count can't tell a
+            # clean run apart from one whose MOST RECENT attempt only partially completed -
+            # live-confirmed on price_daily the same day as this fix (status='failed',
+            # error_message="Load incomplete: failed (96.2%)", yet last_success_at was recent
+            # enough that the freshness math above alone reads "ok"). data_loader_status.status
+            # always reflects the latest attempt's real outcome (a later successful retry
+            # overwrites it back to a healthy value), so cross-check it the same way
+            # monitor_data_staleness.py's get_loader_failed() already does - this endpoint is
+            # the one the dashboard's primary DATA FRESHNESS panel actually renders, and it had
+            # no equivalent check, so the exact same incident that script would have flagged
+            # showed a plain green "ok" here instead.
+            loader_run_status_raw = row.get("status")
+            if isinstance(loader_run_status_raw, str) and loader_run_status_raw.lower() == "failed":
+                status = "error"
+
             # Calculate age in hours for display - same last-genuine-success reference as
             # status above, so the displayed "Age" can't disagree with the ok/stale verdict.
             utc_result = normalize_to_utc_datetime(freshness_reference, naive_tz)
@@ -649,7 +664,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             elif not isinstance(current_count, int):
                 raise ValueError(f"Expected int for status count '{status}', got {type(current_count).__name__}")
             summary[status] = current_count + 1
-            if status in ("stale", "empty") and row["table_name"] in critical_tables:
+            if status in ("stale", "empty", "error") and row["table_name"] in critical_tables:
                 critical_stale.append(row["table_name"])
             # Only loader_rows entries carry these (populated by LoaderStatusManager); algo_rows
             # (orchestrator-written tables like algo_positions) don't have a loader run to report on.
@@ -1403,15 +1418,23 @@ def _get_market(cur: cursor) -> Any:
             "new_highs_count": int(nh_val) if nh_val is not None else None,
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
-            "put_call_ratio_data_unavailable": pcr_val is None,
+            # Trust the loader's own put_call_ratio_data_unavailable column (already normalized
+            # above by _normalize_market_health) instead of re-deriving from NULL-ness - the two
+            # can diverge, and the same re-derive-from-NULL anti-pattern already caused a real
+            # stale-value bug elsewhere in this codebase (see algo/risk/market_factor_calculator.py).
+            "put_call_ratio_data_unavailable": market_health["put_call_ratio_data_unavailable"],
             "put_call_ratio_unavailable_reason": (
-                market_health.get("put_call_ratio_unavailable_reason") if pcr_val is None else None
+                market_health.get("put_call_ratio_unavailable_reason")
+                if market_health["put_call_ratio_data_unavailable"]
+                else None
             ),
             "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
             "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
-            "yield_curve_data_unavailable": ycs_val is None,
+            "yield_curve_data_unavailable": market_health["yield_curve_data_unavailable"],
             "yield_curve_unavailable_reason": (
-                market_health.get("yield_curve_unavailable_reason") if ycs_val is None else None
+                market_health.get("yield_curve_unavailable_reason")
+                if market_health["yield_curve_data_unavailable"]
+                else None
             ),
             "fed_rate_environment": market_health.get("fed_rate_environment"),
             # CRITICAL FIX: Explicitly check if fed_rate_data_unavailable is True (not False default).
@@ -1687,7 +1710,9 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                     SELECT date, market_trend, market_stage, vix_level, spy_change_pct,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
-                           yield_curve_slope, fed_rate_environment
+                           put_call_ratio_data_unavailable, put_call_ratio_unavailable_reason,
+                           yield_curve_slope, yield_curve_data_unavailable, yield_curve_unavailable_reason,
+                           fed_rate_environment
                     FROM market_health_daily
                     WHERE date <= CURRENT_DATE AND vix_level IS NOT NULL
                     ORDER BY date DESC LIMIT 1
@@ -1810,10 +1835,16 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         # Include spy_close in market_health as well (required by dashboard fetcher)
         market_health["spy_close"] = spy_close
 
-        # Set put_call_ratio availability flag for dashboard fetcher
-        # Dashboard expects this flag to handle missing data gracefully
-        put_call_ratio_val = market_health.get("put_call_ratio")
-        market_health["put_call_ratio_data_unavailable"] = put_call_ratio_val is None
+        # Set put_call_ratio/yield_curve availability flags for dashboard fetcher.
+        # Trust the loader's own *_data_unavailable columns (now selected above) rather than
+        # re-deriving from NULL-ness - the two can diverge, and the same re-derive-from-NULL
+        # anti-pattern already caused a real stale-value bug elsewhere in this codebase (see
+        # algo/risk/market_factor_calculator.py). Only fall back to NULL-inference if the column
+        # itself is missing (nullable, defaults to false, but be defensive for older rows).
+        if market_health.get("put_call_ratio_data_unavailable") is None:
+            market_health["put_call_ratio_data_unavailable"] = market_health.get("put_call_ratio") is None
+        if market_health.get("yield_curve_data_unavailable") is None:
+            market_health["yield_curve_data_unavailable"] = market_health.get("yield_curve_slope") is None
 
         # Build response with market data (not a list response)
         # Contract requires: spy_close, vix_level (required), plus optional market data fields
