@@ -629,6 +629,11 @@ class OptimalLoader:
             if backfill_days is not None:
                 self._backfill_days = backfill_days
 
+            # Tracks whether a more specific status (TIMEOUT, "Upstream data incomplete")
+            # has already been written via the status manager for this run, so the generic
+            # except-block fallback below doesn't overwrite it with a less-specific FAILED.
+            status_already_finalized = False
+
             self._status_manager.mark_running()
             self._infrastructure.start_heartbeat()
 
@@ -667,6 +672,7 @@ class OptimalLoader:
                 if elapsed > sla_timeout_seconds:
                     logger.critical(f"[{self.table_name}] TIMEOUT: Exceeded SLA {sla_timeout_seconds}s")
                     self._status_manager.mark_timeout(elapsed)
+                    status_already_finalized = True
                     raise RuntimeError(f"Loader exceeded SLA timeout ({sla_timeout_seconds}s)")
 
             self._stats.set("duration_sec", round(time.time() - start, 2))
@@ -674,6 +680,12 @@ class OptimalLoader:
             # FIX: Compute symbols_loaded and add it to stats BEFORE converting to dict
             # _update_final_status needs expected_symbols to calculate completion_pct
             symbols_loaded = self._update_final_status(len(symbols), symbols)
+            # _update_final_status writes data_loader_status directly via raw SQL (not
+            # through self._status_manager), so it's already the authoritative terminal
+            # status (COMPLETED or its own FAILED classification) by this point - a later
+            # exception (e.g. metrics publishing below) must not let the except-block
+            # fallback overwrite that with a less-informed FAILED.
+            status_already_finalized = True
             self._stats.set("symbols_loaded", symbols_loaded)
 
             stats_dict = self._stats.to_dict()
@@ -700,6 +712,21 @@ class OptimalLoader:
                 self._log_execution_history("failed", str(e)[:500])
             except Exception as log_err:
                 logger.warning(f"[{self.table_name}] Failed to log execution history: {log_err}")
+            # BUG FIX (2026-08-04): a fast-failing exception (DB error, network error, bug
+            # in _run_serial/_run_parallel) that isn't an SLA timeout previously left the
+            # live data_loader_status row stuck at RUNNING forever - only mark_timeout()
+            # (SLA-exceeded path above) and the "Upstream data incomplete" early-return path
+            # ever called mark_failed(). Live-confirmed on dividend_data: a run that started
+            # 2026-08-02 crashed without ever writing a completion/failure record to either
+            # data_loader_status or data_loader_status_history, leaving status=RUNNING with a
+            # 2-day-stale execution_started and no trace of what happened. Guard on
+            # status_already_finalized so this doesn't clobber the more specific TIMEOUT
+            # status already written above.
+            if "status_already_finalized" in locals() and not status_already_finalized:
+                try:
+                    self._status_manager.mark_failed(str(e)[:500])
+                except Exception as mark_err:
+                    logger.warning(f"[{self.table_name}] Failed to mark FAILED status: {mark_err}")
             raise
         finally:
             self._infrastructure.stop_heartbeat()
