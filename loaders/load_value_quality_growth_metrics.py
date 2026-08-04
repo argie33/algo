@@ -1540,11 +1540,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, value_score, data_unavailable, data_source, updated_at,
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, value_score, data_unavailable, reason, data_source, updated_at,
              pe_ratio_unavailable_reason, pb_ratio_unavailable_reason, ps_ratio_unavailable_reason, peg_ratio_unavailable_reason,
              dividend_yield_unavailable_reason, fcf_yield_unavailable_reason, forward_pe_unavailable_reason, ev_ebitda_unavailable_reason, ev_revenue_unavailable_reason,
              market_cap_unavailable_reason, held_percent_insiders_unavailable_reason, held_percent_institutions_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -1570,6 +1570,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 held_percent_insiders_unavailable_reason = EXCLUDED.held_percent_insiders_unavailable_reason,
                 held_percent_institutions_unavailable_reason = EXCLUDED.held_percent_institutions_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
+                reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
@@ -1587,6 +1588,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("ev_revenue"),
                 row.get("value_score"),
                 row["data_unavailable"],
+                row.get("reason"),
                 row.get("data_source", "sec_audited"),
                 row["updated_at"],
                 row.get("pe_ratio_unavailable_reason"),
