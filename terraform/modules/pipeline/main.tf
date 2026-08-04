@@ -1806,7 +1806,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogSecSegmentMetricsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "ValueQualityGrowthMetrics"
+        Next = "AnalystEarningsEstimates"
       }
 
       LogSecSegmentMetricsFailure = {
@@ -1814,6 +1814,69 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "sec_segment_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AnalystEarningsEstimates"
+          ResultPath  = "$.logError"
+        }]
+        Next = "AnalystEarningsEstimates"
+      }
+
+      # ── FIXED 2026-08-03: forward-EPS analyst estimates (registered as a loader since
+      # before this pipeline existed but never scheduled anywhere - see
+      # terraform/modules/loaders/main.tf's loader_file_map comment). Must run BEFORE
+      # ValueQualityGrowthMetrics, which joins analyst_earnings_estimates by symbol to
+      # compute forward_pe (see loaders/load_analyst_earnings_estimates.py's module
+      # docstring). Without this, every symbol showed
+      # forward_pe_unavailable_reason="no_analyst_estimates" regardless of real coverage. ──
+      AnalystEarningsEstimates = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["analyst_earnings_estimates"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-analyst_earnings_estimates"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogAnalystEarningsEstimatesFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ValueQualityGrowthMetrics"
+      }
+
+      LogAnalystEarningsEstimatesFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "analyst_earnings_estimates"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
@@ -1888,7 +1951,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         # into InstitutionalHoldings13F), so institutional_holdings_13f has never actually been
         # populated by this pipeline since. Matches the live-DB finding that
         # institutional_ownership_pct is ~0% populated (2 of 4,826 stocks).
-        Next = "CompanyInfoSec"
+        Next = "EnhancedQualityGrowthMetrics"
       }
 
       LogValueQualityGrowthFailure = {
@@ -1896,6 +1959,71 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "value_quality_growth_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "EnhancedQualityGrowthMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "EnhancedQualityGrowthMetrics"
+      }
+
+      # ── FIXED 2026-08-03: enhanced quality/growth metrics (earnings_surprise_avg,
+      # earnings_beat_rate, consecutive_positive_quarters, earnings_growth_4q_avg,
+      # eps_growth_stability) - registered as a loader but never scheduled anywhere (see
+      # terraform/modules/loaders/main.tf's loader_file_map comment). Must run AFTER
+      # ValueQualityGrowthMetrics - it enhances that task's output rows in quality_metrics/
+      # growth_metrics rather than writing a separate table (see
+      # loaders/load_enhanced_quality_growth_metrics.py's module docstring). Without this,
+      # every symbol showed "No data" for these 5 fields regardless of how much real SEC/
+      # yfinance data existed. ──
+      EnhancedQualityGrowthMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["enhanced_quality_growth_metrics"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-enhanced_quality_growth_metrics"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogEnhancedQualityGrowthMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "CompanyInfoSec"
+      }
+
+      LogEnhancedQualityGrowthMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "enhanced_quality_growth_metrics"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }

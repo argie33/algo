@@ -354,6 +354,25 @@ locals {
     # Uses: SEC valuations (Phase 1) + yfinance snapshot (enrichment)
     "value_quality_growth_metrics" = "load_value_quality_growth_metrics.py"
 
+    # FIXED 2026-08-03: registered here but never wired into the Step Functions pipeline
+    # below - same orphaned-loader bug class as company_profile/naaim/aaii_sentiment above.
+    # Every symbol showed forward_pe_unavailable_reason="no_analyst_estimates" regardless of
+    # real yfinance coverage because this loader's daily forward-EPS snapshot never actually
+    # ran anywhere except manual local invocation. Must run BEFORE value_quality_growth_metrics,
+    # which joins this table by symbol to compute forward_pe (see
+    # loaders/load_analyst_earnings_estimates.py's module docstring). See
+    # terraform/modules/pipeline/main.tf's AnalystEarningsEstimates state.
+    "analyst_earnings_estimates" = "load_analyst_earnings_estimates.py"
+
+    # FIXED 2026-08-03: same orphaned-loader bug as analyst_earnings_estimates above - adds
+    # earnings_surprise_avg/earnings_beat_rate/consecutive_positive_quarters/
+    # earnings_growth_4q_avg/eps_growth_stability to quality_metrics, computed from already-
+    # loaded quarterly_income_statement + yfinance earnings_dates, but had zero invocation
+    # path. Must run AFTER value_quality_growth_metrics (enhances its output rows, matching
+    # the loader's own docstring). See terraform/modules/pipeline/main.tf's
+    # EnhancedQualityGrowthMetrics state.
+    "enhanced_quality_growth_metrics" = "load_enhanced_quality_growth_metrics.py"
+
     # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
     # Replaces: sector_performance + sector_ranking + industry_ranking
     "sector_industry_daily" = "load_sector_industry_daily.py"
@@ -525,6 +544,13 @@ locals {
     # Timeout: 3600s (heaviest phase), add 20% headroom
     "value_quality_growth_metrics" = { cpu = 1024, memory = 2048, timeout = 4500, parallelism = 2 }
 
+    # FIXED 2026-08-03: analyst_earnings_estimates/enhanced_quality_growth_metrics - see
+    # loader_file_map comments above for why these were previously unscheduled. Sized like
+    # analyst_upgrade_downgrade/analyst_sentiment_analysis below (same shape: per-symbol
+    # yfinance call, no bulk endpoint) - live-tested locally at ~1-2s/symbol.
+    "analyst_earnings_estimates"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    "enhanced_quality_growth_metrics" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+
     # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
     # Replaces: old sector_performance + sector_ranking + industry_ranking loaders
     # Combined workload: daily returns + ranking aggregation + momentum calculations
@@ -674,7 +700,12 @@ locals {
 
     # Analyst upgrade/downgrade ratings (per-symbol yfinance call, same shape as dividend_data)
     "analyst_upgrade_downgrade",
-    "analyst_sentiment_analysis"
+    "analyst_sentiment_analysis",
+
+    # FIXED 2026-08-03: same per-symbol-yfinance-call shape/tier as the two analyst_* loaders
+    # above - see loader_file_map comment for why these were previously unscheduled entirely.
+    "analyst_earnings_estimates",
+    "enhanced_quality_growth_metrics"
   ])
 }
 
