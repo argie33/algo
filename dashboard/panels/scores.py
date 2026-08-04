@@ -200,7 +200,7 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
             box=box.SIMPLE_HEAD,
             show_header=False,
             header_style="dim",
-            padding=(0, 1),
+            padding=(1, 1),
             expand=False,
             row_styles=["", "dim"],
         )
@@ -220,7 +220,7 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
             t,
             title=f"[bold dim]{factor_name}[/]",
             border_style="dim",
-            padding=(0, 0),
+            padding=(1, 1),
         ))
 
     # Arrange in 2 rows x 3 columns layout
@@ -334,7 +334,9 @@ def panel_scores_expanded(scores: Any) -> Panel:
     ]
     summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 50))
     if summary is not None:
+        left_rows.append(Text(""))  # Vertical spacing
         left_rows.append(summary)
+    left_rows.append(Text(""))  # Vertical spacing before table
     left_rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
 
     # Build right side: top-5 for each factor (3 columns x 2 rows grid)
@@ -344,14 +346,14 @@ def panel_scores_expanded(scores: Any) -> Panel:
     main_layout = Layout()
     main_layout.split_row(
         Layout(Group(*left_rows), ratio=5, name="main"),
-        Layout(factor_layout, ratio=2, name="factors"),
+        Layout(factor_layout, ratio=3, name="factors"),
     )
 
     return Panel(
         main_layout,
         title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
         border_style="cyan",
-        padding=(0, 0),
+        padding=(0, 1),
     )
 
 
