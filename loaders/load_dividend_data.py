@@ -19,6 +19,7 @@ Run:
 
 import logging
 import sys
+import time
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -207,18 +208,27 @@ class DividendDataLoader(SecLoaderBase):
         Returns: Dividend records extracted from XBRL, or data_unavailable marker.
         """
         now_et = datetime.now(EASTERN_TZ).date()
+        start_time = time.time()
 
         try:
             # Get CIK for symbol - CRITICAL: timeout prevents indefinite hangs on ticker cache refresh
             # SEC's ticker endpoint can be slow; a stuck DNS/network call to sec.gov could block for hours
+            cik_time = time.time()
             cik = self.sec_client.symbol_to_cik(symbol)
+            cik_elapsed = time.time() - cik_time
+            if cik_elapsed > 30:  # Log slow ticker lookups
+                logger.warning(f"[{symbol}] symbol_to_cik took {cik_elapsed:.1f}s (slow SEC ticker endpoint)")
 
             # Fetch companyfacts XBRL - CRITICAL: both API calls must timeout
             # 2026-08-04: dividend_data loader hung for 5+ hours on single symbol; root cause was
             # a symbol whose sec_client.get_company_facts() call hung indefinitely in SEC API
             # Network I/O timeout cannot be killed by ThreadPoolExecutor.cancel() - must be prevented
             # at the socket level instead.
+            facts_time = time.time()
             facts_response = self.sec_client.get_company_facts(cik)
+            facts_elapsed = time.time() - facts_time
+            if facts_elapsed > 30:  # Log slow API calls
+                logger.warning(f"[{symbol}] get_company_facts took {facts_elapsed:.1f}s (slow SEC API)")
             if not facts_response or "facts" not in facts_response:
                 return [self._unavailable_record(symbol, now_et, "no_companyfacts")]
 
@@ -267,7 +277,11 @@ class DividendDataLoader(SecLoaderBase):
             return [self._unavailable_record(symbol, now_et, "no_dividend_xbrl_concepts")]
 
         except Exception as e:
-            logger.debug(f"[{symbol}] Dividend fetch error: {type(e).__name__}: {e}")
+            elapsed = time.time() - start_time
+            if elapsed > 30:  # Log slow failed fetches
+                logger.warning(f"[{symbol}] Dividend fetch failed after {elapsed:.1f}s: {type(e).__name__}: {e}")
+            else:
+                logger.debug(f"[{symbol}] Dividend fetch error: {type(e).__name__}: {e}")
             return [self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")]
 
 

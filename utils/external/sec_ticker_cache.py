@@ -9,6 +9,7 @@ import json
 import logging
 import random
 import socket
+import tempfile
 import time
 from pathlib import Path
 from typing import cast
@@ -75,7 +76,6 @@ class TickerCache:
         # CRITICAL FIX: Use platform-appropriate temp directory instead of hardcoded /tmp
         # On Windows, /tmp is a relative path (./tmp) which could cause permission errors
         # and file lock issues that hang the loader. Use tempfile.gettempdir() for cross-platform safety.
-        import tempfile
         temp_dir = Path(tempfile.gettempdir())
         self._ticker_cache_file = temp_dir / "sec_ticker_cache.json"
         self._load_ticker_cache_from_file()
