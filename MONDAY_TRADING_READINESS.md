@@ -35,10 +35,11 @@ python scripts/monitor_data_staleness.py
 # Full test suite - should be 100% pass, 0 fail
 python -m pytest tests/ -q
 
-# Type safety (must match .pre-commit-config.yaml exactly - see
-# lambda_routes_untyped_decorator_mypy_gap memory for why a freehand
-# `python -m mypy .` invocation gives a false read)
-pre-commit run mypy-core mypy-lambda-api --all-files
+# Type safety (must match .pre-commit-config.yaml exactly - a freehand
+# `python -m mypy .` invocation gives a false read; the installed pre-commit
+# version also rejects multiple hook ids in one invocation, so run separately)
+pre-commit run mypy-core --all-files
+pre-commit run mypy-lambda-api --all-files
 
 # Orchestrator halt/error history - the ground truth for "did it actually run clean"
 python -c "
