@@ -77,6 +77,31 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                     # Create savepoint before each symbol to isolate transaction errors
                     cur.execute(f"SAVEPOINT {savepoint}")
 
+                    # Always fetch stop_loss_price from trade first, so we can sync it to both INSERT and UPDATE
+                    cur.execute('''
+                        SELECT entry_price, position_id, stop_loss_price,
+                               target_1_price, target_2_price, target_3_price,
+                               target_1_r_multiple, target_2_r_multiple, target_3_r_multiple
+                        FROM algo_trades
+                        WHERE symbol = %s AND status IN ('filled', 'open')
+                        ORDER BY entry_date ASC
+                        LIMIT 1
+                    ''', (symbol,))
+
+                    trade_row = cur.fetchone()
+                    if not trade_row:
+                        error_reason = f"No entry_price found in trades"
+                        logger.warning(f"[POSITION_SYNC] Could not find entry_price for {symbol}")
+                        errors += 1
+                        error_details.append({"symbol": symbol, "reason": error_reason})
+                        continue
+
+                    (
+                        entry_price, trade_position_id, stop_loss_price,
+                        target_1_price, target_2_price, target_3_price,
+                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                    ) = trade_row
+
                     # Check if position exists (open or closed - reopen if needed)
                     cur.execute(
                         'SELECT id, status FROM algo_positions WHERE symbol = %s ORDER BY updated_at DESC LIMIT 1',
@@ -86,17 +111,18 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
 
                     if existing:
                         existing_id, existing_status = existing
-                        # Update existing position and reopen if it was closed
+                        # Update existing position, reopen if needed, and sync stop_loss_price in case it got corrupted
                         cur.execute(
-                            'UPDATE algo_positions SET quantity = %s, status = %s, updated_at = NOW() '
+                            'UPDATE algo_positions SET quantity = %s, status = %s, '
+                            '  stop_loss_price = %s, current_stop_price = %s, updated_at = NOW() '
                             'WHERE symbol = %s',
-                            (total_qty, 'open', symbol)
+                            (total_qty, 'open', stop_loss_price, stop_loss_price, symbol)
                         )
                         updated += 1
                         action = "reopened" if existing_status == 'closed' else "updated"
                         logger.debug(f"[POSITION_SYNC] {action.capitalize()} {symbol}: {total_qty:.2f} shares (was {existing_status})")
                     else:
-                        # Get entry_price and risk/position-linkage fields from first trade.
+                        # Insert new position (trade data already fetched above)
                         # algo_positions requires position_id, avg_entry_price, stop_loss_price,
                         # and current_stop_price (all NOT NULL, no defaults) - pulling them from
                         # the originating algo_trades row instead of leaving them unset, which
@@ -106,66 +132,49 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         # positions orphaned when a crash landed the algo_trades row but not the
                         # matching algo_positions row) - the exact orphaned-position case this
                         # reconciliation exists to catch was the one case it could never fix.
-                        cur.execute('''
-                            SELECT entry_price, position_id, stop_loss_price,
-                                   target_1_price, target_2_price, target_3_price,
-                                   target_1_r_multiple, target_2_r_multiple, target_3_r_multiple
-                            FROM algo_trades
-                            WHERE symbol = %s AND status IN ('filled', 'open')
-                            ORDER BY entry_date ASC
-                            LIMIT 1
-                        ''', (symbol,))
 
-                        trade_row = cur.fetchone()
-                        if trade_row:
-                            (
-                                entry_price, trade_position_id, stop_loss_price,
-                                target_1_price, target_2_price, target_3_price,
-                                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                            ) = trade_row
+                        # AUDIT ISSUE #3 FIX: Validate position data BEFORE insert/update
+                        # CHECKPOINT 1: Check entry_price IS NOT NULL and > 0
+                        # WHY: Entry price is mandatory for P&L calculation, stop loss placement,
+                        # and risk metrics. NULL entry_price creates orphaned positions that:
+                        # - Cannot calculate realized/unrealized P&L
+                        # - Cannot place valid stop losses
+                        # - Corrupt portfolio risk calculations (SUM ignores NULL)
+                        # FAIL-FAST: Reject position rather than insert corrupted data
+                        if not entry_price or entry_price <= 0:
+                            raise RuntimeError(
+                                f"[POSITION_SYNC] Cannot sync position for {symbol}: "
+                                f"entry_price is NULL or <= 0 (value={entry_price}). "
+                                f"Cannot create corrupted position data. "
+                                f"Verify trade entry_price was recorded correctly."
+                            )
 
-                            # AUDIT ISSUE #3 FIX: Validate position data BEFORE insert/update
-                            # CHECKPOINT 1: Check entry_price IS NOT NULL and > 0
-                            # WHY: Entry price is mandatory for P&L calculation, stop loss placement,
-                            # and risk metrics. NULL entry_price creates orphaned positions that:
-                            # - Cannot calculate realized/unrealized P&L
-                            # - Cannot place valid stop losses
-                            # - Corrupt portfolio risk calculations (SUM ignores NULL)
-                            # FAIL-FAST: Reject position rather than insert corrupted data
-                            if not entry_price or entry_price <= 0:
-                                raise RuntimeError(
-                                    f"[POSITION_SYNC] Cannot sync position for {symbol}: "
-                                    f"entry_price is NULL or <= 0 (value={entry_price}). "
-                                    f"Cannot create corrupted position data. "
-                                    f"Verify trade entry_price was recorded correctly."
-                                )
+                        # CHECKPOINT 2: Check quantity > 0 (already checked in GROUP BY but verify again)
+                        # WHY: Quantity must be positive. Zero quantity = no position (shouldn't exist).
+                        # Negative quantity = position corrupted (double-sold or sync error).
+                        # Verify defensive: GROUP BY HAVING enforces this, but double-check here
+                        # in case SQL execution or sync state changed between GROUP BY and this point.
+                        if total_qty <= 0:
+                            raise RuntimeError(
+                                f"[POSITION_SYNC] Cannot sync position for {symbol}: "
+                                f"quantity must be > 0 (value={total_qty}). "
+                                f"Zero/negative quantity indicates corrupted trade record."
+                            )
 
-                            # CHECKPOINT 2: Check quantity > 0 (already checked in GROUP BY but verify again)
-                            # WHY: Quantity must be positive. Zero quantity = no position (shouldn't exist).
-                            # Negative quantity = position corrupted (double-sold or sync error).
-                            # Verify defensive: GROUP BY HAVING enforces this, but double-check here
-                            # in case SQL execution or sync state changed between GROUP BY and this point.
-                            if total_qty <= 0:
-                                raise RuntimeError(
-                                    f"[POSITION_SYNC] Cannot sync position for {symbol}: "
-                                    f"quantity must be > 0 (value={total_qty}). "
-                                    f"Zero/negative quantity indicates corrupted trade record."
-                                )
+                        # CHECKPOINT 3: Check position_id and stop_loss_price are present.
+                        # WHY: Both are NOT NULL on algo_positions with no default. A position
+                        # with no stop_loss_price is also unmanageable by every downstream exit
+                        # check (exit_engine.py, circuit_breaker.py), so refuse to synthesize a
+                        # placeholder value here rather than create a position no safety check
+                        # can act on.
+                        if not trade_position_id or not stop_loss_price or stop_loss_price <= 0:
+                            raise RuntimeError(
+                                f"[POSITION_SYNC] Cannot sync position for {symbol}: "
+                                f"position_id={trade_position_id!r}, stop_loss_price={stop_loss_price!r}. "
+                                f"Both required (NOT NULL) - trade record is incomplete."
+                            )
 
-                            # CHECKPOINT 3: Check position_id and stop_loss_price are present.
-                            # WHY: Both are NOT NULL on algo_positions with no default. A position
-                            # with no stop_loss_price is also unmanageable by every downstream exit
-                            # check (exit_engine.py, circuit_breaker.py), so refuse to synthesize a
-                            # placeholder value here rather than create a position no safety check
-                            # can act on.
-                            if not trade_position_id or not stop_loss_price or stop_loss_price <= 0:
-                                raise RuntimeError(
-                                    f"[POSITION_SYNC] Cannot sync position for {symbol}: "
-                                    f"position_id={trade_position_id!r}, stop_loss_price={stop_loss_price!r}. "
-                                    f"Both required (NOT NULL) - trade record is incomplete."
-                                )
-
-                            # Position doesn't exist, insert new one
+                        # Insert new position
                             cur.execute('''
                                 INSERT INTO algo_positions (
                                     position_id, symbol, quantity, avg_entry_price, entry_price,
@@ -191,13 +200,8 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
                                 get_algo_owner_cognito_sub(),
                             ))
-                            inserted += 1
-                            logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
-                        else:
-                            error_reason = f"No entry_price found in trades"
-                            logger.warning(f"[POSITION_SYNC] Could not find entry_price for {symbol}")
-                            errors += 1
-                            error_details.append({"symbol": symbol, "reason": error_reason})
+                        inserted += 1
+                        logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
 
                 except Exception as e:
                     error_reason = f"{type(e).__name__}: {str(e)[:500]}"
