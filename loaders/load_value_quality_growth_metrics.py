@@ -323,6 +323,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # FIXED 2026-08-05: Prioritize years with actual FCF data (many recent years have NULL FCF
                 # because they're estimates, while prior years have audited FCF). Get most recent year with
                 # either free_cash_flow OR operating_cash_flow populated (not latest fiscal_year blindly).
+                # BOUNDED 2026-08-03: that FCF preference had no recency limit, so for filers whose
+                # free_cash_flow is NULL across their entire modern filing history (live-confirmed: APD/
+                # Air Products has NULL FCF for every year 2012-2026, but a real value from FY2011), it
+                # reached back over a decade into history to satisfy "has FCF" - discarding a perfectly
+                # fresh, complete balance sheet (real FY2026 stockholders_equity/total_assets) in favor of
+                # a stale one, then falsely tripping the stale_fiscal_data gate below. Confirmed 53 real
+                # symbols universe-wide hit this. Bounding the FCF preference to MAX_FISCAL_YEAR_AGE_YEARS
+                # keeps the original intent (prefer audited-FCF years among the recent ones) without ever
+                # trading a fresh balance sheet for an ancient FCF value.
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
@@ -360,10 +369,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
-                    ORDER BY (CASE WHEN acf.free_cash_flow IS NOT NULL THEN 0 ELSE 1 END), abs.fiscal_year DESC
+                    ORDER BY (CASE WHEN acf.free_cash_flow IS NOT NULL
+                                    AND abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
+                                    THEN 0 ELSE 1 END), abs.fiscal_year DESC
                     LIMIT 1
                     """,
-                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol),
+                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, MAX_FISCAL_YEAR_AGE_YEARS),
                 )
                 quality_row_db = cur.fetchone()
 
