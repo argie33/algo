@@ -318,9 +318,20 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             if row and row[0] is not None:
                 dist = int(row[0])
-                # 0-2 = 100, 3-4 = 60, 5+ = 20
-                score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
-                return {"heavy_down_days": dist, "count": dist, "value": dist, "score": score}
+                # 0-2 = 100 (clean), 3-4 = 60 (caution), 5+ = 20 (pressure)
+                if dist <= 2:
+                    score, regime = 100.0, "clean"
+                elif dist <= 4:
+                    score, regime = 60.0, "caution"
+                else:
+                    score, regime = 20.0, "pressure"
+                return {
+                    "heavy_down_days": dist,
+                    "count": dist,
+                    "value": dist,
+                    "score": score,
+                    "regime": regime,
+                }
             raise RuntimeError(
                 "[SELLING_PRESSURE CRITICAL] SPY price/volume data unavailable for distribution detection. "
                 "Check: (1) price_daily has at least 25 recent SPY records, (2) volume column is populated"
