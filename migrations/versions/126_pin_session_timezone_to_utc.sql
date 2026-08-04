@@ -1,0 +1,47 @@
+-- Migration 126: Pin the 'stocks' role's session timezone to UTC for the 'stocks' database
+--
+-- PROBLEM (live-confirmed 2026-08-03):
+-- The DB server's default session TimeZone GUC is 'America/Chicago', not UTC. Every place
+-- in the codebase that stores a naive TIMESTAMP column (313 columns across the schema, e.g.
+-- orchestrator_execution_log.started_at, algo_runtime_state.halt_triggered_at,
+-- algo_trades.entry_time/exit_time, data_loader_status.last_success_at) does so by passing a
+-- Python tz-aware `datetime.now(timezone.utc)` value straight to psycopg2 (see
+-- utils/logging/execution_tracker.py's self.started_at, and 30+ other call sites). psycopg2
+-- adapts an aware datetime by sending it with its UTC offset; when the target column is
+-- "timestamp without time zone", Postgres converts that value using the *session* timezone
+-- before stripping the offset - i.e. it silently converts UTC to America/Chicago wall-clock
+-- and stores THAT as the naive value.
+--
+-- Meanwhile utils/infrastructure/timezone.py (the app's single documented timezone
+-- convention, used in 40+ files for every staleness/freshness/halt-duration/order-age
+-- check) explicitly assumes "naive datetimes = UTC" (normalize_to_utc_datetime()). So every
+-- one of those checks silently treats a Chicago wall-clock value as if it were UTC - a
+-- constant ~5-6 hour error (America/Chicago is UTC-5/-6 depending on DST; the discrepancy is
+-- constant year-round since NY and Chicago both observe DST, always exactly 1h apart from
+-- each other, but both several hours off UTC).
+--
+-- Live proof: orchestrator_execution_log rows repeatedly show started_at/completed_at only
+-- ~10-30s apart (correct - matches real run duration), but the halt_reason message baked in
+-- at completion time (computed live via datetime.now(EASTERN_TZ), never touching the DB
+-- naive-timestamp path) reports a wall-clock ~60-61 minutes *later* than started_at for the
+-- exact same run. Round-trip test: `datetime.now(timezone.utc)` cast through this session to
+-- a "timestamp without time zone" column comes back shifted by exactly the Chicago-UTC
+-- offset, confirmed via `SHOW timezone` = 'America/Chicago' and a direct cast test.
+--
+-- This is a plausible root-cause contributor to "exit execution halted, not sure why" and
+-- other previously-patched staleness/freshness false positives (see
+-- freshness_panel_last_updated_masked_loader_failures, halt_flag_overnight_diagnostic_gap) -
+-- those fixes addressed which column to compare against, not that the stored values
+-- themselves could be silently mislabeled by session timezone on the write path.
+--
+-- SOLUTION:
+-- Pin the session default timezone to UTC for the 'stocks' role when connecting to the
+-- 'stocks' database, scoped narrowly (not a blanket ALTER DATABASE, which would affect any
+-- other role/tool connecting to this DB) so every future connection - pooled
+-- (utils/db/connection.py) or direct psycopg2.connect() (35+ call sites: loaders, lambda
+-- handlers, migrations, scripts) - gets a UTC session by default with no per-call-site code
+-- changes required. Existing pooled connections opened before this migration runs keep
+-- their old session timezone until they reconnect; the pool already cycles connections
+-- (max_idle_sec=300) so this self-heals within minutes without a restart.
+
+ALTER ROLE stocks IN DATABASE stocks SET timezone TO 'UTC';
