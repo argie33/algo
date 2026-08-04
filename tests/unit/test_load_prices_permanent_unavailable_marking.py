@@ -75,12 +75,13 @@ class TestPermanentUnavailableMarking:
 
         with patch("loaders.load_prices.DatabaseContext") as mock_db_ctx:
             mock_cur = MagicMock()
+            mock_cur.fetchone.return_value = (0,)  # No recent rows found
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
 
             loader._load_batch(["DEAD"])
 
-            mock_cur.execute.assert_called_once()
-            sql, params = mock_cur.execute.call_args[0]
+            assert mock_cur.execute.call_count == 2  # SELECT count + UPDATE unavailable
+            sql, params = mock_cur.execute.call_args[0]  # Last call (UPDATE)
             assert "data_unavailable = TRUE" in sql
             assert params[1] == "DEAD"
 
