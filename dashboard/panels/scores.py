@@ -82,7 +82,7 @@ def _build_scores_summary(scores: dict[str, Any], shown: int) -> Text | None:
     return Text.from_markup("  ".join(parts))
 
 
-def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | Table]:
+def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bool = False) -> list[Text | Table]:
     """Build stock quality scores table.
 
     Validates input is list before accessing items.
@@ -103,10 +103,16 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
         show_header=True,
         header_style="dim",
         padding=(0, 1),
-        expand=True,
+        # expand=True stretches every fixed-width column proportionally to fill the
+        # console (Rich distributes leftover space across ALL columns, not just wide
+        # ones), which reads as huge gaps once the Company column pushes the natural
+        # table width close to the full terminal width - so let it size to content here.
+        expand=not show_company,
         row_styles=["", "dim"],
     )
     t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
+    if show_company:
+        t.add_column("Company", style="white", no_wrap=True, width=22)
     t.add_column("Comp", justify="right", no_wrap=True, width=5)
     t.add_column("Mom", justify="right", no_wrap=True, width=4)
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
@@ -119,6 +125,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
 
     for sc in top_scores[:limit]:
         sym = safe_get_field(sc, "symbol", "--")
+        company = (safe_get_field(sc, "company_name") or "--")[:22] if show_company else None
         comp = safe_get_field(sc, "composite_score")
         mom = safe_get_field(sc, "momentum_score")
         qual = safe_get_field(sc, "quality_score")
@@ -133,18 +140,23 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | T
         chg_v: float | None = safe_float(chg)
         chg_c: str = "green" if chg_v is not None and chg_v > 0 else ("red" if chg_v is not None and chg_v < 0 else "dim")
 
-        t.add_row(
-            sym,
-            Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
-            _score_cell(mom),
-            _score_cell(qual),
-            _score_cell(val),
-            _score_cell(grwth),
-            _score_cell(stab),
-            _score_cell(pos),
-            Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
-            Text(sector, style="dim"),
+        row_cells: list[str | Text] = [sym]
+        if show_company:
+            row_cells.append(Text(company or "--", style="white"))
+        row_cells.extend(
+            [
+                Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
+                _score_cell(mom),
+                _score_cell(qual),
+                _score_cell(val),
+                _score_cell(grwth),
+                _score_cell(stab),
+                _score_cell(pos),
+                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
+                Text(sector, style="dim"),
+            ]
         )
+        t.add_row(*row_cells)
     rows.append(t)
     return rows
 
@@ -228,7 +240,7 @@ def panel_scores_expanded(scores: Any) -> Panel:
     if summary is not None:
         rows.append(summary)
     if top_scores:
-        rows.extend(_build_scores_table(top_scores, limit=50))
+        rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
     else:
         rows.append(Text.from_markup("[yellow]No score data - check Data Health[/]"))
 
