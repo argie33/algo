@@ -393,10 +393,19 @@ locals {
     # believed superseded" mistake class as company_info_sec/earnings_calendar_sec below.
     "company_profile" = "load_company_profile.py"
 
-    # Phase 5b: Earnings Calendar from SEC EDGAR (replaces ~10% of yfinance_snapshot)
-    # Official 10-K/10-Q filing dates (when earnings are announced to SEC)
-    # Continuous updates (quarterly and annual filings)
+    # Phase 5b: SEC filing dates for 10-K/10-Q (when statements are FILED with the SEC) -
+    # a distinct concept from earnings_calendar below (when earnings are ANNOUNCED, with
+    # EPS estimates/actuals for blackout-window gating). Continuous updates (quarterly and
+    # annual filings).
     "earnings_calendar_sec" = "load_earnings_calendar_sec.py"
+
+    # Restored 2026-08-04: real earnings announcement dates + EPS estimates/actuals, used
+    # by algo/risk/earnings_blackout.py's blackout-window gating and marked
+    # PHASE_1_CRITICAL in utils/loader_priority.py. Had no active loader since
+    # load_yfinance_derived_metrics.py was deleted 2026-07-19 - was wrongly believed fully
+    # superseded by earnings_calendar_sec above (a different concept - SEC filing dates,
+    # not announcement dates). See loaders/load_earnings_calendar.py's module docstring.
+    "earnings_calendar" = "load_earnings_calendar.py"
 
     # Market-exposure factor inputs (Session 301: restored after being deleted while
     # algo/risk/factors/naaim_factor.py + aaii_sentiment_factor.py — 2 of the Core 12
@@ -568,10 +577,16 @@ locals {
     # so it's lighter and faster than company_info_sec itself.
     "company_profile" = { cpu = 128, memory = 256, timeout = 300, parallelism = 2 }
 
-    # Phase 5b: Earnings Calendar from SEC EDGAR (lightweight: submission parsing, <100MB)
+    # Phase 5b: SEC filing dates (lightweight: submission parsing, <100MB)
     # Timeout: 900s (typical run ~5-15 min for 5k symbols + 10-K/10-Q extraction, 2x headroom)
     # Parallelism: 1-2 (SEC API rate-limited, keep under global limit)
     "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+
+    # Restored 2026-08-04 - see loader_file_map comment above. Sized like
+    # analyst_earnings_estimates/analyst_upgrade_downgrade (same shape: per-symbol yfinance
+    # call, no bulk endpoint) - live-tested locally at ~5s/symbol for the earnings_dates
+    # window fetch.
+    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
 
     # ============================================================
     # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)
@@ -676,6 +691,7 @@ locals {
     "company_info_sec",
     "company_profile",
     "earnings_calendar_sec",
+    "earnings_calendar",
     "institutional_holdings_13f",
     "insider_holdings_sec",
     "insider_transaction_velocity",

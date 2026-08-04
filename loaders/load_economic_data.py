@@ -43,6 +43,7 @@ from algo.config.api_endpoints import get_fred_url  # noqa: E402
 from loaders.timeout_config import configure_socket_timeout, get_http_timeout  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.loaders import get_api_key  # noqa: E402
+from utils.loaders.status_manager import LoaderStatusManager  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -350,7 +351,48 @@ def load() -> dict[str, Any]:
     """Fetch and store consolidated economic data (FRED + DXY).
 
     Returns: Dict with status and results
+
+    CRITICAL FIX 2026-08-04: this loader never touched data_loader_status at all - no
+    mark_running/mark_completed/mark_failed anywhere in this file. Its DB row was whatever
+    a one-off seed/migration left it at, never updated by any real run, so the dashboard's
+    DATA FRESHNESS panel had no way to tell "loader ran fine today" from "loader has been
+    silently broken since whenever that row was last touched" - the exact class of gap this
+    session's fixes target (see market.py's _get_data_status and the sibling loader duration
+    fixes). Wired in the same LoaderStatusManager pattern already used by every other loader
+    in this codebase; the actual fetch/store logic (unchanged) now lives in _load_impl().
     """
+    status_mgr = LoaderStatusManager("economic_data")
+    status_mgr.mark_running()
+    start_time = time.time()
+    try:
+        result = _load_impl()
+    except Exception as e:
+        status_mgr.mark_failed(error_message=str(e)[:500])
+        raise
+
+    # mark_completed()'s built-in safety check (utils/loaders/status_manager.py) computes
+    # completion_pct from symbol_count/symbols_loaded and marks FAILED if it's below 98% -
+    # a per-symbol-loader assumption. This loader has no symbols, just a fixed FRED series
+    # list, so those columns are never populated via mark_running(symbol_count=...)/
+    # update_progress() and default to None/None, which the safety check reads as 0%
+    # complete. Pass this run's own counts explicitly (the same current_run_* override the
+    # safety check docstring describes) so a real, fully successful run doesn't get marked
+    # FAILED by a check built for a different loader shape.
+    fred_series_results = result.get("fred_series") or {}
+    total_expected = len(FRED_SERIES) + 1  # +1 for DXY
+    succeeded = sum(1 for v in fred_series_results.values() if not str(v).startswith("unavailable")) + (
+        0 if str(result.get("dxy", "")).startswith("unavailable") else 1
+    )
+    status_mgr.mark_completed(
+        execution_duration_sec=time.time() - start_time,
+        current_run_symbols_loaded=succeeded,
+        current_run_symbol_count=total_expected,
+    )
+    return result
+
+
+def _load_impl() -> dict[str, Any]:
+    """Fetch and store consolidated economic data (FRED + DXY). See load() for status tracking."""
     logger.info("[ECONOMIC] Starting consolidated economic data load (FRED + DXY)...")
 
     fred_api_key = get_fred_api_key()

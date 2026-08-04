@@ -232,19 +232,27 @@ class TestRateLimiter:
         assert elapsed >= expected_time * 0.9
         assert elapsed < expected_time * 2.0  # Allow some tolerance
 
-    def test_rate_limiter_with_low_call_rate(self):
-        """Test limiter with very low call rate (calls per minute < 1)."""
+    @patch("algo.infrastructure.retry.time.sleep")
+    def test_rate_limiter_with_low_call_rate(self, mock_sleep):
+        """Test limiter with very low call rate (calls per minute < 1).
+
+        FIXED 2026-08-04: previously called limiter.wait() twice for real with no
+        time.sleep mock - calls_per_minute=0.5 means a real ~120s sleep every single
+        run of this test, every full-suite run. Confirmed live: this was the exact,
+        reproducible point three consecutive full `pytest tests/unit` runs stalled
+        at (~75-80%) before being killed by a 60-600s timeout, making a full clean
+        suite run effectively impossible to complete. Mock time.sleep like the other
+        retry-decorator tests in this file already do; assert on the computed sleep
+        duration instead of real wall-clock elapsed time.
+        """
         limiter = RateLimiter(calls_per_minute=0.5)  # 1 call per 2 minutes
-        start = time.monotonic()
 
-        limiter.wait()
-        limiter.wait()
+        limiter.wait()  # First call: no sleep (nothing elapsed yet)
+        limiter.wait()  # Second call: should request a ~120s sleep
 
-        elapsed = time.monotonic() - start
-        expected_time = 60.0 / 0.5  # 120 seconds
-
-        # Should be close to expected interval
-        assert elapsed >= expected_time * 0.9
+        expected_interval = 60.0 / 0.5  # 120 seconds
+        assert mock_sleep.call_count == 1
+        assert mock_sleep.call_args[0][0] == pytest.approx(expected_interval, abs=0.1)
 
     def test_rate_limiter_thread_safe(self):
         """Test that rate limiter is thread-safe."""

@@ -761,20 +761,46 @@ class PipelineHealth:
                                 # only when no latest_date could be determined (no usable date column
                                 # on that table) - see _infer_date_column's "skipping age check" path.
                                 table_health.latest_date,
+                                # Two more placeholders for the last_success_at CASE (both INSERT
+                                # branch and DO UPDATE SET use EXCLUDED, but the INSERT branch's
+                                # VALUES still needs its own copies): status_value again (drives the
+                                # 'HEALTHY' check) and latest_date again (same recency value as
+                                # last_updated above, for the same reason).
+                                status_value,
+                                table_health.latest_date,
                             )
                         )
+                    # last_success_at (migration 1163) is only ever set by
+                    # LoaderStatusManager.mark_completed() - tables monitored solely through
+                    # this age-based sweep (no dedicated per-table loader run to report on,
+                    # e.g. algo_positions/algo_trades/sector_ranking/algo_config) never go
+                    # through that path, so last_success_at sat permanently NULL despite the
+                    # table being HEALTHY with fresh data every single day - confirmed live
+                    # 2026-08-04: 36 status='HEALTHY' rows all showing last_success_at NULL,
+                    # which the dashboard's "Last Success" column renders as "never", reading
+                    # as "this has never worked" for tables that update daily without fail.
+                    # This sweep's own HEALTHY verdict is a legitimate "confirmed working as
+                    # of this check" signal, same meaning as mark_completed()'s last_success_at
+                    # - set it forward (never backward/NULL) exactly like last_updated does,
+                    # and only on HEALTHY specifically (not DEPRECATED - those tables are
+                    # intentionally frozen, so "last success" doesn't apply and would misread
+                    # as an active loader that just happens to always succeed).
                     cur.executemany(
                         """
                         INSERT INTO data_loader_status
-                        (table_name, status, row_count, latest_date, age_days, error_message, stale_threshold_days, last_updated)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, NOW()))
+                        (table_name, status, row_count, latest_date, age_days, error_message, stale_threshold_days, last_updated, last_success_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, NOW()), CASE WHEN %s = 'HEALTHY' THEN COALESCE(%s::timestamptz, NOW()) ELSE NULL END)
                         ON CONFLICT (table_name)
                         DO UPDATE SET
                             row_count = EXCLUDED.row_count,
                             latest_date = EXCLUDED.latest_date,
                             age_days = EXCLUDED.age_days,
                             stale_threshold_days = EXCLUDED.stale_threshold_days,
-                            last_updated = EXCLUDED.last_updated
+                            last_updated = EXCLUDED.last_updated,
+                            last_success_at = CASE
+                                WHEN EXCLUDED.status = 'HEALTHY' THEN EXCLUDED.last_updated
+                                ELSE data_loader_status.last_success_at
+                            END
                         """,
                         insert_values,
                     )

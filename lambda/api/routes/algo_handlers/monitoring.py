@@ -24,6 +24,7 @@ from routes.utils import (
     handle_db_error,
     json_response,
     list_response,
+    normalize_to_utc_datetime,
     safe_dict_convert,
     safe_json_serialize,
     safe_limit,
@@ -31,6 +32,9 @@ from routes.utils import (
 )
 
 from shared_contracts.response_validator import ResponseValidator
+from utils.db.timezone_utils import get_db_timezone
+
+from .market import PIPELINE_REMOVED_TABLES
 
 logger = logging.getLogger(__name__)
 
@@ -353,9 +357,17 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         # than ~30 tables are tracked - the table count (~95 per pipeline_health.py) already
         # exceeds that. Fetch every row and let Python separate healthy from unhealthy so the
         # unhealthy count below is real, not truncated before it's even computed.
+        #
+        # execution_started is a naive timestamp written in the DB session's local
+        # wall-clock, not UTC (utils/bulk_insert_manager.py's convention - see
+        # normalize_to_utc_datetime's docstring) - resolved once here, same pattern as
+        # market.py's _get_data_status, so the RUNNING-elapsed-time check below isn't off
+        # by the session's UTC offset.
+        naive_tz = get_db_timezone()
+
         cur.execute("""
             SELECT table_name, status, consecutive_failures, retry_count, last_success_at,
-                   execution_completed, completion_pct
+                   execution_started, execution_completed, completion_pct
             FROM data_loader_status
             WHERE table_name IS NOT NULL
             ORDER BY consecutive_failures DESC, table_name ASC
@@ -363,18 +375,47 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
 
         healthy_loader_statuses = ("COMPLETED", "success", "OK", "ok", "HEALTHY", "DEPRECATED")
 
+        # A loader mid-run (status="RUNNING", execution_started set, execution_completed
+        # still NULL) isn't unhealthy - it just hasn't finished yet. Without this, a table
+        # actively loading normally (e.g. 91% complete) got counted as "unhealthy" here
+        # while dashboard/panels/health.py's DATA FRESHNESS panel correctly shows it under
+        # "Loading now:" as benign in-progress work, not an issue - producing a "Loader
+        # Health: N table(s) with issues (see Data Freshness Table below)" summary where
+        # the table below shows nothing wrong. Only flag it once it's been running long
+        # enough to plausibly be stuck - same 90-minute threshold health.py's own
+        # "TIMEOUT RISK" flag on that same "Loading now:" section already uses.
+        LOADER_STUCK_RUNNING_MINUTES = 90
+
         loader_health_total_tracked = 0
         loader_health = []
         for row in cur.fetchall():
+            row_dict = safe_dict_convert(row)
+            table_name = row_dict.get("table_name")
+            # PIPELINE_REMOVED_TABLES (shared with lambda/api/routes/algo_handlers/market.py's
+            # _get_data_status) is excluded from the DATA FRESHNESS table entirely - counting
+            # one of these tables here points the "(see Data Freshness Table below)" summary
+            # at a table the freshness grid structurally can never show. Confirmed live
+            # 2026-08-04: algo_untracked_positions (status=MISSING, expected-empty) inflated
+            # this count while being invisible on the freshness grid by design.
+            if table_name in PIPELINE_REMOVED_TABLES:
+                continue
             loader_health_total_tracked += 1
             try:
-                row_dict = safe_dict_convert(row)
-                table_name = row_dict.get("table_name")
                 status = row_dict.get("status")
                 cons_failures = row_dict.get("consecutive_failures") or 0
                 retry_count = row_dict.get("retry_count") or 0
                 last_success = row_dict.get("last_success_at")
-                is_unhealthy = cons_failures > 0 or status not in healthy_loader_statuses
+
+                exec_started = row_dict.get("execution_started")
+                exec_completed = row_dict.get("execution_completed")
+                is_actively_running = False
+                if status == "RUNNING" and exec_started is not None and exec_completed is None:
+                    started_utc = normalize_to_utc_datetime(exec_started, naive_tz)
+                    if isinstance(started_utc, datetime):
+                        elapsed_min = (datetime.now(timezone.utc) - started_utc).total_seconds() / 60
+                        is_actively_running = elapsed_min <= LOADER_STUCK_RUNNING_MINUTES
+
+                is_unhealthy = cons_failures > 0 or (status not in healthy_loader_statuses and not is_actively_running)
 
                 if is_unhealthy:
                     loader_health.append({

@@ -47,10 +47,15 @@ def _run(loader_rows):
 
 
 def test_healthy_and_deprecated_statuses_are_not_flagged_unhealthy():
+    # Table names deliberately avoid PIPELINE_REMOVED_TABLES (e.g. aaii_sentiment,
+    # sec_dividends) - that exclusion is tested separately in
+    # test_loader_health_pipeline_removed_tables_excluded.py, and mixing the two concerns
+    # into one table made this test's total_tracked assertion break whenever the shared
+    # exclusion list changed for reasons unrelated to the HEALTHY/DEPRECATED status check.
     data = _run([
-        {"table_name": "aaii_sentiment", "status": "HEALTHY", "consecutive_failures": 0,
+        {"table_name": "technical_data_daily", "status": "HEALTHY", "consecutive_failures": 0,
          "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100},
-        {"table_name": "sec_dividends", "status": "DEPRECATED", "consecutive_failures": 0,
+        {"table_name": "algo_metrics_daily", "status": "DEPRECATED", "consecutive_failures": 0,
          "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": None},
         {"table_name": "price_daily", "status": "COMPLETED", "consecutive_failures": 0,
          "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100},
@@ -65,7 +70,7 @@ def test_genuine_failures_are_still_flagged_unhealthy():
     data = _run([
         {"table_name": "company_info_sec", "status": "RUNNING", "consecutive_failures": 1,
          "retry_count": 1, "last_success_at": None, "execution_completed": None, "completion_pct": 50},
-        {"table_name": "aaii_sentiment", "status": "HEALTHY", "consecutive_failures": 0,
+        {"table_name": "technical_data_daily", "status": "HEALTHY", "consecutive_failures": 0,
          "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100},
     ])
 

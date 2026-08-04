@@ -43,13 +43,19 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
 
         naive_tz = get_db_timezone()
 
+        # CRITICAL FIX 2026-08-04: four of these names didn't match any real table
+        # (verified against live information_schema) - earnings_dates, analyst_ratings,
+        # insider_trades, and broker_portfolio (see check_data_freshness below) don't
+        # exist, so this check could only ever report "Never run"/CRITICAL for them,
+        # forever, regardless of actual loader health. Corrected to the tables that
+        # actually exist and hold this data.
         critical_loaders = [
             "price_daily",
             "sector_ranking",
             "options_chains",
-            "earnings_dates",
-            "analyst_ratings",
-            "insider_trades",
+            "earnings_calendar_sec",
+            "analyst_upgrade_downgrade",
+            "insider_transactions",
             "buy_sell_daily",
             "technical_data_daily",
         ]
@@ -139,13 +145,18 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
 
         naive_tz = get_db_timezone()
 
+        # CRITICAL FIX 2026-08-04: "broker_portfolio" doesn't exist as a table (verified
+        # against live information_schema) - the actual current-positions table is
+        # algo_positions (see lambda/api/routes/algo_handlers/market.py's critical_tables
+        # set, which already uses this name). This check could only ever hit the
+        # UndefinedTable except branch below and report CHECK_FAILED, forever.
         critical_tables = {
             "price_daily": "Daily stock prices (blocks all downstream loaders)",
             "buy_sell_daily": "Buy/sell signals (blocks Phase 5 entry generation)",
             "technical_data_daily": "Technical indicators (depends on price_daily)",
             "sector_ranking": "Sector rankings (affects position sizing)",
             "algo_trades": "Executed trades (portfolio reconciliation)",
-            "broker_portfolio": "Current positions (Phase 9 reconciliation)",
+            "algo_positions": "Current positions (Phase 9 reconciliation)",
         }
 
         stale_tables = []

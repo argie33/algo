@@ -2204,7 +2204,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogEarningsCalendarSecFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "ShortInterestFinra"
+        Next = "EarningsCalendar"
       }
 
       LogEarningsCalendarSecFailure = {
@@ -2212,6 +2212,69 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "earnings_calendar_sec"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "EarningsCalendar"
+          ResultPath  = "$.logError"
+        }]
+        Next = "EarningsCalendar"
+      }
+
+      # ── RESTORED 2026-08-04: real earnings announcement dates + EPS estimates/actuals
+      # (distinct from EarningsCalendarSec above, which is SEC 10-K/10-Q *filing* dates).
+      # Halt-critical in algo/orchestrator/phase1_data_freshness.py (earnings-blackout
+      # gating via algo/risk/earnings_blackout.py) but had no active loader since
+      # load_yfinance_derived_metrics.py was deleted 2026-07-19 - "believed superseded" by
+      # EarningsCalendarSec, which doesn't actually carry earnings dates/EPS data. See
+      # loaders/load_earnings_calendar.py's module docstring. ──
+      EarningsCalendar = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["earnings_calendar"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-earnings_calendar"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogEarningsCalendarFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ShortInterestFinra"
+      }
+
+      LogEarningsCalendarFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "earnings_calendar"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }

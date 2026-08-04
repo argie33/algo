@@ -234,14 +234,23 @@ class DividendDataLoader(SecLoaderBase):
             results.extend(declared)
             results.extend(paid)
 
-            # Remove duplicates on the actual primary key (symbol, ex_dividend_date,
-            # dividend_per_share) - declared/paid concepts can report the same
-            # estimated ex-date + amount, and the DB upsert can't affect the same
-            # row twice within one batch.
+            # Remove duplicates on the actual primary key (symbol, ex_dividend_date) - see
+            # migration 1168, which established the real DB constraint (uq_dividend_event)
+            # is this 2-column pair, not 3. This dedup used to key on
+            # (symbol, ex_dividend_date, dividend_per_share): declared/paid XBRL concepts
+            # both estimate the same ex-date for a given fiscal period (period_end + 45d,
+            # see _extract_dividends_from_xbrl_concept below) but frequently report
+            # slightly different per-share amounts, so the 3-column key let both survive
+            # as "unique" and then collide in the same INSERT batch against the real
+            # 2-column constraint - live-reproduced 2026-08-04 as a CardinalityViolation
+            # ("ON CONFLICT DO UPDATE command cannot affect row a second time") on 608+
+            # symbols, including major dividend payers (ABBV, BA, CVX, COST, CVS, CSCO).
+            # `declared` is extended into `results` before `paid`, so on a same-date
+            # collision the declared-dividend record wins (first occurrence kept).
             seen = set()
             unique_results = []
             for r in results:
-                key = (r["symbol"], r["ex_dividend_date"], r["dividend_per_share"])
+                key = (r["symbol"], r["ex_dividend_date"])
                 if key not in seen:
                     seen.add(key)
                     unique_results.append(r)

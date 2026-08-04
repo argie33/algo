@@ -148,3 +148,40 @@ def test_unexpected_xbrl_unit_is_skipped_not_treated_as_per_share() -> None:
 
     assert len(records) == 1
     assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)
+
+
+def test_declared_and_paid_disagreeing_amount_same_period_still_collapses() -> None:
+    """Live bug, confirmed 2026-08-04: the outer cross-concept dedup in fetch_incremental
+    used to key on (symbol, ex_dividend_date, dividend_per_share) - a 3-column key that
+    never matched the real 2-column DB constraint (symbol, ex_dividend_date) established
+    by migration 1168. CommonStockDividendsPerShareDeclared and
+    CommonStockDividendsPerShareCashPaid estimate the identical ex_dividend_date for the
+    same fiscal period (period_end + 45d) but routinely report slightly different
+    per-share amounts (declared vs. actually paid), so the 3-column key let both survive
+    as "distinct" - and the bulk upsert then crashed with
+    "ON CONFLICT DO UPDATE command cannot affect row a second time" the moment both landed
+    in the same insert batch. Live-reproduced on 608+ real symbols (ABBV, BA, CVX, COST,
+    CVS, CSCO, ...) the first time this loader ran after the dedup key drifted out of sync
+    with migration 1168. Must collapse to exactly one record per (symbol,
+    ex_dividend_date), same as test_true_duplicate_on_primary_key_is_still_deduped's
+    matching-amount case - declared is extended into `results` before paid, so it wins."""
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockDividendsPerShareDeclared": {
+                    "units": {"USD/shares": [{"val": 0.24, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                },
+                "CommonStockDividendsPerShareCashPaid": {
+                    "units": {"USD/shares": [{"val": 0.23, "filed": "2023-01-30", "end": "2022-12-31"}]}
+                },
+            }
+        }
+    }
+    loader = _make_loader()
+    loader.sec_client.get_company_facts.return_value = facts
+
+    records = loader.fetch_incremental("TEST", since=None)
+
+    assert len(records) == 1
+    assert float(records[0]["dividend_per_share"]) == pytest.approx(0.24)
+    assert records[0]["source"] == "SEC_XBRL_CommonStockDividendsPerShareDeclared"
