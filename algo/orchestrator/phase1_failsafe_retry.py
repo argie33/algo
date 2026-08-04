@@ -206,11 +206,17 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                     return False, f"Completeness {completeness_pct:.1f}% (need 95%+ of {critical_col} non-NULL)"
                 return True, ""
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}")
-                return True, ""  # On error, proceed (don't fail the whole check)
+                # This is a failsafe retry helper: its whole job is deciding whether a table
+                # needs a refresh. Treating a completeness-check failure as "complete" silently
+                # skips a table we couldn't actually verify - the same fail-open-and-fabricate
+                # shape this codebase's governance rules forbid elsewhere. Fail closed instead:
+                # an unverifiable table is treated as incomplete, so it gets refreshed (cheap)
+                # rather than possibly staying silently sparse (expensive/invisible).
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}. Treating as incomplete.")
+                return False, f"Completeness check failed (DB error): {e}"
             except (KeyError, ValueError, TypeError) as e:
-                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}")
-                return True, ""  # On error, proceed (don't fail the whole check)
+                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}. Treating as incomplete.")
+                return False, f"Completeness check failed (data error): {e}"
 
         with DatabaseContext("read") as cur:
             for table_name, loader_key in loaders_to_refresh.items():
