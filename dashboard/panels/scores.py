@@ -34,6 +34,7 @@ else:
 
 from rich import box
 from rich.console import Group
+from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -110,9 +111,10 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         expand=not show_company,
         row_styles=["", "dim"],
     )
-    t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
     if show_company:
-        t.add_column("Company", style="white", no_wrap=True, width=22)
+        t.add_column("#", style="dim", justify="right", no_wrap=True, width=3)
+    t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
+    t.add_column("Company", style="white", no_wrap=True, width=12)
     t.add_column("Comp", justify="right", no_wrap=True, width=5)
     t.add_column("Mom", justify="right", no_wrap=True, width=4)
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
@@ -121,11 +123,10 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     t.add_column("Stab", justify="right", no_wrap=True, width=5)
     t.add_column("Pos", justify="right", no_wrap=True, width=4)
     t.add_column("Chg%", justify="right", no_wrap=True, width=5)
-    t.add_column("Sector", no_wrap=True, width=10)
 
-    for sc in top_scores[:limit]:
+    for rank, sc in enumerate(top_scores[:limit], 1):
         sym = safe_get_field(sc, "symbol", "--")
-        company = (safe_get_field(sc, "company_name") or "--")[:22] if show_company else None
+        company = (safe_get_field(sc, "company_name") or "--")[:12]
         comp = safe_get_field(sc, "composite_score")
         mom = safe_get_field(sc, "momentum_score")
         qual = safe_get_field(sc, "quality_score")
@@ -134,15 +135,18 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         stab = safe_get_field(sc, "stability_score")
         pos = safe_get_field(sc, "positioning_score")
         chg = safe_get_field(sc, "change_percent")
-        sector = (safe_get_field(sc, "sector") or "")[:12]
         comp_v: float | None = safe_float(comp)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
         chg_v: float | None = safe_float(chg)
         chg_c: str = "green" if chg_v is not None and chg_v > 0 else ("red" if chg_v is not None and chg_v < 0 else "dim")
 
-        row_cells: list[str | Text] = [sym]
+        row_cells: list[str | Text] = []
         if show_company:
-            row_cells.append(Text(company or "--", style="white"))
+            row_cells.append(Text(str(rank), style="dim"))
+        row_cells.extend([
+            sym,
+            Text(company, style="dim"),
+        ])
         row_cells.extend(
             [
                 Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
@@ -153,12 +157,93 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
                 _score_cell(stab),
                 _score_cell(pos),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
-                Text(sector, style="dim"),
             ]
         )
         t.add_row(*row_cells)
     rows.append(t)
     return rows
+
+
+def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
+    """Build 6 tables showing top 15 for each factor score, arranged in 2 rows x 3 columns.
+
+    Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Stability, Positioning).
+    """
+    if not isinstance(top_scores, list) or not top_scores:
+        layout = Layout()
+        layout.update(Text.from_markup("[dim]No score data[/]"))
+        return layout
+
+    # Define factors with their field names and colors
+    factors = [
+        ("Momentum", "momentum_score"),
+        ("Quality", "quality_score"),
+        ("Value", "value_score"),
+        ("Growth", "growth_score"),
+        ("Stability", "stability_score"),
+        ("Positioning", "positioning_score"),
+    ]
+
+    # Build tables for each factor
+    factor_panels = []
+    for factor_name, field_name in factors:
+        # Sort by this factor's score
+        sorted_scores = []
+        for sc in top_scores:
+            score_val = safe_float(safe_get_field(sc, field_name))
+            if score_val is not None:
+                sorted_scores.append((score_val, sc))
+        sorted_scores.sort(key=lambda x: x[0], reverse=True)
+
+        # Build small table for top 15 with rank numbers
+        t = Table(
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim",
+            padding=(0, 0),
+            expand=False,
+            row_styles=["", "dim"],
+        )
+        t.add_column("#", style="dim", justify="right", no_wrap=True, width=2)
+        t.add_column("S", style="bold white", no_wrap=True, width=4)
+        t.add_column(factor_name[:2], justify="right", no_wrap=True, width=4)
+
+        for rank, (score_val, sc) in enumerate(sorted_scores[:15], 1):
+            sym = safe_get_field(sc, "symbol", "--")
+            t.add_row(
+                Text(str(rank), style="dim"),
+                sym,
+                Text(f"{score_val:.0f}" if score_val is not None else "--", style=_composite_score_color(score_val)),
+            )
+
+        factor_panels.append(Panel(
+            t,
+            title=f"[bold dim]{factor_name}[/]",
+            border_style="dim",
+            padding=(0, 0),
+        ))
+
+    # Arrange in 2 rows x 3 columns layout
+    layout = Layout()
+    layout.split_row(
+        Layout(name="col1", ratio=1),
+        Layout(name="col2", ratio=1),
+        Layout(name="col3", ratio=1),
+    )
+    layout["col1"].split_column(
+        Layout(factor_panels[0], name="m", ratio=1),
+        Layout(factor_panels[3], name="g", ratio=1),
+    )
+    layout["col2"].split_column(
+        Layout(factor_panels[1], name="q", ratio=1),
+        Layout(factor_panels[4], name="s", ratio=1),
+    )
+    layout["col3"].split_column(
+        Layout(factor_panels[2], name="v", ratio=1),
+        Layout(factor_panels[5], name="p", ratio=1),
+    )
+
+    return layout
 
 
 @register_panel(
@@ -211,7 +296,10 @@ def panel_scores_compact(scores: Any) -> Panel:
 
 
 def panel_scores_expanded(scores: Any) -> Panel:
-    """Full-screen scores view - composite + 6-factor breakdown for a larger candidate set."""
+    """Full-screen scores view - composite + 6-factor breakdown for a larger candidate set.
+
+    Layout: left side shows wider company/sector table (35 rows), right side shows top-5 for each factor.
+    """
     err_panel = _error_panel("scores", scores, "SCORES", border="cyan")
     if err_panel:
         return err_panel
@@ -229,28 +317,41 @@ def panel_scores_expanded(scores: Any) -> Panel:
     top_scores_raw = safe_get_list(safe_get_dict(scores).get("top", []))
     top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
 
-    rows: list[Text | Table] = [
-        Text.from_markup("[cyan][bold]SCORES - EXPANDED[/][/]"),
-        Text.from_markup(
-            f"[dim]{len(top_scores)} ranked candidates by composite score[/]  "
-            "[dim]press [/][bold cyan]c[/][dim] to return[/]"
-        ),
+    timestamp_val = safe_get_dict(scores).get("timestamp")
+    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+
+    if not top_scores:
+        return Panel(
+            Text.from_markup("[yellow]No score data - check Data Health[/]"),
+            title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}",
+            border_style="cyan",
+            padding=(0, 1),
+        )
+
+    # Build left side: main table with company/sector info
+    left_rows: list[Text | Table] = [
+        Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
     ]
     summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 50))
     if summary is not None:
-        rows.append(summary)
-    if top_scores:
-        rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
-    else:
-        rows.append(Text.from_markup("[yellow]No score data - check Data Health[/]"))
+        left_rows.append(summary)
+    left_rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
 
-    timestamp_val = safe_get_dict(scores).get("timestamp")
-    age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    # Build right side: top-5 for each factor (3 columns x 2 rows grid)
+    factor_layout = _build_factor_top5_tables(top_scores)
+
+    # Create side-by-side layout: main table on left (expanded), factor grid on right (narrow)
+    main_layout = Layout()
+    main_layout.split_row(
+        Layout(Group(*left_rows), ratio=5, name="main"),
+        Layout(factor_layout, ratio=2, name="factors"),
+    )
+
     return Panel(
-        Group(*rows),
-        title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}",
+        main_layout,
+        title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
         border_style="cyan",
-        padding=(0, 1),
+        padding=(0, 0),
     )
 
 

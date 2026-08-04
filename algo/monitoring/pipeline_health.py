@@ -788,8 +788,8 @@ class PipelineHealth:
                     cur.executemany(
                         """
                         INSERT INTO data_loader_status
-                        (table_name, status, row_count, latest_date, age_days, error_message, stale_threshold_days, last_updated, last_success_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, NOW()), CASE WHEN %s = 'HEALTHY' THEN COALESCE(%s::timestamptz, NOW()) ELSE NULL END)
+                        (table_name, status, row_count, latest_date, age_days, error_message, stale_threshold_days, last_updated, last_success_at, execution_duration_sec, symbols_per_second, http_status_code, rate_limit_quota)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, NOW()), CASE WHEN %s = 'HEALTHY' THEN COALESCE(%s::timestamptz, NOW()) ELSE NULL END, NULL, NULL, NULL, NULL)
                         ON CONFLICT (table_name)
                         DO UPDATE SET
                             row_count = EXCLUDED.row_count,
@@ -800,7 +800,11 @@ class PipelineHealth:
                             last_success_at = CASE
                                 WHEN EXCLUDED.status = 'HEALTHY' THEN EXCLUDED.last_updated
                                 ELSE data_loader_status.last_success_at
-                            END
+                            END,
+                            execution_duration_sec = COALESCE(data_loader_status.execution_duration_sec, EXCLUDED.execution_duration_sec),
+                            symbols_per_second = COALESCE(data_loader_status.symbols_per_second, EXCLUDED.symbols_per_second),
+                            http_status_code = COALESCE(data_loader_status.http_status_code, EXCLUDED.http_status_code),
+                            rate_limit_quota = COALESCE(data_loader_status.rate_limit_quota, EXCLUDED.rate_limit_quota)
                         """,
                         insert_values,
                     )

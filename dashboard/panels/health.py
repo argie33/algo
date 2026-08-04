@@ -1849,8 +1849,6 @@ def _build_trend_summary_section(trend_summary: dict[str, Any] | None) -> list[T
     if not trend_summary or not isinstance(trend_summary, dict):
         return rows
 
-    rows.append(Rule(style="dim"))
-
     trend = trend_summary.get("trend", "stable")
     success_7d = trend_summary.get("success_rate_7d", 0)
     success_30d = trend_summary.get("success_rate_30d", 0)
@@ -5202,7 +5200,6 @@ def panel_data_freshness_expanded(
         # Combine new sections with the freshness content in a single bordered panel -
         # no nested Panel-in-Panel, so the two sections share one title/border.
         if rows:
-            rows.append(Rule(style="dim"))
             rows.append(freshness_content)
 
             all_content = Group(*rows)
