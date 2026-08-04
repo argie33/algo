@@ -1284,6 +1284,13 @@ def _build_freshness_panel(
     freshness_line += rtt_part
     left_rows.append(Text.from_markup(freshness_line))
 
+    # NOTE: loader errors / repeated failures / never-started loaders are NOT itemized
+    # here - that exact data is already itemized below (see the "Loader errors:"/
+    # "Never run:"/"Repeated failures:" blocks after the per-table grid), with more
+    # detail (retry counts, last-success age). Rendering it twice above the fold used to
+    # push the actual per-table freshness grid - this panel's primary content - dozens of
+    # lines down the screen for no new information.
+
     def sort_key(r: dict[str, Any]) -> str:
         tbl = r.get("tbl")
         # CRITICAL: Explicit None check - missing table name indicates incomplete data
@@ -1399,17 +1406,22 @@ def _build_freshness_panel(
     left_tbl = build_column_table(left_items)
     right_tbl = build_column_table(right_items) if right_items else None
 
-    # Create a two-column layout if there are enough items, otherwise use single column
+    # Two tables side by side via a Table.grid, not Layout: a Layout region always
+    # stretches to fill its ENTIRE allotted height (this panel renders inside a
+    # full-screen Live(screen=True) content region), so a 10-row table padded out to the
+    # terminal's ~40-50 available lines pushed everything below it - loader errors, stale
+    # detail, data quality/coverage/failure-pattern/API-diagnostics sections, inventory
+    # gaps - down by that same amount, cropping much of it off-screen (Rich Layout
+    # regions crop rather than scroll). A grid row sizes to its content's natural height
+    # instead, while still splitting the two tables' width evenly like the old ratio=1/
+    # ratio=1 Layout split did.
     if right_tbl is not None and len(right_items) > 0:
-        # Two-column layout
-        two_col = Layout()
-        two_col.split_row(
-            Layout(left_tbl, ratio=1, name="left_col"),
-            Layout(right_tbl, ratio=1, name="right_col"),
-        )
-        left_rows.append(two_col)
+        grid = Table.grid(expand=True, padding=(0, 1, 0, 0))
+        grid.add_column(ratio=1)
+        grid.add_column(ratio=1)
+        grid.add_row(left_tbl, right_tbl)
+        left_rows.append(grid)
     else:
-        # Single column layout
         left_rows.append(left_tbl)
 
     # Loader run diagnostics: why a table is stale/empty (real error) and which loaders are
@@ -1806,30 +1818,23 @@ def _build_loader_health_section(
     # against an older cached response.
     unhealthy_count = total_unhealthy if total_unhealthy is not None else len(unhealthy)
 
+    rows.append(Rule(style="dim"))
     if unhealthy_count == 0:
-        rows.append(Rule(style="dim"))
         tracked_str = f" ({total_tracked} tracked)" if total_tracked is not None else ""
         rows.append(Text.from_markup(f"[bold {G}]Loader Health:[/] All loaders healthy ✓{tracked_str}"))
         return rows
 
-    rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup(f"[bold {Y}]Loader Issues ({unhealthy_count} tables):[/]"))
-
-    for loader in unhealthy[:10]:
-        table_name = loader.get("table_name", "unknown")
-        cons_failures = loader.get("consecutive_failures", 0)
-        status = loader.get("status", "unknown")
-
-        if cons_failures > 0:
-            fail_color = R if cons_failures >= 3 else Y
-            line = f"  [{fail_color}]{table_name}:[/] [dim]{cons_failures} consecutive failures ({status})[/]"
-        else:
-            line = f"  [{Y}]{table_name}:[/] [dim]status: {status}[/]"
-
-        rows.append(Text.from_markup(line))
-
-    if unhealthy_count > 10:
-        rows.append(Text.from_markup(f"  [dim]...and {unhealthy_count - 10} more[/]"))
+    # Deliberately a one-line summary, not an itemized per-table list: the same tables
+    # (with more detail - retry counts, last-success age) are already itemized in the
+    # "Loader errors:"/"Repeated failures:"/"Never run:" sections of the Data Freshness
+    # Table below. Listing them again here just duplicated that content above the fold,
+    # burying the actual per-table freshness grid under two copies of the same failures.
+    health_color = R if unhealthy_count >= 5 else Y
+    rows.append(
+        Text.from_markup(
+            f"[bold {health_color}]Loader Health:[/] {unhealthy_count} table(s) with issues [dim](see Data Freshness Table below)[/]"
+        )
+    )
 
     return rows
 
@@ -4620,15 +4625,19 @@ def _build_results_panel(
 
     Dedicated fullscreen view focused on phase execution with maximum detail:
     - Shows all 9 phases with comprehensive metrics for the latest run, in a single
-      narrowed left column - freeing the right column for loader-operational detail
-      moved over from the DATA FRESHNESS panel (see _build_loader_operational_detail_rows,
-      same treatment already applied to the compact panel_algo_health's phase section)
+      narrowed left column - freeing the right column for the algo health trend
+      (run history / phase health / failure patterns, from orch_extended - see below).
+      Per-table loader-operational detail (errors, repeated failures, never-started
+      loaders) lives on the DATA FRESHNESS panel instead - that's loader health, not
+      algo health, and this panel's fixed-height column previously showing it pushed
+      the algo health trend below the Live(screen=True) viewport, making it invisible.
     - Every available detail for each phase displayed
     - Phase Reliability: 30-day cross-run trend of which phases halt/error most, and why
       (is this phase failing all the time, or was this a one-off?)
     - Past runs: per-run phase completion breakdown, not just overall run status
     - Run History / Phase Health / Failure Patterns: longer-window orchestrator health,
-      from orch_extended - moved here from the data-freshness [l] panel
+      from orch_extended - moved here from the data-freshness [l] panel, now rendered in
+      the third column so it's always visible instead of appended after the fold
 
     Args:
         run: Run data (for phase status mapping)
@@ -4701,10 +4710,9 @@ def _build_results_panel(
     # Build phase details - split across two tight columns (phases 1-5 / 6-9, same
     # split used before the panel was ever narrowed to one column) so all 9 phases
     # fit within the fixed expanded-view height. A third, narrower column squeezes
-    # in the loader-operational detail moved over from the DATA FRESHNESS panel.
+    # in the algo health trend (run history / phase health / failure patterns).
     left_phase_rows: list[Text | Rule] = []
     right_phase_rows: list[Text | Rule] = []
-    hlth_items, _ = extract_health_items(hlth if hlth is not None else {})
 
     if hlth and isinstance(hlth, dict):
         execution_health = hlth.get("execution_health")
@@ -4725,6 +4733,7 @@ def _build_results_panel(
                                         phase_num = int(str(phase_val).replace("phase_", ""))
                                         phase_status_map[phase_num] = {
                                             "status": str(status_val).lower(),
+                                            "summary": p.get("summary") or "",
                                         }
                                     except (ValueError, TypeError):
                                         pass
@@ -4759,7 +4768,20 @@ def _build_results_panel(
                     status_icon = "[bold yellow]~[/]"
                     status_label = "HALTED"
                     color = Y
-                elif status_str in ("warn", "degraded"):
+                elif status_str == "degraded" and "DRY-RUN" in phase_status.get("summary", ""):
+                    # Same benign-stub exemption as orchestrator.py's _final_report() (2026-07-27
+                    # fix) and the compact algo-health panel above: Phase 6's dry_run branch
+                    # unconditionally reports status="degraded" before any real per-item exit
+                    # logic runs, so this exact literal can never coexist with a genuine exit
+                    # error. Without this, this panel showed "⚠ WARNING" for Exit Execution on
+                    # every single local dry-run - a run that Run History (reading the same
+                    # run's overall_status, which already carries this exemption) correctly
+                    # shows as "✓ OK" - making the two panels contradict each other for the
+                    # exact same run.
+                    status_icon = "[dim]⊘[/]"
+                    status_label = "SKIPPED (dry-run)"
+                    color = DIM
+                elif status_str in ("warn", "degraded", "completed_degraded"):
                     status_icon = "[bold yellow]⚠[/]"
                     status_label = "WARNING"
                     color = Y
@@ -4970,18 +4992,63 @@ def _build_results_panel(
 
                 target_rows.append(Text(""))  # Spacing between phases
 
+    # Long-window orchestrator/phase health (moved here from the data-freshness [l] panel -
+    # this is run/phase health information, not per-table data freshness, so it belongs on
+    # this panel instead; see panel_data_freshness_expanded for the table-freshness detail
+    # that panel kept). Built BEFORE the phase layout below so it can fill the third column
+    # directly - it previously was appended at the very end of content_rows, after the
+    # fixed-size phase layout, reliability trend and past-runs history, which pushed it
+    # past the Live(screen=True) alternate-screen viewport on any normal terminal height
+    # (Rich Layout regions crop rather than scroll), making it effectively invisible even
+    # though the code building it was correct. Per-table loader errors/repeated-failures/
+    # never-started detail that used to occupy this column moved back to the DATA FRESHNESS
+    # panel (_build_freshness_panel) - it's genuine loader/table health, not algo health,
+    # and this panel's fixed real estate is better spent on content that's actually about
+    # the algo (run history, phase reliability, halt-reason patterns).
+    run_history_rows = _build_run_history_section(orch_extended.get("run_history") if orch_extended else None)
+    phase_health_rows = _build_phase_health_section(orch_extended.get("phase_health") if orch_extended else None)
+    failure_pattern_rows = _build_halt_reason_pattern_section(
+        orch_extended.get("failure_patterns") if orch_extended else None
+    )
+    algo_trend_rows: list[Text | Rule] = []
+    algo_trend_rows.extend(run_history_rows)
+    algo_trend_rows.extend(phase_health_rows)
+    algo_trend_rows.extend(failure_pattern_rows)
+    # Each _build_*_section helper leads with its own dim Rule as a between-sections
+    # divider - drop a leading one here since the trend_panel border/title below
+    # already separates this column, and a Rule directly under the title looks redundant.
+    if algo_trend_rows and isinstance(algo_trend_rows[0], Rule):
+        algo_trend_rows.pop(0)
+
     # Phases 1-5 / 6-9 in their own tight columns (keeps the panel's total height in
     # check - all 9 phases stacked in one column ran past the fixed expanded-view
-    # height and got clipped), loader-operational detail moved over from the DATA
-    # FRESHNESS panel squeezed into a third, narrower column alongside them.
-    loader_detail_rows = _build_loader_operational_detail_rows(hlth_items)
+    # height and got clipped), algo health trend squeezed into a third, narrower
+    # column alongside them so it's always visible instead of clipped off the bottom.
+    # The trend column gets its own bordered Panel (title doubling as its heading)
+    # instead of a bare Group, so there's a visible vertical rule marking where the
+    # two phase columns end and the algo-health trend begins - Layout.split_row alone
+    # has no divider between regions.
     layout: Layout | Group
-    if loader_detail_rows:
+    if algo_trend_rows:
+        trend_panel = Panel(
+            Group(*algo_trend_rows),
+            title="[bold cyan]Algo Health Trends[/]",
+            title_align="left",
+            border_style="dim",
+            box=box.ROUNDED,
+            padding=(0, 1),
+        )
         layout = Layout()
         layout.split_row(
             Layout(Group(*left_phase_rows), ratio=3, name="left_phases"),
             Layout(Group(*right_phase_rows), ratio=3, name="right_phases"),
-            Layout(Group(*loader_detail_rows), ratio=2, name="loader_detail"),
+            # minimum_size guards against ratio-based shrinking folding long halt-reason
+            # identifiers (e.g. "phase_6_exit_execution halted: ...") into unreadable
+            # single-word-per-line wrapping at the default 80-col console width used by
+            # both the plain terminal renderer and tests/test_helpers/assertions.py's
+            # render_panel_to_text - see test_data_freshness_expanded_orch_extended.py,
+            # which caught the exact wrap-mangled text as a regression.
+            Layout(trend_panel, ratio=2, minimum_size=44, name="algo_trend"),
         )
     else:
         layout = Layout()
@@ -4996,16 +5063,6 @@ def _build_results_panel(
     # Per-run detail (last 8 runs) - how far each specific run got, and which phase stopped it
     past_runs_rows = _build_past_runs_section(exec_hist)
 
-    # Long-window orchestrator/phase health (moved here from the data-freshness [l] panel -
-    # this is run/phase health information, not per-table data freshness, so it belongs on
-    # this panel instead; see panel_data_freshness_expanded for the table-freshness detail
-    # that panel kept).
-    run_history_rows = _build_run_history_section(orch_extended.get("run_history") if orch_extended else None)
-    phase_health_rows = _build_phase_health_section(orch_extended.get("phase_health") if orch_extended else None)
-    failure_pattern_rows = _build_halt_reason_pattern_section(
-        orch_extended.get("failure_patterns") if orch_extended else None
-    )
-
     # Add header at top if we have it, then phase detail, then trend, then per-run history
     content_rows: list[Any] = []
     if header_rows:
@@ -5016,12 +5073,6 @@ def _build_results_panel(
         content_rows.extend(reliability_rows)
     if past_runs_rows:
         content_rows.extend(past_runs_rows)
-    if run_history_rows:
-        content_rows.extend(run_history_rows)
-    if phase_health_rows:
-        content_rows.extend(phase_health_rows)
-    if failure_pattern_rows:
-        content_rows.extend(failure_pattern_rows)
 
     all_content = Group(*content_rows) if content_rows else layout
 

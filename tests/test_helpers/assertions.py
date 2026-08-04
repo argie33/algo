@@ -20,8 +20,17 @@ def render_panel_to_text(panel: Any) -> str:
 
     Returns:
         String containing the rendered panel content
+
+    Width is pinned to 80 columns to match the plain terminal renderer this dashboard
+    targets (see dashboard/panels/health.py's Layout minimum_size comments, which assume
+    an 80-col console). Without a pinned width, Console() falls back to auto-detecting
+    the ambient terminal size of whatever process runs the test - live-reproduced 2026-08-04:
+    the exact same assertions passed standalone (width 79-80 depending on invocation) but
+    failed when the suite ran piped through another process, non-deterministically hiding
+    Layout columns below their minimum_size threshold. Pinning removes the environment
+    dependency instead of chasing a moving target.
     """
-    console = Console()
+    console = Console(width=80)
     with console.capture() as capture:
         console.print(panel)
     return capture.get()

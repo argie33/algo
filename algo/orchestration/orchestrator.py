@@ -2372,8 +2372,12 @@ class Orchestrator:
         # local test run looks like. The already-correct "blocked guard + Phase 9 ok = ok"
         # logic further down never got a chance to run. Excluding the dry-run stub from
         # any_degraded lets that existing logic decide the outcome instead.
+        # "completed_degraded" (Phase 3's cursor-retry-exhaustion status, phase3_position_monitor.py)
+        # was not recognized here, so a genuinely degraded Phase 3 run fell through every any_*
+        # check below and landed on overall_status="success" - the dashboard's PHASE EXECUTION
+        # DETAILS panel showed it as a real warning while Run History showed the same run as OK.
         any_degraded = any(
-            p["status"] == "degraded" and "DRY-RUN" not in (p.get("summary") or "")
+            p["status"] in ("degraded", "completed_degraded") and "DRY-RUN" not in (p.get("summary") or "")
             for p in self.phase_results.values()
         )
         any_blocked = any(p["status"] == "blocked" for p in self.phase_results.values())
@@ -2399,7 +2403,7 @@ class Orchestrator:
             )
         elif any_degraded:
             skip_reason = next(
-                (p["summary"] for p in self.phase_results.values() if p["status"] == "degraded"),
+                (p["summary"] for p in self.phase_results.values() if p["status"] in ("degraded", "completed_degraded")),
                 "phase_degraded",
             )
         elif any_skipped:
@@ -2436,7 +2440,7 @@ class Orchestrator:
             elif any_degraded:
                 overall_status = "degraded"
                 halt_reason = next(
-                    (p["summary"] for p in self.phase_results.values() if p["status"] == "degraded"),
+                    (p["summary"] for p in self.phase_results.values() if p["status"] in ("degraded", "completed_degraded")),
                     "Degraded - reason unknown",
                 )
             elif any_blocked:
