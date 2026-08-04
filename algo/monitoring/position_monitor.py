@@ -486,13 +486,29 @@ class PositionMonitor:
             # exit_engine.py, position_sizer.py - joins against). Selecting `trade_ids` here
             # silently produced trade_id=None for every real position (visible in the
             # 2026-08-03 fix's own audit-log JSON), not a crash but a quiet dead field.
+            # CRITICAL FIX: this SELECT's 13th column (unpacked below into `current_stop`,
+            # used as `active_stop` for every STOP_LOSS_HIT/trailing-stop decision in
+            # _evaluate_position) selected `p.stop_loss_price` again instead of
+            # `p.current_stop_price` - the SAME frozen entry-time value as the 4th column
+            # (`init_stop`), never the live trailing stop that `_raise_stop()` actually
+            # updates. Since `active_stop = float(current_stop) if current_stop else
+            # init_stop` always received the identical frozen value, Phase 3's entire
+            # STOP_LOSS_HIT check silently ignored every stop-raise ever applied to a
+            # position - comparing current price against the ORIGINAL stop forever, not the
+            # real, currently-enforced one. Confirmed live 2026-08-03: DAC's real
+            # current_stop_price ($125.83, 6% below current price - safe) vs its frozen
+            # stop_loss_price ($135.43, above current price) produced a false STOP_LOSS_HIT
+            # recommendation for a healthy position. Depending on a given position's specific
+            # stop-loss/current-stop divergence at any moment, this could equally mask a real
+            # stop breach (false negative) as well as fabricate one (false positive) - the
+            # comparison was against the wrong column either way.
             cursor.execute(
                 """
                 SELECT p.id, p.symbol, p.entry_price, p.stop_loss_price,
                        p.target_1_price, p.target_2_price, p.target_3_price,
                        p.entry_date, p.created_at,
                        p.quantity, p.target_levels_hit, p.trade_ids_arr,
-                       p.stop_loss_price, p.current_price
+                       p.current_stop_price, p.current_price
                 FROM algo_positions p
                 WHERE p.status = 'open' AND p.quantity > 0
                 FOR UPDATE OF p
