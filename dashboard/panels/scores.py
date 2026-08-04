@@ -334,9 +334,7 @@ def panel_scores_expanded(scores: Any) -> Panel:
     ]
     summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 50))
     if summary is not None:
-        left_rows.append(Text(""))  # Vertical spacing
         left_rows.append(summary)
-    left_rows.append(Text(""))  # Vertical spacing before table
     left_rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
 
     # Build right side: top-5 for each factor (3 columns x 2 rows grid)
