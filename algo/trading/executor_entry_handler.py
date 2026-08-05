@@ -212,6 +212,13 @@ class EntryHandler:
             logger.error(f"Failed to check for duplicate position: {e}")
             raise
 
+        # Normalize prices to 4 decimal places for consistent duplicate detection.
+        # Phase 8 calculates prices as floats, which can have minor precision differences
+        # on repeated runs (e.g., 197.8291 vs 197.8290). To ensure idempotent duplicate
+        # detection works correctly, we round to match database precision BEFORE checking.
+        entry_price = float(Decimal(str(entry_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP))
+        stop_loss_price = float(Decimal(str(stop_loss_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP))
+
         # Check for idempotent duplicate (same symbol + signal_date = same signal, should not re-enter)
         def _check_idem_dup(cur: PsycopgCursor[Any]) -> dict[str, str] | None:
             is_dup, msg, existing_id = self.validator.check_idempotent_duplicate(
@@ -241,6 +248,7 @@ class EntryHandler:
         # attempts with different parameters (network retries should reuse same price/stop).
         # Alpaca uses client_order_id to prevent duplicate orders on network retries.
         # Using only symbol+signal_date would incorrectly deduplicate different trade parameters.
+        # Use normalized prices (rounded to 4 decimals) for consistency across retries.
         import hashlib
 
         key_source = f"{symbol}_{entry_price}_{stop_loss_price}_{signal_date}"
