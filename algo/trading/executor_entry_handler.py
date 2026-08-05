@@ -491,7 +491,7 @@ class EntryHandler:
         cur: PsycopgCursor[Any],
         request: TradeInsertionRequest,
     ) -> None:
-        """Insert trade record into database using only columns that exist in the schema.
+        """Insert trade record into database with idempotency_key for request-level deduplication.
 
         CRITICAL: This insert MUST NOT silently fail. If there's a duplicate or constraint
         violation, it should raise an exception so the position record is not created orphaned.
@@ -501,11 +501,11 @@ class EntryHandler:
             INSERT INTO algo_trades (
                 symbol, entry_date, entry_price, quantity, entry_reason,
                 stop_loss_price, target_1_price, target_2_price, target_3_price,
-                status, sector
+                status, sector, idempotency_key
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s
+                %s, %s, %s
             )
             """,
             (
@@ -520,6 +520,7 @@ class EntryHandler:
                 request.target_3_price,
                 request.order_status,
                 request.sector,
+                request.idempotency_key,
             ),
         )
 
