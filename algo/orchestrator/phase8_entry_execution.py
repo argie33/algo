@@ -451,7 +451,7 @@ def _log_signal_rejection(
                    SET execution_status = 'rejected',
                        rejection_reason = %s,
                        updated_at = NOW()
-                   WHERE symbol = %s AND DATE(entry_date) = %s""",
+                   WHERE symbol = %s AND signal_date = %s""",
                 (rejection_reason_short, symbol, run_date),
             )
             if cur.rowcount == 0:
