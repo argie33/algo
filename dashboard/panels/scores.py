@@ -164,14 +164,15 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     return rows
 
 
-def _build_factor_top5_tables(top_scores: list[Any]) -> Table | Group:
+def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
     """Build 6 tables showing top 15 for each factor score, arranged in 2 rows x 3 columns.
 
     Creates a grid layout with one table per factor (Momentum, Quality, Value, Growth, Stability, Positioning).
-    Returns a Group to keep vertical height compact instead of expanding to fill layout space.
     """
     if not isinstance(top_scores, list) or not top_scores:
-        return Group(Text.from_markup("[dim]No score data[/]"))
+        layout = Layout()
+        layout.update(Text.from_markup("[dim]No score data[/]"))
+        return layout
 
     # Define factors with their field names and colors
     factors = [
@@ -199,7 +200,7 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Table | Group:
             box=box.SIMPLE_HEAD,
             show_header=False,
             header_style="dim",
-            padding=(0, 1),
+            padding=(1, 1),
             expand=False,
             row_styles=["", "dim"],
         )
@@ -219,17 +220,30 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Table | Group:
             t,
             title=f"[bold dim]{factor_name}[/]",
             border_style="dim",
-            padding=(0, 0),
+            padding=(1, 1),
         ))
 
-    # Arrange in 2 rows x 3 columns using Table.grid for compact sizing
-    grid = Table.grid(expand=False, padding=(0, 1))
-    # Row 1: Momentum, Quality, Value
-    grid.add_row(factor_panels[0], factor_panels[1], factor_panels[2])
-    # Row 2: Growth, Stability, Positioning
-    grid.add_row(factor_panels[3], factor_panels[4], factor_panels[5])
+    # Arrange in 2 rows x 3 columns layout
+    layout = Layout()
+    layout.split_row(
+        Layout(name="col1", ratio=1),
+        Layout(name="col2", ratio=1),
+        Layout(name="col3", ratio=1),
+    )
+    layout["col1"].split_column(
+        Layout(factor_panels[0], name="m", ratio=1),
+        Layout(factor_panels[3], name="g", ratio=1),
+    )
+    layout["col2"].split_column(
+        Layout(factor_panels[1], name="q", ratio=1),
+        Layout(factor_panels[4], name="s", ratio=1),
+    )
+    layout["col3"].split_column(
+        Layout(factor_panels[2], name="v", ratio=1),
+        Layout(factor_panels[5], name="p", ratio=1),
+    )
 
-    return grid
+    return layout
 
 
 @register_panel(
@@ -315,31 +329,26 @@ def panel_scores_expanded(scores: Any) -> Panel:
         )
 
     # Build left side: main table with company/sector info
-    left_group = Group(
+    left_rows: list[Text | Table] = [
         Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
-    )
+    ]
     summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 50))
     if summary is not None:
-        left_group = Group(
-            Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
-            summary,
-            *_build_scores_table(top_scores, limit=50, show_company=True),
-        )
-    else:
-        left_group = Group(
-            Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
-            *_build_scores_table(top_scores, limit=50, show_company=True),
-        )
+        left_rows.append(summary)
+    left_rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
 
     # Build right side: top-5 for each factor (3 columns x 2 rows grid)
-    factor_grid = _build_factor_top5_tables(top_scores)
+    factor_layout = _build_factor_top5_tables(top_scores)
 
-    # Create side-by-side layout using Table.grid (no Layout expanding)
-    main_grid = Table.grid(expand=False, padding=(0, 2))
-    main_grid.add_row(left_group, factor_grid)
+    # Create side-by-side layout: main table on left (expanded), factor grid on right (narrow)
+    main_layout = Layout()
+    main_layout.split_row(
+        Layout(Group(*left_rows), ratio=5, name="main"),
+        Layout(factor_layout, ratio=3, name="factors"),
+    )
 
     return Panel(
-        main_grid,
+        main_layout,
         title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
         border_style="cyan",
         padding=(0, 1),
