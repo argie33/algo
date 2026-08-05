@@ -491,6 +491,12 @@ class AlgoConfig:
         "min_hold_days": ("1", "int", "Minimum days to hold", "Exit Rules"),
         "max_hold_days": ("20", "int", "Max days to hold position", "Exit Strategy"),
         "exit_on_distribution_day": ("true", "bool", "Exit on market distribution", "Exit Strategy"),
+        "exit_on_minervini_break": (
+            "false",
+            "bool",
+            "Exit on Minervini trend break (disabled - 0% win rate)",
+            "Exit Strategy",
+        ),
         "exit_on_rs_line_break_50dma": (
             "true",
             "bool",
@@ -737,6 +743,12 @@ class AlgoConfig:
         # Execution Mode
         "execution_mode": ("paper", "string", "paper|dry|review|auto", "Execution Mode"),
         "alpaca_paper_trading": ("true", "bool", "Use Alpaca paper account", "Execution Mode"),
+        "credentials_are_production": (
+            "false",
+            "bool",
+            "Using real production credentials (requires explicit enable for live trading)",
+            "Execution Mode",
+        ),
         "initial_capital_paper_trading": (
             "100000.0",
             "float",
