@@ -502,19 +502,21 @@ class EntryHandler:
         cur.execute(
             """
             INSERT INTO algo_trades (
-                symbol, entry_date, entry_price, quantity, entry_reason,
+                trade_id, symbol, entry_date, entry_price, quantity, entry_reason,
                 stop_loss_price, target_1_price, target_2_price, target_3_price,
                 status, sector, idempotency_key
             ) VALUES (
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s
             )
             ON CONFLICT (idempotency_key) DO UPDATE SET
                 entry_price = EXCLUDED.entry_price,
-                entry_date = EXCLUDED.entry_date
+                entry_date = EXCLUDED.entry_date,
+                updated_at = CURRENT_TIMESTAMP
             """,
             (
+                request.trade_id,
                 request.symbol,
                 request.entry_date,
                 request.executed_price,
