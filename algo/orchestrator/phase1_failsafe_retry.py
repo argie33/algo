@@ -187,10 +187,11 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 if table_name == "stock_scores":
                     date_filter = "updated_at::date = %s"
                     params: tuple[Any, ...] = (expected_data_date,)
-                # trend_template_data only has date column (no updated_at), use created_at as fallback
+                # trend_template_data: check only today's data by date column, not by created_at
+                # (created_at fallback included old backfilled data, making completeness check too strict)
                 elif table_name == "trend_template_data":
-                    date_filter = "date = %s OR created_at::date = %s"
-                    params = (expected_data_date, expected_data_date)
+                    date_filter = "date = %s"
+                    params = (expected_data_date,)
                 else:
                     date_filter = "date = %s OR updated_at::date = %s"
                     params = (expected_data_date, expected_data_date)
