@@ -1434,7 +1434,8 @@ def run(  # noqa: C901
                             SELECT COUNT(*) FROM price_daily
                             WHERE symbol = %s AND date = %s AND close IS NOT NULL
                         """, (symbol, max_date))
-                        count = cur.fetchone()[0]
+                        result = cur.fetchone()
+                        count = result[0] if result else 0
                         if count == 0:
                             missing_symbols.append(symbol)
 

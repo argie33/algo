@@ -285,7 +285,8 @@ def run(
                     AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
                     """
                 )
-                orphaned_trade_count = cur.fetchone()[0]
+                result = cur.fetchone()
+                orphaned_trade_count = result[0] if result else 0
                 if orphaned_trade_count > 0:
                     raise RuntimeError(
                         f"[PHASE 6 CRITICAL] Found {orphaned_trade_count} orphaned trade(s) in filled status with NULL position_id. "

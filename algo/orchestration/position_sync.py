@@ -124,7 +124,10 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             (symbol,)
                         )
                         existing = cur.fetchone()
-                        existing_id, existing_status = existing if existing else (None, None)
+                        if existing:
+                            existing_id, existing_status = existing
+                        else:
+                            existing_id, existing_status = None, None
 
                     if existing_id:
                         # Fetch trade_ids for this position to sync with existing record

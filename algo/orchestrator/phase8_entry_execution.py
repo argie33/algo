@@ -1978,7 +1978,12 @@ def run(
 
                 # Estimate position size (conservative: assume base_risk_pct)
                 # Will be refined later in position_sizer, but this gives lookahead
-                base_risk_pct = float(config.get("base_risk_pct", 0.75))
+                if "base_risk_pct" not in config:
+                    raise ValueError(
+                        "[PHASE 8] CRITICAL: base_risk_pct config missing. "
+                        "Cannot estimate position size for concentration check without this required config value."
+                    )
+                base_risk_pct = float(config["base_risk_pct"])
                 risk_dollars = float(portfolio_value) * (base_risk_pct / 100.0)
 
                 # Get stop loss estimate from technical data
