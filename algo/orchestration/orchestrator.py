@@ -1799,6 +1799,7 @@ class Orchestrator:
             self.log_phase_result,
             position_recs,
             exposure_actions,
+            executor=executor,
         )
         return result
 

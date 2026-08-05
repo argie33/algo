@@ -173,6 +173,7 @@ def run(
     position_recs: list[dict[str, Any]],
     exposure_actions: list[dict[str, Any]],
     check_halt_flag: Callable[..., Any] | None = None,
+    executor: Any = None,
 ) -> PhaseResult:
     """Execute Phase 6: Exit Execution.
 
@@ -186,6 +187,7 @@ def run(
         position_recs: Recommendations from phase_3_position_monitor
         exposure_actions: Actions from phase_5_exposure_policy
         check_halt_flag: Unused (kept for API compatibility). Exits always run.
+        executor: PhaseExecutor instance for accessing Phase 5 constraints (concentration limits from exposure policy)
 
     Returns:
         PhaseResult with status 'ok'
@@ -437,17 +439,44 @@ def run(
         def _check_position_size_concentration() -> list[dict[str, Any]]:
             """Identify oversized positions and add force-exit recommendations."""
             try:
-                max_size_pct_val = config.get("max_position_size_pct")
+                # CRITICAL FIX: Get concentration limit from exposure policy tier (Phase 5),
+                # not the static max_position_size_pct from config.
+                # Phase 5 sets tier-specific concentration limits (e.g., 28% for bull market),
+                # while max_position_size_pct (6%) is for individual position sizing.
+                # Previously: checked 40%+ positions against 6% limit → false force-exits with -2.43% avg loss
+                # Now: check against actual tier max_concentration_pct (28%)
+                max_size_pct_val = None
+
+                # Try to get concentration limit from Phase 5 exposure policy constraints
+                if executor is not None:
+                    try:
+                        phase5_result = executor.get_result(5)
+                        if phase5_result:
+                            constraints = phase5_result.data.get("constraints", {})
+                            if constraints and isinstance(constraints, dict):
+                                tier_max_conc = constraints.get("max_concentration_pct")
+                                if tier_max_conc is not None:
+                                    max_size_pct_val = tier_max_conc
+                                    logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
+                    except Exception as phase5_err:
+                        logger.debug(f"[PHASE 6] Could not get Phase 5 constraints: {phase5_err}")
+
+                # Fallback to config max_position_size_pct if tier constraint unavailable
+                if max_size_pct_val is None:
+                    max_size_pct_val = config.get("max_position_size_pct")
+                    if max_size_pct_val is not None:
+                        logger.warning(f"[PHASE 6 CONCENTRATION CHECK] Using fallback config max_position_size_pct={max_size_pct_val}% (Phase 5 constraints unavailable)")
+
                 if max_size_pct_val is None:
                     raise ValueError(
-                        "CRITICAL: max_position_size_pct config missing. "
-                        "Cannot enforce position size limits. Check algo_config table."
+                        "CRITICAL: Cannot determine concentration limit. Phase 5 constraints unavailable and max_position_size_pct not configured. "
+                        "Cannot enforce position size limits. Check Phase 5 result or algo_config table."
                     )
                 # Explicitly convert to float to handle Decimal types from config (psycopg2 returns Decimal)
                 try:
-                    max_size_pct_float = _ensure_float(max_size_pct_val, "max_position_size_pct")
+                    max_size_pct_float = _ensure_float(max_size_pct_val, "max_concentration_pct")
                 except (TypeError, ValueError) as e:
-                    logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to read/convert max_position_size_pct: {e} - skipping concentration check")
+                    logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to read/convert concentration limit: {e} - skipping concentration check")
                     return []
 
                 with DatabaseContext("read") as cur:

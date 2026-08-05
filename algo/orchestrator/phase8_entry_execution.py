@@ -1901,6 +1901,99 @@ def run(
     # Use validated trades for execution
     qualified_trades = validated_trades
 
+    # CRITICAL FIX: PRE-ENTRY CONCENTRATION LIMIT VALIDATION
+    # Check total concentration impact BEFORE entering ANY signals.
+    # Previously: Signals were processed individually, checking only current open positions.
+    # Problem: Signals 1-14 would pass, each at <15% concentration, but collectively
+    # they would violate the limit if entered sequentially (no lookahead of other signals).
+    # Solution: Calculate concentration impact of ALL pending signals before any entries.
+
+    if qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
+        try:
+            max_conc_pct = float(exposure_constraints["max_concentration_pct"])
+
+            # Get current portfolio concentration by symbol
+            with DatabaseContext("read") as cur:
+                cur.execute("""
+                    SELECT symbol,
+                           SUM(quantity * entry_price) as symbol_value
+                    FROM algo_positions p
+                    JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                    WHERE p.status = 'open' AND p.quantity > 0
+                    GROUP BY symbol
+                """)
+                current_concentrations = {}
+                for sym, val in cur.fetchall():
+                    conc = (float(val) / float(portfolio_value) * 100.0) if portfolio_value > 0 else 0.0
+                    current_concentrations[sym] = conc
+
+            # Calculate what NEW signals would add to concentration
+            signals_to_process = []
+            signals_to_skip = []
+
+            for signal in qualified_trades:
+                symbol = signal.get("symbol")
+                entry_price = float(signal.get("entry_price", 0) or 0)
+
+                if not symbol or entry_price <= 0:
+                    signals_to_skip.append((symbol, "invalid_entry_price"))
+                    continue
+
+                # Estimate position size (conservative: assume base_risk_pct)
+                # Will be refined later in position_sizer, but this gives lookahead
+                base_risk_pct = float(config.get("max_risk_per_trade_pct", 2.0))
+                risk_dollars = float(portfolio_value) * (base_risk_pct / 100.0)
+
+                # Get stop loss estimate from technical data
+                tech_data = merged_technical_data.get(str(symbol), {})
+                atr = tech_data.get("atr_14")
+                if atr is None or atr <= 0:
+                    # Can't estimate position size without ATR - will be rejected later anyway
+                    signals_to_skip.append((symbol, "missing_atr_for_concentration_check"))
+                    continue
+
+                stop_loss_est = entry_price - (1.2 * float(atr))
+                risk_per_share_est = max(entry_price - stop_loss_est, 0.01)
+                estimated_shares = int(risk_dollars / risk_per_share_est)
+                estimated_position_value = estimated_shares * entry_price
+                estimated_new_conc = (estimated_position_value / float(portfolio_value) * 100.0) if portfolio_value > 0 else 0.0
+
+                # Check: will this position + current concentration exceed limit?
+                current_symbol_conc = current_concentrations.get(symbol, 0.0)
+                total_symbol_conc = current_symbol_conc + estimated_new_conc
+
+                if total_symbol_conc > max_conc_pct:
+                    reason = f"Concentration limit violation: {symbol} would be {total_symbol_conc:.1f}% (limit {max_conc_pct:.1f}%)"
+                    logger.info(f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] {reason}")
+                    signals_to_skip.append((symbol, reason))
+                else:
+                    signals_to_process.append(signal)
+                    # Update running concentration for next signal in this batch
+                    current_concentrations[symbol] = total_symbol_conc
+
+            # Log pre-entry concentration filtering results
+            if signals_to_skip:
+                logger.warning(
+                    f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] Filtered {len(signals_to_skip)} signals "
+                    f"before entry: {[f'{s[0]}({s[1]})' for s in signals_to_skip[:3]]}" +
+                    (f"... and {len(signals_to_skip)-3} more" if len(signals_to_skip) > 3 else "")
+                )
+                # Log rejections for audit trail
+                for symbol, reason in signals_to_skip:
+                    if symbol:
+                        entry_price = next((float(s.get("entry_price", 0) or 0) for s in qualified_trades if s.get("symbol") == symbol), 0)
+                        risk_pct = next((float(s.get("risk_pct", 0) or 0) for s in qualified_trades if s.get("symbol") == symbol), 0)
+                        _log_signal_rejection(symbol, "concentration_limit", reason, run_date, entry_price or None, risk_pct or None)
+
+            # Replace qualified_trades with filtered signals
+            qualified_trades = signals_to_process
+            logger.info(f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] Processing {len(qualified_trades)} signals after concentration filter")
+
+        except Exception as conc_check_err:
+            logger.error(f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] Error during concentration validation: {conc_check_err}")
+            # Don't halt - continue with all signals and let position sizer enforce limits during entry
+            logger.warning("[PHASE 8] Proceeding without pre-entry concentration filtering (will be enforced during entry)")
+
     # ALL-OR-NOTHING TRANSACTION SAFETY (Session 2026-08-03):
     # Pre-flight validation: If we detect issues that would cause partial execution,
     # reject all trades upfront rather than executing some and failing on others.
