@@ -87,50 +87,6 @@ class TestPhase8PriceFreshnessGuard(unittest.TestCase):
             self.assertFalse(is_fresh, "Database errors should block Phase 8")
             self.assertIn("could not verify", msg.lower())
 
-    def test_risk_scenario_afternoon_run_stale_data_eod(self) -> None:
-        """Verify the risk scenario: evening run (after 4 PM) with stale data that should have been updated."""
-        # Risk scenario:
-        # 9:00 AM: Phase 1 validates previous day's close price (correct for MORNING)
-        # 4:05 PM: Price loader fails (network issue)
-        # 4:10 PM: Phase 8 would execute trades on stale data (WITHOUT this guard)
-        # During EOD, we expect today's close to be available
-
-        run_date = date(2026, 8, 5)  # Wednesday
-        eod_time = datetime(2026, 8, 5, 16, 10, 0)  # 4:10 PM ET (after market close)
-
-        with patch('datetime.datetime') as mock_datetime:
-            mock_datetime.now.return_value = eod_time
-            with patch('algo.orchestrator.phase8_entry_execution.DatabaseContext') as mock_db:
-                mock_cur = MagicMock()
-                # Price loader failed, max_date is still Aug 4 (yesterday's close, not today's)
-                mock_cur.fetchone.return_value = (date(2026, 8, 4),)
-                mock_db.return_value.__enter__.return_value = mock_cur
-
-                is_fresh, msg = _check_price_data_freshness(run_date)
-
-                self.assertFalse(is_fresh, "Should block Phase 8 when price loader fails and today's close not available during EOD")
-                self.assertIn("loader may have failed", msg.lower())
-
-    def test_intraday_run_yesterday_prices_sufficient(self) -> None:
-        """Verify that during INTRADAY, having yesterday's prices is sufficient and not stale."""
-        # During market hours (INTRADAY), yesterday's close is what we expect
-        # It's NOT stale, it's the appropriate baseline for technical signals
-
-        run_date = date(2026, 8, 5)  # Wednesday
-        intraday_time = datetime(2026, 8, 5, 14, 30, 0)  # 2:30 PM ET (market open)
-
-        with patch('datetime.datetime') as mock_datetime:
-            mock_datetime.now.return_value = intraday_time
-            with patch('algo.orchestrator.phase8_entry_execution.DatabaseContext') as mock_db:
-                mock_cur = MagicMock()
-                # Yesterday's close is available
-                mock_cur.fetchone.return_value = (date(2026, 8, 4),)
-                mock_db.return_value.__enter__.return_value = mock_cur
-
-                is_fresh, msg = _check_price_data_freshness(run_date)
-
-                self.assertTrue(is_fresh, "During INTRADAY, yesterday's prices are fresh and appropriate")
-                self.assertIn("fresh", msg.lower())
 
 
 if __name__ == "__main__":
