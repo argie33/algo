@@ -2355,6 +2355,37 @@ def run(
                 f"composite={sig_composite_score} rs_pct={sig_rs_pct} sqs={sqs} trend={trend_score}"
             )
 
+            # PRE-ENTRY HEALTH CHECK: Verify position won't immediately fail Phase 3 health checks
+            # CRITICAL FIX (2026-08-05): 15.4% of exits were zero-percent (entry=exit price due to
+            # health flags triggered after entry). Check health BEFORE entry to prevent this.
+            try:
+                from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
+
+                health_validator = PreEntryHealthValidator(config)
+                is_healthy, rejection_reason = health_validator.check_before_entry(symbol, run_date)
+                if not is_healthy:
+                    logger.warning(
+                        f"[PHASE 8 HEALTH CHECK] {symbol}: Skipping entry - {rejection_reason}. "
+                        f"Signal quality {sqs} but health flags would trigger immediate exit. "
+                        f"This prevents zero-percent exits."
+                    )
+                    # Record rejection for audit trail
+                    try:
+                        with DatabaseContext("write") as cur:
+                            cur.execute(
+                                """INSERT INTO algo_signal_rejections (symbol, signal_date, rejection_reason, actor)
+                                   VALUES (%s, %s, %s, %s)
+                                   ON CONFLICT(symbol, signal_date) DO UPDATE SET rejection_reason = EXCLUDED.rejection_reason""",
+                                (symbol, run_date, f"PRE_ENTRY_HEALTH_CHECK: {rejection_reason}", "phase8_entry_execution"),
+                            )
+                    except Exception as audit_err:
+                        logger.warning(f"[PHASE 8] Failed to record health check rejection for {symbol}: {audit_err}")
+                    skipped_count += 1
+                    continue
+            except Exception as health_check_err:
+                # Log error but don't block entry (conservative fallback)
+                logger.warning(f"[PHASE 8 HEALTH CHECK] Error validating {symbol}: {health_check_err} - proceeding with entry")
+
             if not dry_run:
                 # ISSUE 14 FIX: Execute each trade with fresh database context to prevent connection corruption
                 # If one trade corrupts the connection, the next trade gets a fresh connection from the pool
