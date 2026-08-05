@@ -1981,9 +1981,13 @@ def run(
                 # Log rejections for audit trail
                 for symbol, reason in signals_to_skip:
                     if symbol:
-                        entry_price = next((float(s.get("entry_price", 0) or 0) for s in qualified_trades if s.get("symbol") == symbol), 0)
-                        risk_pct = next((float(s.get("risk_pct", 0) or 0) for s in qualified_trades if s.get("symbol") == symbol), 0)
-                        _log_signal_rejection(symbol, "concentration_limit", reason, run_date, entry_price or None, risk_pct or None)
+                        try:
+                            matching_signal = next((s for s in qualified_trades if s.get("symbol") == symbol), None)
+                            entry_price = float(matching_signal.get("entry_price", 0) or 0) if matching_signal else 0
+                            # risk_pct is not a field in QualifiedTrade; use None
+                            _log_signal_rejection(symbol, "concentration_limit", reason, run_date, entry_price or None, None)
+                        except Exception as logging_err:
+                            logger.warning(f"[PHASE 8] Failed to log concentration rejection for {symbol}: {logging_err}")
 
             # Replace qualified_trades with filtered signals
             qualified_trades = signals_to_process

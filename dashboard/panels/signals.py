@@ -481,7 +481,7 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None) -> Panel | None:
     rows.append(Rule(style="dim"))
 
     valid_buy_sigs = [bs for bs in buy_sigs if isinstance(bs, dict) and bs.get("symbol")]
-    rows.extend(_build_buy_signals_table(valid_buy_sigs[:15]))
+    rows.extend(_build_buy_signals_table(valid_buy_sigs))
 
     # MEDIUM FIX: Eliminate redundant safe_get_field calls - call once and check result
     near_val = safe_get_field(overview, "near")

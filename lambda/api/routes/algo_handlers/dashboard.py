@@ -1762,7 +1762,6 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     ORDER BY s.symbol, s.signal_date DESC, s.signal_quality_score DESC NULLS LAST
                 ) deduped
                 ORDER BY signal_quality_score DESC NULLS LAST
-                LIMIT 30
             """)
             buy_sigs_rows = cur.fetchall()
             buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in buy_sigs_rows]
@@ -1869,7 +1868,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 "n": qualifying_buy_count,
                 "total": total_n,
                 "date": sig_date,
-                "buy_sigs": buy_sigs[:15] if buy_sigs else [],
+                "buy_sigs": buy_sigs,
                 "near": near[:8] if near else [],
                 "top_a": top_a[:20] if top_a else [],
                 "grades": grades,

@@ -757,7 +757,10 @@ def run(
         # (Don't return early - we still need to count exits for logging/dashboard visibility)
 
         # Initialize TradeExecutor only in non-dry-run mode
-        executor = None
+        # CRITICAL FIX: Preserve passed-in executor parameter for accessing Phase 5 constraints
+        # even in dry-run mode. Concentration check MUST use tier limits (from Phase 5),
+        # not fall back to config individual position limits (6%).
+        trade_executor = None
         if not dry_run:
             # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
             if is_paper_mode:
@@ -768,7 +771,7 @@ def run(
 
             # Initialize TradeExecutor, FAIL-FAST if credentials missing
             try:
-                executor = TradeExecutor(config)
+                trade_executor = TradeExecutor(config)
             except ValueError as e:
                 if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
                     # FAIL-FAST: Credentials required for exit execution in ALL modes.
@@ -842,7 +845,7 @@ def run(
                             logger.info(f"  [DRY-RUN] EXPOSURE FORCE-EXIT: {action['symbol']}")
                     else:
                         result = _retry_exit_trade(
-                            executor,
+                            trade_executor,
                             trade_id=action["trade_id"],
                             exit_price=cur_price,
                             exit_reason=action["reason"],
@@ -910,7 +913,7 @@ def run(
                                 logger.info(f"  [DRY-RUN] EXPOSURE PARTIAL: {action['symbol']}")
                         else:
                             result = _retry_exit_trade(
-                                executor,
+                                trade_executor,
                                 trade_id=action["trade_id"],
                                 exit_price=cur_price,
                                 exit_reason=action["reason"],
@@ -1041,8 +1044,8 @@ def run(
                         if verbose:
                             logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                     else:
-                        assert executor is not None, "executor must be initialized in non-dry-run mode"
-                        result = executor.exit_trade(
+                        assert trade_executor is not None, "trade_executor must be initialized in non-dry-run mode"
+                        result = trade_executor.exit_trade(
                             trade_id=rec["trade_id"],
                             exit_price=rec["current_price"],
                             exit_reason=rec["action_reason"],
