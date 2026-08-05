@@ -493,16 +493,23 @@ def run(
                 max_size_pct_val = None
 
                 # Try to get concentration limit from Phase 5 exposure policy constraints
+                # BUT: only use it if Phase 5 is not halted (halt states have fake 0% limits)
                 if executor is not None:
                     try:
                         phase5_result = executor.get_result(5)
                         if phase5_result:
-                            constraints = phase5_result.data.get("constraints", {})
-                            if constraints and isinstance(constraints, dict):
-                                tier_max_conc = constraints.get("max_concentration_pct")
-                                if tier_max_conc is not None:
-                                    max_size_pct_val = tier_max_conc
-                                    logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
+                            # CRITICAL FIX: Don't use Phase 5 constraints if Phase 5 halted
+                            # When Phase 5 halts, max_concentration_pct=0 is placeholder, not real limit
+                            is_halted = phase5_result.data.get("halt_new_entries", False)
+                            if not is_halted:
+                                constraints = phase5_result.data.get("constraints", {})
+                                if constraints and isinstance(constraints, dict):
+                                    tier_max_conc = constraints.get("max_concentration_pct")
+                                    if tier_max_conc is not None and tier_max_conc > 0:
+                                        max_size_pct_val = tier_max_conc
+                                        logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
+                            else:
+                                logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 is halted - ignoring halt constraints and using config fallback")
                     except Exception as phase5_err:
                         logger.debug(f"[PHASE 6] Could not get Phase 5 constraints: {phase5_err}")
 

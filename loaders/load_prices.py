@@ -2456,11 +2456,19 @@ class PriceLoader(OptimalLoader):
 
                 # SESSION 297 FIX: Validate watermark is actually current before skipping
                 # When watermark is stale (>2 days old), 0 rows might indicate API failure
+                # CRITICAL FIX (2026-08-05): For EOD runs, check if watermark is from yesterday (1 day old)
+                # Previous logic: watermark_age_days > 2 meant 1-day-old watermarks were treated as "current"
+                # and empty yfinance results were silently skipped. This froze 697 symbols at yesterday's data.
+                # On EOD runs, if watermark is from previous trading day, we MUST attempt today's fetch.
                 current_watermark = symbol_watermarks.get(symbol) if symbol_watermarks else None
                 today = datetime.now(EASTERN_TZ).date()
                 watermark_age_days = (today - current_watermark).days if current_watermark else 0
 
-                if current_watermark and watermark_age_days > 2:
+                # For EOD pipeline: threshold is 1 day (yesterday's data). For morning: threshold is 2 days.
+                # EOD MUST fetch today. Morning can tolerate yesterday if needed.
+                stale_threshold = 1 if self._is_eod_pipeline else 2
+
+                if current_watermark and watermark_age_days >= stale_threshold:
                     # CRITICAL: Watermark is stale but we got 0 rows - this is an error
                     # Don't skip, mark as failed and force retry next run - UNLESS a wider
                     # 30-day lookback confirms this isn't a transient gap at all (see
@@ -2491,14 +2499,15 @@ class PriceLoader(OptimalLoader):
                             self._stats["symbols_processed"] += 1
                             continue
 
+                        pipeline_context = "EOD" if self._is_eod_pipeline else "morning"
                         reason = (
                             f"yfinance returned no new data for {symbol} since its last loaded date "
-                            f"{current_watermark} (watermark was {watermark_age_days}d stale) - "
+                            f"{current_watermark} (watermark was {watermark_age_days}d stale, {pipeline_context} context) - "
                             f"auto-verified {today}"
                         )
                         logger.critical(
                             f"[{self.table_name}] {symbol}: Permanently marking unavailable. "
-                            f"Watermark {current_watermark} is {watermark_age_days}d old, "
+                            f"Watermark {current_watermark} is {watermark_age_days}d old ({pipeline_context} context, stale_threshold={stale_threshold}d), "
                             f"30-day lookback confirmed no new data. This symbol will be excluded from future loads."
                         )
                         self._mark_symbol_permanently_unavailable(symbol, reason)
@@ -2507,8 +2516,8 @@ class PriceLoader(OptimalLoader):
                         continue
                     logger.error(
                         f"[{self.table_name}] {symbol}: Watermark {current_watermark} is {watermark_age_days}d old "
-                        f"but fetch returned 0 rows. This indicates a data loading issue, not current data. "
-                        f"Marking as failed to trigger retry."
+                        f"(>= stale_threshold={stale_threshold}d for {pipeline_context} context) but fetch returned 0 rows. "
+                        f"This indicates a data loading issue, not current data. Marking as failed to trigger retry."
                     )
                     self._stats["symbols_failed"] += 1
                     self._stats["symbols_processed"] += 1
