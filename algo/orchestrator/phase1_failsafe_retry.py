@@ -306,24 +306,29 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
 
                 # Run loader with force-refresh to bypass watermarks
                 import subprocess
+                import sys
 
                 env = os.environ.copy()
                 env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters
 
+                repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                 result = subprocess.run(
-                    ["python3", "scripts/run_loader.py", loader_key, "--force-refresh"],
+                    [sys.executable, "scripts/run_loader.py", loader_key, "--force-refresh"],
                     capture_output=True,
                     text=True,
                     timeout=300,
                     env=env,
-                    cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),  # Go to repo root
+                    cwd=repo_root,
                 )
 
                 if result.returncode == 0:
                     logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
                     results["recovered"].append(table_name)
                 else:
-                    logger.error(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh failed: {result.stderr}")
+                    logger.error(
+                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh failed (exit code {result.returncode}). "
+                        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+                    )
                     results["still_failing"].append(table_name)
                     if table_name in {"price_daily", "technical_data_daily", "stock_scores", "trend_template_data"}:
                         results["halt_required"] = True
