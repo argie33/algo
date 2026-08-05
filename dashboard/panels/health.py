@@ -1264,11 +1264,29 @@ def _build_freshness_panel(
             loader_errors_count = summary_data.get("loaders_with_errors", 0)
             total_loader_failures = summary_data.get("total_loader_failures", 0)
 
+    # Check for execution guards that block trading (Phase 8 price check, market hours, etc)
+    # CRITICAL: ready_to_trade=False can mean either:
+    # 1. Data freshness issue (Phase 1 detected stale data at startup)
+    # 2. Execution guard blocked entry (Phase 8 price too old, market closed, etc)
+    # These are different problems with different actions. Show the actual blocker.
     rtt_part = ""
     if ready_to_trade:
         rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
     elif not ready_to_trade:
-        rtt_part = f"  [bold {R}]✗ NOT READY[/]"
+        # Check for orchestrator halt reason (from latest run)
+        halt_reason = hlth_dict.get("trading_halt_reason") if hlth_dict else None
+        if halt_reason:
+            halt_str = str(halt_reason)[:90]
+            if "PRICE" in halt_str.upper():
+                rtt_part = f"  [{R}]Phase 8 Price Check BLOCKED[/]: {halt_str[:50]}"
+            elif "MARKET HOURS" in halt_str.upper():
+                rtt_part = f"  [{Y}]Phase 8 Market Hours BLOCKED[/]"
+            elif "CIRCUIT" in halt_str.upper():
+                rtt_part = f"  [{R}]Circuit Breaker HALTED[/]: {halt_str[:50]}"
+            else:
+                rtt_part = f"  [{R}]HALTED[/]: {halt_str[:60]}"
+        else:
+            rtt_part = f"  [bold {R}]✗ NOT READY (data stale)[/]"
 
     status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
     freshness_line = (
