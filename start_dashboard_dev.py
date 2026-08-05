@@ -341,8 +341,8 @@ def run_complete_loader_pipeline() -> bool:
 
     if is_stale:
         print("[STARTUP] Step 2/3: Metrics pipeline (SEC fundamentals: financials, 13F, insider, value/quality/growth)...", flush=True)
-        print("[STARTUP]          (This may take 10-20 minutes on first run)", flush=True)
-        metrics_ok = run_loader_pipeline("metrics", timeout=1800)  # 30 min for metrics
+        print("[STARTUP]          (This may take 15-45 minutes depending on SEC API response times)", flush=True)
+        metrics_ok = run_loader_pipeline("metrics", timeout=3600)  # 60 min for metrics (SEC APIs can be slow)
 
         if not metrics_ok:
             # NON-CRITICAL: Metrics pipeline failure means fundamentals data remains stale.

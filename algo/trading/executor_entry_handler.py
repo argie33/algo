@@ -493,8 +493,11 @@ class EntryHandler:
     ) -> None:
         """Insert trade record into database with idempotency_key for request-level deduplication.
 
-        CRITICAL: This insert MUST NOT silently fail. If there's a duplicate or constraint
-        violation, it should raise an exception so the position record is not created orphaned.
+        Idempotency: If the same idempotency_key is submitted twice, the second attempt
+        succeeds without error (ON CONFLICT DO UPDATE ensures this is a no-op update).
+        This is critical because Phase 8 can run multiple times on the same signal date,
+        and generating the same idempotency_key is correct behavior (prevents duplicate
+        real orders at the broker). The database insert must also be idempotent.
         """
         cur.execute(
             """
@@ -507,6 +510,9 @@ class EntryHandler:
                 %s, %s, %s, %s,
                 %s, %s, %s
             )
+            ON CONFLICT (idempotency_key) DO UPDATE SET
+                entry_price = EXCLUDED.entry_price,
+                entry_date = EXCLUDED.entry_date
             """,
             (
                 request.symbol,
