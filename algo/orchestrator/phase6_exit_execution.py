@@ -246,11 +246,56 @@ def run(
         # The Alpaca account paper flag should not override orchestrator execution mode setting
         is_paper_mode = execution_mode_check == "paper"
 
+        # CLEANUP: Remove orphaned trades (race condition between trade insert and position create)
+        # See: race condition between _insert_trade_record (line 1001) and position INSERT (lines 1086+)
+        # If exception occurs between these operations, trade exists in 'filled' but position never created
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    DELETE FROM algo_trades
+                    WHERE position_id IS NULL
+                    AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
+                    AND updated_at < now() - interval '5 minutes'
+                    """
+                )
+                orphaned_count = cur.rowcount
+                if orphaned_count > 0:
+                    logger.warning(
+                        f"[PHASE 6] Cleaned up {orphaned_count} orphaned trade(s) in 'filled' status with NULL position_id. "
+                        f"These likely resulted from race condition during order entry. Check logs for Phase 8 errors."
+                    )
+        except Exception as e:
+            logger.error(f"[PHASE 6] Failed to clean orphaned trades: {str(e)[:200]}", exc_info=False)
+
         # CRITICAL FIX 2026-07-30: ALWAYS validate Phase 3 data regardless of mode
         # Phase 3 DOES generate recommendations in paper mode (verified: recent runs show 14 recommendations)
         # Paper mode safety checks are NOT optional - still need to detect Phase 3 crashes
         # Previously: paper mode skipped this validation, allowing Phase 3 crashes to go undetected
         logger.info("[PHASE 6] Validating Phase 3 position monitor data (mode=%s)", execution_mode_check)
+
+        # VALIDATION: Check for orphaned trades that made it past cleanup
+        # This is a safety check to catch any remaining data integrity issues
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FROM algo_trades
+                    WHERE position_id IS NULL
+                    AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
+                    """
+                )
+                orphaned_trade_count = cur.fetchone()[0]
+                if orphaned_trade_count > 0:
+                    raise RuntimeError(
+                        f"[PHASE 6 CRITICAL] Found {orphaned_trade_count} orphaned trade(s) in filled status with NULL position_id. "
+                        f"This indicates a race condition in Phase 8 entry handler (trades inserted but positions failed). "
+                        f"Halting to prevent portfolio state divergence."
+                    )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"[PHASE 6] Failed to validate trade-position consistency: {str(e)[:200]}")
 
         # Detect Phase 3 crash - if position monitor errored, position_recs is []
         # but we may have real open positions. This is a critical data integrity error.
