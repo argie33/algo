@@ -188,7 +188,27 @@ class PriceFetcher:
 
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
-        end = now_et.date()  # Fetch only through today, not tomorrow
+
+        # CRITICAL FIX: During trading hours (9:30 AM - 4:00 PM ET), don't fetch today's data.
+        # yfinance returns partial/intraday OHLC during market hours, which violates OHLC logic
+        # (e.g., low > min(open, close) for data still forming). This causes the price validator
+        # to reject all today's rows as corrupted data. Only fetch complete daily closes.
+        # After market close (4:00 PM+), yfinance has today's final OHLC, so fetch it.
+        # EOD pipeline (which runs after 4 PM) always fetches today's data.
+        end_date = now_et.date()
+        if not is_eod_pipeline:
+            # Morning/afternoon runs: only fetch through yesterday if market is open
+            market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            if market_open_time <= now_et < market_close_time:
+                # Market is open - skip today's incomplete data, fetch only through yesterday
+                end_date = now_et.date() - timedelta(days=1)
+                logger.info(
+                    f"[{symbol}] [MARKET_HOURS] Market open at {now_et.strftime('%H:%M %Z')}. "
+                    f"Skipping today's intraday data ({now_et.date()}), fetching through yesterday ({end_date})"
+                )
+
+        end = end_date
 
         if since is None:
             start = end - timedelta(days=101)
@@ -232,7 +252,26 @@ class PriceFetcher:
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
 
-        end = now_et.date()  # Always fetch through today's date only
+        # CRITICAL FIX: During trading hours (9:30 AM - 4:00 PM ET), don't fetch today's data.
+        # yfinance returns partial/intraday OHLC during market hours, which violates OHLC logic
+        # (e.g., low > min(open, close) for data still forming). This causes the price validator
+        # to reject all today's rows as corrupted data. Only fetch complete daily closes.
+        # After market close (4:00 PM+), yfinance has today's final OHLC, so fetch it.
+        # EOD pipeline (which runs after 4 PM) always fetches today's data.
+        end_date = now_et.date()
+        if not is_eod_pipeline:
+            # Morning/afternoon runs: only fetch through yesterday if market is open
+            market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            if market_open_time <= now_et < market_close_time:
+                # Market is open - skip today's incomplete data, fetch only through yesterday
+                end_date = now_et.date() - timedelta(days=1)
+                logger.info(
+                    f"[MARKET_HOURS] Market open at {now_et.strftime('%H:%M %Z')}. "
+                    f"Skipping today's intraday data ({now_et.date()}), fetching through yesterday ({end_date})"
+                )
+
+        end = end_date
         if is_eod_pipeline:
             logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (today's data for EOD)")
         else:
