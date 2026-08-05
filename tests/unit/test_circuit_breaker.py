@@ -403,7 +403,7 @@ class TestConsecutiveLossesOrdering:
         cb._check_consecutive_losses(current_date=None, cur=mock_cur)
         executed_sql = mock_cur.execute.call_args_list[0][0][0]
         params = mock_cur.execute.call_args_list[0][0][1]
-        assert "exit_reason NOT LIKE" in executed_sql
+        assert "exit_reason NOT ILIKE" in executed_sql
         assert "%reconciliation%" in params
         assert "%force%close%" in params
         assert "%delisted%" in params
