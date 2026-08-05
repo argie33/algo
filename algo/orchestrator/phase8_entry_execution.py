@@ -677,7 +677,9 @@ def _batch_fetch_technical_data(
     result: dict[str, dict[str, float | None]] = cast(dict[str, dict[str, float | None]], precomputed_by_symbol.copy())
 
     try:
-        with DatabaseContext("read") as cur:
+        from psycopg2.extensions import cursor as cursor_factory
+
+        with DatabaseContext("read", cursor_factory=cursor_factory) as cur:
             cur.execute(
                 f"""WITH latest_prices AS (
                     SELECT DISTINCT ON (symbol) symbol, close
@@ -2637,9 +2639,10 @@ def run(
 
                     break
 
-        except (RuntimeError, ValueError, TypeError, AttributeError, psycopg2.Error, DatabaseError) as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError, IndexError, psycopg2.Error, DatabaseError) as e:
+            symbol = signal.get("symbol") if isinstance(signal, dict) else str(signal)
             logger.error(
-                f"[PHASE 8] Error processing {signal['symbol']}: {e}",
+                f"[PHASE 8] Error processing {symbol}: {e}",
                 exc_info=True,
             )
             # psycopg2.Error (added here): the duplicate-position pre-check above (~line 1497)
@@ -2658,7 +2661,7 @@ def run(
             # handler covers the whole per-symbol block, including the part before those
             # locals are computed, so they aren't guaranteed to be assigned yet.
             _log_signal_rejection(
-                signal["symbol"], "processing_error", str(e), run_date, signal.get("entry_price")
+                symbol, "processing_error", str(e), run_date, signal.get("entry_price") if isinstance(signal, dict) else None
             )
 
             failed_count += 1
