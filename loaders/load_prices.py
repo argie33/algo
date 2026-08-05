@@ -198,8 +198,11 @@ class PriceLoader(OptimalLoader):
         try:
             from datetime import datetime
 
+            # CRITICAL FIX (2026-08-05 Session): EOD window was 120 min (ends 6:05 PM) but loaders
+            # run at 6:56 PM, causing _is_eod_pipeline=False and stale_threshold=2 instead of 1.
+            # This broke the watermark fix for 689 frozen symbols. Extended window to 180 min (7:05 PM).
             eod_window_start_min = -10
-            eod_window_end_min = 120
+            eod_window_end_min = 180  # Extended from 120 to 180 min (ends at 7:05 PM instead of 6:05 PM)
 
             now_et = datetime.now(EASTERN_TZ)
             if now_et is None:
@@ -213,7 +216,7 @@ class PriceLoader(OptimalLoader):
             if eod_window_start_min < time_since_eod_start < eod_window_end_min:
                 logger.info(
                     f"[CONTEXT] Running during EOD pipeline "
-                    f"({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting"
+                    f"({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting (stale_threshold=1d)"
                 )
                 return True
 
@@ -2514,14 +2517,59 @@ class PriceLoader(OptimalLoader):
                         self._stats["symbols_skipped_by_watermark"] += 1
                         self._stats["symbols_processed"] += 1
                         continue
-                    logger.error(
-                        f"[{self.table_name}] {symbol}: Watermark {current_watermark} is {watermark_age_days}d old "
-                        f"(>= stale_threshold={stale_threshold}d for {pipeline_context} context) but fetch returned 0 rows. "
-                        f"This indicates a data loading issue, not current data. Marking as failed to trigger retry."
-                    )
-                    self._stats["symbols_failed"] += 1
-                    self._stats["symbols_processed"] += 1
-                    continue
+                    # CRITICAL FIX (2026-08-05 Session): Before marking as failed, check if this is a TIMING issue
+                    # (watermark only 1 day old in EOD context) vs. a real data fetch failure.
+                    # If watermark is exactly stale_threshold days old (edge case: 1d in EOD), retry with
+                    # explicit start_date instead of letting watermark-based fetch fail silently.
+                    if watermark_age_days == stale_threshold and self._is_eod_pipeline:
+                        # Only 1 day old in EOD - likely yfinance hasn't updated yet, or API returned incomplete data
+                        # Retry with explicit date range to force a fresh attempt
+                        logger.info(
+                            f"[{self.table_name}] {symbol}: Watermark {current_watermark} is exactly "
+                            f"{stale_threshold}d old (EOD context). Retrying with explicit start_date instead of watermark."
+                        )
+                        try:
+                            # Retry with explicit start_date = current_watermark (force fetch from that date forward)
+                            from datetime import timedelta
+                            start_date = current_watermark
+                            # Extend lookback by 2 days to catch any data that yfinance might have missed
+                            extended_start = start_date - timedelta(days=2)
+                            single_result = self.fetch_batch_incremental([symbol], extended_start)
+                            rows = single_result.get(symbol) or []
+
+                            if rows:
+                                logger.info(
+                                    f"[{self.table_name}] {symbol}: Recovered {len(rows)} row(s) via explicit "
+                                    f"date-range retry (after watermark-based fetch returned 0 rows)"
+                                )
+                                # Continue to persist these rows (fall through to normal processing below)
+                            else:
+                                # Explicit retry also returned nothing - this is a real failure
+                                logger.error(
+                                    f"[{self.table_name}] {symbol}: Even explicit date-range retry returned 0 rows. "
+                                    f"Marking as failed for next run."
+                                )
+                                self._stats["symbols_failed"] += 1
+                                self._stats["symbols_processed"] += 1
+                                continue
+                        except Exception as e:
+                            logger.error(
+                                f"[{self.table_name}] {symbol}: Explicit retry failed: {e}. "
+                                f"Marking as failed to trigger retry on next run."
+                            )
+                            self._stats["symbols_failed"] += 1
+                            self._stats["symbols_processed"] += 1
+                            continue
+                    else:
+                        # Watermark is >stale_threshold old OR not EOD context - this is a real failure
+                        logger.error(
+                            f"[{self.table_name}] {symbol}: Watermark {current_watermark} is {watermark_age_days}d old "
+                            f"(>= stale_threshold={stale_threshold}d for {pipeline_context} context) but fetch returned 0 rows. "
+                            f"This indicates a data loading issue. Marking as failed to trigger retry."
+                        )
+                        self._stats["symbols_failed"] += 1
+                        self._stats["symbols_processed"] += 1
+                        continue
 
                 # BATCH_NAN_RECOVERY (2026-08-03): yfinance's multi-symbol batch download can
                 # silently return empty/NaN rows for a single thin-volume/small-cap ticker even

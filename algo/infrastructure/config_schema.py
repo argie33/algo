@@ -109,7 +109,9 @@ VALIDATION_SCHEMA = {
     "min_hold_days": ("int", 0, 365, False, 1),
     "max_hold_days": ("int", 1, 365, False, 20),
     "exit_on_distribution_day": ("bool", None, None, False, None),
-    "exit_on_minervini_break": ("bool", None, None, False, False),  # Disabled by default - 0% win rate
+    # REMOVED 2026-08-05: Minervini break exit rule disabled permanently after analysis
+    # Confirmed 0% win rate (0/4 trades won, -7.55% avg loss) and thresholds too aggressive
+    # Rule triggered on false technical breakdowns that later recovered. See commit c4f2d6b51.
     "exit_on_rs_line_break_50dma": ("bool", None, None, False, None),
     "exit_on_td_sequential": ("bool", None, None, False, None),
     "use_chandelier_trail": ("bool", None, None, False, None),

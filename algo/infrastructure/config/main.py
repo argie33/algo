@@ -491,12 +491,9 @@ class AlgoConfig:
         "min_hold_days": ("1", "int", "Minimum days to hold", "Exit Rules"),
         "max_hold_days": ("20", "int", "Max days to hold position", "Exit Strategy"),
         "exit_on_distribution_day": ("true", "bool", "Exit on market distribution", "Exit Strategy"),
-        "exit_on_minervini_break": (
-            "false",
-            "bool",
-            "Exit on Minervini trend break (disabled - 0% win rate)",
-            "Exit Strategy",
-        ),
+        # REMOVED 2026-08-05: exit_on_minervini_break - disabled after testing showed 0% win rate (0/4 trades)
+        # Analysis: Thresholds (1% below SMA-50, 15% volume spike) too aggressive, exited good positions on false breakdowns
+        # Reference: commit c4f2d6b51, investigation shows -7.55% avg loss when enabled
         "exit_on_rs_line_break_50dma": (
             "true",
             "bool",
