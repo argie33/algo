@@ -57,29 +57,47 @@ def test_get_lock_manager_falls_back_to_rds_if_dynamodb_unavailable():
     """
     from utils.db.local_file_lock import get_lock_manager
 
-    with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
-         patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
-        mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
-        mock_rds_manager = MagicMock()
-        mock_rds_manager.is_available = True
-        mock_rds.return_value = mock_rds_manager
+    original_local_mode = os.environ.get("LOCAL_MODE")
+    try:
+        os.environ["LOCAL_MODE"] = "false"  # Test production fallback behavior, not LOCAL_MODE
 
-        result = get_lock_manager()
+        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
+             patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
+            mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
+            mock_rds_manager = MagicMock()
+            mock_rds_manager.is_available = True
+            mock_rds.return_value = mock_rds_manager
 
-        assert result is mock_rds_manager
+            result = get_lock_manager()
+
+            assert result is mock_rds_manager
+    finally:
+        if original_local_mode is not None:
+            os.environ["LOCAL_MODE"] = original_local_mode
+        else:
+            os.environ.pop("LOCAL_MODE", None)
 
 
 def test_get_lock_manager_fails_fast_if_both_dynamodb_and_rds_unavailable():
     """Verify get_lock_manager() raises RuntimeError only when BOTH backends fail (Session 290)."""
     from utils.db.local_file_lock import get_lock_manager
 
-    with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
-         patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
-        mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
-        mock_rds.side_effect = RuntimeError("RDS connection refused")
+    original_local_mode = os.environ.get("LOCAL_MODE")
+    try:
+        os.environ["LOCAL_MODE"] = "false"  # Test production fallback behavior, not LOCAL_MODE
 
-        with pytest.raises(RuntimeError, match="Both DynamoDB and RDS lock managers unavailable"):
-            get_lock_manager()
+        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
+             patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
+            mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
+            mock_rds.side_effect = RuntimeError("RDS connection refused")
+
+            with pytest.raises(RuntimeError, match="Both DynamoDB and RDS lock managers unavailable"):
+                get_lock_manager()
+    finally:
+        if original_local_mode is not None:
+            os.environ["LOCAL_MODE"] = original_local_mode
+        else:
+            os.environ.pop("LOCAL_MODE", None)
 
 
 def test_local_mode_env_var_ignored_for_orchestrator():
