@@ -27,7 +27,7 @@ lambda-deployment.tar.gz
 # not tracked in git to avoid push timeouts. Deploy via: gh workflow run build-lambda-layer.yml
 lambda/shared-deps-layer.zip
 
-# Database (PostgreSQL only)
+# Database (PostgreSQL only — all database files handled via migrations/ IaC)
 *.sql
 !init_db.sql
 !terraform/modules/database/init.sql
@@ -106,9 +106,6 @@ Thumbs.db
 __pycache__/
 venv*/
 *.py[cod]
-
-# SQLite databases (project uses PostgreSQL, not SQLite — ignore stray .db files in root)
-/algo.db
 
 # Screenshots (local dev / review only — not source code)
 screenshots/
