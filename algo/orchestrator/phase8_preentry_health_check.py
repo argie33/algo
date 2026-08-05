@@ -32,12 +32,12 @@ HEALTH_CHECKS = {
 
 
 def _check_rs_weakening(ticker: str, signal_date: str) -> bool:
-    """Check if RS vs SPY is weakening."""
+    """Check if price is not above SMA50 (proxy for RS weakening)."""
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT relative_strength_vs_spy
+                SELECT price_above_sma50
                 FROM trend_template_data
                 WHERE symbol = %s AND date = %s
                 """,
@@ -47,15 +47,15 @@ def _check_rs_weakening(ticker: str, signal_date: str) -> bool:
             if row is None or row[0] is None:
                 return False
 
-            rs_score = float(row[0])
-            return rs_score < 40
+            # If price is NOT above SMA50, RS is weakening
+            return not row[0]
     except Exception as e:
         logger.debug(f"[PREENTRY] RS check failed for {ticker}: {e}")
         return False
 
 
 def _check_sector_weak(ticker: str, signal_date: str) -> bool:
-    """Check if sector is weak/declining."""
+    """Check if sector has a negative signal."""
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -69,7 +69,7 @@ def _check_sector_weak(ticker: str, signal_date: str) -> bool:
 
             cur.execute(
                 """
-                SELECT sector_direction
+                SELECT signal
                 FROM sector_rotation_signal
                 WHERE sector = %s AND date = %s
                 """,
@@ -79,8 +79,8 @@ def _check_sector_weak(ticker: str, signal_date: str) -> bool:
             if sector_row is None:
                 return False
 
-            direction = sector_row[0]
-            return direction and direction.lower() in ("weak", "declining", "warning")
+            signal = sector_row[0]
+            return signal and signal.lower() in ("weak", "decline", "warning", "negative")
     except Exception as e:
         logger.debug(f"[PREENTRY] Sector check failed for {ticker}: {e}")
         return False
@@ -109,12 +109,12 @@ def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
 
 
 def _check_market_distribution_stress(signal_date: str) -> bool:
-    """Check if market is in distribution phase (stress)."""
+    """Check if market has >=3 distribution days (stress)."""
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT distribution_day_count
+                SELECT distribution_days
                 FROM market_exposure_daily
                 WHERE date = %s
                 """,
