@@ -171,7 +171,11 @@ class PositionContext:
 
     def check_minervini_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """Minervini break: trend-following exit on moving average break."""
-        if not self.config.get("exit_on_minervini_break", True):
+        # Parse boolean config value - database returns string "false"/"true", not Python bool
+        exit_enabled = self.config.get("exit_on_minervini_break", True)
+        if isinstance(exit_enabled, str):
+            exit_enabled = exit_enabled.lower() in ("true", "1", "yes")
+        if not exit_enabled:
             return False, None
         if engine._is_minervini_break(self.cur, self.symbol, self.current_date, float(self.cur_price)):
             return (
