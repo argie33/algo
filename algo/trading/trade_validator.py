@@ -272,7 +272,7 @@ class TradeValidator:
         entry_price: Decimal | float,
         stop_loss_price: Decimal | float,
     ) -> tuple[bool, str | None, str | None]:
-        """Check if OPEN trade already exists for this symbol+signal_date (one entry per signal per day).
+        """Check if trade already exists for this symbol+signal_date+entry_price+stop (one entry per signal per day).
 
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
@@ -291,9 +291,7 @@ class TradeValidator:
         # different entry prices (167.665 and 170.045), the exact bug 2026-07-30 was supposed
         # to prevent. Querying the real columns directly enforces the business rule
         # independent of whatever hash the broker-retry mechanism needs the column to hold.
-        # CRITICAL FIX 2026-08-05: Only check OPEN trades, not closed ones. Previous runs may
-        # have marked trades as closed but we should allow new entries for the same signal_date
-        # if the prior trade completed. This prevents false duplicate-blocking.
+        # CRITICAL FIX 2026-08-05a: Check OPEN trades to prevent multiple active positions in same symbol
         open_statuses = TradeStatus.all_open()
         cur.execute(
             f"""
@@ -313,6 +311,37 @@ class TradeValidator:
                 f"Trade already exists for {symbol} on {signal_date} (idempotent duplicate)",
                 trade_id,
             )
+
+        # CRITICAL FIX 2026-08-05b: The idempotency_key column has a UNIQUE constraint across
+        # ALL trades (regardless of status). If we try to INSERT a new trade with the same
+        # entry_price+stop_loss_price+symbol+signal_date as an existing (even closed) trade,
+        # the database will reject it with UniqueViolation. Check if this exact trade attempt
+        # already exists (regardless of status). This prevents retrying the same signal with
+        # identical parameters on subsequent runs.
+        entry_price_dec = Decimal(str(entry_price))
+        stop_loss_dec = Decimal(str(stop_loss_price))
+        cur.execute(
+            """
+            SELECT trade_id, status FROM algo_trades
+            WHERE symbol = %s AND signal_date = %s
+            AND entry_price = %s AND stop_loss_price = %s
+            LIMIT 1
+            """,
+            (symbol, signal_date, entry_price_dec, stop_loss_dec),
+        )
+        result = cur.fetchone()
+        if result:
+            trade_id, status = result
+            logger.info(
+                f"SKIPPING {symbol}: identical trade already attempted (trade_id: {trade_id}, status: {status}). "
+                f"Entry={entry_price_dec}, Stop={stop_loss_dec}, Signal date={signal_date}"
+            )
+            return (
+                True,
+                f"Trade with identical parameters already exists for {symbol} (status={status})",
+                trade_id,
+            )
+
         return False, None, None
 
     def check_open_position_in_symbol(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
