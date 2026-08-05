@@ -185,7 +185,7 @@ class PreEntryHealthValidator:
                 )
                 result = cur.fetchone()
                 if result and result[0]:
-                    return result[0].days
+                    return int(result[0].days)
                 return None
         except Exception as e:
             logger.debug(f"[PHASE 8] Earnings check error for {symbol}: {e}")
