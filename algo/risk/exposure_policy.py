@@ -278,7 +278,7 @@ class ExposurePolicy:
                     SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
                            t.target_1_price, t.target_2_price, t.target_3_price,
                            t.trade_date,
-                           p.position_id, p.quantity, p.target_levels_hit,
+                           p.id, p.quantity, p.target_levels_hit,
                            p.current_stop_price, p.current_price,
                            p.unrealized_pnl_pct
                     FROM algo_positions p
