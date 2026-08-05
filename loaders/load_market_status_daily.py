@@ -784,6 +784,8 @@ class MarketStatusDailyLoader(OptimalLoader):
         """
         import json
 
+        logger.info(f"[PERSIST_EXPOSURE] Starting persist for date={eval_date}")
+
         # JSON-serialize halt_reasons and factors for database storage
         halt_reasons_val = exposure.get("halt_reasons")
         halt_reasons_json = json.dumps(halt_reasons_val) if halt_reasons_val is not None else None
@@ -791,8 +793,10 @@ class MarketStatusDailyLoader(OptimalLoader):
         factors_val = exposure.get("factors")
         factors_json = json.dumps(factors_val) if factors_val is not None else None
 
-        with DatabaseContext("write") as cur:
-            cur.execute(
+        try:
+            with DatabaseContext("write") as cur:
+                logger.info(f"[PERSIST_EXPOSURE] Executing INSERT for market_exposure_daily")
+                cur.execute(
                 """
                 INSERT INTO market_exposure_daily
                     (date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors, data_unavailable, reason)
@@ -820,6 +824,10 @@ class MarketStatusDailyLoader(OptimalLoader):
                     exposure.get("reason"),
                 ),
             )
+                logger.info(f"[PERSIST_EXPOSURE] INSERT completed successfully for date={eval_date}")
+        except Exception as persist_err:
+            logger.error(f"[PERSIST_EXPOSURE] FAILED to persist: {persist_err}", exc_info=True)
+            raise
 
     def _persist_market_sentiment(
         self, eval_date: date, vix: float | None, put_call_ratio: float | None, sentiment: dict[str, Any]
