@@ -120,11 +120,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
 
                         # Update existing position, reopen if needed, and sync stop_loss_price and trade_ids_arr
+                        # CRITICAL: Use id to update ONLY this specific position (not all positions for the symbol)
+                        # Using WHERE symbol avoids duplicate key violations from multiple positions with same symbol
                         cur.execute(
                             'UPDATE algo_positions SET quantity = %s, status = %s, '
                             '  stop_loss_price = %s, current_stop_price = %s, trade_ids_arr = %s, updated_at = NOW() '
-                            'WHERE symbol = %s',
-                            (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_arr, symbol)
+                            'WHERE id = %s',
+                            (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_arr, existing_id)
                         )
                         updated += 1
                         action = "reopened" if existing_status == 'closed' else "updated"

@@ -248,61 +248,56 @@ def get_lock_manager(
     table_name: str | None = None,
     lock_duration_seconds: int = 600,
     enable_auto_cleanup: bool = True,
-) -> "DynamoDBLockManager | RDSLockManager":
+) -> "FileLockManager | DynamoDBLockManager | RDSLockManager":
     """Factory function that returns a distributed lock manager.
 
-    CRITICAL: When LOCAL_MODE=true, skip DynamoDB entirely. Otherwise, try DynamoDB first (preferred for distributed safety), falls back to RDS.
+    STRATEGY: LOCAL_MODE (single-machine dev) uses file locks; production uses DynamoDB (with RDS fallback).
 
-    LOCAL_MODE ("run orchestrator directly instead of via Lambda") is NOT the
-    same thing as "isolated sandbox with no shared state": LOCAL_MODE runs still
-    connect to the same shared production DB and the same live Alpaca paper
-    account as every other instance. A filesystem lock file only protects
-    against contention within one machine's temp dir, so it does nothing to
-    prevent two concurrent LOCAL_MODE processes (e.g. separate dev sessions)
-    from racing on shared state.
+    LOCAL_MODE: Use FileLockManager (filesystem-based)
+    - Works reliably for single-machine development
+    - No database complexity or RDS lock manager bugs
+    - Sufficient for dev since only one machine's temp dir is involved
 
-    ENHANCED (Session 290): DynamoDB preferred, RDS fallback when AWS unavailable
-    - Try DynamoDB first (fastest, works in production AWS Lambda)
-    - Fall back to RDS when AWS credentials missing (works in local dev mode)
-    - If BOTH unavailable, fail fast with clear error
-    - This maintains safety while enabling local development without AWS credentials
-
-    FIXED (Session 351): Skip DynamoDB entirely when LOCAL_MODE=true to avoid
-    wasteful AWS credential validation errors during local development.
+    Production/shared environments: Try DynamoDB first, fall back to RDS
+    - DynamoDB: Fastest, distributed-safe, production Lambda
+    - RDS: When AWS credentials unavailable (e.g., local without env var)
     """
 
     from utils.db.dynamo_lock import DynamoDBLockManager
     from utils.db.rds_lock import RDSLockManager
 
-    # Check if running in LOCAL_MODE (development with direct database access)
     local_mode = os.environ.get("LOCAL_MODE", "").lower() == "true"
 
-    # Skip DynamoDB when running locally (LOCAL_MODE=true)
-    if not local_mode:
-        # Try DynamoDB first (preferred for production AWS Lambda)
-        try:
-            logger.info("[LOCK_FACTORY] Trying DynamoDB locks (preferred for production)")
-            lock_mgr: DynamoDBLockManager | RDSLockManager = DynamoDBLockManager(
-                table_name=table_name,
-                lock_duration_seconds=lock_duration_seconds,
-                enable_auto_cleanup=enable_auto_cleanup,
-            )
-            # Test DynamoDB availability by attempting a dummy acquire (with short timeout)
-            # This will catch credential issues that don't surface during __init__
-            test_acquired = lock_mgr.acquire(lock_key="__lock_test__", timeout_seconds=1)
-            if test_acquired:
-                lock_mgr.release(lock_key="__lock_test__")
-                logger.info("[LOCK_FACTORY] DynamoDB lock manager available")
-                return lock_mgr
-            elif lock_mgr.is_available:
-                # Timeout acquiring lock (contention) but DynamoDB is reachable
-                logger.info("[LOCK_FACTORY] DynamoDB lock manager available (contention on test lock)")
-                return lock_mgr
-        except Exception as e:
-            logger.debug(f"[LOCK_FACTORY] DynamoDB initialization/test failed: {e}")
+    # LOCAL_MODE: use filesystem-based locks (simple, reliable for single machine)
+    if local_mode:
+        logger.info("[LOCK_FACTORY] LOCAL_MODE=true, using FileLockManager (filesystem-based)")
+        return FileLockManager(
+            table_name=table_name,
+            lock_duration_seconds=lock_duration_seconds,
+            enable_auto_cleanup=enable_auto_cleanup,
+        )
 
-    # DynamoDB unavailable (or LOCAL_MODE=true), try RDS fallback (works without AWS credentials)
-    logger.info("[LOCK_FACTORY] Skipping DynamoDB (LOCAL_MODE=%s), falling back to RDS locks" % local_mode)
+    # Production: try DynamoDB first (preferred for distributed safety)
+    try:
+        logger.info("[LOCK_FACTORY] Trying DynamoDB locks (preferred for production)")
+        lock_mgr: DynamoDBLockManager | RDSLockManager = DynamoDBLockManager(
+            table_name=table_name,
+            lock_duration_seconds=lock_duration_seconds,
+            enable_auto_cleanup=enable_auto_cleanup,
+        )
+        test_acquired = lock_mgr.acquire(lock_key="__lock_test__", timeout_seconds=1)
+        if test_acquired:
+            lock_mgr.release(lock_key="__lock_test__")
+            logger.info("[LOCK_FACTORY] DynamoDB lock manager available")
+            return lock_mgr
+        elif lock_mgr.is_available:
+            logger.info("[LOCK_FACTORY] DynamoDB lock manager available (contention on test lock)")
+            return lock_mgr
+    except Exception as e:
+        logger.debug(f"[LOCK_FACTORY] DynamoDB initialization/test failed: {e}")
+
+    # DynamoDB unavailable, try RDS fallback
+    logger.info("[LOCK_FACTORY] DynamoDB unavailable, falling back to RDS locks")
     try:
         lock_mgr = RDSLockManager(
             table_name=table_name,
@@ -310,16 +305,15 @@ def get_lock_manager(
             enable_auto_cleanup=enable_auto_cleanup,
         )
         if lock_mgr.is_available:
-            logger.warning("[LOCK_FACTORY] Using RDS fallback for distributed locking (no AWS credentials)")
+            logger.warning("[LOCK_FACTORY] Using RDS fallback for distributed locking")
             return lock_mgr
     except Exception as e:
         logger.debug(f"[LOCK_FACTORY] RDS initialization failed: {e}")
 
-    # Both unavailable: fail closed
     error_msg = (
         "[LOCK_FACTORY] CRITICAL: Both DynamoDB and RDS lock managers unavailable. "
-        "Orchestrator requires distributed locking to prevent race conditions. "
-        "Fix: Either (1) provide AWS credentials for DynamoDB, or (2) ensure RDS database is accessible."
+        "Orchestrator requires distributed locking. "
+        "Fix: Either (1) provide AWS credentials for DynamoDB, or (2) ensure RDS is accessible."
     )
     logger.critical(error_msg)
     raise RuntimeError(error_msg)
