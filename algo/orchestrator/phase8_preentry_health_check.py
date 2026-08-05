@@ -100,8 +100,9 @@ def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
                 """,
                 (ticker, signal_date),
             )
-            count = cur.fetchone()[0]
-            return count > 0
+            row = cur.fetchone()
+            count = row[0] if row else 0
+            return bool(count > 0)
     except Exception as e:
         logger.debug(f"[PREENTRY] Earnings check failed for {ticker}: {e}")
         return False
