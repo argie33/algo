@@ -68,6 +68,11 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
             "stock_scores": "load_stock_scores",
             "positioning_metrics": "load_positioning_metrics",
             "stability_metrics": "load_risk_metrics_daily",
+            "trend_template_data": "load_trend_analysis",
+            "earnings_calendar": "load_earnings_calendar",
+            "industry_ranking": "load_sector_industry_daily",
+            "sector_ranking": "load_sector_industry_daily",
+            "sector_performance": "load_sector_industry_daily",
         }
 
         # Get all active symbols from stock_symbols table
@@ -415,11 +420,60 @@ def run_stability_metrics_loader():
     return result
 
 
+def run_trend_analysis_loader():
+    """Run trend template data loader (Minervini/Weinstein setup-teardown detection).
+
+    FIXED 2026-08-05: This loader was registered in loaders/loader_registry.py but had
+    zero invocation path - not in scripts/local_loader_scheduler.py, not in run_loader.py,
+    not in any terraform Lambda. Every symbol showed stale trend_template_data (38 days old)
+    regardless of actual market conditions, because this loader's daily run simply never
+    happened. Must run daily to detect setup/teardown (Phase 3/7 signal quality).
+    """
+    from loaders.load_trend_analysis import run
+
+    result = run()
+    logger.info(f"Trend analysis loader result: {result}")
+    return result
+
+
+def run_earnings_calendar_loader():
+    """Run earnings calendar loader (announcement dates and EPS estimates for blackout windows).
+
+    FIXED 2026-08-05: This loader (yfinance-sourced earnings announcement dates, distinct
+    from earnings_calendar_sec which is SEC 10-K/10-Q *filing* dates) was registered in
+    loaders/loader_registry.py but missing from all scheduled pipelines. Without daily
+    runs, Phase 3 earnings_blackout.py could not detect upcoming earnings announcements
+    for signal blackout windows.
+    """
+    from loaders.load_earnings_calendar import EarningsCalendarLoader
+
+    loader = EarningsCalendarLoader()
+    result = loader.run()
+    logger.info(f"Earnings calendar loader result: {result}")
+    return result
+
+
+def run_sector_industry_loader():
+    """Run sector/industry daily loader (sector rankings, industry rankings, sector performance).
+
+    FIXED 2026-08-05: This consolidated loader (replaces load_sector_rankings.py,
+    load_sector_performance.py, and old industry_ranking tasks) was registered but missing
+    from local_loader_scheduler.py. Without daily runs, sector rotation signals (Phase 5/7)
+    and industry_ranking tables became stale (31+ days old).
+    """
+    from loaders.load_sector_industry_daily import SectorIndustryDailyLoader
+
+    loader = SectorIndustryDailyLoader()
+    result = loader.run()
+    logger.info(f"Sector/industry daily loader result: {result}")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
         "loader",
-        choices=["prices", "technical", "scores", "buy_sell", "market_status", "value_quality_growth", "enhanced_quality_growth", "analyst_earnings_estimates", "positioning_metrics", "stability_metrics"],
+        choices=["prices", "technical", "scores", "buy_sell", "market_status", "value_quality_growth", "enhanced_quality_growth", "analyst_earnings_estimates", "positioning_metrics", "stability_metrics", "trend_analysis", "earnings_calendar", "sector_industry"],
         help="Loader to run (use consolidated loader names)"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
@@ -451,6 +505,9 @@ def main():
             "buy_sell": ["buy_sell_daily"],
             "positioning_metrics": ["positioning_metrics"],
             "stability_metrics": ["stability_metrics"],
+            "trend_analysis": ["trend_template_data"],
+            "earnings_calendar": ["earnings_calendar"],
+            "sector_industry": ["sector_ranking", "industry_ranking", "sector_performance"],
         }
         table_names = table_mapping.get(args.loader, [])
 
@@ -507,6 +564,15 @@ def main():
 
         elif args.loader == "stability_metrics":
             run_stability_metrics_loader()
+
+        elif args.loader == "trend_analysis":
+            run_trend_analysis_loader()
+
+        elif args.loader == "earnings_calendar":
+            run_earnings_calendar_loader()
+
+        elif args.loader == "sector_industry":
+            run_sector_industry_loader()
 
         else:
             logger.error(f"Loader {args.loader} not yet implemented")

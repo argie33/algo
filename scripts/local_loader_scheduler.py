@@ -22,6 +22,9 @@ PIPELINES = {
         "prices",
         "technical",
         "market_status",
+        "earnings_calendar",  # FIXED 2026-08-05: Minervini/Weinstein earnings blackout window (Phase 3)
+        "trend_analysis",     # FIXED 2026-08-05: Setup/teardown detection for signal quality (Phase 7)
+        "sector_industry",    # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
     ],
     "metrics": [
         # FIXED 2026-08-03: registered in loader_registry.py but never scheduled anywhere -
