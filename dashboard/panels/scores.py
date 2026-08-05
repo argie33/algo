@@ -114,7 +114,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     if show_company:
         t.add_column("#", style="dim", justify="right", no_wrap=True, width=3)
     t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
-    t.add_column("Company", style="white", no_wrap=True, width=22)
+    t.add_column("Company", style="white", no_wrap=True, width=28)
     t.add_column("Comp", justify="right", no_wrap=True, width=5)
     t.add_column("Mom", justify="right", no_wrap=True, width=4)
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
@@ -122,11 +122,10 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     t.add_column("Grow", justify="right", no_wrap=True, width=5)
     t.add_column("Stab", justify="right", no_wrap=True, width=5)
     t.add_column("Pos", justify="right", no_wrap=True, width=4)
-    t.add_column("Chg%", justify="right", no_wrap=True, width=5)
 
     for rank, sc in enumerate(top_scores[:limit], 1):
         sym = safe_get_field(sc, "symbol", "--")
-        company = (safe_get_field(sc, "company_name") or "--")[:22]
+        company = (safe_get_field(sc, "company_name") or "--")[:28]
         comp = safe_get_field(sc, "composite_score")
         mom = safe_get_field(sc, "momentum_score")
         qual = safe_get_field(sc, "quality_score")
@@ -134,11 +133,8 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         grwth = safe_get_field(sc, "growth_score")
         stab = safe_get_field(sc, "stability_score")
         pos = safe_get_field(sc, "positioning_score")
-        chg = safe_get_field(sc, "change_percent")
         comp_v: float | None = safe_float(comp)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
-        chg_v: float | None = safe_float(chg)
-        chg_c: str = "green" if chg_v is not None and chg_v > 0 else ("red" if chg_v is not None and chg_v < 0 else "dim")
 
         row_cells: list[str | Text] = []
         if show_company:
@@ -156,7 +152,6 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
                 _score_cell(grwth),
                 _score_cell(stab),
                 _score_cell(pos),
-                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
             ]
         )
         t.add_row(*row_cells)
