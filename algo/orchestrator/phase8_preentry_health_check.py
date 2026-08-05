@@ -31,6 +31,105 @@ HEALTH_CHECKS = {
 }
 
 
+def _check_rs_weakening(ticker: str, signal_date: str) -> bool:
+    """Check if RS vs SPY is weakening."""
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT relative_strength_vs_spy
+                FROM trend_template_data
+                WHERE symbol = %s AND date = %s
+                """,
+                (ticker, signal_date),
+            )
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                return False
+
+            rs_score = float(row[0])
+            return rs_score < 40
+    except Exception as e:
+        logger.debug(f"[PREENTRY] RS check failed for {ticker}: {e}")
+        return False
+
+
+def _check_sector_weak(ticker: str, signal_date: str) -> bool:
+    """Check if sector is weak/declining."""
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT sector FROM company_profile WHERE symbol = %s", (ticker,)
+            )
+            sector_row = cur.fetchone()
+            if sector_row is None:
+                return False
+
+            sector = sector_row[0]
+
+            cur.execute(
+                """
+                SELECT sector_direction
+                FROM sector_rotation_signal
+                WHERE sector = %s AND date = %s
+                """,
+                (sector, signal_date),
+            )
+            sector_row = cur.fetchone()
+            if sector_row is None:
+                return False
+
+            direction = sector_row[0]
+            return direction and direction.lower() in ("weak", "declining", "warning")
+    except Exception as e:
+        logger.debug(f"[PREENTRY] Sector check failed for {ticker}: {e}")
+        return False
+
+
+def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
+    """Check if earnings announcement within 0-3 days."""
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM earnings_calendar
+                WHERE ticker = %s
+                AND announcement_date >= %s::date
+                AND announcement_date <= %s::date + interval '3 days'
+                """,
+                (ticker, signal_date),
+            )
+            count = cur.fetchone()[0]
+            return count > 0
+    except Exception as e:
+        logger.debug(f"[PREENTRY] Earnings check failed for {ticker}: {e}")
+        return False
+
+
+def _check_market_distribution_stress(signal_date: str) -> bool:
+    """Check if market is in distribution phase (stress)."""
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT distribution_day_count
+                FROM market_exposure_daily
+                WHERE date = %s
+                """,
+                (signal_date,),
+            )
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                return False
+
+            dist_days = int(row[0])
+            return dist_days >= 3
+    except Exception as e:
+        logger.debug(f"[PREENTRY] Market distribution check failed: {e}")
+        return False
+
+
 class PreEntryHealthValidator:
     """Validates signal health before Phase 8 entry execution."""
 
@@ -50,120 +149,21 @@ class PreEntryHealthValidator:
         failed_checks = []
 
         # Check 1: Relative Strength vs SPY
-        if PreEntryHealthValidator._check_rs_weakening(ticker, signal_date):
+        if _check_rs_weakening(ticker, signal_date):
             failed_checks.append("RS_WEAKENING")
 
         # Check 2: Sector Health
-        if PreEntryHealthValidator._check_sector_weak(ticker, signal_date):
+        if _check_sector_weak(ticker, signal_date):
             failed_checks.append("SECTOR_WEAK")
 
         # Check 3: Earnings Proximity
-        if PreEntryHealthValidator._check_earnings_in_3d(ticker, signal_date):
+        if _check_earnings_in_3d(ticker, signal_date):
             failed_checks.append("EARNINGS_IN_0-3D")
 
         # Check 4: Market Distribution Stress
-        if PreEntryHealthValidator._check_market_distribution_stress(signal_date):
+        if _check_market_distribution_stress(signal_date):
             failed_checks.append("MARKET_DISTRIBUTION_STRESS")
 
         # PASS if <=1 check fails (>=2 pass minimum)
         passes = len(failed_checks) <= 1
         return passes, failed_checks
-
-    @staticmethod
-    def _check_rs_weakening(ticker: str, signal_date: str) -> bool:
-        """Check if RS vs SPY is weakening."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT relative_strength_vs_spy
-                    FROM trend_template_data
-                    WHERE symbol = %s AND date = %s
-                    """,
-                    (ticker, signal_date),
-                )
-                row = cur.fetchone()
-                if row is None or row[0] is None:
-                    return False
-
-                rs_score = float(row[0])
-                return rs_score < 40
-        except Exception as e:
-            logger.debug(f"[PREENTRY] RS check failed for {ticker}: {e}")
-            return False
-
-    @staticmethod
-    def _check_sector_weak(ticker: str, signal_date: str) -> bool:
-        """Check if sector is weak/declining."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT sector FROM company_profile WHERE symbol = %s", (ticker,)
-                )
-                sector_row = cur.fetchone()
-                if sector_row is None:
-                    return False
-
-                sector = sector_row[0]
-
-                cur.execute(
-                    """
-                    SELECT sector_direction
-                    FROM sector_rotation_signal
-                    WHERE sector = %s AND date = %s
-                    """,
-                    (sector, signal_date),
-                )
-                sector_row = cur.fetchone()
-                if sector_row is None:
-                    return False
-
-                direction = sector_row[0]
-                return direction and direction.lower() in ("weak", "declining", "warning")
-        except Exception as e:
-            logger.debug(f"[PREENTRY] Sector check failed for {ticker}: {e}")
-            return False
-
-    @staticmethod
-    def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
-        """Check if earnings announcement within 0-3 days."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT COUNT(*)
-                    FROM earnings_calendar
-                    WHERE ticker = %s
-                    AND announcement_date >= %s::date
-                    AND announcement_date <= %s::date + interval '3 days'
-                    """,
-                    (ticker, signal_date),
-                )
-                count = cur.fetchone()[0]
-                return count > 0
-        except Exception as e:
-            logger.debug(f"[PREENTRY] Earnings check failed for {ticker}: {e}")
-            return False
-
-    @staticmethod
-    def _check_market_distribution_stress(signal_date: str) -> bool:
-        """Check if market is in distribution phase (stress)."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT distribution_day_count
-                    FROM market_exposure_daily
-                    WHERE date = %s
-                    """,
-                    (signal_date,),
-                )
-                row = cur.fetchone()
-                if row is None or row[0] is None:
-                    return False
-
-                dist_days = int(row[0])
-                return dist_days >= 3
-        except Exception as e:
-            logger.debug(f"[PREENTRY] Market distribution check failed: {e}")
-            return False
