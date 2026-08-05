@@ -319,9 +319,16 @@ class AdvancedFilters:
             components["financial_quality"] = fin_val
             subscores["quality"] += fin_pts
 
-            eq_pts, eq_val = self._earnings_quality_score(symbol, cur)
-            components["earnings_quality_score"] = eq_val
-            subscores["quality"] += eq_pts
+            try:
+                eq_pts, eq_val = self._earnings_quality_score(symbol, cur)
+                components["earnings_quality_score"] = eq_val
+                subscores["quality"] += eq_pts
+            except ValueError as e:
+                if not hard_fail:
+                    hard_fail = f"Earnings quality data unavailable: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (earnings score) but already failed: {hard_fail}")
+                components["earnings_quality_score"] = None
 
             # CATALYST (15)
             grw_pts, grw_breakdown = self._growth_score(symbol, cur)
@@ -343,7 +350,11 @@ class AdvancedFilters:
                 components["insider_net_value"] = in_net
                 subscores["catalyst"] += in_pts
             except ValueError as e:
-                raise ValueError(f"Insider data unavailable: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Insider data unavailable: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (insider score) but already failed: {hard_fail}")
+                components["insider_net_value"] = None
 
             # RISK (15) - these are GOOD when low risk
             try:
