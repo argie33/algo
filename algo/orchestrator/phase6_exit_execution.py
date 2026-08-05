@@ -1122,7 +1122,9 @@ def run(
                 logger.error(f"  Error on {rec['symbol']}: {e}")
 
         # 4b. Exit engine - tiered targets, stops, time, Minervini break
-        if not dry_run and executor is not None:
+        # Initialize engine results (may not execute in dry-run or if executor unavailable)
+        engine_forced_closes_no_price = 0
+        if not dry_run and trade_executor is not None:
             engine = ExitEngine(config)
             engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
             exit_count += engine_exits
