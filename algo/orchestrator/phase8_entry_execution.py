@@ -2640,7 +2640,7 @@ def run(
                     break
 
         except (RuntimeError, ValueError, TypeError, AttributeError, IndexError, psycopg2.Error, DatabaseError) as e:
-            symbol = signal.get("symbol") if isinstance(signal, dict) else str(signal)
+            symbol = (signal.get("symbol") or "UNKNOWN") if isinstance(signal, dict) else str(signal)
             logger.error(
                 f"[PHASE 8] Error processing {symbol}: {e}",
                 exc_info=True,
@@ -2660,8 +2660,14 @@ def run(
             # Use signal.get(...) rather than the local entry_price/risk_pct vars - this
             # handler covers the whole per-symbol block, including the part before those
             # locals are computed, so they aren't guaranteed to be assigned yet.
+            entry_price_val = None
+            if isinstance(signal, dict) and "entry_price" in signal and signal.get("entry_price") is not None:
+                try:
+                    entry_price_val = float(signal["entry_price"])
+                except (TypeError, ValueError):
+                    entry_price_val = None
             _log_signal_rejection(
-                symbol, "processing_error", str(e), run_date, signal.get("entry_price") if isinstance(signal, dict) else None
+                symbol, "processing_error", str(e), run_date, entry_price_val
             )
 
             failed_count += 1

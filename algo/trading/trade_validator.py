@@ -277,26 +277,12 @@ class TradeValidator:
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
         """
-        # CRITICAL FIX 2026-08-03: query symbol+signal_date directly instead of matching on
-        # algo_trades.idempotency_key. The 2026-07-30 fix (see git blame) made this function
-        # hash ONLY symbol+signal_date so a second entry at a different price couldn't bypass
-        # the check (the LNG 3-trades-same-day bug). But the 2026-08-01 fix to
-        # executor_entry_handler.py's insert-side key (docstring: "Include entry_price,
-        # stop_loss_price to differentiate retry attempts") deliberately changed what's
-        # actually STORED in that column to a hash of symbol+entry_price+stop_loss_price+
-        # signal_date, for a different purpose - Alpaca's client_order_id needs the retry's
-        # price/stop baked in so a genuine crash-recovery retry reuses the same broker id.
-        # Neither hash can ever equal the other, so this SELECT never matched a stored row -
-        # confirmed live: NBIX got two algo_trades rows for the same 2026-08-03 signal_date at
-        # different entry prices (167.665 and 170.045), the exact bug 2026-07-30 was supposed
-        # to prevent. Querying the real columns directly enforces the business rule
-        # independent of whatever hash the broker-retry mechanism needs the column to hold.
-        # CRITICAL FIX 2026-08-05a: Check OPEN trades to prevent multiple active positions in same symbol
+        # Check OPEN trades to prevent multiple active positions in same symbol on same signal date
         open_statuses = TradeStatus.all_open()
         cur.execute(
             f"""
-            SELECT trade_id FROM algo_trades
-            WHERE symbol = %s AND signal_date = %s
+            SELECT id FROM algo_trades
+            WHERE symbol = %s AND DATE(entry_date) = %s
             AND status IN ({", ".join(["%s"] * len(open_statuses))})
             LIMIT 1
             """,
@@ -305,25 +291,21 @@ class TradeValidator:
         result = cur.fetchone()
         if result:
             trade_id = result[0]
-            logger.warning(f"DUPLICATE EXECUTION BLOCKED: Idempotency key exists for {symbol} (trade_id: {trade_id})")
+            logger.warning(f"DUPLICATE EXECUTION BLOCKED: Open trade exists for {symbol} on {signal_date} (id: {trade_id})")
             return (
                 True,
                 f"Trade already exists for {symbol} on {signal_date} (idempotent duplicate)",
-                trade_id,
+                str(trade_id),
             )
 
-        # CRITICAL FIX 2026-08-05b: The idempotency_key column has a UNIQUE constraint across
-        # ALL trades (regardless of status). If we try to INSERT a new trade with the same
-        # entry_price+stop_loss_price+symbol+signal_date as an existing (even closed) trade,
-        # the database will reject it with UniqueViolation. Check if this exact trade attempt
-        # already exists (regardless of status). This prevents retrying the same signal with
-        # identical parameters on subsequent runs.
+        # Check for identical trade parameters (regardless of status) to prevent duplicate entries on re-runs.
+        # If entry_price+stop_loss_price+symbol match on same day, the trade already exists.
         entry_price_dec = Decimal(str(entry_price))
         stop_loss_dec = Decimal(str(stop_loss_price))
         cur.execute(
             """
-            SELECT trade_id, status FROM algo_trades
-            WHERE symbol = %s AND signal_date = %s
+            SELECT id, status FROM algo_trades
+            WHERE symbol = %s AND DATE(entry_date) = %s
             AND entry_price = %s AND stop_loss_price = %s
             LIMIT 1
             """,
@@ -333,13 +315,13 @@ class TradeValidator:
         if result:
             trade_id, status = result
             logger.info(
-                f"SKIPPING {symbol}: identical trade already attempted (trade_id: {trade_id}, status: {status}). "
-                f"Entry={entry_price_dec}, Stop={stop_loss_dec}, Signal date={signal_date}"
+                f"SKIPPING {symbol}: identical trade already attempted (id: {trade_id}, status: {status}). "
+                f"Entry=${entry_price_dec}, Stop=${stop_loss_dec}, Date={signal_date}"
             )
             return (
                 True,
                 f"Trade with identical parameters already exists for {symbol} (status={status})",
-                trade_id,
+                str(trade_id),
             )
 
         return False, None, None

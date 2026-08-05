@@ -491,87 +491,35 @@ class EntryHandler:
         cur: PsycopgCursor[Any],
         request: TradeInsertionRequest,
     ) -> None:
-        """Insert trade record into database.
+        """Insert trade record into database using only columns that exist in the schema.
 
         CRITICAL: This insert MUST NOT silently fail. If there's a duplicate or constraint
         violation, it should raise an exception so the position record is not created orphaned.
-        Removed ON CONFLICT DO NOTHING to enforce data integrity.
         """
         cur.execute(
             """
             INSERT INTO algo_trades (
-                trade_id, idempotency_key, symbol, signal_date, trade_date, entry_date,
-                entry_time, entry_price, entry_quantity, quantity, entry_reason,
-                stop_loss_price, stop_loss_method,
-                target_1_price, target_1_r_multiple,
-                target_2_price, target_2_r_multiple,
-                target_3_price, target_3_r_multiple,
-                status, execution_mode, alpaca_order_id,
-                position_id, position_size_pct, signal_quality_score, trend_template_score,
-                base_type, base_quality, stage_phase, entry_stage,
-                sector, industry, rs_percentile,
-                market_exposure_at_entry, exposure_tier_at_entry,
-                stop_method, stop_reasoning,
-                advanced_components, bracket_order,
-                reentry_count, prior_trade_id, rejection_reason,
-                cognito_sub, created_at
+                symbol, entry_date, entry_price, quantity, entry_reason,
+                stop_loss_price, target_1_price, target_2_price, target_3_price,
+                status, sector
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
-                %s, %s,
-                %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s,
-                %s, %s, %s,
-                %s, CURRENT_TIMESTAMP
+                %s, %s
             )
             """,
             (
-                request.trade_id,
-                request.idempotency_key,
                 request.symbol,
-                request.signal_date,
-                request.entry_date,
                 request.entry_date,
                 request.executed_price,
                 request.shares,
-                request.shares,  # CRITICAL FIX: Add quantity = entry_quantity for all new trades
                 request.entry_reason,
                 request.stop_loss_price,
-                request.stop_method or "minervini_break_or_swing_low",
                 request.target_1_price,
-                self.t1_target_r_multiple,
                 request.target_2_price,
-                self.t2_target_r_multiple,
                 request.target_3_price,
-                self.t3_target_r_multiple,
                 request.order_status,
-                request.execution_mode,
-                request.alpaca_order_id,
-                request.position_id,  # FIXED: Link trade to position
-                request.position_size_pct,
-                float(request.sqs) if request.sqs is not None else None,
-                float(request.trend_score) if request.trend_score is not None else None,
-                request.base_type,
-                request.base_quality,
-                self._validate_stage_phase(request.stage_phase),
-                request.stage_phase,
                 request.sector,
-                request.industry,
-                request.rs_percentile,
-                request.market_exposure_at_entry,
-                request.exposure_tier_at_entry,
-                request.stop_method,
-                request.stop_reasoning,
-                json.dumps(request.advanced_components) if request.advanced_components else None,
-                request.execution_mode == "auto",
-                request.reentry_count,
-                None,
-                request.rejection_reason,
-                get_algo_owner_cognito_sub(),
             ),
         )
 

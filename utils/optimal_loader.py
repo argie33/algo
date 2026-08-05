@@ -454,11 +454,11 @@ class OptimalLoader:
         from utils.db.local_file_lock import get_lock_manager
         from utils.db.rds_lock import RDSLockManager
 
-        # No FileLockManager here: Session 282 removed it as a fallback option (Windows
-        # race condition on non-atomic file creation) - get_lock_manager() only ever
-        # returns DynamoDBLockManager or the RDS-backed fallback added in Session 290
-        # (utils/db/rds_lock.py, shared/atomic like DynamoDB - not a local file lock).
-        lock_manager: DynamoDBLockManager | RDSLockManager | None = None
+        # Type annotation includes FileLockManager because get_lock_manager() returns it
+        # in LOCAL_MODE, even though production code should not rely on it (Windows race condition).
+        # get_lock_manager() returns: FileLockManager (LOCAL_MODE), DynamoDBLockManager, or RDS fallback.
+        from utils.db.local_file_lock import FileLockManager
+        lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         if is_local_mode:
             logger.info(f"[{self.table_name}] LOCAL_MODE enabled - using file-based locks")
             lock_manager = None
@@ -748,11 +748,11 @@ class OptimalLoader:
         from utils.db.local_file_lock import get_lock_manager
         from utils.db.rds_lock import RDSLockManager
 
-        # No FileLockManager here: Session 282 removed it as a fallback option (Windows
-        # race condition on non-atomic file creation) - get_lock_manager() only ever
-        # returns DynamoDBLockManager or the RDS-backed fallback added in Session 290
-        # (utils/db/rds_lock.py, shared/atomic like DynamoDB - not a local file lock).
-        lock_manager: DynamoDBLockManager | RDSLockManager | None = None
+        # Type annotation includes FileLockManager because get_lock_manager() returns it
+        # in LOCAL_MODE, even though production code should not rely on it (Windows race condition).
+        # get_lock_manager() returns: FileLockManager (LOCAL_MODE), DynamoDBLockManager, or RDS fallback.
+        from utils.db.local_file_lock import FileLockManager
+        lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         from algo.exceptions import LockAcquisitionError
 
         try:
