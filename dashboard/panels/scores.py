@@ -137,7 +137,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         pos = safe_get_field(sc, "positioning_score")
         sector = safe_get_field(sc, "sector", "--")
         comp_v: float | None = safe_float(comp)
-        completeness = safe_float(safe_get_field(sc, "data_completeness"), "completeness", allow_none=True)
+        completeness = safe_float(safe_get_field(sc, "data_completeness"), field_name="completeness", allow_none=True)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
 
         row_cells: list[str | Text] = []
