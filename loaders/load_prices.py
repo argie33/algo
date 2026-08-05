@@ -2529,8 +2529,6 @@ class PriceLoader(OptimalLoader):
                             f"{stale_threshold}d old (EOD context). Retrying with explicit start_date instead of watermark."
                         )
                         try:
-                            # Retry with explicit start_date = current_watermark (force fetch from that date forward)
-                            from datetime import timedelta
                             start_date = current_watermark
                             # Extend lookback by 2 days to catch any data that yfinance might have missed
                             extended_start = start_date - timedelta(days=2)
