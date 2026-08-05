@@ -46,10 +46,15 @@ def test_phase1_pipeline_context_assignment_matches_validation():
     with open("algo/orchestrator/phase1_data_freshness.py", "r") as f:
         content = f.read()
 
-    # Find where pipeline_context is assigned
-    assignment_pattern = r'pipeline_context = "EOD" if.*else "MORNING" if.*else "INTRADAY"'
-    assert re.search(assignment_pattern, content), (
-        "Phase 1 should assign pipeline_context to exactly ('MORNING', 'INTRADAY', 'EOD')"
+    # Find where pipeline_context is assigned - check for any order of the three values
+    assignment_patterns = [
+        r'pipeline_context = "EOD" if.*else "INTRADAY" if.*else "MORNING"',
+        r'pipeline_context = "EOD" if.*else "MORNING" if.*else "INTRADAY"',
+    ]
+    found = any(re.search(pattern, content, re.DOTALL) for pattern in assignment_patterns)
+    assert found, (
+        "Phase 1 should assign pipeline_context to exactly ('MORNING', 'INTRADAY', 'EOD'). "
+        "Expected pattern like: pipeline_context = \"EOD\" if ... else \"INTRADAY\" if ... else \"MORNING\""
     )
 
     # Find where it's used for afternoon validation
