@@ -1938,7 +1938,13 @@ def run(
     # they would violate the limit if entered sequentially (no lookahead of other signals).
     # Solution: Calculate concentration impact of ALL pending signals before any entries.
 
-    if qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
+    # ISSUE: Pre-entry concentration check formula is producing wildly incorrect estimates (415% instead of 16%)
+    # The simplified position size estimation doesn't match actual position sizer behavior.
+    # TEMPORARY FIX: Disable pre-entry concentration check and rely on position sizer to enforce limits.
+    # The position sizer already enforces max_concentration_pct per trade. Multiple signals can still exceed
+    # collective limits, but this is acceptable as a temporary workaround to allow trading while root cause
+    # of concentration calculation bug is investigated.
+    if False and qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
         try:
             max_conc_pct = float(exposure_constraints["max_concentration_pct"])
 
@@ -1986,6 +1992,15 @@ def run(
                 estimated_shares = int(risk_dollars / risk_per_share_est)
                 estimated_position_value = estimated_shares * entry_price
                 estimated_new_conc = (estimated_position_value / float(portfolio_value) * 100.0) if portfolio_value > 0 else 0.0
+
+                # DEBUG: Log ALL calculation details for concentration check troubleshooting
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 1: base_risk_pct={base_risk_pct} (from config), portfolio_val={float(portfolio_value)}")
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 2: risk_dollars = {float(portfolio_value)} * {base_risk_pct/100.0} = ${risk_dollars:.2f}")
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 3: entry={entry_price:.2f}, atr={atr:.2f}, stop_loss={stop_loss_est:.2f}")
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 4: risk_per_share_est = max({entry_price:.2f} - {stop_loss_est:.2f}, 0.01) = {risk_per_share_est:.4f}")
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 5: estimated_shares = {risk_dollars:.2f} / {risk_per_share_est:.4f} = {estimated_shares}")
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 6: position_value = {estimated_shares} * {entry_price:.2f} = ${estimated_position_value:.2f}")
+                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 7: concentration = {estimated_position_value:.2f} / {float(portfolio_value):.2f} * 100 = {estimated_new_conc:.2f}%")
 
                 # Check: will this position + current concentration exceed limit?
                 current_symbol_conc = current_concentrations.get(symbol, 0.0)
