@@ -272,7 +272,7 @@ class TradeValidator:
         entry_price: Decimal | float,
         stop_loss_price: Decimal | float,
     ) -> tuple[bool, str | None, str | None]:
-        """Check if trade already exists for this symbol+signal_date (one entry per signal per day).
+        """Check if OPEN trade already exists for this symbol+signal_date (one entry per signal per day).
 
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
@@ -291,9 +291,18 @@ class TradeValidator:
         # different entry prices (167.665 and 170.045), the exact bug 2026-07-30 was supposed
         # to prevent. Querying the real columns directly enforces the business rule
         # independent of whatever hash the broker-retry mechanism needs the column to hold.
+        # CRITICAL FIX 2026-08-05: Only check OPEN trades, not closed ones. Previous runs may
+        # have marked trades as closed but we should allow new entries for the same signal_date
+        # if the prior trade completed. This prevents false duplicate-blocking.
+        open_statuses = TradeStatus.all_open()
         cur.execute(
-            "SELECT trade_id FROM algo_trades WHERE symbol = %s AND signal_date = %s LIMIT 1",
-            (symbol, signal_date),
+            f"""
+            SELECT trade_id FROM algo_trades
+            WHERE symbol = %s AND signal_date = %s
+            AND status IN ({", ".join(["%s"] * len(open_statuses))})
+            LIMIT 1
+            """,
+            (symbol, signal_date, *open_statuses),
         )
         result = cur.fetchone()
         if result:
