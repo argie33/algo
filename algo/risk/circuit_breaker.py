@@ -524,6 +524,29 @@ class CircuitBreaker:
         # circuit_breaker_halt at 09:20:30 - a structural/denominator bug pretending to
         # be a losing streak. Even with that bug now fixed, concentration force-exits
         # remain structurally not a strategy decision and should never count here.
+        # FIX (2026-08-05): Also check algo_positions for recent closes (last 90s).
+        # Phase 2 runs before Phase 9 (exit recording), so exits that closed on broker
+        # but haven't been recorded in algo_trades yet don't affect the streak check.
+        # If most recent position close was a win in the last 90s, it breaks the streak.
+        cur.execute(
+            """
+            SELECT unrealized_pnl_pct as profit_loss_pct, closed_at as exit_date
+            FROM algo_positions
+            WHERE status = 'closed' AND closed_at > NOW() - INTERVAL '90 seconds'
+            ORDER BY closed_at DESC
+            LIMIT 1
+            """
+        )
+        recent_close = cur.fetchone()
+        if recent_close and recent_close[0] is not None:
+            recent_pnl = _float(recent_close[0], None, context="recent_position_pnl")
+            if recent_pnl >= 0:
+                logger.debug(
+                    f"[CIRCUIT BREAKER] Recent position close ({recent_pnl:+.2f}%) "
+                    f"in last 90s breaks loss streak - skipping algo_trades check"
+                )
+                return {"halted": False, "reason": "0 losses (recent win resets streak)"}
+
         cur.execute(
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
