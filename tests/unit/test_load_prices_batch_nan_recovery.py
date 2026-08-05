@@ -45,6 +45,7 @@ def _make_loader():
     loader._bulk_insert_mgr = MagicMock()
     loader._bulk_insert_mgr.bulk_insert.return_value = 2
     loader._watermark = MagicMock()
+    loader._is_eod_pipeline = False
     return loader
 
 
