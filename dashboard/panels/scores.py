@@ -114,7 +114,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     if show_company:
         t.add_column("#", style="dim", justify="right", no_wrap=True, width=3)
     t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
-    t.add_column("Company", style="white", no_wrap=True, width=28)
+    t.add_column("Company", style="white", no_wrap=True, width=40)
     t.add_column("Comp", justify="right", no_wrap=True, width=5)
     t.add_column("Mom", justify="right", no_wrap=True, width=4)
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
@@ -125,7 +125,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
 
     for rank, sc in enumerate(top_scores[:limit], 1):
         sym = safe_get_field(sc, "symbol", "--")
-        company = (safe_get_field(sc, "company_name") or "--")[:28]
+        company = (safe_get_field(sc, "company_name") or "--")[:40]
         comp = safe_get_field(sc, "composite_score")
         mom = safe_get_field(sc, "momentum_score")
         qual = safe_get_field(sc, "quality_score")
