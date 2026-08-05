@@ -11,18 +11,20 @@ Tables verified (all must have LAST-TRADING-DAY data with non-NULL prices):
 
 HALT IF STALE (core to signal generation):
 1. price_daily: Stock prices (75%+ symbol coverage required)
-2. market_health_daily: Market breadth metrics (regime detection)
-3. earnings_calendar: Earnings dates (blackout window gating)
+2. technical_data_daily: Technical indicators (ATR, SMA, RSI - CRITICAL for Phase 8 position sizing)
+3. market_health_daily: Market breadth metrics (regime detection)
+4. earnings_calendar: Earnings dates (blackout window gating)
+5. buy_sell_daily: Buy/sell technical signals (CRITICAL for Phase 7 signal generation)
 
 WARNING IF STALE (enrichment only, website/portfolio analysis, not core signals):
-4. market_exposure_daily: Market regime / exposure limits (EOD loader, morning runs lag 1d)
-5. growth_metrics: Multi-year revenue/EPS growth metrics
-6. quality_metrics: Financial quality metrics (ROE/margins/ratios)
-7. value_metrics: Valuation metrics (P/E, P/B, etc.)
-8. positioning_metrics: Ownership and short interest
-9. stability_metrics: Volatility and beta metrics
-10. trend_template_data: Minervini/Weinstein criteria
-11. sector_ranking: Sector data for last trading day
+6. market_exposure_daily: Market regime / exposure limits (EOD loader, morning runs lag 1d)
+7. growth_metrics: Multi-year revenue/EPS growth metrics
+8. quality_metrics: Financial quality metrics (ROE/margins/ratios)
+9. value_metrics: Valuation metrics (P/E, P/B, etc.)
+10. positioning_metrics: Ownership and short interest
+11. stability_metrics: Volatility and beta metrics
+12. trend_template_data: Minervini/Weinstein criteria
+13. sector_ranking: Sector data for last trading day
 (swing_trader_scores: removed in Session 14, no longer checked)
 
 NOTE: Metric loaders (growth, quality, value, positioning, stability) are ENRICHMENT ONLY.
@@ -862,6 +864,7 @@ def run(  # noqa: C901
 
             # Halt-critical tables: Core trading data - trading CANNOT proceed without these
             # - price_daily: Must have stock prices for all 10K+ symbols
+            # - technical_data_daily: ATR, SMA, RSI for position sizing (CRITICAL for Phase 8 entry execution)
             # - market_health_daily: Market breadth/regime (VIX, advance/decline, market breadth)
             # - market_exposure_daily: Market exposure policy limits (when to trade, position sizing)
             # - earnings_calendar: Earnings dates for trading blackout windows
@@ -869,7 +872,11 @@ def run(  # noqa: C901
             # NOTE: Metric enrichments (growth, quality, value, positioning, stability) are NOT
             # halt-critical. They're used for website display and portfolio analysis, not core signals.
             # Core signals come from price_daily + technical_data_daily. See Session 221.
+            # CRITICAL FIX (2026-08-05): technical_data_daily was excluded from freshness checks,
+            # allowing stale ATR/SMA data to be used for position sizing. Now added to halt_tables.
             halt_tables = {
+                "price_daily": "Stock prices (CRITICAL for all trading decisions)",
+                "technical_data_daily": "Technical indicators (ATR, SMA - CRITICAL for Phase 8 position sizing)",
                 "market_health_daily": "Market health (breadth/regime)",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
                 "buy_sell_daily": "Buy/sell signals (CRITICAL for Phase 7 signal generation)",
@@ -920,6 +927,10 @@ def run(  # noqa: C901
                 "value_metrics": "updated_at",
                 "positioning_metrics": "updated_at",
                 "stability_metrics": "updated_at",
+                # CRITICAL FIX (2026-08-05): Add explicit date column for technical_data_daily
+                # (was being skipped entirely from freshness checks). Uses standard "date" column
+                # like price_daily, matching when technical indicators were computed/loaded.
+                "technical_data_daily": "date",
             }
             # Only check tables that have a date column for freshness
             date_checked_tables = {**halt_tables, **warn_tables}
