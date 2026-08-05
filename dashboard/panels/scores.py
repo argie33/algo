@@ -122,6 +122,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     t.add_column("Grow", justify="right", no_wrap=True, width=5)
     t.add_column("Stab", justify="right", no_wrap=True, width=5)
     t.add_column("Pos", justify="right", no_wrap=True, width=4)
+    t.add_column("Sector", style="dim", no_wrap=True, width=16)
 
     for rank, sc in enumerate(top_scores[:limit], 1):
         sym = safe_get_field(sc, "symbol", "--")
@@ -133,6 +134,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         grwth = safe_get_field(sc, "growth_score")
         stab = safe_get_field(sc, "stability_score")
         pos = safe_get_field(sc, "positioning_score")
+        sector = safe_get_field(sc, "sector", "--")
         comp_v: float | None = safe_float(comp)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
 
@@ -152,6 +154,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
                 _score_cell(grwth),
                 _score_cell(stab),
                 _score_cell(pos),
+                Text(str(sector), style="dim"),
             ]
         )
         t.add_row(*row_cells)
