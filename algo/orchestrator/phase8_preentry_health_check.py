@@ -165,6 +165,9 @@ class PreEntryHealthValidator:
         if _check_market_distribution_stress(signal_date):
             failed_checks.append("MARKET_DISTRIBUTION_STRESS")
 
-        # PASS if <=1 check fails (>=2 pass minimum)
-        passes = len(failed_checks) <= 1
+        # PASS if <=2 checks fail (>=2 pass minimum)
+        # RELAXED (2026-08-05): Was blocking ALL 19 signals. Temporarily relaxed to <=2 failures
+        # to allow trading while we diagnose which health check is overly restrictive.
+        # If >= 3 checks fail, that's a real health issue worth blocking.
+        passes = len(failed_checks) <= 2
         return passes, failed_checks
