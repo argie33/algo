@@ -1334,6 +1334,19 @@ def _get_stock_scores(  # noqa: C901
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)
 
+            # TRANSPARENCY FIX (2026-08-05): Add data completeness and reason to top-level response
+            # Traders need to see: (1) how complete is this score? (2) why is data missing?
+            # Include these fields so dashboard can display data quality to users
+            completeness = d.get("data_completeness")
+            reason = d.get("reason")
+            unavailable = d.get("data_unavailable")
+
+            # Ensure these are in the response
+            d["data_completeness"] = completeness if completeness is not None else 0.0
+            d["data_unavailable_reason"] = reason if reason else (
+                "Data completeness below 70% threshold" if unavailable else None
+            )
+
             # CRITICAL FIX: If current price is missing, mark data unavailable
             # For trading, current price is REQUIRED to calculate entry/exit risk
             # Don't silently include incomplete scores - that masks data quality issues
@@ -1400,6 +1413,21 @@ def _get_stock_scores(  # noqa: C901
                     else:
                         grades_summary["d"] = grades_summary.get("d", 0) + 1
 
+        # TRANSPARENCY ENHANCEMENT (2026-08-05): Add data health metrics to summary
+        # Shows traders overall data quality of the scores being returned
+        avg_completeness = None
+        completeness_threshold_pct = None
+        if items:
+            completeness_values = [
+                d.get("data_completeness") for d in items
+                if d.get("data_completeness") is not None and d.get("data_completeness") > 0
+            ]
+            if completeness_values:
+                avg_completeness = sum(completeness_values) / len(completeness_values)
+                # Count how many meet trading gate (70%+ complete)
+                trading_gate_count = sum(1 for c in completeness_values if c >= 70)
+                completeness_threshold_pct = 100 * trading_gate_count / len(completeness_values) if completeness_values else 0
+
         result = {
             "items": items,
             "pagination": {
@@ -1411,6 +1439,11 @@ def _get_stock_scores(  # noqa: C901
             },
             "avg_composite": avg_composite,
             "grades": grades_summary if grades_summary else None,
+            "data_health": {
+                "avg_completeness": round(avg_completeness, 2) if avg_completeness else None,
+                "meeting_trading_gate": f"{completeness_threshold_pct:.0f}%" if completeness_threshold_pct else None,
+                "note": "Completeness >= 70% passes trading entry gate; < 70% filtered per GOVERNANCE"
+            }
         }
         return json_response(200, result, data_freshness=freshness)
     except (

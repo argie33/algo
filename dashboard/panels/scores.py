@@ -88,6 +88,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
 
     Validates input is list before accessing items.
     Logs all validation failures.
+    Shows data completeness indicator for incomplete scores.
     """
     rows: list[Text | Table] = []
     if not isinstance(top_scores, list):
@@ -136,6 +137,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         pos = safe_get_field(sc, "positioning_score")
         sector = safe_get_field(sc, "sector", "--")
         comp_v: float | None = safe_float(comp)
+        completeness = safe_float(safe_get_field(sc, "data_completeness"), "completeness", allow_none=True)
         sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
 
         row_cells: list[str | Text] = []
@@ -145,9 +147,20 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
             sym,
             Text(company, style="dim"),
         ])
+
+        # TRANSPARENCY (2026-08-05): Show completeness indicator with score
+        # Scores <70% complete are marked with ⚠ (less reliable due to missing metrics)
+        comp_indicator = ""
+        if completeness is not None and completeness < 70:
+            comp_indicator = " [yellow]⚠[/]"
+        elif completeness is not None and completeness < 85:
+            comp_indicator = " [dim]◆[/]"
+
+        comp_text = f"{comp_v:.0f}{comp_indicator}" if comp_v is not None else "--"
+
         row_cells.extend(
             [
-                Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
+                Text.from_markup(comp_text) if comp_indicator else Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
                 _score_cell(mom),
                 _score_cell(qual),
                 _score_cell(val),
@@ -281,6 +294,18 @@ def panel_scores_compact(scores: Any) -> Panel:
     summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 15))
     if summary is not None:
         rows.append(summary)
+
+    # DATA HEALTH INDICATOR (2026-08-05): Show data quality to traders
+    data_health = safe_get_dict(scores).get("data_health", {})
+    if data_health:
+        avg_comp = data_health.get("avg_completeness")
+        gate_pct = data_health.get("meeting_trading_gate")
+        if avg_comp is not None or gate_pct:
+            health_text = f"[dim]Data completeness: [white]{avg_comp:.0f}%[/] avg"
+            if gate_pct:
+                health_text += f" | [white]{gate_pct}[/] meet trading gate"
+            rows.append(Text.from_markup(health_text))
+
     rows.extend(_build_scores_table(top_scores, limit=15))
 
     timestamp_val = safe_get_dict(scores).get("timestamp")
