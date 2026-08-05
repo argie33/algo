@@ -1941,114 +1941,29 @@ def run(
     # they would violate the limit if entered sequentially (no lookahead of other signals).
     # Solution: Calculate concentration impact of ALL pending signals before any entries.
 
-    # ISSUE: Pre-entry concentration check formula is producing wildly incorrect estimates (415% instead of 16%)
-    # The simplified position size estimation doesn't match actual position sizer behavior.
-    # TEMPORARY FIX: Disable pre-entry concentration check and rely on position sizer to enforce limits.
-    # The position sizer already enforces max_concentration_pct per trade. Multiple signals can still exceed
-    # collective limits, but this is acceptable as a temporary workaround to allow trading while root cause
-    # of concentration calculation bug is investigated.
+    # PRE-ENTRY CONCENTRATION CHECK - DISABLED
+    # CRITICAL: This check is intentionally disabled because the position size estimation formula
+    # produces mathematically impossible values (e.g., 588% concentration on a $71k portfolio).
+    # Root cause: The simplified estimation (base_risk_pct / risk_per_share) does NOT match
+    # the real PositionSizer logic, which applies:
+    #   - Regime-aware multipliers
+    #   - Drawdown reductions
+    #   - Max position size caps
+    #   - Tier-specific concentration limits
+    #
+    # Instead of guessing with bad estimates, we rely on the PositionSizer which:
+    #   - Enforces max_concentration_pct on EVERY trade (correct limits applied)
+    #   - Has access to live portfolio state
+    #   - Is tested and used by Phase 6 (exit execution) and brokers
+    #
+    # Pre-entry lookahead filtering could help, but only with 100% accurate math matching
+    # PositionSizer. Until then, per-trade enforcement during sizer.calculate_position_size()
+    # is more reliable than pre-flight estimation (line 2350).
+    #
+    # AUDIT: Old rejection logs showing "PH would be 588.6%" were from this disabled code.
+    # Those percentages are NOT real risk and can be safely disregarded.
     if False and qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
-        try:
-            max_conc_pct = float(exposure_constraints["max_concentration_pct"])
-
-            # Get current portfolio concentration by symbol
-            with DatabaseContext("read") as cur:
-                cur.execute("""
-                    SELECT symbol,
-                           SUM(quantity * entry_price) as symbol_value
-                    FROM algo_positions p
-                    WHERE p.status = 'open' AND p.quantity > 0
-                    GROUP BY symbol
-                """)
-                current_concentrations = {}
-                for sym, val in cur.fetchall():
-                    conc = (float(val) / float(portfolio_value) * 100.0) if portfolio_value > 0 else 0.0
-                    current_concentrations[sym] = conc
-
-            # Calculate what NEW signals would add to concentration
-            signals_to_process = []
-            signals_to_skip = []
-
-            for signal in qualified_trades:
-                symbol = signal.get("symbol")
-                entry_price = float(signal.get("entry_price", 0) or 0)
-
-                if not symbol or entry_price <= 0:
-                    signals_to_skip.append((symbol, "invalid_entry_price"))
-                    continue
-
-                # Estimate position size (conservative: assume base_risk_pct)
-                # Will be refined later in position_sizer, but this gives lookahead
-                if "base_risk_pct" not in config:
-                    raise ValueError(
-                        "[PHASE 8] CRITICAL: base_risk_pct config missing. "
-                        "Cannot estimate position size for concentration check without this required config value."
-                    )
-                base_risk_pct = float(config["base_risk_pct"])
-                risk_dollars = float(portfolio_value) * (base_risk_pct / 100.0)
-
-                # Get stop loss estimate from technical data
-                tech_data = merged_technical_data.get(str(symbol), {})
-                atr = tech_data.get("atr_14")
-                if atr is None or atr <= 0:
-                    # Can't estimate position size without ATR - will be rejected later anyway
-                    signals_to_skip.append((symbol, "missing_atr_for_concentration_check"))
-                    continue
-
-                stop_loss_est = entry_price - (1.2 * float(atr))
-                risk_per_share_est = max(entry_price - stop_loss_est, 0.01)
-                estimated_shares = int(risk_dollars / risk_per_share_est)
-                estimated_position_value = estimated_shares * entry_price
-                estimated_new_conc = (estimated_position_value / float(portfolio_value) * 100.0) if portfolio_value > 0 else 0.0
-
-                # DEBUG: Log ALL calculation details for concentration check troubleshooting
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 1: base_risk_pct={base_risk_pct} (from config), portfolio_val={float(portfolio_value)}")
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 2: risk_dollars = {float(portfolio_value)} * {base_risk_pct/100.0} = ${risk_dollars:.2f}")
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 3: entry={entry_price:.2f}, atr={atr:.2f}, stop_loss={stop_loss_est:.2f}")
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 4: risk_per_share_est = max({entry_price:.2f} - {stop_loss_est:.2f}, 0.01) = {risk_per_share_est:.4f}")
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 5: estimated_shares = {risk_dollars:.2f} / {risk_per_share_est:.4f} = {estimated_shares}")
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 6: position_value = {estimated_shares} * {entry_price:.2f} = ${estimated_position_value:.2f}")
-                logger.info(f"[PHASE 8 CONC_DEBUG {symbol}] STEP 7: concentration = {estimated_position_value:.2f} / {float(portfolio_value):.2f} * 100 = {estimated_new_conc:.2f}%")
-
-                # Check: will this position + current concentration exceed limit?
-                current_symbol_conc = current_concentrations.get(symbol, 0.0)
-                total_symbol_conc = current_symbol_conc + estimated_new_conc
-
-                if total_symbol_conc > max_conc_pct:
-                    reason = f"Concentration limit violation: {symbol} would be {total_symbol_conc:.1f}% (limit {max_conc_pct:.1f}%)"
-                    logger.info(f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] {reason}")
-                    signals_to_skip.append((symbol, reason))
-                else:
-                    signals_to_process.append(signal)
-                    # Update running concentration for next signal in this batch
-                    current_concentrations[symbol] = total_symbol_conc
-
-            # Log pre-entry concentration filtering results
-            if signals_to_skip:
-                logger.warning(
-                    f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] Filtered {len(signals_to_skip)} signals "
-                    f"before entry: {[f'{s[0]}({s[1]})' for s in signals_to_skip[:3]]}" +
-                    (f"... and {len(signals_to_skip)-3} more" if len(signals_to_skip) > 3 else "")
-                )
-                # Log rejections for audit trail
-                for symbol, reason in signals_to_skip:
-                    if symbol:
-                        try:
-                            matching_signal = next((s for s in qualified_trades if s.get("symbol") == symbol), None)
-                            entry_price = float(matching_signal.get("entry_price", 0) or 0) if matching_signal else 0
-                            # risk_pct is not a field in QualifiedTrade; use None
-                            _log_signal_rejection(symbol, "concentration_limit", reason, run_date, entry_price or None, None)
-                        except Exception as logging_err:
-                            logger.warning(f"[PHASE 8] Failed to log concentration rejection for {symbol}: {logging_err}")
-
-            # Replace qualified_trades with filtered signals
-            qualified_trades = signals_to_process
-            logger.info(f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] Processing {len(qualified_trades)} signals after concentration filter")
-
-        except Exception as conc_check_err:
-            logger.error(f"[PHASE 8 PRE-ENTRY CONCENTRATION CHECK] Error during concentration validation: {conc_check_err}")
-            # Don't halt - continue with all signals and let position sizer enforce limits during entry
-            logger.warning("[PHASE 8] Proceeding without pre-entry concentration filtering (will be enforced during entry)")
+        pass  # Disabled concentration pre-check (see comment above)
 
     # ALL-OR-NOTHING TRANSACTION SAFETY (Session 2026-08-03):
     # Pre-flight validation: If we detect issues that would cause partial execution,
