@@ -772,22 +772,53 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
     - EOD loaders may stall (4:05 PM market_status/market_exposure updates)
     - Morning price_daily could be STALE by afternoon/evening runs
 
-    This guard ensures price_daily.max(date) >= run_date before Phase 8 executes.
-    If price_daily is empty (no data loaded yet), return True (pass) - Phase 8 will
-    naturally fail later when trying to fetch technical data, with a better error message.
-
-    Risk scenario (without this check):
-    - 9:00 AM: Phase 1 validates today's close price (ok at that time)
-    - 1:00 PM: Price loader fails (network issue)
-    - 1:05 PM: Phase 8 executes trades on STALE 9 AM prices
-    - Result: Trades executed on morning prices, not intraday closes
+    MARKET-HOURS-AWARE FRESHNESS:
+    During INTRADAY hours (9:30 AM - 4:00 PM ET), today's close is NOT published yet.
+    We expect the previous trading day's close, which is appropriate for technical analysis.
+    Only after market close (4:00 PM+) do we expect today's data.
 
     Returns:
-        (is_fresh, message) - is_fresh=True if price_daily is current or empty
+        (is_fresh, message) - is_fresh=True if price_daily is current for the market phase
     """
+    from datetime import datetime as dt, timedelta as td
+
     try:
+        # Determine market context (matching Phase 1 logic)
+        now_et = dt.now(EASTERN_TZ)
+        is_market_open = now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)
+        is_after_market_close = now_et.hour >= 16
+
+        # Determine expected price date based on market context
+        if is_after_market_close:
+            # EOD context: expect today's close
+            expected_price_date = run_date
+        elif is_market_open:
+            # INTRADAY context: expect previous trading day's close
+            prev_date = run_date - td(days=1)
+            from algo.infrastructure.market_calendar import MarketCalendar
+            if MarketCalendar.is_trading_day(prev_date):
+                expected_price_date = prev_date
+            else:
+                # Find the most recent trading day before today
+                expected_price_date = prev_date
+                while expected_price_date > run_date - td(days=10):
+                    if MarketCalendar.is_trading_day(expected_price_date):
+                        break
+                    expected_price_date -= td(days=1)
+        else:
+            # MORNING context (before 9:30 AM): expect previous trading day's close
+            prev_date = run_date - td(days=1)
+            from algo.infrastructure.market_calendar import MarketCalendar
+            if MarketCalendar.is_trading_day(prev_date):
+                expected_price_date = prev_date
+            else:
+                expected_price_date = prev_date
+                while expected_price_date > run_date - td(days=10):
+                    if MarketCalendar.is_trading_day(expected_price_date):
+                        break
+                    expected_price_date -= td(days=1)
+
         with DatabaseContext("read") as cur:
-            # Check if price_daily has TODAY's close prices
             cur.execute("""
                 SELECT MAX(date) as latest_price_date
                 FROM price_daily
@@ -795,22 +826,20 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
             result = cur.fetchone()
             if not result or result[0] is None:
                 # No price data yet (test scenario or pre-load state)
-                # Let Phase 8 proceed; it will fail naturally when trying to fetch technical data
                 logger.debug("[PHASE 8 PRICE CHECK] No price_daily data yet - allowing Phase 8 to proceed")
                 return True, "No price data yet - deferring validation to technical data fetch"
 
             latest_price_date = result[0]
 
-            # Price data must be >= run_date (same day or later)
-            # run_date is ET-based trading date; we need TODAY's closes
-            if latest_price_date < run_date:
+            # Price data must be >= expected_price_date (accounting for market context)
+            if latest_price_date < expected_price_date:
                 return False, (
-                    f"price_daily is stale: max(date)={latest_price_date} is BEFORE run_date={run_date}. "
+                    f"price_daily is stale: max(date)={latest_price_date} is BEFORE expected_date={expected_price_date}. "
                     f"Price loader may have failed between Phase 1 and Phase 8. "
-                    f"Cannot execute entries on stale intraday prices."
+                    f"Cannot execute entries on stale prices."
                 )
 
-            logger.info(f"[PHASE 8 PRICE CHECK] price_daily is current: max(date)={latest_price_date} >= run_date={run_date}")
+            logger.info(f"[PHASE 8 PRICE CHECK] price_daily is current: max(date)={latest_price_date} >= expected={expected_price_date} (context: {'EOD' if is_after_market_close else 'INTRADAY' if is_market_open else 'MORNING'})")
             return True, f"Price data is fresh (max_date={latest_price_date})"
 
     except Exception as e:
