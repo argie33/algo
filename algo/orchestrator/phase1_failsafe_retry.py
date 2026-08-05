@@ -144,6 +144,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         "stock_scores": "scores",
         "buy_sell_daily": "buy_sell",  # CRITICAL FIX 2026-08-02: Was missing, causing 3+ day staleness
         "market_health_daily": "market_status",
+        "trend_template_data": "trend_analysis",  # CRITICAL FIX 2026-08-05: Was missing, caused 5d staleness when EventBridge stopped
     }
 
     try:
@@ -175,6 +176,9 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
             elif table_name == "market_health_daily":
                 # market_health_daily: check vix_level is populated
                 critical_col = "vix_level"
+            elif table_name == "trend_template_data":
+                # trend_template_data: check trend_direction is populated (key field for regime detection)
+                critical_col = "trend_direction"
             else:
                 return True, ""  # Unknown table, skip completeness check
 
@@ -317,23 +321,23 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 else:
                     logger.error(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh failed: {result.stderr}")
                     results["still_failing"].append(table_name)
-                    if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    if table_name in {"price_daily", "technical_data_daily", "stock_scores", "trend_template_data"}:
                         results["halt_required"] = True
 
             except subprocess.TimeoutExpired:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Timeout refreshing {table_name}")
                 results["still_failing"].append(table_name)
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "trend_template_data"}:
                     results["halt_required"] = True
             except (OSError, IOError, RuntimeError) as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
                 results["still_failing"].append(table_name)
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "trend_template_data"}:
                     results["halt_required"] = True
             except Exception as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
                 results["still_failing"].append(table_name)
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "trend_template_data"}:
                     results["halt_required"] = True
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
