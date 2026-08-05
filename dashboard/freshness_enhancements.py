@@ -268,10 +268,13 @@ def enrich_health_item_with_coverage(health_item: dict[str, Any], cur: Any = Non
     # open position, a generated signal, or an executed trade) - "coverage vs. full universe"
     # isn't a meaningful metric for them and would falsely flag a healthy, quiet trading day
     # as "SPARSE" coverage.
+    # stock_scores is also excluded: it's a snapshot table with one row per symbol (no date),
+    # not a time-series like price_daily/technical_data_daily/buy_sell_daily. The math of
+    # "coverage vs. expected symbols" creates nonsensical ratios > 100% when scores exist for
+    # symbols not in the active trading universe.
     symbol_tables = {
         "price_daily",
         "technical_data_daily",
-        "stock_scores",
         "buy_sell_daily",
     }
 
