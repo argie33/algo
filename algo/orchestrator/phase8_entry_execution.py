@@ -1918,7 +1918,6 @@ def run(
                     SELECT symbol,
                            SUM(quantity * entry_price) as symbol_value
                     FROM algo_positions p
-                    JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
                     WHERE p.status = 'open' AND p.quantity > 0
                     GROUP BY symbol
                 """)
