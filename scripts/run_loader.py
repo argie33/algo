@@ -445,10 +445,25 @@ def run_earnings_calendar_loader():
     runs, Phase 3 earnings_blackout.py could not detect upcoming earnings announcements
     for signal blackout windows.
     """
+    import psycopg2
+
     from loaders.load_earnings_calendar import EarningsCalendarLoader
 
+    # Fetch universe symbols from stock_symbols table
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for earnings calendar")
+    except Exception as e:
+        logger.warning(f"Could not load symbols: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+
     loader = EarningsCalendarLoader()
-    result = loader.run()
+    result = loader.run(symbols=symbols)
     logger.info(f"Earnings calendar loader result: {result}")
     return result
 
@@ -461,10 +476,25 @@ def run_sector_industry_loader():
     from local_loader_scheduler.py. Without daily runs, sector rotation signals (Phase 5/7)
     and industry_ranking tables became stale (31+ days old).
     """
+    import psycopg2
+
     from loaders.load_sector_industry_daily import SectorIndustryDailyLoader
 
+    # Fetch universe symbols from stock_symbols table
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for sector/industry rankings")
+    except Exception as e:
+        logger.warning(f"Could not load symbols: {e}")
+        symbols = None
+
     loader = SectorIndustryDailyLoader()
-    result = loader.run()
+    result = loader.run(symbols=symbols)
     logger.info(f"Sector/industry daily loader result: {result}")
     return result
 
