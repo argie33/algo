@@ -375,7 +375,10 @@ def run(  # noqa: C901
     from datetime import datetime as dt
 
     now_et = dt.now(EASTERN_TZ)
-    pipeline_context = "EOD" if now_et.hour >= 16 else "MORNING" if now_et.hour < 10 else "INTRADAY"
+    # Market hours: 9:30 AM - 4:00 PM ET
+    is_market_open = now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)
+    is_after_market_close = now_et.hour >= 16
+    pipeline_context = "EOD" if is_after_market_close else "INTRADAY" if is_market_open else "MORNING"
 
     logger.info(
         f"[PHASE 1] Starting comprehensive freshness check (Pipeline: {pipeline_context}, Time: {now_et.strftime('%H:%M:%S ET')})"
