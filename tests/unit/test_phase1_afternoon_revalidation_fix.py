@@ -1,43 +1,39 @@
-"""Test Phase 1 afternoon re-validation fix (2026-08-02).
+"""Test Phase 1 afternoon re-validation fix (2026-08-05 refined).
 
-ISSUE: Phase 1 checked for pipeline_context in ("AFTERNOON", "EVENING") but
-pipeline_context was set to ("MORNING", "INTRADAY", "EOD"). This meant the
-afternoon re-validation was dead code - never executed.
+INITIAL ISSUE (2026-08-02): Phase 1 checked for pipeline_context in ("AFTERNOON", "EVENING")
+but pipeline_context was set to ("MORNING", "INTRADAY", "EOD"). This meant the
+afternoon re-validation was dead code.
 
-FIX: Changed line 658 to check for ("INTRADAY", "EOD") which are the actual
-context values assigned for afternoon/evening hours.
+FIRST FIX: Changed to check for ("INTRADAY", "EOD") instead.
 
-This test verifies the fix exists in the code.
+REFINED FIX (2026-08-05): Realized that during INTRADAY (market hours, 10 AM-4 PM),
+today's close isn't published yet - only yesterday's close is available. Only after
+market close (EOD, 4 PM+) should we expect today's close data. Changed the check
+to only validate today's prices during EOD context, not INTRADAY.
 """
 
 import re
 
 
 def test_phase1_afternoon_revalidation_uses_correct_context():
-    """Verify that Phase 1 checks for correct pipeline_context values for afternoon re-validation."""
+    """Verify that Phase 1 validates today's prices only during EOD context."""
     with open("algo/orchestrator/phase1_data_freshness.py", "r") as f:
         content = f.read()
 
-    # Verify the fix: should check ("INTRADAY", "EOD") not ("AFTERNOON", "EVENING")
-    # Look for the pattern that was fixed
-    pattern = r'if pipeline_context in \("INTRADAY", "EOD"\):'
+    # Verify the refined fix: should check only "EOD", not "INTRADAY"
+    # During INTRADAY hours, today's close doesn't exist yet - only after market close
+    pattern = r'if pipeline_context == "EOD":'
     assert re.search(pattern, content), (
-        "Phase 1 afternoon re-validation should check for ('INTRADAY', 'EOD') contexts. "
-        "This was fixed to handle the fact that pipeline_context is only ever set to "
-        "'MORNING', 'INTRADAY', or 'EOD', not 'AFTERNOON'/'EVENING'. "
-        "Without this fix, afternoon price validation was dead code."
+        "Phase 1 should only validate today's price data during EOD (4 PM+) context. "
+        "During INTRADAY (market hours), today's close isn't published yet, so only "
+        "yesterday's close is available and appropriate for technical analysis."
     )
 
     # Verify the old buggy pattern is NOT in the code
     buggy_pattern = r'if pipeline_context in \("AFTERNOON", "EVENING"\):'
     assert not re.search(buggy_pattern, content), (
         "Phase 1 should NOT check for ('AFTERNOON', 'EVENING') contexts since those "
-        "values are never assigned to pipeline_context. The fix should have changed this."
-    )
-
-    # Verify the comment explaining the fix is present
-    assert "FIXED 2026-08-02" in content or "Changed to check" in content, (
-        "Phase 1 should have a comment documenting the fix for pipeline_context values"
+        "values are never assigned to pipeline_context."
     )
 
 
@@ -57,10 +53,11 @@ def test_phase1_pipeline_context_assignment_matches_validation():
         "Expected pattern like: pipeline_context = \"EOD\" if ... else \"INTRADAY\" if ... else \"MORNING\""
     )
 
-    # Find where it's used for afternoon validation
-    validation_pattern = r'if pipeline_context in \("INTRADAY", "EOD"\):'
+    # Find where it's used for today's price validation (EOD only)
+    # During INTRADAY, today's close doesn't exist yet - yesterday's close is appropriate
+    validation_pattern = r'if pipeline_context == "EOD":'
     assert re.search(validation_pattern, content), (
-        "Phase 1 should validate today's prices for INTRADAY and EOD contexts"
+        "Phase 1 should only validate today's prices during EOD context when today's close is available"
     )
 
 
