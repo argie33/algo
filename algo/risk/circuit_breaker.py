@@ -528,12 +528,12 @@ class CircuitBreaker:
             """
             SELECT profit_loss_pct, exit_date FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
-              AND trade_id NOT LIKE 'EXT-%%'
-              AND exit_reason NOT LIKE %s
-              AND exit_reason NOT LIKE %s
-              AND exit_reason NOT LIKE %s
-              AND exit_reason NOT LIKE %s
-              AND exit_reason NOT LIKE %s
+              AND trade_id NOT ILIKE 'EXT-%%'
+              AND exit_reason NOT ILIKE %s
+              AND exit_reason NOT ILIKE %s
+              AND exit_reason NOT ILIKE %s
+              AND exit_reason NOT ILIKE %s
+              AND exit_reason NOT ILIKE %s
             ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
             LIMIT 10
             """,
@@ -594,12 +594,12 @@ class CircuitBreaker:
                     FROM algo_trades
                     WHERE status = %s AND exit_date IS NOT NULL
                       AND exit_r_multiple IS NOT NULL
-                      AND trade_id NOT LIKE 'EXT-%%'
-                      AND exit_reason NOT LIKE %s
-                      AND exit_reason NOT LIKE %s
-                      AND exit_reason NOT LIKE %s
-                      AND exit_reason NOT LIKE %s
-                      AND exit_reason NOT LIKE %s
+                      AND trade_id NOT ILIKE 'EXT-%%'
+                      AND exit_reason NOT ILIKE %s
+                      AND exit_reason NOT ILIKE %s
+                      AND exit_reason NOT ILIKE %s
+                      AND exit_reason NOT ILIKE %s
+                      AND exit_reason NOT ILIKE %s
                     -- CRITICAL FIX: exit_time is frequently NULL on this table (several close
                     -- paths didn't set it until this same fix round - see
                     -- _check_consecutive_losses's comment above), so NULLS LAST alone left ties
