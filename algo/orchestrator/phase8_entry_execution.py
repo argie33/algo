@@ -2572,7 +2572,7 @@ def run(
                                         """UPDATE algo_signals
                                            SET execution_status = 'executed',
                                                updated_at = NOW()
-                                           WHERE symbol = %s AND DATE(entry_date) = %s""",
+                                           WHERE symbol = %s AND DATE(signal_date) = %s""",
                                         (symbol, run_date),
                                     )
                             except Exception as mark_err:
