@@ -315,29 +315,34 @@ def panel_scores_expanded(scores: Any) -> Panel:
         )
 
     # Build left side: main table with company/sector info
-    left_rows: list[Text | Table] = [
+    left_group = Group(
         Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
-    ]
+    )
     summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 50))
     if summary is not None:
-        left_rows.append(summary)
-    left_rows.extend(_build_scores_table(top_scores, limit=50, show_company=True))
+        left_group = Group(
+            Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
+            summary,
+            *_build_scores_table(top_scores, limit=50, show_company=True),
+        )
+    else:
+        left_group = Group(
+            Text.from_markup("[cyan][bold]TOP CANDIDATES[/][/]"),
+            *_build_scores_table(top_scores, limit=50, show_company=True),
+        )
 
     # Build right side: top-5 for each factor (3 columns x 2 rows grid)
-    factor_layout = _build_factor_top5_tables(top_scores)
+    factor_grid = _build_factor_top5_tables(top_scores)
 
-    # Create side-by-side layout: main table on left (expanded), factor grid on right (narrow)
-    main_layout = Layout()
-    main_layout.split_row(
-        Layout(Group(*left_rows), ratio=5, name="main"),
-        Layout(factor_layout, ratio=2, name="factors"),
-    )
+    # Create side-by-side layout using Table.grid (no Layout expanding)
+    main_grid = Table.grid(expand=False, padding=(0, 2))
+    main_grid.add_row(left_group, factor_grid)
 
     return Panel(
-        main_layout,
+        main_grid,
         title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
         border_style="cyan",
-        padding=(0, 0),
+        padding=(0, 1),
     )
 
 
