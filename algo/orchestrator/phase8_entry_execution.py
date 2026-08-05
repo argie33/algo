@@ -911,7 +911,7 @@ def run(
     # day the market has already closed.
     now_dt = datetime.now(EASTERN_TZ)
     now_et = now_dt.time()
-    if not MarketCalendar.is_market_open(now_dt):
+    if not MarketCalendar.is_market_open(now_dt) and not dry_run:
         close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
         msg = (
             f"[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours. "
