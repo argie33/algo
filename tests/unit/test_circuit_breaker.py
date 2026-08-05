@@ -381,9 +381,11 @@ class TestConsecutiveLossesOrdering:
         final deterministic tiebreak (exit_time is frequently NULL on this table)."""
         cb = CircuitBreaker(config=mock_config)
         mock_cur = Mock()
+        mock_cur.fetchone.return_value = None  # No recent position closes
         mock_cur.fetchall.return_value = []
         cb._check_consecutive_losses(current_date=None, cur=mock_cur)
-        executed_sql = mock_cur.execute.call_args_list[0][0][0]
+        # First execute call is algo_positions recent closes, second is algo_trades query
+        executed_sql = mock_cur.execute.call_args_list[1][0][0]
         assert "ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC" in executed_sql
         assert "ORDER BY exit_date DESC, id DESC" not in executed_sql
 
@@ -399,10 +401,12 @@ class TestConsecutiveLossesOrdering:
         """
         cb = CircuitBreaker(config=mock_config)
         mock_cur = Mock()
+        mock_cur.fetchone.return_value = None  # No recent position closes
         mock_cur.fetchall.return_value = []
         cb._check_consecutive_losses(current_date=None, cur=mock_cur)
-        executed_sql = mock_cur.execute.call_args_list[0][0][0]
-        params = mock_cur.execute.call_args_list[0][0][1]
+        # First execute call is algo_positions recent closes, second is algo_trades query
+        executed_sql = mock_cur.execute.call_args_list[1][0][0]
+        params = mock_cur.execute.call_args_list[1][0][1]
         assert "exit_reason NOT ILIKE" in executed_sql
         assert "%reconciliation%" in params
         assert "%force%close%" in params
