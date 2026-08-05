@@ -2125,7 +2125,8 @@ class Orchestrator:
         """Wait for critical loaders to complete before executor runs."""
         logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
         try:
-            loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
+            # REDUCED TIMEOUT (2026-08-05): price_daily loader stuck at 85.8%. Don't wait 5min.
+            loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=30)
         except RuntimeError as e:
             logger.error(
                 f"[PROACTIVE LOADER WAIT] {e}. Proceeding to Phase 1 anyway. "
