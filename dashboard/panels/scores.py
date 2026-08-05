@@ -114,7 +114,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
     if show_company:
         t.add_column("#", style="dim", justify="right", no_wrap=True, width=3)
     t.add_column("Symbol", style="bold white", no_wrap=True, width=6)
-    t.add_column("Company", style="white", no_wrap=True, width=12)
+    t.add_column("Company", style="white", no_wrap=True, width=22)
     t.add_column("Comp", justify="right", no_wrap=True, width=5)
     t.add_column("Mom", justify="right", no_wrap=True, width=4)
     t.add_column("Qual", justify="right", no_wrap=True, width=5)
@@ -126,7 +126,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
 
     for rank, sc in enumerate(top_scores[:limit], 1):
         sym = safe_get_field(sc, "symbol", "--")
-        company = (safe_get_field(sc, "company_name") or "--")[:12]
+        company = (safe_get_field(sc, "company_name") or "--")[:22]
         comp = safe_get_field(sc, "composite_score")
         mom = safe_get_field(sc, "momentum_score")
         qual = safe_get_field(sc, "quality_score")
@@ -343,8 +343,8 @@ def panel_scores_expanded(scores: Any) -> Panel:
     # Create side-by-side layout: main table on left (expanded), factor grid on right (narrow)
     main_layout = Layout()
     main_layout.split_row(
-        Layout(Group(*left_rows), ratio=5, name="main"),
-        Layout(factor_layout, ratio=2, name="factors"),
+        Layout(Group(*left_rows), ratio=6, name="main"),
+        Layout(factor_layout, ratio=3, name="factors"),
     )
 
     return Panel(
