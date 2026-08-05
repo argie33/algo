@@ -103,7 +103,7 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         box=box.SIMPLE_HEAD,
         show_header=True,
         header_style="dim",
-        padding=(1, 1),
+        padding=(0, 1),
         # expand=True stretches every fixed-width column proportionally to fill the
         # console (Rich distributes leftover space across ALL columns, not just wide
         # ones), which reads as huge gaps once the Company column pushes the natural
@@ -343,8 +343,8 @@ def panel_scores_expanded(scores: Any) -> Panel:
     # Create side-by-side layout: main table on left (expanded), factor grid on right (narrow)
     main_layout = Layout()
     main_layout.split_row(
-        Layout(Group(*left_rows), ratio=5, name="main"),
-        Layout(factor_layout, ratio=2, name="factors"),
+        Layout(Group(*left_rows), ratio=4, name="main"),
+        Layout(factor_layout, ratio=3, name="factors"),
     )
 
     return Panel(
