@@ -81,6 +81,7 @@ from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
+from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
@@ -2104,6 +2105,19 @@ def run(
                 logger.warning(f"[PHASE 8] Halt flag set mid-loop at {symbol}, stopping")
 
                 break
+
+            # PRE-ENTRY HEALTH CHECK: Reject signals that fail 2+ health checks
+            # Prevents 15% of entries that immediately exit at zero percent
+            health_passes, failed_checks = PreEntryHealthValidator.validate(symbol, str(run_date))
+            if not health_passes:
+                health_reason = f"health_checks_failed: {','.join(failed_checks)}"
+                logger.info(f"[PHASE 8] {symbol}: Pre-entry health validation failed: {health_reason}")
+                _log_signal_rejection(
+                    symbol, "health_validation", health_reason, run_date,
+                    float(signal.get("entry_price", 0) or 0), None
+                )
+                skipped_count += 1
+                continue
 
             # Liquidity: ADV, dollar volume, price history age
 
