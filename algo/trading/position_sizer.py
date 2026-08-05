@@ -961,13 +961,25 @@ class PositionSizer:
             raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
         max_concentration = Decimal(str(max_conc_val))
 
-        if position_pct_of_portfolio > max_concentration:
+        # CRITICAL FIX (Session 2026-08-05): Apply 2% safety margin to concentration limit during entry
+        # to account for portfolio composition changes between Phase 8 (entry) and Phase 6 (exit).
+        # If another position closes between entry and exit, this margin prevents the position from
+        # violating the concentration limit when Phase 6 recalculates. Without this margin:
+        # - Position enters at 20% (within max_concentration=20%)
+        # - Another position closes
+        # - Phase 6 now sees position at 26% (over limit)
+        # - Phase 6 force-exits at -2.43% avg loss
+        # Safety margin: max(2%, max_concentration * 0.10) - typically 2% for 20% limit
+        safety_margin = Decimal(str(max(2.0, float(max_concentration) * 0.10)))
+        effective_limit = max_concentration - safety_margin
+
+        if position_pct_of_portfolio > effective_limit:
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
                 "status": "concentration",
-                "reason": f"Position would be {position_pct_of_portfolio:.1f}% > {max_concentration:.0f}% portfolio",
+                "reason": f"Position would be {position_pct_of_portfolio:.1f}% > {effective_limit:.0f}% limit (margin: {safety_margin:.0f}%) to avoid phase-gap violations",
             }
 
         total_invested = Decimal(str(active_position_value)) + position_value
