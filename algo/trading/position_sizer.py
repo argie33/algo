@@ -961,25 +961,52 @@ class PositionSizer:
             raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
         max_concentration = Decimal(str(max_conc_val))
 
-        # CRITICAL FIX (Session 2026-08-05): Apply 2% safety margin to concentration limit during entry
-        # to account for portfolio composition changes between Phase 8 (entry) and Phase 6 (exit).
-        # If another position closes between entry and exit, this margin prevents the position from
-        # violating the concentration limit when Phase 6 recalculates. Without this margin:
-        # - Position enters at 20% (within max_concentration=20%)
-        # - Another position closes
-        # - Phase 6 now sees position at 26% (over limit)
-        # - Phase 6 force-exits at -2.43% avg loss
-        # Safety margin: max(2%, max_concentration * 0.10) - typically 2% for 20% limit
-        safety_margin = Decimal(str(max(2.0, float(max_concentration) * 0.10)))
+        # CRITICAL FIX (Session 2026-08-05): Scale down position size if it exceeds concentration limit
+        # instead of rejecting entirely. This allows us to capture the trade at a reduced size
+        # rather than missing the opportunity entirely and creating forced-exit losses.
+        # When another position closes between Phase 8 (entry) and Phase 6 (exit), the position
+        # could violate limits on Phase 6 check. Instead of rejecting at entry time:
+        # OLD: position would be 23%, limit is 20% → reject (0 shares)
+        # NEW: position would be 23%, limit is 20% → scale to 19% and enter
+        # Safety margin: max(1%, max_concentration * 0.05) - typically 1% for 20% limit
+        safety_margin = Decimal(str(max(1.0, float(max_concentration) * 0.05)))
         effective_limit = max_concentration - safety_margin
 
         if position_pct_of_portfolio > effective_limit:
+            # Scale down the position instead of rejecting it
+            # Calculate maximum allowed position value at effective limit
+            max_position_value_at_limit = portfolio_value * (effective_limit / Decimal(100))
+            scaled_shares = int((max_position_value_at_limit / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
+
+            if scaled_shares < 1:
+                # Can't scale down further - truly no room
+                return {
+                    "shares": 0,
+                    "position_size_pct": 0,
+                    "risk_dollars": 0,
+                    "status": "concentration",
+                    "reason": f"Position would exceed {effective_limit:.0f}% limit even at minimum size (margin: {safety_margin:.0f}%)",
+                }
+
+            # Scale down but still enter - capture the opportunity at reduced size
+            scaled_position_value = Decimal(scaled_shares) * Decimal(str(entry_price))
+            scaled_position_pct = (scaled_position_value / Decimal(str(portfolio_value))) * Decimal(100)
+            scaled_risk_dollars = risk_per_share * Decimal(scaled_shares)
+
+            logger.info(
+                f"[POSITION SIZER] {symbol}: Position scaled down to respect concentration limit. "
+                f"Original: {position_pct_of_portfolio:.1f}% ({shares} shares). "
+                f"Scaled: {scaled_position_pct:.1f}% ({scaled_shares} shares). "
+                f"Limit: {effective_limit:.0f}% (with {safety_margin:.0f}% safety margin)."
+            )
+
+            # Return scaled position - NOT rejection
             return {
-                "shares": 0,
-                "position_size_pct": 0,
-                "risk_dollars": 0,
-                "status": "concentration",
-                "reason": f"Position would be {position_pct_of_portfolio:.1f}% > {effective_limit:.0f}% limit (margin: {safety_margin:.0f}%) to avoid phase-gap violations",
+                "shares": scaled_shares,
+                "position_size_pct": float(scaled_position_pct),
+                "risk_dollars": float(scaled_risk_dollars),
+                "status": "ok",
+                "reason": f"Scaled from {position_pct_of_portfolio:.1f}% to {scaled_position_pct:.1f}% to respect concentration limit",
             }
 
         total_invested = Decimal(str(active_position_value)) + position_value
