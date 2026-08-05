@@ -715,11 +715,10 @@ def run(  # noqa: C901
                 raise RuntimeError(f"Symbol count query failed for last trading day ({last_trading_day})")
             symbols_loaded = row[0]
 
-            # CRITICAL: For afternoon/evening runs, also validate TODAY's price data
-            # If we're past early morning and don't have today's data, loader failed
-            # FIXED 2026-08-02: pipeline_context was never set to "AFTERNOON"/"EVENING",
-            # so this check was dead code. Changed to check "INTRADAY" (10am-4pm) or "EOD" (4pm+).
-            if pipeline_context in ("INTRADAY", "EOD"):
+            # CRITICAL: For EOD runs, also validate TODAY's price data
+            # During INTRADAY (10 AM-4 PM), today's close isn't published yet - only yesterday's close is available
+            # Only after market close (EOD, 4 PM+) do we expect today's close data
+            if pipeline_context == "EOD":
                 cur.execute(
                     """SELECT COUNT(DISTINCT pd.symbol)
                        FROM price_daily pd
