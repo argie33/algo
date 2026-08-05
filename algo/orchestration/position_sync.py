@@ -111,12 +111,20 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
 
                     if existing:
                         existing_id, existing_status = existing
-                        # Update existing position, reopen if needed, and sync stop_loss_price in case it got corrupted
+                        # Fetch trade_ids for this position to sync with existing record
+                        cur.execute(
+                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE symbol = %s AND status IN (%s, %s)',
+                            (symbol, 'filled', 'open')
+                        )
+                        trade_ids_result = cur.fetchone()
+                        trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
+
+                        # Update existing position, reopen if needed, and sync stop_loss_price and trade_ids_arr
                         cur.execute(
                             'UPDATE algo_positions SET quantity = %s, status = %s, '
-                            '  stop_loss_price = %s, current_stop_price = %s, updated_at = NOW() '
+                            '  stop_loss_price = %s, current_stop_price = %s, trade_ids_arr = %s, updated_at = NOW() '
                             'WHERE symbol = %s',
-                            (total_qty, 'open', stop_loss_price, stop_loss_price, symbol)
+                            (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_arr, symbol)
                         )
                         updated += 1
                         action = "reopened" if existing_status == 'closed' else "updated"
@@ -174,6 +182,18 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 f"Both required (NOT NULL) - trade record is incomplete."
                             )
 
+                        # CHECKPOINT 4: Fetch trade_ids for this position
+                        # WHY: trade_ids_arr must be populated so circuit_breaker.py's total_risk check
+                        # can join positions to trades and verify risk calculation (lines 764, 789-807).
+                        # Empty/NULL trade_ids_arr causes "orphaned trade_ids_arr" halt even though
+                        # the position has real trades. This is a data wiring issue, not a real halt.
+                        cur.execute(
+                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE symbol = %s AND status IN (%s, %s)',
+                            (symbol, 'filled', 'open')
+                        )
+                        trade_ids_result = cur.fetchone()
+                        trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
+
                         # Insert new position
                         cur.execute('''
                             INSERT INTO algo_positions (
@@ -182,7 +202,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 stop_loss_price, current_stop_price,
                                 target_1_price, target_2_price, target_3_price,
                                 target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                                cognito_sub, created_at, updated_at
+                                trade_ids_arr, cognito_sub, created_at, updated_at
                             )
                             VALUES (
                                 %s, %s, %s, %s, %s,
@@ -190,7 +210,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 %s, %s,
                                 %s, %s, %s,
                                 %s, %s, %s,
-                                %s, NOW(), NOW()
+                                %s, %s, NOW(), NOW()
                             )
                         ''', (
                             trade_position_id, symbol, total_qty, entry_price, entry_price,
@@ -198,7 +218,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             stop_loss_price, stop_loss_price,
                             target_1_price, target_2_price, target_3_price,
                             target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                            get_algo_owner_cognito_sub(),
+                            trade_ids_arr, get_algo_owner_cognito_sub(),
                         ))
                         inserted += 1
                         logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
