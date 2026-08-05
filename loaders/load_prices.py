@@ -2479,6 +2479,7 @@ class PriceLoader(OptimalLoader):
                     # wastes API calls and masks the real state behind a permanent failure.
                     # CRITICAL FIX 2026-08-04: Before marking, verify symbol doesn't have recent rows in DB.
                     # If DB has rows from this week, it's definitely still active - don't mark permanent.
+                    pipeline_context = "EOD" if self._is_eod_pipeline else "morning"
                     if self._confirm_no_data_in_30_days(symbol, current_watermark):
                         # Double-check: symbol should not have ANY rows from past 7 days
                         with DatabaseContext("read") as cur:
@@ -2502,7 +2503,6 @@ class PriceLoader(OptimalLoader):
                             self._stats["symbols_processed"] += 1
                             continue
 
-                        pipeline_context = "EOD" if self._is_eod_pipeline else "morning"
                         reason = (
                             f"yfinance returned no new data for {symbol} since its last loaded date "
                             f"{current_watermark} (watermark was {watermark_age_days}d stale, {pipeline_context} context) - "
