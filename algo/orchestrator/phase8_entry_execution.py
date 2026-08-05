@@ -233,11 +233,12 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
     try:
         with DatabaseContext("read") as cur:
             # CRITICAL FIX: Validate that ALL open trades have required data for risk calculation
+            # Use t.trade_id (text) not t.id (integer) since trade_ids_arr is text array
             cur.execute("""
                 SELECT COUNT(*) as incomplete_count,
                        STRING_AGG(DISTINCT p.symbol, ', ') as symbols_with_issues
                 FROM algo_positions p
-                LEFT JOIN algo_trades t ON t.id = ANY(p.trade_ids_arr)
+                LEFT JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE p.status = 'open'
                   AND (t.entry_price IS NULL
                        OR p.current_stop_price IS NULL
