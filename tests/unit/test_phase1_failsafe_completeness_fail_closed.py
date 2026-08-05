@@ -64,4 +64,5 @@ class TestCompletenessCheckFailsClosed:
             "stock_scores",
             "buy_sell_daily",
             "market_health_daily",
+            "trend_template_data",
         }
