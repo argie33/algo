@@ -501,7 +501,7 @@ def run(
                         if phase5_result:
                             # CRITICAL FIX: Don't use Phase 5 constraints if Phase 5 halted
                             # When Phase 5 halts, max_concentration_pct=0 is placeholder, not real limit
-                            is_halted = phase5_result.data.get("halt_new_entries", False)
+                            is_halted = phase5_result.data.get("halt_active", False)
                             if not is_halted:
                                 constraints = phase5_result.data.get("constraints", {})
                                 if constraints and isinstance(constraints, dict):
