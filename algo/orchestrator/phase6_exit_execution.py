@@ -506,9 +506,13 @@ def run(
                                 constraints = phase5_result.data.get("constraints", {})
                                 if constraints and isinstance(constraints, dict):
                                     tier_max_conc = constraints.get("max_concentration_pct")
+                                    # CRITICAL: Also ignore 0% limits even if halt_new_entries=False
+                                    # (0% means NO positions allowed, which is wrong for force-exits)
                                     if tier_max_conc is not None and tier_max_conc > 0:
                                         max_size_pct_val = tier_max_conc
                                         logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
+                                    elif tier_max_conc == 0:
+                                        logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 has 0% concentration limit (halt state) - ignoring and using config fallback")
                             else:
                                 logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 is halted - ignoring halt constraints and using config fallback")
                     except Exception as phase5_err:
