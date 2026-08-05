@@ -237,7 +237,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 SELECT COUNT(*) as incomplete_count,
                        STRING_AGG(DISTINCT p.symbol, ', ') as symbols_with_issues
                 FROM algo_positions p
-                LEFT JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                LEFT JOIN algo_trades t ON t.id = ANY(p.trade_ids_arr)
                 WHERE p.status = 'open'
                   AND (t.entry_price IS NULL
                        OR p.current_stop_price IS NULL
@@ -450,7 +450,7 @@ def _log_signal_rejection(
                    SET execution_status = 'rejected',
                        rejection_reason = %s,
                        updated_at = NOW()
-                   WHERE symbol = %s AND signal_date = %s""",
+                   WHERE symbol = %s AND DATE(entry_date) = %s""",
                 (rejection_reason_short, symbol, run_date),
             )
             if cur.rowcount == 0:
@@ -2434,7 +2434,7 @@ def run(
                     # Set SERIALIZABLE isolation for this check to detect concurrent writes
                     cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
                     cur.execute(
-                        f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
+                        f"SELECT id FROM algo_trades WHERE symbol = %s "
                         f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
                         (symbol, *open_statuses),
                     )
@@ -2571,7 +2571,7 @@ def run(
                                         """UPDATE algo_signals
                                            SET execution_status = 'executed',
                                                updated_at = NOW()
-                                           WHERE symbol = %s AND signal_date = %s""",
+                                           WHERE symbol = %s AND DATE(entry_date) = %s""",
                                         (symbol, run_date),
                                     )
                             except Exception as mark_err:
