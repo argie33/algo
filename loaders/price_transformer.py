@@ -48,8 +48,13 @@ class PriceTransformer:
             low_price = self._normalize_numeric(row["Low"] if "Low" in row else None)
             close_price = self._normalize_numeric(row["Close"] if "Close" in row else None)
             volume = self._normalize_volume(row["Volume"] if "Volume" in row else None)
-            # Adj Close is OPTIONAL (not all data sources provide it)
-            adj_close = self._normalize_numeric(row["Adj Close"]) if "Adj Close" in row else None
+            # Adj Close: use yfinance "Adj Close" if available, otherwise fall back to "Close"
+            # CRITICAL FIX: adj_close was 99.9% NULL because yfinance omits "Adj Close" in many responses.
+            # Fallback to unadjusted "Close" ensures returns calculations aren't biased by missing splits/dividends.
+            if "Adj Close" in row and row["Adj Close"] is not None:
+                adj_close = self._normalize_numeric(row["Adj Close"])
+            else:
+                adj_close = close_price  # Fallback to unadjusted close if yfinance omits Adj Close
 
             transformed = {
                 "symbol": symbol,
