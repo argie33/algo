@@ -96,7 +96,12 @@ def fetch_analyst_actions(symbol: str, lookback_days: int = 730) -> list[dict[st
         caller is expected to record this as data_unavailable, not silently skip it,
         per this codebase's fail-explicit governance.
     """
-    df = _fetch_with_circuit_breaker(symbol, "upgrades_downgrades")
+    try:
+        df = _fetch_with_circuit_breaker(symbol, "upgrades_downgrades")
+    except RuntimeError as e:
+        if _is_no_fundamentals_404(str(e)):
+            return None
+        raise
 
     if df is None or df.empty:
         return None
@@ -161,7 +166,12 @@ def fetch_analyst_sentiment(symbol: str) -> dict[str, Any] | None:
     Raises:
         RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
     """
-    summary = _fetch_with_circuit_breaker(symbol, "recommendations_summary")
+    try:
+        summary = _fetch_with_circuit_breaker(symbol, "recommendations_summary")
+    except RuntimeError as e:
+        if _is_no_fundamentals_404(str(e)):
+            return None
+        raise
     if summary is None or summary.empty or "period" not in summary.columns:
         return None
 
@@ -226,7 +236,12 @@ def fetch_forward_eps(symbol: str) -> float | None:
     Raises:
         RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
     """
-    df = _fetch_with_circuit_breaker(symbol, "earnings_estimate")
+    try:
+        df = _fetch_with_circuit_breaker(symbol, "earnings_estimate")
+    except RuntimeError as e:
+        if _is_no_fundamentals_404(str(e)):
+            return None
+        raise
     if df is None or df.empty or "avg" not in df.columns:
         return None
 
@@ -261,7 +276,12 @@ def fetch_earnings_calendar(symbol: str) -> list[dict[str, Any]] | None:
     Raises:
         RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
     """
-    df = _fetch_with_circuit_breaker(symbol, "earnings_dates")
+    try:
+        df = _fetch_with_circuit_breaker(symbol, "earnings_dates")
+    except RuntimeError as e:
+        if _is_no_fundamentals_404(str(e)):
+            return None
+        raise
     if df is None or df.empty:
         return None
 
@@ -303,8 +323,15 @@ def _clean_str(value: Any) -> str | None:
 
 
 _RATE_LIMIT_KEYWORDS = ("429", "rate", "too many", "invalid crumb", "unauthorized")
+_NO_FUNDAMENTALS_KEYWORDS = ("404", "no fundamentals data", "not found")
 
 
 def _is_rate_limit_error(e: Exception) -> bool:
     error_str = str(e).lower()
     return any(keyword in error_str for keyword in _RATE_LIMIT_KEYWORDS)
+
+
+def _is_no_fundamentals_404(error_str: str) -> bool:
+    """Check if error is a yfinance 404 for no fundamentals data (legitimate no-coverage case)."""
+    error_lower = error_str.lower()
+    return any(keyword in error_lower for keyword in _NO_FUNDAMENTALS_KEYWORDS)
