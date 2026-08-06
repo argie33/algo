@@ -1025,9 +1025,11 @@ def run(
     # against the fixed MARKET_OPEN_TIME/MARKET_CLOSE_TIME constants - those ignore early
     # closes entirely, which would let this guard wave entries through from 1-4 PM ET on a
     # day the market has already closed.
+    # CRITICAL FIX: Skip this guard in dry-run mode since no actual orders are placed
+    # and this prevents testing/development outside market hours.
     now_dt = datetime.now(EASTERN_TZ)
     now_et = now_dt.time()
-    if not MarketCalendar.is_market_open(now_dt):
+    if not dry_run and not MarketCalendar.is_market_open(now_dt):
         close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
         msg = (
             f"[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours. "
