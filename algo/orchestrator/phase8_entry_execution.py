@@ -1778,8 +1778,8 @@ def run(
         with DatabaseContext("read") as cur:
             cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity != 0")
             result = cur.fetchone()
-            if result is None:
-                raise RuntimeError("[PHASE 8] Query to count open positions returned NULL")
+            if result is None or len(result) < 1:
+                raise RuntimeError("[PHASE 8] Query to count open positions returned NULL or incomplete")
             current_position_count = result[0] if result[0] is not None else 0
 
         if current_position_count >= max_positions:
