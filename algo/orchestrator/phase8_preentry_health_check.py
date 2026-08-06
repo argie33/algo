@@ -94,9 +94,9 @@ def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
                 """
                 SELECT COUNT(*)
                 FROM earnings_calendar
-                WHERE ticker = %s
-                AND announcement_date >= %s::date
-                AND announcement_date <= %s::date + interval '3 days'
+                WHERE symbol = %s
+                AND earnings_date >= %s::date
+                AND earnings_date <= %s::date + interval '3 days'
                 """,
                 (ticker, signal_date, signal_date),
             )
