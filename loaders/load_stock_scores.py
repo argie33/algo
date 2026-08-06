@@ -722,6 +722,26 @@ class StockScoresLoader(OptimalLoader):
             else:
                 reason_text = None
 
+            # Build components breakdown for dashboard display
+            components = {
+                "quality": extract_score_value(clamped_quality),
+                "growth": extract_score_value(clamped_growth),
+                "value": extract_score_value(clamped_value),
+                "positioning": extract_score_value(clamped_positioning),
+                "stability": extract_score_value(clamped_stability),
+                "momentum": extract_score_value(clamped_momentum),
+            }
+
+            # Build data sources attribution for transparency
+            data_sources = {
+                "quality": ["financial_statements", "sec_valuations"] if extract_score_value(clamped_quality) else [],
+                "growth": ["financial_statements", "analyst_earnings_estimates", "enhanced_quality_growth_metrics"] if extract_score_value(clamped_growth) else [],
+                "value": ["financial_statements", "sec_valuations", "dividend_data"] if extract_score_value(clamped_value) else [],
+                "positioning": ["institutional_holdings_13f", "insider_holdings_sec", "short_interest_finra"] if extract_score_value(clamped_positioning) else [],
+                "stability": ["risk_metrics_daily", "technical_data_daily", "financial_statements"] if extract_score_value(clamped_stability) else [],
+                "momentum": ["technical_data_daily", "market_status_daily", "insider_transaction_velocity"] if extract_score_value(clamped_momentum) else [],
+            }
+
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -741,6 +761,8 @@ class StockScoresLoader(OptimalLoader):
                 "rs_percentile": None,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": json.dumps(unavailable_metrics) if unavailable_metrics else None,
+                "components": json.dumps(components),  # Score component breakdown
+                "data_sources": json.dumps(data_sources),  # Data source attribution
                 "data_unavailable": not score_available,  # CRITICAL: Mark unavailable if completeness < 70%
                 "reason": reason_text,
                 "updated_at": datetime.now(timezone.utc),

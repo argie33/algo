@@ -712,12 +712,14 @@ class SignalsDailyLoader(OptimalLoader):
                     }
                 ]
 
-            # Mark only successful signals with data_unavailable=False and reason=None
+            # Mark only successful signals with data_unavailable=False
+            # Preserve the reason from BuySignalGenerator (explains WHY signal was triggered)
             # (skip if signal already has data_unavailable=True from error handling above)
             for sig in signals:
                 if not sig.get("data_unavailable", False):
                     sig["data_unavailable"] = False
-                    sig["reason"] = None
+                    # Keep reason from BuySignalGenerator - it contains signal reasoning
+                    # (e.g., "Swing high breakout", "Support bounce", etc.)
 
             # CRITICAL FIX (Session 262): Do NOT filter signals by watermark for buy_sell_daily.
             # buy_sell_daily generates signals for historical dates (e.g., 120+ day lookback),
