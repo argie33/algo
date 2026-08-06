@@ -132,6 +132,7 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
 def run_price_loader(symbols=None, backfill_days=0):
     """Run price loader for specific symbols."""
     from loaders.load_prices import PriceLoader
+    from utils.loaders.config import get_parallelism
 
     loader = PriceLoader()
     if not symbols:
@@ -150,7 +151,8 @@ def run_price_loader(symbols=None, backfill_days=0):
             logger.warning(f"Could not load universe, using default symbols: {e}")
             symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
-    result = loader.run(symbols=symbols, backfill_days=backfill_days)
+    parallelism = get_parallelism("stock_prices_daily")
+    result = loader.run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
     logger.info(f"Price loader result: {result}")
     return result
 

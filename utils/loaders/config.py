@@ -162,6 +162,9 @@ class LoaderConfigManager:
         # Get per-loader constraints
         constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
         min_parallelism, max_parallelism = constraints
+        # LOCAL DEV OVERRIDE: Allow higher parallelism in local development (no shared NAT IP)
+        if os.getenv("LOCAL_MODE") in ("true", "1"):
+            max_parallelism = max(max_parallelism, 8)  # Allow up to 8 threads for local dev
 
         # Apply max constraint first
         adjusted = min(base_parallelism, max_parallelism)
@@ -319,7 +322,10 @@ class LoaderConfigManager:
         # Get base parallelism from cache or config
         # Default: use constraint maximum instead of 1, allows adaptive scaling to reach target parallelism
         constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
-        _, max_parallelism = constraints
+        min_constraint, max_parallelism = constraints
+        # LOCAL DEV OVERRIDE: Allow higher parallelism in local development (no shared NAT IP)
+        if os.getenv("LOCAL_MODE") in ("true", "1"):
+            max_parallelism = max(max_parallelism, 8)  # Allow up to 8 threads for local dev
         base_parallelism = max_parallelism  # Start with max from constraints
 
         # Check in-memory cache first
@@ -368,6 +374,7 @@ class LoaderConfigManager:
                 "(RDS-aware, respects constraints)"
             )
 
+        logger.info(f"[DEBUG] get_parallelism({loader_name}): returning {adjusted} (base={base_parallelism}, adjusted={adjusted})")
         return adjusted
 
     def is_enabled(self, loader_name: str) -> bool:

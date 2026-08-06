@@ -15,6 +15,9 @@ from pathlib import Path
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
+# LOCAL DEV OPTIMIZATION: Set higher parallelism for local development
+if "LOADER_PARALLELISM" not in os.environ:
+    os.environ["LOADER_PARALLELISM"] = "4"
 
 
 PIPELINES = {
