@@ -374,7 +374,6 @@ class LoaderConfigManager:
                 "(RDS-aware, respects constraints)"
             )
 
-        logger.info(f"[DEBUG] get_parallelism({loader_name}): returning {adjusted} (base={base_parallelism}, adjusted={adjusted})")
         return adjusted
 
     def is_enabled(self, loader_name: str) -> bool:
