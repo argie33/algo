@@ -504,6 +504,11 @@ class PositionSizer:
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
+            if len(row) < 4:
+                raise ValueError(
+                    f"Market exposure query returned {len(row)} columns instead of expected 4. "
+                    f"Schema mismatch in market_exposure_daily table."
+                )
             exposure_pct, data_date, data_unavailable, reason = row[0], row[1], row[2], row[3]
             # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
             if data_unavailable:
@@ -555,6 +560,11 @@ class PositionSizer:
             if not row or row[0] is None:
                 raise ValueError(
                     "VIX level unavailable from market_health_daily. Cannot adjust position size for volatility."
+                )
+            if len(row) < 2:
+                raise ValueError(
+                    f"VIX query returned {len(row)} columns instead of expected 2. "
+                    f"Schema mismatch in market_health_daily table."
                 )
             data_date = row[1]
             # Eastern Time, not system-local date.today() - see get_portfolio_value() above.

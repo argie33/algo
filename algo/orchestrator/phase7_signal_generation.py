@@ -524,6 +524,14 @@ def _get_candidates_from_buysell(
 
         candidates = []
         for r in rows:
+            # CRITICAL: Verify query returned all 20 expected columns before unpacking (indices 0-19)
+            if len(r) < 20:
+                logger.error(
+                    f"[PHASE 7 CRITICAL] Query returned {len(r)} columns instead of expected 20. "
+                    f"Schema mismatch detected. Skipping malformed row."
+                )
+                continue
+
             symbol = r[0]
 
             # CRITICAL FIX BLOCKER #6: Verify spinoff filtering worked

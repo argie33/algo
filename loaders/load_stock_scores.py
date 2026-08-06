@@ -600,22 +600,30 @@ class StockScoresLoader(OptimalLoader):
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
 
-            # CRITICAL: Enforce minimum 2/6 metrics for diversity (prevents single-metric bias)
-            # Allow computation with 2+ metrics. Trading entry gates (GOVERNANCE.md) will filter on completeness >= 70%.
-            # Session 398: Lowered from 3 to 2 to unlock 336 stocks with quality+stability or similar valid pairs.
-            # 2 metrics provide sufficient balance (not single-metric bias); trading gates provide real control.
-            if real_metric_count < 2:
+            # DEGRADED MODE: Allow scoring with 1+ metrics for SPACs/new listings
+            # Session 530 (2026-08-05): Enable degraded-mode scoring for SPACs with insufficient SEC data.
+            # Previously: rejected scores with <2 metrics, leaving 8 SPACs (APMD, BANL, etc) with NULL scores.
+            # New: allow 1+ metrics for degraded scoring, marked clearly in DB with low completeness %.
+            # Trading gates still filter on completeness >= 70%, so degraded scores won't enter live signals.
+            # This makes "no data" stocks visible in dashboard with reason codes instead of disappearing.
+            if real_metric_count < 1:
                 missing_metrics = [k for k, v in score_availability.items() if not v]
-                logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Insufficient metric diversity. "
-                    f"Available {real_metric_count}/6 (need minimum 2 for sufficient diversity). "
+                logger.error(
+                    f"[STOCK_SCORES] {symbol}: CRITICAL - zero real metrics available. "
+                    f"Available {real_metric_count}/6. "
                     f"Missing: {', '.join(missing_metrics)}. "
-                    f"Scoring skipped per minimum diversity requirement."
+                    f"Cannot compute even degraded score without any real data."
                 )
                 raise ValueError(
-                    f"{symbol}: insufficient metrics ({real_metric_count}/6, need >=2). "
-                    f"Minimum 2 metrics required for diversity. "
-                    f"Missing: {', '.join(missing_metrics)}. Trading gates will filter based on completeness %."
+                    f"{symbol}: zero metrics ({real_metric_count}/6, impossible to score). "
+                    f"Cannot compute score with zero available metrics."
+                )
+
+            if real_metric_count < 2:
+                # Degraded mode: score with 1 metric only (for SPACs/new listings)
+                logger.info(
+                    f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/6 metrics available. "
+                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count/6*100)}%)"
                 )
 
             # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
