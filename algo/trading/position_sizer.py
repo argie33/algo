@@ -75,6 +75,11 @@ class PositionSizer:
             "max_position_size_pct",
             "max_concentration_pct",
             "max_total_invested_pct",
+            # CRITICAL FIX 2026-08-06: max_total_risk_pct was hardcoded to 4% despite config
+            # setting it to 8%. This caused Phase 8 to report 8% limit but sizer use 4%,
+            # exhausting capacity immediately (3.99% actual vs 4% limit = $4 remaining).
+            # Must read from config to stay in sync with circuit breaker and Phase 8.
+            "max_total_risk_pct",
         ]
         missing_keys = [k for k in required_config_keys if k not in config or config[k] is None]
         if missing_keys:
@@ -1072,8 +1077,9 @@ class PositionSizer:
                         else Decimal(0)
                     )
 
-                    # Hard limit: 4% max total risk
-                    max_risk_pct = Decimal("4.0")
+                    # Hard limit: read from config (was hardcoded to 4% but config sets 8%)
+                    # CRITICAL FIX 2026-08-06: Use config value to stay in sync with Phase 8 and circuit breaker
+                    max_risk_pct = Decimal(str(self.config["max_total_risk_pct"]))
 
                     if total_risk_pct > max_risk_pct:
                         # Risk limit would be exceeded - scale down position or block
@@ -1088,12 +1094,12 @@ class PositionSizer:
                                 "position_size_pct": 0,
                                 "risk_dollars": 0,
                                 "status": "risk_limit",
-                                "reason": f"Total open risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}% already at/exceeds 4% limit - no capacity for new position",
+                                "reason": f"Total open risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}% already at/exceeds {max_risk_pct:.1f}% limit - no capacity for new position",
                             }
                         else:
                             # Scale down position to fit within available capacity.
                             # ROUND_DOWN, not ROUND_HALF_UP: available_capacity_dollars is the
-                            # remaining room under the 4% aggregate hard risk cap - rounding the
+                            # remaining room under the configured aggregate hard risk cap - rounding the
                             # scaled share count up can push risk_dollars (recomputed below from
                             # this share count) back past that cap, defeating the entire purpose
                             # of this scale-down branch. Same class of bug as the
