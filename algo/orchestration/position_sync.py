@@ -84,7 +84,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple
                         FROM algo_trades
                         WHERE symbol = %s AND status IN ('filled', 'open')
-                        ORDER BY entry_date ASC
+                        ORDER BY entry_date DESC
                         LIMIT 1
                     ''', (symbol,))
 
