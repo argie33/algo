@@ -2792,9 +2792,10 @@ def run(
         except (RuntimeError, ValueError, TypeError, AttributeError, IndexError, psycopg2.Error, DatabaseError) as e:
             symbol = (signal.get("symbol") or "UNKNOWN") if isinstance(signal, dict) else str(signal)
             if isinstance(e, IndexError):
-                logger.error(
+                logger.critical(
                     f"[PHASE 8] CRITICAL IndexError processing {symbol}: {e}. "
-                    f"This indicates a data structure mismatch or missing fields. Stack trace:",
+                    f"This indicates a data structure mismatch or missing fields. "
+                    f"Signal type: {type(signal).__name__}, Signal: {signal}. Stack trace:",
                     exc_info=True,
                 )
             else:
