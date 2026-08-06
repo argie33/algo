@@ -1206,6 +1206,11 @@ class PositionSizer:
         auditing every real decision the pipeline makes, not only ones a downstream check later acts on.
         Best-effort: a logging failure must not block position sizing or trade entry.
         """
+        # Skip audit for hypothetical sizing (e.g., concentration checks). Audit requires signal_date
+        # which is only available for real signals, not for what-if simulations during pre-entry checks.
+        if signal_date is None:
+            return
+
         try:
             import json
 
