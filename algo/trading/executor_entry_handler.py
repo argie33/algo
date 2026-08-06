@@ -525,17 +525,18 @@ class EntryHandler:
                 INSERT INTO algo_trades (
                     trade_id, symbol, signal_date, trade_date, entry_price, entry_quantity, entry_reason,
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
-                    status, sector, idempotency_key
+                    status, sector, idempotency_key, position_id
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
-                    %s, %s, %s
+                    %s, %s, %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
                     entry_quantity = EXCLUDED.entry_quantity,
                     signal_date = EXCLUDED.signal_date,
                     trade_date = EXCLUDED.trade_date,
+                    position_id = EXCLUDED.position_id,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -553,6 +554,7 @@ class EntryHandler:
                     request.order_status,
                     request.sector,
                     request.idempotency_key,
+                    request.position_id,
                 ),
             )
             logger.info(f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id}")
