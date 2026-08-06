@@ -149,12 +149,18 @@ class PhaseRegistry:
         # Input: Market data, technical indicators, portfolio state from Phase 5
         # Output: result={'signals': list, 'qualified_trades': list} with ranked entry signals
         # Contract: Generates buy signals ranked by score; output per ranking criteria
+        # CRITICAL FIX (2026-08-06): Phase 7 must be always_run to generate signals even when
+        # earlier phases (Phase 1/5) halt. Phase 7 has its own halt flag check (line 1575),
+        # so it gracefully handles safety gates independently. When Phase 5 is unavailable,
+        # Phase 7's executor wrapper provides conservative default constraints that halt
+        # entry execution in Phase 8 if needed. This maintains orchestration continuity.
         PhaseRegistryEntry(
             phase_num=7,
             phase_name="SIGNAL GENERATION & RANKING",
             dependencies=[5],
             execute_fn=None,
-            skip_if_halted=True,
+            skip_if_halted=False,  # CRITICAL FIX: Allow Phase 7 to run even if Phase 1 halts
+            always_run=True,  # CRITICAL FIX: Generate signals regardless of upstream halts
         ),
         # Phase 8: ENTRY EXECUTION
         # Input: Qualified signals from Phase 7, exposure policy from Phase 5

@@ -1809,7 +1809,9 @@ class Orchestrator:
     def _executor_phase_7(self, executor: Any = None, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 7: Signal Generation.
 
-        PHASE DEPENDENCY FIX: Fetches validated data from Phase 5 with halt checking.
+        CRITICAL FIX (2026-08-06): If Phase 5 is unavailable (skipped/halted),
+        Phase 7 now proceeds with conservative default constraints rather than
+        halting. This maintains orchestration continuity while ensuring safety.
         """
         if not executor:
             raise RuntimeError(
@@ -1818,54 +1820,31 @@ class Orchestrator:
                 "This should never happen - check phase_executor.py initialization."
             )
 
-        # CRITICAL FIX: Check if Phase 5 was halted/failed before extracting data
+        # CRITICAL FIX: Check if Phase 5 was halted/failed, then use fallback constraints
+        # instead of halting Phase 7. This allows signal generation to proceed safely
+        # even when Phase 5 is skipped or fails.
         phase5_result = executor.get_result(5)
-        if phase5_result is None:
-            error_msg = "[PHASE 7] Phase 5 (Exposure Policy) never executed - dependency chain broken"
-            logger.critical(error_msg)
-            self.log_phase_result(7, "SIGNAL GENERATION & RANKING", "halt", error_msg)
-            from algo.orchestrator.phase_result import PhaseResult
 
-            return PhaseResult(
-                7,
-                "SIGNAL GENERATION & RANKING",
-                "halted",
-                {"qualified_trades": [], "liquidity_passed": 0},
-                True,
-                error_msg,
+        # Use safe default constraints if Phase 5 is unavailable
+        if phase5_result is None or phase5_result.halted or not phase5_result.ok:
+            phase5_status = "never executed" if phase5_result is None else "halted/failed"
+            logger.warning(
+                f"[PHASE 7] Phase 5 {phase5_status} - proceeding with conservative default constraints "
+                f"(no new entries). Signal generation will create trades, but Phase 8 will not execute them "
+                f"due to halt_new_entries=True in fallback constraints."
             )
-
-        if phase5_result.halted:
-            error_msg = f"[PHASE 7] Phase 5 halted: {phase5_result.error or 'unknown reason'}"
-            logger.critical(error_msg)
-            self.log_phase_result(7, "SIGNAL GENERATION & RANKING", "halt", error_msg)
-            from algo.orchestrator.phase_result import PhaseResult
-
-            return PhaseResult(
-                7,
-                "SIGNAL GENERATION & RANKING",
-                "halted",
-                {"qualified_trades": [], "liquidity_passed": 0},
-                True,
-                error_msg,
-            )
-
-        if not phase5_result.ok:
-            error_msg = f"[PHASE 7] Phase 5 failed: status={phase5_result.status}, error={phase5_result.error}"
-            logger.critical(error_msg)
-            self.log_phase_result(7, "SIGNAL GENERATION & RANKING", "halt", error_msg)
-            from algo.orchestrator.phase_result import PhaseResult
-
-            return PhaseResult(
-                7,
-                "SIGNAL GENERATION & RANKING",
-                "halted",
-                {"qualified_trades": [], "liquidity_passed": 0},
-                True,
-                error_msg,
-            )
-
-        exposure_constraints = executor.get_phase_data_required(5, "constraints")
+            # Use same safe defaults as Phase 5 skip data
+            exposure_constraints = {
+                "tier_name": "CORRECTION",
+                "regime": "CORRECTION",
+                "risk_multiplier": 0.0,
+                "max_new_positions_today": 0,
+                "halt_new_entries": True,
+                "max_concentration_pct": 0.0,
+                "halt_reason": "Phase 5 unavailable - using conservative defaults",
+            }
+        else:
+            exposure_constraints = executor.get_phase_data_required(5, "constraints")
 
         result = run_phase7(
             self.run_date,
