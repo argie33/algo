@@ -561,25 +561,17 @@ class StockScoresLoader(OptimalLoader):
             # The minimum 4 metrics check below ensures sufficient diversity to prevent single-metric bias.
             # Completeness % is still tracked and reported for operator/trader visibility.
 
-            # CRITICAL: Enforce minimum 2/6 metrics (lowered from 3 for broader coverage)
-            # Stock scores require sufficient metric diversity to prevent single-metric bias
-            # (e.g., pure value without growth/quality check).
-            # With fewer than 2 metrics, position sizing becomes unreliable:
-            # - 1 metric: extreme bias (no balance at all)
-            # - 2+ metrics: minimum diversity for balanced evaluation (e.g., quality + stability)
-            # Momentum now available from momentum_metrics loader (Session 260)
-            # Session 398: Lowered from 3 to 2 to unlock 336 stocks with valid metric pairs
-            # Note: Trading entry gates still filter based on completeness >= 70%
-            min_required_metrics = 2
+            # Session 530: Enable degraded-mode scoring for SPACs/new listings
+            # Previously: required minimum 2/6 metrics, silently rejected 8 SPACs
+            # Now: allow 1+ metrics for degraded scoring, marked with low completeness % in DB
+            # Trading gates still filter on completeness >= 70%, so degraded scores won't enter live signals
+            # min_required_metrics lowered from 3 to 1 to make "no data" stocks visible with reason codes
+            min_required_metrics = 1
 
             if data_count < min_required_metrics:
                 raise RuntimeError(
-                    f"[STOCK_SCORES] {symbol}: CRITICAL - insufficient metrics for scoring. "
-                    f"Got {data_count}/6 metrics (need minimum {min_required_metrics}). "
-                    f"With fewer than {min_required_metrics} metrics, position sizing decisions are unreliable. "
-                    f"Score computation requires minimum: growth (SEC), quality (SEC), value, positioning (SEC/FINRA), "
-                    f"stability (technical), or momentum (price). Trading gates filter on completeness >= 70%. "
-                    f"Failing fast to prevent insufficient-data-biased trading positions."
+                    f"[STOCK_SCORES] {symbol}: CRITICAL - zero metrics available. "
+                    f"Got {data_count}/6 metrics. Cannot compute score with no metric data."
                 )
 
             # GOVERNANCE COMPLIANCE: Compute scores with 4+/6 metrics (sufficient diversity).

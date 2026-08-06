@@ -43,6 +43,17 @@ def handle(
                 return error_response(400, "bad_request", "Invalid symbol format")
             return _get_stock_details(cur, detail_symbol)
 
+        # Handle /api/scores/incomplete endpoint (new) - stocks with insufficient data
+        if path in ["/api/scores/incomplete", "/api/algo/scores/incomplete"] or path.startswith(
+            ("/api/scores/incomplete?", "/api/algo/scores/incomplete?")
+        ):
+            limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=100)
+            offset = safe_offset(extract_param(params, "offset") or "0")
+            sort_by = extract_param(params, "sortBy") or "data_completeness"
+            sort_order = extract_param(params, "sortOrder") or "asc"
+
+            return _get_incomplete_stocks(cur, limit, offset, sort_by, sort_order)
+
         if path in [
             "/api/scores",
             "/api/scores/stockscores",
@@ -1454,4 +1465,87 @@ def _get_stock_scores(  # noqa: C901
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle scores")
+        return error_response(code, error_type, message)
+
+
+def _get_incomplete_stocks(
+    cur: cursor,
+    limit: int,
+    offset: int,
+    sort_by: str = "data_completeness",
+    sort_order: str = "asc",
+) -> Any:
+    """Get stocks with incomplete data (data_unavailable=True or data_completeness < 70%).
+
+    Returns stocks that cannot be reliably scored due to missing data, with reason codes.
+    Useful for understanding what data sources are still needed.
+    """
+    try:
+        # Get count of incomplete stocks
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM stock_scores
+            WHERE (data_unavailable = true OR data_completeness < 70)
+        """)
+        total_count = cur.fetchone()[0]
+
+        # Sort by appropriate field
+        sort_clause = ""
+        if sort_by == "data_completeness":
+            sort_clause = f"ORDER BY data_completeness {sort_order}, symbol ASC"
+        elif sort_by == "symbol":
+            sort_clause = f"ORDER BY symbol {sort_order}"
+        else:
+            sort_clause = f"ORDER BY data_completeness {sort_order}, symbol ASC"
+
+        # Fetch incomplete stocks
+        query = f"""
+            SELECT
+                symbol,
+                composite_score,
+                data_completeness,
+                data_unavailable,
+                reason,
+                unavailable_metrics,
+                updated_at
+            FROM stock_scores
+            WHERE (data_unavailable = true OR data_completeness < 70)
+            {sort_clause}
+            LIMIT %s OFFSET %s
+        """
+
+        rows = execute_with_timeout(cur, query, [limit, offset], timeout_sec=20, max_attempts=1)
+
+        items = []
+        for row in rows:
+            d = dict(row)
+            # Clean up unavailable_metrics for display
+            if d.get("unavailable_metrics"):
+                try:
+                    if isinstance(d["unavailable_metrics"], str):
+                        import json
+                        d["unavailable_metrics"] = json.loads(d["unavailable_metrics"])
+                except:
+                    pass  # Keep as-is if parsing fails
+
+            items.append(d)
+
+        # Data freshness
+        freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
+
+        result = {
+            "items": items,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "page": (offset // limit) + 1 if limit > 0 else 1,
+                "totalPages": ((total_count - 1) // limit) + 1 if limit > 0 else 1,
+            },
+            "note": "Stocks with data_unavailable=true or completeness < 70%. These are SPACs, new listings, or stocks with insufficient SEC data."
+        }
+        return json_response(200, result, data_freshness=freshness)
+
+    except Exception as e:
+        code, error_type, message = handle_db_error(e, "get incomplete stocks")
         return error_response(code, error_type, message)
