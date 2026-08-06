@@ -2842,6 +2842,7 @@ def run(
                             run_date, entry_price, risk_pct
                         )
                         executed_count += 1  # Count as successful (trade exists and is valid)
+                        successfully_entered += 1  # CRITICAL FIX: Also update successfully_entered for consistency
                         entered_symbols.append(symbol)
                         entered_prices.append(entry_price)
                     else:
@@ -2855,6 +2856,7 @@ def run(
                 logger.info(f"[PHASE 8] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")
 
                 executed_count += 1
+                successfully_entered += 1  # CRITICAL FIX: Also update successfully_entered for consistency
                 entered_symbols.append(symbol)
                 entered_prices.append(entry_price)
 
