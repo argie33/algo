@@ -56,13 +56,20 @@ logger = logging.getLogger(__name__)
 _VALID_ACTIONS = {"up", "down", "main", "init", "reit"}
 
 
-def _fetch_with_circuit_breaker(symbol: str, attr: str) -> Any:
+def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.0) -> Any:
     """Fetch one yf.Ticker attribute under the shared cross-ECS-task circuit breaker.
 
+    CRITICAL FIX (2026-08-06): Added per-request timeout to prevent earnings_calendar
+    loader from timing out on large symbol universes. yfinance requests can hang
+    indefinitely without explicit timeout.
+
+    Args:
+        symbol: Stock symbol to fetch
+        attr: yfinance Ticker attribute name (e.g., 'earnings_dates')
+        timeout_sec: Per-request timeout in seconds (default 10s)
+
     Raises:
-        RuntimeError: on a real fetch failure (network, rate limit, parse error) - the
-        caller is expected to record this as data_unavailable, not silently skip it,
-        per this codebase's fail-explicit governance.
+        RuntimeError: on a real fetch failure (network, rate limit, parse error, timeout)
     """
     circuit_breaker = get_circuit_breaker()
     try:
@@ -71,13 +78,22 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str) -> Any:
         raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
 
     import yfinance as yf
+    import socket
+
+    # Set socket timeout for this request
+    old_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(timeout_sec)
 
     try:
         result = getattr(yf.Ticker(symbol), attr)
+    except socket.timeout:
+        raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
     except Exception as e:
         if _is_rate_limit_error(e):
             circuit_breaker.report_rate_limit_error()
         raise RuntimeError(f"yfinance {attr} fetch failed for {symbol}: {e}") from e
+    finally:
+        socket.setdefaulttimeout(old_timeout)
 
     circuit_breaker.report_success()
     return result
@@ -257,7 +273,7 @@ def fetch_forward_eps(symbol: str) -> float | None:
     return val
 
 
-def fetch_earnings_calendar(symbol: str) -> list[dict[str, Any]] | None:
+def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict[str, Any]] | None:
     """Fetch recent-past and upcoming earnings dates for one symbol from yfinance.
 
     Uses Ticker.earnings_dates (real DataFrame indexed by earnings timestamp, columns
@@ -268,16 +284,20 @@ def fetch_earnings_calendar(symbol: str) -> list[dict[str, Any]] | None:
     see loaders/load_earnings_calendar.py's module docstring for why this table needed a
     live writer restored.
 
+    Args:
+        symbol: Stock symbol
+        timeout_sec: Per-request timeout in seconds (default 10s)
+
     Returns:
         List of row dicts (symbol, earnings_date, eps_estimate, actual_eps, surprise_pct),
         or None if the symbol has no earnings-date coverage (not an error - some
         OTC/delisted/pre-IPO symbols genuinely have none).
 
     Raises:
-        RuntimeError: on a real fetch failure - see _fetch_with_circuit_breaker.
+        RuntimeError: on a real fetch failure (including timeout) - see _fetch_with_circuit_breaker.
     """
     try:
-        df = _fetch_with_circuit_breaker(symbol, "earnings_dates")
+        df = _fetch_with_circuit_breaker(symbol, "earnings_dates", timeout_sec=timeout_sec)
     except RuntimeError as e:
         if _is_no_fundamentals_404(str(e)):
             return None

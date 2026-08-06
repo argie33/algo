@@ -62,6 +62,10 @@ class EarningsCalendarLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, object]]:
         """Fetch this symbol's current earnings-date window from yfinance.
 
+        CRITICAL FIX (2026-08-06): Per-symbol 8-second timeout to prevent hangs on large
+        universes. With 4500+ symbols and 1-hour SLA, each symbol gets ~1s on average.
+        8s budget allows for network variability while ensuring loader completes.
+
         Deliberately ignores `since`: yfinance's earnings_dates always returns the same
         rolling ~12-past/1-future window regardless of what we already have, and a row
         that was estimate-only (actual_eps NULL) before an earnings date passes needs to
@@ -71,7 +75,9 @@ class EarningsCalendarLoader(OptimalLoader):
         idempotent.
         """
         try:
-            rows = fetch_earnings_calendar(symbol)
+            # CRITICAL: Pass explicit timeout to prevent hanging on unresponsive yfinance requests
+            # Timeouts are logged as fetch_error and marked data_unavailable (not fatal)
+            rows = fetch_earnings_calendar(symbol, timeout_sec=8.0)
         except RuntimeError as e:
             return [self._unavailable_record(symbol, f"fetch_error:{type(e).__name__}")]
 
