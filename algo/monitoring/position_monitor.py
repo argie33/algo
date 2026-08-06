@@ -1384,6 +1384,17 @@ class PositionMonitor:
                 f"Invalid entry price for {symbol}: {entry_price} <= 0. Cannot calculate max unrealized %."
             )
 
+        # CRITICAL FIX 2026-08-06: Positions entered today (trade_date >= current_date) have no price history yet
+        # When Phase 3 monitors with yesterday's date but positions were entered today, the date range becomes
+        # inverted (start > end), causing price queries to return no results. Gracefully handle same-day entries:
+        # return 0% peak gain (position has no gains yet, just entered).
+        if trade_date >= current_date:
+            logger.info(
+                f"[POSITION_MONITOR] {symbol}: Entered on {trade_date} (>= monitoring date {current_date}). "
+                f"Position too new for peak gain analysis - returning 0%."
+            )
+            return 0.0
+
         # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
         # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
         # This was inverted in a previous attempt - the bug was opening fresh context when cursor was passed.
