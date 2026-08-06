@@ -251,7 +251,12 @@ class EntryHandler:
         # Use normalized prices (rounded to 4 decimals) for consistency across retries.
         import hashlib
 
-        key_source = f"{symbol}_{entry_price}_{stop_loss_price}_{signal_date}"
+        # Normalize prices to 4 decimals to ensure deterministic idempotency key across retries
+        # even if prices have different floating point representations
+        entry_price_normalized = f"{float(entry_price):.4f}"
+        stop_loss_normalized = f"{float(stop_loss_price):.4f}"
+
+        key_source = f"{symbol}_{entry_price_normalized}_{stop_loss_normalized}_{signal_date}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks
