@@ -568,11 +568,6 @@ def _compute_win_rate(cur: Any) -> float:
                 ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
                 LIMIT 30
             ) recent_closed
-            UNION ALL
-            SELECT unrealized_pnl_pct as pnl_pct
-            FROM algo_positions
-            WHERE status = 'open'
-              AND quantity > 0
         ) recent_trades
     """, ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"))
     row = cur.fetchone()
