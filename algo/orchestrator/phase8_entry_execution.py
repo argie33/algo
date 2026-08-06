@@ -2755,11 +2755,27 @@ def run(
 
                     failed_count += 1
                 except psycopg2.DatabaseError as db_err:
-                    # ISSUE 14 FIX: Database corruption - skip this trade and continue with fresh connection
-                    logger.error(f"[PHASE 8] {symbol}: Database error during trade execution, skipping: {db_err}")
-                    _log_signal_rejection(symbol, "database_error", str(db_err), run_date, entry_price, risk_pct)
-                    failed_entries.append((symbol, "database_error"))
-                    failed_count += 1
+                    # Check for UniqueViolation (duplicate idempotency key)
+                    db_err_str = str(db_err)
+                    if "duplicate key value violates" in db_err_str or "uniqueness violation" in db_err_str.lower():
+                        logger.info(
+                            f"[PHASE 8] {symbol}: Trade already exists (duplicate idempotency key). "
+                            f"Orchestrator already executed this signal - skipping reexecution."
+                        )
+                        _log_signal_rejection(
+                            symbol, "duplicate_trade_exists",
+                            f"Trade already executed in prior orchestrator run: {db_err_str[:150]}",
+                            run_date, entry_price, risk_pct
+                        )
+                        executed_count += 1  # Count as successful (trade exists and is valid)
+                        entered_symbols.append(symbol)
+                        entered_prices.append(entry_price)
+                    else:
+                        # Generic database error
+                        logger.error(f"[PHASE 8] {symbol}: Database error during trade execution, skipping: {db_err}")
+                        _log_signal_rejection(symbol, "database_error", str(db_err), run_date, entry_price, risk_pct)
+                        failed_entries.append((symbol, "database_error"))
+                        failed_count += 1
 
             else:
                 logger.info(f"[PHASE 8] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")

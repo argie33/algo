@@ -244,19 +244,20 @@ class EntryHandler:
             raise
 
         # Generate deterministic idempotency key for Alpaca order deduplication.
-        # CRITICAL FIX 2026-08-01: Include entry_price, stop_loss_price to differentiate retry
-        # attempts with different parameters (network retries should reuse same price/stop).
-        # Alpaca uses client_order_id to prevent duplicate orders on network retries.
-        # Using only symbol+signal_date would incorrectly deduplicate different trade parameters.
-        # Use normalized prices (rounded to 4 decimals) for consistency across retries.
+        # CRITICAL FIX 2026-08-05: REMOVED stop_loss_price from idempotency key generation.
+        # Stop loss price varies between orchestrator runs due to ATR/volatility recalculations,
+        # causing different hashes even for the same trade intent. This breaks idempotency and
+        # creates duplicate trades in algo_trades table when orchestrator reruns the same signal.
+        # Solution: Use ONLY stable values (symbol + signal_date + entry_price).
+        # Entry price is fixed from signal data, signal_date never changes, symbol is immutable.
+        # Stop loss method is risk management detail, not a trade identifier.
         import hashlib
 
-        # Normalize prices to 4 decimals to ensure deterministic idempotency key across retries
-        # even if prices have different floating point representations
+        # Normalize entry price to 4 decimals to ensure deterministic key across retries
         entry_price_normalized = f"{float(entry_price):.4f}"
-        stop_loss_normalized = f"{float(stop_loss_price):.4f}"
 
-        key_source = f"{symbol}_{entry_price_normalized}_{stop_loss_normalized}_{signal_date}"
+        # Use only stable values that don't change between orchestrator runs
+        key_source = f"{symbol}_{entry_price_normalized}_{signal_date}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks
