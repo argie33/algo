@@ -1558,7 +1558,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         income_rows: List of (fiscal_year, total_revenue, operating_income, net_income,
         earnings_per_share) sorted DESC by fiscal_year (most recent first).
         """
-        if not income_rows or len(income_rows) < 2:
+        if not income_rows:
             return self._unavailable_marker("growth_metrics", symbol)
 
         metrics: dict[str, Any] = {

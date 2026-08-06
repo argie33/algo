@@ -173,7 +173,7 @@ def get_active_symbols(
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
                               AND data_unavailable IS NOT TRUE
-                              AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto)\\b'
+                              AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto|Debenture|Subordinated|Preferred|Perpetual)\\b'
                             ORDER BY symbol
                         """
                     else:
