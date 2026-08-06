@@ -425,8 +425,16 @@ class DatabaseContext:
                             logger.info(f"[DB_CONTEXT] __exit__: ROLLBACK (externally-managed, exc_type={exc_type})")
                             self.conn.rollback()
                         logger.debug("[DB_CONTEXT] Not closing externally-managed connection")
-            except Exception as e:
-                logger.warning(f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}", exc_info=True)
+            except Exception as cleanup_err:
+                logger.critical(
+                    f"[DB_CONTEXT CRITICAL] Commit/rollback failed during cleanup: {cleanup_err}",
+                    exc_info=True
+                )
+                # CRITICAL FIX: Re-raise the cleanup error so caller knows transaction failed
+                # Previously this was silently logged and suppressed, causing transactions to
+                # appear successful when they actually failed (e.g., trades logged "SUCCEEDED"
+                # but constraint violations prevented commit, positions created without trades)
+                raise
             finally:
                 self.cur = None
                 if not self._externally_managed:

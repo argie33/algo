@@ -503,8 +503,13 @@ class SpecializedChecker(BaseCheck):
                         {"columns": columns},
                     )
 
-                    # Check data freshness
-                    cur.execute(f"SELECT COUNT(*) as count, MAX(created_at) as max_updated FROM {tbl_safe}")
+                    # Check data freshness (use updated_at if created_at doesn't exist)
+                    # First try created_at, fallback to updated_at
+                    try:
+                        cur.execute(f"SELECT COUNT(*) as count, MAX(created_at) as max_updated FROM {tbl_safe}")
+                    except psycopg2.DatabaseError:
+                        # Fallback to updated_at if created_at doesn't exist
+                        cur.execute(f"SELECT COUNT(*) as count, MAX(updated_at) as max_updated FROM {tbl_safe}")
                     row = cur.fetchone()
                     if isinstance(row, dict):
                         count, max_updated = row.get("count"), row.get("max_updated")
