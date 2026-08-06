@@ -170,10 +170,13 @@ class PhaseRegistry:
         # Proactive risk check prevents new entries when total risk >= 4%, BEFORE entries are made
         # (vs circuit breaker which halts AFTER risk is already high). Phase 8 can run without
         # Phase 7 signals (no entries to execute) but MUST run to enforce risk limits proactively.
+        # CRITICAL FIX (2026-08-06): Remove Phase 7 from dependencies. Phase 8 is always_run and
+        # must not fail if Phase 7 halts. Phase 8 gracefully handles missing signals (no entries).
+        # Phase 5 remains as data source but not a hard blocker (Phase 8 has fallback logic).
         PhaseRegistryEntry(
             phase_num=8,
             phase_name="ENTRY EXECUTION",
-            dependencies=[7, 5],
+            dependencies=[5],  # CRITICAL: Only Phase 5 is data dependency, not Phase 7
             execute_fn=None,
             skip_if_halted=False,  # Changed: allow Phase 8 to run even if earlier phases halt
             always_run=True,  # CRITICAL: Proactive risk enforcement must run regardless of halt
