@@ -2660,9 +2660,9 @@ def run(
                     # Set SERIALIZABLE isolation for this check to detect concurrent writes
                     cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
                     cur.execute(
-                        f"SELECT id FROM algo_trades WHERE symbol = %s "
-                        f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
-                        (symbol, *open_statuses),
+                        "SELECT id FROM algo_trades WHERE symbol = %s "
+                        "AND status = ANY(%s) LIMIT 1",
+                        (symbol, list(open_statuses)),
                     )
                     if cur.fetchone():
                         msg = f"[PHASE 8 DUPLICATE GATE] {symbol} already has open/pending position. Blocking entry."

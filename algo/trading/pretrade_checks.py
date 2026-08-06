@@ -136,9 +136,9 @@ class PreTradeChecks:
                 # prevent validation passing when algo_positions and algo_trades are out of sync.
                 open_statuses = TradeStatus.all_open()
                 cur.execute(
-                    f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
-                    f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
-                    (symbol, *open_statuses),
+                    "SELECT trade_id FROM algo_trades WHERE symbol = %s "
+                    "AND status = ANY(%s) LIMIT 1",
+                    (symbol, list(open_statuses)),
                 )
                 if cur.fetchone():
                     return (False, f"Already have open/pending trade for {symbol} in algo_trades")

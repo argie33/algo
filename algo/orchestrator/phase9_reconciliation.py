@@ -1085,20 +1085,19 @@ def _record_closed_positions_exits(
         with DatabaseContext("read") as cursor:
             from utils.trading.status import TradeStatus
             open_trade_statuses = TradeStatus.all_open()
-            trade_status_ph = ", ".join(["%s"] * len(open_trade_statuses))
             cursor.execute(
-                f"""
+                """
                 SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id, ap.current_price
                 FROM algo_positions ap
                 CROSS JOIN LATERAL UNNEST(ap.trade_ids_arr) AS unnested_trade_id
                 JOIN algo_trades at ON at.trade_id::text = unnested_trade_id::text
                 WHERE ap.status = 'closed' AND ap.closed_at::date = %s
                   AND at.exit_date IS NULL
-                  AND at.status IN ({trade_status_ph})
+                  AND at.status = ANY(%s)
                   AND (ap.exit_reason IS NULL OR ap.exit_reason NOT ILIKE 'CLEANUP%%')
                 ORDER BY ap.closed_at DESC
             """,
-                (run_date, *open_trade_statuses),
+                (run_date, list(open_trade_statuses)),
             )
             closed_positions = cursor.fetchall()
 

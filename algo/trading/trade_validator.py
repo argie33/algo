@@ -250,12 +250,12 @@ class TradeValidator:
         # status='filled'/'partially_filled' literally, never 'open'.
         open_statuses = TradeStatus.all_open()
         cur.execute(
-            f"""
+            """
             SELECT trade_id FROM algo_trades
-            WHERE symbol = %s AND status IN ({", ".join(["%s"] * len(open_statuses))})
+            WHERE symbol = %s AND status = ANY(%s)
             LIMIT 1
             """,
-            (symbol, *open_statuses),
+            (symbol, list(open_statuses)),
         )
         if cur.fetchone():
             return (
@@ -280,13 +280,13 @@ class TradeValidator:
         # Check OPEN trades to prevent multiple active positions in same symbol on same signal date
         open_statuses = TradeStatus.all_open()
         cur.execute(
-            f"""
+            """
             SELECT id FROM algo_trades
             WHERE symbol = %s AND signal_date = %s
-            AND status IN ({", ".join(["%s"] * len(open_statuses))})
+            AND status = ANY(%s)
             LIMIT 1
             """,
-            (symbol, signal_date, *open_statuses),
+            (symbol, signal_date, list(open_statuses)),
         )
         result = cur.fetchone()
         if result:
@@ -335,9 +335,9 @@ class TradeValidator:
         # literally, so a status='open'-only check here would miss it entirely.
         open_statuses = TradeStatus.all_open()
         cur.execute(
-            f"SELECT trade_id FROM algo_trades WHERE symbol = %s "
-            f"AND status IN ({', '.join(['%s'] * len(open_statuses))}) LIMIT 1",
-            (symbol, *open_statuses),
+            "SELECT trade_id FROM algo_trades WHERE symbol = %s "
+            "AND status = ANY(%s) LIMIT 1",
+            (symbol, list(open_statuses)),
         )
         if cur.fetchone():
             return True, f"Already have open position in {symbol} (existing trade in progress)"
@@ -372,13 +372,13 @@ class TradeValidator:
         # Check for ANY live trade with this symbol (database constraint enforces 1 max)
         open_statuses = TradeStatus.all_open()
         cur.execute(
-            f"""
+            """
             SELECT trade_id, signal_date FROM algo_trades
             WHERE symbol = %s
-              AND status IN ({", ".join(["%s"] * len(open_statuses))})
+              AND status = ANY(%s)
             LIMIT 1
             """,
-            (symbol, *open_statuses),
+            (symbol, list(open_statuses)),
         )
         result = cur.fetchone()
         if result:

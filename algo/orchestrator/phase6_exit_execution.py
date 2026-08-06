@@ -469,22 +469,24 @@ def run(
 
                     return rebalance_actions
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[PHASE 6] Sector concentration check skipped (DB error): {e}")
-                return []
+                logger.error(f"[PHASE 6] Sector concentration check database error: {e}")
+                raise RuntimeError(
+                    f"[PHASE 6 CRITICAL] Cannot perform sector concentration check due to database error: {e}. "
+                    f"This safety check is mandatory and must not be skipped."
+                ) from e
             except (ValueError, RuntimeError) as e:
-                # Critical errors (missing config) must halt
                 error_msg = str(e)
-                if "CRITICAL" in error_msg or "missing" in error_msg.lower():
-                    raise  # Re-raise critical errors - let outer handler see them and halt
-                # Data errors can gracefully degrade
-                logger.warning(f"[PHASE 6] Sector concentration check skipped (data error): {e}")
-                return []
+                raise RuntimeError(
+                    f"[PHASE 6 CRITICAL] Sector concentration check failed with error: {e}. "
+                    f"Position rebalancing cannot proceed without valid concentration data."
+                ) from e
             except (KeyError, TypeError) as e:
-                # Type/key errors - gracefully degrade
-                logger.warning(f"[PHASE 6] Sector concentration check skipped (data error): {e}")
-                return []
+                logger.error(f"[PHASE 6] Sector concentration check data structure error: {type(e).__name__}: {e}")
+                raise RuntimeError(
+                    f"[PHASE 6 CRITICAL] Sector concentration check failed due to data structure error: {e}. "
+                    f"Cannot safely enforce concentration limits."
+                ) from e
             except Exception as e:
-                # Unexpected errors - halt to be safe
                 logger.error(f"[PHASE 6] Sector concentration check unexpected error: {type(e).__name__}: {e}")
                 raise RuntimeError(f"[PHASE 6] Sector concentration check failed unexpectedly: {e}") from e
 
@@ -544,13 +546,17 @@ def run(
                         return []
 
                     if null_position_values > 0:
-                        logger.warning(
+                        logger.error(
                             f"[PHASE 6] {null_position_values} open positions have NULL position_value. "
-                            f"This indicates data quality issue (likely Phase 3 didn't update positions). "
-                            f"Skipping concentration check to prevent assessment errors. "
-                            f"Phase 3 should fix this on next run."
+                            f"This indicates Phase 3 did not properly update positions before Phase 6 ran. "
+                            f"Position concentration cannot be accurately assessed without complete position data."
                         )
-                        return []  # Gracefully degrade instead of halting
+                        raise RuntimeError(
+                            f"[PHASE 6 CRITICAL] Cannot proceed with concentration check: "
+                            f"{null_position_values} positions have NULL position_value. "
+                            f"Phase 3 (Position Monitor) must complete successfully before Phase 6. "
+                            f"Check that Phase 3 has the correct database role and can update position_value."
+                        )
 
                     # Get total portfolio value (account equity: cash + positions) - the same
                     # denominator Phase 8 uses to size positions in the first place
@@ -584,12 +590,17 @@ def run(
                     result = cur.fetchone()
                     total_value = result[0] if result else None
                     if total_value is None:
-                        logger.warning(
-                            "[PHASE 6] No algo_portfolio_snapshots row available - cannot determine "
-                            "true account equity. Skipping position-size concentration check rather "
-                            "than risk a wrong denominator (open-position sum understates equity)."
+                        logger.error(
+                            "[PHASE 6] No algo_portfolio_snapshots row available. "
+                            "Cannot determine account equity for concentration checks. "
+                            "Phase 9 (reconciliation) must run after Phase 6 to create daily snapshots."
                         )
-                        return []
+                        raise RuntimeError(
+                            "[PHASE 6 CRITICAL] Cannot proceed with concentration check: "
+                            "algo_portfolio_snapshots table has no data for this or prior trading day. "
+                            "Phase 9 (Reconciliation) must create the first snapshot. "
+                            "Run: orchestrator -> all 9 phases must complete before concentration checks can work."
+                        )
 
                     try:
                         total_value_float = _ensure_float(total_value, "total_portfolio_value")
@@ -600,8 +611,15 @@ def run(
                         )
 
                     if total_value_float <= 0:
-                        logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
-                        return []
+                        logger.error(
+                            f"[PHASE 6] Portfolio value is {total_value_float}. "
+                            f"This indicates account has no equity or negative balance."
+                        )
+                        raise RuntimeError(
+                            f"[PHASE 6 CRITICAL] Cannot proceed with concentration check: "
+                            f"portfolio value = {total_value_float} (must be > 0). "
+                            f"Check that algo_portfolio_snapshots.total_portfolio_value is correct."
+                        )
 
                     # Find positions exceeding size limit
                     cur.execute("""
@@ -751,14 +769,11 @@ def run(
 
                     return rebalance_actions
             except (ValueError, RuntimeError) as e:
-                # Critical errors (missing config, NULL positions) must halt
-                # Do NOT degrade - these are safety checks
-                error_msg = str(e)
-                if "CRITICAL" in error_msg or "missing" in error_msg.lower() or "data integrity" in error_msg.lower():
-                    raise  # Re-raise critical errors - let outer handler see them and halt
-                # Data type conversion errors can gracefully degrade
-                logger.warning(f"[PHASE 6] Position size concentration check data issue (degrading): {type(e).__name__}: {e}")
-                return []
+                logger.error(f"[PHASE 6] Position size concentration check error: {type(e).__name__}: {e}")
+                raise RuntimeError(
+                    f"[PHASE 6 CRITICAL] Position size concentration check failed: {e}. "
+                    f"Position sizing enforcement cannot proceed without valid concentration data."
+                ) from e
             except Exception as e:
                 # Other unexpected errors - halt to be safe
                 logger.error(f"[PHASE 6] Position size concentration check unexpected error: {type(e).__name__}: {e}")
