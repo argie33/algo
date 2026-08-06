@@ -29,7 +29,7 @@ Usage:
     # router automatically tries Alpaca first, falls back if needed
 
     # See which source was used
-    logger.info(router.last_source)  # "alpaca" / "polygon" / "yfinance"
+    logger.info(router.last_source)  # "alpaca" / "yfinance"
 """
 
 import json

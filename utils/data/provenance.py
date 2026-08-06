@@ -7,7 +7,7 @@ Tracks:
   2. SOURCE_TIMESTAMP - When the data was published (vs when loaded)
   3. LOAD_TIMESTAMP - When we actually inserted it
   4. DATA_CHECKSUM - Hash of the data (detect corruption, enable replay)
-  5. SOURCE_API - Which API/file the data came from (yfinance, Alpaca, Polygon)
+  5. SOURCE_API - Which API/file the data came from (yfinance, Alpaca)
   6. ERROR_HANDLING - How errors were resolved (fallback, skip, or failed)
   7. REPLAY_CAPABILITY - Store enough info to replay any historical day
 
@@ -79,7 +79,7 @@ class DataProvenanceTracker:
         Start a new loader run. Returns run_id (UUID).
 
         Args:
-            source_api: Which API this run is using (yfinance, alpaca, polygon)
+            source_api: Which API this run is using (yfinance, alpaca)
             parameters: Any parameters passed to the loader
 
         Returns:

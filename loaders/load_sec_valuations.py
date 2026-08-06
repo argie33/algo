@@ -565,7 +565,7 @@ class SecValuationsLoader(OptimalLoader):
             else:
                 logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
 
-        # Forward PE Ratio removed: Requires external analyst data (Polygon/etc).
+        # Forward PE Ratio removed: Requires external analyst data.
         # Removed per GOVERNANCE.md: no external fallbacks for financial metrics.
         # All metrics computed from SEC audited data only.
 
