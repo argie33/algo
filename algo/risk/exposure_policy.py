@@ -283,7 +283,7 @@ class ExposurePolicy:
                            p.unrealized_pnl_pct
                     FROM algo_positions p
                     CROSS JOIN LATERAL UNNEST(p.trade_ids_arr) AS tid(id)
-                    JOIN algo_trades t ON t.trade_id = tid.id
+                    JOIN algo_trades t ON t.trade_id::text = tid.id::text
                     WHERE t.status IN ({status_placeholders}) AND p.status = 'open' AND p.quantity > 0
                     """,
                     tuple(open_statuses),
