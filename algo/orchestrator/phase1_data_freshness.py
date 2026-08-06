@@ -1476,25 +1476,28 @@ def run(  # noqa: C901
                 portfolio_symbols = [row[0] for row in cur.fetchall()]
 
                 if portfolio_symbols:
-                    logger.info(f"[PHASE 1] Validating prices for {len(portfolio_symbols)} portfolio symbols on {max_date}")
-                    missing_symbols = []
-
-                    for symbol in portfolio_symbols:
-                        # Check if symbol has price data for max_date with non-NULL close price
-                        cur.execute("""
-                            SELECT COUNT(*) FROM price_daily
-                            WHERE symbol = %s AND date = %s AND close IS NOT NULL
-                        """, (symbol, max_date))
-                        result = cur.fetchone()
-                        count = result[0] if result else 0
-                        if count == 0:
-                            missing_symbols.append(symbol)
+                    logger.info(f"[PHASE 1] Validating prices for {len(portfolio_symbols)} portfolio symbols (using latest available)")
+                    # CRITICAL FIX: Use latest available price for each symbol, consistent with Phase 3
+                    # Phase 3 position_monitor.py uses ROW_NUMBER() OVER ORDER BY date DESC to get
+                    # the most recent price regardless of exact date. Phase 1 must validate the same way
+                    # to avoid false halts on mid-trading-day runs before EOD prices load.
+                    cur.execute("""
+                        WITH latest_prices AS (
+                            SELECT symbol, close,
+                                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+                            FROM price_daily
+                            WHERE symbol = ANY(%s) AND close IS NOT NULL
+                        )
+                        SELECT symbol, close FROM latest_prices WHERE rn = 1
+                    """, (portfolio_symbols,))
+                    price_rows = cur.fetchall()
+                    price_symbols = {row[0]: row[1] for row in price_rows}
+                    missing_symbols = [s for s in portfolio_symbols if s not in price_symbols]
 
                     if missing_symbols:
-                        # CRITICAL: Missing prices for portfolio symbols is data integrity failure
-                        # Phase 6 will halt when trying to evaluate exits without current prices
+                        # CRITICAL: Missing prices for portfolio symbols - cannot execute exits
                         error_msg = (
-                            f"[PHASE 1 CRITICAL] Portfolio symbols missing prices on {max_date}: {missing_symbols}. "
+                            f"[PHASE 1 CRITICAL] Portfolio symbols missing any price data: {missing_symbols}. "
                             f"Phase 6 exit execution will fail for these positions. "
                             f"Check price_daily loader logs for data gaps or symbol-specific issues."
                         )
@@ -1513,7 +1516,11 @@ def run(  # noqa: C901
                             f"Portfolio symbols missing prices: {missing_symbols}",
                         )
                     else:
-                        logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices on {max_date}")
+                        stale_symbols = [
+                            s for s in portfolio_symbols
+                            if price_symbols.get(s) and price_symbols[s] is not None
+                        ]
+                        logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices (latest available)")
                         phase_data["portfolio_symbols"] = len(portfolio_symbols)
                         phase_data["portfolio_price_coverage"] = "complete"
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as portfolio_check_err:
