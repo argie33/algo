@@ -1015,7 +1015,7 @@ class PositionMonitor:
                     """
                     SELECT pd.close, td.atr, td.sma_50, td.sma_200
                     FROM price_daily pd
-                    INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                    LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
                     WHERE pd.symbol = %s AND pd.date <= %s
                     ORDER BY pd.date DESC LIMIT 1
                     """,
@@ -1030,7 +1030,7 @@ class PositionMonitor:
                     """
                     SELECT pd.close, td.atr, td.sma_50, td.sma_200
                     FROM price_daily pd
-                    INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+                    LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
                     WHERE pd.symbol = %s AND pd.date <= %s
                     ORDER BY pd.date DESC LIMIT 1
                     """,
