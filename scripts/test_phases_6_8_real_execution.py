@@ -123,13 +123,28 @@ def test_phase_8():
         alerts = AlertManager()
         run_date = _date.today()
 
+        # CRITICAL: Get exposure constraints from Phase 5
+        logger.info("Running Phase 5 (exposure policy) to get constraints for Phase 7...")
+        from algo.orchestrator.phase5_exposure_policy import run as run_phase5
+        phase5_result = run_phase5(
+            config=config,
+            run_date=run_date,
+            dry_run=False,  # REAL execution
+            alerts=AlertManager(),
+            verbose=True,
+            log_phase_result_fn=lambda *a, **k: None,
+        )
+        exposure_constraints = phase5_result.data.get("constraints") if phase5_result.data else None
+        logger.info(f"Phase 5 returned exposure_constraints: {exposure_constraints}")
+
         logger.info("Running Phase 7 (signal generation) to get entry signals...")
         phase7_result = run_phase7(
-            config=config,
             run_date=run_date,
             dry_run=False,  # REAL execution
             verbose=True,
             log_phase_result_fn=lambda *a, **k: None,
+            exposure_constraints=exposure_constraints,
+            config=config.to_dict() if hasattr(config, 'to_dict') else config,
         )
 
         signals = phase7_result.data.get("qualified_trades", []) if phase7_result.data else []
