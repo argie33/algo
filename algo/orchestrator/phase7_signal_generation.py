@@ -1317,9 +1317,6 @@ def run(  # noqa: C901
                         symbols=signal_symbols,
                         parallelism=8,
                     )
-                    # CRITICAL: Call post_run() to update rs_percentiles (batch rank pass)
-                    # Without this, all signals get rs_percentile=NULL and are filtered out
-                    loader.post_run()
                     loader_elapsed = time.time() - loader_start
                     if loader_elapsed > loader_timeout_secs:
                         logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")

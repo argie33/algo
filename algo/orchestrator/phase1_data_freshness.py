@@ -362,38 +362,6 @@ def run(  # noqa: C901
     """
     validate_phase_config(config, "phase_1_data_freshness")
 
-    # RUN DATA INTEGRITY CHECKS FIRST - Catch orphaned positions/trades before circuit breaker
-    # Prevents orchestrator halt due to data corruption
-    try:
-        from algo.monitoring.data_patrol.checks.specialized import DataIntegrityChecker
-
-        logger.info("[PHASE 1] Running data integrity checks...")
-        integrity_results = DataIntegrityChecker.run_all_checks()
-
-        # Check if circuit breaker readiness passed
-        cbr_check = integrity_results["checks"].get("circuit_breaker_readiness", {})
-        if cbr_check.get("status") == "critical":
-            logger.critical(
-                f"[PHASE 1 INTEGRITY] Circuit breaker readiness failed: {cbr_check}. "
-                "Orphaned or incomplete positions detected and cleaned. Proceeding with caution."
-            )
-            # Continue - we've already cleaned up the issues
-        elif cbr_check.get("status") == "ok":
-            logger.info("[PHASE 1 INTEGRITY] All data integrity checks passed")
-
-        # Log any issues that were found and fixed
-        for check_name, check_result in integrity_results["checks"].items():
-            if check_result.get("status") == "fixed":
-                logger.warning(
-                    f"[PHASE 1 INTEGRITY] {check_name}: Fixed {check_result.get('positions_closed') or check_result.get('found')} issues"
-                )
-            elif check_result.get("status") == "error":
-                logger.error(f"[PHASE 1 INTEGRITY] {check_name}: Error - {check_result.get('error')}")
-    except Exception as integrity_check_error:
-        logger.error(
-            f"[PHASE 1 INTEGRITY] Data integrity check failed (non-fatal, continuing): {integrity_check_error}"
-        )
-
     from datetime import timedelta as td
 
     phase_start = time.time()

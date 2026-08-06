@@ -885,6 +885,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "Quality assessment is authoritative for signal reliability."
             ) from e
 
+    def post_run(self) -> None:
+        """Post-run step: signal_quality_scores doesn't require ranking pass like stock_scores does."""
+        logger.debug("[SIGNAL_QUALITY_SCORES] post_run: no-op (no percentile ranking needed)")
+
 
 def main() -> int:
     """Load signal quality scores.
