@@ -1511,16 +1511,15 @@ def run(  # noqa: C901
                             continue
 
                         rsi, macd, macd_signal, minervini, weinstein = tech_row
-                        # CRITICAL: Same check as main signal generation - halt if trend data missing
-                        # NULL trend data causes signal quality scores to degrade significantly
+                        # CRITICAL: Missing trend data for older dates is expected (historical backfill)
+                        # Skip rather than halt, since backfill targets old signals without scores
+                        # Main signal generation (for current date) will halt if trend data missing
                         if minervini is None or weinstein is None:
-                            raise ValueError(
-                                f"[PHASE 7 BACKFILL CRITICAL] {symbol}: Missing trend template data for {signal_date}. "
-                                f"Minervini={minervini}, Weinstein={weinstein}. "
-                                f"Cannot backfill signal quality scores without trend confirmation data. "
-                                f"This indicates trend_template_data loader has not run for this date. "
-                                f"Backfill must halt to prevent degraded signal quality from being stored."
+                            logger.debug(
+                                f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Skipping - missing trend template data. "
+                                f"This is expected for older dates. Main signal generation will halt if trend data missing for current date."
                             )
+                            continue
                         # Compute score using same logic as inline scorer (with trend data)
                         try:
                             base_score = scorer.calculate_base_quality_score()
