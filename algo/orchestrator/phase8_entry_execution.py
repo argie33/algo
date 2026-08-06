@@ -2362,15 +2362,56 @@ def run(
                     "Cannot proceed with trade execution."
                 )
 
-            # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
-            # SMA_50 - ATR = below moving-average support.
-            # entry - 1.2*ATR = volatility-based floor (SESSION 372 FIX: tighter than 2.0*ATR).
-            # REASON: 2.0*ATR was causing avg losses 1.57x larger than wins (risk/reward imbalance).
-            # Tighter stop = smaller loss if wrong, better risk/reward profile.
-            stop_loss = min(
-                sma_50 - atr,
-                entry_price - 1.2 * atr,
-            )
+            # Stop loss: Dynamic tightening based on volatility.
+            # CRITICAL FIX: For extremely volatile stocks, tighten the multiplier to stay
+            # within 20% max risk. Progressive tightening:
+            # - Normal (ATR 2-5% of price): entry - 1.2*ATR
+            # - High (ATR 5-10% of price): entry - 0.8*ATR
+            # - Extreme (ATR 10%+ of price): entry - 0.5*ATR
+            #
+            # This ensures high-volatility stocks don't get rejected for wide stops.
+            atr_ratio = atr / entry_price
+            max_risk_allowed = 0.20  # 20% max risk limit
+
+            # Progressive multiplier based on volatility
+            if atr_ratio >= 0.10:  # Extreme volatility: ATR >= 10% of price
+                atr_multiplier = 0.5  # Very tight: entry - 0.5*ATR
+            elif atr_ratio >= 0.05:  # High volatility: ATR 5-10% of price
+                atr_multiplier = 0.8  # Tight: entry - 0.8*ATR
+            else:  # Normal volatility: ATR < 5% of price
+                atr_multiplier = 1.2  # Standard: entry - 1.2*ATR
+
+            volatility_stop = entry_price - atr_multiplier * atr
+
+            # Calculate risk for this stop
+            risk_with_volatility_stop = (entry_price - volatility_stop) / entry_price
+
+            # If even the tight volatility stop is too wide, cap it at max_risk_allowed
+            if risk_with_volatility_stop > max_risk_allowed:
+                stop_loss = entry_price * (1 - max_risk_allowed)
+                logger.debug(
+                    f"[PHASE 8 STOP DEBUG] {symbol}: atr_ratio={atr_ratio:.3f}, "
+                    f"volatility_stop_risk={risk_with_volatility_stop*100:.1f}%, "
+                    f"capping to {max_risk_allowed*100:.0f}% (${stop_loss:.2f})"
+                )
+            else:
+                # For normal volatility, try support-based stop but verify it makes sense
+                support_stop = sma_50 - atr
+                support_risk = (entry_price - support_stop) / entry_price
+
+                # CRITICAL: Only use support_stop if:
+                # 1. It's below entry price (valid stop)
+                # 2. Its risk doesn't exceed max_risk_allowed
+                # Otherwise, use volatility_stop (tighter, guaranteed to fit)
+                if support_stop < entry_price and support_risk <= max_risk_allowed:
+                    stop_loss = min(volatility_stop, support_stop)
+                else:
+                    # Support stop is invalid or too wide - use volatility stop instead
+                    stop_loss = volatility_stop
+                    logger.debug(
+                        f"[PHASE 8 STOP DEBUG] {symbol}: support_stop skipped (risk={support_risk*100:.1f}%), "
+                        f"using volatility_stop=${stop_loss:.2f}"
+                    )
 
             # AUDIT FIX (Session 276): Validate stop placement against recent support levels
             # In extended rallies, SMA_50 - ATR can sit far above chart support, leading to
@@ -2393,13 +2434,26 @@ def run(
                         # Allow minimal slack (0.5%) above support to avoid false fills
                         min_stop_above_support = support_52w * 1.005
                         if stop_loss <= support_52w:
-                            logger.info(
-                                f"[PHASE 8] {symbol}: Stop loss ${stop_loss:.2f} "
-                                f"below 52-week support ${support_52w:.2f}. "
-                                f"Adjusting to ${min_stop_above_support:.2f} (0.5% above support). "
-                                "Original formula (min(sma-atr, entry-2*atr)) unsound."
-                            )
-                            stop_loss = min_stop_above_support
+                            adjusted_stop = min_stop_above_support
+                            adjusted_risk = (entry_price - adjusted_stop) / entry_price
+
+                            # CRITICAL: Cap stop at max_risk_allowed even after support adjustment
+                            # to prevent support-based adjustment from violating risk limits
+                            if adjusted_risk > max_risk_allowed:
+                                adjusted_stop = entry_price * (1 - max_risk_allowed)
+                                logger.warning(
+                                    f"[PHASE 8] {symbol}: Support-adjusted stop ${min_stop_above_support:.2f} "
+                                    f"would risk {adjusted_risk*100:.1f}%, exceeds {max_risk_allowed*100:.0f}% limit. "
+                                    f"Capping at ${adjusted_stop:.2f}."
+                                )
+                            else:
+                                logger.info(
+                                    f"[PHASE 8] {symbol}: Stop loss ${stop_loss:.2f} "
+                                    f"below 52-week support ${support_52w:.2f}. "
+                                    f"Adjusting to ${min_stop_above_support:.2f} (0.5% above support)."
+                                )
+
+                            stop_loss = adjusted_stop
             except (psycopg2.DatabaseError, ValueError, TypeError) as e:
                 logger.error(
                     f"[PHASE 8 CRITICAL] {symbol}: Could not validate stop loss against "

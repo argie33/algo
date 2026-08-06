@@ -975,8 +975,13 @@ class EntryHandler:
         # PAPER MODE: Create positions for paper_pending trades to maintain portfolio state
         # Live mode: Only create positions for actual filled/partially_filled orders
         if order_status in ("filled", "partially_filled", "paper_pending", "open"):
-            # Use the position_id from trade_request to link position to trade
-            position_id = trade_request.position_id or str(uuid.uuid4())
+            # CRITICAL FIX: Use the position_id that was set at line 873 and linked to the trade.
+            # Do NOT regenerate it here - trade_request.position_id may be None if order_status
+            # didn't match the condition at line 969, but the position_id variable from line 873
+            # is what was actually used to create the trade record. Regenerating here creates
+            # a position with a DIFFERENT ID than the trade, breaking the foreign key relationship.
+            # This was causing closed positions with orphaned trade_ids_arr.
+            # Use the position_id that was already generated and linked to the trade at line 873.
             entry_date = context.entry_date
 
             # order_status/actual_shares were already verified/corrected above, before the
