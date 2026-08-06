@@ -1095,7 +1095,7 @@ def _record_closed_positions_exits(
                 WHERE ap.status = 'closed' AND ap.closed_at::date = %s
                   AND at.exit_date IS NULL
                   AND at.status IN ({trade_status_ph})
-                  AND (ap.exit_reason IS NULL OR ap.exit_reason NOT ILIKE 'CLEANUP%')
+                  AND (ap.exit_reason IS NULL OR ap.exit_reason NOT ILIKE 'CLEANUP%%')
                 ORDER BY ap.closed_at DESC
             """,
                 (run_date, *open_trade_statuses),

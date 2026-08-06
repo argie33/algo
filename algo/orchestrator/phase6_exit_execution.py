@@ -494,57 +494,26 @@ def run(
         def _check_position_size_concentration() -> list[dict[str, Any]]:
             """Identify oversized positions and add force-exit recommendations."""
             try:
-                # CRITICAL FIX: Get concentration limit from exposure policy tier (Phase 5),
-                # not the static max_position_size_pct from config.
-                # Phase 5 sets tier-specific concentration limits (e.g., 28% for bull market),
-                # while max_position_size_pct (6%) is for individual position sizing.
-                # Previously: checked 40%+ positions against 6% limit → false force-exits with -2.43% avg loss
-                # Now: check against actual tier max_concentration_pct (28%)
-                max_size_pct_val = None
-
-                # Try to get concentration limit from Phase 5 exposure policy constraints
-                # PRIORITIZE: exposure_constraints parameter (passed by orchestrator) over executor.get_result(5)
-                # BUT: only use it if Phase 5 is not halted (halt states have fake 0% limits)
-                constraints = exposure_constraints
-                if constraints is None and executor is not None:
-                    try:
-                        phase5_result = executor.get_result(5)
-                        if phase5_result:
-                            constraints = phase5_result.data.get("constraints", {})
-                    except Exception as phase5_err:
-                        logger.debug(f"[PHASE 6] Could not get Phase 5 constraints: {phase5_err}")
-
-                # Apply constraints if available
-                if constraints and isinstance(constraints, dict):
-                    # CRITICAL FIX: Don't use Phase 5 constraints if Phase 5 halted
-                    # When Phase 5 halts, max_concentration_pct=0 is placeholder, not real limit
-                    is_halted = constraints.get("halt_active", False)
-                    if not is_halted:
-                        tier_max_conc = constraints.get("max_concentration_pct")
-                        # CRITICAL: Also ignore 0% limits even if halt_new_entries=False
-                        # (0% means NO positions allowed, which is wrong for force-exits)
-                        if tier_max_conc is not None and tier_max_conc > 0:
-                            max_size_pct_val = tier_max_conc
-                            logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
-                        elif tier_max_conc == 0:
-                            logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 has 0% concentration limit (halt state) - ignoring and using config fallback")
-                    else:
-                        logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 is halted - ignoring halt constraints and using config fallback")
-
-                # Fallback to config max_position_size_pct if tier constraint unavailable
-                if max_size_pct_val is None:
-                    max_size_pct_val = config.get("max_position_size_pct")
-                    if max_size_pct_val is not None:
-                        logger.warning(f"[PHASE 6 CONCENTRATION CHECK] Using fallback config max_position_size_pct={max_size_pct_val}% (Phase 5 constraints unavailable)")
-
+                # POSITION SIZE CONCENTRATION: enforce max_position_size_pct for individual positions
+                # This is SEPARATE from sector concentration (which uses max_concentration_pct).
+                #
+                # max_position_size_pct (6%) = how large any single stock can be of portfolio
+                # max_concentration_pct (28%) = how large any single sector can be of portfolio
+                #
+                # CRITICAL: Must check against max_position_size_pct, NOT max_concentration_pct!
+                # Bug in previous code: was checking 40%+ positions against 28% tier limit,
+                # so positions like 18% (NTB) passed the check even though they exceed 6% limit.
+                max_size_pct_val = config.get("max_position_size_pct")
                 if max_size_pct_val is None:
                     raise ValueError(
-                        "CRITICAL: Cannot determine concentration limit. Phase 5 constraints unavailable and max_position_size_pct not configured. "
-                        "Cannot enforce position size limits. Check Phase 5 result or algo_config table."
+                        "CRITICAL: max_position_size_pct config missing. "
+                        "Cannot enforce individual position size limits. Check algo_config table."
                     )
+                logger.info(f"[PHASE 6 POSITION_SIZE] Using config max_position_size_pct={max_size_pct_val}% (individual position limit)")
+
                 # Explicitly convert to float to handle Decimal types from config (psycopg2 returns Decimal)
                 try:
-                    max_size_pct_float = _ensure_float(max_size_pct_val, "max_concentration_pct")
+                    max_size_pct_float = _ensure_float(max_size_pct_val, "max_position_size_pct")
                 except (TypeError, ValueError) as e:
                     raise RuntimeError(
                         f"[PHASE 6 CRITICAL] Failed to read/convert concentration limit: {e}. "

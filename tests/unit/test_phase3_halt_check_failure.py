@@ -8,6 +8,7 @@ straight into position review and downstream entry/exit phases with its halt sta
 unknown. Fixed to actually halt the phase (return halted=True) instead of continuing.
 """
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 from algo.orchestrator.phase3_position_monitor import run as phase3_run
@@ -28,7 +29,7 @@ class TestPhase3HaltCheckFailureActuallyHalts:
 
             result = phase3_run(
                 config=_live_config(),
-                run_date=None,
+                run_date=date(2026, 7, 15),
                 dry_run=False,
                 alerts=MagicMock(),
                 verbose=False,
@@ -53,7 +54,7 @@ class TestPhase3HaltCheckFailureActuallyHalts:
 
             result = phase3_run(
                 config=_live_config(),
-                run_date=None,
+                run_date=date(2026, 7, 15),
                 dry_run=False,
                 alerts=MagicMock(),
                 verbose=False,
@@ -78,7 +79,7 @@ class TestPhase3HaltCheckFailureActuallyHalts:
 
             result = phase3_run(
                 config=_live_config(),
-                run_date=None,
+                run_date=date(2026, 7, 15),
                 dry_run=False,
                 alerts=MagicMock(),
                 verbose=False,
