@@ -1275,6 +1275,26 @@ class AlgoConfig:
             "Retry count for database migrations",
             "Database",
         ),
+        # Exit Strategy Configuration
+        "exit_on_minervini_break": (
+            "false",
+            "bool",
+            "Exit on Minervini trend template break (disabled - 0% win rate from testing)",
+            "Exit Strategy",
+        ),
+        # Loader Failure Rate Thresholds
+        "loader_max_fail_rate_price": (
+            "0.05",
+            "float",
+            "Max acceptable failure rate for price loaders (5%)",
+            "Data Quality",
+        ),
+        "loader_max_fail_rate_buy_sell": (
+            "0.1",
+            "float",
+            "Max acceptable failure rate for buy/sell loaders (10%)",
+            "Data Quality",
+        ),
     }
 
     def __init__(self) -> None:
