@@ -216,8 +216,8 @@ class EntryHandler:
         # Phase 8 calculates prices as floats, which can have minor precision differences
         # on repeated runs (e.g., 197.8291 vs 197.8290). To ensure idempotent duplicate
         # detection works correctly, we round to match database precision BEFORE checking.
-        entry_price = float(Decimal(str(entry_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP))
-        stop_loss_price = float(Decimal(str(stop_loss_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP))
+        entry_price = Decimal(str(entry_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP)
+        stop_loss_price = Decimal(str(stop_loss_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP)
 
         # Check for idempotent duplicate (same symbol + signal_date = same signal, should not re-enter)
         def _check_idem_dup(cur: PsycopgCursor[Any]) -> dict[str, str] | None:
