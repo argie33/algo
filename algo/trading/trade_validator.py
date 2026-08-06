@@ -282,7 +282,7 @@ class TradeValidator:
         cur.execute(
             f"""
             SELECT id FROM algo_trades
-            WHERE symbol = %s AND DATE(entry_date) = %s
+            WHERE symbol = %s AND signal_date = %s
             AND status IN ({", ".join(["%s"] * len(open_statuses))})
             LIMIT 1
             """,
@@ -299,13 +299,13 @@ class TradeValidator:
             )
 
         # Check for identical trade parameters (regardless of status) to prevent duplicate entries on re-runs.
-        # If entry_price+stop_loss_price+symbol match on same day, the trade already exists.
+        # If entry_price+stop_loss_price+symbol match on same signal_date, the trade already exists.
         entry_price_dec = Decimal(str(entry_price))
         stop_loss_dec = Decimal(str(stop_loss_price))
         cur.execute(
             """
             SELECT id, status FROM algo_trades
-            WHERE symbol = %s AND DATE(entry_date) = %s
+            WHERE symbol = %s AND signal_date = %s
             AND entry_price = %s AND stop_loss_price = %s
             LIMIT 1
             """,
