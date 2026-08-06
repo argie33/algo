@@ -48,7 +48,8 @@ class PriceTransformer:
             low_price = self._normalize_numeric(row["Low"] if "Low" in row else None)
             close_price = self._normalize_numeric(row["Close"] if "Close" in row else None)
             volume = self._normalize_volume(row["Volume"] if "Volume" in row else None)
-            adj_close = self._normalize_numeric(row["Adj Close"] if "Adj Close" in row else None)
+            # Adj Close is OPTIONAL (not all data sources provide it)
+            adj_close = self._normalize_numeric(row["Adj Close"]) if "Adj Close" in row else None
 
             transformed = {
                 "symbol": symbol,
