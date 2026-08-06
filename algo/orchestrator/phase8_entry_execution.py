@@ -239,6 +239,11 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
     Returns:
         Calculated stop loss price (always > 0 and < entry_price)
     """
+    if entry_price <= 0:
+        raise ValueError(f"Invalid entry_price={entry_price} for stop-loss calculation. Must be > 0.")
+    if atr < 0:
+        raise ValueError(f"Invalid atr={atr} for stop-loss calculation. Must be >= 0.")
+
     atr_ratio = atr / entry_price
     max_risk_allowed = 0.20  # 20% max risk limit
 
@@ -302,6 +307,9 @@ def _calculate_pre_entry_concentration_impact(
     This calculates concentration WITHOUT executing orders - it simulates what PositionSizer
     WOULD calculate for each signal, accumulates the concentration, and returns the total.
     """
+    if portfolio_value <= 0:
+        raise ValueError(f"Invalid portfolio_value={portfolio_value} for concentration calculation. Must be > 0.")
+
     total_concentration = 0.0
     blocked_symbols = []
     signal_positions = []
