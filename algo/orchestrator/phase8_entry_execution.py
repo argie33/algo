@@ -846,8 +846,28 @@ def _batch_fetch_technical_data(
             rows = cur.fetchall()
 
             for row in rows:
-                symbol, atr, sma_50, close = row
+                try:
+                    # DictCursor returns dict-like row objects; unpack safely
+                    if isinstance(row, dict):
+                        symbol = row.get('symbol')
+                        atr = row.get('atr')
+                        sma_50 = row.get('sma_50')
+                        close = row.get('close')
+                    else:
+                        # Fallback for tuple-based cursor (shouldn't happen with DictCursor, but be defensive)
+                        if len(row) < 4:
+                            raise IndexError(f"Row has {len(row)} columns, expected 4")
+                        symbol, atr, sma_50, close = row
+                except (IndexError, TypeError, ValueError) as e:
+                    logger.critical(
+                        f"[PHASE 8 CRITICAL] Failed to unpack technical data row: {e}. "
+                        f"Row type: {type(row).__name__}, Row value: {row}"
+                    )
+                    raise
 
+                if symbol is None:
+                    logger.warning("[PHASE 8] Skipping row with no symbol")
+                    continue
                 if atr is None or sma_50 is None or close is None:
                     raise ValueError(
                         f"Symbol {symbol}: Technical data incomplete from database query. "
