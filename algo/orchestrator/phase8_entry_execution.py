@@ -2082,10 +2082,12 @@ def run(
             # Calculate cumulative concentration to find how many fit
             qualified_trades_that_fit = []
             cumulative_conc = 0.0
+            skipped_reason_counts = {}
 
             for signal in sorted_signals:
                 symbol = signal.get("symbol")
                 if not symbol:
+                    skipped_reason_counts['missing_symbol'] = skipped_reason_counts.get('missing_symbol', 0) + 1
                     continue
 
                 try:
@@ -2095,6 +2097,7 @@ def run(
                     close_val = tech_data.get("close")
 
                     if not (atr_val and sma_50_val and close_val):
+                        skipped_reason_counts['missing_tech_data'] = skipped_reason_counts.get('missing_tech_data', 0) + 1
                         continue
 
                     entry_price = float(close_val)
@@ -2103,6 +2106,7 @@ def run(
                     stop_loss = min(sma_50 - atr, entry_price - 1.2 * atr)
 
                     if entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0:
+                        skipped_reason_counts['invalid_price_data'] = skipped_reason_counts.get('invalid_price_data', 0) + 1
                         continue
 
                     # Get position size from sizer
@@ -2116,6 +2120,7 @@ def run(
 
                     shares = position_result.get("shares", 0)
                     if shares == 0:
+                        skipped_reason_counts['sizer_zero_shares'] = skipped_reason_counts.get('sizer_zero_shares', 0) + 1
                         continue
 
                     position_value = Decimal(shares) * Decimal(str(entry_price))
@@ -2127,25 +2132,34 @@ def run(
                         qualified_trades_that_fit.append(signal)
                     else:
                         # This and all remaining signals don't fit
+                        skipped_reason_counts['exceeds_limit'] = skipped_reason_counts.get('exceeds_limit', 0) + 1
                         break
 
-                except Exception:
-                    # Skip signals with data issues
+                except (ValueError, TypeError, KeyError, AttributeError) as e:
+                    logger.debug(f"[PHASE 8 CONCENTRATION] {symbol}: Skipping from concentration calc due to data error: {type(e).__name__}: {e}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"[PHASE 8 CONCENTRATION] {symbol}: Unexpected error in concentration calculation: {type(e).__name__}: {e}. Skipping.")
                     continue
 
             # If some but not all signals fit, update the list and log
             if len(qualified_trades_that_fit) < len(qualified_trades):
+                skip_summary = ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items())) if skipped_reason_counts else "none"
                 logger.info(
                     f"[PHASE 8 CONCENTRATION] {len(qualified_trades_that_fit)} of {len(qualified_trades)} "
                     f"signals fit within {tier_max_conc_val:.0f}% concentration limit. "
                     f"Total concentration would be: {cumulative_conc:.1f}%. "
-                    f"Proceeding with {len(qualified_trades_that_fit)} highest-quality signals."
+                    f"Proceeding with {len(qualified_trades_that_fit)} highest-quality signals. "
+                    f"(Skipped: {skip_summary})"
                 )
                 qualified_trades = qualified_trades_that_fit
             elif len(qualified_trades_that_fit) == 0:
+                skip_summary = ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items())) if skipped_reason_counts else "unknown"
                 msg = (
                     f"[PHASE 8 PRE-ENTRY CONCENTRATION] No signals fit within {tier_max_conc_val:.0f}% "
-                    f"concentration limit. Minimum required per signal: >0.0%, but 0% limit means no entries allowed."
+                    f"concentration limit. Evaluated {len(qualified_trades)} signals. "
+                    f"Skipped: {skip_summary}. "
+                    f"Rejecting ALL trades to maintain concentration policy. Blocked by individual limits: []"
                 )
                 logger.warning(msg)
                 log_phase_result_fn(8, "entry_execution", "blocked", msg)
