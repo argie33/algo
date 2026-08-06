@@ -524,23 +524,44 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 logger.debug(f"[VALUE_METRICS] {symbol}: yfinance PEG fallback failed: {e}")
 
         if dividend_yield is None:
-            # Try yfinance_snapshot as TIER 2 fallback
+            # TIER 2 FALLBACK: Try SEC dividend_data (most recent dividend)
+            # FIX 2026-08-05: Use SEC dividend_data directly instead of relying only on yfinance
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         """
-                        SELECT dividend_yield FROM yfinance_snapshot
-                        WHERE symbol = %s AND dividend_yield IS NOT NULL
-                        ORDER BY fetched_at DESC LIMIT 1
+                        SELECT dividend_yield_pct FROM dividend_data
+                        WHERE symbol = %s AND data_unavailable = FALSE AND dividend_yield_pct IS NOT NULL
+                        ORDER BY ex_dividend_date DESC LIMIT 1
                         """,
                         (symbol,),
                     )
-                    yf_div_row = cur.fetchone()
-                    if yf_div_row:
-                        dividend_yield = yf_div_row[0]
-                        data_source_dividend = "yfinance"
+                    sec_div_row = cur.fetchone()
+                    if sec_div_row:
+                        dividend_yield = sec_div_row[0] / 100.0  # Convert percentage to decimal
+                        data_source_dividend = "sec_audited"
+                        logger.debug(f"[VALUE_METRICS] {symbol}: Using SEC dividend_data: {dividend_yield:.2%}")
             except Exception as e:
-                logger.debug(f"[VALUE_METRICS] {symbol}: yfinance dividend fallback failed: {e}")
+                logger.debug(f"[VALUE_METRICS] {symbol}: SEC dividend_data fallback failed: {e}")
+
+            # TIER 3 FALLBACK: Try yfinance_snapshot as final fallback
+            if dividend_yield is None:
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute(
+                            """
+                            SELECT dividend_yield FROM yfinance_snapshot
+                            WHERE symbol = %s AND dividend_yield IS NOT NULL
+                            ORDER BY fetched_at DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        yf_div_row = cur.fetchone()
+                        if yf_div_row:
+                            dividend_yield = yf_div_row[0]
+                            data_source_dividend = "yfinance"
+                except Exception as e:
+                    logger.debug(f"[VALUE_METRICS] {symbol}: yfinance dividend fallback failed: {e}")
 
         # forward_pe = current_price / consensus forward EPS (migration 1179: load_sec_valuations.py
         # itself stays SEC-only by design, so this joins analyst_earnings_estimates - the real
