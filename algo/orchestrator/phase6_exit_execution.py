@@ -442,20 +442,21 @@ def run(
                             )
                             trade_row = cur.fetchone()
                             if trade_row is None or not trade_row[0]:
-                                logger.warning(
-                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
-                                    f"Cannot force-exit without trade reference. Skipping this position."
+                                raise RuntimeError(
+                                    f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
+                                    f"Cannot force-exit without trade reference. "
+                                    f"Position identified for sector concentration exit but missing trade linkage. "
+                                    f"Check algo_positions.trade_ids_arr for data integrity."
                                 )
-                                continue
 
                             trade_ids_arr = trade_row[0]
                             trade_id = trade_ids_arr[0] if trade_ids_arr else None
                             if not trade_id:
-                                logger.warning(
-                                    f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
-                                    f"Cannot parse trade reference. Skipping this position."
+                                raise RuntimeError(
+                                    f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
+                                    f"Cannot parse trade reference for sector concentration exit. "
+                                    f"Position marked for exit but trade_ids_arr is empty or corrupted."
                                 )
-                                continue
 
                             action = {
                                 "symbol": symbol,
@@ -651,15 +652,14 @@ def run(
                                 continue
 
                             pos_id, symbol, value = row[0], row[1], row[2]
-                            # CRITICAL FIX: Skip positions with NULL position_value gracefully
-                            # NULL position_value means position was not properly initialized or updated;
-                            # We skip this position and continue rather than halting the entire concentration check
                             if value is None:
-                                logger.warning(
-                                    f"[PHASE 6] Position {symbol} (id={pos_id}) has NULL position_value (likely Phase 3 didn't update it). "
-                                    f"Skipping this position in concentration check. Phase 3 should fix this on next run."
+                                raise RuntimeError(
+                                    f"[PHASE 6 CRITICAL] Position {symbol} (id={pos_id}) has NULL position_value. "
+                                    f"The earlier NULL check (line 528-559) should have halted before reaching this point. "
+                                    f"This indicates either: (1) race condition - position value was deleted between checks, "
+                                    f"(2) database corruption, or (3) query logic bug. "
+                                    f"Cannot proceed with concentration check when data integrity is compromised."
                                 )
-                                continue
                             # Compute percentage in Python with explicit float conversion to avoid Decimal/float type mixing
                             try:
                                 # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
