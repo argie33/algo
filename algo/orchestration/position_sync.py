@@ -141,11 +141,12 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         # Update existing position, reopen if needed, and sync stop_loss_price and trade_ids_arr
                         # CRITICAL: Use id to update ONLY this specific position (not all positions for the symbol)
                         # Using WHERE id ensures we only update the exact position we found, avoiding duplicate key violations
+                        trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
                         cur.execute(
                             'UPDATE algo_positions SET quantity = %s, status = %s, '
-                            '  stop_loss_price = %s, current_stop_price = %s, trade_ids_arr = %s, updated_at = NOW() '
+                            '  stop_loss_price = %s, current_stop_price = %s, trade_ids = %s, trade_ids_arr = %s, updated_at = NOW() '
                             'WHERE id = %s',
-                            (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_arr, existing_id)
+                            (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_text, trade_ids_arr, existing_id)
                         )
                         updated += 1
                         action = "reopened" if existing_status == 'closed' else "updated"
@@ -216,6 +217,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
 
                         # Insert new position
+                        trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
                         cur.execute('''
                             INSERT INTO algo_positions (
                                 position_id, symbol, quantity, avg_entry_price, entry_price,
@@ -223,7 +225,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 stop_loss_price, current_stop_price,
                                 target_1_price, target_2_price, target_3_price,
                                 target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                                trade_ids_arr, cognito_sub, created_at, updated_at
+                                trade_ids, trade_ids_arr, cognito_sub, created_at, updated_at
                             )
                             VALUES (
                                 %s, %s, %s, %s, %s,
@@ -231,7 +233,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 %s, %s,
                                 %s, %s, %s,
                                 %s, %s, %s,
-                                %s, %s, NOW(), NOW()
+                                %s, %s, %s, NOW(), NOW()
                             )
                         ''', (
                             trade_position_id, symbol, total_qty, entry_price, entry_price,
@@ -239,7 +241,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             stop_loss_price, stop_loss_price,
                             target_1_price, target_2_price, target_3_price,
                             target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                            trade_ids_arr, get_algo_owner_cognito_sub(),
+                            trade_ids_text, trade_ids_arr, get_algo_owner_cognito_sub(),
                         ))
                         inserted += 1
                         logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")

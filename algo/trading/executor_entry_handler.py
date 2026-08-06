@@ -1064,13 +1064,13 @@ class EntryHandler:
                 INSERT INTO algo_positions (
                     position_id, symbol, quantity, avg_entry_price, entry_price,
                     current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
-                    status, entry_date,
+                    status, entry_date, trade_ids,
                     trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
                     target_1_price, target_2_price, target_3_price,
                     target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
                     r_multiple, cognito_sub, metrics_updated_at, created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
                     %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
@@ -1100,6 +1100,7 @@ class EntryHandler:
                     0,
                     position_status,
                     entry_date,
+                    trade_id,
                     [trade_id],
                     stop_loss_price,
                     stop_loss_price,
