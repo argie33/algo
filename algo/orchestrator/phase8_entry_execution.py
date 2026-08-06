@@ -2695,10 +2695,17 @@ def run(
 
         except (RuntimeError, ValueError, TypeError, AttributeError, IndexError, psycopg2.Error, DatabaseError) as e:
             symbol = (signal.get("symbol") or "UNKNOWN") if isinstance(signal, dict) else str(signal)
-            logger.error(
-                f"[PHASE 8] Error processing {symbol}: {e}",
-                exc_info=True,
-            )
+            if isinstance(e, IndexError):
+                logger.error(
+                    f"[PHASE 8] CRITICAL IndexError processing {symbol}: {e}. "
+                    f"This indicates a data structure mismatch or missing fields. Stack trace:",
+                    exc_info=True,
+                )
+            else:
+                logger.error(
+                    f"[PHASE 8] Error processing {symbol}: {e}",
+                    exc_info=True,
+                )
             # psycopg2.Error (added here): the duplicate-position pre-check above (~line 1497)
             # is a soft, non-atomic read - algo_trades_symbol_live_status_idx (migration 1158,
             # a UNIQUE partial index) is the real backstop against an actual duplicate write if
