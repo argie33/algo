@@ -58,15 +58,17 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
 
     try:
         with DatabaseContext('write') as cur:
-            # CRITICAL CLEANUP: Remove orphaned positions (created without corresponding open/filled trades)
+            # CRITICAL CLEANUP: Close positions that are marked 'open' but have no open/filled trades
             # These can occur when:
-            # 1. Position insertion succeeds but trade insertion fails or rolls back
-            # 2. Position remains open but all its trades have been closed (manual position close or exit)
-            # Orphaned positions cause false "orphaned trade_ids_arr" halts in circuit_breaker.
+            # 1. Position insertion succeeds but trade insertion fails or rolls back (orphaned)
+            # 2. Position remains 'open' but all its trades have been closed (manual position close or exit)
+            # Such positions cause false "orphaned trade_ids_arr" halts in circuit_breaker since they
+            # can't be matched to active trades even though they exist in the database.
             # CRITICAL FIX: Must check for open/filled trades specifically, not just any trade.
-            # If a position has only closed trades, it's orphaned from the trading system.
+            # Cannot DELETE due to foreign key constraint (trades reference position_id).
+            # Instead, set status='closed' so position is removed from risk calculations.
             cur.execute('''
-                DELETE FROM algo_positions p
+                UPDATE algo_positions SET status = 'closed', updated_at = NOW()
                 WHERE status = 'open'
                 AND NOT EXISTS (
                     SELECT 1 FROM algo_trades t
