@@ -166,20 +166,18 @@ class PhaseRegistry:
         # Input: Qualified signals from Phase 7, exposure policy from Phase 5
         # Output: result={'entry_orders': list, 'entry_count': int} with executed orders
         # Contract: Executes entry orders respecting position sizing and exposure limits
-        # CRITICAL FIX Session 396: Phase 8 must ALWAYS RUN to execute proactive risk check
-        # Proactive risk check prevents new entries when total risk >= 4%, BEFORE entries are made
-        # (vs circuit breaker which halts AFTER risk is already high). Phase 8 can run without
-        # Phase 7 signals (no entries to execute) but MUST run to enforce risk limits proactively.
-        # CRITICAL FIX (2026-08-06): Remove Phase 7 from dependencies. Phase 8 is always_run and
-        # must not fail if Phase 7 halts. Phase 8 gracefully handles missing signals (no entries).
-        # Phase 5 remains as data source but not a hard blocker (Phase 8 has fallback logic).
+        # CRITICAL FIX: Phase 8 MUST depend on Phase 7 for signals.
+        # Phase 7 generates buy signals and ranks them. Phase 8 executes these ranked signals.
+        # Although Phase 8 is always_run (for proactive risk checks), it still needs Phase 7's signals.
+        # If Phase 7 halts, Phase 8 will have no signals to execute, but the data dependency
+        # must exist so the orchestrator waits for Phase 7 to complete before Phase 8 starts.
         PhaseRegistryEntry(
             phase_num=8,
             phase_name="ENTRY EXECUTION",
-            dependencies=[5],  # CRITICAL: Only Phase 5 is data dependency, not Phase 7
+            dependencies=[5, 7],  # CRITICAL: Both Phase 5 (exposure constraints) and Phase 7 (signals)
             execute_fn=None,
-            skip_if_halted=False,  # Changed: allow Phase 8 to run even if earlier phases halt
-            always_run=True,  # CRITICAL: Proactive risk enforcement must run regardless of halt
+            skip_if_halted=False,  # Phase 8 runs even if earlier phases halt (proactive checks)
+            always_run=True,  # Phase 8 always runs (for proactive risk enforcement)
         ),
         # Phase 9: RECONCILIATION & SNAPSHOT
         # Input: Trade orders from Phases 6 and 8, portfolio state

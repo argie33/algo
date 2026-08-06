@@ -51,8 +51,11 @@ class EarningsBlackout:
             with DatabaseContext("read") as cur:
                 # Issue #27: Compute trading day windows instead of calendar days
                 # Count back N trading days before, forward N trading days after
-                lookback_date = eval_date - timedelta(days=self.days_before * 2)  # Conservative estimate
-                lookahead_date = eval_date + timedelta(days=self.days_after * 2)
+                # CRITICAL FIX: Look far enough ahead (365 days) to capture real future earnings
+                # Previously: days_after * 2 (only 6 days) meant future earnings > 6 days out got missed
+                # Result: query returned old past earnings dates instead of upcoming dates, blocking trades unnecessarily
+                lookback_date = eval_date - timedelta(days=max(self.days_before * 2, 30))  # At least 30 days back
+                lookahead_date = eval_date + timedelta(days=365)  # Full year ahead for all future earnings
 
                 cur.execute(
                     """SELECT earnings_date FROM earnings_calendar
