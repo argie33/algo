@@ -25,7 +25,14 @@ if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
     os.environ["ALPACA_SECRET_KEY"] = "sk_test"
     os.environ["AWS_REGION"] = "us-east-1"
     os.environ["ORCHESTRATOR_EXECUTION_MODE"] = "paper"
-    os.environ["ORCHESTRATOR_DRY_RUN"] = "true"
+    # DO NOT SET ORCHESTRATOR_DRY_RUN here. Setting test-only env vars in conftest
+    # causes them to persist in the parent shell after pytest exits.
+    # When users later run orchestrator scripts (e.g., python scripts/run_local_orchestrator.py),
+    # they inherit ORCHESTRATOR_DRY_RUN=true and silently execute in dry-run mode with no warning.
+    # Tests that need dry_run must pass it to orchestrator() directly, not via environment.
+    # For test isolation where dry_run=true is mandatory, use pytest fixtures or
+    # monkeypatch.setenv() which automatically clears after the test.
+
 
 
 def _create_mock_cursor():
