@@ -250,14 +250,18 @@ def run(
         # CLEANUP: Remove orphaned trades (race condition between trade insert and position create)
         # See: race condition between _insert_trade_record (line 1001) and position INSERT (lines 1086+)
         # If exception occurs between these operations, trade exists in 'filled' but position never created
+        # CRITICAL FIX 2026-08-06: In dev/paper modes, clean up orphaned trades aggressively (no 5-min wait)
+        # because they block Phase 6 from running and prevent debugging. In production (auto mode), use
+        # a conservative 5-minute grace period to preserve audit trails.
         try:
             with DatabaseContext("write") as cur:
+                time_threshold = "0 minutes" if execution_mode_check != "auto" else "5 minutes"
                 cur.execute(
-                    """
+                    f"""
                     DELETE FROM algo_trades
                     WHERE position_id IS NULL
                     AND status IN ('filled', 'partially_filled', 'paper_pending', 'open')
-                    AND updated_at < now() - interval '5 minutes'
+                    AND updated_at < now() - interval '{time_threshold}'
                     """
                 )
                 orphaned_count = cur.rowcount

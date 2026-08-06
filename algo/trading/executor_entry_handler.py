@@ -513,41 +513,55 @@ class EntryHandler:
         and generating the same idempotency_key is correct behavior (prevents duplicate
         real orders at the broker). The database insert must also be idempotent.
         """
-        cur.execute(
-            """
-            INSERT INTO algo_trades (
-                trade_id, symbol, signal_date, trade_date, entry_price, entry_quantity, entry_reason,
-                stop_loss_price, target_1_price, target_2_price, target_3_price,
-                status, sector, idempotency_key
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s
+        try:
+            logger.debug(
+                f"[TRADE INSERT] {request.symbol}: trade_id={request.trade_id}, "
+                f"signal_date={request.signal_date}, entry_date={request.entry_date}, "
+                f"entry_price={request.executed_price}, qty={request.shares}, "
+                f"stop={request.stop_loss_price}"
             )
-            ON CONFLICT (idempotency_key) DO UPDATE SET
-                entry_price = EXCLUDED.entry_price,
-                entry_quantity = EXCLUDED.entry_quantity,
-                signal_date = EXCLUDED.signal_date,
-                trade_date = EXCLUDED.trade_date,
-                updated_at = CURRENT_TIMESTAMP
-            """,
-            (
-                request.trade_id,
-                request.symbol,
-                request.signal_date,
-                request.entry_date,
-                request.executed_price,
-                request.shares,
-                request.entry_reason,
-                request.stop_loss_price,
-                request.target_1_price,
-                request.target_2_price,
-                request.target_3_price,
-                request.order_status,
-                request.sector,
-                request.idempotency_key,
-            ),
-        )
+            cur.execute(
+                """
+                INSERT INTO algo_trades (
+                    trade_id, symbol, signal_date, trade_date, entry_price, entry_quantity, entry_reason,
+                    stop_loss_price, target_1_price, target_2_price, target_3_price,
+                    status, sector, idempotency_key
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s
+                )
+                ON CONFLICT (idempotency_key) DO UPDATE SET
+                    entry_price = EXCLUDED.entry_price,
+                    entry_quantity = EXCLUDED.entry_quantity,
+                    signal_date = EXCLUDED.signal_date,
+                    trade_date = EXCLUDED.trade_date,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    request.trade_id,
+                    request.symbol,
+                    request.signal_date,
+                    request.entry_date,
+                    request.executed_price,
+                    request.shares,
+                    request.entry_reason,
+                    request.stop_loss_price,
+                    request.target_1_price,
+                    request.target_2_price,
+                    request.target_3_price,
+                    request.order_status,
+                    request.sector,
+                    request.idempotency_key,
+                ),
+            )
+            logger.info(f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id}")
+        except Exception as e:
+            logger.critical(
+                f"[TRADE INSERT FAILED] {request.symbol}: trade_id={request.trade_id}, "
+                f"error={type(e).__name__}: {str(e)[:500]}"
+            )
+            raise
 
     def _record_tca(
         self,
