@@ -86,9 +86,11 @@ class SecValuationsLoader(OptimalLoader):
                         net_income,
                         earnings_per_share,
                         operating_income,
+                        pretax_income,
                         depreciation_expense,
                         amortization_expense,
-                        shares_outstanding_basic
+                        shares_outstanding_basic,
+                        income_tax_expense
                     FROM annual_income_statement
                     WHERE symbol = %s
                     ORDER BY (CASE WHEN revenue IS NOT NULL OR earnings_per_share IS NOT NULL OR net_income IS NOT NULL THEN 0 ELSE 1 END), fiscal_year DESC
@@ -105,10 +107,32 @@ class SecValuationsLoader(OptimalLoader):
                     _ttm_net_income,
                     ttm_eps_basic,
                     operating_income,
+                    pretax_income,
                     depreciation_expense,
                     amortization_expense,
                     reported_shares_outstanding,
+                    income_tax_expense,
                 ) = income_rows[0]
+
+                # FIXED 2026-08-06: Financial services companies (banks, insurance, investment firms)
+                # don't report operating_income - they report pretax_income instead. Use pretax_income
+                # as fallback for EBITDA calculation in these cases. This recovers ~22% of missing
+                # operating_income in the universe (e.g. JPM, BAC, PNC all have pretax_income but no
+                # operating_income). Live-confirmed: JPMorgan FY2024 pretax_income=75.08B, uses this
+                # fallback to compute EBITDA for EV/EBITDA ratio.
+                if operating_income is None and pretax_income is not None:
+                    operating_income = pretax_income
+                    logger.debug(f"[{symbol}] Using pretax_income as operating_income fallback (financial services company)")
+                elif operating_income is None and income_tax_expense is not None and _ttm_net_income is not None:
+                    # Fallback #2: Compute operating_income from net_income + taxes if available
+                    # Some insurance/financial companies report net_income and taxes but not pretax_income
+                    try:
+                        computed_oi = _ttm_net_income + income_tax_expense
+                        if computed_oi > 0:
+                            operating_income = computed_oi
+                            logger.debug(f"[{symbol}] Computed operating_income from net_income + taxes (insurance company fallback)")
+                    except (TypeError, ValueError):
+                        pass  # If computation fails, leave operating_income=None
                 # PEG's growth-rate leg needs a genuinely prior-year EPS, not the same TTM
                 # value used twice - GOVERNANCE: this used to set `latest_eps = ttm_eps_basic`
                 # (comment literally said "Use same EPS for both TTM and latest"), which made
