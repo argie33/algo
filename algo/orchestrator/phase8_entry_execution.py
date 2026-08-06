@@ -795,9 +795,7 @@ def _batch_fetch_technical_data(
     result: dict[str, dict[str, float | None]] = cast(dict[str, dict[str, float | None]], precomputed_by_symbol.copy())
 
     try:
-        from psycopg2.extensions import cursor as cursor_factory
-
-        with DatabaseContext("read", cursor_factory=cursor_factory) as cur:
+        with DatabaseContext("read") as cur:
             cur.execute(
                 f"""WITH latest_prices AS (
                     SELECT DISTINCT ON (symbol) symbol, close

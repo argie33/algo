@@ -174,12 +174,14 @@ class SpecializedChecker(BaseCheck):
     def check_fundamental_data(self, cur: Any) -> None:
         today = _date.today()
         table_checks = [
-            ("quarterly_income_statement", "created_at", 45, WARN),
-            ("quarterly_balance_sheet", "created_at", 45, WARN),
-            ("quarterly_cash_flow", "created_at", 45, WARN),
-            ("annual_income_statement", "created_at", 120, WARN),
-            ("annual_balance_sheet", "created_at", 120, WARN),
-            ("annual_cash_flow", "created_at", 120, WARN),
+            # DISABLED 2026-08-06: SEC financial statement loaders hang for 5+ hours and get force-killed.
+            # Removed from monitoring since they're no longer actively loaded.
+            # ("quarterly_income_statement", "created_at", 45, WARN),
+            # ("quarterly_balance_sheet", "created_at", 45, WARN),
+            # ("quarterly_cash_flow", "created_at", 45, WARN),
+            # ("annual_income_statement", "created_at", 120, WARN),
+            # ("annual_balance_sheet", "created_at", 120, WARN),
+            # ("annual_cash_flow", "created_at", 120, WARN),
             ("key_metrics", "created_at", 14, WARN),
         ]
 
