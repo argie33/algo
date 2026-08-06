@@ -2066,21 +2066,86 @@ def run(
     #   - Tier-specific concentration limits
     if qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
         try:
-            total_preentry_conc, blocked_in_precheck = _calculate_pre_entry_concentration_impact(
+            tier_max_conc_val = float(exposure_constraints.get("max_concentration_pct", 100.0))
+
+            # Instead of all-or-nothing rejection, intelligently rank signals by quality
+            # and enter as many as fit within concentration limit
+            # This prevents wasting high-quality signals when some would fit
+
+            # Sort signals by composite_score descending (best first)
+            sorted_signals = sorted(
                 qualified_trades,
-                sizer,
-                portfolio_value,
-                merged_technical_data,
-                run_date,
+                key=lambda s: float(s.get("composite_score", 0)),
+                reverse=True
             )
 
-            tier_max_conc_val = float(exposure_constraints.get("max_concentration_pct", 100.0))
-            if total_preentry_conc > tier_max_conc_val:
+            # Calculate cumulative concentration to find how many fit
+            qualified_trades_that_fit = []
+            cumulative_conc = 0.0
+
+            for signal in sorted_signals:
+                symbol = signal.get("symbol")
+                if not symbol:
+                    continue
+
+                try:
+                    tech_data = merged_technical_data.get(str(symbol), {})
+                    atr_val = tech_data.get("atr_14") or tech_data.get("atr")
+                    sma_50_val = tech_data.get("sma_50")
+                    close_val = tech_data.get("close")
+
+                    if not (atr_val and sma_50_val and close_val):
+                        continue
+
+                    entry_price = float(close_val)
+                    atr = float(atr_val)
+                    sma_50 = float(sma_50_val)
+                    stop_loss = min(sma_50 - atr, entry_price - 1.2 * atr)
+
+                    if entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0:
+                        continue
+
+                    # Get position size from sizer
+                    position_result = sizer.calculate_position_size(
+                        symbol=symbol,
+                        entry_price=entry_price,
+                        stop_loss_price=stop_loss,
+                        portfolio_value=portfolio_value,
+                        enforce_total_risk_limit=False,
+                    )
+
+                    shares = position_result.get("shares", 0)
+                    if shares == 0:
+                        continue
+
+                    position_value = Decimal(shares) * Decimal(str(entry_price))
+                    conc_pct = float((position_value / portfolio_value) * Decimal(100))
+
+                    # Check if adding this signal would exceed the limit
+                    if cumulative_conc + conc_pct <= tier_max_conc_val:
+                        cumulative_conc += conc_pct
+                        qualified_trades_that_fit.append(signal)
+                    else:
+                        # This and all remaining signals don't fit
+                        break
+
+                except Exception:
+                    # Skip signals with data issues
+                    continue
+
+            # If some but not all signals fit, update the list and log
+            if len(qualified_trades_that_fit) < len(qualified_trades):
+                logger.info(
+                    f"[PHASE 8 CONCENTRATION] {len(qualified_trades_that_fit)} of {len(qualified_trades)} "
+                    f"signals fit within {tier_max_conc_val:.0f}% concentration limit. "
+                    f"Total concentration would be: {cumulative_conc:.1f}%. "
+                    f"Proceeding with {len(qualified_trades_that_fit)} highest-quality signals."
+                )
+                qualified_trades = qualified_trades_that_fit
+            elif len(qualified_trades_that_fit) == 0:
                 msg = (
-                    f"[PHASE 8 PRE-ENTRY CONCENTRATION] All {len(qualified_trades)} pending signals "
-                    f"would total {total_preentry_conc:.1f}% concentration, exceeds tier limit {tier_max_conc_val:.0f}%. "
-                    f"Rejecting ALL trades to maintain concentration policy. "
-                    f"Blocked by individual limits: {blocked_in_precheck}"
+                    f"[PHASE 8 PRE-ENTRY CONCENTRATION] No signals fit within {tier_max_conc_val:.0f}% "
+                    f"concentration limit. Minimum required per signal: >0.0%, but 0% limit means no entries allowed."
                 )
                 logger.warning(msg)
                 log_phase_result_fn(8, "entry_execution", "blocked", msg)
@@ -2089,9 +2154,10 @@ def run(
                     "entry_execution",
                     "blocked",
                     {"entered": 0, "skipped": len(qualified_trades)},
-                    False,  # Not a halt - just blocking entries this run
+                    False,
                     msg,
                 )
+
         except Exception as conc_check_err:
             logger.warning(
                 f"[PHASE 8] Pre-entry concentration check failed: {conc_check_err}. "
