@@ -1335,6 +1335,12 @@ def run(
     # even if an exception occurs when fetching Phase 5/7 data.
     # Previously, exceptions could skip the safe defaults, leaving exposure_constraints_from_executor=None
     # which would cause Phase 8 to halt with "missing max_concentration_pct" later.
+    # Also prioritize exposure_constraints parameter if provided (used when executor unavailable)
+    if exposure_constraints_from_executor is None and exposure_constraints is not None:
+        # Use the parameter if it was passed and executor data is unavailable
+        exposure_constraints_from_executor = exposure_constraints
+        logger.info("[PHASE 8] Using exposure_constraints parameter (executor data unavailable)")
+
     if exposure_constraints_from_executor is None:
         from algo.risk import ExposurePolicyConstraints
 
