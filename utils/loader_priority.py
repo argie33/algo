@@ -34,7 +34,7 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     "technical_data_daily": LoaderPriority.PHASE_1_CRITICAL,  # Minervini/Weinstein
     "market_health_daily": LoaderPriority.PHASE_1_CRITICAL,  # Market regime gating
     "market_exposure_daily": LoaderPriority.PHASE_1_CRITICAL,  # Position sizing
-    "earnings_calendar": LoaderPriority.PHASE_1_CRITICAL,  # Blackout window gating
+    "earnings_calendar": LoaderPriority.PHASE_1_OPTIONAL,  # DOWNGRADED 2026-08-05: Consistent yfinance timeout (exceeds 1h SLA). Move to optional to unblock Phase 1.
     "growth_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
     "quality_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
     "value_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
