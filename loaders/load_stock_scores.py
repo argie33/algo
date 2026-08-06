@@ -2227,12 +2227,18 @@ class StockScoresLoader(OptimalLoader):
 
         CRITICAL: Raises on failure. RS percentiles are essential for ranking signal quality;
         missing or stale percentiles invalidate momentum-based signal filtering.
+
+        CRITICAL FIX 2026-08-06: Update `updated_at` timestamp to ensure Phase 1's freshness
+        check recognizes that post_run() completed successfully and rs_percentile was computed.
+        Without this, rs_percentile stays NULL and Phase 7 filters out all signals.
         """
         try:
             with DatabaseContext("write") as cur:
+                # First, update rs_percentile via PERCENT_RANK for symbols with momentum scores
                 cur.execute("""
                     UPDATE stock_scores ss
-                    SET rs_percentile = ranked.pct
+                    SET rs_percentile = ranked.pct,
+                        updated_at = CURRENT_TIMESTAMP
                     FROM (
                         SELECT symbol,
                                ROUND(
@@ -2244,12 +2250,20 @@ class StockScoresLoader(OptimalLoader):
                     ) ranked
                     WHERE ss.symbol = ranked.symbol
                 """)
+                # Second, explicitly null out rs_percentile for symbols without momentum scores
                 cur.execute("""
                     UPDATE stock_scores
-                    SET rs_percentile = NULL
+                    SET rs_percentile = NULL,
+                        updated_at = CURRENT_TIMESTAMP
                     WHERE momentum_score IS NULL AND rs_percentile IS NOT NULL
                 """)
-            logger.info("RS percentiles updated via batch rank")
+                # Third, update timestamp for any remaining rows to mark post_run completion
+                cur.execute("""
+                    UPDATE stock_scores
+                    SET updated_at = CURRENT_TIMESTAMP
+                    WHERE rs_percentile IS NOT NULL OR momentum_score IS NOT NULL
+                """)
+            logger.info("RS percentiles updated via batch rank (post_run completed)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             error_msg = f"RS percentile batch update failed - stock scores cannot be finalized: {e}"
             logger.error(error_msg)

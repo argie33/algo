@@ -76,9 +76,9 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                     AND t.status IN ('filled', 'open')
                 )
             ''')
-            deleted_count = cur.rowcount
-            if deleted_count > 0:
-                logger.warning(f"[POSITION_SYNC] Cleanup: Deleted {deleted_count} orphaned position(s) with no trades")
+            closed_count = cur.rowcount
+            if closed_count > 0:
+                logger.warning(f"[POSITION_SYNC] Cleanup: Closed {closed_count} orphaned position(s) with no open/filled trades")
 
         with DatabaseContext('write') as cur:
             # Get all open positions from trades
