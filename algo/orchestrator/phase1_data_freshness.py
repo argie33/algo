@@ -647,6 +647,19 @@ def run(  # noqa: C901
                 # After 4:30 PM: must have same-day data
                 logger.info(f"[PHASE 1] Grace period expired (> 4:30 PM): requiring {last_trading_day} data")
 
+            # CRITICAL FIX 2026-08-06: During EOD context, if we're still before 6 PM ET and only have yesterday's prices,
+            # accept them gracefully instead of halting. EOD prices may take 1-2 hours to load after market close.
+            # This allows afternoon/evening orchestrator runs to proceed with position monitoring and exit execution
+            # while waiting for same-day price_daily to load. Legitimate halts (circuit breakers) are still enforced.
+            if (pipeline_context == "EOD" and
+                max_date == acceptable_min_date - td(days=1) and
+                now_et.hour < 18):  # Before 6 PM ET
+                logger.info(
+                    f"[PHASE 1] EOD context grace: Using {max_date} (yesterday) instead of {last_trading_day} "
+                    f"(today). EOD prices may still be loading. Will accept for up to 2h after market close."
+                )
+                acceptable_min_date = max_date  # Accept yesterday as valid during this grace period
+
             if max_date < acceptable_min_date:
                 from algo.orchestrator.phase_error_handling import (
                     ErrorCategory,
@@ -705,16 +718,44 @@ def run(  # noqa: C901
             # 2026-07-20 (real coverage 85.5% scoped to active symbols, computed as 42.8%
             # unscoped, incorrectly halting Phase 1 on every EOD-context run since the
             # active universe last shrank).
+            # CRITICAL FIX 2026-08-06: For EOD runs before 6 PM, if today's prices haven't loaded,
+            # check yesterday's coverage instead of today's (which will be 0).
+            # This allows exit execution to proceed while waiting for EOD prices to load.
+            coverage_check_date = last_trading_day
+            if pipeline_context == "EOD" and now_et.hour < 18:
+                # Try today's data first, but fall back to yesterday if not available
+                cur.execute(
+                    """SELECT COUNT(DISTINCT pd.symbol)
+                       FROM price_daily pd
+                       JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
+                       WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
+                    (last_trading_day,),
+                )
+                today_coverage_row = cur.fetchone()
+                today_coverage = today_coverage_row[0] if today_coverage_row and today_coverage_row[0] is not None else 0
+
+                if today_coverage == 0:
+                    # Today's prices not loaded - check yesterday
+                    yesterday = last_trading_day - td(days=1)
+                    while yesterday > last_trading_day - td(days=5):
+                        if MarketCalendar.is_trading_day(yesterday):
+                            coverage_check_date = yesterday
+                            break
+                        yesterday -= td(days=1)
+                    logger.info(
+                        f"[PHASE 1] EOD grace (< 6 PM): Today's prices not loaded, checking {coverage_check_date} instead"
+                    )
+
             cur.execute(
                 """SELECT COUNT(DISTINCT pd.symbol)
                    FROM price_daily pd
                    JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
                    WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
-                (last_trading_day,),
+                (coverage_check_date,),
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise RuntimeError(f"Symbol count query failed for last trading day ({last_trading_day})")
+                raise RuntimeError(f"Symbol count query failed for coverage check date ({coverage_check_date})")
             symbols_loaded = row[0]
 
             # CRITICAL: For EOD runs, also validate TODAY's price data
@@ -731,7 +772,17 @@ def run(  # noqa: C901
                 today_row = cur.fetchone()
                 today_symbols = today_row[0] if today_row and today_row[0] is not None else 0
 
-                if today_symbols < min_symbol_count:
+                # CRITICAL FIX 2026-08-06: During EOD context before 6 PM ET, if today's prices haven't loaded yet,
+                # gracefully continue with yesterday's prices instead of halting. EOD price loads can take 1-2 hours.
+                # This allows exit execution (Phase 6) to proceed with yesterday's prices rather than waiting for EOD data.
+                # After 6 PM ET, require today's data (past the expected load window).
+                if today_symbols < min_symbol_count and now_et.hour < 18:
+                    logger.warning(
+                        f"[PHASE 1] EOD grace: Today's ({run_date_obj}) price data incomplete ({today_symbols} symbols). "
+                        f"Before 6 PM - accepting yesterday's prices for exit execution. "
+                        f"Will require {min_symbol_count} symbols after 6 PM ET."
+                    )
+                elif today_symbols < min_symbol_count:
                     logger.critical(
                         f"[PHASE 1] CRITICAL: Today's ({run_date_obj}) price data incomplete: {today_symbols} symbols loaded. "
                         f"Loader appears to have failed. Require at least {min_symbol_count} symbols for exit execution."
