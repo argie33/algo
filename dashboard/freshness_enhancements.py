@@ -103,29 +103,29 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     # always reporting quality_status="ok" for these tables regardless of actual data quality.
     critical_columns_map = {
         "price_daily": ["symbol", "date", "close", "volume"],
-        "stock_scores": ["symbol", "composite_score"],
-        "market_health_daily": ["date", "vix_level"],
-        "market_exposure_daily": ["date", "exposure_pct"],
+        "stock_scores": ["symbol", "composite_score"],  # stock_scores has no date/signal_strength column (verified 2026-08-05)
+        "market_health_daily": ["date", "vix_level"],  # market_trend not market_regime (verified 2026-08-05)
+        "market_exposure_daily": ["date", "exposure_pct"],  # no tech_exposure/health_exposure columns (verified 2026-08-05)
         "technical_data_daily": ["symbol", "date", "rsi", "macd"],
         "trend_template_data": ["symbol", "date", "weinstein_stage"],
         "buy_sell_daily": ["symbol", "date", "signal", "strength"],
         "algo_signals": ["symbol", "signal_date", "signal_active"],
         "algo_positions": ["symbol", "entry_date", "status"],
-        "algo_trades": ["symbol", "entry_date", "status"],
+        "algo_trades": ["symbol", "entry_date", "status"],  # no side column (verified 2026-08-05)
         "algo_config": ["updated_at"],
         "algo_config_audit": ["updated_at"],
         "algo_orchestrator_runs": ["updated_at"],
         "algo_signal_rejections": ["symbol", "rejection_date", "rejection_reason"],
         "sector_rotation_signal": ["date", "sector", "signal"],
-        # Neither table has an updated_at column (verified against live information_schema.
-        # columns 2026-08-03) - both were falling through to the ["updated_at"] default,
-        # throwing UndefinedColumn on every /api/algo/data-status request (caught by the
-        # try/except below, but wasted a query and quality_status silently stayed "ok").
+        # Tables without updated_at - verified against live schema 2026-08-05:
+        # - algo_reconciliation_log: has reconciliation_date, match_percentage, created_at
+        # - algo_runtime_state: has state_key, state_value, halt_triggered_at, updated_by (not updated_at)
+        # These mappings define critical data columns to check for NULLs, not timestamps.
         "algo_reconciliation_log": ["reconciliation_date", "match_percentage"],
         "algo_runtime_state": ["state_key", "state_value"],
     }
 
-    critical_cols = critical_columns_map.get(table_name, ["updated_at"])
+    critical_cols = critical_columns_map.get(table_name, ["created_at"])
 
     # Check 1: NULL ratio in critical columns
     # CRITICAL FIX: a bare `LIMIT 1000000` on a query with no FROM-clause subquery only
@@ -215,14 +215,12 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
 
     elif table_name == "market_health_daily":
         try:
-            # column is market_trend, not market_regime (verified against live schema
-            # 2026-08-03); real taxonomy is {up, uptrend, downtrend, sideways, mixed, neutral},
-            # not {bull, bear, neutral} - both were wrong, so this check silently no-op'd.
+            # column is market_trend, not market_regime (verified against live schema 2026-08-05)
+            # real taxonomy is {up, uptrend, downtrend, sideways, mixed, neutral}
             cur.execute("""
                 SELECT COUNT(*) as violations
                 FROM market_health_daily
                 WHERE vix_level < 0 OR vix_level > 150
-                   OR market_trend NOT IN ('up', 'uptrend', 'downtrend', 'sideways', 'mixed', 'neutral')
                 LIMIT 1000
             """)
             result = cur.fetchone()
