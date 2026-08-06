@@ -67,7 +67,6 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                 AND NOT EXISTS (
                     SELECT 1 FROM algo_trades t
                     WHERE t.position_id = p.position_id
-                    AND t.status IN ('filled', 'open', 'paper_pending')
                 )
             ''')
             deleted_count = cur.rowcount
