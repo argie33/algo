@@ -326,9 +326,15 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                     logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
                     results["recovered"].append(table_name)
                 else:
+                    stderr_msg = result.stderr if result.stderr else "(no stderr output)"
+                    stdout_msg = result.stdout if result.stdout else "(no stdout output)"
                     logger.error(
-                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh failed (exit code {result.returncode}). "
-                        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh FAILED (exit code {result.returncode}). "
+                        f"Command: python scripts/run_loader.py {loader_key} --force-refresh\n"
+                        f"Working directory: {repo_root}\n"
+                        f"Python executable: {sys.executable}\n"
+                        f"STDOUT: {stdout_msg}\n"
+                        f"STDERR: {stderr_msg}"
                     )
                     results["still_failing"].append(table_name)
                     if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:

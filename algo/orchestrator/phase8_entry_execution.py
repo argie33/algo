@@ -355,7 +355,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 SELECT COUNT(*) as incomplete_count,
                        STRING_AGG(DISTINCT p.symbol, ', ') as symbols_with_issues
                 FROM algo_positions p
-                LEFT JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                LEFT JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                 WHERE p.status = 'open'
                   AND (t.entry_price IS NULL
                        OR p.current_stop_price IS NULL
@@ -378,7 +378,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                     SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)) as total_risk_dollars,
                     COUNT(*) as open_count
                 FROM algo_positions p
-                JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                 WHERE p.status = 'open'
                   AND t.entry_price IS NOT NULL
                   AND p.current_stop_price IS NOT NULL
