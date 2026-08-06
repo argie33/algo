@@ -310,6 +310,81 @@ class DataIntegrityChecker:
                 "ready": False,
             }
 
+    @staticmethod
+    def clear_stale_halt_flag() -> dict[str, Any]:
+        """Clear halt flag if the underlying condition has been resolved."""
+        try:
+            with DatabaseContext("write") as cur:
+                # First check if there's an active halt flag
+                cur.execute("""
+                SELECT halt_reason FROM algo_orchestrator_state
+                WHERE key = 'halt_flag_active'
+                LIMIT 1
+                """)
+
+                halt_row = cur.fetchone()
+                if not halt_row:
+                    return {
+                        "check": "halt_flag_status",
+                        "status": "ok",
+                        "halt_active": False,
+                    }
+
+                halt_reason = halt_row[0] if halt_row else None
+
+                # Check if the halt reason was about orphaned positions
+                if halt_reason and "orphaned trade_ids_arr" in halt_reason:
+                    # Re-verify if orphaned positions still exist
+                    cur.execute("""
+                    SELECT COUNT(*) FROM algo_positions p
+                    WHERE p.status = 'open'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM algo_trades t
+                        WHERE t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                      )
+                    """)
+
+                    orphaned_count = cur.fetchone()[0]
+
+                    if orphaned_count == 0:
+                        # Halt reason no longer valid - clear the flag
+                        logger.warning(
+                            f"[DATA_PATROL] Clearing stale halt flag: '{halt_reason}'. "
+                            "Underlying condition (orphaned positions) has been resolved."
+                        )
+                        cur.execute("""
+                        DELETE FROM algo_orchestrator_state
+                        WHERE key = 'halt_flag_active'
+                        """)
+                        return {
+                            "check": "halt_flag_status",
+                            "status": "cleared",
+                            "reason_cleared": halt_reason,
+                        }
+                    else:
+                        logger.critical(
+                            f"[DATA_PATROL] Halt flag still valid: {orphaned_count} orphaned positions detected"
+                        )
+                        return {
+                            "check": "halt_flag_status",
+                            "status": "active",
+                            "orphaned_count": orphaned_count,
+                        }
+
+                return {
+                    "check": "halt_flag_status",
+                    "status": "ok",
+                    "halt_active": True,
+                    "reason": halt_reason,
+                }
+        except Exception as e:
+            logger.error(f"[DATA_PATROL] Halt flag check failed: {e}")
+            return {
+                "check": "halt_flag_status",
+                "status": "error",
+                "error": str(e),
+            }
+
     @classmethod
     def run_all_checks(cls) -> dict[str, Any]:
         """Run all data integrity checks and return comprehensive report."""
@@ -331,6 +406,7 @@ class DataIntegrityChecker:
             cls.check_incomplete_position_data,
             cls.check_incomplete_trade_data,
             cls.verify_circuit_breaker_readiness,
+            cls.clear_stale_halt_flag,  # Must run AFTER fixing data issues
         ]
 
         for check_func in checks:
