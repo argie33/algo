@@ -578,7 +578,19 @@ class CircuitBreaker:
                 streak += 1
             else:
                 break
-        max_consec_val = self._get_required_config("max_consecutive_losses", "in consecutive losses check")
+        # CRITICAL FIX: Use paper_mode_max_consecutive_losses when in paper trading mode
+        # Paper mode allows higher threshold (5 vs 3) for thorough testing without interruption.
+        # This prevents false halts during normal market volatility testing.
+        is_paper_trading = self.config.get("alpaca_paper_trading", False)
+        if is_paper_trading:
+            config_key = "paper_mode_max_consecutive_losses"
+            # Fallback to regular threshold if paper mode not configured yet
+            max_consec_val = self.config.get(config_key)
+            if max_consec_val is None:
+                max_consec_val = self._get_required_config("max_consecutive_losses", "in consecutive losses check")
+        else:
+            max_consec_val = self._get_required_config("max_consecutive_losses", "in consecutive losses check")
+
         threshold = int(max_consec_val)
         return {
             "halted": streak >= threshold,
