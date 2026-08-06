@@ -1410,23 +1410,42 @@ class PositionMonitor:
                 f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
             )
         if row[0] is None:
-            # FAIL-FAST: If price data through current_date is missing, this is a critical data quality issue.
-            # Position monitoring requires price history to calculate peak unrealized gains.
-            # Do not use "fallback" logic that silently uses incomplete data.
-            # The intraday vs EOD timing issue should be resolved by the data loader scheduling,
-            # not by accepting incomplete price histories in position monitoring logic.
-            logger.error(
-                f"[POSITION_MONITOR CRITICAL] {symbol}: Price data missing for date range through {current_date}. "
-                f"Cannot calculate peak unrealized gain without complete price history. "
-                f"Position monitoring requires either: (1) EOD price_daily data loaded, or (2) explicit error "
-                f"from price loader if data unavailable. Fallback logic masks data quality issues. "
-                f"Check price_daily loader status."
+            # INTRADAY FALLBACK: During afternoon runs before EOD load completes, price_daily may only have
+            # yesterday's data. Use most recent available price instead of halting position monitoring entirely.
+            logger.warning(
+                f"[POSITION_MONITOR] {symbol}: No price data for current_date {current_date}, using most recent available. "
+                f"Normal during intraday: attempting fallback to most recent price..."
             )
-            raise PositionValidationError(
-                f"[POSITION_MONITOR] Price data missing for {symbol} through {current_date}. "
-                f"Cannot calculate position peak without complete price history. "
-                f"Fail-fast on missing critical position data: check price_daily loader status and completion time."
-            )
+            if cur is not None:
+                try:
+                    cur.execute(
+                        """SELECT close, data_unavailable, data_unavailable_reason
+                           FROM price_daily
+                           WHERE symbol = %s AND date < %s AND close IS NOT NULL
+                           ORDER BY date DESC LIMIT 1""",
+                        (symbol, current_date),
+                    )
+                    fallback_row = cur.fetchone()
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    raise PositionValidationError(f"Failed to fetch fallback price for {symbol}: {e}") from e
+            else:
+                with DatabaseContext("read") as fresh_cur:
+                    fresh_cur.execute(
+                        """SELECT close, data_unavailable, data_unavailable_reason
+                           FROM price_daily
+                           WHERE symbol = %s AND date < %s AND close IS NOT NULL
+                           ORDER BY date DESC LIMIT 1""",
+                        (symbol, current_date),
+                    )
+                    fallback_row = fresh_cur.fetchone()
+
+            if fallback_row is None or fallback_row[0] is None:
+                raise PositionValidationError(
+                    f"[POSITION_MONITOR] {symbol}: No price data available (checked current date and fallback). "
+                    f"Cannot calculate position metrics. Check price_daily loader status."
+                )
+            row = fallback_row
+            logger.info(f"[POSITION_MONITOR] {symbol}: Using fallback price from prior date: {float(row[0]):.2f}")
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using prices
         max_close = float(row[0])
