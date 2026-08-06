@@ -1090,8 +1090,8 @@ def _record_closed_positions_exits(
                 f"""
                 SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id
                 FROM algo_positions ap
-                CROSS JOIN LATERAL UNNEST(ap.trade_ids_arr) AS trade_id
-                JOIN algo_trades at ON at.trade_id::text = trade_id::text
+                CROSS JOIN LATERAL UNNEST(ap.trade_ids_arr) AS unnested_trade_id
+                JOIN algo_trades at ON at.trade_id::text = unnested_trade_id::text
                 WHERE ap.status = 'closed' AND ap.closed_at::date = %s
                   AND at.exit_date IS NULL
                   AND at.status IN ({trade_status_ph})
