@@ -68,8 +68,8 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
             # Cannot DELETE due to foreign key constraint (trades reference position_id).
             # Instead, set status='closed' so position is removed from risk calculations.
             cur.execute('''
-                UPDATE algo_positions SET status = 'closed', updated_at = NOW()
-                WHERE status = 'open'
+                UPDATE algo_positions p SET status = 'closed', updated_at = NOW()
+                WHERE p.status = 'open'
                 AND NOT EXISTS (
                     SELECT 1 FROM algo_trades t
                     WHERE t.position_id = p.position_id
