@@ -130,10 +130,12 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             existing_id, existing_status = None, None
 
                     if existing_id:
-                        # Fetch trade_ids for this position to sync with existing record
+                        # Fetch trade_ids for this SPECIFIC position to sync with existing record
+                        # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
+                        # if a symbol has been traded multiple times (closed/reopened).
                         cur.execute(
-                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE symbol = %s AND status IN (%s, %s)',
-                            (symbol, 'filled', 'open')
+                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s AND status IN (%s, %s)',
+                            (trade_position_id, 'filled', 'open')
                         )
                         trade_ids_result = cur.fetchone()
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
@@ -204,14 +206,16 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 f"Both required (NOT NULL) - trade record is incomplete."
                             )
 
-                        # CHECKPOINT 4: Fetch trade_ids for this position
+                        # CHECKPOINT 4: Fetch trade_ids for this SPECIFIC position
                         # WHY: trade_ids_arr must be populated so circuit_breaker.py's total_risk check
                         # can join positions to trades and verify risk calculation (lines 764, 789-807).
                         # Empty/NULL trade_ids_arr causes "orphaned trade_ids_arr" halt even though
                         # the position has real trades. This is a data wiring issue, not a real halt.
+                        # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
+                        # if a symbol has been traded multiple times (closed/reopened).
                         cur.execute(
-                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE symbol = %s AND status IN (%s, %s)',
-                            (symbol, 'filled', 'open')
+                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s AND status IN (%s, %s)',
+                            (trade_position_id, 'filled', 'open')
                         )
                         trade_ids_result = cur.fetchone()
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
