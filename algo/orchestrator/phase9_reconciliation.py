@@ -1088,7 +1088,7 @@ def _record_closed_positions_exits(
             trade_status_ph = ", ".join(["%s"] * len(open_trade_statuses))
             cursor.execute(
                 f"""
-                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id
+                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id, ap.current_price
                 FROM algo_positions ap
                 CROSS JOIN LATERAL UNNEST(ap.trade_ids_arr) AS unnested_trade_id
                 JOIN algo_trades at ON at.trade_id::text = unnested_trade_id::text
@@ -1115,6 +1115,7 @@ def _record_closed_positions_exits(
                             stop_loss_price,
                             entry_qty,
                             trade_id,
+                            current_price,
                         ) = row
 
                         if entry_price is None or entry_price <= 0:
@@ -1153,11 +1154,20 @@ def _record_closed_positions_exits(
                                 exit_price = float(price_row[0])
                                 price_source = "price_daily EOD close"
 
+                        # Third priority: position's current_price (fallback for intraday closes before EOD price_daily loads)
+                        if exit_price is None and current_price is not None and current_price > 0:
+                            exit_price = float(current_price)
+                            price_source = "position current_price (price_daily not yet loaded for today)"
+                            logger.info(
+                                f"[PHASE 9] {symbol}: Using position current_price ${exit_price:.2f} "
+                                f"(price_daily EOD not available for {run_date})"
+                            )
+
                         # Final fallback: only if NO other price available, mark as estimated pending reconciliation
                         if exit_price is None:
                             raise RuntimeError(
                                 f"[PHASE 9 CRITICAL] Exit price for {symbol} position closed {run_date}: "
-                                f"No broker fill OR price_daily close available. "
+                                f"No broker fill, price_daily close, or position current_price available. "
                                 f"Cannot calculate P&L without actual execution price. "
                                 f"Halting Phase 9 to prevent fake P&L records."
                             )
