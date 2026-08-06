@@ -562,7 +562,7 @@ class PositionMonitor:
                     # Include failed position in results so orchestrator has complete visibility
                     recs.append(
                         {
-                            "position_id": position_id,
+                            "position_id": str(position_id),
                             "symbol": symbol,
                             "action": "FAILED_VALIDATION",
                             "error": error_msg,
@@ -873,7 +873,7 @@ class PositionMonitor:
 
         return {
             "symbol": symbol,
-            "position_id": position_id,
+            "position_id": str(position_id),
             "days_held": days_held,
             "quantity": quantity,
             "entry_price": entry_price,

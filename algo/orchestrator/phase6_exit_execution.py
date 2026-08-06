@@ -1101,6 +1101,14 @@ def run(
                         if verbose:
                             logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                     else:
+                        # CRITICAL: Validate trade_id exists before attempting exit
+                        if not rec.get("trade_id"):
+                            errors += 1
+                            logger.error(
+                                f"  [PHASE 6 CRITICAL] Cannot exit {rec['symbol']}: trade_id missing. "
+                                f"Position has no associated trade. Data integrity issue in algo_positions."
+                            )
+                            continue
                         assert trade_executor is not None, "trade_executor must be initialized in non-dry-run mode"
                         result = trade_executor.exit_trade(
                             trade_id=rec["trade_id"],
