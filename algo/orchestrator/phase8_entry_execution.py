@@ -214,6 +214,62 @@ def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints |
     )
 
 
+def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) -> float:
+    """Calculate stop loss with dynamic ATR multiplier based on volatility.
+
+    CRITICAL FIX: Applies the same dynamic logic consistently across all stop-loss calculations
+    (precheck and main execution). Ensures high-volatility stocks are treated fairly and don't
+    get rejected for wider stops when a tighter multiplier would fit within risk limits.
+
+    Progressive tightening based on volatility:
+    - Normal (ATR < 5% of price): entry - 1.2*ATR
+    - High (ATR 5-10% of price): entry - 0.8*ATR
+    - Extreme (ATR >= 10% of price): entry - 0.5*ATR
+
+    This ensures high-volatility stocks (ETFs, penny stocks, earnings runners) can still
+    be traded without hitting the 20% max risk limit due to wide ATR multipliers.
+
+    Then applies support-level validation (SMA_50 - ATR) as a floor.
+
+    Args:
+        entry_price: Stock entry price
+        atr: Average True Range (volatility indicator)
+        sma_50: 50-day simple moving average
+
+    Returns:
+        Calculated stop loss price (always > 0 and < entry_price)
+    """
+    atr_ratio = atr / entry_price
+    max_risk_allowed = 0.20  # 20% max risk limit
+
+    # Progressive multiplier based on volatility
+    if atr_ratio >= 0.10:  # Extreme volatility: ATR >= 10% of price
+        atr_multiplier = 0.5  # Very tight: entry - 0.5*ATR
+    elif atr_ratio >= 0.05:  # High volatility: ATR 5-10% of price
+        atr_multiplier = 0.8  # Tight: entry - 0.8*ATR
+    else:  # Normal volatility: ATR < 5% of price
+        atr_multiplier = 1.2  # Standard: entry - 1.2*ATR
+
+    volatility_stop = entry_price - atr_multiplier * atr
+    risk_with_volatility_stop = (entry_price - volatility_stop) / entry_price
+
+    # If even the tight volatility stop is too wide, cap it at max_risk_allowed
+    if risk_with_volatility_stop > max_risk_allowed:
+        stop_loss = entry_price * (1 - max_risk_allowed)
+    else:
+        # Use support-level stop (SMA_50 - ATR) if it's tighter than volatility stop
+        support_stop = sma_50 - atr
+        support_risk = (entry_price - support_stop) / entry_price
+
+        # Only use support_stop if it's valid and fits within risk limits
+        if support_stop > 0 and support_stop < entry_price and support_risk <= max_risk_allowed:
+            stop_loss = min(volatility_stop, support_stop)
+        else:
+            stop_loss = volatility_stop
+
+    return max(stop_loss, 0.01)  # Ensure stop is never negative or zero
+
+
 def _calculate_pre_entry_concentration_impact(
     qualified_signals: list[QualifiedTrade],
     sizer: PositionSizer,
@@ -272,8 +328,8 @@ def _calculate_pre_entry_concentration_impact(
             atr = float(atr_val)
             sma_50 = float(sma_50_val)
 
-            # Calculate stop loss using the same logic as Phase 8 execution
-            stop_loss = min(sma_50 - atr, entry_price - 1.2 * atr)
+            # Calculate stop loss using dynamic ATR multiplier (same as main execution)
+            stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 
             if entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0:
                 logger.warning(
@@ -2123,7 +2179,7 @@ def run(
                     entry_price = float(close_val)
                     atr = float(atr_val)
                     sma_50 = float(sma_50_val)
-                    stop_loss = min(sma_50 - atr, entry_price - 1.2 * atr)
+                    stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 
                     if entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0:
                         skipped_reason_counts['invalid_price_data'] = skipped_reason_counts.get('invalid_price_data', 0) + 1
@@ -2363,55 +2419,8 @@ def run(
                 )
 
             # Stop loss: Dynamic tightening based on volatility.
-            # CRITICAL FIX: For extremely volatile stocks, tighten the multiplier to stay
-            # within 20% max risk. Progressive tightening:
-            # - Normal (ATR 2-5% of price): entry - 1.2*ATR
-            # - High (ATR 5-10% of price): entry - 0.8*ATR
-            # - Extreme (ATR 10%+ of price): entry - 0.5*ATR
-            #
-            # This ensures high-volatility stocks don't get rejected for wide stops.
-            atr_ratio = atr / entry_price
-            max_risk_allowed = 0.20  # 20% max risk limit
-
-            # Progressive multiplier based on volatility
-            if atr_ratio >= 0.10:  # Extreme volatility: ATR >= 10% of price
-                atr_multiplier = 0.5  # Very tight: entry - 0.5*ATR
-            elif atr_ratio >= 0.05:  # High volatility: ATR 5-10% of price
-                atr_multiplier = 0.8  # Tight: entry - 0.8*ATR
-            else:  # Normal volatility: ATR < 5% of price
-                atr_multiplier = 1.2  # Standard: entry - 1.2*ATR
-
-            volatility_stop = entry_price - atr_multiplier * atr
-
-            # Calculate risk for this stop
-            risk_with_volatility_stop = (entry_price - volatility_stop) / entry_price
-
-            # If even the tight volatility stop is too wide, cap it at max_risk_allowed
-            if risk_with_volatility_stop > max_risk_allowed:
-                stop_loss = entry_price * (1 - max_risk_allowed)
-                logger.debug(
-                    f"[PHASE 8 STOP DEBUG] {symbol}: atr_ratio={atr_ratio:.3f}, "
-                    f"volatility_stop_risk={risk_with_volatility_stop*100:.1f}%, "
-                    f"capping to {max_risk_allowed*100:.0f}% (${stop_loss:.2f})"
-                )
-            else:
-                # For normal volatility, try support-based stop but verify it makes sense
-                support_stop = sma_50 - atr
-                support_risk = (entry_price - support_stop) / entry_price
-
-                # CRITICAL: Only use support_stop if:
-                # 1. It's below entry price (valid stop)
-                # 2. Its risk doesn't exceed max_risk_allowed
-                # Otherwise, use volatility_stop (tighter, guaranteed to fit)
-                if support_stop < entry_price and support_risk <= max_risk_allowed:
-                    stop_loss = min(volatility_stop, support_stop)
-                else:
-                    # Support stop is invalid or too wide - use volatility stop instead
-                    stop_loss = volatility_stop
-                    logger.debug(
-                        f"[PHASE 8 STOP DEBUG] {symbol}: support_stop skipped (risk={support_risk*100:.1f}%), "
-                        f"using volatility_stop=${stop_loss:.2f}"
-                    )
+            # Use helper function to calculate with consistent ATR multiplier logic across all paths
+            stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 
             # AUDIT FIX (Session 276): Validate stop placement against recent support levels
             # In extended rallies, SMA_50 - ATR can sit far above chart support, leading to
