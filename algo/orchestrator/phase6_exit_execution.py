@@ -1235,6 +1235,12 @@ def run(
                 # exit-execution status was visible only to something polling
                 # orchestrator_execution_log, never pushed to an operator. Per-trade detail is in
                 # algo_exit_check_errors (see exit_engine.py's check_and_execute_exits).
+                logger.critical(
+                    f"[PHASE 6 CRITICAL] {errors} position(s) failed exit/stop evaluation this run. "
+                    f"Open positions have LOST stop/target/time-exit coverage. "
+                    f"Detail: {detail_text}. "
+                    f"See algo_exit_check_errors table for per-position error details."
+                )
                 alerts.send_position_alert(
                     "PORTFOLIO",
                     "EXIT_CHECK_FAILURES",

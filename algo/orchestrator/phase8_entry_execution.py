@@ -2835,6 +2835,15 @@ def run(
         f"[PHASE 8] Done in {elapsed:.1f}s: {executed_count} executed, {skipped_count} skipped, {failed_count} failed"
     )
 
+    # CRITICAL FIX: Log all failures with details for debugging
+    if failed_count > 0:
+        logger.critical(
+            f"[PHASE 8 CRITICAL] {failed_count} trades failed to execute. "
+            f"Failed entries: {failed_entries}. "
+            f"Success rate: {round((executed_count / (executed_count + failed_count) * 100), 1)}%. "
+            f"These failures prevent position entry and require investigation."
+        )
+
     # ISSUE 14 FIX: Log resource cleanup summary
     if failed_entries:
         logger.warning(
