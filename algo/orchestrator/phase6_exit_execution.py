@@ -370,24 +370,28 @@ def run(
                         try:
                             count_int = _ensure_int(count, f"sector_count:{sector}") if count is not None else 0
                         except (TypeError, ValueError) as e:
-                            logger.error(f"[PHASE 6] Failed to convert sector count {count} ({type(count).__name__}) to int: {e}")
-                            continue
+                            raise RuntimeError(
+                                f"[PHASE 6 CRITICAL] Failed to convert sector count for {sector}: {count} ({type(count).__name__}) to int: {e}. "
+                                f"Database returned non-integer count. Data integrity issue."
+                            )
                         # CRITICAL: Use _ensure_int for ALL arithmetic operands
                         # This ensures native Python int, not psycopg2 Decimal or numpy types
                         try:
                             count_int_native = _ensure_int(count_int, f"sector_count:{sector} (pre-arithmetic)")
                             max_sector_native = _ensure_int(max_per_sector, "max_positions_per_sector (pre-arithmetic)")
                         except (TypeError, ValueError) as conv_err:
-                            logger.error(f"[PHASE 6] Failed to convert ints for arithmetic: {conv_err}")
-                            continue
+                            raise RuntimeError(
+                                f"[PHASE 6 CRITICAL] Failed to convert ints for arithmetic on sector {sector}: {conv_err}. "
+                                f"Type conversion failed before concentration arithmetic."
+                            )
                         # Verify types before arithmetic - triple-check both operands
                         if not isinstance(count_int_native, int) or not isinstance(max_sector_native, int):
-                            logger.error(
-                                f"[PHASE 6] Sector arithmetic type check failed: sector={sector}, "
+                            raise TypeError(
+                                f"[PHASE 6 CRITICAL] Sector arithmetic type check failed: sector={sector}, "
                                 f"count_int_native={type(count_int_native).__name__}={count_int_native!r}, "
-                                f"max_sector_native={type(max_sector_native).__name__}={max_sector_native!r}"
+                                f"max_sector_native={type(max_sector_native).__name__}={max_sector_native!r}. "
+                                f"Type conversion did not produce native Python ints."
                             )
-                            continue
                         # CRITICAL: Force to native int one more time to eliminate any Decimal/numpy remnants
                         count_int_final = int(count_int_native)
                         max_sector_final = int(max_sector_native)
@@ -542,8 +546,10 @@ def run(
                 try:
                     max_size_pct_float = _ensure_float(max_size_pct_val, "max_concentration_pct")
                 except (TypeError, ValueError) as e:
-                    logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to read/convert concentration limit: {e} - skipping concentration check")
-                    return []
+                    raise RuntimeError(
+                        f"[PHASE 6 CRITICAL] Failed to read/convert concentration limit: {e}. "
+                        f"Cannot enforce position size limits. Cannot continue without this safety check."
+                    )
 
                 with DatabaseContext("read") as cur:
                     # CRITICAL: Check for NULL position_value entries which would corrupt SUM()
@@ -619,8 +625,10 @@ def run(
                     try:
                         total_value_float = _ensure_float(total_value, "total_portfolio_value")
                     except (TypeError, ValueError) as e:
-                        logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert total portfolio value: {e} - skipping concentration check")
-                        return []
+                        raise RuntimeError(
+                            f"[PHASE 6 CRITICAL] Failed to convert total portfolio value: {e}. "
+                            f"Cannot calculate position concentration without portfolio value. Cannot continue."
+                        )
 
                     if total_value_float <= 0:
                         logger.info("[PHASE 6] No open positions or zero portfolio value - skipping size concentration check")
@@ -685,8 +693,10 @@ def run(
                                     logger.warning(f"[PHASE 6] pct_float is {type(pct_float).__name__} instead of float, converting: {pct_float}")
                                     pct_float = float(pct_float)
                             except (TypeError, ValueError, ZeroDivisionError) as te:
-                                logger.error(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: Failed to compute percentage {value} / {total_value_float}: {te}")
-                                continue
+                                raise RuntimeError(
+                                    f"[PHASE 6 CRITICAL] {symbol}: Failed to compute position percentage {value} / {total_value_float}: {te}. "
+                                    f"Cannot enforce concentration check without position percentages."
+                                )
 
                             # CRITICAL: Use _ensure_float for ALL arithmetic operands
                             # _ensure_float handles psycopg2 Decimal, numpy types, and validates native float
@@ -700,23 +710,25 @@ def run(
 
                             # Additional safeguard: verify types AFTER _ensure_float conversion
                             if not isinstance(max_size_pct_float_safe, float):
-                                logger.error(
-                                    f"[PHASE 6] max_size_pct_float_safe type check failed: {type(max_size_pct_float_safe).__name__}={max_size_pct_float_safe!r}"
+                                raise TypeError(
+                                    f"[PHASE 6 CRITICAL] max_size_pct_float_safe type check failed: {type(max_size_pct_float_safe).__name__}={max_size_pct_float_safe!r}. "
+                                    f"_ensure_float did not produce native float."
                                 )
-                                continue
                             if not isinstance(pct_float_safe, float):
-                                logger.error(
-                                    f"[PHASE 6] pct_float_safe type check failed for {symbol}: {type(pct_float_safe).__name__}={pct_float_safe!r}"
+                                raise TypeError(
+                                    f"[PHASE 6 CRITICAL] pct_float_safe type check failed for {symbol}: {type(pct_float_safe).__name__}={pct_float_safe!r}. "
+                                    f"_ensure_float did not produce native float."
                                 )
-                                continue
 
                             # CRITICAL FIX: Convert floats for safe comparison - use safe versions
                             try:
                                 max_for_comparison = float(str(max_size_pct_float_safe))
                                 pct_for_comparison = float(str(pct_float_safe))
                             except (TypeError, ValueError) as conv_err:
-                                logger.error(f"[PHASE 6 SIZE_CONCENTRATION] Failed to convert {symbol} for comparison: {conv_err} - skipping")
-                                continue
+                                raise RuntimeError(
+                                    f"[PHASE 6 CRITICAL] Failed to convert {symbol} for comparison: {conv_err}. "
+                                    f"Cannot perform concentration check without safe float values."
+                                )
 
                             if pct_for_comparison > max_for_comparison:
                                 # CRITICAL: Force native float type IMMEDIATELY before arithmetic

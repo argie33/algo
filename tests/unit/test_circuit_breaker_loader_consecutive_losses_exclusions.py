@@ -54,7 +54,7 @@ def test_consecutive_losses_returns_zero_for_no_closed_trades():
     assert module._compute_consecutive_losses(cur) == 0
 
 
-def test_win_rate_query_excludes_non_representative_closes_and_includes_open_positions():
+def test_win_rate_query_excludes_non_representative_closes_and_excludes_open_positions():
     cur = MagicMock()
     cur.fetchone.return_value = {"wins": 1, "losses": 1}
     module._compute_win_rate(cur)
@@ -64,8 +64,10 @@ def test_win_rate_query_excludes_non_representative_closes_and_includes_open_pos
 
     assert "EXT-%%" in sql
     assert "exit_r_multiple IS NOT NULL" in sql
-    assert "unrealized_pnl_pct" in sql
-    assert "status = 'open'" in sql
+    # CRITICAL FIX 2026-08-06: Win rate gate uses only CLOSED trades, not open positions
+    # Including open positions caused false halts when unrealized losses would recover
+    assert "status = 'closed'" in sql
+    assert "unrealized_pnl_pct" not in sql  # Only closed trades, no open positions
     assert params == ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%")
 
 
