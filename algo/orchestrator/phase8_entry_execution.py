@@ -214,6 +214,123 @@ def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints |
     )
 
 
+def _calculate_pre_entry_concentration_impact(
+    qualified_signals: list[QualifiedTrade],
+    sizer: PositionSizer,
+    portfolio_value: Decimal,
+    merged_technical_data: dict[str, dict[str, Any]],
+    run_date: _date,
+) -> tuple[float, list[str]]:
+    """Calculate total concentration impact of ALL pending signals BEFORE any entries.
+
+    CRITICAL FIX (Session 2026-08-05): Pre-entry concentration check was disabled due to
+    using a simplified formula that produced impossible values (e.g., 588% concentration).
+    This fix implements the CORRECT calculation using actual PositionSizer logic:
+    - Regime-aware multipliers
+    - Drawdown reductions
+    - Max position size caps
+    - Tier-specific concentration limits
+
+    Args:
+        qualified_signals: List of QualifiedTrade signals to be entered
+        sizer: PositionSizer instance (has actual config with regime multipliers, drawdown, caps)
+        portfolio_value: Current portfolio value (Decimal)
+        merged_technical_data: Dict of {symbol: {atr_14, sma_50, close}}
+        run_date: Trading date
+
+    Returns:
+        (total_concentration_pct, blocked_symbols) tuple where:
+        - total_concentration_pct: Sum of concentration % across all pending signals
+        - blocked_symbols: List of signals that would exceed individual limits
+
+    This calculates concentration WITHOUT executing orders - it simulates what PositionSizer
+    WOULD calculate for each signal, accumulates the concentration, and returns the total.
+    """
+    total_concentration = 0.0
+    blocked_symbols = []
+    signal_positions = []
+
+    for signal in qualified_signals:
+        symbol = signal.get("symbol")
+        if not symbol:
+            continue
+
+        try:
+            # Get technical data needed for position sizing
+            tech_data = merged_technical_data.get(str(symbol), {})
+            atr_val = tech_data.get("atr_14") or tech_data.get("atr")
+            sma_50_val = tech_data.get("sma_50")
+            close_val = tech_data.get("close")
+
+            if not (atr_val and sma_50_val and close_val):
+                logger.warning(
+                    f"[CONCENTRATION CHECK] {symbol}: Incomplete technical data. Skipping from pre-entry concentration calc."
+                )
+                continue
+
+            entry_price = float(close_val)
+            atr = float(atr_val)
+            sma_50 = float(sma_50_val)
+
+            # Calculate stop loss using the same logic as Phase 8 execution
+            stop_loss = min(sma_50 - atr, entry_price - 1.2 * atr)
+
+            if entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0:
+                logger.warning(
+                    f"[CONCENTRATION CHECK] {symbol}: Invalid technical data. Skipping from concentration calc."
+                )
+                continue
+
+            # Call PositionSizer to get ACTUAL position sizing
+            # Use enforce_total_risk_limit=False to get position size without checking the 4% portfolio risk limit
+            # (we only care about concentration here, not total risk)
+            position_result = sizer.calculate_position_size(
+                symbol=symbol,
+                entry_price=entry_price,
+                stop_loss_price=stop_loss,
+                portfolio_value=portfolio_value,
+                enforce_total_risk_limit=False,  # Don't check 4% limit here - we're just sizing
+            )
+
+            # If PositionSizer returned 0 shares (blocked), track it
+            if position_result.get("shares", 0) == 0:
+                reason = position_result.get("reason", "unknown")
+                blocked_symbols.append(f"{symbol}({reason})")
+                continue
+
+            # Calculate concentration for this position
+            shares = position_result.get("shares", 0)
+            if shares > 0:
+                position_value = Decimal(shares) * Decimal(str(entry_price))
+                concentration_pct = float((position_value / portfolio_value) * Decimal(100))
+                total_concentration += concentration_pct
+                signal_positions.append(
+                    {"symbol": symbol, "shares": shares, "concentration_pct": concentration_pct}
+                )
+
+                logger.info(
+                    f"[CONCENTRATION CHECK] {symbol}: {shares} shares @ ${entry_price:.2f} = "
+                    f"{concentration_pct:.2f}% concentration"
+                )
+
+        except Exception as e:
+            logger.warning(
+                f"[CONCENTRATION CHECK] {symbol}: Could not calculate concentration - {e}. "
+                "Skipping from pre-entry check."
+            )
+            continue
+
+    if signal_positions:
+        breakdown = ", ".join(f"{p['symbol']}:{p['concentration_pct']:.1f}%" for p in signal_positions[:5])
+        more = "..." if len(signal_positions) > 5 else ""
+        logger.info(
+            f"[CONCENTRATION CHECK] Pending signals total concentration: {total_concentration:.2f}%. "
+            f"Breakdown: {breakdown}{more}"
+        )
+
+    return total_concentration, blocked_symbols
+
+
 def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[float, float]:
     """Calculate total open risk as percentage of portfolio.
 
@@ -1934,36 +2051,52 @@ def run(
     # Use validated trades for execution
     qualified_trades = validated_trades
 
-    # CRITICAL FIX: PRE-ENTRY CONCENTRATION LIMIT VALIDATION
+    # CRITICAL FIX: PRE-ENTRY CONCENTRATION LIMIT VALIDATION (Session 2026-08-05)
     # Check total concentration impact BEFORE entering ANY signals.
     # Previously: Signals were processed individually, checking only current open positions.
     # Problem: Signals 1-14 would pass, each at <15% concentration, but collectively
     # they would violate the limit if entered sequentially (no lookahead of other signals).
-    # Solution: Calculate concentration impact of ALL pending signals before any entries.
-
-    # PRE-ENTRY CONCENTRATION CHECK - DISABLED
-    # CRITICAL: This check is intentionally disabled because the position size estimation formula
-    # produces mathematically impossible values (e.g., 588% concentration on a $71k portfolio).
-    # Root cause: The simplified estimation (base_risk_pct / risk_per_share) does NOT match
-    # the real PositionSizer logic, which applies:
+    # Solution: Calculate concentration impact of ALL pending signals before any entries
+    # using ACTUAL PositionSizer logic (not simplified estimation).
+    #
+    # This correctly accounts for:
     #   - Regime-aware multipliers
     #   - Drawdown reductions
     #   - Max position size caps
     #   - Tier-specific concentration limits
-    #
-    # Instead of guessing with bad estimates, we rely on the PositionSizer which:
-    #   - Enforces max_concentration_pct on EVERY trade (correct limits applied)
-    #   - Has access to live portfolio state
-    #   - Is tested and used by Phase 6 (exit execution) and brokers
-    #
-    # Pre-entry lookahead filtering could help, but only with 100% accurate math matching
-    # PositionSizer. Until then, per-trade enforcement during sizer.calculate_position_size()
-    # is more reliable than pre-flight estimation (line 2350).
-    #
-    # AUDIT: Old rejection logs showing "PH would be 588.6%" were from this disabled code.
-    # Those percentages are NOT real risk and can be safely disregarded.
-    if False and qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
-        pass  # Disabled concentration pre-check (see comment above)
+    if qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
+        try:
+            total_preentry_conc, blocked_in_precheck = _calculate_pre_entry_concentration_impact(
+                qualified_trades,
+                sizer,
+                portfolio_value,
+                merged_technical_data,
+                run_date,
+            )
+
+            tier_max_conc_val = float(exposure_constraints.get("max_concentration_pct", 100.0))
+            if total_preentry_conc > tier_max_conc_val:
+                msg = (
+                    f"[PHASE 8 PRE-ENTRY CONCENTRATION] All {len(qualified_trades)} pending signals "
+                    f"would total {total_preentry_conc:.1f}% concentration, exceeds tier limit {tier_max_conc_val:.0f}%. "
+                    f"Rejecting ALL trades to maintain concentration policy. "
+                    f"Blocked by individual limits: {blocked_in_precheck}"
+                )
+                logger.warning(msg)
+                log_phase_result_fn(8, "entry_execution", "blocked", msg)
+                return PhaseResult(
+                    8,
+                    "entry_execution",
+                    "blocked",
+                    {"entered": 0, "skipped": len(qualified_trades)},
+                    False,  # Not a halt - just blocking entries this run
+                    msg,
+                )
+        except Exception as conc_check_err:
+            logger.warning(
+                f"[PHASE 8] Pre-entry concentration check failed: {conc_check_err}. "
+                f"Proceeding without lookahead (per-trade enforcement still active)."
+            )
 
     # ALL-OR-NOTHING TRANSACTION SAFETY (Session 2026-08-03):
     # Pre-flight validation: If we detect issues that would cause partial execution,
