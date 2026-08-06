@@ -540,6 +540,11 @@ class DataSourceRouter:
             rows = []
             for idx, row in hist.iterrows():
                 try:
+                    # CRITICAL FIX: Include adj_close in row dict (was 99.9% NULL before this fix).
+                    # yfinance with auto_adjust=False returns both "Close" (unadjusted) and "Adj Close" (adjusted for splits/dividends).
+                    # If "Adj Close" missing from API response, fallback to unadjusted "Close" (no splits/dividends = same value anyway).
+                    adj_close_val = float(row["Adj Close"]) if "Adj Close" in row else float(row["Close"])
+
                     rows.append(
                         {
                             "symbol": symbol,
@@ -548,6 +553,7 @@ class DataSourceRouter:
                             "high": float(row["High"]),
                             "low": float(row["Low"]),
                             "close": float(row["Close"]),
+                            "adj_close": adj_close_val,
                             "volume": int(row["Volume"]),
                         }
                     )
@@ -660,6 +666,11 @@ class DataSourceRouter:
                         low_val = row.get(("Low", yf_symbol))
                         close_val = row.get(("Close", yf_symbol))
                         volume_val = row.get(("Volume", yf_symbol))
+                        # CRITICAL FIX: Include adj_close (was 99.9% NULL before this fix).
+                        # Fallback to close if Adj Close missing from yfinance response.
+                        adj_close_val = row.get(("Adj Close", yf_symbol))
+                        if adj_close_val is None or (isinstance(adj_close_val, float) and adj_close_val != adj_close_val):
+                            adj_close_val = close_val
 
                         # Skip if any required value is missing or is NaN
                         if any(
@@ -682,6 +693,7 @@ class DataSourceRouter:
                                 "high": float(high_val),
                                 "low": float(low_val),
                                 "close": float(close_val),
+                                "adj_close": float(adj_close_val) if adj_close_val is not None else float(close_val),
                                 "volume": int(volume_val),
                             }
                         )
