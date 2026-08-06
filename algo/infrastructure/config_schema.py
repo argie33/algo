@@ -109,9 +109,11 @@ VALIDATION_SCHEMA = {
     "min_hold_days": ("int", 0, 365, False, 1),
     "max_hold_days": ("int", 1, 365, False, 20),
     "exit_on_distribution_day": ("bool", None, None, False, None),
-    # REMOVED 2026-08-05: Minervini break exit rule disabled permanently after analysis
+    # DISABLED 2026-08-05: Minervini break exit rule disabled permanently after analysis
     # Confirmed 0% win rate (0/4 trades won, -7.55% avg loss) and thresholds too aggressive
     # Rule triggered on false technical breakdowns that later recovered. See commit c4f2d6b51.
+    # Default: false (disabled). Set to true in database to re-enable if rules improve.
+    "exit_on_minervini_break": ("bool", None, None, False, False),
     "exit_on_rs_line_break_50dma": ("bool", None, None, False, None),
     "exit_on_td_sequential": ("bool", None, None, False, None),
     "use_chandelier_trail": ("bool", None, None, False, None),
@@ -228,6 +230,9 @@ VALIDATION_SCHEMA = {
     "loader_rate_limit_requests_per_min": ("int", 0, 10000, False, 120),
     "loader_timeout_seconds": ("int", 0, 36000, False, 300),
     "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, 0.5),
+    # Loader Failure Rate Thresholds
+    "loader_max_fail_rate_price": ("float", 0.0, 1.0, False, 0.05),  # Max 5% failure rate for price loaders
+    "loader_max_fail_rate_buy_sell": ("float", 0.0, 1.0, False, 0.1),  # Max 10% failure rate for buy/sell loaders
     # Data Staleness Thresholds
     "data_staleness_fresh_days": ("int", 1, 100, False, 3),
     # CRITICAL: Data staleness thresholds for trading decisions

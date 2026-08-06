@@ -170,22 +170,12 @@ class PositionContext:
         return False, None
 
     def check_minervini_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
-        """Minervini break: trend-following exit on moving average break."""
-        # Parse boolean config value - database returns string "false"/"true", not Python bool
-        exit_enabled = self.config.get("exit_on_minervini_break", True)
-        if isinstance(exit_enabled, str):
-            exit_enabled = exit_enabled.lower() in ("true", "1", "yes")
-        if not exit_enabled:
-            return False, None
-        if engine._is_minervini_break(self.cur, self.symbol, self.current_date, float(self.cur_price)):
-            return (
-                True,
-                {
-                    "stage": "stop",
-                    "fraction": 1.0,
-                    "reason": "Minervini trend break: closed below key MA on volume",
-                },
-            )
+        """Minervini break: DISABLED (0% win rate in backtest 2026-08-05).
+
+        This exit was disabled due to poor performance. Keeping method signature for
+        backwards compatibility but always returns False (exit disabled).
+        To re-enable: add exit_on_minervini_break=true to algo_config.
+        """
         return False, None
 
     def check_rs_line_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
