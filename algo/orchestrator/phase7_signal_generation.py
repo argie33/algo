@@ -608,6 +608,17 @@ def _get_candidates_from_buysell(
                 logger.info(f"[PHASE 7] {symbol}: excluded from candidates - {e}")
                 continue
 
+            # CRITICAL FIX 2026-08-05: Skip stocks with missing rs_percentile
+            # Phase 8 requires rs_percentile for entry validation. Passing signals with
+            # missing rs_percentile causes Phase 8 to reject them as 'processing_error'.
+            # Better to filter here in Phase 7 so only fully-qualified signals reach Phase 8.
+            if rs_percentile is None:
+                logger.warning(
+                    f"[PHASE 7] {symbol}: Skipping candidate - missing rs_percentile "
+                    f"(from positioning_metrics table). Position sizing requires relative strength validation."
+                )
+                continue
+
             candidates.append(
                 {
                     "symbol": symbol,
