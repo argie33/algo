@@ -588,10 +588,18 @@ class CircuitBreaker:
         }
 
     def _check_win_rate_floor(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Halt if recent win rate drops below floor (includes both closed and open positions at risk).
+        """Halt if recent win rate drops below floor on closed trades only.
 
-        Win rate = wins / (wins + losses), where losses include both closed losses and open positions
-        with negative unrealized P&L. Excluding break-even trades to avoid dilution.
+        CRITICAL FIX 2026-08-06: Only count CLOSED trades with confirmed exits, not open positions.
+        Including open positions caused false halts when positions had small unrealized losses
+        that would recover. Win rate floor should measure proven performance on closed trades,
+        not in-flight unrealized P&L which is transient and misleading.
+
+        Example: 11 closed wins, 18 closed losses = 37.9% → halt
+        But 4 open positions with negative P&L were artificially counted as losses in the old
+        calculation, making the sample look worse than it was. This fix uses only closed trades
+        (the decided outcome) for circuit breaker gating, while exit_engine monitors open positions
+        separately via stop-loss/exit conditions.
 
         Rolling 30-trade window (per solution-blueprint.html's CB11 spec and the same convention
         _check_consecutive_losses uses via its own LIMIT 10) - NOT all-time history. An earlier
@@ -601,8 +609,9 @@ class CircuitBreaker:
         _compute_win_rate already implemented the correct rolling-30 window (for a metrics/display
         table only, never wired into this actual gating check) - mirrored here.
         """
-        # Include both closed trades (confirmed exits) and open positions (unrealized losses).
-        # This prevents masked deterioration where closed trades look good but open positions bleed.
+        # CRITICAL FIX: Use only closed trades for win rate. Open positions are managed separately
+        # by exit_engine's stop-loss/target checks. Including unrealized P&L here caused false
+        # halts due to temporary unrealized losses that would recover or be managed by exit logic.
         cur.execute(
             """
             SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
@@ -611,6 +620,7 @@ class CircuitBreaker:
                    COUNT(*) as total
             FROM (
                 -- Most recent 30 closed trades with confirmed exits (rolling window, not all-time)
+                -- Do NOT include open positions - they're transient and managed separately by exit_engine
                 SELECT profit_loss_pct as pnl_pct
                 FROM (
                     SELECT profit_loss_pct, id
@@ -632,12 +642,6 @@ class CircuitBreaker:
                     ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
                     LIMIT 30
                 ) recent_closed
-                UNION ALL
-                -- Open positions with unrealized P&L (show current risk)
-                SELECT unrealized_pnl_pct as pnl_pct
-                FROM algo_positions
-                WHERE status = 'open'
-                  AND quantity > 0
             ) all_trades
             """,
             (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
