@@ -1317,23 +1317,23 @@ def run(  # noqa: C901
                         symbols=signal_symbols,
                         parallelism=8,
                     )
-                loader_elapsed = time.time() - loader_start
-                if loader_elapsed > loader_timeout_secs:
-                    logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")
-                    msg = (
-                        f"[PHASE 7 CRITICAL] Signal quality score computation exceeded timeout ({loader_elapsed:.0f}s > {loader_timeout_secs}s). "
-                        f"This indicates the loader is stalled or locked. Cannot proceed without valid signal scores."
-                    )
-                    logger.critical(msg)
-                    log_phase_result_fn(7, "signal_generation", "halt", msg)
-                    return PhaseResult(
-                        7,
-                        "signal_generation",
-                        "halted",
-                        {"qualified_trades": [], "liquidity_passed": 0},
-                        True,
-                        msg,
-                    )
+                    loader_elapsed = time.time() - loader_start
+                    if loader_elapsed > loader_timeout_secs:
+                        logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")
+                        msg = (
+                            f"[PHASE 7 CRITICAL] Signal quality score computation exceeded timeout ({loader_elapsed:.0f}s > {loader_timeout_secs}s). "
+                            f"This indicates the loader is stalled or locked. Cannot proceed without valid signal scores."
+                        )
+                        logger.critical(msg)
+                        log_phase_result_fn(7, "signal_generation", "halt", msg)
+                        return PhaseResult(
+                            7,
+                            "signal_generation",
+                            "halted",
+                            {"qualified_trades": [], "liquidity_passed": 0},
+                            True,
+                            msg,
+                        )
         except Exception as e:
             # Handle LockAcquisitionError FIRST - don't halt on temporary lock contention
             # CRITICAL: This must come before TimeoutError, as both may indicate lock issues
