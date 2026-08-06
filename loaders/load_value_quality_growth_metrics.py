@@ -600,7 +600,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     (symbol,)
                 )
                 has_dividend_history = cur.fetchone() is not None
-            dividend_yield_reason = "missing_sec_data" if has_dividend_history else "non_dividend_paying_stock"
+
+            # FIX 2026-08-05: Set dividend_yield = 0.0 for confirmed non-payers
+            # Previously: dividend_yield stayed NULL, showing as "no data" in UI
+            # Now: dividend_yield = 0.0 (semantically correct) + reason tracked for transparency
+            if not has_dividend_history:
+                dividend_yield = 0.0
+                dividend_yield_reason = "non_dividend_paying_stock"
+            else:
+                dividend_yield_reason = "missing_sec_data"
 
         # pe_ratio reason: was hardcoded "missing_sec_data" regardless of cause. load_sec_
         # valuations.py only computes pe_ratio when ttm_eps > 0 (a negative/zero-EPS company
