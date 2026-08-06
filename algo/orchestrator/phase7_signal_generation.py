@@ -711,6 +711,23 @@ def _get_candidates_from_buysell(
 
                         rsi, macd, macd_signal, minervini, weinstein = tech_row
 
+                        # CRITICAL FIX: Check for missing trend_template_data
+                        # LEFT JOIN means we might get a row from technical_data_daily but NULL from trend_template_data
+                        # This causes signal quality scores to degrade significantly (lose 15-25 points from trend component)
+                        # Must detect and halt - missing trend data is a loader coordination issue that needs investigation
+                        if minervini is None or weinstein is None:
+                            raise ValueError(
+                                f"[PHASE 7 CRITICAL] {symbol}: Missing trend template data for {signal_date}. "
+                                f"Minervini={minervini}, Weinstein={weinstein}. "
+                                f"trend_template_data exists through {signal_date - timedelta(days=1)}, not today. "
+                                f"This indicates: (1) trend_template_data loader hasn't run for today yet, "
+                                f"(2) loader order issue (signals generated before trend data loaded), or "
+                                f"(3) trend data gap for this date. "
+                                f"Signal quality scores will be artificially low (lose 15-25 points) without trend confirmation. "
+                                f"Phase 7 must halt to prevent low-quality signals from passing to Phase 8. "
+                                f"Check: (1) trend_template_data loader schedule, (2) orchestrator phase execution order."
+                            )
+
                         # Compute scores using strategy pattern (same as batch loader)
                         scorer = get_signal_scorer("BUY")
                         base_score = scorer.calculate_base_quality_score()
