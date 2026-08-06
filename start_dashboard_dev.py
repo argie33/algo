@@ -231,6 +231,12 @@ def run_loader_pipeline(pipeline_name: str, timeout: int = 3600) -> bool:
     try:
         env = os.environ.copy()
         env["LOCAL_MODE"] = "1"
+        # LOCAL DEV OPTIMIZATION: Use higher parallelism for local development
+        # Production ECS uses parallelism=1-2 to avoid rate limiting across shared NAT IPs
+        # Local dev has no such constraint, so use parallelism=4-8 for reasonable speed
+        # (still conservative to avoid API rate limits with yfinance)
+        if "LOADER_PARALLELISM" not in env:
+            env["LOADER_PARALLELISM"] = "4"
         result = subprocess.run(
             [sys.executable, str(scheduler_path), "--now", pipeline_name],
             cwd=str(repo_root),

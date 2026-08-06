@@ -34,6 +34,12 @@ from datetime import date
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
 
+# LOCAL DEV OPTIMIZATION: Use higher parallelism for local development
+# Production ECS uses parallelism=1-2 to avoid rate limiting across shared NAT IPs
+# Local dev has no such constraint, so use parallelism=4 for reasonable speed
+if "LOADER_PARALLELISM" not in os.environ:
+    os.environ["LOADER_PARALLELISM"] = "4"
+
 # FIX: Configure Redis for price cache (reduces yfinance API calls by 90%)
 if "REDIS_URL" not in os.environ:
     os.environ["REDIS_URL"] = "redis://localhost:6379/0"
