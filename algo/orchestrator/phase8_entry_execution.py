@@ -378,11 +378,11 @@ def _calculate_pre_entry_concentration_impact(
                 )
 
         except Exception as e:
-            logger.warning(
-                f"[CONCENTRATION CHECK] {symbol}: Could not calculate concentration - {e}. "
-                "Skipping from pre-entry check."
+            raise RuntimeError(
+                f"[PHASE 8 CRITICAL] {symbol}: Could not calculate concentration - {e}. "
+                f"Cannot enforce position sizing without concentration calculation. "
+                f"Cannot enter position without this safety check."
             )
-            continue
 
     if signal_positions:
         breakdown = ", ".join(f"{p['symbol']}:{p['concentration_pct']:.1f}%" for p in signal_positions[:5])
