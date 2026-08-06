@@ -1031,7 +1031,7 @@ class PositionSizer:
                     cur.execute("""
                         SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity))
                         FROM algo_positions p
-                        JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                        JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                         WHERE p.status = 'open'
                     """)
                     result = cur.fetchone()

@@ -761,7 +761,7 @@ class CircuitBreaker:
             SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)),
                    COUNT(*) as position_count
             FROM algo_positions p
-            JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+            JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
             WHERE p.status = %s
             """,
             (PositionStatus.OPEN.value,),

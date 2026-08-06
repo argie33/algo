@@ -196,7 +196,7 @@ class ExitHandler:
             # Validate position has existing stop price (cannot raise NULL stop)
             cursor.execute(
                 """SELECT p.current_stop_price FROM algo_positions p
-                   JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                   JOIN algo_trades t ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                    WHERE t.trade_id = %s
                      AND p.status = %s
                    LIMIT 1""",
@@ -233,7 +233,7 @@ class ExitHandler:
                 """UPDATE algo_positions p
                    SET current_stop_price = %s
                    FROM algo_trades t
-                   WHERE t.trade_id = ANY(p.trade_ids_arr)
+                   WHERE t.trade_id::text = ANY(p.trade_ids_arr::text[])
                      AND t.trade_id = %s
                      AND p.status = %s
                      AND p.current_stop_price IS NOT NULL
@@ -368,7 +368,7 @@ class ExitHandler:
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
-                LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                LEFT JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                 WHERE t.trade_id = %s FOR UPDATE OF t""",
             (trade_id,),
         )

@@ -693,7 +693,7 @@ class ExitEngine:
                                   p.current_stop_price, p.target_1_hit_time, p.target_2_hit_time, p.target_3_hit_time,
                                   t.last_partial_exit_date, t.partial_exits_log
                            FROM algo_trades t
-                           JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
+                           JOIN algo_positions p ON t.trade_id::text = ANY(p.trade_ids_arr::text[])
                            WHERE t.status IN ({status_placeholders}) AND p.status = %s AND p.quantity > 0
                            ORDER BY t.trade_date ASC
                            FOR UPDATE OF p""",
