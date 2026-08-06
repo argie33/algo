@@ -523,11 +523,11 @@ class EntryHandler:
             cur.execute(
                 """
                 INSERT INTO algo_trades (
-                    trade_id, symbol, signal_date, trade_date, entry_price, entry_time, entry_quantity, entry_reason,
+                    trade_id, symbol, signal_date, entry_date, trade_date, entry_price, entry_time, entry_quantity, entry_reason,
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
                     status, sector, idempotency_key, position_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
+                    %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s
                 )
@@ -545,6 +545,7 @@ class EntryHandler:
                     request.symbol,
                     request.signal_date,
                     request.entry_date,
+                    request.entry_date,  # duplicate for both entry_date and trade_date columns
                     request.executed_price,
                     request.shares,
                     request.entry_reason,
