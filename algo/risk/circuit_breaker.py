@@ -581,7 +581,7 @@ class CircuitBreaker:
         # CRITICAL FIX: Use paper_mode_max_consecutive_losses when in paper trading mode
         # Paper mode allows higher threshold (5 vs 3) for thorough testing without interruption.
         # This prevents false halts during normal market volatility testing.
-        is_paper_trading = self.config.get("alpaca_paper_trading", False)
+        is_paper_trading = self.config.get("alpaca_paper_trading", True)
         if is_paper_trading:
             config_key = "paper_mode_max_consecutive_losses"
             # Fallback to regular threshold if paper mode not configured yet
