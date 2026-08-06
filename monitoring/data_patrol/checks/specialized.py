@@ -75,46 +75,48 @@ class DataIntegrityChecker:
         """Detect and clean up positions referencing non-existent trades."""
         try:
             with DatabaseContext("write") as cur:
-                # Find positions with dead trade references
+                # Find positions with dead trade references (trade_ids_arr points to non-existent trades)
+                # CRITICAL FIX: Use INNER JOIN to find positions where NO trades in their trade_ids_arr exist
                 cur.execute("""
-                SELECT p.position_id, p.symbol, COUNT(DISTINCT t.trade_id) as bad_refs
+                SELECT DISTINCT p.position_id, p.symbol
                 FROM algo_positions p
-                LEFT JOIN LATERAL UNNEST(p.trade_ids_arr) AS trade_id ON true
-                LEFT JOIN algo_trades t ON t.trade_id = trade_id
-                WHERE p.status = 'open' AND t.trade_id IS NULL AND trade_id IS NOT NULL
-                GROUP BY p.position_id, p.symbol
+                WHERE p.status = 'open'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM algo_trades t
+                    WHERE t.trade_id::text = ANY(p.trade_ids_arr::text[])
+                  )
                 """)
 
                 dead_refs = cur.fetchall()
 
                 if dead_refs:
                     symbols_list = [row[1] for row in dead_refs]
-                    total_bad_refs = sum(row[2] for row in dead_refs)
-
                     logger.critical(
                         f"[DATA_PATROL] Found {len(dead_refs)} positions with dead trade references: "
-                        f"{', '.join(symbols_list)}. Total bad refs: {total_bad_refs}. "
+                        f"{', '.join(symbols_list)}. "
                         "These positions reference trades that don't exist and will be closed."
                     )
 
-                    # Close positions with dead references
-                    for pos_id, symbol, _ in dead_refs:
-                        cur.execute("""
-                        UPDATE algo_positions
-                        SET status = 'closed',
-                            exit_reason = 'DATA_PATROL_dead_trade_refs',
-                            closed_at = CURRENT_TIMESTAMP
-                        WHERE position_id = %s
-                        """, (pos_id,))
+                    # Close all positions with dead references
+                    cur.execute("""
+                    UPDATE algo_positions
+                    SET status = 'closed',
+                        exit_reason = 'DATA_PATROL_dead_trade_refs',
+                        closed_at = CURRENT_TIMESTAMP
+                    WHERE status = 'open'
+                      AND NOT EXISTS (
+                        SELECT 1 FROM algo_trades t
+                        WHERE t.trade_id::text = ANY(algo_positions.trade_ids_arr::text[])
+                      )
+                    """)
 
-                    cleaned = len(dead_refs)
+                    cleaned = cur.rowcount
                     logger.warning(f"[DATA_PATROL] Closed {cleaned} positions with dead trade references")
 
                     return {
                         "check": "dead_trade_references",
                         "status": "fixed",
                         "positions_closed": cleaned,
-                        "bad_refs_total": total_bad_refs,
                         "symbols": ", ".join(symbols_list),
                     }
 
