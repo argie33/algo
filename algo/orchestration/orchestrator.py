@@ -1783,12 +1783,14 @@ class Orchestrator:
 
         try:
             exposure_actions = executor.get_phase_data_required(5, "actions")
+            exposure_constraints = executor.get_phase_data_required(5, "constraints")
         except MissingPhaseDataError as e:
             logger.warning(
                 f"[PHASE 6] Phase 5 data unavailable: {e}. "
-                f"Phase 6 (always_run) continuing with empty exposure_actions. "
+                f"Phase 6 (always_run) continuing with empty exposure_actions and constraints. "
                 f"Exits will proceed with position-monitor-only logic."
             )
+            exposure_constraints = None
 
         result = run_phase6(
             self.config,
@@ -1800,6 +1802,7 @@ class Orchestrator:
             position_recs,
             exposure_actions,
             executor=executor,
+            exposure_constraints=exposure_constraints,
         )
         return result
 

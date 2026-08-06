@@ -174,6 +174,7 @@ def run(
     exposure_actions: list[dict[str, Any]],
     check_halt_flag: Callable[..., Any] | None = None,
     executor: Any = None,
+    exposure_constraints: Any = None,
 ) -> PhaseResult:
     """Execute Phase 6: Exit Execution.
 
@@ -494,29 +495,33 @@ def run(
                 max_size_pct_val = None
 
                 # Try to get concentration limit from Phase 5 exposure policy constraints
+                # PRIORITIZE: exposure_constraints parameter (passed by orchestrator) over executor.get_result(5)
                 # BUT: only use it if Phase 5 is not halted (halt states have fake 0% limits)
-                if executor is not None:
+                constraints = exposure_constraints
+                if constraints is None and executor is not None:
                     try:
                         phase5_result = executor.get_result(5)
                         if phase5_result:
-                            # CRITICAL FIX: Don't use Phase 5 constraints if Phase 5 halted
-                            # When Phase 5 halts, max_concentration_pct=0 is placeholder, not real limit
-                            is_halted = phase5_result.data.get("halt_active", False)
-                            if not is_halted:
-                                constraints = phase5_result.data.get("constraints", {})
-                                if constraints and isinstance(constraints, dict):
-                                    tier_max_conc = constraints.get("max_concentration_pct")
-                                    # CRITICAL: Also ignore 0% limits even if halt_new_entries=False
-                                    # (0% means NO positions allowed, which is wrong for force-exits)
-                                    if tier_max_conc is not None and tier_max_conc > 0:
-                                        max_size_pct_val = tier_max_conc
-                                        logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
-                                    elif tier_max_conc == 0:
-                                        logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 has 0% concentration limit (halt state) - ignoring and using config fallback")
-                            else:
-                                logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 is halted - ignoring halt constraints and using config fallback")
+                            constraints = phase5_result.data.get("constraints", {})
                     except Exception as phase5_err:
                         logger.debug(f"[PHASE 6] Could not get Phase 5 constraints: {phase5_err}")
+
+                # Apply constraints if available
+                if constraints and isinstance(constraints, dict):
+                    # CRITICAL FIX: Don't use Phase 5 constraints if Phase 5 halted
+                    # When Phase 5 halts, max_concentration_pct=0 is placeholder, not real limit
+                    is_halted = constraints.get("halt_active", False)
+                    if not is_halted:
+                        tier_max_conc = constraints.get("max_concentration_pct")
+                        # CRITICAL: Also ignore 0% limits even if halt_new_entries=False
+                        # (0% means NO positions allowed, which is wrong for force-exits)
+                        if tier_max_conc is not None and tier_max_conc > 0:
+                            max_size_pct_val = tier_max_conc
+                            logger.info(f"[PHASE 6 CONCENTRATION CHECK] Using Phase 5 tier max_concentration_pct={tier_max_conc}%")
+                        elif tier_max_conc == 0:
+                            logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 has 0% concentration limit (halt state) - ignoring and using config fallback")
+                    else:
+                        logger.info(f"[PHASE 6 CONCENTRATION CHECK] Phase 5 is halted - ignoring halt constraints and using config fallback")
 
                 # Fallback to config max_position_size_pct if tier constraint unavailable
                 if max_size_pct_val is None:

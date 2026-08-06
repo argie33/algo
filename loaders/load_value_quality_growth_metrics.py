@@ -600,7 +600,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 forward_pe = float(current_price) / float(forward_eps)
 
         # Validate: at least one core metric must be non-None
-        core_metrics = [pe, pb, ps, fcf_yield]
+        # FIXED 2026-08-06: Include forward_pe in validation. Analyst-derived forward PE should
+        # count toward "available" metric even if historical SEC PE/PB/PS/FCF is missing.
+        # Without this, unprofitable companies with analyst forward EPS guidance were marked
+        # "data_unavailable" despite having a usable forward valuation metric.
+        core_metrics = [pe, pb, ps, fcf_yield, forward_pe]
         if all(m is None for m in core_metrics):
             return self._unavailable_marker("value_metrics", symbol)
 
