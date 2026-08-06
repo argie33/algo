@@ -1883,7 +1883,18 @@ class Orchestrator:
 
         PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
         from Phase 7 and 5 instead of relying on instance attributes.
+        CRITICAL FIX (2026-08-06): Pass exposure_constraints parameter explicitly
+        so Phase 8 can use it as fallback when executor data unavailable.
         """
+        # Get Phase 5 constraints for fallback (Phase 8 normally gets via executor,
+        # but also needs parameter for edge cases where executor is unavailable)
+        exposure_constraints = None
+        try:
+            exposure_constraints = executor.get_phase_data_required(5, "constraints")
+        except Exception as phase5_data_err:
+            logger.debug(f"[PHASE 8] Could not get Phase 5 constraints from executor for parameter fallback: {phase5_data_err}")
+            exposure_constraints = None
+
         result = run_phase8(
             self.config,
             self.run_date,
@@ -1892,6 +1903,7 @@ class Orchestrator:
             self.log_phase_result,
             check_halt_flag=self.halt_manager.check_halt_flag,
             executor=executor,
+            exposure_constraints=exposure_constraints,
         )
         return result
 
