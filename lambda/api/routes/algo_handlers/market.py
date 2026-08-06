@@ -497,7 +497,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "growth_metrics": "report_date",
                         "algo_orchestrator_runs": "updated_at",
                     }
-                    ts_col = ts_columns.get(tbl_name, "created_at")
+                    # Default to updated_at for tables that track update timestamps
+                    # Many tables use updated_at instead of created_at
+                    ts_col = ts_columns.get(tbl_name, "updated_at")
 
                     cur.execute(
                         psycopg2.sql.SQL("SELECT COUNT(*) AS cnt, MAX({}) AS last_ts FROM {}").format(

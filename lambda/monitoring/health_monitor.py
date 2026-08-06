@@ -165,8 +165,20 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
             try:
                 # Find the most recent timestamp in the table
                 assert_safe_table(table_name)
+
+                # Map table names to their actual timestamp columns
+                ts_columns = {
+                    "price_daily": "date",
+                    "buy_sell_daily": "date",
+                    "technical_data_daily": "date",
+                    "sector_ranking": "date",
+                    "algo_trades": "entry_date",
+                    "algo_positions": "entry_date",
+                }
+                ts_col = ts_columns.get(table_name, "created_at")
+
                 cur.execute(f"""
-                    SELECT MAX(created_at) as max_date, COUNT(*) as row_count FROM {table_name}
+                    SELECT MAX({ts_col}) as max_date, COUNT(*) as row_count FROM {table_name}
                     LIMIT 1
                 """)
 
