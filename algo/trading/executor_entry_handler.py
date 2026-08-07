@@ -144,6 +144,7 @@ class EntryHandler:
             'message': str,
         }
         """
+        logger.critical(f"[ENTRY_HANDLER] execute_entry() called for {context.symbol}")
         entry_price = context.prices.entry_price
         shares = context.shares
         stop_loss_price = context.prices.stop_loss_price
@@ -1015,7 +1016,9 @@ class EntryHandler:
             f"base_type={trade_request.base_type} base_quality={trade_request.base_quality}"
         )
 
+        logger.critical(f"[TRADE INSERT] About to insert trade {trade_request.trade_id} for {symbol}")
         self._insert_trade_record(cur, trade_request)
+        logger.critical(f"[TRADE INSERT] Successfully inserted trade {trade_request.trade_id} for {symbol}")
 
         # Insert position record if order was filled or paper_pending (paper mode tracking)
         # PAPER MODE: Create positions for paper_pending trades to maintain portfolio state

@@ -145,7 +145,9 @@ def _get_signals_stocks(
                 f'Unsupported timeframe: {timeframe}. Only "daily" is currently supported.',
             )
 
-        cur.execute("SET LOCAL statement_timeout = '25000ms'")
+        # Note: Removed SET LOCAL statement due to IndexError in DictCursor
+        # The global statement_timeout is already set at connection level
+        # cur.execute("SET LOCAL statement_timeout = '25000ms'")
         params: list[Any] = []
         symbol_clause = ""
         signal_clause = ""

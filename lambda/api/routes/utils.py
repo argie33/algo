@@ -857,14 +857,21 @@ def set_current_cursor(cursor_or_service: Any) -> None:
     """Store cursor in thread-local for safe_dict_convert to use.
 
     Handles both raw psycopg2 cursors and DatabaseQueryService wrappers.
+    Unwraps nested cursor wrappers (_ErrorLoggedCursor and _CorrelationIdCursor)
+    to get the actual underlying psycopg2 cursor.
     """
-    # Extract raw cursor if wrapped in DatabaseQueryService
-    if hasattr(cursor_or_service, "cursor") and hasattr(cursor_or_service.cursor, "description"):
-        # This is likely a DatabaseQueryService wrapping a cursor
-        _thread_local.cursor = cursor_or_service.cursor
-    else:
-        # Use as-is (assume it's a raw cursor)
-        _thread_local.cursor = cursor_or_service
+    # Unwrap nested cursor wrappers to get the actual psycopg2 cursor
+    current = cursor_or_service
+    while hasattr(current, "cursor"):
+        # Keep unwrapping until we reach the actual psycopg2 cursor
+        # (which has a description attribute but no nested cursor attribute)
+        next_cursor = current.cursor
+        if hasattr(next_cursor, "description"):
+            current = next_cursor
+        else:
+            break
+
+    _thread_local.cursor = current
 
 
 def clear_current_cursor() -> None:
