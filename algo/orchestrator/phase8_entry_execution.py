@@ -989,10 +989,11 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
         (is_fresh, message) - is_fresh=True if price_daily is current for the market phase
     """
     from datetime import datetime as dt, timedelta as td
+    from utils.infrastructure import EASTERN_TZ as _TZ_LOCAL
 
     try:
         # Determine market context (matching Phase 1 logic)
-        now_et = dt.now(EASTERN_TZ)
+        now_et = dt.now(_TZ_LOCAL)
         is_market_open = now_et.hour > 9 or (now_et.hour == 9 and now_et.minute >= 30)
         is_after_market_close = now_et.hour >= 16
 
@@ -1121,7 +1122,11 @@ def run(
     test_mode = os.environ.get('PHASE_8_TEST_MODE', 'false').lower() == 'true'
     allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
 
-    now_dt = datetime.now(EASTERN_TZ)
+    # CRITICAL FIX (Session 30): Import EASTERN_TZ at function level to ensure availability
+    # Previous: UnboundLocalError "cannot access local variable 'EASTERN_TZ'" due to scope shadowing
+    # This ensures we always have access to the timezone regardless of outer scope
+    from utils.infrastructure import EASTERN_TZ as _EASTERN_TZ
+    now_dt = datetime.now(_EASTERN_TZ)
     now_et = now_dt.time()
     is_market_open = MarketCalendar.is_market_open(now_dt)
 
@@ -2077,7 +2082,7 @@ def run(
         # Analysis: High-volatility market open causes false breakouts that reverse within hours
         # Solution: Enforce 60-minute market open exclusion - allow entries only after 10:30 AM ET
         from datetime import time as dt_time
-        current_time_et = datetime.now(EASTERN_TZ).time()
+        current_time_et = datetime.now(_EASTERN_TZ).time()
         market_open_start = dt_time(9, 30)  # 9:30 AM ET
         market_open_end = dt_time(10, 30)   # 10:30 AM ET
 
