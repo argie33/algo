@@ -10,7 +10,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -46,6 +46,7 @@ from algo.orchestrator.phase6_exit_execution import run as run_phase6
 from algo.orchestrator.phase7_signal_generation import run as run_phase7
 from algo.orchestrator.phase8_entry_execution import run as run_phase8
 from algo.orchestrator.phase9_reconciliation import run as run_phase9
+from algo.orchestrator.phase_data_contract import ExposureConstraints
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.orchestration.position_sync import sync_positions_from_trades, validate_position_count
@@ -1834,15 +1835,18 @@ class Orchestrator:
                 f"due to halt_new_entries=True in fallback constraints."
             )
             # Use same safe defaults as Phase 5 skip data
-            exposure_constraints = {
-                "tier_name": "CORRECTION",
-                "regime": "CORRECTION",
-                "risk_multiplier": 0.0,
-                "max_new_positions_today": 0,
-                "halt_new_entries": True,
-                "max_concentration_pct": 0.0,
-                "halt_reason": "Phase 5 unavailable - using conservative defaults",
-            }
+            exposure_constraints = cast(
+                ExposureConstraints,
+                {
+                    "tier_name": "CORRECTION",
+                    "regime": "CORRECTION",
+                    "risk_multiplier": 0.0,
+                    "max_new_positions_today": 0,
+                    "halt_new_entries": True,
+                    "max_concentration_pct": 0.0,
+                    "halt_reason": "Phase 5 unavailable - using conservative defaults",
+                },
+            )
         else:
             exposure_constraints = executor.get_phase_data_required(5, "constraints")
 

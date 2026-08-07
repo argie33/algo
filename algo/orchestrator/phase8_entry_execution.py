@@ -98,6 +98,10 @@ logger = logging.getLogger(__name__)
 # for why - the old "expansion"/"correction"/"caution" list never matched actual data).
 VALID_REGIMES = ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
 
+# CRITICAL: Maximum allowed risk per position (20%)
+# Used in stop loss calculation and risk capping logic
+MAX_RISK_ALLOWED = 0.20
+
 
 def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints | Any) -> None:
     """AUDIT ISSUE #15 FIX: Validate exposure constraints before using in Phase 8 entry execution.
@@ -245,7 +249,6 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
         raise ValueError(f"Invalid atr={atr} for stop-loss calculation. Must be >= 0.")
 
     atr_ratio = atr / entry_price
-    max_risk_allowed = 0.20  # 20% max risk limit
 
     # Progressive multiplier based on volatility
     if atr_ratio >= 0.10:  # Extreme volatility: ATR >= 10% of price
@@ -258,16 +261,16 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
     volatility_stop = entry_price - atr_multiplier * atr
     risk_with_volatility_stop = (entry_price - volatility_stop) / entry_price
 
-    # If even the tight volatility stop is too wide, cap it at max_risk_allowed
-    if risk_with_volatility_stop > max_risk_allowed:
-        stop_loss = entry_price * (1 - max_risk_allowed)
+    # If even the tight volatility stop is too wide, cap it at MAX_RISK_ALLOWED
+    if risk_with_volatility_stop > MAX_RISK_ALLOWED:
+        stop_loss = entry_price * (1 - MAX_RISK_ALLOWED)
     else:
         # Use support-level stop (SMA_50 - ATR) if it's tighter than volatility stop
         support_stop = sma_50 - atr
         support_risk = (entry_price - support_stop) / entry_price
 
         # Only use support_stop if it's valid and fits within risk limits
-        if support_stop > 0 and support_stop < entry_price and support_risk <= max_risk_allowed:
+        if support_stop > 0 and support_stop < entry_price and support_risk <= MAX_RISK_ALLOWED:
             stop_loss = min(volatility_stop, support_stop)
         else:
             stop_loss = volatility_stop
@@ -2179,7 +2182,7 @@ def run(
             # Calculate cumulative concentration to find how many fit
             qualified_trades_that_fit = []
             cumulative_conc = 0.0
-            skipped_reason_counts = {}
+            skipped_reason_counts: dict[str, int] = {}
 
             for signal in sorted_signals:
                 symbol = signal.get("symbol")
@@ -2467,13 +2470,13 @@ def run(
                             adjusted_stop = min_stop_above_support
                             adjusted_risk = (entry_price - adjusted_stop) / entry_price
 
-                            # CRITICAL: Cap stop at max_risk_allowed even after support adjustment
+                            # CRITICAL: Cap stop at MAX_RISK_ALLOWED even after support adjustment
                             # to prevent support-based adjustment from violating risk limits
-                            if adjusted_risk > max_risk_allowed:
-                                adjusted_stop = entry_price * (1 - max_risk_allowed)
+                            if adjusted_risk > MAX_RISK_ALLOWED:
+                                adjusted_stop = entry_price * (1 - MAX_RISK_ALLOWED)
                                 logger.warning(
                                     f"[PHASE 8] {symbol}: Support-adjusted stop ${min_stop_above_support:.2f} "
-                                    f"would risk {adjusted_risk*100:.1f}%, exceeds {max_risk_allowed*100:.0f}% limit. "
+                                    f"would risk {adjusted_risk*100:.1f}%, exceeds {MAX_RISK_ALLOWED*100:.0f}% limit. "
                                     f"Capping at ${adjusted_stop:.2f}."
                                 )
                             else:
