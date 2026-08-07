@@ -759,6 +759,10 @@ class ExitEngine:
 
                         status, fresh_quantity, fresh_stop_price = status_row
 
+                        # CRITICAL FIX Session 20: Hard stop loss check MUST use t.stop_loss_price from trade record
+                        # NOT current_stop_price from position (which is a trailing/running stop that gets updated)
+                        # The hard stop loss is the initial capital preservation level set at entry time
+
                         if status != "open":
                             logger.debug(f"Position {symbol} already closed, skipping exit check")
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
@@ -935,15 +939,17 @@ class ExitEngine:
                         # CRITICAL: Check hard stop-loss BEFORE min_hold_days gate
                         # Hard stop-loss is unconditional capital preservation, not discretionary
                         # Same-day entries can (and must) exit on stop-loss
+                        # CRITICAL FIX Session 20: Use init_stop (t.stop_loss_price from trade) not active_stop
+                        # active_stop was using current_stop_price (running stop) instead of initial hard stop loss
                         cur_price_dec = Decimal(str(cur_price)) if not isinstance(cur_price, Decimal) else cur_price
-                        active_stop_dec = Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop
+                        hard_stop_dec = Decimal(str(init_stop)) if not isinstance(init_stop, Decimal) else init_stop
                         exit_signal: dict[str, Any] | None = None
-                        if cur_price_dec <= active_stop_dec:
+                        if cur_price_dec <= hard_stop_dec:
                             exit_signal = {
                                 "stage": "stop",
                                 "fraction": 1.0,
                                 "reason": (
-                                    f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
+                                    f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(hard_stop_dec):.2f} "
                                     "(hard capital preservation - bypasses min_hold_days)"
                                 ),
                             }
