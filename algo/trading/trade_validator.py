@@ -254,10 +254,14 @@ class TradeValidator:
         if entry_date:
             # NEW CHECK: Prevent same-day duplicate entries at algo_positions level
             # "You can only hold one position per symbol per trading day" constraint
+            # CRITICAL FIX: Only block if position is OPEN, not CLOSED. If the previous position was
+            # already exited, re-entry should be allowed (unless cooldown/re-entry rules apply).
+            # Previous bug: Checked ALL positions regardless of status, blocking re-entry even after
+            # the first position closed, which prevented Phase 8 from entering any new positions.
             cur.execute(
                 """
                 SELECT position_id FROM algo_positions
-                WHERE symbol = %s AND entry_date = %s
+                WHERE symbol = %s AND entry_date = %s AND is_open = true
                 LIMIT 1
                 """,
                 (symbol, entry_date),
@@ -265,8 +269,8 @@ class TradeValidator:
             if cur.fetchone():
                 return (
                     True,
-                    f"Symbol {symbol} already has a position entered on {entry_date}. "
-                    f"Can only hold one active position per symbol per trading day.",
+                    f"Symbol {symbol} already has an active (open) position entered on {entry_date}. "
+                    f"Can only hold one open position per symbol per trading day.",
                 )
 
         # LEGACY CHECK: Also check for truly open live positions
