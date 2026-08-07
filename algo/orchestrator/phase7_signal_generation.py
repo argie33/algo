@@ -636,6 +636,7 @@ def _get_candidates_from_buysell(
                     "signal_strength": raw_strength,
                     "signal_quality_score": None,  # CRITICAL: Initialize to None to ensure key exists. Will be set by inline scorer.
                     "trend_template_score": None,  # CRITICAL: Initialize to None. Will be set by inline scorer if available.
+                    "base_quality": None,  # CRITICAL: Initialize to None. Will be set by inline scorer after scoring completes.
                     "sector": r[11],
                     "industry": r[12],
                     "buylevel": float(r[13]) if r[13] is not None else None,
@@ -777,6 +778,7 @@ def _get_candidates_from_buysell(
                         # One symbol's calculation error should not block signal generation for all other symbols
                         candidate["signal_quality_score"] = None
                         candidate["trend_template_score"] = None
+                        candidate["base_quality"] = None
 
                 missing_scores = sum(1 for c in candidates if c.get("signal_quality_score") is None)
                 if missing_scores > 0:
