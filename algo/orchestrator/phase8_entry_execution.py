@@ -2835,12 +2835,23 @@ def run(
                         # Phase 7 computes signal_quality_score and passes it via qualified_trades
                         # Phase 8 must extract and pass it through to TradeContext
                         # Session 379 fix: Verified sqs value before passing
+
+                        # CRITICAL FIX (Session 30): Convert signal_date from string to date object
+                        # Phase 7 stores signal_date as ISO string, but TradeContext expects date object
+                        sig_date = signal.get("signal_date")
+                        if isinstance(sig_date, str):
+                            try:
+                                sig_date = datetime.strptime(sig_date, "%Y-%m-%d").date()
+                            except (ValueError, TypeError):
+                                sig_date = run_date
+                        sig_date = sig_date or run_date
+
                         trade_result = trade_executor.execute_trade(
                             symbol=symbol,
                             entry_price=entry_price,
                             shares=shares,
                             stop_loss_price=stop_loss,
-                            signal_date=signal.get("signal_date") or run_date,
+                            signal_date=sig_date,
                             entry_date=run_date,
                             composite_score=composite_score,
                             sector=signal.get("sector"),
