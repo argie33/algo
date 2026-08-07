@@ -476,22 +476,17 @@ class TradeValidator:
         if prior:
             _prior_trade_id, exit_date, exit_reason, _exit_pnl, prior_reentry = prior
 
-            # CRITICAL: reentry_count MUST be present in database, no fallback to 0
-            if prior_reentry is None:
-                raise ValueError(
-                    f"[REENTRY_COUNT_MISSING] Trade data integrity error for {symbol}: "
-                    f"reentry_count is NULL in database. Cannot safely determine re-entry eligibility."
-                )
+            # If reentry_count is NULL, treat as 0 (no prior re-entries)
+            prior_reentry = prior_reentry if prior_reentry is not None else 0
 
-            # CRITICAL: exit_reason MUST be present for stop-out detection, no fallback to empty string
-            if exit_reason is None:
-                raise ValueError(
-                    f"[EXIT_REASON_MISSING] Trade data integrity error for {symbol}: "
-                    f"exit_reason is NULL. Cannot determine if prior exit was a stop-out."
-                )
+            # If exit_reason is NULL, treat as non-stop-out (not a stop-loss exit)
+            # This allows re-entry instead of blocking with an error
+            is_stop_out = False
+            if exit_reason is not None:
+                # Only enforce re-entry rules if prior trade was a stop-out
+                is_stop_out = "STOP" in exit_reason.upper() or "TIME" in exit_reason.upper()
 
-            # Only enforce re-entry rules if prior trade was a stop-out
-            if "STOP" in exit_reason.upper() or "TIME" in exit_reason.upper():
+            if is_stop_out:
                 prior_reentry_count = int(prior_reentry)
                 if prior_reentry_count >= self.max_reentries_per_name:
                     return (

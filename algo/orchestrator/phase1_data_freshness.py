@@ -362,6 +362,30 @@ def run(  # noqa: C901
     """
     validate_phase_config(config, "phase_1_data_freshness")
 
+    # STARTUP: Clean up orphaned positions from previous failed runs
+    # This prevents orphaned positions from blocking Phase 2/7 risk calculations
+    try:
+        from utils.db import DatabaseContext
+        with DatabaseContext("write") as cleanup_cursor:
+            cleanup_cursor.execute("""
+                WITH closed_trades AS (
+                    SELECT DISTINCT symbol FROM algo_trades
+                    WHERE status = 'closed'
+                )
+                UPDATE algo_positions p
+                SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE p.status = 'open' AND p.symbol IN (SELECT symbol FROM closed_trades)
+                AND NOT EXISTS (
+                    SELECT 1 FROM algo_trades t
+                    WHERE t.symbol = p.symbol AND t.status = 'open'
+                );
+            """)
+            if cleanup_cursor.rowcount > 0:
+                logging.info(f"[PHASE 1 STARTUP] Auto-closed {cleanup_cursor.rowcount} orphaned positions from previous runs")
+    except Exception as cleanup_err:
+        logging.warning(f"[PHASE 1 STARTUP] Could not cleanup orphaned positions: {cleanup_err}")
+
     from datetime import timedelta as td
 
     phase_start = time.time()

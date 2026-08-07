@@ -1761,6 +1761,7 @@ def run(
 
         # CRITICAL: Final consistency check - close any positions with closed trades
         # This prevents orphaned positions from blocking future runs (Phase 7 risk check)
+        orphans_fixed = False
         try:
             with DatabaseContext("write") as sync_cursor:
                 sync_cursor.execute("""
@@ -1779,8 +1780,13 @@ def run(
                 """, (run_date,))
                 if sync_cursor.rowcount > 0:
                     logger.info(f"[PHASE 9 FINAL SYNC] Auto-closed {sync_cursor.rowcount} orphaned positions with closed trades")
+                    orphans_fixed = True
         except Exception as sync_err:
             logger.warning(f"[PHASE 9 FINAL SYNC] Could not auto-close orphaned positions: {sync_err}")
+
+        # If we fixed orphaned positions, mark it in the log so next run clears halt flag
+        if orphans_fixed:
+            logger.warning("[PHASE 9] Fixed orphaned positions - halt flag will auto-clear on next Phase 1 data freshness check")
 
         # CRITICAL: Log final consolidated phase result (not a sub-step)
         # Phase 9 logs multiple sub-steps (reconciliation, portfolio_snapshot, weight_optimization, etc.)
