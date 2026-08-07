@@ -271,7 +271,16 @@ def run(
                         f"These likely resulted from race condition during order entry. Check logs for Phase 8 errors."
                     )
         except Exception as e:
-            logger.error(f"[PHASE 6] Failed to clean orphaned trades: {str(e)[:200]}", exc_info=False)
+            # CRITICAL FIX: If orphaned trade cleanup fails (permissions, connection, etc.),
+            # Phase 6 must halt rather than continue. Orphaned trades will cause subsequent Phase 6 runs to fail.
+            logger.critical(
+                f"[PHASE 6 CRITICAL] Failed to clean orphaned trades. This must be fixed before Phase 6 can proceed. "
+                f"Error: {type(e).__name__}: {str(e)[:200]}"
+            )
+            raise RuntimeError(
+                f"[PHASE 6] Orphaned trade cleanup failed - cannot proceed. "
+                f"Check database connectivity and permissions. Error: {e}"
+            ) from e
 
         # CRITICAL FIX 2026-07-30: ALWAYS validate Phase 3 data regardless of mode
         # Phase 3 DOES generate recommendations in paper mode (verified: recent runs show 14 recommendations)

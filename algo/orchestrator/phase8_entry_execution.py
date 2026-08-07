@@ -1355,26 +1355,21 @@ def run(
         logger.info("[PHASE 8] Using exposure_constraints parameter (executor data unavailable)")
 
     if exposure_constraints_from_executor is None:
-        from algo.risk import ExposurePolicyConstraints
-
-        logger.warning(
-            "[PHASE 8] Exposure constraints unavailable or incomplete - using safe halt constraints. "
-            "Position entry will be blocked until valid constraints are available."
+        # CRITICAL FIX: Phase 5 unavailability should halt Phase 8, not silently degrade
+        # Entry sizing requires exposure policy constraints from Phase 5
+        # Without them, we cannot safely calculate position sizes or enforce limits
+        logger.critical(
+            "[PHASE 8 CRITICAL] Exposure constraints unavailable - Phase 5 was skipped, halted, or errored. "
+            "Cannot proceed with entry execution without valid exposure policy. Phase 8 must halt."
         )
-        safe_constraints = ExposurePolicyConstraints(
-            regime="correction",
-            tier_name="CORRECTION",
-            description="Safe halt defaults (constraints unavailable)",
-            risk_multiplier=0.0,
-            max_new_positions_today=0,
-            halt_new_entries=True,
-            max_concentration_pct=0.0,
-            as_of_date="",
-            exposure_pct=0.0,
-            min_composite_score=0.0,
-            halt_reason="Exposure constraints unavailable - Phase 5 incomplete or skipped",
+        return PhaseResult(
+            8,
+            "entry_execution",
+            "halted",
+            {"entered": 0, "failed": 0},
+            True,  # halted=True: this is critical and must halt orchestration
+            "Phase 5 (exposure_policy) did not provide constraints. Phase 8 requires Phase 5 output to execute entries safely.",
         )
-        exposure_constraints_from_executor = cast(ExposureConstraints, safe_constraints.to_dict())
 
         # CHECKPOINT 3: Validate safe defaults have all required fields (fallback path)
         required_fields = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
