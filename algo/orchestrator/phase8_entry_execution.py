@@ -2740,6 +2740,23 @@ def run(
                 skipped_count += 1
                 continue
 
+            # NEW GATE: Check maximum signal quality score (filters potentially risky high-scoring signals)
+            # Investigation pending on whether quality_score is inverted (higher scores had losses on 2026-08-07)
+            max_sqs_val = config.get("max_signal_quality_score")
+            if max_sqs_val is not None:
+                try:
+                    max_sqs = int(max_sqs_val)
+                    if max_sqs < 0 or max_sqs > 100:
+                        raise ValueError(f"max_signal_quality_score must be 0-100, got {max_sqs}")
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"[PHASE 8 CRITICAL] max_signal_quality_score is invalid ({max_sqs_val}): {e}") from e
+                if sqs > max_sqs:
+                    rejection_reason = f"Signal quality score {int(sqs)} exceeds maximum {max_sqs} (potential risk indicator)"
+                    logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
+                    _log_signal_rejection(symbol, "quality_gate_max", rejection_reason, run_date, entry_price, risk_pct)
+                    skipped_count += 1
+                    continue
+
             logger.info(
                 f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
