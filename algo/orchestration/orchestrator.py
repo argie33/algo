@@ -2007,6 +2007,34 @@ class Orchestrator:
                 f"This prevents pre-market/after-hours execution from corrupting production state. "
                 f"To test outside market hours, use: ALLOW_OUTSIDE_MARKET_HOURS=true"
             )
+            # CRITICAL FIX: Save to execution log BEFORE returning, so DB records the guard block
+            # Previous: guard returned early without saving status, so DB showed "success" for blocked runs
+            halt_reason = f"outside_market_hours: {now_et.strftime('%H:%M:%S')} ET"
+            try:
+                self.execution_tracker.save_execution_log("degraded", halt_reason)
+                with DatabaseContext("write") as cur:
+                    execution_time = time.time() - self.run_start
+                    cur.execute(
+                        """
+                        INSERT INTO algo_orchestrator_runs
+                        (run_id, run_date, overall_status, started_at, completed_at, execution_time_seconds, halt_reason)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (run_id) DO NOTHING
+                        """,
+                        (
+                            self.run_id,
+                            self.run_date,
+                            "degraded",
+                            datetime.now(timezone.utc) - timedelta(seconds=execution_time),
+                            datetime.now(timezone.utc),
+                            execution_time,
+                            halt_reason,
+                        ),
+                    )
+                logger.debug(f"[EXECUTION_LOG] Saved degraded status for market hours guard block")
+            except Exception as e:
+                logger.warning(f"[EXECUTION_LOG] Could not save guard block status: {e}")
+
             return {
                 "run_id": self.run_id,
                 "run_date": self.run_date.isoformat(),
