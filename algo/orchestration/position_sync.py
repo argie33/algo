@@ -68,9 +68,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
             # because those don't represent open positions. Use same logic as sync query below.
             # Cannot DELETE due to foreign key constraint (trades reference position_id).
             # Instead, set status='closed' so position is removed from risk calculations.
+            # CRITICAL: Do NOT close positions created in the last 60 seconds - Phase 8 entry execution
+            # may still be committing trades to the database for newly-created positions. Closing them
+            # here creates orphaned positions with no matching trades, breaking the exit path.
             cur.execute('''
                 UPDATE algo_positions p SET status = 'closed', updated_at = NOW()
                 WHERE p.status = 'open'
+                AND p.created_at < NOW() - INTERVAL '60 seconds'
                 AND NOT EXISTS (
                     SELECT 1 FROM algo_trades t
                     WHERE t.position_id = p.position_id
@@ -133,34 +137,26 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
                     ) = trade_row
 
-                    # Check for existing OPEN position first
-                    # The unique index prevents multiple open positions per symbol.
-                    # If we find one, update it. If not, check for closed positions to reopen.
+                    # Check for existing position (open OR closed) for this symbol
+                    # CRITICAL FIX: Must check for BOTH open AND closed positions. If position exists
+                    # but is closed, we should reopen/update it, not insert a duplicate. Previously
+                    # only checked for open status, causing position_sync to INSERT new positions
+                    # when Phase 9 had closed the existing one, creating orphaned duplicates.
                     # CRITICAL FIX: Must use position_id (UUID), not id (integer). The id field
                     # is a database surrogate key; position_id is what links to algo_trades.
                     # Using id caused duplicate positions: one with id/position_id mismatch pointing
                     # to no trades (orphaned), another with correct position_id pointing to trades.
                     cur.execute(
-                        'SELECT position_id FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1',
+                        'SELECT position_id, status FROM algo_positions WHERE symbol = %s ORDER BY CASE WHEN status = %s THEN 0 ELSE 1 END, updated_at DESC LIMIT 1',
                         (symbol, 'open')
                     )
-                    existing_open = cur.fetchone()
+                    existing = cur.fetchone()
 
-                    if existing_open:
-                        # There's already an open position - just update it
-                        existing_id = existing_open[0]
-                        existing_status = 'open'
+                    if existing:
+                        # There's already a position (open or closed) - just update/reopen it
+                        existing_id, existing_status = existing
                     else:
-                        # No open position - check for closed position to reopen
-                        cur.execute(
-                            'SELECT position_id, status FROM algo_positions WHERE symbol = %s ORDER BY updated_at DESC LIMIT 1',
-                            (symbol,)
-                        )
-                        existing = cur.fetchone()
-                        if existing:
-                            existing_id, existing_status = existing
-                        else:
-                            existing_id, existing_status = None, None
+                        existing_id, existing_status = None, None
 
                     if existing_id:
                         # Fetch trade_ids for this SPECIFIC position to sync with existing record

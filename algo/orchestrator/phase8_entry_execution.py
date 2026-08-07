@@ -541,59 +541,70 @@ _POLICY_REJECTION_STATUSES = {
 
 
 def _cleanup_orphaned_positions() -> int:
-    """Clean up orphaned positions with quantity=0 but status='open'.
+    """Clean up corrupted/orphaned positions with missing critical data or zero quantity.
 
-    AUDIT ISSUE #6: Positions with quantity=0 but status='open' can occur when:
+    AUDIT ISSUE #6: Positions with data corruption can occur when:
     - Phase 6 exit clears the position (quantity→0) but status update fails
-    - Trade data is corrupted upstream and quantity was never set properly
+    - Trade data is corrupted upstream and critical fields (entry_price, stop_loss) not set
+    - Position was created but corresponding trade insertion failed
 
-    These orphaned positions:
-    - Shouldn't exist in the 'open' state (they're fully exited)
-    - Will fail risk validation if found during _calculate_current_total_risk_pct()
-    - Should be cleaned up proactively instead of causing Phase 8 failures
+    These corrupted positions:
+    - Shouldn't exist in the 'open' state (they're unmanageable)
+    - Will fail risk validation and halt Phase 8 entry execution
+    - Should be cleaned up proactively before risk checks run
 
-    This function marks them as 'closed' with a cleanup annotation so they
-    don't accumulate and corrupt the database over time.
+    This function closes positions with:
+    1. quantity=0 (fully exited but still marked open)
+    2. NULL entry_price, stop_loss_price, or quantity (incomplete/corrupted data)
+    3. Zero quantity (degenerate case of data corruption)
 
     Returns:
         Number of positions cleaned up
     """
     try:
         with DatabaseContext("write") as cur:
-            # Find positions with quantity=0 but still marked 'open'
+            # Find all corrupted positions (quantity=0, NULL fields, or zero quantity)
             cur.execute(
                 """
                 SELECT COUNT(*) FROM algo_positions
-                WHERE quantity = 0 AND status = 'open'
+                WHERE status = 'open'
+                  AND (quantity = 0
+                       OR quantity IS NULL
+                       OR entry_price IS NULL
+                       OR stop_loss_price IS NULL)
                 """
             )
             result = cur.fetchone()
             orphaned_count = result[0] if result else 0
 
             if orphaned_count > 0:
-                # Mark them as closed with cleanup annotation
+                # Mark all corrupted positions as closed
                 cur.execute(
                     """
                     UPDATE algo_positions
                     SET status = 'closed',
                         closed_at = CURRENT_TIMESTAMP,
-                        exit_reason = 'Phase8_cleanup_orphaned_position'
-                    WHERE quantity = 0 AND status = 'open'
+                        exit_reason = 'Phase8_cleanup_data_corruption'
+                    WHERE status = 'open'
+                      AND (quantity = 0
+                           OR quantity IS NULL
+                           OR entry_price IS NULL
+                           OR stop_loss_price IS NULL)
                     """
                 )
                 logger.warning(
-                    f"[PHASE 8 CLEANUP] Cleaned up {orphaned_count} orphaned positions "
-                    f"(quantity=0, status was 'open'). These should not exist and indicate "
-                    f"prior Phase 6 exit or data issue."
+                    f"[PHASE 8 CLEANUP DATA CORRUPTION] Closed {orphaned_count} corrupted positions. "
+                    f"These had missing or NULL critical fields (quantity, entry_price, stop_loss_price). "
+                    f"Data corruption detected and cleaned up to prevent Phase 8 halt."
                 )
                 return orphaned_count
             return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"[PHASE 8 CLEANUP] Failed to clean up orphaned positions (DB error): {e}")
+        logger.error(f"[PHASE 8 CLEANUP] Failed to clean up corrupted positions (DB error): {e}")
         # Don't fail Phase 8 over cleanup failure - log and continue
         return 0
     except Exception as e:
-        logger.error(f"[PHASE 8 CLEANUP] Failed to clean up orphaned positions: {e}")
+        logger.error(f"[PHASE 8 CLEANUP] Failed to clean up corrupted positions: {e}")
         # Don't fail Phase 8 over cleanup failure - log and continue
         return 0
 
