@@ -2747,8 +2747,6 @@ def run(
 
             sig_date_obj = signal.get("signal_date")
             if sig_date_obj:
-                from datetime import datetime
-                from utils.infrastructure.timezone import EASTERN_TZ
                 if isinstance(sig_date_obj, str):
                     sig_date_obj = datetime.fromisoformat(sig_date_obj).date()
                 run_date_obj = run_date if isinstance(run_date, _date) else run_date.date()

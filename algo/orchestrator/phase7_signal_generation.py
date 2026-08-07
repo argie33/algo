@@ -217,6 +217,8 @@ _REQUIRED_SIGNAL_FIELDS = {
     "signal_strength": float,
     "signal_quality_score": float,
     "signal_date": str,
+    "trend_template_score": float,
+    "base_quality": str,
 }
 
 
