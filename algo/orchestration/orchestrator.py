@@ -2002,8 +2002,8 @@ class Orchestrator:
             logger.warning(
                 f"[MARKET_HOURS_GUARD] Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
                 f"Market hours: {MARKET_OPEN_TIME.strftime('%H:%M')} - {MARKET_CLOSE_TIME.strftime('%H:%M')} ET. "
-                f"This prevents pre-market manual testing from corrupting production state. "
-                f"Use dry_run=True to test outside market hours safely."
+                f"This prevents pre-market/after-hours execution from corrupting production state. "
+                f"To test outside market hours, use: ALLOW_OUTSIDE_MARKET_HOURS=true"
             )
             return {
                 "run_id": self.run_id,
