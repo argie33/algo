@@ -36,6 +36,7 @@ VALIDATION_SCHEMA = {
     "min_stock_price": ("float", 0.1, 1000.0, False, 5.0),
     "min_signal_quality_score": ("int", 1, 100, True, 60),  # Fail-closed to 60
     "max_signal_quality_score": ("int", 1, 100, False, 100),  # Max quality score threshold
+    "max_signal_age_hours": ("int", 1, 168, False, 24),  # Max age of EOD signals (hours); default 24h
     "min_volume_ma_50d": ("int", 1, 10000000, True, 300000),
     "min_avg_daily_dollar_volume": ("float", 1.0, 100000000.0, True, 500000.0),
     "require_stock_stage_2": ("bool", None, None, False, None),
