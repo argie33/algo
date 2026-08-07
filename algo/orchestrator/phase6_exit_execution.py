@@ -559,29 +559,31 @@ def run(
                             f"Check that Phase 3 has the correct database role and can update position_value."
                         )
 
-                    # Get total invested capital (sum of OPEN positions only)
-                    # CRITICAL FIX (Session 2026-08-07): Must check concentration as % of INVESTED capital,
-                    # not total portfolio value (which includes cash). Positions are sized as % of total portfolio
-                    # at entry time (e.g., 6% of $71k = $4,260 position when 100% invested), but by execution
-                    # time positions may have closed and portfolio shrunk (e.g., from $71k to $24k). When only
-                    # 34% invested, that same $4,260 position is actually 17% of invested capital - a massive
-                    # concentration violation that portfolio-snapshot-based checks would miss.
+                    # Get total portfolio value from today's snapshot - SAME denominator Phase 8 uses to size positions.
+                    # CRITICAL FIX: Use portfolio snapshot value, NOT SUM of open positions.
+                    # Previous bug (Session 2026-08-07 attempt): Used SUM(position_value WHERE status='open'),
+                    # which creates a SHRINKING DENOMINATOR as positions close one-by-one. Example:
+                    # - First position entered: SUM = $4.3k → appears as 100% concentration (self-divided)
+                    # - Force-exited due to false positive
+                    # - Next position entered: SUM = $4.3k → again 100%, force-exited
+                    # Result: oscillating force-exits, zero positions survive Phase 6
                     #
-                    # Example: Phase 8 enters 10 positions at 6% each (total $71k), closing some leaves $24k
-                    # invested. If we check original portfolio ($71k): 6% looks fine. If we check invested
-                    # capital ($24k): 16.9% - violates 6% limit. CORRECT approach: use invested capital.
+                    # CORRECT APPROACH: Use portfolio snapshot value (what Phase 8 used at sizing time).
+                    # This is fixed and does not shrink as positions close during the day.
                     cur.execute(
                         """
-                        SELECT COALESCE(SUM(position_value), 0) FROM algo_positions
-                        WHERE status = 'open'
+                        SELECT COALESCE(total_portfolio_value, 0) FROM algo_portfolio_snapshots
+                        WHERE snapshot_date = %s
+                        ORDER BY snapshot_date DESC LIMIT 1
                         """,
+                        (run_date,),
                     )
                     result = cur.fetchone()
                     total_value = result[0] if result else 0
                     if total_value is None or total_value == 0:
                         logger.info(
-                            "[PHASE 6] No open positions or zero total invested value. "
-                            "Concentration checks not needed when nothing is invested."
+                            "[PHASE 6] No portfolio snapshot for today. "
+                            "Concentration checks not possible without portfolio baseline."
                         )
                         return []
 

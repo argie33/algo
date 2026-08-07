@@ -56,11 +56,28 @@ python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stu
 
 ## Repository Maintenance
 
-**Monthly cleanup:**
+**Monthly cleanup** (runs ~2026-08-07 cleaned 1,850 MB):
 ```bash
+# Session artifacts
+rm *.log                                       # Remove orchestrator test logs
+rm -r __pycache__ .pytest_cache .mypy_cache   # Python cache (regenerated)
+
+# Git optimization
 git stash clear                                # Clear uncommitted work storage  
 git gc --aggressive --prune=now                # Compact .git (frees 50-100 MB)
+
+# Memory system
+# Delete old session-scoped findings from memory/
+# Keep only load-bearing rules referenced in MEMORY.md index
 ```
 
-**What to keep:** Code, tests, IaC, config files.
-**What to delete:** `.log` files, audit reports, debug scripts, worktree branches, dated session findings from memory.
+**What to keep:** Source code, tests, IaC, config, current session active findings.
+**What to delete:** `.log` files, old audit reports, Python cache, debug scripts, dated session findings from memory, .terraform cache (auto-regenerated).
+
+**Recent cleanup (2026-08-07):**
+- Memory: 70+ files (250 KB) → 32 files (111 KB) 
+- Logs: 80 files (39 MB deleted)
+- Python cache: 26 dirs (13 MB deleted)
+- Terraform cache: 3 dirs (1,785 MB deleted)
+- Git gc: 6 MB additional packing
+- **Total: 1,850 MB freed**

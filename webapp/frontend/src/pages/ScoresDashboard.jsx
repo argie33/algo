@@ -168,9 +168,14 @@ function ScoresDashboardPage() {
   const queryResult = useApiQuery(
     ["stock-scores"],
     () =>
-      api.get(
-        "/api/scores/stockscores?limit=1000&offset=0&sortBy=composite_score&sp500Only=false"
-      ),
+      api.get("/api/scores/stockscores", {
+        params: {
+          limit: 1000,
+          offset: 0,
+          sortBy: "composite_score",
+          sortOrder: "DESC",
+        },
+      }),
     { refetchInterval: 60000 }
   );
   const {
