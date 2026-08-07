@@ -1110,61 +1110,79 @@ class EntryHandler:
                 if risk_per_share > 0:
                     r_multiple = 0.0
 
-            cur.execute(
-                """
-                INSERT INTO algo_positions (
-                    position_id, symbol, quantity, avg_entry_price, entry_price,
-                    current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
-                    status, entry_date, trade_ids,
-                    trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
-                    target_1_price, target_2_price, target_3_price,
-                    target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                    r_multiple, cognito_sub, metrics_updated_at, created_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
-                    %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            try:
+                logger.critical(
+                    f"[POSITION INSERT] About to insert position for {symbol} "
+                    f"(position_id={position_id}, trade_id={trade_id})"
                 )
-                """,
-                (
-                    position_id,
-                    symbol,
-                    actual_shares,
-                    executed_price,
-                    executed_price,
-                    executed_price,
-                    position_value,
-                    # unrealized_pnl/pct at the instant of entry are trivially 0 (current_price
-                    # == executed_price, no movement yet) - same reasoning as r_multiple below.
-                    # Leaving these NULL (the prior behavior - neither column has a DB default)
-                    # meant a freshly-entered position had NULL unrealized_pnl until the next
-                    # Phase 3 (position_monitor) run updated it. Phase 2 (circuit breakers) runs
-                    # BEFORE Phase 3 on every run, so the sector-drawdown circuit breaker's
-                    # fail-closed NULL check - correct for genuinely missing data - crashed and
-                    # halted the entire orchestrator on every run immediately following any
-                    # entry. Live-reproduced 2026-07-27: NBBK entered in one run, the very next
-                    # run's Phase 2 halted on "Sector drawdown check: position missing P&L/
-                    # cost-basis data (sector=Financial Services)", cascading into exit_engine
-                    # running in Phase-5-halted degraded mode and Phase 9 reconciliation halting
-                    # trading entirely.
-                    0,
-                    0,
-                    position_status,
-                    entry_date,
-                    trade_id,
-                    [trade_id],
-                    stop_loss_price,
-                    stop_loss_price,
-                    target_1_price,
-                    target_2_price,
-                    target_3_price,
-                    self.t1_target_r_multiple if target_1_price else None,
-                    self.t2_target_r_multiple if target_2_price else None,
-                    self.t3_target_r_multiple if target_3_price else None,
-                    r_multiple,
-                    get_algo_owner_cognito_sub(),
-                ),
-            )
+                cur.execute(
+                    """
+                    INSERT INTO algo_positions (
+                        position_id, symbol, quantity, avg_entry_price, entry_price,
+                        current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
+                        status, entry_date, trade_ids,
+                        trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
+                        target_1_price, target_2_price, target_3_price,
+                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                        r_multiple, cognito_sub, metrics_updated_at, created_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
+                        %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    """,
+                    (
+                        position_id,
+                        symbol,
+                        actual_shares,
+                        executed_price,
+                        executed_price,
+                        executed_price,
+                        position_value,
+                        # unrealized_pnl/pct at the instant of entry are trivially 0 (current_price
+                        # == executed_price, no movement yet) - same reasoning as r_multiple below.
+                        # Leaving these NULL (the prior behavior - neither column has a DB default)
+                        # meant a freshly-entered position had NULL unrealized_pnl until the next
+                        # Phase 3 (position_monitor) run updated it. Phase 2 (circuit breakers) runs
+                        # BEFORE Phase 3 on every run, so the sector-drawdown circuit breaker's
+                        # fail-closed NULL check - correct for genuinely missing data - crashed and
+                        # halted the entire orchestrator on every run immediately following any
+                        # entry. Live-reproduced 2026-07-27: NBBK entered in one run, the very next
+                        # run's Phase 2 halted on "Sector drawdown check: position missing P&L/
+                        # cost-basis data (sector=Financial Services)", cascading into exit_engine
+                        # running in Phase-5-halted degraded mode and Phase 9 reconciliation halting
+                        # trading entirely.
+                        0,
+                        0,
+                        position_status,
+                        entry_date,
+                        trade_id,
+                        [trade_id],
+                        stop_loss_price,
+                        stop_loss_price,
+                        target_1_price,
+                        target_2_price,
+                        target_3_price,
+                        self.t1_target_r_multiple if target_1_price else None,
+                        self.t2_target_r_multiple if target_2_price else None,
+                        self.t3_target_r_multiple if target_3_price else None,
+                        r_multiple,
+                        get_algo_owner_cognito_sub(),
+                    ),
+                )
+                logger.critical(
+                    f"[POSITION INSERT] Successfully inserted position for {symbol} "
+                    f"(position_id={position_id}, trade_id={trade_id})"
+                )
+            except Exception as pos_err:
+                logger.critical(
+                    f"[POSITION INSERT CRITICAL] FAILED to insert position for {symbol}: "
+                    f"{type(pos_err).__name__}: {pos_err} "
+                    f"(position_id={position_id}, trade_id={trade_id}). "
+                    f"Transaction will rollback - trade {trade_id} WILL NOT PERSIST",
+                    exc_info=True
+                )
+                raise
 
         # Record TCA (execution quality) for fills in auto mode
         if self.context.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
