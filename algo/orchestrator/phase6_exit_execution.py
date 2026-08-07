@@ -559,21 +559,22 @@ def run(
                             f"Check that Phase 3 has the correct database role and can update position_value."
                         )
 
-                    # Get total portfolio value from today's snapshot - the SAME denominator Phase 8 used at entry time.
-                    # CRITICAL: Must use portfolio snapshot value (includes cash + positions), NOT live SUM(position_value).
-                    # Previous bug (Session 2026-08-07): Used SUM(position_value WHERE status='open') as denominator,
-                    # which shrinks as positions close (e.g., from $71k to $4k). This caused correctly-sized positions
-                    # (2% of $71k = $1,420) to appear oversized (100% of $1,420 open positions) and get force-closed.
-                    # Verified impact: 44 positions entered 2026-08-06 all force-closed as "over-concentrated" within
-                    # same day because earlier positions closed mid-run, shrinking denominator.
-                    # Fix: Use portfolio snapshot value which is constant throughout the day.
+                    # Get total invested capital (sum of OPEN positions only)
+                    # CRITICAL FIX (Session 2026-08-07): Must check concentration as % of INVESTED capital,
+                    # not total portfolio value (which includes cash). Positions are sized as % of total portfolio
+                    # at entry time (e.g., 6% of $71k = $4,260 position when 100% invested), but by execution
+                    # time positions may have closed and portfolio shrunk (e.g., from $71k to $24k). When only
+                    # 34% invested, that same $4,260 position is actually 17% of invested capital - a massive
+                    # concentration violation that portfolio-snapshot-based checks would miss.
+                    #
+                    # Example: Phase 8 enters 10 positions at 6% each (total $71k), closing some leaves $24k
+                    # invested. If we check original portfolio ($71k): 6% looks fine. If we check invested
+                    # capital ($24k): 16.9% - violates 6% limit. CORRECT approach: use invested capital.
                     cur.execute(
                         """
-                        SELECT COALESCE(total_portfolio_value, 0) FROM algo_portfolio_snapshots
-                        WHERE snapshot_date = %s
-                        ORDER BY snapshot_date DESC LIMIT 1
+                        SELECT COALESCE(SUM(position_value), 0) FROM algo_positions
+                        WHERE status = 'open'
                         """,
-                        (run_date,)
                     )
                     result = cur.fetchone()
                     total_value = result[0] if result else 0
