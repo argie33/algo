@@ -50,7 +50,7 @@ def handle(
             limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=100)
             offset = safe_offset(extract_param(params, "offset") or "0")
             sort_by = extract_param(params, "sortBy") or "data_completeness"
-            sort_order = extract_param(params, "sortOrder") or "asc"
+            sort_order = (extract_param(params, "sortOrder") or "asc").lower()
 
             return _get_incomplete_stocks(cur, limit, offset, sort_by, sort_order)
 
@@ -65,7 +65,7 @@ def handle(
             limit = safe_limit(extract_param(params, "limit"), max_val=1000, default=1000)
             offset = safe_offset(extract_param(params, "offset") or "0")
             sort_by = extract_param(params, "sortBy") or "composite_score"
-            sort_order = extract_param(params, "sortOrder") or "desc"
+            sort_order = (extract_param(params, "sortOrder") or "desc").lower()
             sp500_only = extract_param(params, "sp500Only") or "false"
             symbol = extract_param(params, "symbol")
 

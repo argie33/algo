@@ -167,6 +167,35 @@ class PreTradeChecks:
                             "This indicates database data corruption. Blocking entry to prevent uncontrolled re-entries."
                         )
 
+                    # CRITICAL FIX: Only apply cooldown to STOP-OUT or TIME-BASED exits.
+                    # Regular closes (manual, concentration limits, profit takes) shouldn't be penalized
+                    # with a re-entry cooldown - only the edge cases where the position was forced out
+                    # due to risk or time constraints. This allows legitimate re-entry after normal closes
+                    # while still preventing flip-flop trading after adverse exit conditions.
+                    cur.execute(
+                        """
+                        SELECT t.exit_reason
+                        FROM algo_trades t
+                        WHERE t.status = 'closed'
+                          AND t.symbol = %s
+                        ORDER BY t.exit_date DESC, t.id DESC
+                        LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    exit_reason_row = cur.fetchone()
+                    exit_reason = exit_reason_row[0] if exit_reason_row else None
+
+                    # Skip cooldown if exit was NOT a stop-out or time-based exit
+                    if exit_reason is not None:
+                        is_stop_out = "STOP" in exit_reason.upper() or "TIME" in exit_reason.upper()
+                        if not is_stop_out:
+                            logger.debug(
+                                f"[PRE-TRADE] {symbol}: Exit reason '{exit_reason}' is not a stop-out; "
+                                f"skipping re-entry cooldown (cooldown only applies after adverse exits)"
+                            )
+                            return True, None
+
                     # closed_at is written via SQL `CURRENT_TIMESTAMP`/NOW() into a `timestamp
                     # without time zone` column, so a naive value here is in the DB session's
                     # local wall-clock timezone (utils/bulk_insert_manager.py's documented
@@ -187,7 +216,7 @@ class PreTradeChecks:
                     minutes_since_close = (datetime.now(timezone.utc) - closed_at).total_seconds() / 60
 
                     # CRITICAL: reentry_cooldown_minutes must be explicitly configured
-                    # This prevents flip-flop trading (re-entering position immediately after close)
+                    # This prevents flip-flop trading (re-entering position immediately after stop-out)
                     # CRITICAL FIX: previously branched on isinstance(self.config, dict) and used
                     # getattr(self.config, "reentry_cooldown_minutes", None) for the non-dict
                     # (real AlgoConfig) case - but AlgoConfig has no such attribute (it stores
@@ -219,9 +248,9 @@ class PreTradeChecks:
                     if minutes_since_close < reentry_cooldown_minutes:
                         return (
                             False,
-                            f"Position {symbol} closed {minutes_since_close:.0f}m ago, "
+                            f"Position {symbol} stopped out {minutes_since_close:.0f}m ago, "
                             f"cooldown {reentry_cooldown_minutes}m required (closed_at={closed_at}). "
-                            f"Re-entry blocked to prevent flip-flop trading.",
+                            f"Re-entry blocked to prevent flip-flop trading after adverse exits.",
                         )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(f"[PRE-TRADE] Database error checking duplicate/recent position for {symbol}: {e}")
