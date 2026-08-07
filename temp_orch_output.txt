@@ -1,0 +1,437 @@
+﻿INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7 BACKFILL] Wrote 414 backfill scores to 
+buy_sell_daily
+CRITICAL:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS 
+for halt flag read
+CRITICAL:algo.orchestration.halt_flag_manager:[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on 
+2026-08-07. Triggered 0.0h ago. Reason: Circuit breaker check failed: [PHASE 2 CRITICAL] Market 
+circuit breaker check failed: [PHASE 2 CRITICAL] Marke
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+ERROR:algo.reporting.alerts:Email failed: [WinError 10061] No connection could be made because the 
+target machine actively refused it
+ERROR:algo.reporting.alerts:Position alert email failed (non-blocking): [WinError 10061] No 
+connection could be made because the target machine actively refused it
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+CRITICAL:algo.orchestrator.phase7_signal_generation:[PHASE 7] Halt flag detected (reason: Circuit 
+breaker check failed: [PHASE 2 CRITICAL] Market circuit breaker check failed: [PHASE 2 CRITI). 
+Halting signal generation.
+INFO:algo.orchestration.orchestrator:
+-> Phase 7 halt: Halt flag set: Circuit breaker check failed: [PHASE 2 CRITICAL] Market circuit 
+breaker check failed: [PHASE 2 CRITICAL] Marke
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+CRITICAL:algo.orchestrator.phase_executor:[PHASE 7] HALTED - Halt flag set: Circuit breaker check 
+failed: [PHASE 2 CRITICAL] Market circuit breaker check failed: [PHASE 2 CRITICAL] Marke
+ERROR:algo.orchestrator.phase_executor:
+-> Phase 7 halted: check logs for details
+CRITICAL:algo.orchestrator.phase_executor:[PHASE 8 DEPENDENCY FAILED] Phase 8 depends on Phase 7 but 
+Phase 7 failed: status=halted, error=Halt flag set: Circuit breaker check failed: [PHASE 2 CRITICAL] 
+Market circuit breaker check failed: [PHASE 2 CRITICAL] Marke. Cannot proceed without successful 
+Phase 7.
+CRITICAL:algo.orchestrator.phase_executor:[DEP-CHECK FAILED] [PHASE 8 DEPENDENCY FAILED] Phase 8 
+depends on Phase 7 but Phase 7 failed: status=halted, error=Halt flag set: Circuit breaker check 
+failed: [PHASE 2 CRITICAL] Market circuit breaker check failed: [PHASE 2 CRITICAL] Marke. Cannot 
+proceed without successful Phase 7.
+CRITICAL:algo.orchestrator.phase_executor:[PHASE 8] Cannot execute: 2 unsatisfied dependencies. 
+Dependency chain: [5, 7]
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 9: RECONCILIATION & SNAPSHOT
+INFO:algo.orchestrator.phase_executor:===============================================================
+=======
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 9: RECONCILIATION & SNAPSHOT
+INFO:algo.orchestration.orchestrator:================================================================
+======
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9 MAINTENANCE] No orphaned positions found 
+(quantity=0 with status='open')
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit 
+orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of 
+Alpaca credential/API availability, so it never treats the unrelated real broker account as ground 
+truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit 
+orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of 
+Alpaca credential/API availability, so it never treats the unrelated real broker account as ground 
+truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] Broker not available - using database 
+portfolio state (paper trading mode). Orchestrator will continue with signal generation and exit 
+execution.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION PAPER MODE] Found 10 open positions, 
+baseline: $71592.31, realized P&L today: $58.50, unrealized P&L change: $+183.13 (now $183.13), 
+portfolio value: $71833.94
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: About to write snapshot for 
+2026-08-07 with 10 positions
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: DatabaseContext opened, 
+role=write
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT params - 
+date=2026-08-07, positions=10, portfolio_value=71833.94, cash=50180.9
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT executed successfully
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] VERIFICATION: position_count=10 
+(expected=10) - MATCH=True
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot 
+persisted with position_count=10
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Portfolio $71,833.94, 10 positions, unrealized P&L $+183.13
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestrator.phase9_reconciliation:[PHASE 9 P&L] Paper mode: broker unavailable, 
+skipping P&L validation
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: Paper mode - no broker account
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9 AUDIT] All exit prices reconciled properly
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Portfolio snapshot created by 
+DailyReconciliation (reconciliation_succeeded=True)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: snapshot created by reconciliation
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase9_reconciliation:No closed positions found for exit recording
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:Signal trade performance: No new closed trades to 
+populate (lookback 7d)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 trades processed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:Signal attribution: IC computed for 7 components 
+(deprecated feature - data unavailable is EXPECTED, not an error)
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] setup_quality IC unavailable: 
+swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] trend_quality IC unavailable: 
+swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] momentum_rs IC unavailable: 
+swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] volume IC unavailable: 
+swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] fundamentals IC unavailable: 
+swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] sector_industry IC unavailable: 
+swing_components_deprecated - skipping
+WARNING:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] multi_timeframe IC unavailable: 
+swing_components_deprecated - skipping
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: 0/7 components available (feature deprecated)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.weight_optimizer:Insufficient trades (0 < 20) for weight optimization on 
+2026-08-07 - skipping optimization, keeping current weights.
+INFO:algo.orchestration.weight_optimizer:Weight optimization skipped for 2026-08-07: insufficient 
+trade history. Keeping current weights unchanged.
+INFO:algo.orchestrator.phase9_reconciliation:Weight optimization: no changes (insufficient trades or 
+weights stable)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 weight changes
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.reporting.daily_report:[DAILY_REPORT] No component attribution data available for 
+2026-08-07. Expected if running before end-of-day loaders complete.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.reporting.daily_report:Daily report generated for 2026-08-07
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase9_reconciliation:
+======================================================================
+DAILY FINANCE REPORT - 2026-08-07 | Regime: confirmed_uptrend
+======================================================================
+Portfolio: $71,834 | Daily P&L: +0.34% | YTD: -4.77%
+Risk: VaR 0.6% | Beta 0.23 | Sharpe -1.2
+
+Strategy (last 50 trades):
+  Win rate: 67% | Profit factor: N/A | Expectancy: N/A
+
+Component IC (alpha contribution):
+  setup_quality        r=N/A        MISSING
+  trend_quality        r=N/A        MISSING
+  momentum_rs          r=N/A        MISSING
+  volume               r=N/A        MISSING
+  fundamentals         r=N/A        MISSING
+  sector_industry      r=N/A        MISSING
+  multi_timeframe      r=N/A        MISSING
+
+Today: 538 BUY signals -> 32 tier-passed -> 23 entries
+======================================================================
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Portfolio $71,834, P&L +0.34%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.reporting.performance:Generating daily performance report for 2026-08-07
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.reporting.performance:  Performance warning: Live Sharpe (-1.19) below 70% of backtest 
+(1.42)
+INFO:algo.reporting.performance:[OK] Performance report persisted: sharpe=-1.194, sortino=-1.488, 
+calmar=-0.779, wr=66.67%, max_dd=7.35%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Sharpe -1.194, Win rate 66.67%, Expectancy -0.2359 - Live Sharpe (-1.19) below 
+70% of backtest (1.42)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.risk.var:Generating daily risk report for 2026-08-07
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.risk.var:[OK] Risk report persisted: var=0.621%, cvar=0.851%, svar=1.886%, beta=0.23, 
+conc=17.5%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: VaR 0.621%, Conc 17.5%, beta=0.23
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:Updated algo_metrics_daily: 5073 actions, 23 entries, 
+13 exits
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 5073 actions, 23 entries, 13 exits
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: no missing trade_ids_arr
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: no sync needed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+ERROR:utils.db.structured_logging:[DB_ERROR] {"operation": "loader_db_operation", "query": "REFRESH 
+MATERIALIZED VIEW algo_positions_with_risk", "params": "None", "error_type": 
+"InsufficientPrivilege", "error_message": "permission denied for materialized view 
+algo_positions_with_risk\n"}
+ERROR:utils.db.structured_logging:[DB_ERROR_DETAIL] loader_db_operation failed
+  Query: REFRESH MATERIALIZED VIEW algo_positions_with_risk
+  Params: None
+  Error: InsufficientPrivilege: permission denied for materialized view algo_positions_with_risk
+Traceback (most recent call last):
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 49, in execute
+    self.cursor.execute(query, args)
+  File "C:\Users\arger\code\algo\utils\db\context.py", line 148, in execute
+    self.cursor.execute(query_str)
+  File 
+"C:\Users\arger\AppData\Local\Programs\Python\Python311\Lib\site-packages\psycopg2\extras.py", line 
+146, in execute
+    return super().execute(query, vars)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.InsufficientPrivilege: permission denied for materialized view 
+algo_positions_with_risk
+
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=write, exc_type=<class 
+'psycopg2.errors.InsufficientPrivilege'>)
+WARNING:algo.orchestrator.phase9_reconciliation:[PHASE 9] Cannot refresh algo_positions_with_risk 
+(permission denied - expected in LOCAL_MODE). View will use cached data; next proper execution with 
+elevated privileges will refresh it.
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warning: skipped (permission denied - expected in LOCAL_MODE)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:loaders.compute_circuit_breakers:Computing circuit breaker metrics for 2026-08-07
+INFO:loaders.compute_circuit_breakers:Circuit breaker metrics computed for 2026-08-07: 0 triggered, 
+any_triggered=False
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Circuit breaker metrics written: 0 triggered, 
+any_triggered=False
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 circuit breakers triggered
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 ok: Portfolio state: 71833.94 | Status: ok
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 9 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+######################################################################
+INFO:algo.orchestrator.phase_executor:#   ORCHESTRATOR EXECUTOR COMPLETE
+INFO:algo.orchestrator.phase_executor:#   4/9 phases succeeded
+INFO:algo.orchestrator.phase_executor:###############################################################
+#######
+WARNING:monitoring.metrics_context:[SLOW] orchestrator_executor          |  9598.6ms
+WARNING:monitoring.metrics_context:[METRICS] AWS credentials unavailable; CloudWatch metrics skipped
+INFO:algo.orchestration.orchestrator:
+-> Phase 4 skipped: 
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 5 skipped: 
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 8 error: [PHASE 8 DEPENDENCY FAILED] Phase 8 depends on Phase 7 but Phase 7 failed: 
+status=halted, error=Halt flag set: Circuit breaker check failed: [PHASE 2 CRITICAL] Market circuit 
+breaker check failed: [PHASE 2 CRITICAL] Marke. Cannot proceed without successful Phase 7.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+CRITICAL:algo.orchestration.orchestrator:[EXECUTOR] Phase sequence halted at Phase 8
+INFO:algo.orchestration.orchestrator:
+######################################################################
+INFO:algo.orchestration.orchestrator:#   FINAL REPORT - LOCAL-AFTERNOON-20260807-174642-580050
+INFO:algo.orchestration.orchestrator:################################################################
+######
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 1: all_tables_fresh       - All critical tables 
+fresh: prices=2026-08-07, coverage=92.3%
+INFO:algo.orchestration.orchestrator:  [HALT] Phase 2: circuit_breakers       - dependency_failed: 
+Circuit breaker check failed - data/validation error
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 3: position_monitor       - 10 positions updated 
+with current prices, 10 recommendations generated
+INFO:algo.orchestration.orchestrator:  [SKIP] Phase 4: RECONCILIATION         - 
+INFO:algo.orchestration.orchestrator:  [SKIP] Phase 5: EXPOSURE POLICY ACTIONS - 
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 6: exit_execution         - MARKET HOURS GUARD: 
+exit engine skipped (requires intraday pricing)
+INFO:algo.orchestration.orchestrator:  [HALT] Phase 7: signal_generation      - Halt flag set: 
+Circuit breaker check failed: [PHASE 2 CRITICAL] Market circuit breaker check failed: [PHASE 2 
+CRITICAL] Marke
+INFO:algo.orchestration.orchestrator:  [ERR]  Phase 8: ENTRY EXECUTION        - [PHASE 8 DEPENDENCY 
+FAILED] Phase 8 depends on Phase 7 but Phase 7 failed: status=halted, error=Halt flag set: Circuit 
+breaker check failed: [PHASE 2 CRITICAL] Market circuit breaker check failed: [PHASE 2 CRITICAL] 
+Marke. Cannot proceed without successful Phase 7.
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 9: reconciliation         - Portfolio state: 
+71833.94 | Status: ok
+INFO:algo.orchestration.orchestrator:################################################################
+######
+
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.logging.execution_tracker:[EXECUTION_LOG] Saved run 
+LOCAL-AFTERNOON-20260807-174642-580050: halted
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, 
+exc_type=None)
+======================================================================
+LOCAL ORCHESTRATOR RUNNER
+======================================================================
+Current time (ET): 2026-08-07 17:46:42.580050-04:00
+Runs to execute: afternoon
+
+Starting AFTERNOON orchestrator run...
+  Run ID: LOCAL-AFTERNOON-20260807-174642-580050
+  Mode: paper (local development)
+  Status: HALTED
+  Reason: dependency_failed: Circuit breaker check failed - data/validation error
+
+======================================================================
+Orchestrator execution complete. Check database for updated data.
+======================================================================
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.reporting.metrics:metrics.dry_run metric=OrchestratorSuccess value=0 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=OrchestratorFailure value=1 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': 
+'1'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': 
+'1'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=0 unit=Count dims={'Phase': 
+'2'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=1 unit=Count dims={'Phase': 
+'2'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': 
+'3'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': 
+'3'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': 
+'6'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': 
+'6'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=0 unit=Count dims={'Phase': 
+'7'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=1 unit=Count dims={'Phase': 
+'7'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': 
+'9'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': 
+'9'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': 
+'4'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': 
+'4'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': 
+'5'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': 
+'5'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=0 unit=Count dims={'Phase': 
+'8'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=1 unit=Count dims={'Phase': 
+'8'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=TradesExecuted value=0 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=OpenPositions value=10 unit=Count dims=None
+INFO:utils.db.local_file_lock:[FILE_LOCK] Lock released: orchestrator-run-lock.lock

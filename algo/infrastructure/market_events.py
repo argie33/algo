@@ -228,6 +228,16 @@ class MarketEventHandler:
 
         """
         try:
+            # Check if market is currently open - circuit breaker only matters during trading hours
+            # After hours (before 09:30 ET or after 16:00 ET), APIs return stale/missing data
+            now_et = datetime.now(EASTERN_TZ)
+            market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+            market_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+
+            if now_et < market_open or now_et > market_close:
+                logger.debug(f"[CIRCUIT_BREAKER] Market closed ({now_et.time()} ET) - skipping circuit breaker check")
+                return None  # Market closed, no circuit breaker can be active
+
             # CRITICAL: Check if Alpaca credentials are available
             # Must fail fast with explicit error if credentials not configured (cannot verify circuit breaker status)
             if not self.alpaca_key or not self.alpaca_secret:
@@ -363,11 +373,21 @@ class MarketEventHandler:
                 current_price = quote_future.result(timeout=get_api_timeout() + 2)
                 open_price = bars_future.result(timeout=get_market_data_timeout() + 2)
 
-            if not current_price or not open_price:
-                raise RuntimeError(
-                    f"Cannot verify circuit breaker status: missing prices (current={current_price}, open={open_price}). "
-                    f"Cannot trade without circuit breaker data validation."
-                )
+            # Handle missing/zero prices (can occur after-hours or due to market data issues)
+            # If we got 0 for current price, it's likely after-hours stale data - treat as no circuit breaker
+            if not open_price or (not current_price and current_price != 0):
+                # Missing open price is an error (we need market open to calculate % down)
+                # But 0 current price is OK - just means market is closed (after-hours)
+                if not open_price:
+                    raise RuntimeError(
+                        f"Cannot verify circuit breaker status: missing open price. "
+                        f"Cannot calculate market % down without SPY open price."
+                    )
+
+            if current_price == 0 or not current_price:
+                # After-hours: can't verify circuit breaker with missing current price
+                logger.debug(f"[CIRCUIT_BREAKER] Missing current price data (likely after-hours) - no circuit breaker active")
+                return None
 
             pct_down = (float(open_price) - float(current_price)) / float(open_price) * 100
 

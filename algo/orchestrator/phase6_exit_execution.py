@@ -717,14 +717,21 @@ def run(
                                     f"Cannot perform concentration check without safe float values."
                                 )
 
-                            if pct_for_comparison > max_for_comparison:
+                            # CRITICAL FIX: Add 0.5% tolerance to prevent rounding/market movement from forcing exits
+                            # If max is 6%, allow up to 6.5% before force-exit
+                            # Reason: positions may exceed limit slightly due to:
+                            # - Market price movement after entry
+                            # - Rounding in position size calculation
+                            # - Cash deposit/withdrawal timing
+                            tolerance_pct = 0.5
+                            if pct_for_comparison > (max_for_comparison + tolerance_pct):
                                 # CRITICAL: Force native float type IMMEDIATELY before arithmetic
                                 # to prevent Decimal - float type errors
                                 pct_native = float(pct_for_comparison)
                                 max_native = float(max_for_comparison)
                                 exceed_amount = pct_native - max_native
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_native:.1f}% (limit {max_native:.0f}%, exceeds by {exceed_amount:.1f}%)")
+                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_native:.1f}% (limit {max_native:.0f}% + {tolerance_pct}% tolerance, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
                             logger.critical(
                                 f"[PHASE 6 CRITICAL] Error processing position row {row}: {row_err}. "
