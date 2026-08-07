@@ -159,9 +159,13 @@ def check_metrics_tables_staleness() -> tuple[bool, str]:
     Session Current: 24h threshold caused Phase 7 lock contention when metrics pipeline
     didn't run, blocking signal quality score computation (root cause: Session 430 issue).
 
+    FIXED (Session 22): Also check value_metrics staleness - it was skipped when
+    growth/quality were fresh, causing value_metrics to stay 36h stale while the
+    check incorrectly reported "metrics are fresh". Now checks all three tables.
+
     Returns: (is_stale: bool, reason: str)
-    - True if growth_metrics or quality_metrics batches are >12h old (created_at)
-    - False if fresh or no data to check
+    - True if growth_metrics, quality_metrics, OR value_metrics batches are >12h old (created_at)
+    - False if all are fresh or no data to check
     """
     try:
         from datetime import datetime, timedelta, timezone
@@ -169,12 +173,14 @@ def check_metrics_tables_staleness() -> tuple[bool, str]:
         from utils.db import DatabaseContext
 
         with DatabaseContext("read") as cur:
-            # Check growth_metrics and quality_metrics batch staleness (created_at = batch load time)
+            # Check growth_metrics, quality_metrics, AND value_metrics batch staleness
             cur.execute("""
                 SELECT
                     COALESCE(MAX(created_at), NOW() - INTERVAL '48 hours') as latest_growth,
                     (SELECT COALESCE(MAX(created_at), NOW() - INTERVAL '48 hours')
-                     FROM quality_metrics) as latest_quality
+                     FROM quality_metrics) as latest_quality,
+                    (SELECT COALESCE(MAX(created_at), NOW() - INTERVAL '48 hours')
+                     FROM value_metrics) as latest_value
                 FROM growth_metrics
             """)
             row = cur.fetchone()
@@ -182,25 +188,30 @@ def check_metrics_tables_staleness() -> tuple[bool, str]:
                 now = datetime.now(timezone.utc)
                 latest_growth = row[0] if isinstance(row[0], datetime) else now
                 latest_quality = row[1] if isinstance(row[1], datetime) else now
+                latest_value = row[2] if isinstance(row[2], datetime) else now
 
                 # Ensure tz-aware comparison
                 if latest_growth.tzinfo is None:
                     latest_growth = latest_growth.replace(tzinfo=timezone.utc)
                 if latest_quality.tzinfo is None:
                     latest_quality = latest_quality.replace(tzinfo=timezone.utc)
+                if latest_value.tzinfo is None:
+                    latest_value = latest_value.replace(tzinfo=timezone.utc)
 
                 staleness_threshold = now - timedelta(hours=12)
 
-                if latest_growth < staleness_threshold or latest_quality < staleness_threshold:
+                if latest_growth < staleness_threshold or latest_quality < staleness_threshold or latest_value < staleness_threshold:
                     hours_old = min(
                         (now - latest_growth).total_seconds() / 3600,
-                        (now - latest_quality).total_seconds() / 3600
+                        (now - latest_quality).total_seconds() / 3600,
+                        (now - latest_value).total_seconds() / 3600
                     )
-                    return True, f"growth_metrics/quality_metrics batches {hours_old:.1f}h stale (>12h)"
+                    return True, f"value_quality_growth metrics {hours_old:.1f}h stale (>12h)"
                 else:
                     hours_old = min(
                         (now - latest_growth).total_seconds() / 3600,
-                        (now - latest_quality).total_seconds() / 3600
+                        (now - latest_quality).total_seconds() / 3600,
+                        (now - latest_value).total_seconds() / 3600
                     )
                     return False, f"metrics batches fresh ({hours_old:.1f}h old)"
 
