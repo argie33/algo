@@ -101,7 +101,8 @@ class EarningsBlackout:
                 # Check if within blackout window (in trading days, not calendar days).
                 # direction > 0 means earnings is still upcoming (pre-earnings window, days_before);
                 # direction < 0 means earnings already happened (post-earnings window, days_after).
-                if is_earnings_day or trading_days_away <= (self.days_before if direction > 0 else self.days_after):
+                # CRITICAL: Use < not <= - days_after=1 should allow trading 1 day after (trading_days_away >= 1).
+                if is_earnings_day or trading_days_away < (self.days_before if direction > 0 else self.days_after):
                     return {
                         "pass": False,
                         "reason": f"Earnings on {earnings_date} ({trading_days_away} trading days away)",

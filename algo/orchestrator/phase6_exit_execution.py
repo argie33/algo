@@ -559,32 +559,21 @@ def run(
                             f"Check that Phase 3 has the correct database role and can update position_value."
                         )
 
-                    # Get total portfolio value (account equity: cash + positions) - the same
-                    # denominator Phase 8 uses to size positions in the first place
-                    # (algo_portfolio_snapshots.total_portfolio_value). FIXED 2026-08-03: this
-                    # used to be SUM(position_value) FROM algo_positions WHERE status='open' -
-                    # the sum of only the currently-open positions, not total account equity.
-                    # Whenever the account isn't ~100% invested (the normal case - most of the
-                    # time only a handful of positions are open against a much larger equity
-                    # base), that denominator is far smaller than true portfolio value, making
-                    # every legitimately-sized position (e.g. a real 2-4% entry, well under the
-                    # 6% limit Phase 8 enforced at entry) look artificially concentrated (e.g.
-                    # a $1,441 position against $6,270 of other-open-positions read as 23%,
-                    # vs. its real ~2% share of a $72k account) - live-confirmed 2026-08-03:
-                    # false POSITION_SIZE_CONCENTRATION force-exits on positions entered that
-                    # same run at 1.8-4.4% sizing, several landing as losses and tripping the
-                    # consecutive-losses circuit breaker.
-                    # CRITICAL FIX (Session 2026-08-07): Use SUM(position_value) not total_portfolio_value.
-                    # Reason: Concentration must be measured relative to INVESTED capital, not total account equity.
-                    # Previous bug: Using $71k account against $4k position = 5.8% (pass)
-                    # But actual investment concentration: $4k / $25k invested = 16.9% (fail)
-                    # This broke risk management by allowing oversized positions.
-                    # Using live position_value sum ensures concentration is checked relative to actual risk exposure.
+                    # Get total portfolio value from today's snapshot - the SAME denominator Phase 8 used at entry time.
+                    # CRITICAL: Must use portfolio snapshot value (includes cash + positions), NOT live SUM(position_value).
+                    # Previous bug (Session 2026-08-07): Used SUM(position_value WHERE status='open') as denominator,
+                    # which shrinks as positions close (e.g., from $71k to $4k). This caused correctly-sized positions
+                    # (2% of $71k = $1,420) to appear oversized (100% of $1,420 open positions) and get force-closed.
+                    # Verified impact: 44 positions entered 2026-08-06 all force-closed as "over-concentrated" within
+                    # same day because earlier positions closed mid-run, shrinking denominator.
+                    # Fix: Use portfolio snapshot value which is constant throughout the day.
                     cur.execute(
                         """
-                        SELECT COALESCE(SUM(position_value), 0) FROM algo_positions
-                        WHERE status = 'open'
-                        """
+                        SELECT COALESCE(total_portfolio_value, 0) FROM algo_portfolio_snapshots
+                        WHERE snapshot_date = %s
+                        ORDER BY snapshot_date DESC LIMIT 1
+                        """,
+                        (run_date,)
                     )
                     result = cur.fetchone()
                     total_value = result[0] if result else 0
