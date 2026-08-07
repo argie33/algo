@@ -1628,17 +1628,29 @@ def run(  # noqa: C901
 
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
+        # Halt flag can be set by Phase 1 (data quality) or Phase 2 (circuit breaker)
+        # Check halt_reason to provide clearer diagnostics
+        halt_reason = "unknown halt condition"
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT halt_reason FROM algo_runtime_state WHERE state_key = 'orchestrator_halt'")
+                result = cur.fetchone()
+                if result and result[0]:
+                    halt_reason = result[0]
+        except Exception as diagnostic_err:
+            logger.debug(f"[PHASE 7] Could not fetch halt reason for diagnostics: {diagnostic_err}")
+
         logger.critical(
-            "[PHASE 7] Halt flag set by Phase 1 - data quality degradation detected. Halting signal generation."
+            f"[PHASE 7] Halt flag detected (reason: {halt_reason[:100]}). Halting signal generation."
         )
-        log_phase_result_fn(7, "signal_generation", "halt", "Halt flag set: data quality degradation")
+        log_phase_result_fn(7, "signal_generation", "halt", f"Halt flag set: {halt_reason[:150]}")
         return PhaseResult(
             7,
             "signal_generation",
             "halted",
             {"qualified_trades": [], "liquidity_passed": 0},
             True,
-            "Halt flag set: data quality degradation detected",
+            f"Halt flag set: {halt_reason}",
         )
 
     # Market regime gate
