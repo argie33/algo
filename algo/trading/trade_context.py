@@ -95,11 +95,21 @@ class TradeContext:
             # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
             # Market hours are 9:30 AM - 4:00 PM ET, not UTC
             self.signal_date = datetime.now(EASTERN_TZ).date()
+        elif isinstance(self.signal_date, str):
+            try:
+                self.signal_date = datetime.strptime(self.signal_date, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                self.signal_date = datetime.now(EASTERN_TZ).date()
 
         if self.entry_date is None:
             # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
             # Market hours are 9:30 AM - 4:00 PM ET, not UTC
             self.entry_date = datetime.now(EASTERN_TZ).date()
+        elif isinstance(self.entry_date, str):
+            try:
+                self.entry_date = datetime.strptime(self.entry_date, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                self.entry_date = datetime.now(EASTERN_TZ).date()
 
     @classmethod
     def from_params(
