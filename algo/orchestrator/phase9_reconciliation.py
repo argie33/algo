@@ -1761,28 +1761,31 @@ def run(
 
         # CRITICAL: Final consistency check - close any positions with closed trades
         # This prevents orphaned positions from blocking future runs (Phase 7 risk check)
+        # CRITICAL FIX: Must join by position_id, not symbol. Previous query incorrectly closed
+        # ALL positions for a symbol if ANY trade for that symbol was closed, even if other
+        # positions for the same symbol still had open trades. Caused false orphaned closes.
         orphans_fixed = False
         try:
             with DatabaseContext("write") as sync_cursor:
                 sync_cursor.execute("""
-                    WITH closed_trades AS (
-                        SELECT DISTINCT symbol FROM algo_trades
-                        WHERE status = 'closed' AND exit_date = %s
-                    )
                     UPDATE algo_positions p
                     SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE p.status = 'open' AND p.symbol IN (SELECT symbol FROM closed_trades)
+                    WHERE p.status = 'open'
                     AND NOT EXISTS (
                         SELECT 1 FROM algo_trades t
-                        WHERE t.symbol = p.symbol AND t.status = 'open'
+                        WHERE t.position_id = p.position_id AND t.status IN ('open', 'pending')
+                    )
+                    AND EXISTS (
+                        SELECT 1 FROM algo_trades t
+                        WHERE t.position_id = p.position_id AND t.status = 'closed'
                     );
-                """, (run_date,))
+                """)
                 if sync_cursor.rowcount > 0:
-                    logger.info(f"[PHASE 9 FINAL SYNC] Auto-closed {sync_cursor.rowcount} orphaned positions with closed trades")
+                    logger.info(f"[PHASE 9 FINAL SYNC] Auto-closed {sync_cursor.rowcount} positions where all trades are closed")
                     orphans_fixed = True
         except Exception as sync_err:
-            logger.warning(f"[PHASE 9 FINAL SYNC] Could not auto-close orphaned positions: {sync_err}")
+            logger.warning(f"[PHASE 9 FINAL SYNC] Could not auto-close positions with closed trades: {sync_err}")
 
         # If we fixed orphaned positions, mark it in the log so next run clears halt flag
         if orphans_fixed:
