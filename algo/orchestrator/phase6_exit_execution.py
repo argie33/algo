@@ -1249,6 +1249,18 @@ def run(
             phase_status,
             detail_text,
         )
+
+        # CRITICAL FIX: Log detailed error data when errors occur
+        # The detail_text contains summary counts (e.g., "9 exits, 8 errors")
+        # but the actual per-position error details are in algo_exit_check_errors table.
+        # If errors occurred but didn't persist (table empty), log this as a critical gap.
+        if errors > 0:
+            logger.critical(
+                f"[PHASE 6 ERROR TRACKING] {errors} position(s) failed exit/stop evaluation. "
+                f"Detailed error info should be in algo_exit_check_errors table. "
+                f"If that table is empty, error persistence may have failed silently - "
+                f"check database transaction state and connection health."
+            )
         # exits_executed/success_rate: the health dashboard (dashboard/panels/health.py,
         # Phase 6 detail row) reads these exact keys, but this dict only ever had
         # exits/stop_raises/errors - "exits_executed" never matched "exits" so it always
