@@ -225,23 +225,43 @@ class FileLockManager:
 
         try:
             if lock_file.exists():
-                lock_file.unlink()
+                # Windows-friendly deletion: file might be locked by another process
+                # Retry once with a small delay if it fails (common on Windows)
+                try:
+                    lock_file.unlink()
+                except OSError as e:
+                    # WinError 32 = file in use by another process
+                    if hasattr(e, 'winerror') and e.winerror == 32:
+                        # Another process might still be using the file - retry once
+                        time.sleep(0.1)
+                        try:
+                            lock_file.unlink()
+                        except OSError:
+                            # Still locked - that's OK, it will auto-expire. Just log and continue
+                            logger.debug(f"[FILE_LOCK] Could not immediately delete {lock_file.name} (in use by another process), will auto-expire")
+                    else:
+                        raise
+
                 if lock_file == self.current_lock_file:
                     self.current_lock_file = None
                 logger.info(f"[FILE_LOCK] Lock released: {lock_file.name}")
                 return True
         except Exception as e:
-            logger.error(f"[FILE_LOCK] Failed to release lock: {e}")
+            logger.warning(f"[FILE_LOCK] Release error (non-blocking, lock will auto-expire): {e}")
 
         return False
 
     def __del__(self) -> None:
-        """Clean up lock file on deletion."""
+        """Clean up lock file on deletion. Best-effort only - don't fail if lock is in use."""
         if self.current_lock_file and self.current_lock_file.exists():
             try:
                 self.current_lock_file.unlink()
-            except Exception as e:
-                logger.warning(f"[FILE_LOCK] Failed to cleanup lock file {self.current_lock_file}: {e}")
+            except OSError as e:
+                # WinError 32 = file in use - OK to ignore, lock will auto-expire
+                if hasattr(e, 'winerror') and e.winerror == 32:
+                    logger.debug(f"[FILE_LOCK] Cleanup: {self.current_lock_file.name} still in use (OK, will auto-expire)")
+                else:
+                    logger.debug(f"[FILE_LOCK] Cleanup error (non-critical): {e}")
 
 
 def get_lock_manager(
