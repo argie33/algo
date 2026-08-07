@@ -526,12 +526,14 @@ class TradeExecutor:
             )
         except Exception as e:
             # Unexpected error - log fully for debugging
-            logger.exception(f"[ENTRY] {symbol}: Unexpected exception during order submission: {type(e).__name__}: {e}")
+            error_detail = f"{type(e).__name__}: {str(e)}"
+            logger.exception(f"[ENTRY] {symbol}: Unexpected exception during order submission: {error_detail}")
+            logger.error(f"[ENTRY] {symbol}: Full traceback and context above ^")
             return (
                 False,
                 trade_id,
                 "",
-                f"Unexpected error: {str(e)[:500]}",
+                f"Unexpected error: {error_detail[:200]}",
                 None,
                 None,
                 None,
@@ -881,7 +883,7 @@ class TradeExecutor:
                 "success": False,
                 "trade_id": "",
                 "status": "error",
-                "message": f"Unexpected error: {type(e).__name__}",
+                "message": f"Unexpected error: {type(e).__name__}: {str(e)[:200]}",
             }
 
     # ---------- Exit (full or partial) ----------

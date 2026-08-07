@@ -1997,10 +1997,12 @@ class Orchestrator:
 
         allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
         now_et = datetime.now(EASTERN_TZ).time()
+        logger.info(f"[MARKET_HOURS_GUARD] Checking: allow_outside_hours={allow_outside_hours}, now_et={now_et}, market_open={MARKET_OPEN_TIME}, market_close={MARKET_CLOSE_TIME}")
+
         # Market hours enforced for ALL runs (dry_run or not), UNLESS explicitly allowed
         if not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
-            logger.warning(
-                f"[MARKET_HOURS_GUARD] Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
+            logger.critical(
+                f"[MARKET_HOURS_GUARD] BLOCKING: Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
                 f"Market hours: {MARKET_OPEN_TIME.strftime('%H:%M')} - {MARKET_CLOSE_TIME.strftime('%H:%M')} ET. "
                 f"This prevents pre-market/after-hours execution from corrupting production state. "
                 f"To test outside market hours, use: ALLOW_OUTSIDE_MARKET_HOURS=true"
@@ -2014,6 +2016,7 @@ class Orchestrator:
                 "skipped": True,
                 "reason": f"outside_market_hours: {now_et.strftime('%H:%M:%S')} ET",
             }
+        logger.info(f"[MARKET_HOURS_GUARD] OK: Current time {now_et} is within market hours")
 
         logger.info("[CRITICAL] Running critical data checks...")
         try:
