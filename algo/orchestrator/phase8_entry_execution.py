@@ -2780,7 +2780,7 @@ def run(
                             entry_price=entry_price,
                             shares=shares,
                             stop_loss_price=stop_loss,
-                            signal_date=run_date,
+                            signal_date=signal.get("signal_date") or run_date,
                             entry_date=run_date,
                             composite_score=composite_score,
                             sector=signal.get("sector"),
