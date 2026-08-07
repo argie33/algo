@@ -192,10 +192,10 @@ class EntryHandler:
 
         # Check for duplicate position via database
         def _check_dup_pos(cur: PsycopgCursor[Any]) -> dict[str, str] | None:
-            is_dup, msg = self.validator.check_duplicate_position(cur, symbol)
+            is_dup, msg = self.validator.check_duplicate_position(cur, symbol, entry_date)
             if is_dup:
                 return {"error": msg}
-            logger.debug(f"[ENTRY_HANDLER] No duplicate position found for {symbol}, can proceed")
+            logger.debug(f"[ENTRY_HANDLER] No duplicate position found for {symbol} on {entry_date}, can proceed")
             return None
 
         try:

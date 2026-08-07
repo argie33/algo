@@ -978,6 +978,7 @@ class ExitHandler:
             exit_stage=exit_stage,
             pnl_dollars=close_pnl_dollars,
             pnl_pct=close_pnl_pct,
+            exit_reason=exit_reason,
         )
 
         if not update_success:

@@ -896,6 +896,7 @@ class TradeExecutor:
         exit_stage: str | None = None,
         pnl_dollars: float | None = None,
         pnl_pct: float | None = None,
+        exit_reason: str | None = None,
     ) -> tuple[bool, str | None]:
         """Update position with retry logic for race condition safety.
 
@@ -913,7 +914,7 @@ class TradeExecutor:
         """
         return self.position_tracker.update_position_with_retry(
             cur, position_id, new_qty, new_stop_price, full_exit, exit_stage,
-            pnl_dollars=pnl_dollars, pnl_pct=pnl_pct
+            pnl_dollars=pnl_dollars, pnl_pct=pnl_pct, exit_reason=exit_reason
         )
 
     def exit_trade(
