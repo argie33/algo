@@ -525,11 +525,15 @@ class EntryHandler:
                 INSERT INTO algo_trades (
                     trade_id, symbol, signal_date, entry_date, trade_date, entry_price, entry_time, entry_quantity, entry_reason,
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
-                    status, sector, idempotency_key, position_id
+                    signal_quality_score, trend_template_score, base_type, base_quality, stage_phase,
+                    rs_percentile, market_exposure_at_entry, exposure_tier_at_entry, stop_reasoning, advanced_components,
+                    status, sector, industry, idempotency_key, position_id
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
-                    %s, %s, %s, %s
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
@@ -537,6 +541,8 @@ class EntryHandler:
                     entry_quantity = EXCLUDED.entry_quantity,
                     signal_date = EXCLUDED.signal_date,
                     trade_date = EXCLUDED.trade_date,
+                    signal_quality_score = EXCLUDED.signal_quality_score,
+                    trend_template_score = EXCLUDED.trend_template_score,
                     position_id = EXCLUDED.position_id,
                     updated_at = CURRENT_TIMESTAMP
                 """,
@@ -553,8 +559,19 @@ class EntryHandler:
                     request.target_1_price,
                     request.target_2_price,
                     request.target_3_price,
+                    request.sqs,
+                    request.trend_score,
+                    request.base_type,
+                    request.base_quality,
+                    request.stage_phase,
+                    request.rs_percentile,
+                    request.market_exposure_at_entry,
+                    request.exposure_tier_at_entry,
+                    request.stop_reasoning,
+                    request.advanced_components,
                     request.order_status,
                     request.sector,
+                    request.industry,
                     request.idempotency_key,
                     request.position_id,
                 ),
