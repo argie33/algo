@@ -166,6 +166,12 @@ class AlgoConfig:
             "Minimum SQS 0-100 (signal quality gate)",
             "Filter Thresholds",
         ),
+        "max_signal_quality_score": (
+            "100",
+            "int",
+            "Maximum SQS 0-100 (phase 8 quality gate)",
+            "Filter Thresholds",
+        ),
         "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume", "Filter Thresholds"),
         "min_avg_daily_dollar_volume": (
             "500000",
@@ -538,7 +544,8 @@ class AlgoConfig:
         ),
         # Circuit Breaker Thresholds (CB)
         "max_daily_loss_pct": ("2.0", "float", "Max daily loss % before halt", "Risk Management"),
-        "max_consecutive_losses": ("3", "int", "Max consecutive losing trades", "Risk Limits"),
+        "max_consecutive_losses": ("3", "int", "Max consecutive losing trades (live)", "Risk Limits"),
+        "paper_mode_max_consecutive_losses": ("5", "int", "Max consecutive losing trades (paper mode)", "Risk Limits"),
         "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade", "Risk Limits"),
         "min_live_sharpe_ratio": ("0.0", "float", "Min acceptable live Sharpe ratio (halt if lower in auto mode)", "Risk Limits"),
         "max_total_risk_pct": ("4.0", "float", "Max total open risk %", "Risk Limits"),

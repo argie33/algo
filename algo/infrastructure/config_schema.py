@@ -35,6 +35,7 @@ VALIDATION_SCHEMA = {
     "min_completeness_score": ("int", 1, 100, True, 70),  # Fail-closed to 70%
     "min_stock_price": ("float", 0.1, 1000.0, False, 5.0),
     "min_signal_quality_score": ("int", 1, 100, True, 60),  # Fail-closed to 60
+    "max_signal_quality_score": ("int", 1, 100, False, 100),  # Max quality score threshold
     "min_volume_ma_50d": ("int", 1, 10000000, True, 300000),
     "min_avg_daily_dollar_volume": ("float", 1.0, 100000000.0, True, 500000.0),
     "require_stock_stage_2": ("bool", None, None, False, None),
@@ -129,7 +130,8 @@ VALIDATION_SCHEMA = {
     # Circuit Breaker Thresholds
     "max_daily_loss_pct": ("float", 0.1, 50.0, True, 2.0),  # Critical halt
     "min_live_sharpe_ratio": ("float", -100.0, 10.0, False, 0.0),  # Halt if Sharpe < threshold in auto mode
-    "max_consecutive_losses": ("int", 1, 100, False, 3),
+    "max_consecutive_losses": ("int", 1, 100, False, 3),  # Live trading
+    "paper_mode_max_consecutive_losses": ("int", 1, 100, False, 5),  # Paper trading (more lenient)
     "min_win_rate_pct": ("float", 0.0, 100.0, False, 40.0),
     "max_total_risk_pct": ("float", 0.1, 100.0, False, 4.0),
     "min_risk_pct_floor": ("float", 0.01, 10.0, False, 0.10),
