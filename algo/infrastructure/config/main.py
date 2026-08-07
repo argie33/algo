@@ -172,6 +172,12 @@ class AlgoConfig:
             "Maximum SQS 0-100 (phase 8 quality gate)",
             "Filter Thresholds",
         ),
+        "max_signal_age_hours": (
+            "24",
+            "int",
+            "Maximum signal age in hours (rejects stale EOD pipeline signals)",
+            "Filter Thresholds",
+        ),
         "min_volume_ma_50d": ("300000", "int", "Minimum 50-day avg volume", "Filter Thresholds"),
         "min_avg_daily_dollar_volume": (
             "500000",
