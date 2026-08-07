@@ -132,21 +132,28 @@ class _CorrelationIdCursor:
 
     def execute(self, query: str, args: Any = None) -> Any:
         """Execute with correlation_id comment appended."""
-        # For psycopg2.sql objects with arguments, don't convert to string
-        # (breaks parameter binding). Just pass the object directly.
+        # For psycopg2.sql objects with arguments, execute as-is
+        # (appending comments to SQL objects breaks parameter binding)
         if hasattr(query, "as_string") and args is not None:
             self.cursor.execute(query, args)
             return self
 
-        # For string queries or parameterless SQL objects, append comment
-        query_str = query.as_string(self.cursor) if hasattr(query, "as_string") else str(query or "")
-        if query_str and not query_str.strip().startswith("--"):
-            query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
-
-        if not hasattr(query, "as_string") and args is None:
+        # For string queries, append comment ONLY if no parameters
+        # (appending to parameterized queries risks breaking placeholder counting)
+        if isinstance(query, str) and args is None:
+            # Safe to append comment when there are no parameters
+            query_str = query
+            if query_str and not query_str.strip().startswith("--"):
+                query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
             self.cursor.execute(query_str)
+        elif isinstance(query, str) and args is not None:
+            # CRITICAL: Don't append comment to parameterized queries
+            # The correlation_id comment will be added by database logging (query appears in logs)
+            # Appending here breaks parameter placeholder counting in psycopg2
+            self.cursor.execute(query, args)
         else:
-            self.cursor.execute(query_str, args)
+            # SQL object without as_string method
+            self.cursor.execute(query, args) if args is not None else self.cursor.execute(query)
         return self
 
     def executemany(self, query: str, args: Any) -> Any:

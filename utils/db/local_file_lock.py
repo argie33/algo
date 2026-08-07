@@ -53,24 +53,44 @@ class FileLockManager:
             self._cleanup_expired_locks()
 
     def _cleanup_expired_locks(self) -> None:
-        """Remove expired lock files."""
+        """Remove expired lock files by checking both content timestamp AND file age.
+
+        CRITICAL FIX: Windows file deletion can fail (WinError 32) during __del__ of crashed runs,
+        leaving stale locks. Auto-cleanup needs to handle both:
+        1. Content-based expiry: Lock has explicit expiry timestamp in content
+        2. File-age fallback: If lock file is > 2x lock_duration old, assume it's stale (process crashed)
+        """
         try:
             now = datetime.now(timezone.utc)
+            stale_threshold = now - timedelta(seconds=self.lock_duration_seconds * 2)
+
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
-                    # Read expiry time from file
-                    with open(lock_file, encoding="utf-8") as f:
-                        content = f.read().strip()
-                        # Format: "lock_id|expiry_timestamp"
-                        expiry_str = content.split("|")[1] if "|" in content else None
-                        if expiry_str:
-                            expiry = datetime.fromisoformat(expiry_str)
-                            # CRITICAL FIX: Ensure both datetimes are timezone-aware for comparison
-                            if expiry.tzinfo is None:
-                                expiry = expiry.replace(tzinfo=timezone.utc)
-                            if now > expiry:
-                                lock_file.unlink()
-                                logger.debug(f"[FILE_LOCK] Cleaned expired lock: {lock_file.name}")
+                    # Check file modification time as fallback for crashed processes
+                    file_mtime = datetime.fromtimestamp(lock_file.stat().st_mtime, tz=timezone.utc)
+                    is_file_stale = file_mtime < stale_threshold
+
+                    # Read expiry time from file content
+                    is_content_expired = False
+                    try:
+                        with open(lock_file, encoding="utf-8") as f:
+                            content = f.read().strip()
+                            # Format: "lock_id|expiry_timestamp"
+                            expiry_str = content.split("|")[1] if "|" in content else None
+                            if expiry_str:
+                                expiry = datetime.fromisoformat(expiry_str)
+                                # CRITICAL FIX: Ensure both datetimes are timezone-aware for comparison
+                                if expiry.tzinfo is None:
+                                    expiry = expiry.replace(tzinfo=timezone.utc)
+                                is_content_expired = now > expiry
+                    except Exception:
+                        pass
+
+                    # Remove lock if EITHER content is expired OR file is too old (crashed process)
+                    if is_content_expired or is_file_stale:
+                        lock_file.unlink()
+                        reason = "content_expired" if is_content_expired else "file_age_stale"
+                        logger.debug(f"[FILE_LOCK] Cleaned {reason} lock: {lock_file.name}")
                 except Exception as e:
                     logger.warning(f"[FILE_LOCK] Error cleaning lock {lock_file.name}: {e}")
         except Exception as e:
