@@ -1759,6 +1759,29 @@ def run(
 
         validate_phase_data(9, data)
 
+        # CRITICAL: Final consistency check - close any positions with closed trades
+        # This prevents orphaned positions from blocking future runs (Phase 7 risk check)
+        try:
+            with DatabaseContext("write") as sync_cursor:
+                sync_cursor.execute("""
+                    WITH closed_trades AS (
+                        SELECT DISTINCT symbol FROM algo_trades
+                        WHERE status = 'closed' AND exit_date = %s
+                    )
+                    UPDATE algo_positions p
+                    SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE p.status = 'open' AND p.symbol IN (SELECT symbol FROM closed_trades)
+                    AND NOT EXISTS (
+                        SELECT 1 FROM algo_trades t
+                        WHERE t.symbol = p.symbol AND t.status = 'open'
+                    );
+                """, (run_date,))
+                if sync_cursor.rowcount > 0:
+                    logger.info(f"[PHASE 9 FINAL SYNC] Auto-closed {sync_cursor.rowcount} orphaned positions with closed trades")
+        except Exception as sync_err:
+            logger.warning(f"[PHASE 9 FINAL SYNC] Could not auto-close orphaned positions: {sync_err}")
+
         # CRITICAL: Log final consolidated phase result (not a sub-step)
         # Phase 9 logs multiple sub-steps (reconciliation, portfolio_snapshot, weight_optimization, etc.)
         # but the orchestrator's phase_results[9] must contain the OVERALL phase status, not the last sub-step.
