@@ -1691,42 +1691,30 @@ def run(
 
     # Fetch portfolio value for Phase 8 entry sizing
     # CRITICAL FIX (Session 12): Phase 6 (exit execution) runs BEFORE Phase 8 (entry execution) in the
-    # orchestrator pipeline. Using end-of-day snapshot from start of day causes positions to be sized
-    # too large after Phase 6 has already closed positions and shrunk the portfolio.
-    # Solution: Calculate CURRENT portfolio value from active positions, then fall back to Alpaca/config.
-    # This ensures positions are sized against the post-Phase-6 portfolio, not the pre-exit snapshot.
+    # orchestrator pipeline. Using a stale snapshot causes positions to be sized too large after Phase 6
+    # has closed positions. Use the LATEST snapshot (which reflects current state), not the run_date snapshot.
     portfolio_value = None
     portfolio_value_source = None
 
-    # Primary: Calculate current portfolio from active positions (reflects Phase 6 exits)
+    # Primary: Use LATEST portfolio snapshot (not stale start-of-day snapshot)
     try:
         with DatabaseContext("read") as cur:
-            # Sum current value of all open positions + cash equivalent
             cur.execute(
                 """
-                SELECT COALESCE(SUM(position_value), 0) FROM algo_positions
-                WHERE status = 'open' AND quantity > 0
-                """
+                SELECT total_portfolio_value, snapshot_date
+                FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC LIMIT 1
+            """
             )
-            open_position_value = Decimal(str(cur.fetchone()[0]))
-
-            # Get initial capital from config
-            initial_capital = Decimal(str(config.get("initial_capital_paper_trading", 100000)))
-
-            # Approximate current portfolio: initial capital + realized gains - realized losses
-            # For accuracy in paper mode, use open position value + remaining capital
-            if open_position_value > 0:
-                portfolio_value = open_position_value + (initial_capital - open_position_value)
-                # If that doesn't make sense, just use initial capital as fallback
-                if portfolio_value <= open_position_value:
-                    portfolio_value = initial_capital
+            result = cur.fetchone()
+            if result and len(result) > 0 and result[0] is not None:
+                portfolio_value = Decimal(str(result[0]))
+                portfolio_value_source = f"latest_snapshot ({result[1]})"
+                logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from latest snapshot, date={result[1]})")
             else:
-                portfolio_value = initial_capital
-
-            portfolio_value_source = "current_positions_calculation"
-            logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (calculated from current positions + initial capital)")
-    except Exception as calc_err:
-        logger.warning(f"[PHASE 8] Position-based calculation failed: {calc_err}. Trying Alpaca API...")
+                raise ValueError("No portfolio snapshot available")
+    except Exception as db_err:
+        logger.warning(f"[PHASE 8] Latest snapshot unavailable: {db_err}. Trying Alpaca API...")
 
         # Secondary: Try Alpaca API (live, current value)
         try:
@@ -1740,7 +1728,7 @@ def run(
                 if not initial_capital or initial_capital <= 0:
                     error_msg = (
                         f"[PHASE 8 HALT] Cannot determine portfolio value. "
-                        f"Tried: position calculation, Alpaca API. "
+                        f"Tried: latest snapshot, Alpaca API. "
                         f"Configured fallback invalid: initial_capital_paper_trading={initial_capital}. "
                         f"Cannot proceed with trading without reliable portfolio value."
                     )
@@ -1751,14 +1739,14 @@ def run(
                 portfolio_value_source = "configured_fallback"
                 logger.warning(
                     f"[PHASE 8] Using configured paper trading capital ${portfolio_value:,.0f} "
-                    f"(position calculation and API unavailable). "
-                    f"Position sizing may be inaccurate. Calc error: {calc_err}. API error: {api_err}"
+                    f"(latest snapshot and API unavailable). "
+                    f"Position sizing may be inaccurate. Snapshot error: {db_err}. API error: {api_err}"
                 )
             else:
                 # Live mode: never use fallback, fail-fast
                 error_msg = (
                     f"[PHASE 8 HALT] Cannot determine portfolio value (live mode). "
-                    f"Calculation error: {calc_err}. API error: {api_err}"
+                    f"Snapshot error: {db_err}. API error: {api_err}"
                 )
                 logger.critical(error_msg)
                 log_phase_result_fn(8, "entry_execution", "halt", error_msg)

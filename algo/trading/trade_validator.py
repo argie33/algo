@@ -241,13 +241,36 @@ class TradeValidator:
 
         return True, None, result_dict
 
-    def check_duplicate_position(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
-        # CRITICAL FIX: Check algo_trades not algo_positions. The database constraint
-        # algo_trades_symbol_live_status_idx (migration 1158) prevents duplicate live trades
-        # at algo_trades level. Checking algo_positions only catches manually-tracked positions
-        # but misses entries already inserted into algo_trades. Must use TradeStatus.all_open()
-        # (not just status='open') - a live (execution_mode=auto) filled order writes
-        # status='filled'/'partially_filled' literally, never 'open'.
+    def check_duplicate_position(self, cur: Any, symbol: str, entry_date: _date | None = None) -> tuple[bool, str | None]:
+        # CRITICAL FIX (2026-08-06): Check for same-day duplicate entries by looking at algo_positions,
+        # not just open trades in algo_trades. When a position is closed and immediately re-entered
+        # on the same trading day, the algo_trades status becomes 'closed', allowing the duplicate check
+        # to pass and create multiple positions for the same symbol on the same date. This corrupts
+        # portfolio tracking, risk calculations, and exit execution.
+        #
+        # If entry_date is provided, enforce one position per symbol per trading day (the constraint).
+        # If not provided (backward compat), fall back to open-trades-only check for live positions.
+
+        if entry_date:
+            # NEW CHECK: Prevent same-day duplicate entries at algo_positions level
+            # "You can only hold one position per symbol per trading day" constraint
+            cur.execute(
+                """
+                SELECT position_id FROM algo_positions
+                WHERE symbol = %s AND entry_date = %s
+                LIMIT 1
+                """,
+                (symbol, entry_date),
+            )
+            if cur.fetchone():
+                return (
+                    True,
+                    f"Symbol {symbol} already has a position entered on {entry_date}. "
+                    f"Can only hold one active position per symbol per trading day.",
+                )
+
+        # LEGACY CHECK: Also check for truly open live positions
+        # This catches cases where entry_date is not provided or handles the general "already open" case.
         open_statuses = TradeStatus.all_open()
         cur.execute(
             """
@@ -260,7 +283,7 @@ class TradeValidator:
         if cur.fetchone():
             return (
                 True,
-                f"Symbol {symbol} already has an open position. Close it before entering another.",
+                f"Symbol {symbol} already has an open trade. Close it before entering another.",
             )
         return False, None
 
