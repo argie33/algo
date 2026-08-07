@@ -1123,7 +1123,14 @@ def run(
 
     now_dt = datetime.now(EASTERN_TZ)
     now_et = now_dt.time()
-    if not MarketCalendar.is_market_open(now_dt) and not test_mode and not allow_outside_hours:
+    is_market_open = MarketCalendar.is_market_open(now_dt)
+
+    logger.info(
+        f"[PHASE 8 MARKET HOURS CHECK] Current time: {now_dt.strftime('%Y-%m-%d %H:%M:%S %Z')} ET, "
+        f"is_market_open={is_market_open}, test_mode={test_mode}, allow_outside_hours={allow_outside_hours}"
+    )
+
+    if not is_market_open and not test_mode and not allow_outside_hours:
         close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
         msg = (
             f"[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours. "

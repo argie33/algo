@@ -1982,15 +1982,23 @@ class Orchestrator:
         logger.info(f"[OK] {self.run_date.strftime('%A')} is a trading day - proceeding with orchestration")
 
         # CRITICAL FIX: Market hours guard at orchestrator entry point
-        # Prevents manual test runs outside market hours (9:30 AM - 4:00 PM ET) from corrupting production state
-        # Phase 8 also has this guard, but adding it here stops pre-market runs much earlier
-        # dry_run=True bypasses this to allow safe testing at any time
-        # ALLOW_OUTSIDE_MARKET_HOURS=true also bypasses for automated testing
+        # CRITICAL FIX: Enforce market hours guard ALWAYS, even in dry_run mode
+        # Previous bug: dry_run=True bypassed this guard, allowing pre-market position creation during simulations
+        # This caused 5 pre-market positions to be created on 2026-08-07 05:03 ET, which resulted in:
+        # - Bad fills at market open
+        # - 5 consecutive losses (triggered circuit breaker halt)
+        # - Real portfolio damage from a test run
+        #
+        # dry_run mode should simulate WHAT WOULD HAPPEN, not change WHEN things happen.
+        # Market hours guard is a safety check that must always apply.
+        # Phase 8 also has this guard, but adding it here stops pre-market runs much earlier.
+        # ALLOW_OUTSIDE_MARKET_HOURS=true still bypasses for explicit automated testing.
         from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
 
         allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
         now_et = datetime.now(EASTERN_TZ).time()
-        if not self.dry_run and not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
+        # Market hours enforced for ALL runs (dry_run or not), UNLESS explicitly allowed
+        if not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
             logger.warning(
                 f"[MARKET_HOURS_GUARD] Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
                 f"Market hours: {MARKET_OPEN_TIME.strftime('%H:%M')} - {MARKET_CLOSE_TIME.strftime('%H:%M')} ET. "
