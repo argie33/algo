@@ -135,12 +135,53 @@ def run_loader(
     loader = loader_class()
     try:
         if global_mode:
+            import time
+            start_time = time.time()
             result = loader.load_global()
+            execution_duration = time.time() - start_time
+
             if result > 0:
-                logger.info(f"SUCCESS: {result} records loaded")
+                logger.info(f"SUCCESS: {result} records loaded in {execution_duration:.2f}s")
+                # Mark completion for global-mode loaders (same as per-symbol mode)
+                from utils.loaders.status_manager import LoaderStatusManager
+                status_mgr = LoaderStatusManager(loader.table_name)
+                # For global loaders, pass row count as both symbol_count and symbols_loaded
+                # to indicate 100% completion (1 "symbol" = "market", fully processed)
+                status_mgr.mark_completed(
+                    execution_duration_sec=execution_duration,
+                    current_run_symbols_loaded=1,
+                    current_run_symbol_count=1,
+                )
+
+                # Mark secondary tables as completed too
+                if hasattr(loader, 'output_tables') and loader.output_tables:
+                    for secondary_table in loader.output_tables:
+                        if secondary_table != loader.table_name:
+                            secondary_mgr = LoaderStatusManager(secondary_table)
+                            secondary_mgr.mark_completed(
+                                execution_duration_sec=execution_duration,
+                                current_run_symbols_loaded=1,
+                                current_run_symbol_count=1,
+                            )
                 return 0
             else:
-                logger.error("FAILED: No records loaded")
+                logger.error(f"FAILED: No records loaded in {execution_duration:.2f}s")
+                # Mark as failed in status
+                from utils.loaders.status_manager import LoaderStatusManager
+                status_mgr = LoaderStatusManager(loader.table_name)
+                status_mgr.mark_failed(
+                    error_message="Global loader returned 0 rows - no data produced",
+                    completion_pct=0.0,
+                )
+                # Mark secondary tables as failed too
+                if hasattr(loader, 'output_tables') and loader.output_tables:
+                    for secondary_table in loader.output_tables:
+                        if secondary_table != loader.table_name:
+                            secondary_mgr = LoaderStatusManager(secondary_table)
+                            secondary_mgr.mark_failed(
+                                error_message="Global loader returned 0 rows - no data produced",
+                                completion_pct=0.0,
+                            )
                 return 1
         else:
             # Per-symbol mode
