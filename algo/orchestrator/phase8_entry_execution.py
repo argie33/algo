@@ -1115,12 +1115,13 @@ def run(
     # CRITICAL FIX: Always check market hours, even in dry-run, so testing can verify
     # the guard works correctly on early-close days and outside market hours.
 
-    # TEST MODE: Allow override for testing outside market hours (PHASE_8_TEST_MODE=true)
+    # TEST MODE: Allow override for testing outside market hours (PHASE_8_TEST_MODE=true or ALLOW_OUTSIDE_MARKET_HOURS=true)
     test_mode = os.environ.get('PHASE_8_TEST_MODE', 'false').lower() == 'true'
+    allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
 
     now_dt = datetime.now(EASTERN_TZ)
     now_et = now_dt.time()
-    if not MarketCalendar.is_market_open(now_dt) and not test_mode:
+    if not MarketCalendar.is_market_open(now_dt) and not test_mode and not allow_outside_hours:
         close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
         msg = (
             f"[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours. "
