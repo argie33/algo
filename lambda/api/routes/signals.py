@@ -236,8 +236,7 @@ def _get_signals_stocks(
             {symbol_clause}
             {signal_clause}
             ORDER BY b.date DESC, b.entry_quality_score DESC
-            LIMIT %s
-            """,
+            LIMIT %s""",
             tuple(params),
         )
         signals = cur.fetchall()
