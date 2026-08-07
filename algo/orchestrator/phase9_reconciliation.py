@@ -243,6 +243,58 @@ def _audit_exit_prices_step(
         raise RuntimeError(error_msg) from e
 
 
+def _populate_missing_trade_ids_arr(log_phase_result_fn: Callable[..., Any]) -> None:
+    """Populate trade_ids_arr for positions that have no trade_ids set.
+
+    CRITICAL FIX (Session 19): Architecture issue - position_sync runs in Phase 1 before
+    Phase 8 creates entry trades. Positions created by Phase 8 never get their trade_ids_arr
+    populated, causing circuit breaker to fail with "orphaned trade_ids_arr" errors.
+
+    This function runs in Phase 9 (after Phase 8 has created trades) to populate missing
+    trade_ids_arr by joining positions to their corresponding trades.
+    """
+    try:
+        with DatabaseContext("write") as cur:
+            # Find positions with missing/NULL trade_ids_arr
+            cur.execute("""
+                SELECT COUNT(*) FROM algo_positions
+                WHERE status IN ('open', 'paper_open')
+                AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
+            """)
+            missing_count = cur.fetchone()[0]
+
+            if missing_count > 0:
+                logger.info(f"[PHASE 9] Found {missing_count} positions with missing trade_ids_arr - populating...")
+
+                # Update positions with their trade_ids from corresponding trades
+                cur.execute("""
+                    UPDATE algo_positions ap SET
+                        trade_ids_arr = ARRAY_AGG(DISTINCT t.trade_id),
+                        updated_at = NOW()
+                    FROM (
+                        SELECT position_id, ARRAY_AGG(DISTINCT trade_id::text) as trade_ids
+                        FROM algo_trades
+                        WHERE status IN ('open', 'filled')
+                        GROUP BY position_id
+                    ) t_agg
+                    WHERE ap.position_id = t_agg.position_id
+                    AND (ap.trade_ids_arr IS NULL OR array_length(ap.trade_ids_arr, 1) IS NULL)
+                """)
+
+                updated_count = cur.rowcount
+                logger.info(f"[PHASE 9] Populated trade_ids_arr for {updated_count} positions")
+                log_phase_result_fn(9, "populate_trade_ids_arr", "success", f"populated {updated_count} positions")
+            else:
+                logger.debug("[PHASE 9] All positions have trade_ids_arr populated")
+                log_phase_result_fn(9, "populate_trade_ids_arr", "success", "no missing trade_ids_arr")
+
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        error_msg = f"[PHASE 9 CRITICAL] Failed to populate trade_ids_arr: {e}"
+        logger.critical(error_msg)
+        log_phase_result_fn(9, "populate_trade_ids_arr", "error", str(e)[:100])
+        raise RuntimeError(error_msg) from e
+
+
 def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> None:
     """Sync algo_trades.quantity from entry_quantity for every live (non-terminal) trade.
 
@@ -1087,7 +1139,7 @@ def _record_closed_positions_exits(
             open_trade_statuses = TradeStatus.all_open()
             cursor.execute(
                 """
-                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id, ap.current_price
+                SELECT ap.symbol, ap.avg_entry_price, ap.quantity, at.stop_loss_price, at.entry_quantity, at.trade_id AS exit_trade_id, ap.current_price
                 FROM algo_positions ap
                 CROSS JOIN LATERAL UNNEST(ap.trade_ids_arr) AS unnested_trade_id
                 JOIN algo_trades at ON at.trade_id::text = unnested_trade_id::text
@@ -1108,15 +1160,22 @@ def _record_closed_positions_exits(
                 acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                 try:
                     for row in closed_positions:
-                        (
-                            symbol,
-                            entry_price,
-                            position_qty,
-                            stop_loss_price,
-                            entry_qty,
-                            trade_id,
-                            current_price,
-                        ) = row
+                        if not isinstance(row, (tuple, list)) or len(row) < 7:
+                            logger.error(f"[PHASE 9] Malformed row from closed_positions query: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})")
+                            raise RuntimeError(f"[PHASE 9 CRITICAL] Malformed closed position row returned from database. Expected 7 columns, got {len(row) if isinstance(row, (tuple, list)) else '?'}")
+                        try:
+                            (
+                                symbol,
+                                entry_price,
+                                position_qty,
+                                stop_loss_price,
+                                entry_qty,
+                                trade_id,
+                                current_price,
+                            ) = row
+                        except (ValueError, TypeError) as unpack_err:
+                            logger.error(f"[PHASE 9] Failed to unpack row: {row}. Error: {unpack_err}")
+                            raise RuntimeError(f"[PHASE 9 CRITICAL] Failed to unpack database row: {unpack_err}. Row: {row}")
 
                         if entry_price is None or entry_price <= 0:
                             error_msg = (
@@ -1572,6 +1631,10 @@ def run(
         # Metrics update must persist trade results to audit trail.
         # Fail-fast per GOVERNANCE - audit trail integrity is non-negotiable.
         _update_daily_metrics(run_date, log_phase_result_fn)
+
+        # Populate missing trade_ids_arr for Phase 8-created positions (Session 19 fix).
+        # Without this, circuit breaker fails with "orphaned trade_ids_arr" halts.
+        _populate_missing_trade_ids_arr(log_phase_result_fn)
 
         # Sync quantity column for all live trades (entry_quantity -> quantity). Without this,
         # dashboard and risk calculations cannot determine current position sizes.
