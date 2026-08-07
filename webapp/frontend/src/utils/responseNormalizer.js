@@ -151,9 +151,12 @@ export const extractData = (response) => {
       data.data.offset !== undefined ||
       data.data.pagination !== undefined;
 
-    // If data.data has items array and pagination markers, treat as paginated response (even with extra fields)
-    if (Array.isArray(data.data.items) && hasPaginationMarkers) {
-      const filteredItems = data.data.items.filter(
+    // Check for "top" field (scores endpoint) and convert to items for consistency
+    const itemsArray = data.data.items || data.data.top;
+
+    // If data.data has items/top array and pagination markers, treat as paginated response (even with extra fields)
+    if (Array.isArray(itemsArray) && hasPaginationMarkers) {
+      const filteredItems = itemsArray.filter(
         (item) => item !== null && item !== undefined
       );
       const pag = data.data.pagination || {};
@@ -202,6 +205,11 @@ export const extractData = (response) => {
         ...(data.data.expected_date !== undefined && { expected_date: data.data.expected_date }),
         ...(data.data.as_of !== undefined && { as_of: data.data.as_of }),
         ...(data.data.execution_health !== undefined && { execution_health: data.data.execution_health }),
+        // Score endpoint specific fields (top, avg_composite, grades, data_health)
+        ...(data.data.top !== undefined && { top: data.data.top }),
+        ...(data.data.avg_composite !== undefined && { avg_composite: data.data.avg_composite }),
+        ...(data.data.grades !== undefined && { grades: data.data.grades }),
+        ...(data.data.data_health !== undefined && { data_health: data.data.data_health }),
         statusCode: httpStatus,
         success: true,
       };
