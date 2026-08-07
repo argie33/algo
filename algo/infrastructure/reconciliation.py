@@ -232,8 +232,8 @@ class DailyReconciliation:
             from decimal import Decimal
 
             with DatabaseContext("read") as cur:
-                # Count open positions (both real and paper_open for paper mode tracking)
-                cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status IN ('open', 'paper_open')")
+                # Count open positions
+                cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
                 position_row = cur.fetchone()
                 if position_row is None:
                     raise RuntimeError(
@@ -255,7 +255,7 @@ class DailyReconciliation:
                            SUM(position_value) as total_invested,
                            SUM(quantity * avg_entry_price) as total_cost_basis
                     FROM algo_positions
-                    WHERE status IN ('open', 'paper_open')
+                    WHERE status = 'open'
                 """)
                 pnl_row = cur.fetchone()
                 if pnl_row is None:
@@ -494,7 +494,7 @@ class DailyReconciliation:
                         cur.execute("""
                             SELECT COUNT(*) as count
                             FROM algo_positions
-                            WHERE status IN ('open', 'paper_open')
+                            WHERE status = 'open'
                             AND unrealized_pnl > 0
                         """)
                         winning_row = cur.fetchone()
@@ -503,7 +503,7 @@ class DailyReconciliation:
                         cur.execute("""
                             SELECT COUNT(*) as count
                             FROM algo_positions
-                            WHERE status IN ('open', 'paper_open')
+                            WHERE status = 'open'
                             AND unrealized_pnl < 0
                         """)
                         losing_row = cur.fetchone()
@@ -512,7 +512,7 @@ class DailyReconciliation:
                         cur.execute("""
                             SELECT COUNT(*) as count
                             FROM algo_positions
-                            WHERE status IN ('open', 'paper_open')
+                            WHERE status = 'open'
                             AND unrealized_pnl = 0
                         """)
                         breakeven_row = cur.fetchone()

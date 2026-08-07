@@ -133,14 +133,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
                     ) = trade_row
 
-                    # CRITICAL FIX: Check for ANY existing OPEN/PAPER_OPEN position first
-                    # The unique index algo_positions_symbol_live_status_idx prevents
-                    # multiple positions per symbol with status IN ('open', 'paper_open').
+                    # Check for existing OPEN position first
+                    # The unique index prevents multiple open positions per symbol.
                     # If we find one, update it. If not, check for closed positions to reopen.
-                    # This prevents duplicate key violations when multiple positions exist for same symbol.
+                    # Note: 'paper_open' status was removed in earlier session - all positions use 'open' status.
                     cur.execute(
-                        'SELECT id FROM algo_positions WHERE symbol = %s AND status IN (%s, %s) LIMIT 1',
-                        (symbol, 'open', 'paper_open')
+                        'SELECT id FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1',
+                        (symbol, 'open')
                     )
                     existing_open = cur.fetchone()
 

@@ -258,7 +258,7 @@ def _populate_missing_trade_ids_arr(log_phase_result_fn: Callable[..., Any]) -> 
             # Find positions with missing/NULL trade_ids_arr
             cur.execute("""
                 SELECT COUNT(*) FROM algo_positions
-                WHERE status IN ('open', 'paper_open')
+                WHERE status = 'open'
                 AND (trade_ids_arr IS NULL OR array_length(trade_ids_arr, 1) IS NULL)
             """)
             missing_count = cur.fetchone()[0]
