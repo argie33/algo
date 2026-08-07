@@ -1154,6 +1154,35 @@ def run(
         )
         return result
 
+    # CRITICAL FIX (Session 32): Market-open exclusion (9:30-10:30 AM) hard cutoff
+    # Previous: Guard at line 2089 only fired if current_time_et was 09:30-10:30
+    # Problem: Morning runs at 09:03 AM passed because check was FALSE (before 09:30)
+    # Result: All 5 market-open false breakouts entered at 09:03-09:12, stopped out 3 hours later (62.5% loss rate)
+    # FIX: Hard cutoff - skip Phase 8 entirely if current_time_et < 10:30 AM ET
+    # This prevents ALL market-open entries regardless of when orchestrator runs
+    from datetime import time as dt_time
+    market_open_exclusion_enabled = config.get("market_open_exclusion_enabled", False)
+    if market_open_exclusion_enabled and not test_mode and not allow_outside_hours:
+        market_open_end = dt_time(10, 30)  # 10:30 AM ET
+        if now_et < market_open_end:
+            msg = (
+                f"[PHASE 8 MARKET-OPEN EXCLUSION] Blocking entries during high-volatility market open window. "
+                f"Current time: {now_et.strftime('%H:%M:%S')} ET. "
+                f"Entries allowed only after 10:30 AM ET (60-minute window after 9:30 AM market open). "
+                f"Reason: Market-open false breakouts cause 62.5% loss rate within 3 hours."
+            )
+            logger.warning(msg)
+            log_phase_result_fn(8, "entry_execution", "blocked", msg)
+            result = PhaseResult(
+                8,
+                "entry_execution",
+                "blocked",
+                {"entered": 0},
+                False,  # halted=False: guard is blocking entries, not halting orchestration
+                msg,
+            )
+            return result
+
     if test_mode:
         logger.warning("[PHASE 8 TEST MODE] Market hours guard BYPASSED for testing")
 

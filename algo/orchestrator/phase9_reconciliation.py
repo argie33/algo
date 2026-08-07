@@ -269,7 +269,7 @@ def _populate_missing_trade_ids_arr(log_phase_result_fn: Callable[..., Any]) -> 
                 # Update positions with their trade_ids from corresponding trades
                 cur.execute("""
                     UPDATE algo_positions ap SET
-                        trade_ids_arr = ARRAY_AGG(DISTINCT t.trade_id),
+                        trade_ids_arr = t_agg.trade_ids,
                         updated_at = NOW()
                     FROM (
                         SELECT position_id, ARRAY_AGG(DISTINCT trade_id::text) as trade_ids
