@@ -854,11 +854,13 @@ class ExitEngine:
                                 trade_status_placeholders = ", ".join(["%s"] * len(open_trade_statuses_close))
                                 # CRITICAL FIX: For delisted/unavailable symbols, close position with NULL P&L
                                 # Do NOT calculate fake P&L when price is unavailable (no fallback to entry_price)
-                                # Leave current_price and profit_loss fields as NULL to indicate manual review needed
+                                # Set estimated_exit_price to current_price to mark as pending-reconciliation
+                                # (not corrupt) so Phase 9 reconciliation can handle it gracefully
                                 cur.execute(
                                     f"""UPDATE algo_trades SET status = 'closed', exit_date = %s,
                                        exit_time = CURRENT_TIMESTAMP,
                                        exit_price = NULL,
+                                       estimated_exit_price = %s,
                                        profit_loss_dollars = NULL,
                                        profit_loss_pct = NULL,
                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
@@ -869,6 +871,7 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
+                                        current_price if current_price and current_price > 0 else None,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,

@@ -2077,20 +2077,19 @@ def run(
             data_quality_failures[symbol or "unknown"] = "missing_symbol"
             continue
 
-        # CRITICAL FIX (Session 27): Skip early market open entries (9:30-10:30 AM ET)
-        # Root cause: All 5 consecutive losses entered at 09:03-09:04, stopped out 3 hours later
-        # Analysis: High-volatility market open causes false breakouts that reverse within hours
-        # Solution: Enforce 60-minute market open exclusion - allow entries only after 10:30 AM ET
+        # CRITICAL FIX (Session 27 + Session 31): Block all entries before 10:30 AM ET
+        # Root cause: Pre-market and early market entries (09:03-09:04 AM) caused 75% losses
+        # Analysis: Pre-market signals are stale (from yesterday's EOD), market open 9:30-10:30 AM is high-volatility
+        # Solution: Enforce absolute 10:30 AM ET minimum - no entries anytime before then
         from datetime import time as dt_time
         current_time_et = datetime.now(_EASTERN_TZ).time()
-        market_open_start = dt_time(9, 30)  # 9:30 AM ET
-        market_open_end = dt_time(10, 30)   # 10:30 AM ET
+        earliest_entry_time = dt_time(10, 30)  # 10:30 AM ET - MINIMUM entry time
 
-        if market_open_start <= current_time_et < market_open_end:
+        if current_time_et < earliest_entry_time:
             logger.info(
                 f"[PHASE 8 EARLY MARKET EXCLUSION] {symbol}: Skipping entry at {current_time_et}. "
-                f"Market open (9:30-10:30 AM ET) has high volatility and false breakouts. "
-                f"Entries allowed only after 10:30 AM ET."
+                f"Pre-market and early market (before 10:30 AM ET) entries cause high losses due to stale signals "
+                f"and false breakouts. Entries allowed only after 10:30 AM ET."
             )
             data_quality_failures[symbol] = "early_market_open_exclusion"
             continue
