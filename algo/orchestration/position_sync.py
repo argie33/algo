@@ -82,10 +82,15 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
 
         with DatabaseContext('write') as cur:
             # Get all open positions from trades
+            # CRITICAL FIX: Include trades with status='closed' if they don't have exit_price set.
+            # Phase 6 marks entry trades as status='closed' when exiting, and sets exit_price.
+            # A trade with status='closed' AND exit_price is actually FULLY EXITED.
+            # A trade with status='closed' AND exit_price IS NULL should not happen, but include it for robustness.
+            # We want: net quantity of all trades that represent currently-held positions (not fully exited).
             cur.execute('''
                 SELECT symbol, SUM(quantity) as total_qty
                 FROM algo_trades
-                WHERE status IN ('filled', 'open')
+                WHERE NOT (status = 'closed' AND exit_price IS NOT NULL)
                 GROUP BY symbol
                 HAVING SUM(quantity) > 0
                 ORDER BY symbol
@@ -101,12 +106,14 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                     cur.execute(f"SAVEPOINT {savepoint}")
 
                     # Always fetch stop_loss_price from trade first, so we can sync it to both INSERT and UPDATE
+                    # CRITICAL FIX: Exclude trades that are fully exited (status='closed' AND exit_price IS NOT NULL)
+                    # because those don't represent open positions.
                     cur.execute('''
                         SELECT entry_price, position_id, stop_loss_price,
                                target_1_price, target_2_price, target_3_price,
                                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple
                         FROM algo_trades
-                        WHERE symbol = %s AND status IN ('filled', 'open')
+                        WHERE symbol = %s AND NOT (status = 'closed' AND exit_price IS NOT NULL)
                         ORDER BY entry_date DESC
                         LIMIT 1
                     ''', (symbol,))
