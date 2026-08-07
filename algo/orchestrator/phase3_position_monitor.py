@@ -272,6 +272,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         assert symbol is not None, "symbol should be set by get_str without allow_none"
                         prices[symbol] = float(close_price) if close_price is not None else None
 
+                # CRITICAL FIX: Get authoritative CURRENT_DATE from database (not passed run_date)
+                # run_date may be stale or incorrectly calculated, causing days_since_entry=-1 for same-day entries
+                cur.execute("SELECT CURRENT_DATE")
+                db_today = cur.fetchone()[0]
+
                 update_errors = []
                 for update_idx, row in enumerate(positions):
                     # CRITICAL: Validate row structure before unpacking to prevent tuple index errors
@@ -366,7 +371,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             continue
 
                         # Calculate enrichment fields: days held and ladder % to stop
-                        days_since_entry = (run_date - entry_date).days if entry_date else 0
+                        # Use authoritative db_today from database (not run_date parameter which may be stale)
+                        days_since_entry = (db_today - entry_date).days if entry_date else 0
                         ladder_pct_stop = 0.0
                         if current_price and avg_entry > stop_loss:
                             # ladder_pct_stop: how far we are from stop to entry as % of entry-to-stop range
