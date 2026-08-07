@@ -1007,6 +1007,14 @@ class EntryHandler:
                 position_id if order_status in ("filled", "partially_filled", "paper_pending", "open") else None
             ),
         )
+        # CRITICAL DEBUG: Log what we're about to insert before persisting
+        # This helps diagnose why signal fields end up as NULL in the database
+        logger.info(
+            f"[TRADE INSERT DEBUG] {trade_request.symbol}: "
+            f"sqs={trade_request.sqs} trend={trade_request.trend_score} "
+            f"base_type={trade_request.base_type} base_quality={trade_request.base_quality}"
+        )
+
         self._insert_trade_record(cur, trade_request)
 
         # Insert position record if order was filled or paper_pending (paper mode tracking)
