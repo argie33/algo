@@ -121,9 +121,13 @@ class PositionTracker:
 
             if full_exit or effective_new_qty <= 0:
                 actual_exit_reason = exit_reason if exit_reason is not None else 'position_tracker_full_exit'
+                # CRITICAL: DO NOT modify quantity when closing position. Quantity should remain as the historical shares held.
+                # Previous bug: Set quantity = 0 on close, destroying historical record. Position data becomes meaningless.
+                # Correct approach: Use status='closed' to indicate position is no longer open. Keep quantity unchanged.
+                # This preserves historical record for backtesting, analysis, and data integrity.
                 cur.execute(
                     """UPDATE algo_positions
-                       SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP,
+                       SET status = %s, closed_at = CURRENT_TIMESTAMP,
                            profit_loss_dollars = %s, unrealized_pnl = NULL, unrealized_pnl_pct = %s,
                            exit_reason = %s
                        WHERE position_id = %s AND quantity = %s""",
