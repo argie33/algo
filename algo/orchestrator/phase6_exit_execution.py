@@ -580,10 +580,14 @@ def run(
                     #
                     # CORRECT APPROACH: Use portfolio snapshot value (what Phase 8 used at sizing time).
                     # This is fixed and does not shrink as positions close during the day.
+                    # CRITICAL FIX: Use <= run_date to get the LATEST available snapshot,
+                    # not exact-match which fails if snapshot hasn't been created yet for today.
+                    # On first run of the day: portfolio_snapshot is from yesterday (correct baseline)
+                    # On subsequent runs: portfolio_snapshot is from today (updated by Phase 9)
                     cur.execute(
                         """
                         SELECT COALESCE(total_portfolio_value, 0) FROM algo_portfolio_snapshots
-                        WHERE snapshot_date = %s
+                        WHERE snapshot_date <= %s
                         ORDER BY snapshot_date DESC LIMIT 1
                         """,
                         (run_date,),
