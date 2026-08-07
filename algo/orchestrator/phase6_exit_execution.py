@@ -442,21 +442,22 @@ def run(
                             )
                             trade_row = cur.fetchone()
                             if trade_row is None or not trade_row[0]:
-                                raise RuntimeError(
-                                    f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
-                                    f"Cannot force-exit without trade reference. "
-                                    f"Position identified for sector concentration exit but missing trade linkage. "
-                                    f"Check algo_positions.trade_ids_arr for data integrity."
+                                logger.error(
+                                    f"[PHASE 6 ERROR] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
+                                    f"Cannot force-exit without trade reference. Skipping this position."
                                 )
+                                # CRITICAL FIX: Skip this position instead of halting all sector concentration checks
+                                continue
 
                             trade_ids_arr = trade_row[0]
                             trade_id = trade_ids_arr[0] if trade_ids_arr else None
                             if not trade_id:
-                                raise RuntimeError(
-                                    f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
-                                    f"Cannot parse trade reference for sector concentration exit. "
-                                    f"Position marked for exit but trade_ids_arr is empty or corrupted."
+                                logger.error(
+                                    f"[PHASE 6 ERROR] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
+                                    f"Cannot parse trade reference. Skipping this position."
                                 )
+                                # CRITICAL FIX: Skip this position instead of halting
+                                continue
 
                             action = {
                                 "symbol": symbol,
@@ -734,25 +735,27 @@ def run(
                         trade_row = cur.fetchone()
                         if trade_row is None or not trade_row[0]:
                             error_msg = (
-                                f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) violates concentration ({pct:.1f}% > {limit:.0f}%) "
+                                f"[PHASE 6 ERROR] {symbol} (pos_id={pos_id}) violates concentration ({pct:.1f}% > {limit:.0f}%) "
                                 f"but has no trade_ids_arr. Cannot force-exit without trade reference. "
-                                f"This position will remain in portfolio with a concentration violation. "
-                                f"Data integrity issue: every open position must have at least one associated trade_id."
+                                f"Skipping this position - manual exit may be required."
                             )
-                            logger.critical(error_msg)
-                            raise RuntimeError(error_msg)
+                            logger.error(error_msg)
+                            # CRITICAL FIX: Skip this position instead of halting all concentration checks
+                            # One bad position should not block exits for all others
+                            continue
 
                         trade_ids_arr = trade_row[0]
                         trade_id = trade_ids_arr[0] if trade_ids_arr else None
                         if not trade_id:
                             error_msg = (
-                                f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) violates concentration ({pct:.1f}% > {limit:.0f}%) "
+                                f"[PHASE 6 ERROR] {symbol} (pos_id={pos_id}) violates concentration ({pct:.1f}% > {limit:.0f}%) "
                                 f"but trade_ids_arr is malformed: {trade_ids_arr}. "
-                                f"Cannot parse first trade_id from array. "
-                                f"This position will remain in portfolio with a concentration violation."
+                                f"Cannot parse trade_id - skipping this position. Manual exit may be required."
                             )
-                            logger.critical(error_msg)
-                            raise RuntimeError(error_msg)
+                            logger.error(error_msg)
+                            # CRITICAL FIX: Skip this position and continue with others instead of halting entire phase
+                            # A single bad position should not block concentration enforcement for all other positions
+                            continue
 
                         action = {
                             "symbol": symbol,

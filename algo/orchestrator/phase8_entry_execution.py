@@ -936,11 +936,13 @@ def _batch_fetch_technical_data(
                     logger.warning("[PHASE 8] Skipping row with no symbol")
                     continue
                 if atr is None or sma_50 is None or close is None:
-                    raise ValueError(
-                        f"Symbol {row_symbol}: Technical data incomplete from database query. "
-                        f"ATR={atr}, SMA_50={sma_50}, close={close}. "
-                        f"INNER JOIN should have excluded incomplete rows. Check technical data loader."
+                    logger.warning(
+                        f"[PHASE 8] Symbol {row_symbol}: Technical data incomplete (ATR={atr}, SMA_50={sma_50}, close={close}). "
+                        f"Skipping this symbol. Check technical_data_daily table for completeness."
                     )
+                    # CRITICAL FIX: Skip this symbol instead of halting all entry execution
+                    # One symbol with bad technical data should not block entries for all other symbols
+                    continue
 
                 # CRITICAL FIX: Session 345 - Validate type conversions (handles NaN/Infinity)
                 try:
