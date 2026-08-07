@@ -2076,7 +2076,6 @@ def run(
         # Root cause: All 5 consecutive losses entered at 09:03-09:04, stopped out 3 hours later
         # Analysis: High-volatility market open causes false breakouts that reverse within hours
         # Solution: Enforce 60-minute market open exclusion - allow entries only after 10:30 AM ET
-        from utils.infrastructure import EASTERN_TZ
         from datetime import time as dt_time
         current_time_et = datetime.now(EASTERN_TZ).time()
         market_open_start = dt_time(9, 30)  # 9:30 AM ET
