@@ -136,9 +136,12 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                     # Check for existing OPEN position first
                     # The unique index prevents multiple open positions per symbol.
                     # If we find one, update it. If not, check for closed positions to reopen.
-                    # Note: 'paper_open' status was removed in earlier session - all positions use 'open' status.
+                    # CRITICAL FIX: Must use position_id (UUID), not id (integer). The id field
+                    # is a database surrogate key; position_id is what links to algo_trades.
+                    # Using id caused duplicate positions: one with id/position_id mismatch pointing
+                    # to no trades (orphaned), another with correct position_id pointing to trades.
                     cur.execute(
-                        'SELECT id FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1',
+                        'SELECT position_id FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1',
                         (symbol, 'open')
                     )
                     existing_open = cur.fetchone()
@@ -150,7 +153,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                     else:
                         # No open position - check for closed position to reopen
                         cur.execute(
-                            'SELECT id, status FROM algo_positions WHERE symbol = %s ORDER BY updated_at DESC LIMIT 1',
+                            'SELECT position_id, status FROM algo_positions WHERE symbol = %s ORDER BY updated_at DESC LIMIT 1',
                             (symbol,)
                         )
                         existing = cur.fetchone()
@@ -171,13 +174,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
 
                         # Update existing position, reopen if needed, and sync stop_loss_price and trade_ids_arr
-                        # CRITICAL: Use id to update ONLY this specific position (not all positions for the symbol)
-                        # Using WHERE id ensures we only update the exact position we found, avoiding duplicate key violations
+                        # CRITICAL: Use position_id to update ONLY this specific position (not all positions for the symbol)
+                        # Using WHERE position_id ensures we only update the exact position we found, avoiding duplicate key violations
                         trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
                         cur.execute(
                             'UPDATE algo_positions SET quantity = %s, status = %s, '
                             '  stop_loss_price = %s, current_stop_price = %s, trade_ids = %s, trade_ids_arr = %s, updated_at = NOW() '
-                            'WHERE id = %s',
+                            'WHERE position_id = %s',
                             (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_text, trade_ids_arr, existing_id)
                         )
                         updated += 1
