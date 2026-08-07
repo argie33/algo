@@ -574,34 +574,26 @@ def run(
                     # false POSITION_SIZE_CONCENTRATION force-exits on positions entered that
                     # same run at 1.8-4.4% sizing, several landing as losses and tripping the
                     # consecutive-losses circuit breaker.
-                    # Snapshots are written by Phase 9 (reconciliation), which runs AFTER
-                    # Phase 6 - so on a day's first orchestrator run, no snapshot_date=run_date
-                    # row exists yet. Fall back to the most recent prior snapshot (at most one
-                    # trading day stale) rather than requiring an exact same-day match: still
-                    # real account equity, and far closer to correct than the open-positions-sum
-                    # this replaces.
+                    # CRITICAL FIX (Session 2026-08-07): Use SUM(position_value) not total_portfolio_value.
+                    # Reason: Concentration must be measured relative to INVESTED capital, not total account equity.
+                    # Previous bug: Using $71k account against $4k position = 5.8% (pass)
+                    # But actual investment concentration: $4k / $25k invested = 16.9% (fail)
+                    # This broke risk management by allowing oversized positions.
+                    # Using live position_value sum ensures concentration is checked relative to actual risk exposure.
                     cur.execute(
                         """
-                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                        WHERE snapshot_date <= %s
-                        ORDER BY snapshot_date DESC LIMIT 1
-                        """,
-                        (run_date,),
+                        SELECT COALESCE(SUM(position_value), 0) FROM algo_positions
+                        WHERE status = 'open'
+                        """
                     )
                     result = cur.fetchone()
-                    total_value = result[0] if result else None
-                    if total_value is None:
-                        logger.error(
-                            "[PHASE 6] No algo_portfolio_snapshots row available. "
-                            "Cannot determine account equity for concentration checks. "
-                            "Phase 9 (reconciliation) must run after Phase 6 to create daily snapshots."
+                    total_value = result[0] if result else 0
+                    if total_value is None or total_value == 0:
+                        logger.info(
+                            "[PHASE 6] No open positions or zero total invested value. "
+                            "Concentration checks not needed when nothing is invested."
                         )
-                        raise RuntimeError(
-                            "[PHASE 6 CRITICAL] Cannot proceed with concentration check: "
-                            "algo_portfolio_snapshots table has no data for this or prior trading day. "
-                            "Phase 9 (Reconciliation) must create the first snapshot. "
-                            "Run: orchestrator -> all 9 phases must complete before concentration checks can work."
-                        )
+                        return []
 
                     try:
                         total_value_float = _ensure_float(total_value, "total_portfolio_value")

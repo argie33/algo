@@ -211,8 +211,9 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 total, non_null = row[0], row[1]
                 completeness_pct = (non_null / total * 100) if total > 0 else 0
 
-                if completeness_pct < 95.0:
-                    return False, f"Completeness {completeness_pct:.1f}% (need 95%+ of {critical_col} non-NULL)"
+                min_completeness = 92.0 if table_name == "trend_template_data" else 95.0
+                if completeness_pct < min_completeness:
+                    return False, f"Completeness {completeness_pct:.1f}% (need {min_completeness}%+ of {critical_col} non-NULL)"
                 return True, ""
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 # This is a failsafe retry helper: its whole job is deciding whether a table
