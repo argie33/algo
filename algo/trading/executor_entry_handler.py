@@ -528,13 +528,13 @@ class EntryHandler:
                     stop_loss_price, target_1_price, target_2_price, target_3_price,
                     signal_quality_score, trend_template_score, base_type, base_quality, stage_phase,
                     rs_percentile, market_exposure_at_entry, exposure_tier_at_entry, stop_reasoning, advanced_components,
-                    status, sector, industry, idempotency_key, position_id
+                    status, sector, industry, execution_mode, idempotency_key, position_id
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (idempotency_key) DO UPDATE SET
                     entry_price = EXCLUDED.entry_price,
@@ -545,6 +545,7 @@ class EntryHandler:
                     signal_quality_score = EXCLUDED.signal_quality_score,
                     trend_template_score = EXCLUDED.trend_template_score,
                     position_id = EXCLUDED.position_id,
+                    execution_mode = EXCLUDED.execution_mode,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -573,6 +574,7 @@ class EntryHandler:
                     request.order_status,
                     request.sector,
                     request.industry,
+                    request.execution_mode,
                     request.idempotency_key,
                     request.position_id,
                 ),
