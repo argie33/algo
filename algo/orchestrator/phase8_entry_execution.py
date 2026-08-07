@@ -916,7 +916,7 @@ def _batch_fetch_technical_data(
                 try:
                     # DictCursor returns dict-like row objects; unpack safely
                     if isinstance(row, dict):
-                        symbol = row.get('symbol')
+                        row_symbol = row.get('symbol')
                         atr = row.get('atr')
                         sma_50 = row.get('sma_50')
                         close = row.get('close')
@@ -924,7 +924,7 @@ def _batch_fetch_technical_data(
                         # Fallback for tuple-based cursor (shouldn't happen with DictCursor, but be defensive)
                         if len(row) < 4:
                             raise IndexError(f"Row has {len(row)} columns, expected 4")
-                        symbol, atr, sma_50, close = row
+                        row_symbol, atr, sma_50, close = row
                 except (IndexError, TypeError, ValueError) as e:
                     logger.critical(
                         f"[PHASE 8 CRITICAL] Failed to unpack technical data row: {e}. "
@@ -932,12 +932,12 @@ def _batch_fetch_technical_data(
                     )
                     raise
 
-                if symbol is None:
+                if row_symbol is None:
                     logger.warning("[PHASE 8] Skipping row with no symbol")
                     continue
                 if atr is None or sma_50 is None or close is None:
                     raise ValueError(
-                        f"Symbol {symbol}: Technical data incomplete from database query. "
+                        f"Symbol {row_symbol}: Technical data incomplete from database query. "
                         f"ATR={atr}, SMA_50={sma_50}, close={close}. "
                         f"INNER JOIN should have excluded incomplete rows. Check technical data loader."
                     )
@@ -947,13 +947,13 @@ def _batch_fetch_technical_data(
                     from utils.type_conversion import safe_float
 
                     atr_float = safe_float(atr, f"{symbol}.atr", allow_none=False)
-                    sma_50_float = safe_float(sma_50, f"{symbol}.sma_50", allow_none=False)
-                    close_float = safe_float(close, f"{symbol}.close", allow_none=False)
+                    sma_50_float = safe_float(sma_50, f"{row_symbol}.sma_50", allow_none=False)
+                    close_float = safe_float(close, f"{row_symbol}.close", allow_none=False)
                 except (ValueError, TypeError) as e:
-                    logger.error(f"[ENTRY EXECUTION] {symbol}: Technical data type conversion failed: {e}")
-                    raise ValueError(f"Technical data validation failed for {symbol}: {e}") from e
+                    logger.error(f"[ENTRY EXECUTION] {row_symbol}: Technical data type conversion failed: {e}")
+                    raise ValueError(f"Technical data validation failed for {row_symbol}: {e}") from e
 
-                result[symbol] = cast(
+                result[row_symbol] = cast(
                     dict[str, float | None],
                     {
                         "atr": atr_float,
