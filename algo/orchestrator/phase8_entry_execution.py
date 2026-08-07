@@ -2717,7 +2717,16 @@ def run(
                 continue
 
             trend_score = signal.get("trend_template_score")
+            base_quality = signal.get("base_quality")
             composite_score = sig_composite_score  # Re-assign for use in logging below
+
+            # CRITICAL DEBUG: Log signal fields to diagnose persistence issues
+            logger.debug(
+                f"[PHASE 8 SIGNAL FIELDS] {symbol}: "
+                f"trend={trend_score} base_type={signal.get('base_type')} "
+                f"base_quality={base_quality} "
+                f"stage_phase={signal.get('stage_phase')}"
+            )
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             min_sqs_val = config.get("min_signal_quality_score")

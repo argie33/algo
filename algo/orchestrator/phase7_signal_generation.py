@@ -750,6 +750,22 @@ def _get_candidates_from_buysell(
                         candidate["signal_quality_score"] = composite_sqs
                         candidate["trend_template_score"] = trend_score
 
+                        # CRITICAL FIX: Compute base_quality classification from base_score
+                        # base_quality is a string classification (strong/moderate/weak) that categorizes
+                        # signal quality for dashboard/reporting. Previously always NULL.
+                        if base_score >= 60:
+                            candidate["base_quality"] = "strong"
+                        elif base_score >= 35:
+                            candidate["base_quality"] = "moderate"
+                        else:
+                            candidate["base_quality"] = "weak"
+
+                        logger.debug(
+                            f"[PHASE 7 SCORING] {symbol}: "
+                            f"sqs={composite_sqs} trend={trend_score} base_quality={candidate['base_quality']} "
+                            f"base_type={candidate.get('base_type')}"
+                        )
+
                     except Exception as score_e:
                         # CRITICAL: Log full exception details so operators know what went wrong
                         logger.warning(
