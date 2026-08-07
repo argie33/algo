@@ -1981,10 +1981,12 @@ class Orchestrator:
         # Prevents manual test runs outside market hours (9:30 AM - 4:00 PM ET) from corrupting production state
         # Phase 8 also has this guard, but adding it here stops pre-market runs much earlier
         # dry_run=True bypasses this to allow safe testing at any time
+        # ALLOW_OUTSIDE_MARKET_HOURS=true also bypasses for automated testing
         from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
 
+        allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
         now_et = datetime.now(EASTERN_TZ).time()
-        if not self.dry_run and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
+        if not self.dry_run and not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
             logger.warning(
                 f"[MARKET_HOURS_GUARD] Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
                 f"Market hours: {MARKET_OPEN_TIME.strftime('%H:%M')} - {MARKET_CLOSE_TIME.strftime('%H:%M')} ET. "
