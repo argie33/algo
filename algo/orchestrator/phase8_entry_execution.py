@@ -1301,6 +1301,11 @@ def run(
                     )
 
                 logger.info(f"[PHASE 8] Retrieved {len(qualified_trades_from_executor)} signals from Phase 7")
+                # DEBUG: Log what signal_quality_score values we received
+                if qualified_trades_from_executor:
+                    logger.info(f"[PHASE 8 DEBUG] Top 5 received signals signal_quality_score values:")
+                    for i, sig in enumerate(qualified_trades_from_executor[:5]):
+                        logger.info(f"  {i+1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}")
             elif phase7_result and phase7_result.halted:
                 logger.warning(
                     f"[PHASE 8] Phase 7 halted: {phase7_result.error or 'unknown'}. "
@@ -2728,6 +2733,34 @@ def run(
                 f"stage_phase={signal.get('stage_phase')}"
             )
 
+            # CRITICAL GATE: Reject stale signals (from prior trading day's EOD pipeline)
+            # Session 28 root cause: signals 16+ hours old cause 75% loss rate (momentum already faded)
+            # Signals generated yesterday at 4:05 PM → entered today at 1:00 PM = 16+ hours old
+            # This gate prevents entering dead setups by age threshold (default 24 hours)
+            signal_age_hours_val = config.get("max_signal_age_hours", default=24)
+            try:
+                max_signal_age_hours = int(signal_age_hours_val)
+                if max_signal_age_hours <= 0:
+                    raise ValueError(f"max_signal_age_hours must be positive, got {max_signal_age_hours}")
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"[PHASE 8 CRITICAL] max_signal_age_hours is invalid ({signal_age_hours_val}): {e}") from e
+
+            sig_date_obj = signal.get("signal_date")
+            if sig_date_obj:
+                from datetime import datetime
+                from utils.infrastructure.timezone import EASTERN_TZ
+                if isinstance(sig_date_obj, str):
+                    sig_date_obj = datetime.fromisoformat(sig_date_obj).date()
+                run_date_obj = run_date if isinstance(run_date, _date) else run_date.date()
+                signal_age_days = (run_date_obj - sig_date_obj).days
+                signal_age_hours = signal_age_days * 24
+                if signal_age_hours > max_signal_age_hours:
+                    rejection_reason = f"Signal too old: {signal_age_days}d {signal_age_hours}h (max {max_signal_age_hours}h). Generated {sig_date_obj}, entered {run_date_obj}."
+                    logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
+                    _log_signal_rejection(symbol, "stale_signal", rejection_reason, run_date, entry_price, risk_pct)
+                    skipped_count += 1
+                    continue
+
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             min_sqs_val = config.get("min_signal_quality_score")
             if min_sqs_val is None:
@@ -2771,6 +2804,8 @@ def run(
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
                 f"composite={sig_composite_score} rs_pct={sig_rs_pct} sqs={sqs} trend={trend_score}"
             )
+            # DEBUG: Log signal dict for this trade before execution
+            logger.debug(f"[PHASE 8 DEBUG] {symbol}: Full signal dict - sqs={signal.get('signal_quality_score')}, trend={signal.get('trend_template_score')}, base_q={signal.get('base_quality')}, composite={signal.get('composite_score')}")
 
             if not dry_run:
                 # ISSUE 14 FIX: Execute each trade with fresh database context to prevent connection corruption

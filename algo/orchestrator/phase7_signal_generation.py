@@ -2060,6 +2060,13 @@ def run(  # noqa: C901
     # WHERE signal = 'BUY' (this system is long-only), so every qualified trade here is
     # necessarily a buy signal by construction.
     strength_vals = [float(s["signal_quality_score"]) for s in liq_passed if s.get("signal_quality_score") is not None]
+
+    # DEBUG: Log what signal_quality_score values are in liq_passed
+    if liq_passed:
+        logger.info(f"[PHASE 7 DEBUG] Top 5 qualified trades signal_quality_score values:")
+        for i, sig in enumerate(liq_passed[:5]):
+            logger.info(f"  {i+1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}")
+
     phase_data = {
         "qualified_trades": liq_passed,
         "total_candidates": len(raw_candidates),

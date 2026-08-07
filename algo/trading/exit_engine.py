@@ -945,6 +945,12 @@ class ExitEngine:
                         hard_stop_dec = Decimal(str(init_stop)) if not isinstance(init_stop, Decimal) else init_stop
                         exit_signal: dict[str, Any] | None = None
                         if cur_price_dec <= hard_stop_dec:
+                            # CRITICAL FIX: When stop is hit, use the stop price itself as the exit price
+                            # instead of using the potentially stale cur_price from _fetch_recent_prices().
+                            # Paper mode was using stale prices (fallback closes) as exit fills, creating
+                            # 4-5% slippage. In reality, stops execute AT the stop price (or very close).
+                            # Using hard_stop_dec ensures paper mode simulation matches real trading behavior.
+                            exit_price_for_stop = hard_stop_dec
                             exit_signal = {
                                 "stage": "stop",
                                 "fraction": 1.0,
@@ -952,6 +958,7 @@ class ExitEngine:
                                     f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(hard_stop_dec):.2f} "
                                     "(hard capital preservation - bypasses min_hold_days)"
                                 ),
+                                "exit_price_override": float(exit_price_for_stop),  # Use stop price as fill
                             }
                         else:
                             # Enforce minimum holding period (no same-day exits per Curtis Faith)
@@ -1023,9 +1030,14 @@ class ExitEngine:
 
                         # as position queries and state checks above (prevents orphaned state)
 
+                        # CRITICAL FIX: Use exit_price_override if provided (for stop losses, use stop price)
+                        exit_price_to_use = exit_signal.get("exit_price_override") if exit_signal else None
+                        if exit_price_to_use is None:
+                            exit_price_to_use = cur_price if fraction > 0 else None
+
                         result = self.executor.exit_trade(
                             trade_id=trade_id,
-                            exit_price=cur_price if fraction > 0 else None,
+                            exit_price=exit_price_to_use,
                             exit_reason=cast(str, exit_signal["reason"]),
                             exit_fraction=fraction,  # 0 for stop-raise-only
                             exit_stage=stage,
