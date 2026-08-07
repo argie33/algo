@@ -325,29 +325,34 @@ class TradeValidator:
                 str(trade_id),
             )
 
-        # Check for identical trade parameters (regardless of status) to prevent duplicate entries on re-runs.
-        # If entry_price+stop_loss_price+symbol match on same signal_date, the trade already exists.
+        # Check for identical trade parameters IF STILL OPEN to prevent duplicate ACTIVE positions.
+        # If the prior trade with identical entry_price+stop_loss_price is CLOSED, allow re-entry
+        # (subject to cooldown/re-entry rules). If it's still OPEN, block to prevent double-entry.
+        # Previous bug: Checked ALL trades regardless of status, blocking re-entry even after the
+        # prior trade closed. This prevented Phase 8 from executing any new trades with same entry params.
         entry_price_dec = Decimal(str(entry_price))
         stop_loss_dec = Decimal(str(stop_loss_price))
+        open_statuses = TradeStatus.all_open()
         cur.execute(
             """
             SELECT id, status FROM algo_trades
             WHERE symbol = %s AND signal_date = %s
             AND entry_price = %s AND stop_loss_price = %s
+            AND status = ANY(%s)
             LIMIT 1
             """,
-            (symbol, signal_date, entry_price_dec, stop_loss_dec),
+            (symbol, signal_date, entry_price_dec, stop_loss_dec, list(open_statuses)),
         )
         result = cur.fetchone()
         if result:
             trade_id, status = result
             logger.info(
-                f"SKIPPING {symbol}: identical trade already attempted (id: {trade_id}, status: {status}). "
+                f"SKIPPING {symbol}: active trade with identical parameters exists (id: {trade_id}, status: {status}). "
                 f"Entry=${entry_price_dec}, Stop=${stop_loss_dec}, Date={signal_date}"
             )
             return (
                 True,
-                f"Trade with identical parameters already exists for {symbol} (status={status})",
+                f"Active trade with identical parameters already exists for {symbol} (status={status})",
                 str(trade_id),
             )
 
