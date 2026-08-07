@@ -708,8 +708,15 @@ def run(
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
                                 logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_native:.1f}% (limit {max_native:.0f}%, exceeds by {exceed_amount:.1f}%)")
                         except (IndexError, TypeError) as row_err:
-                            logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] Error processing row {row}: {row_err} - skipping")
-                            continue
+                            logger.critical(
+                                f"[PHASE 6 CRITICAL] Error processing position row {row}: {row_err}. "
+                                f"This position's data is corrupted and cannot be evaluated for concentration. "
+                                f"Must halt to ensure data integrity."
+                            )
+                            raise RuntimeError(
+                                f"[PHASE 6 CRITICAL] Corrupted position data in concentration check: {row_err}. "
+                                f"Cannot safely skip concentration evaluation for malformed position."
+                            ) from row_err
 
                     rebalance_actions = []
                     for pos_id, symbol, pct, limit in oversized_positions:
@@ -724,20 +731,26 @@ def run(
                         )
                         trade_row = cur.fetchone()
                         if trade_row is None or not trade_row[0]:
-                            logger.warning(
-                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) has no trade_ids_arr. "
-                                f"Cannot force-exit without trade reference. Skipping this position."
+                            error_msg = (
+                                f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) violates concentration ({pct:.1f}% > {limit:.0f}%) "
+                                f"but has no trade_ids_arr. Cannot force-exit without trade reference. "
+                                f"This position will remain in portfolio with a concentration violation. "
+                                f"Data integrity issue: every open position must have at least one associated trade_id."
                             )
-                            continue
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
 
                         trade_ids_arr = trade_row[0]
                         trade_id = trade_ids_arr[0] if trade_ids_arr else None
                         if not trade_id:
-                            logger.warning(
-                                f"[PHASE 6 CONCENTRATION] {symbol} (pos_id={pos_id}) trade_ids_arr malformed: {trade_ids_arr}. "
-                                f"Cannot parse trade reference. Skipping this position."
+                            error_msg = (
+                                f"[PHASE 6 CRITICAL] {symbol} (pos_id={pos_id}) violates concentration ({pct:.1f}% > {limit:.0f}%) "
+                                f"but trade_ids_arr is malformed: {trade_ids_arr}. "
+                                f"Cannot parse first trade_id from array. "
+                                f"This position will remain in portfolio with a concentration violation."
                             )
-                            continue
+                            logger.critical(error_msg)
+                            raise RuntimeError(error_msg)
 
                         action = {
                             "symbol": symbol,
