@@ -1978,10 +1978,12 @@ def run(
                         )
 
                         for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date, current_price, entry_price in positions_to_close:
-                            # Only break if we've successfully freed at least 1 slot AND have enough space
-                            # Don't break on first iteration (forced_close_count=0) even if available_slots=1
-                            if forced_close_count >= 1 and available_slots >= 1:
-                                logger.info(f"[PHASE 8 EMERGENCY_CLOSE] Freed {forced_close_count} slot(s), stopping at {available_slots} available")
+                            # CRITICAL FIX 2026-08-08: Only break when we have safe margin (2+ slots)
+                            # Previous bug: broke after freeing just 1 slot, allowing no buffer for entries
+                            # This caused position limit deadlock (close 1, enter 1, back to limit)
+                            # Now: close until available_slots >= 2 to ensure room for rotation + new entry
+                            if forced_close_count >= 1 and available_slots >= 2:
+                                logger.info(f"[PHASE 8 EMERGENCY_CLOSE] Freed {forced_close_count} slot(s), stopping at {available_slots} available (safe margin reached)")
                                 break
                             try:
                                 # CRITICAL FIX: Use current_price if available, fall back to entry_price
