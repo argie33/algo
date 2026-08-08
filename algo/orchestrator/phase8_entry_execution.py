@@ -1943,9 +1943,6 @@ def run(
 
             forced_close_count = 0
             try:
-                from datetime import datetime, date as _date
-                from zoneinfo import ZoneInfo
-                EASTERN_TZ = ZoneInfo("America/New_York")
                 today_et = datetime.now(EASTERN_TZ).date()
 
                 with DatabaseContext("write") as cur:
