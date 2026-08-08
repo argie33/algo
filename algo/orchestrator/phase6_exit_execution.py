@@ -1273,19 +1273,24 @@ def run(
                                 oldest = cur_w.fetchone()
                                 if oldest:
                                     pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
+                                    # CRITICAL FIX 2026-08-08: Set profit_loss_dollars when closing position
+                                    # Previous bug: only set exit_reason, leaving P/L as NULL
+                                    pnl_dollars = float(pnl) if pnl is not None else 0.0
                                     cur_w.execute(
-                                        "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, exit_reason = %s WHERE id = %s",
-                                        ("portfolio_rotation_safety_check", pos_id)
+                                        "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, "
+                                        "exit_reason = %s, profit_loss_dollars = %s, unrealized_pnl = NULL, "
+                                        "current_price = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                                        ("portfolio_rotation_safety_check", pnl_dollars,
+                                         float(current_price) if current_price is not None else None, pos_id)
                                     )
-                                    # CRITICAL FIX: Set exit_price, profit_loss_dollars, profit_loss_pct when closing
+                                    # Also update algo_trades for audit trail (if they exist)
                                     cur_w.execute(
                                         "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_price = %s, "
-                                        "profit_loss_dollars = %s, profit_loss_pct = %s, "
+                                        "profit_loss_dollars = %s, "
                                         "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
                                         (
                                             float(current_price) if current_price is not None else None,
-                                            float(pnl) if pnl is not None else None,
-                                            None,  # profit_loss_pct calculated by trigger
+                                            pnl_dollars,
                                             "portfolio_rotation_safety_check",
                                             pos_uuid
                                         )

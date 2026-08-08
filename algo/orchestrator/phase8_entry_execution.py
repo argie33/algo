@@ -336,6 +336,9 @@ def _calculate_pre_entry_concentration_impact(
                 continue
 
             entry_price = float(close_val)
+            if entry_price <= 0:
+                logger.warning(f"[CONCENTRATION CHECK] {symbol}: Invalid entry_price={entry_price} (must be > 0). Skipping.")
+                continue
             atr = float(atr_val)
             sma_50 = float(sma_50_val)
 
@@ -701,6 +704,8 @@ def _persist_signals_to_database(qualified_trades: list[QualifiedTrade], run_dat
                     from utils.type_conversion import safe_float
 
                     entry_price = safe_float(signal_data["entry_price"], f"{symbol}.entry_price", allow_none=False)
+                    if entry_price <= 0:
+                        raise ValueError(f"Entry price must be > 0, got {entry_price}")
                 except (ValueError, TypeError) as e:
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid entry_price: {e}")
                     skipped_count += 1
