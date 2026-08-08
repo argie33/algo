@@ -162,18 +162,48 @@ def all_tables(loader_name: str) -> list[str]:
 # The mappings below normalize these to avoid drift.
 
 SHORTHAND_TO_FILENAME: dict[str, str] = {
+    # Core pricing & market data
     "prices": "load_prices.py",
     "technical": "load_technical_indicators.py",
+    "constituents": "load_market_constituents.py",
+    "economic": "load_economic_data.py",
+    # Market status (regime, exposure, sentiment)
     "market_status": "load_market_status_daily.py",
-    "earnings_calendar": "load_earnings_calendar.py",
+    "naaim": "load_naaim.py",
+    "aaii": "load_aaii_sentiment.py",
+    # Technical/momentum analysis
     "trend_analysis": "load_trend_analysis.py",
-    "sector_industry": "load_sector_industry_daily.py",
-    "analyst_earnings_estimates": "load_analyst_earnings_estimates.py",
+    "momentum": "load_risk_metrics_daily.py",
+    "stability_metrics": "load_risk_metrics_daily.py",
+    "valuations": "load_sec_valuations.py",
+    # Fundamental metrics
     "value_quality_growth": "load_value_quality_growth_metrics.py",
     "enhanced_quality_growth": "load_enhanced_quality_growth_metrics.py",
-    "positioning_metrics": "load_positioning_metrics.py",
-    "stability_metrics": "load_risk_metrics_daily.py",  # Stability is part of risk_metrics loader
+    "analyst_earnings_estimates": "load_analyst_earnings_estimates.py",
+    "analyst_sentiment": "load_analyst_sentiment_analysis.py",
+    "analyst_upgrades": "load_analyst_upgrade_downgrade.py",
+    # Sector/industry classification
+    "sector_industry": "load_sector_industry_daily.py",
+    # Company information
+    "company_info": "load_company_info_sec.py",
+    "profile": "load_company_profile.py",
+    "dividends": "load_dividend_data.py",
+    # Holdings & positioning
+    "positioning": "load_positioning_metrics.py",
+    "institutional": "load_institutional_holdings_13f.py",
+    "insider_holdings": "load_insider_holdings_sec.py",
+    "short_interest": "load_short_interest_finra.py",
+    "insider_velocity": "load_insider_transaction_velocity.py",
+    # Earnings calendar & SEC data
+    "earnings_calendar": "load_earnings_calendar.py",
+    "earnings_sec": "load_earnings_calendar_sec.py",
+    "sec_reports": "load_current_reports_8k.py",
+    "segment_info": "load_sec_segment_info.py",
+    "segment_metrics": "load_sec_segment_metrics.py",
+    # Trading signals
     "scores": "load_stock_scores.py",
+    "signal_quality": "load_signal_quality_scores.py",
+    "algo": "load_algo_metrics_daily.py",
     "buy_sell": "load_buy_sell_daily.py",
 }
 

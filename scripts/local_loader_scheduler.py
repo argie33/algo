@@ -70,17 +70,49 @@ def run_pipeline(pipeline_name: str) -> int:
     # Timeout must exceed: lock acquisition retry budget (5-50 min) + actual loader runtime (10-30 min)
     # Set conservatively: price_daily can take 60+ min on large universe, so budget 90 min
     LOADER_TIMEOUTS = {
-        "prices": 90 * 60,           # 90 min - price_daily is slowest loader (5000+ symbols @ ~1s each)
-        "technical": 30 * 60,        # 30 min - in-database vectorized computation, fast
-        "market_status": 15 * 60,    # 15 min - market status loaders are fast
-        "earnings_calendar": 20 * 60, # 20 min - yfinance with 8s per-symbol timeout
-        "trend_analysis": 15 * 60,   # 15 min - trend analysis is fast
-        "sector_industry": 15 * 60,  # 15 min - sector/industry loaders are fast
-        "analyst_earnings_estimates": 20 * 60,  # 20 min
-        "value_quality_growth": 40 * 60,        # 40 min - slower API calls
-        "enhanced_quality_growth": 25 * 60,     # 25 min
-        "positioning_metrics": 30 * 60,         # 30 min
-        "stability_metrics": 30 * 60,           # 30 min
+        # Core pricing & market data (heaviest workloads)
+        "prices": 90 * 60,                       # 90 min - slowest (5000+ symbols @ ~1s each)
+        "technical": 30 * 60,                    # 30 min - vectorized in-database computation
+        "constituents": 10 * 60,                 # 10 min - light (static symbol list)
+        "economic": 10 * 60,                     # 10 min - light (FRED + DXY index)
+        # Market status & sentiment (fast API calls)
+        "market_status": 15 * 60,                # 15 min - 3 tables (health/exposure/sentiment)
+        "naaim": 10 * 60,                        # 10 min - published weekly
+        "aaii": 10 * 60,                         # 10 min - published weekly
+        # Technical analysis
+        "trend_analysis": 15 * 60,               # 15 min - template pattern matching
+        "momentum": 30 * 60,                     # 30 min - risk metrics (momentum + stability)
+        "stability_metrics": 30 * 60,            # 30 min - alias for momentum
+        "valuations": 20 * 60,                   # 20 min - SEC API calls
+        # Fundamental metrics (API-heavy)
+        "value_quality_growth": 40 * 60,         # 40 min - multi-source aggregation
+        "enhanced_quality_growth": 25 * 60,      # 25 min - earnings surprise calculations
+        "analyst_earnings_estimates": 20 * 60,   # 20 min - yfinance per-symbol calls
+        "analyst_sentiment": 20 * 60,            # 20 min - yfinance analyst data
+        "analyst_upgrades": 20 * 60,             # 20 min - yfinance recommendation data
+        # Sector/industry
+        "sector_industry": 15 * 60,              # 15 min - daily aggregation (3 output tables)
+        # Company information (SEC API calls)
+        "company_info": 15 * 60,                 # 15 min - SEC EDGAR lookups
+        "profile": 10 * 60,                      # 10 min - uses cached company_info
+        "dividends": 15 * 60,                    # 15 min - yfinance dividend data
+        # Holdings & positioning
+        "positioning": 30 * 60,                  # 30 min - multi-source aggregation
+        "institutional": 15 * 60,                # 15 min - SEC Schedule 13G parsing
+        "insider_holdings": 15 * 60,             # 15 min - SEC Form 4/5 parsing
+        "short_interest": 10 * 60,               # 10 min - FINRA data
+        "insider_velocity": 15 * 60,             # 15 min - SEC Form 3/4/5 transaction analysis
+        # Earnings calendar & SEC data
+        "earnings_calendar": 20 * 60,            # 20 min - yfinance earnings_dates window
+        "earnings_sec": 15 * 60,                 # 15 min - SEC filing date extraction
+        "sec_reports": 10 * 60,                  # 10 min - 8-K report scanning
+        "segment_info": 15 * 60,                 # 15 min - segment data extraction
+        "segment_metrics": 15 * 60,              # 15 min - segment aggregation
+        # Trading signals
+        "scores": 25 * 60,                       # 25 min - scoring algorithm
+        "signal_quality": 15 * 60,               # 15 min - signal quality metrics
+        "algo": 20 * 60,                         # 20 min - algo-specific metrics
+        "buy_sell": 15 * 60,                     # 15 min - buy/sell signal generation
     }
 
     for loader in loaders:
