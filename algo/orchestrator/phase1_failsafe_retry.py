@@ -75,8 +75,17 @@ RETRY_WAIT_SECONDS = 5
 RETRY_MONITOR_TIMEOUT_SECONDS = 45
 
 
-def _get_expected_data_date() -> tuple[_date, str]:
-    """Calculate expected data date based on market hours (trading hours aware).
+def _get_expected_data_date(run_date: _date | None = None, pipeline_context: str | None = None) -> tuple[_date, str]:
+    """Calculate expected data date based on pipeline context and run_date.
+
+    CRITICAL FIX (Session 54 PATCH 2): Accept pipeline_context from caller to avoid recalculating
+    from system time (which is wrong when run_date != system date). When context is passed, use it
+    directly. When None (AWS mode), recalculate from system time as fallback.
+
+    Args:
+        run_date: Orchestrator run_date. If None, uses system date (fallback for AWS Lambda mode).
+        pipeline_context: One of "MORNING", "INTRADAY", or "EOD". If provided, use directly
+                         instead of recalculating from system time.
 
     Returns:
         Tuple of (expected_data_date, freshness_context_str)
@@ -86,9 +95,19 @@ def _get_expected_data_date() -> tuple[_date, str]:
     from algo.infrastructure import MarketCalendar
 
     now_et = datetime.now(EASTERN_TZ)
-    run_date_et = now_et.date()
+    # Use orchestrator's run_date if provided, else system date
+    run_date_et = run_date if run_date else now_et.date()
 
-    if now_et.hour < 16:  # INTRADAY: before market close
+    # If pipeline_context provided, use it directly (avoids system time logic issues in LOCAL mode)
+    # Otherwise, calculate from system time (fallback for AWS Lambda runs)
+    if pipeline_context and pipeline_context in ("MORNING", "INTRADAY", "EOD"):
+        is_intraday_context = pipeline_context in ("MORNING", "INTRADAY")
+    else:
+        # Fallback: calculate from system time
+        is_intraday_context = now_et.hour < 16
+
+    if is_intraday_context:
+        # During market hours: expect previous trading day's data
         prev_date = run_date_et - td(days=1)
         expected_data_date = prev_date
         while expected_data_date > run_date_et - td(days=10):
@@ -96,7 +115,8 @@ def _get_expected_data_date() -> tuple[_date, str]:
                 break
             expected_data_date -= td(days=1)
         context = f"INTRADAY - expecting previous trading day ({expected_data_date})"
-    else:  # After market close
+    else:
+        # After market close: expect same-day or recent trading day's data
         if MarketCalendar.is_trading_day(run_date_et):
             expected_data_date = run_date_et
         else:
@@ -110,7 +130,7 @@ def _get_expected_data_date() -> tuple[_date, str]:
     return expected_data_date, context
 
 
-def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
+def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False) -> dict[str, Any]:
     """In LOCAL_MODE, check for stale DATA and refresh loaders locally.
 
     Runs loaders directly using Python imports instead of AWS Lambda/ECS.
@@ -123,6 +143,9 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
     Does NOT use naive 24-hour checks which fail at market holidays/weekends.
 
     Args:
+        run_date: Orchestrator run_date. If None, uses system date.
+        pipeline_context: One of "MORNING", "INTRADAY", or "EOD" (passed from caller to avoid
+                         system-time-based recalculation in LOCAL mode).
         dry_run: If True, don't actually run loaders, just report what would run
 
     Returns:
@@ -152,8 +175,10 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         # This catches when loader ran recently but data is stale
         stale_loaders = []
 
-        # Market-aware freshness check: determine expected data date based on trading hours
-        expected_data_date, freshness_context = _get_expected_data_date()
+        # Market-aware freshness check: determine expected data date based on pipeline context + run_date
+        # CRITICAL FIX (Session 54 PATCH 2): Pass pipeline_context to avoid recalculating from system time
+        # When system date != run_date (LOCAL testing), using system time would give wrong expectations
+        expected_data_date, freshness_context = _get_expected_data_date(run_date=run_date, pipeline_context=pipeline_context)
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
 
         def _check_data_completeness(table_name: str) -> tuple[bool, str]:
@@ -372,10 +397,13 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
     return results
 
 
-def check_and_retry_incomplete_loaders(run_date: _date | None = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
+def check_and_retry_incomplete_loaders(run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
     """Check for incomplete loaders and retry them.
 
     Args:
+        run_date: Orchestrator run_date. If None, uses system date.
+        pipeline_context: One of "MORNING", "INTRADAY", or "EOD". If provided, passed to
+                         failsafe retry to avoid system-time-based recalculation in LOCAL mode.
         dry_run: If True, don't actually retry, just report what would be retried
 
     Returns:
@@ -396,10 +424,13 @@ def check_and_retry_incomplete_loaders(run_date: _date | None = None, dry_run: b
         "halt_required": False,
     }
 
+    # DEBUG: Log the parameters received
+    logger.info(f"[PHASE 1 FAILSAFE DEBUG] check_and_retry_incomplete_loaders called with run_date={run_date}, pipeline_context={pipeline_context}")
+
     # In LOCAL_MODE: run loaders locally instead of via AWS Lambda/ECS
     if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
         logger.info("[PHASE 1 FAILSAFE] LOCAL_MODE enabled - triggering local loader refresh for stale data")
-        results = _check_and_refresh_local(dry_run)
+        results = _check_and_refresh_local(run_date=run_date, pipeline_context=pipeline_context, dry_run=dry_run)
         return results
 
     try:
