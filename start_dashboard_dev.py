@@ -606,7 +606,7 @@ def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Start dashboard with automatic dev_server management",
-        epilog="Example: python start_dashboard_dev.py -w 30",
+        epilog="Example: python start_dashboard_dev.py -w 30\nExample: python start_dashboard_dev.py --skip-loaders  # Start dashboard without waiting for loaders",
     )
     parser.add_argument(
         "-w",
@@ -615,6 +615,11 @@ def main() -> int:
         dest="watch_interval",
         help="Enable watch mode with auto-refresh interval (seconds, 10-600)",
         metavar="SECONDS",
+    )
+    parser.add_argument(
+        "--skip-loaders",
+        action="store_true",
+        help="Skip loader pipeline and start dashboard immediately with existing data. Loaders will run in background via orchestrator.",
     )
 
     args = parser.parse_args()
@@ -629,7 +634,11 @@ def main() -> int:
         # Load fresh data first (non-critical, continues even if loaders fail)
         # Runs complete pipeline: morning (prices/technicals) + metrics (financial/scores)
         # Runs on all platforms (including Windows) - loaders are verified working end-to-end
-        run_complete_loader_pipeline()
+        if not args.skip_loaders:
+            run_complete_loader_pipeline()
+        else:
+            print("[STARTUP] --skip-loaders: Skipping loader pipeline, using existing data", flush=True)
+            print("[STARTUP] [OK] Data refresh skipped - dashboard starting immediately", flush=True)
 
         # Start dev_server (if needed)
         dev_server_process = start_dev_server()

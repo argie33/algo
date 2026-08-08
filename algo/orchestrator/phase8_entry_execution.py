@@ -380,7 +380,8 @@ def _calculate_pre_entry_concentration_impact(
             shares = position_result.get("shares", 0)
             if shares > 0:
                 position_value = Decimal(shares) * Decimal(str(entry_price))
-                concentration_pct = float((position_value / portfolio_value) * Decimal(100))
+                portfolio_value_dec = Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+                concentration_pct = float((position_value / portfolio_value_dec) * Decimal(100))
                 total_concentration += concentration_pct
                 signal_positions.append(
                     {"symbol": symbol, "shares": shares, "concentration_pct": concentration_pct}
@@ -2354,7 +2355,8 @@ def run(
                         continue
 
                     position_value = Decimal(shares) * Decimal(str(entry_price))
-                    conc_pct = float((position_value / portfolio_value) * Decimal(100))
+                    portfolio_value_dec = Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+                    conc_pct = float((position_value / portfolio_value_dec) * Decimal(100))
 
                     # Check if adding this signal would exceed the limit
                     if cumulative_conc + conc_pct <= tier_max_conc_val:
