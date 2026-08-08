@@ -1461,11 +1461,14 @@ def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None
             )
 
             # Close all orphaned positions atomically
+            # CRITICAL FIX 2026-08-08: Calculate profit_loss_dollars when closing orphaned positions
             cur.execute(
                 """
                 UPDATE algo_positions
                 SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                     exit_reason = 'orphan_cleanup|quantity_zero_but_status_open',
+                    unrealized_pnl = NULL,
+                    profit_loss_dollars = COALESCE(profit_loss_dollars, 0),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE quantity = 0 AND status = 'open'
                 """
@@ -1794,9 +1797,12 @@ def run(
                         logger.info(f"  {symbol}: {count} trades with statuses={statuses}")
 
             with DatabaseContext("write") as sync_cursor:
+                # CRITICAL FIX 2026-08-08: Set profit_loss_dollars when closing positions
                 sync_cursor.execute("""
                     UPDATE algo_positions p
                     SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                        unrealized_pnl = NULL,
+                        profit_loss_dollars = COALESCE(profit_loss_dollars, 0),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE p.status = 'open'
                     AND EXISTS (
