@@ -1202,31 +1202,52 @@ def main() -> int:  # noqa: C901
                     actual_max_date = date_result[0]
 
                     # CRITICAL FIX (Session 56): Calculate completion threshold based on upstream data quality
-                    # buy_sell_daily inherits incompleteness from technical_data_daily (which covers ~4,750 of 10,549 universe)
-                    # If technical_data_daily is 95% complete on this date, buy_sell_daily should accept 92%+ (3% margin)
-                    # This prevents false FAILED statuses when upstream data is legitimately incomplete
+                    # buy_sell_daily depends on technical_data_daily having data for symbols
+                    # If technical_data_daily is incomplete, buy_sell_daily will naturally be incomplete too
+                    # Check the effective coverage (actual symbols on the date vs target universe)
                     cur.execute("""
-                        WITH tech_coverage AS (
-                            SELECT COUNT(DISTINCT symbol) as symbol_count FROM technical_data_daily WHERE date = %s
-                        ),
-                        tech_universe AS (
-                            SELECT symbol_count FROM data_loader_status WHERE table_name = 'technical_data_daily'
-                        )
                         SELECT
-                            CASE WHEN t.symbol_count > 0 AND u.symbol_count > 0
-                                 THEN (t.symbol_count::float / u.symbol_count * 100.0)
-                                 ELSE 100.0
-                            END as tech_coverage_pct
-                        FROM tech_coverage t CROSS JOIN tech_universe u
+                            COUNT(DISTINCT symbol) as actual_symbols_available
+                        FROM price_daily
+                        WHERE date = %s
                     """, (actual_max_date,))
 
-                    result = cur.fetchone()
-                    tech_coverage_pct = result[0] if result else 100.0
-                    # Allow buy_sell_daily to be 3% lower than upstream technical_data_daily coverage (signal generation overhead)
-                    min_threshold = max(90.0, tech_coverage_pct - 3.0)
+                    price_result = cur.fetchone()
+                    price_symbols_available = price_result[0] if price_result else 0
+
+                    cur.execute("""
+                        SELECT
+                            COUNT(DISTINCT symbol) as actual_symbols_available
+                        FROM technical_data_daily
+                        WHERE date = %s
+                    """, (actual_max_date,))
+
+                    tech_result = cur.fetchone()
+                    tech_symbols_available = tech_result[0] if tech_result else 0
+
+                    # Count actual buy_sell_daily signals generated for this date
+                    cur.execute("""
+                        SELECT COUNT(DISTINCT symbol)
+                        FROM buy_sell_daily
+                        WHERE date = %s
+                    """, (actual_max_date,))
+
+                    signals_result = cur.fetchone()
+                    signals_symbols_generated = signals_result[0] if signals_result else 0
+
+                    # buy_sell_daily should complete if it covers min(price_available, tech_available) with reasonable margin
+                    effective_universe = min(price_symbols_available, tech_symbols_available)
+                    if effective_universe > 0:
+                        actual_coverage_pct = (signals_symbols_generated / effective_universe) * 100.0
+                        # Need 95% coverage of what's actually available (not theoretical universe)
+                        min_threshold = 95.0 if effective_universe >= 4500 else 90.0
+                    else:
+                        min_threshold = 90.0
+
                     logger.info(
-                        f"[COMPLETION_THRESHOLD] Technical_data_daily coverage: {tech_coverage_pct:.1f}%. "
-                        f"Setting buy_sell_daily threshold to {min_threshold:.1f}% (upstream coverage - 3% margin)"
+                        f"[COMPLETION_THRESHOLD] Upstream coverage: Price={price_symbols_available}, Tech={tech_symbols_available}. "
+                        f"Effective universe: {effective_universe}. buy_sell_daily generated signals for {signals_symbols_generated} ({actual_coverage_pct:.1f}% of effective). "
+                        f"Threshold: {min_threshold:.1f}%"
                     )
 
                 # Use LoaderStatusManager to consolidate status writes
