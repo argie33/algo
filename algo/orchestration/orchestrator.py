@@ -1796,25 +1796,17 @@ class Orchestrator:
         # Note: Phase 6 always runs even if Phase 5 failed, but we must log degradation
         phase5_result = executor.get_result(5)
         if phase5_result and phase5_result.halted:
-            # CRITICAL: Check if Phase 5 halted due to missing market regime data
-            # This is a system-critical issue that should block exits until resolved
+            # CRITICAL FIX: Phase 6 must ALWAYS run, even if Phase 5 (exposure policy) fails
+            # Market regime data is used for NEW ENTRIES (Phase 8) not exits (Phase 6)
+            # Phase 6 exits based on: stops, targets, concentration limits (not market regime)
+            # Blocking Phase 6 because Phase 5 failed would prevent EXITING positions during crisis
+            # which is the opposite of what we want
             halt_reason = phase5_result.error or "unknown reason"
-            if "market" in halt_reason.lower() or "regime" in halt_reason.lower():
-                logger.critical(
-                    f"[PHASE 6 CRITICAL] Phase 5 halted due to missing market data: {halt_reason}. "
-                    f"Cannot execute exits safely without market context. This is a system-critical failure."
-                )
-                # FAIL-FAST: Market regime data is non-negotiable for risk management
-                raise RuntimeError(
-                    f"[PHASE 6] Cannot execute exits: Phase 5 failed to load market regime data. "
-                    f"Market exposure assessment is required for safe position management. {halt_reason}"
-                )
-            else:
-                logger.warning(
-                    f"[PHASE 6] Phase 5 halted: {halt_reason}. "
-                    f"Phase 6 (always_run) continuing with position-monitor-only exits. "
-                    f"Exposure policy enforcement may be degraded."
-                )
+            logger.warning(
+                f"[PHASE 6] Phase 5 halted: {halt_reason}. "
+                f"Phase 6 (always_run) continuing with position-monitor-only exits. "
+                f"Exposure policy enforcement (entry blocking) may be degraded, but exits still run."
+            )
 
         try:
             exposure_actions = executor.get_phase_data_required(5, "actions")
