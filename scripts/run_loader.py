@@ -58,8 +58,10 @@ def get_loader_class_for_file(loader_filename: str):
     """Dynamically import loader class from filename.
 
     Example: 'load_prices.py' → from loaders.load_prices import PriceLoader
-    Returns the first OptimalLoader subclass with non-empty table_name found in the module.
-    FIXED: Skip OptimalLoader base class (has empty table_name) and find the actual subclass.
+
+    FIXED (Session 49): Use registry to identify the loader instead of checking class attributes.
+    The table_name is set in __init__, not as a class attribute, so introspection fails.
+    Instead, we use LOADER_TABLES to know which file should exist, then import it.
     """
     if loader_filename.endswith(".py"):
         module_name = loader_filename[:-3]
@@ -69,14 +71,15 @@ def get_loader_class_for_file(loader_filename: str):
     try:
         module = importlib.import_module(f"loaders.{module_name}")
 
-        # Find OptimalLoader subclass with non-empty table_name (skip base class)
+        # Find any OptimalLoader subclass in the module (don't check table_name)
+        from utils.optimal_loader import OptimalLoader
         for attr_name in dir(module):
             obj = getattr(module, attr_name)
-            if isinstance(obj, type) and hasattr(obj, 'table_name') and obj.table_name:
-                # Found a class with non-empty table_name, return it
+            if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
+                # Found a loader subclass (not the base class itself)
                 return obj
 
-        logger.error(f"[LOADER] Could not find OptimalLoader subclass with table_name in loaders.{module_name}")
+        logger.error(f"[LOADER] Could not find OptimalLoader subclass in loaders.{module_name}")
         return None
     except ImportError as e:
         logger.error(f"[LOADER] Could not import loaders.{module_name}: {e}")
@@ -263,8 +266,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
         "loader",
-        choices=loader_files + ["--list-loaders"],
-        help="Loader file to run (e.g., load_prices.py, load_technical_indicators.py)"
+        help="Loader file or shorthand name to run (e.g., 'prices', 'load_prices.py', 'technical_indicators')"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
     parser.add_argument("--backfill", type=int, default=0, help="Days to backfill (default: 0 = load incremental data using watermarks)")
@@ -292,9 +294,17 @@ def main():
         logger.info("[FORCE_REFRESH] Enabled - bypassing watermarks and updating loader status")
 
     try:
-        loader_filename = args.loader
-        if not loader_filename.endswith(".py"):
-            loader_filename += ".py"
+        loader_arg = args.loader
+
+        # Normalize loader name (supports shorthand, filename, with/without .py)
+        from loaders.loader_registry import normalize_loader_name
+        try:
+            loader_filename = normalize_loader_name(loader_arg)
+        except ValueError as e:
+            logger.error(f"[LOADER] {e}")
+            print(f"ERROR: {e}", file=sys.stderr)
+            print(f"Use --list-loaders to see available loaders", file=sys.stderr)
+            return 1
 
         if loader_filename not in LOADER_TABLES:
             logger.error(f"[LOADER] Unknown loader: {loader_filename}")

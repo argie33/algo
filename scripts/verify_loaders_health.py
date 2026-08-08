@@ -89,12 +89,9 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 1000,
         "critical": True,
     },
-    "load_financial_statements.py": {
-        "output_table": "annual_income_statement",
-        "date_column": None,
-        "min_rows": 100,
-        "critical": True,
-    },
+    # load_financial_statements.py DISABLED 2026-08-06 (hanging on 5+ hour runs).
+    # See loaders/loader_registry.py - removed from active scheduling, kept in registry
+    # commented-out for reference. No health check entry to avoid false STALE alerts.
     "load_sec_valuations.py": {
         "output_table": "sec_valuations",
         "date_column": "updated_at",
@@ -180,6 +177,83 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 10,
         "critical": False,
         "note": "Consolidated loader: writes FRED + DXY to economic_data",
+    },
+    "load_analyst_earnings_estimates.py": {
+        "output_table": "analyst_earnings_estimates",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+        "note": "Forward EPS source for value_metrics.forward_pe (restored 2026-08-03)",
+    },
+    "load_analyst_sentiment_analysis.py": {
+        "output_table": "analyst_sentiment_analysis",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_analyst_upgrade_downgrade.py": {
+        "output_table": "analyst_upgrade_downgrade",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_company_profile.py": {
+        "output_table": "company_profile",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+        "note": "Restored 2026-07-27 (was missing from registry)",
+    },
+    "load_current_reports_8k.py": {
+        "output_table": "current_reports_8k",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_dividend_data.py": {
+        "output_table": "dividend_data",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_earnings_calendar.py": {
+        "output_table": "earnings_calendar",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+        "note": "Restored 2026-08-04 (actual earnings announcement dates, distinct from earnings_calendar_sec)",
+    },
+    "load_enhanced_quality_growth_metrics.py": {
+        "output_table": "quality_metrics",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+        "note": "Enhances value_quality_growth output with 21+ computed trend fields",
+    },
+    "load_insider_transaction_velocity.py": {
+        "output_table": "insider_transaction_velocity",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_sec_segment_info.py": {
+        "output_table": "sec_segment_info",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_sec_segment_metrics.py": {
+        "output_table": "sec_segment_metrics",
+        "date_column": "updated_at",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_market_exposure_daily.py": {
+        "output_table": "market_exposure_daily",
+        "date_column": "date",
+        "min_rows": 1,
+        "critical": False,
+        "note": "Computed by algo/risk/market_exposure.py during orchestrator Phase 5, not a standalone loaders/ script",
     },
 }
 

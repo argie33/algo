@@ -19,6 +19,9 @@ os.environ["ENVIRONMENT"] = "development"
 if "LOADER_PARALLELISM" not in os.environ:
     os.environ["LOADER_PARALLELISM"] = "4"
 
+# Import registry mapping to convert shorthand names to filenames
+from loaders.loader_registry import normalize_loader_name
+
 
 PIPELINES = {
     "morning": [
@@ -84,8 +87,10 @@ def run_pipeline(pipeline_name: str) -> int:
         timeout = LOADER_TIMEOUTS.get(loader, 30 * 60)  # 30 min default
         print(f"[LOCAL_SCHEDULER] Running {loader} loader (timeout: {timeout}s)...")
         try:
+            # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
+            loader_filename = normalize_loader_name(loader)
             result = subprocess.run(
-                [sys.executable, "scripts/run_loader.py", loader],
+                [sys.executable, "scripts/run_loader.py", loader_filename],
                 cwd=str(repo_root),
                 env=os.environ.copy(),
                 timeout=timeout,

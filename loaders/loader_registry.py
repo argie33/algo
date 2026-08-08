@@ -142,3 +142,77 @@ def all_tables(loader_name: str) -> list[str]:
             f"Available loaders: {sorted(set(LOADER_TABLES.keys()) | set(PSEUDO_LOADER_TABLES.keys()))}"
         )
     return tables
+
+
+# NAMING SCHEMES REFERENCE
+# ========================
+# Three different naming conventions are used across the codebase:
+#
+# 1. FILENAME: What run_loader.py expects (used in registry keys)
+#    Examples: "load_prices.py", "load_technical_indicators.py"
+#
+# 2. SHORTHAND: What local_loader_scheduler.py uses (friendly names)
+#    Examples: "prices", "technical", "market_status"
+#    Used in PIPELINES dict (morning, metrics, signals)
+#
+# 3. TASK_DEFINITION: What terraform/lambda use (ECS task definitions + table names)
+#    Examples: "stock_prices_daily", "technical_data_daily"
+#    Used in terraform loader_file_map keys and Lambda VALID_LOADER_NAMES
+#
+# The mappings below normalize these to avoid drift.
+
+SHORTHAND_TO_FILENAME: dict[str, str] = {
+    "prices": "load_prices.py",
+    "technical": "load_technical_indicators.py",
+    "market_status": "load_market_status_daily.py",
+    "earnings_calendar": "load_earnings_calendar.py",
+    "trend_analysis": "load_trend_analysis.py",
+    "sector_industry": "load_sector_industry_daily.py",
+    "analyst_earnings_estimates": "load_analyst_earnings_estimates.py",
+    "value_quality_growth": "load_value_quality_growth_metrics.py",
+    "enhanced_quality_growth": "load_enhanced_quality_growth_metrics.py",
+    "positioning_metrics": "load_positioning_metrics.py",
+    "stability_metrics": "load_risk_metrics_daily.py",  # Stability is part of risk_metrics loader
+    "scores": "load_stock_scores.py",
+    "buy_sell": "load_buy_sell_daily.py",
+}
+
+
+def normalize_loader_name(name: str) -> str:
+    """Convert a shorthand or filename to the canonical filename format.
+
+    Handles multiple input formats:
+    - Shorthand: "prices" → "load_prices.py"
+    - Shorthand without .py: "prices" → "load_prices.py"
+    - Filename: "load_prices.py" → "load_prices.py"
+    - Filename without .py: "load_prices" → "load_prices.py"
+
+    Args:
+        name: Loader name in any format
+
+    Returns:
+        Canonical filename (e.g., "load_prices.py")
+
+    Raises:
+        ValueError: If the loader is not recognized
+    """
+    # If it's already a filename, normalize it
+    if name.startswith("load_"):
+        return name if name.endswith(".py") else name + ".py"
+
+    # Try shorthand mapping
+    if name in SHORTHAND_TO_FILENAME:
+        return SHORTHAND_TO_FILENAME[name]
+
+    # Try shorthand without .py suffix
+    if name.endswith(".py"):
+        shorthand = name[:-3]
+        if shorthand in SHORTHAND_TO_FILENAME:
+            return SHORTHAND_TO_FILENAME[shorthand]
+
+    # Not found
+    raise ValueError(
+        f"[LOADER_REGISTRY] Unknown loader name: {name!r}. "
+        f"Valid shorthand names: {sorted(SHORTHAND_TO_FILENAME.keys())}. "
+        f"Or use full filenames like 'load_prices.py'."
+    )
