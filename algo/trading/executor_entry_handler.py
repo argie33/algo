@@ -525,7 +525,13 @@ class EntryHandler:
                 "Account may be liquidated or in error state."
             )
 
-        position_size = (Decimal(shares) * Decimal(str(price)) / Decimal(str(portfolio_value)) * Decimal(100)).quantize(
+        # CRITICAL FIX: Convert all operands to Decimal with string conversion
+        # to avoid Decimal * float type errors (feedback_psycopg2_decimal_arithmetic)
+        shares_dec = Decimal(str(shares)) if not isinstance(shares, Decimal) else shares
+        price_dec = Decimal(str(price)) if not isinstance(price, Decimal) else price
+        pv_dec = Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+
+        position_size = (shares_dec * price_dec / pv_dec * Decimal(100)).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
         return position_size
@@ -1005,7 +1011,10 @@ class EntryHandler:
         if order_status == "partially_filled" and alpaca_order_id:
             filled_qty = self.context._get_order_filled_quantity(alpaca_order_id)
             if filled_qty is not None and filled_qty > 0:
-                actual_shares = filled_qty
+                # CRITICAL FIX: Convert filled_qty from float to Decimal
+                # filled_qty comes from Alpaca API as float, but TradeInsertionRequest expects Decimal
+                # Without conversion, Decimal arithmetic later raises TypeError: unsupported operand types
+                actual_shares = Decimal(str(filled_qty))
                 logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
 
         # Calculate position size percentage

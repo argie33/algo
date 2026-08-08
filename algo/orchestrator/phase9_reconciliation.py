@@ -967,6 +967,26 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
 
     opt_result: dict[str, Any] = {"changes": []}
     try:
+        # CRITICAL: Validate config has required methods before passing to WeightOptimizer
+        # This prevents obscure errors and provides clear failure message
+        if config is None:
+            raise ValueError(
+                "[PHASE 9 CRITICAL] config is None when calling weight optimizer. "
+                "Configuration must be passed explicitly through entire phase chain."
+            )
+        if not hasattr(config, "get"):
+            raise ValueError(
+                f"[PHASE 9 CRITICAL] config missing get() method. "
+                f"Expected AlgoConfig, received {type(config).__name__}. "
+                f"This indicates config transformation or incorrect type passed from orchestrator."
+            )
+        if not hasattr(config, "set"):
+            raise ValueError(
+                f"[PHASE 9 CRITICAL] config missing set() method. "
+                f"Expected AlgoConfig, received {type(config).__name__}. "
+                f"This indicates config transformation or incorrect type passed from orchestrator."
+            )
+
         try:
             _current_regime = _RegimeManager().get_current_regime(run_date)
         except RuntimeError as regime_e:

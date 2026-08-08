@@ -67,8 +67,16 @@ class WeightOptimizer:
         """
         if config is None:
             raise ValueError("WeightOptimizer requires explicit config parameter (dependency injection)")
-        if not hasattr(config, "get") or not hasattr(config, "set"):
-            raise ValueError("config must have get() and set() methods (AlgoConfig interface)")
+        if not hasattr(config, "get"):
+            raise ValueError(
+                f"config missing get() method. Expected AlgoConfig, got {type(config).__name__}. "
+                f"Config object: {str(config)[:100]}"
+            )
+        if not hasattr(config, "set"):
+            raise ValueError(
+                f"config missing set() method. Expected AlgoConfig, got {type(config).__name__}. "
+                f"Config object: {str(config)[:100]}"
+            )
         self.config = config
 
         # Validate class configuration
