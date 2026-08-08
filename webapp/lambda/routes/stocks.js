@@ -57,39 +57,68 @@ router.get("/", async (req, res) => {
     }
 
     // Get stocks
-    const result = await pool.query(
-      `
-      SELECT
-        ss.symbol,
-        ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        km.market_cap,
-        ss.is_sp500
-      FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.ticker
-      WHERE ${whereClause}
-      ORDER BY ss.symbol
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `,
-      [...params, limit, offset]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `
+        SELECT
+          ss.symbol,
+          ss.security_name as company_name,
+          cp.sector,
+          cp.industry,
+          km.market_cap,
+          ss.is_sp500
+        FROM stock_symbols ss
+        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+        LEFT JOIN key_metrics km ON ss.symbol = km.ticker
+        WHERE ${whereClause}
+        ORDER BY ss.symbol
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      `,
+        [...params, limit, offset]
+      );
+    } catch (queryError) {
+      logger.error("Database query error in stocks list:", {
+        error: queryError.message,
+        code: queryError.code,
+        detail: queryError.detail,
+        hint: queryError.hint,
+      });
+      throw new Error(`Failed to fetch stocks: ${queryError.message}`);
+    }
 
     // Get total count
-    const countResult = await pool.query(
-      `
-      SELECT COUNT(*) as total
-      FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      WHERE ${whereClause}
-    `,
-      params
-    );
+    let countResult;
+    try {
+      countResult = await pool.query(
+        `
+        SELECT COUNT(*) as total
+        FROM stock_symbols ss
+        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+        WHERE ${whereClause}
+      `,
+        params
+      );
+    } catch (countError) {
+      logger.error("Database count query error in stocks list:", {
+        error: countError.message,
+        code: countError.code,
+      });
+      throw new Error(`Failed to count stocks: ${countError.message}`);
+    }
 
     // Validate query results
     validateQueryResult(result, { requireRows: false });
-    const total = extractCount(countResult, "total");
+    let total;
+    try {
+      total = extractCount(countResult, "total");
+    } catch (extractError) {
+      logger.error("Failed to extract count from result:", {
+        error: extractError.message,
+        result: countResult,
+      });
+      throw extractError;
+    }
 
     // Validate and coerce field types
     const validated = validateAndCoerceRows(result, {
@@ -128,58 +157,68 @@ router.get("/deep-value", async (req, res) => {
     const limit = Math.min(!isNaN(parsedLimit) ? parsedLimit : 600, 1000);
     const pool = getPool();
 
-    const result = await pool.query(
-      `
-      SELECT DISTINCT
-        ss.symbol,
-        ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        km.market_cap,
-        vm.pe_ratio as trailing_pe,
-        vm.pb_ratio as price_to_book,
-        NULL as price_to_sales,
-        NULL as roe_pct,
-        NULL as op_margin_pct,
-        NULL as gross_margin_pct,
-        NULL as net_margin_pct,
-        NULL as roa_pct,
-        NULL as ev_to_ebitda,
-        NULL as peg_ratio,
-        NULL as dividend_yield,
-        NULL as debt_to_equity,
-        NULL as current_ratio,
-        vm.pe_ratio as sector_median_pe,
-        vm.pe_ratio as market_median_pe,
-        NULL as discount_vs_sector_pe_pct,
-        NULL as discount_vs_market_pe_pct,
-        NULL as high_52w,
-        NULL as high_3y,
-        NULL as low_52w,
-        NULL as drop_from_52w_high_pct,
-        NULL as drop_from_3y_high_pct,
-        NULL as intrinsic_value_per_share,
-        NULL as revenue_growth_3y_pct,
-        NULL as eps_growth_3y_pct,
-        NULL as revenue_growth_yoy_pct,
-        NULL as fcf_growth_yoy_pct,
-        NULL as sustainable_growth_pct,
-        NULL as op_margin_trend_pp,
-        NULL as gross_margin_trend_pp,
-        NULL as roe_trend_pp,
-        pd.close as current_price,
-        CAST(vm.pe_ratio as DECIMAL(10,2)) as generational_score
-      FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
-      LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
-      LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL '1 day'
-      WHERE ss.symbol NOT LIKE '^%%'
-      ORDER BY ss.symbol
-      LIMIT $1
-    `,
-      [limit]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `
+        SELECT DISTINCT
+          ss.symbol,
+          ss.security_name as company_name,
+          cp.sector,
+          cp.industry,
+          km.market_cap,
+          vm.pe_ratio as trailing_pe,
+          vm.pb_ratio as price_to_book,
+          NULL as price_to_sales,
+          NULL as roe_pct,
+          NULL as op_margin_pct,
+          NULL as gross_margin_pct,
+          NULL as net_margin_pct,
+          NULL as roa_pct,
+          NULL as ev_to_ebitda,
+          NULL as peg_ratio,
+          NULL as dividend_yield,
+          NULL as debt_to_equity,
+          NULL as current_ratio,
+          vm.pe_ratio as sector_median_pe,
+          vm.pe_ratio as market_median_pe,
+          NULL as discount_vs_sector_pe_pct,
+          NULL as discount_vs_market_pe_pct,
+          NULL as high_52w,
+          NULL as high_3y,
+          NULL as low_52w,
+          NULL as drop_from_52w_high_pct,
+          NULL as drop_from_3y_high_pct,
+          NULL as intrinsic_value_per_share,
+          NULL as revenue_growth_3y_pct,
+          NULL as eps_growth_3y_pct,
+          NULL as revenue_growth_yoy_pct,
+          NULL as fcf_growth_yoy_pct,
+          NULL as sustainable_growth_pct,
+          NULL as op_margin_trend_pp,
+          NULL as gross_margin_trend_pp,
+          NULL as roe_trend_pp,
+          pd.close as current_price,
+          CAST(vm.pe_ratio as DECIMAL(10,2)) as generational_score
+        FROM stock_symbols ss
+        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+        LEFT JOIN key_metrics km ON ss.symbol = km.symbol
+        LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
+        LEFT JOIN price_daily pd ON ss.symbol = pd.symbol AND pd.date = CURRENT_DATE - INTERVAL '1 day'
+        WHERE ss.symbol NOT LIKE '^%%'
+        ORDER BY ss.symbol
+        LIMIT $1
+      `,
+        [limit]
+      );
+    } catch (queryError) {
+      logger.error("Database query error in deep-value stocks:", {
+        error: queryError.message,
+        code: queryError.code,
+        detail: queryError.detail,
+      });
+      throw new Error(`Failed to fetch deep-value stocks: ${queryError.message}`);
+    }
 
     // Validate query result - for this large numeric query, keep flexible coercion
     validateQueryResult(result, { requireRows: false });
@@ -223,30 +262,44 @@ router.get("/deep-value", async (req, res) => {
 router.get("/:ticker", async (req, res) => {
   try {
     const { ticker } = req.params;
+    if (!ticker || typeof ticker !== "string") {
+      return sendError(res, "Invalid ticker parameter", 400);
+    }
+
     const pool = getPool();
 
-    const result = await pool.query(
-      `
-      SELECT
-        ss.symbol,
-        ss.security_name as company_name,
-        cp.sector,
-        cp.industry,
-        cp.website,
-        cp.exchange,
-        km.market_cap,
-        vm.pe_ratio,
-        vm.pb_ratio,
-        vm.ps_ratio,
-        vm.dividend_yield
-      FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN key_metrics km ON ss.symbol = km.symbol
-      LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
-      WHERE ss.symbol = $1
-    `,
-      [ticker.toUpperCase()]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `
+        SELECT
+          ss.symbol,
+          ss.security_name as company_name,
+          cp.sector,
+          cp.industry,
+          cp.website,
+          cp.exchange,
+          km.market_cap,
+          vm.pe_ratio,
+          vm.pb_ratio,
+          vm.ps_ratio,
+          vm.dividend_yield
+        FROM stock_symbols ss
+        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+        LEFT JOIN key_metrics km ON ss.symbol = km.symbol
+        LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
+        WHERE ss.symbol = $1
+      `,
+        [ticker.toUpperCase()]
+      );
+    } catch (queryError) {
+      logger.error("Database query error fetching stock detail:", {
+        ticker: ticker.toUpperCase(),
+        error: queryError.message,
+        code: queryError.code,
+      });
+      throw new Error(`Failed to fetch stock details: ${queryError.message}`);
+    }
 
     // Validate query result
     validateQueryResult(result, { requireRows: false });

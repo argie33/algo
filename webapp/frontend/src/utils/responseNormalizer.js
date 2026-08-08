@@ -25,10 +25,32 @@ export const extractData = (response) => {
   }
 
   // Handle axios response structure
-  const data = response.data || response;
+  let data = response.data || response;
 
   if (!data) {
     throw new Error("Response data is null or undefined");
+  }
+
+  // If data is a string, try to parse it as JSON
+  // This handles cases where axios returns data as a string instead of parsed object
+  if (typeof data === "string") {
+    try {
+      // Check if it looks like JSON before parsing
+      if (data.trim().startsWith("{") || data.trim().startsWith("[")) {
+        data = JSON.parse(data);
+        console.debug("[responseNormalizer] Parsed string response as JSON");
+      } else if (data.trim().startsWith("<")) {
+        // HTML response detected
+        throw new Error(`Received HTML response instead of JSON: ${data.substring(0, 200)}`);
+      } else {
+        throw new Error(`Received unexpected response format: ${data.substring(0, 200)}`);
+      }
+    } catch (parseError) {
+      if (parseError.message.startsWith("Received")) {
+        throw parseError; // Re-throw our custom errors
+      }
+      throw new Error(`Failed to parse response as JSON: ${parseError.message}`);
+    }
   }
 
   // Check for error responses first
@@ -257,6 +279,18 @@ export const extractData = (response) => {
       ? data.substring(0, 150)
       : JSON.stringify(data).substring(0, 150);
   const statusCode = response.status ? ` (HTTP ${response.status})` : "";
+
+  // Detailed logging for debugging response extraction failures
+  console.error("[responseNormalizer] Failed to extract data:", {
+    dataType: typeof data,
+    dataLength: typeof data === "string" ? data.length : JSON.stringify(data).length,
+    isHtml,
+    preview,
+    httpStatus: response.status,
+    headers: response.headers,
+    axiosResponseKeys: response ? Object.keys(response).join(",") : "no response",
+  });
+
   throw new Error(
     `Unable to extract data from response${statusCode}${isHtml ? " (received HTML, likely 404 or CDN error)" : ""}: ${preview}`
   );

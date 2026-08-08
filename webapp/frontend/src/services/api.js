@@ -594,7 +594,16 @@ export const getStocks = async (params = {}) => {
     const queryStr = new URLSearchParams(params).toString();
     const cacheKey = queryStr ? `stocks_${queryStr}` : "stocks";
     const url = queryStr ? `/api/stocks?${queryStr}` : "/api/stocks";
+
+    console.debug("[API] Fetching stocks from:", url);
     const response = await api.get(url);
+
+    console.debug("[API] Stocks response received:", {
+      status: response.status,
+      dataType: typeof response.data,
+      hasItems: Array.isArray(response.data?.items),
+    });
+
     // Normalize response envelope to consistent structure
     const normalized = extractData(response);
 
@@ -615,6 +624,13 @@ export const getStocks = async (params = {}) => {
     }
     return transformedData;
   } catch (error) {
+    console.error("[API] Error fetching stocks:", {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      stack: error.stack?.substring(0, 300),
+    });
+
     const queryStr = new URLSearchParams(params).toString();
     const cacheKey = queryStr ? `stocks_${queryStr}` : "stocks";
     const cached = await dataCache.get(cacheKey);

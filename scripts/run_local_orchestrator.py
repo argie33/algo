@@ -243,6 +243,7 @@ def main() -> None:
             orchestrator_instance = Orchestrator(
                 config=config,
                 run_id=run_id,
+                run_date=now.date(),
                 dry_run=dry_run,
             )
             result = orchestrator_instance.run()

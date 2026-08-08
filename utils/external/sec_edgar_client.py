@@ -404,11 +404,28 @@ class SecEdgarClient:
             # Other HTTP errors (2xx/3xx/4xx except 404)
             try:
                 resp.raise_for_status()
-                return cast(dict[str, Any], resp.json())
             except requests.HTTPError as e:
                 api_err = RuntimeError(f"SEC API error for {url}: {e}")
                 api_err.status_code = resp.status_code  # type: ignore[attr-defined]
                 raise api_err from e
+
+            # Parse JSON response - handle cases where server returns HTML with 200 status
+            try:
+                return cast(dict[str, Any], resp.json())
+            except (ValueError, requests.JSONDecodeError) as e:
+                # Detect HTML responses (CDN errors returning 200 status)
+                response_preview = resp.text[:200] if resp.text else "(empty response)"
+                is_html = response_preview.lstrip().startswith("<")
+                error_detail = f"SEC API returned invalid JSON (HTTP {resp.status_code})"
+                if is_html:
+                    error_detail += " - received HTML (CDN error?) instead of JSON"
+                else:
+                    error_detail += f" - response: {response_preview}"
+
+                json_err = RuntimeError(error_detail)
+                json_err.status_code = resp.status_code  # type: ignore[attr-defined]
+                logger.error(f"{error_detail} for {url}")
+                raise json_err from e
 
         raise RuntimeError("SEC API request exhausted all retries")
 
