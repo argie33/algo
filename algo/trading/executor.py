@@ -667,14 +667,16 @@ class TradeExecutor:
                             logger.debug(f"Could not release trades lock: {trades_lock_exc}")
                         raise op_exc
                     finally:
-                        # Normal success path
+                        # Release locks after successful operation
                         try:
                             release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                             release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
                         except Exception as lock_exc:
-                            # Lock release on successful transaction should not fail
-                            logger.error(f"Failed to release locks after successful operation: {lock_exc}")
-                            raise
+                            # Lock release failure on success path: log but DO NOT raise
+                            # Raising here would cause DatabaseContext to rollback the already-succeeded transaction
+                            # Resulting in: trade inserted to DB successfully, but then rolled back due to lock error
+                            # Database ends up with nothing committed, despite operation succeeding
+                            logger.warning(f"Failed to release locks after successful operation (non-fatal): {lock_exc}")
                 else:
                     return operation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
