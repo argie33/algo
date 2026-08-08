@@ -1290,7 +1290,7 @@ def run(
                                     )
                                     # Also update algo_trades for audit trail (if they exist)
                                     cur_w.execute(
-                                        "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_price = %s, "
+                                        "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP, exit_price = %s, "
                                         "profit_loss_dollars = %s, "
                                         "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
                                         (
