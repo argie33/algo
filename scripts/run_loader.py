@@ -62,6 +62,9 @@ def get_loader_class_for_file(loader_filename: str):
     FIXED (Session 49): Use registry to identify the loader instead of checking class attributes.
     The table_name is set in __init__, not as a class attribute, so introspection fails.
     Instead, we use LOADER_TABLES to know which file should exist, then import it.
+
+    FIXED (Current session): Support legacy loaders that don't inherit from OptimalLoader
+    (e.g., VectorizedTechnicalLoader). Fall back to finding any class matching pattern.
     """
     if loader_filename.endswith(".py"):
         module_name = loader_filename[:-3]
@@ -77,6 +80,14 @@ def get_loader_class_for_file(loader_filename: str):
             obj = getattr(module, attr_name)
             if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
                 # Found a loader subclass (not the base class itself)
+                return obj
+
+        # Fallback: If no OptimalLoader found, look for any class that looks like a loader
+        # (e.g., VectorizedTechnicalLoader, legacy loaders that predate OptimalLoader)
+        for attr_name in dir(module):
+            obj = getattr(module, attr_name)
+            if isinstance(obj, type) and "Loader" in attr_name and obj.__module__.startswith("loaders"):
+                logger.info(f"[LOADER] Using legacy loader class: {attr_name}")
                 return obj
 
         logger.error(f"[LOADER] Could not find OptimalLoader subclass in loaders.{module_name}")
@@ -229,6 +240,18 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
                 logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols from fallback")
 
         result = loader.run(symbols=symbols, parallelism=4)
+    elif table_name in ["technical_data_daily"]:
+        # VectorizedTechnicalLoader: custom run signature
+        if not symbols:
+            symbols = get_active_symbols(timeout_secs=60)
+            logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols")
+
+        since_date = None
+        if backfill_days > 0:
+            from datetime import date, timedelta
+            since_date = date.today() - timedelta(days=backfill_days)
+
+        result = loader.run(symbols=symbols, since_date=since_date)
     else:
         # Default: use get_active_symbols() for all other loaders
         if not symbols:

@@ -67,6 +67,7 @@ def _update_loader_status(
     error_message: str | None = None,
     symbol_count: int | None = None,
     execution_duration_sec: float | None = None,
+    symbols_loaded: int | None = None,
 ) -> None:
     # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
     valid_statuses = {"RUNNING", "COMPLETED", "FAILED"}
@@ -78,9 +79,13 @@ def _update_loader_status(
     status_mgr = LoaderStatusManager(_TABLE)
 
     if status == "RUNNING":
-        status_mgr.mark_running()
+        status_mgr.mark_running(symbol_count=symbol_count)
     elif status == "COMPLETED":
-        status_mgr.mark_completed(execution_duration_sec=execution_duration_sec)
+        status_mgr.mark_completed(
+            execution_duration_sec=execution_duration_sec,
+            current_run_symbol_count=symbol_count,
+            current_run_symbols_loaded=symbols_loaded if symbols_loaded is not None else symbol_count,
+        )
     elif status == "FAILED":
         status_mgr.mark_failed(error_message=error_message or "Unknown error")
 
@@ -225,7 +230,7 @@ def run() -> dict:  # type: ignore[type-arg]
             if not dates:
                 logger.warning("[TREND] No dates found in price_daily - cannot compute trend data")
                 elapsed = time.time() - start
-                _update_loader_status("COMPLETED", execution_duration_sec=elapsed)
+                _update_loader_status("COMPLETED", execution_duration_sec=elapsed, symbol_count=0, symbols_loaded=0)
                 return {
                     "symbols_processed": 0,
                     "rows_inserted": 0,
@@ -241,7 +246,7 @@ def run() -> dict:  # type: ignore[type-arg]
         if tech_df.empty or price_df.empty:
             logger.warning("[TREND] No technical or price data available - check upstream loaders")
             elapsed = time.time() - start
-            _update_loader_status("COMPLETED", execution_duration_sec=elapsed)
+            _update_loader_status("COMPLETED", execution_duration_sec=elapsed, symbol_count=0, symbols_loaded=0)
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
@@ -253,7 +258,7 @@ def run() -> dict:  # type: ignore[type-arg]
         if merged.empty:
             logger.warning("[TREND] No matching rows after price/technical join")
             elapsed = time.time() - start
-            _update_loader_status("COMPLETED", execution_duration_sec=elapsed)
+            _update_loader_status("COMPLETED", execution_duration_sec=elapsed, symbol_count=0, symbols_loaded=0)
             return {
                 "symbols_processed": 0,
                 "rows_inserted": 0,
@@ -299,7 +304,7 @@ def run() -> dict:  # type: ignore[type-arg]
             "duration_sec": round(elapsed, 1),
         }
         logger.info(f"[TREND] Done: {inserted} rows upserted in {elapsed:.1f}s")
-        _update_loader_status("COMPLETED", execution_duration_sec=elapsed)
+        _update_loader_status("COMPLETED", execution_duration_sec=elapsed, symbol_count=symbol_count, symbols_loaded=symbol_count)
         return result
 
     except Exception as e:
