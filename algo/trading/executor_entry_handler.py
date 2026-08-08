@@ -546,6 +546,7 @@ class EntryHandler:
                     trend_template_score = EXCLUDED.trend_template_score,
                     position_id = EXCLUDED.position_id,
                     execution_mode = EXCLUDED.execution_mode,
+                    status = EXCLUDED.status,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
