@@ -648,10 +648,13 @@ class TradeExecutor:
                     acquire_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
                     acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     try:
-                        return operation(cur)
+                        result = operation(cur)
+                        logger.debug(f"[_with_cursor] Operation succeeded, returning result (locks still held)")
+                        return result
                     except Exception as op_exc:
                         # CRITICAL FIX 2026-07-30: Transaction is now aborted after operation failure
                         # Cannot release locks on aborted transaction. Rollback explicitly first.
+                        logger.debug(f"[_with_cursor] Operation raised exception: {type(op_exc).__name__}: {op_exc}")
                         try:
                             cur.execute("ROLLBACK")
                         except Exception as rollback_exc:
@@ -671,6 +674,7 @@ class TradeExecutor:
                         try:
                             release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                             release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                            logger.debug(f"[_with_cursor] Locks released successfully")
                         except Exception as lock_exc:
                             # Lock release failure on success path: log but DO NOT raise
                             # Raising here would cause DatabaseContext to rollback the already-succeeded transaction
@@ -678,6 +682,7 @@ class TradeExecutor:
                             # Database ends up with nothing committed, despite operation succeeding
                             logger.warning(f"Failed to release locks after successful operation (non-fatal): {lock_exc}")
                 else:
+                    logger.debug(f"[_with_cursor] No locks requested, executing operation")
                     return operation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Database operation failed: {e}")
