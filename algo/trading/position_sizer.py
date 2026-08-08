@@ -926,7 +926,7 @@ class PositionSizer:
         has_safety_reduction = exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
         if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
             adjusted_risk_pct = min_risk_floor
-            risk_dollars = portfolio_value * adjusted_risk_pct
+            risk_dollars = pv_dec * adjusted_risk_pct
 
         risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
         if risk_per_share <= 0:
@@ -1129,7 +1129,7 @@ class PositionSizer:
                                     "position_size_pct": 0,
                                     "risk_dollars": 0,
                                     "status": "risk_limit_scaled_zero",
-                                    "reason": f"Total open risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
+                                    "reason": f"Total open risk {(current_risk_dollars / pv_dec * Decimal(100)):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
                                 }
 
                             # Use scaled size
