@@ -77,6 +77,16 @@ from typing import Any, cast
 
 import psycopg2
 
+from algo.infrastructure.constants import (
+    PHASE8_ATR_MIN_VALID,
+    PHASE8_ATR_MULTIPLIER_EXTREME,
+    PHASE8_ATR_MULTIPLIER_HIGH,
+    PHASE8_ATR_MULTIPLIER_NORMAL,
+    PHASE8_ATR_VOLATILITY_EXTREME_THRESHOLD,
+    PHASE8_ATR_VOLATILITY_NORMAL_THRESHOLD,
+    PHASE8_STOP_LOSS_MIN,
+    PHASE8_STOP_LOSS_RISK_MAX_PCT,
+)
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
@@ -98,9 +108,8 @@ logger = logging.getLogger(__name__)
 # for why - the old "expansion"/"correction"/"caution" list never matched actual data).
 VALID_REGIMES = ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
 
-# CRITICAL: Maximum allowed risk per position (20%)
-# Used in stop loss calculation and risk capping logic
-MAX_RISK_ALLOWED = 0.20
+# Maximum allowed risk per position - imported from constants
+MAX_RISK_ALLOWED = PHASE8_STOP_LOSS_RISK_MAX_PCT
 
 
 def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints | Any) -> None:
@@ -251,12 +260,12 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
     atr_ratio = atr / entry_price
 
     # Progressive multiplier based on volatility
-    if atr_ratio >= 0.10:  # Extreme volatility: ATR >= 10% of price
-        atr_multiplier = 0.5  # Very tight: entry - 0.5*ATR
-    elif atr_ratio >= 0.05:  # High volatility: ATR 5-10% of price
-        atr_multiplier = 0.8  # Tight: entry - 0.8*ATR
+    if atr_ratio >= PHASE8_ATR_VOLATILITY_EXTREME_THRESHOLD:  # Extreme volatility: ATR >= 10% of price
+        atr_multiplier = PHASE8_ATR_MULTIPLIER_EXTREME  # Very tight: entry - 0.5*ATR
+    elif atr_ratio >= PHASE8_ATR_VOLATILITY_NORMAL_THRESHOLD:  # High volatility: ATR 5-10% of price
+        atr_multiplier = PHASE8_ATR_MULTIPLIER_HIGH  # Tight: entry - 0.8*ATR
     else:  # Normal volatility: ATR < 5% of price
-        atr_multiplier = 1.2  # Standard: entry - 1.2*ATR
+        atr_multiplier = PHASE8_ATR_MULTIPLIER_NORMAL  # Standard: entry - 1.2*ATR
 
     volatility_stop = entry_price - atr_multiplier * atr
     risk_with_volatility_stop = (entry_price - volatility_stop) / entry_price
@@ -275,7 +284,7 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
         else:
             stop_loss = volatility_stop
 
-    return max(stop_loss, 0.01)  # Ensure stop is never negative or zero
+    return max(stop_loss, PHASE8_STOP_LOSS_MIN)  # Ensure stop is never negative or zero
 
 
 def _calculate_pre_entry_concentration_impact(
@@ -2171,11 +2180,11 @@ def run(
         atr = tech.get("atr_14")
         sma_50 = tech.get("sma_50")
 
-        # AUDIT ISSUE #4: Validate ATR >= 0.01 (minimum 1 cent volatility)
-        # WHY: ATR < 0.01 indicates frozen/stale data or penny stock with zero recent movement
+        # AUDIT ISSUE #4: Validate ATR >= minimum valid value (minimum 1 cent volatility)
+        # WHY: ATR < minimum indicates frozen/stale data or penny stock with zero recent movement
         # RATIONALE: Prevents position sizing errors on stocks with no volatility
-        if atr is not None and float(atr) < 0.01:
-            logger.error(f"[PHASE 8 DATA QUALITY] {symbol}: Invalid ATR {atr} (must be >= 0.01) - skipping trade")
+        if atr is not None and float(atr) < PHASE8_ATR_MIN_VALID:
+            logger.error(f"[PHASE 8 DATA QUALITY] {symbol}: Invalid ATR {atr} (must be >= {PHASE8_ATR_MIN_VALID}) - skipping trade")
             data_quality_failures[symbol] = f"invalid_atr_{atr}"
             continue
 

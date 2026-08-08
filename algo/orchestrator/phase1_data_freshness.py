@@ -49,6 +49,12 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.constants import (
+    PHASE1_DB_QUERY_TIMEOUT_MS,
+    PHASE1_LOADER_COMPLETION_HIGH_PCT,
+    PHASE1_METRIC_COVERAGE_MIN_PCT,
+    PHASE1_SYMBOL_COVERAGE_MIN_PCT,
+)
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
 from algo.orchestrator.phase_data_contract import validate_phase_data
@@ -481,7 +487,7 @@ def run(  # noqa: C901
 
     try:
         with DatabaseContext("read") as cur:
-            cur.execute("SET statement_timeout = 15000")  # 15s timeout for multi-table checks
+            cur.execute(f"SET statement_timeout = {PHASE1_DB_QUERY_TIMEOUT_MS}")  # Database timeout for multi-table checks
 
             # Find reference date from price_daily (most reliable source)
             # NOTE: stock_scores is NOT validated here; it's an orchestrator OUTPUT (Phase 5),
@@ -1286,10 +1292,10 @@ def run(  # noqa: C901
                     # matches the most recent trading day in the DB (which stock_scores depends on for
                     # underlying metric data). Stock scores have no date column, so check updated_at
                     # against price_daily's max date (latest trading day with prices).
-                    cur.execute("""
+                    cur.execute(f"""
                         SELECT AVG(data_completeness) as avg_completeness,
                                COUNT(*) as total_available_scores,
-                               COUNT(CASE WHEN data_completeness >= 70 THEN 1 END) as complete_scores,
+                               COUNT(CASE WHEN data_completeness >= {PHASE1_METRIC_COVERAGE_MIN_PCT} THEN 1 END) as complete_scores,
                                COUNT(*) FILTER (WHERE data_unavailable = FALSE) as available_count,
                                MAX(updated_at) as max_updated
                         FROM stock_scores
@@ -1322,7 +1328,7 @@ def run(  # noqa: C901
 
                         logger.info(
                             f"[PHASE 1] Stock scores completeness: {avg_completeness:.1f}% avg "
-                            f"({complete_scores}/{total_available} available symbols >= 70%)"
+                            f"({complete_scores}/{total_available} available symbols >= {PHASE1_METRIC_COVERAGE_MIN_PCT}%)"
                         )
 
                         # GOVERNANCE: Allow proceeding if 60%+ of available scores are complete
@@ -1455,7 +1461,7 @@ def run(  # noqa: C901
                 logger.critical(
                     f"[PHASE 1] HALTING: Degraded data not allowed for trading. "
                     f"Reason: {degraded_reason}. "
-                    f"Fix: Ensure all metric loaders complete with >70% symbol coverage before trading."
+                    f"Fix: Ensure all metric loaders complete with >{PHASE1_METRIC_COVERAGE_MIN_PCT}% symbol coverage before trading."
                 )
                 log_phase_result_fn(1, "degraded_data_halt", "halt", degraded_reason)
                 phase_data: dict[str, Any] = {

@@ -173,3 +173,22 @@ SECONDS_PER_DAY = 86400
 
 # Percentage calculations (for readability)
 PERCENT_MULTIPLIER = 100
+
+# ── Orchestrator Phase Thresholds ───────────────────────────────────────────
+
+# Phase 1: Data Freshness
+PHASE1_SYMBOL_COVERAGE_MIN_PCT = 75  # Minimum required symbol coverage for price_daily
+PHASE1_METRIC_COVERAGE_MIN_PCT = 70  # Minimum symbol coverage for enrichment metrics
+PHASE1_LOADER_COMPLETION_HIGH_PCT = 90  # Threshold for loader data integrity check (reported >= 90% but actual << 50%)
+PHASE1_LOADER_INTEGRITY_ACTUAL_COVERAGE_MIN_PCT = 50  # If loader reports HIGH_PCT but actual < this, it's data corruption
+PHASE1_DB_QUERY_TIMEOUT_MS = 15000  # 15s timeout for multi-table freshness checks
+
+# Phase 8: Entry Execution - Stop Loss Calculation
+PHASE8_STOP_LOSS_RISK_MAX_PCT = 0.20  # Maximum allowed risk per trade (20%)
+PHASE8_ATR_VOLATILITY_NORMAL_THRESHOLD = 0.05  # 5% - normal volatility boundary
+PHASE8_ATR_VOLATILITY_EXTREME_THRESHOLD = 0.10  # 10% - extreme volatility boundary
+PHASE8_ATR_MULTIPLIER_NORMAL = 1.2  # Normal volatility: entry - 1.2*ATR
+PHASE8_ATR_MULTIPLIER_HIGH = 0.8  # High volatility (5-10%): entry - 0.8*ATR
+PHASE8_ATR_MULTIPLIER_EXTREME = 0.5  # Extreme volatility (>=10%): entry - 0.5*ATR
+PHASE8_ATR_MIN_VALID = 0.01  # Minimum valid ATR (1 cent); below indicates frozen/stale data
+PHASE8_STOP_LOSS_MIN = 0.01  # Minimum stop loss price (prevent zero/negative)
