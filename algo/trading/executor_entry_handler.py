@@ -245,20 +245,24 @@ class EntryHandler:
             raise
 
         # Generate deterministic idempotency key for Alpaca order deduplication.
-        # CRITICAL FIX 2026-08-05: REMOVED stop_loss_price from idempotency key generation.
-        # Stop loss price varies between orchestrator runs due to ATR/volatility recalculations,
-        # causing different hashes even for the same trade intent. This breaks idempotency and
-        # creates duplicate trades in algo_trades table when orchestrator reruns the same signal.
-        # Solution: Use ONLY stable values (symbol + signal_date + entry_price).
-        # Entry price is fixed from signal data, signal_date never changes, symbol is immutable.
-        # Stop loss method is risk management detail, not a trade identifier.
+        # CRITICAL FIX 2026-08-07: INCLUDE position_id in idempotency key to prevent
+        # ON CONFLICT from updating trades linked to different positions.
+        # Previously: idempotency_key = HASH(symbol + entry_price + signal_date)
+        # Problem: On rerun, ON CONFLICT would match old trade (from orphaned position)
+        #          and update its position_id to new position, leaving old position orphaned
+        # Solution: Include position_id so each position entry gets unique idempotency key
+        # This preserves the idempotency goal (same signal = same trade ID) while
+        # ensuring each position attempt creates its own trade record.
         import hashlib
 
         # Normalize entry price to 4 decimals to ensure deterministic key across retries
         entry_price_normalized = f"{float(entry_price):.4f}"
 
-        # Use only stable values that don't change between orchestrator runs
-        key_source = f"{symbol}_{entry_price_normalized}_{signal_date}"
+        # Use stable values that identify THIS specific entry attempt:
+        # symbol + entry_price + signal_date + position_id
+        # position_id is generated per attempt, so same signal on different entry attempts
+        # won't collide, preventing orphaned-position confusion
+        key_source = f"{symbol}_{entry_price_normalized}_{signal_date}_{position_id}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks
