@@ -1170,8 +1170,10 @@ def run(
                             with DatabaseContext("write") as cur:
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
+                                    # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
+                                    # Position monitor recommends updates to current_stop_price for trailing stop adjustments
                                     cur.execute(
-                                        "UPDATE algo_positions SET stop_loss_price = %s "
+                                        "UPDATE algo_positions SET current_stop_price = %s "
                                         "WHERE id = %s AND status = %s",
                                         (
                                             rec["new_stop_recommended"],
