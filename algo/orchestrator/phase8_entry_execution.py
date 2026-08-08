@@ -1142,6 +1142,8 @@ def run(
     # Previous: UnboundLocalError "cannot access local variable 'EASTERN_TZ'" due to scope shadowing
     # This ensures we always have access to the timezone regardless of outer scope
     from utils.infrastructure import EASTERN_TZ as _EASTERN_TZ
+    from datetime import time as dt_time
+
     now_dt = datetime.now(_EASTERN_TZ)
     now_et = now_dt.time()
     is_market_open = MarketCalendar.is_market_open(now_dt)
@@ -1176,7 +1178,6 @@ def run(
     # Result: All 5 market-open false breakouts entered at 09:03-09:12, stopped out 3 hours later (62.5% loss rate)
     # FIX: Hard cutoff - skip Phase 8 entirely if current_time_et < 10:30 AM ET
     # This prevents ALL market-open entries regardless of when orchestrator runs
-    from datetime import time as dt_time
     market_open_exclusion_enabled = config.get("market_open_exclusion_enabled", False)
     if market_open_exclusion_enabled and not test_mode and not allow_outside_hours:
         market_open_end = dt_time(10, 30)  # 10:30 AM ET

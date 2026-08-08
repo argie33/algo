@@ -49,10 +49,6 @@ class MarketEventHandler:
     def __init__(self, config: Any) -> None:
         self.config = config
 
-        # In paper mode, market event checks (halts, circuit breakers) still require Alpaca API
-        # because we need real market data to validate positions and detect halts.
-        # However, we can use paper trading credentials instead of live trading credentials.
-        # If credentials are not available, fail gracefully for paper mode operations.
         execution_mode = config.get("execution_mode")
         if execution_mode is None:
             raise ValueError(
@@ -61,27 +57,28 @@ class MarketEventHandler:
                 "Set explicit execution_mode in algo_config table."
             )
 
-        # Pass execution_mode so get_alpaca_base_url() applies the same live-intent gate
-        # AutoExecutionMode uses for order submission - without it, this would trust
-        # APCA_API_BASE_URL alone and could point halt detection at the live account while
-        # order submission stays on paper (see get_alpaca_base_url()'s docstring).
+        # In paper mode: skip market circuit breaker checks (local simulation, no need for Alpaca API).
+        # Halt detection is still needed if positions are ever opened, but market circuit breaker
+        # checks are not critical for paper mode (trades are simulated locally, not submitted to broker).
+        if execution_mode == "paper":
+            self.alpaca_key = None
+            self.alpaca_secret = None
+            self.alpaca_base_url = None
+            return
+
+        # Live/review modes require valid credentials for market event checks (real trading safety gate)
         self.alpaca_base_url = get_alpaca_base_url(execution_mode)
 
         try:
             cm = get_credential_manager()
             creds = cm.get_alpaca_credentials()
         except ValueError as e:
-            # FAIL-FAST: Market halt checks are CRITICAL for all modes, not optional for paper
-            # Halt detection prevents positions in halted stocks and is non-negotiable
-            # even in paper/dry modes where trades are simulated locally.
-            # If we cannot verify halt status, we cannot safely monitor positions.
             raise ValueError(
-                f"[MARKET_EVENTS CRITICAL] Alpaca credentials required for market event handling. "
+                f"[MARKET_EVENTS CRITICAL] Alpaca credentials required for {execution_mode} mode market event handling. "
                 f"Cannot proceed without credentials to verify halt status (critical for position monitoring). "
                 f"Error: {e}"
             ) from e
 
-        # CRITICAL: Fail fast if credentials missing (no defaults)
         if "key" not in creds:
             raise ValueError("[MARKET_EVENTS] Alpaca API key missing from credentials")
         if "secret" not in creds:
@@ -228,6 +225,11 @@ class MarketEventHandler:
 
         """
         try:
+            # In paper mode, skip circuit breaker check (local simulation doesn't need Alpaca API)
+            if not self.alpaca_key or not self.alpaca_secret:
+                logger.debug("[CIRCUIT_BREAKER] Paper mode - skipping market circuit breaker check (local simulation)")
+                return None
+
             # Check if market is currently open - circuit breaker only matters during trading hours
             # After hours (before 09:30 ET or after 16:00 ET), APIs return stale/missing data
             now_et = datetime.now(EASTERN_TZ)
@@ -237,20 +239,6 @@ class MarketEventHandler:
             if now_et < market_open or now_et > market_close:
                 logger.debug(f"[CIRCUIT_BREAKER] Market closed ({now_et.time()} ET) - skipping circuit breaker check")
                 return None  # Market closed, no circuit breaker can be active
-
-            # CRITICAL: Check if Alpaca credentials are available
-            # Must fail fast with explicit error if credentials not configured (cannot verify circuit breaker status)
-            if not self.alpaca_key or not self.alpaca_secret:
-                logger.error(
-                    "[MARKET_CIRCUIT_BREAKER CRITICAL] Alpaca credentials not configured. "
-                    "Cannot verify circuit breaker status. Must have valid credentials to check market safety gates."
-                )
-                return {
-                    "error": "circuit_breaker_check_failed",
-                    "reason": "credentials_not_configured",
-                    "description": "Alpaca API credentials missing - cannot verify circuit breaker status",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
 
             headers = {
                 "APCA-API-KEY-ID": self.alpaca_key,

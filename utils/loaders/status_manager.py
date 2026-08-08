@@ -235,6 +235,7 @@ class LoaderStatusManager:
         symbols_failed: int | None = None,
         current_run_symbols_loaded: int | None = None,
         current_run_symbol_count: int | None = None,
+        min_completion_pct: float | None = None,
     ) -> None:
         """Mark loader as completed successfully.
 
@@ -275,6 +276,9 @@ class LoaderStatusManager:
                 a subsequent success. Passing the current run's own counts explicitly closes that
                 gap for callers that supply them; callers that don't (unchanged) keep the exact
                 prior DB-read-back behavior.
+            min_completion_pct: Optional custom completion threshold. Use when a loader depends on
+                upstream data and expects inherent incompleteness (e.g., buy_sell_daily depends on
+                technical_data_daily which may not cover all symbols). If None, defaults to 98%.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -302,14 +306,18 @@ class LoaderStatusManager:
                     else:
                         actual_completion_pct = 0.0
 
+                    # Use provided threshold or default to 98%
+                    completion_threshold = min_completion_pct if min_completion_pct is not None else 98.0
+
                     # SAFETY: Never mark COMPLETE if completion is suspiciously low
-                    # Production loaders require 98% minimum completion (2% failure tolerance max)
+                    # Default: Production loaders require 98% minimum completion (2% failure tolerance max)
+                    # Exception: Loaders with upstream dependencies may specify custom threshold
                     # This catches cases where load_pct=95% but was marked COMPLETE due to bug
-                    if actual_completion_pct < 98.0:
+                    if actual_completion_pct < completion_threshold:
                         logger.critical(
                             f"[SAFETY CHECK] {self.table_name}: Cannot mark COMPLETED with only "
                             f"{actual_completion_pct:.2f}% completion ({loaded_symbols}/{total_symbols} symbols). "
-                            f"This indicates incomplete data load. Marking FAILED instead."
+                            f"Threshold: {completion_threshold:.2f}%. This indicates incomplete data load. Marking FAILED instead."
                         )
                         # Update status to FAILED within this same transaction (lock already held)
                         cur.execute(
@@ -340,8 +348,8 @@ class LoaderStatusManager:
                         symbols_per_sec = status_row[1] / execution_duration_sec
 
                 # Use actual completion percentage instead of hardcoding 100.0
-                # (If we reach here, actual_completion_pct >= 98%, so it's valid to complete)
-                final_completion_pct = actual_completion_pct if actual_completion_pct >= 98.0 else 100.0
+                # (If we reach here, actual_completion_pct >= threshold, so it's valid to complete)
+                final_completion_pct = actual_completion_pct if actual_completion_pct >= completion_threshold else 100.0
 
                 # CRITICAL FIX (2026-08-03): symbol_count/symbols_loaded were never written by
                 # either branch below - callers that never call update_progress() during a run

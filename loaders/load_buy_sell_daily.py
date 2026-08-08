@@ -1201,9 +1201,37 @@ def main() -> int:  # noqa: C901
                         raise RuntimeError("CRITICAL: Failed to query max date from buy_sell_daily")
                     actual_max_date = date_result[0]
 
+                    # CRITICAL FIX (Session 56): Calculate completion threshold based on upstream data quality
+                    # buy_sell_daily inherits incompleteness from technical_data_daily (which covers ~4,750 of 10,549 universe)
+                    # If technical_data_daily is 95% complete on this date, buy_sell_daily should accept 92%+ (3% margin)
+                    # This prevents false FAILED statuses when upstream data is legitimately incomplete
+                    cur.execute("""
+                        WITH tech_coverage AS (
+                            SELECT COUNT(DISTINCT symbol) as symbol_count FROM technical_data_daily WHERE date = %s
+                        ),
+                        tech_universe AS (
+                            SELECT symbol_count FROM data_loader_status WHERE table_name = 'technical_data_daily'
+                        )
+                        SELECT
+                            CASE WHEN t.symbol_count > 0 AND u.symbol_count > 0
+                                 THEN (t.symbol_count::float / u.symbol_count * 100.0)
+                                 ELSE 100.0
+                            END as tech_coverage_pct
+                        FROM tech_coverage t CROSS JOIN tech_universe u
+                    """, (actual_max_date,))
+
+                    result = cur.fetchone()
+                    tech_coverage_pct = result[0] if result else 100.0
+                    # Allow buy_sell_daily to be 3% lower than upstream technical_data_daily coverage (signal generation overhead)
+                    min_threshold = max(90.0, tech_coverage_pct - 3.0)
+                    logger.info(
+                        f"[COMPLETION_THRESHOLD] Technical_data_daily coverage: {tech_coverage_pct:.1f}%. "
+                        f"Setting buy_sell_daily threshold to {min_threshold:.1f}% (upstream coverage - 3% margin)"
+                    )
+
                 # Use LoaderStatusManager to consolidate status writes
                 status_manager = LoaderStatusManager(table_name="buy_sell_daily")
-                status_manager.mark_completed(latest_date=actual_max_date)
+                status_manager.mark_completed(latest_date=actual_max_date, min_completion_pct=min_threshold)
                 logger.info(
                     f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
                 )

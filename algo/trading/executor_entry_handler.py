@@ -244,6 +244,42 @@ class EntryHandler:
             logger.error(f"Failed to check for idempotent duplicate: {e}")
             raise
 
+        # CRITICAL FIX: Generate position_id UPFRONT before using in idempotency key (line 265)
+        # Previously this was delayed until line 940, causing NameError when used at line 265
+        import hashlib
+        import uuid
+        from utils.db.context import DatabaseContext
+
+        # CRITICAL FIX: Check if an open position already exists for this symbol (from a prior entry in the same day).
+        # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
+        position_id = None
+        logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
+        try:
+            with DatabaseContext("read") as read_cursor:
+                read_cursor.execute(
+                    """
+                    SELECT position_id, status FROM algo_positions
+                    WHERE symbol = %s
+                    AND created_at::date = CURRENT_DATE
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                existing_pos = read_cursor.fetchone()
+                if existing_pos:
+                    position_id, existing_status = existing_pos
+                    logger.critical(f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})")
+                else:
+                    logger.debug(f"[POSITION DEDUP] {symbol}: No existing position found, will create new")
+        except Exception as e:
+            logger.error(f"[POSITION DEDUP ERROR] {symbol}: {type(e).__name__}: {e}", exc_info=True)
+
+        # If no existing position found, generate new position_id
+        if position_id is None:
+            position_id = str(uuid.uuid4())
+            logger.debug(f"[POSITION CREATE] {symbol}: Generated new position_id {position_id}")
+
         # Generate deterministic idempotency key for Alpaca order deduplication.
         # CRITICAL FIX 2026-08-07: INCLUDE position_id in idempotency key to prevent
         # ON CONFLICT from updating trades linked to different positions.
@@ -253,7 +289,6 @@ class EntryHandler:
         # Solution: Include position_id so each position entry gets unique idempotency key
         # This preserves the idempotency goal (same signal = same trade ID) while
         # ensuring each position attempt creates its own trade record.
-        import hashlib
 
         # Normalize entry price to 4 decimals to ensure deterministic key across retries
         entry_price_normalized = f"{float(entry_price):.4f}"
@@ -923,47 +958,18 @@ class EntryHandler:
         idempotency_key: str,
         order_send_time: float | None,
         reentry_count: int = 0,
+        position_id: str | None = None,
     ) -> str:
         """PHASE 3: Insert trade record, position record, record TCA."""
+        # Generate position_id if not provided (required for linking trade to position)
+        if position_id is None:
+            import uuid
+            position_id = str(uuid.uuid4())
         if executed_price is None:
             raise ValueError(
                 f"[ENTRY_HANDLER CRITICAL] {symbol}: Recording entry without executed_price. "
                 f"Cannot calculate position size percentage or record accurate cost basis."
             )
-
-        # Generate position_id upfront so it can be linked in both trade and position records
-        import uuid
-        from utils.db.context import DatabaseContext
-
-        # CRITICAL FIX: Check if an open position already exists for this symbol (from a prior entry in the same day).
-        # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
-        position_id = None
-        logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
-        try:
-            with DatabaseContext("read") as read_cursor:
-                read_cursor.execute(
-                    """
-                    SELECT position_id, status FROM algo_positions
-                    WHERE symbol = %s
-                    AND created_at::date = CURRENT_DATE
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                existing_pos = read_cursor.fetchone()
-                if existing_pos:
-                    position_id, existing_status = existing_pos
-                    logger.critical(f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})")
-                else:
-                    logger.debug(f"[POSITION DEDUP] {symbol}: No existing position found, will create new")
-        except Exception as e:
-            logger.error(f"[POSITION DEDUP ERROR] {symbol}: {type(e).__name__}: {e}", exc_info=True)
-
-        # If no existing position found, generate new position_id
-        if position_id is None:
-            position_id = str(uuid.uuid4())
-            logger.debug(f"[POSITION CREATE] {symbol}: Generated new position_id {position_id}")
 
         # Resolve the FINAL order_status and actual filled share count BEFORE building the
         # trade record, so algo_trades and algo_positions can never disagree. Previously this
@@ -1168,7 +1174,7 @@ class EntryHandler:
             # This field is REQUIRED by circuit_breaker.py for portfolio risk calculation
             risk_pct = None
             if executed_price and stop_loss_price and executed_price > 0:
-                risk_pct = ((executed_price - stop_loss_price) / executed_price) * 100.0
+                risk_pct = float(((executed_price - stop_loss_price) / executed_price) * 100.0)
 
             try:
                 # Check if position already exists (from reuse logic above)
