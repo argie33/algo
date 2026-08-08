@@ -85,7 +85,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "max_pct": 100,
         "description": "Confirmed bull market - full deployment",
         "risk_multiplier": 1.0,
-        "max_new_positions_today": 5,
+        "max_new_positions_today": 4,
         "min_composite_score": 50.0,
         "tighten_winners_at_r": None,
         "force_partial_at_r": None,
