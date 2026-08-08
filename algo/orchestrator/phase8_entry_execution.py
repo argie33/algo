@@ -2012,9 +2012,13 @@ def run(
                                     (float(exit_price), float(pnl) if pnl else None, float(pnl_pct) if pnl_pct else None, pos_uuid_id)
                                 )
 
+                                # CRITICAL FIX 2026-08-08: Handle NULL P&L when formatting log message
+                                # pnl/pnl_pct can be NULL if position hasn't been priced yet
+                                pnl_str = f"${float(pnl):.2f}" if pnl is not None else "N/A"
+                                pnl_pct_str = f"{float(pnl_pct):+.2f}%" if pnl_pct is not None else "N/A"
                                 logger.warning(
                                     f"[PHASE 8 EMERGENCY_CLOSE] Closed {symbol} (pos_id={pos_uuid_id}): "
-                                    f"entry={entry_date}, qty={qty}, P&L=${pnl:.2f} ({pnl_pct:+.2f}%)"
+                                    f"entry={entry_date}, qty={qty}, P&L={pnl_str} ({pnl_pct_str})"
                                 )
                                 forced_close_count += 1
                                 available_slots += 1
