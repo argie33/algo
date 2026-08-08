@@ -741,6 +741,7 @@ def run(
                             ) from row_err
 
                     rebalance_actions = []
+                    logger.info(f"[PHASE 6] Found {len(oversized_positions)} oversized positions to force-exit")
                     for pos_id, symbol, pct, limit in oversized_positions:
                         # CRITICAL FIX: see the identical sector-concentration fix above -
                         # `trade_ids` is a dead column never written by any code path; the

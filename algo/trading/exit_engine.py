@@ -880,16 +880,12 @@ class ExitEngine:
                                        profit_loss_dollars = NULL,
                                        profit_loss_pct = NULL,
                                        exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                       WHERE trade_id = (
-                                           SELECT trade_id FROM algo_trades
-                                           WHERE symbol = %s AND status IN ({trade_status_placeholders})
-                                           ORDER BY trade_date DESC LIMIT 1
-                                       )""",
+                                       WHERE trade_id = %s AND status IN ({trade_status_placeholders})""",
                                     (
                                         current_date,
                                         cur_price if cur_price and cur_price > 0 else None,
                                         "delisted_or_unavailable|price_data_missing",
-                                        symbol,
+                                        trade_id,
                                         *open_trade_statuses_close,
                                     ),
                                 )
@@ -906,10 +902,10 @@ class ExitEngine:
                                        unrealized_pnl_pct = NULL,
                                        unrealized_pnl = NULL,
                                        updated_at = CURRENT_TIMESTAMP
-                                       WHERE symbol = %s AND status IN ({position_status_placeholders})""",
+                                       WHERE position_id = %s AND status IN ({position_status_placeholders})""",
                                     (
                                         "delisted_or_unavailable|price_data_missing",
-                                        symbol,
+                                        _position_id,
                                         *open_position_statuses_close,
                                     ),
                                 )

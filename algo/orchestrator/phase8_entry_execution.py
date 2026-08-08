@@ -2897,17 +2897,20 @@ def run(
             except (ValueError, TypeError) as e:
                 raise ValueError(f"[PHASE 8 CRITICAL] max_signal_age_hours is invalid ({signal_age_hours_val}): {e}") from e
 
-            sig_date_obj = signal.get("signal_date")
-            if sig_date_obj:
+            sig_date_obj_raw = signal.get("signal_date")
+            sig_date_obj: _date | None = None
+            if sig_date_obj_raw:
                 # Convert signal_date to date object if it's a string
-                if isinstance(sig_date_obj, str):
+                if isinstance(sig_date_obj_raw, str):
                     try:
-                        sig_date_obj = datetime.fromisoformat(sig_date_obj).date()
+                        sig_date_obj = datetime.fromisoformat(sig_date_obj_raw).date()
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_obj}': {e}. Skipping age check.")
+                        logger.warning(f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_obj_raw}': {e}. Skipping age check.")
                         sig_date_obj = None
-                elif not isinstance(sig_date_obj, _date):
-                    logger.warning(f"[PHASE 8] {symbol}: signal_date has unexpected type {type(sig_date_obj).__name__}. Skipping age check.")
+                elif isinstance(sig_date_obj_raw, _date):
+                    sig_date_obj = sig_date_obj_raw
+                else:
+                    logger.warning(f"[PHASE 8] {symbol}: signal_date has unexpected type {type(sig_date_obj_raw).__name__}. Skipping age check.")
                     sig_date_obj = None
 
                 # Only check signal age if we have a valid date
