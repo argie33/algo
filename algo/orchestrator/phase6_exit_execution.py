@@ -583,44 +583,65 @@ def run(
                     # not exact-match which fails if snapshot hasn't been created yet for today.
                     # On first run of the day: portfolio_snapshot is from yesterday (correct baseline)
                     # On subsequent runs: portfolio_snapshot is from today (updated by Phase 9)
-                    # CRITICAL: Snapshot MUST be from TODAY (run_date), not a stale previous snapshot
-                    # Using yesterday's snapshot with today's positions causes:
-                    # - Wrong denominator for concentration calculations
-                    # - Positions appear smaller than they are
-                    # - Concentration limits are effectively masked
-                    # SOLUTION: Require snapshot_date = run_date ONLY, no fallback to stale snapshots
+                    # CRITICAL FIX: Try today's snapshot first (most accurate), then fallback to yesterday's.
+                    # This handles the "first run of day" scenario where Phase 9 hasn't run yet to create today's snapshot.
+                    #
+                    # First attempt: Get today's snapshot (Phase 9 has run, updated state available)
+                    # Fallback: If today's doesn't exist (first run of day), use yesterday's snapshot (valid baseline)
+                    # Never: Use SUM(position_value) - that causes shrinking denominator bug where positions appear smaller
                     cur.execute(
                         """
                         SELECT total_portfolio_value FROM algo_portfolio_snapshots
                         WHERE snapshot_date = %s
+                        ORDER BY snapshot_date DESC LIMIT 1
                         """,
                         (run_date,),
                     )
                     result = cur.fetchone()
                     total_value = result[0] if result else None
+                    snapshot_used_date = run_date
+
+                    # Fallback to previous available snapshot if today's doesn't exist
+                    if total_value is None or total_value == 0:
+                        logger.info(
+                            f"[PHASE 6] No portfolio snapshot for today ({run_date}). "
+                            f"Attempting to use most recent prior snapshot..."
+                        )
+                        cur.execute(
+                            """
+                            SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+                            WHERE snapshot_date < %s
+                            ORDER BY snapshot_date DESC LIMIT 1
+                            """,
+                            (run_date,),
+                        )
+                        fallback_result = cur.fetchone()
+                        if fallback_result:
+                            snapshot_used_date = fallback_result[0]
+                            total_value = fallback_result[1]
+                            logger.warning(
+                                f"[PHASE 6] Using prior snapshot from {snapshot_used_date} for concentration calculations. "
+                                f"Phase 9 may not have completed yet for today ({run_date})."
+                            )
 
                     if total_value is None or total_value == 0:
-                        # CRITICAL FIX SESSION 60: NO FALLBACK - must have portfolio snapshot
-                        # Previous: Used SUM(position_value) as fallback, causing "shrinking denominator" bug:
-                        # - When positions close, denominator shrinks
-                        # - Remaining positions appear LARGER percentage than they are
-                        # - Causes false force-exits or prevents proper concentration detection
-                        # - Oscillating exits result
-                        #
-                        # SOLUTION: HALT if no portfolio snapshot. This is not optional.
-                        # Portfolio snapshot is mandatory for safe concentration calculations.
-                        # If missing, Phase 9 (Reconciliation) has not run, so don't force-exit yet.
+                        # CRITICAL: No portfolio snapshot available at all - cannot proceed
                         error_msg = (
-                            f"[PHASE 6 CRITICAL] Portfolio snapshot missing or has 0 value. "
+                            f"[PHASE 6 CRITICAL] Portfolio snapshot missing for today ({run_date}) "
+                            f"and no prior snapshot available. "
                             f"Cannot safely calculate position concentrations without portfolio baseline. "
                             f"Concentration enforcement is mandatory for risk management - cannot proceed. "
-                            f"This indicates Phase 9 (Reconciliation) has not run successfully today, "
-                            f"or run_date is mismatched. Check: (1) Phase 9 logs for errors, "
-                            f"(2) algo_portfolio_snapshots table for run_date={run_date}, "
-                            f"(3) Orchestrator run_date vs system date."
+                            f"Check: (1) algo_portfolio_snapshots table has entries, "
+                            f"(2) Orchestrator run_date vs system date, "
+                            f"(3) Phase 9 (Reconciliation) has run at least once."
                         )
                         logger.critical(error_msg)
                         raise RuntimeError(error_msg)
+                    else:
+                        logger.info(
+                            f"[PHASE 6 CONCENTRATION] Using snapshot from {snapshot_used_date} "
+                            f"(portfolio value: ${float(total_value):,.2f})"
+                        )
 
                     try:
                         total_value_float = _ensure_float(total_value, "total_portfolio_value")
