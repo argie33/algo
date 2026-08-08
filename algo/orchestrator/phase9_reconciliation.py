@@ -1767,6 +1767,31 @@ def run(
         # Do NOT close positions with zero trades - those are data errors to investigate
         orphans_fixed = False
         try:
+            # DEBUG: Log what positions will be closed
+            with DatabaseContext("read") as debug_cursor:
+                debug_cursor.execute("""
+                    SELECT p.position_id, p.symbol, COUNT(t.id) as trade_count,
+                           STRING_AGG(t.status, ',') as statuses
+                    FROM algo_positions p
+                    LEFT JOIN algo_trades t ON t.position_id = p.position_id
+                    WHERE p.status = 'open'
+                    AND EXISTS (
+                        SELECT 1 FROM algo_trades t
+                        WHERE t.position_id = p.position_id LIMIT 1
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM algo_trades t
+                        WHERE t.position_id = p.position_id
+                        AND t.status IN ('open', 'pending', 'filled', 'partially_filled', 'paper_pending')
+                    )
+                    GROUP BY p.position_id, p.symbol
+                """)
+                orphans_to_close = debug_cursor.fetchall()
+                if orphans_to_close:
+                    logger.info(f"[PHASE 9 DEBUG] Found {len(orphans_to_close)} positions to close:")
+                    for pos_id, symbol, count, statuses in orphans_to_close:
+                        logger.info(f"  {symbol}: {count} trades with statuses={statuses}")
+
             with DatabaseContext("write") as sync_cursor:
                 sync_cursor.execute("""
                     UPDATE algo_positions p
