@@ -108,7 +108,7 @@ VALIDATION_SCHEMA = {
     "imported_position_default_target_1_pct": ("float", 0.1, 50.0, False, 5.0),
     "imported_position_default_target_2_pct": ("float", 0.1, 50.0, False, 10.0),
     "imported_position_default_target_3_pct": ("float", 0.1, 50.0, False, 15.0),
-    "min_hold_days": ("int", 0, 365, False, 1),
+    "min_hold_days": ("int", 0, 365, False, 0),
     "max_hold_days": ("int", 1, 365, False, 20),
     "exit_on_distribution_day": ("bool", None, None, False, None),
     # DISABLED 2026-08-05: Minervini break exit rule disabled permanently after analysis
