@@ -62,16 +62,44 @@ def run_pipeline(pipeline_name: str) -> int:
     print(f"[LOCAL_SCHEDULER] Starting {pipeline_name} pipeline ({len(loaders)} loaders)...")
     repo_root = Path(__file__).parent.parent
 
+    # CRITICAL FIX: Loader-specific timeouts
+    # Prevents hangs when loaders block on lock acquisition from crashed previous runs.
+    # Timeout must exceed: lock acquisition retry budget (5-50 min) + actual loader runtime (10-30 min)
+    # Set conservatively: price_daily can take 60+ min on large universe, so budget 90 min
+    LOADER_TIMEOUTS = {
+        "prices": 90 * 60,           # 90 min - price_daily is slowest loader (5000+ symbols @ ~1s each)
+        "technical": 30 * 60,        # 30 min - in-database vectorized computation, fast
+        "market_status": 15 * 60,    # 15 min - market status loaders are fast
+        "earnings_calendar": 20 * 60, # 20 min - yfinance with 8s per-symbol timeout
+        "trend_analysis": 15 * 60,   # 15 min - trend analysis is fast
+        "sector_industry": 15 * 60,  # 15 min - sector/industry loaders are fast
+        "analyst_earnings_estimates": 20 * 60,  # 20 min
+        "value_quality_growth": 40 * 60,        # 40 min - slower API calls
+        "enhanced_quality_growth": 25 * 60,     # 25 min
+        "positioning_metrics": 30 * 60,         # 30 min
+        "stability_metrics": 30 * 60,           # 30 min
+    }
+
     for loader in loaders:
-        print(f"[LOCAL_SCHEDULER] Running {loader} loader...")
-        result = subprocess.run(
-            [sys.executable, "scripts/run_loader.py", loader],
-            cwd=str(repo_root),
-            env=os.environ.copy(),
-        )
-        if result.returncode != 0:
+        timeout = LOADER_TIMEOUTS.get(loader, 30 * 60)  # 30 min default
+        print(f"[LOCAL_SCHEDULER] Running {loader} loader (timeout: {timeout}s)...")
+        try:
+            result = subprocess.run(
+                [sys.executable, "scripts/run_loader.py", loader],
+                cwd=str(repo_root),
+                env=os.environ.copy(),
+                timeout=timeout,
+            )
+            if result.returncode != 0:
+                print(
+                    f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {result.returncode})",
+                    file=sys.stderr,
+                )
+                return 1
+        except subprocess.TimeoutExpired:
             print(
-                f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {result.returncode})",
+                f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
+                f"Likely blocked by stale lock. Run: rm -f /tmp/algo-locks/*.lock",
                 file=sys.stderr,
             )
             return 1

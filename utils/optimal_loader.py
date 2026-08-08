@@ -528,7 +528,11 @@ class OptimalLoader:
                     context={"table_name": self.table_name}
                 ) from ddb_err
 
-            lock_timeout_seconds = 15  # Increased from 5s to 15s for better lock contention handling
+            # LOCAL_MODE: Use shorter lock timeout to fail fast on stale locks
+            # Production (DynamoDB/RDS): Use 15s to allow some network variance
+            is_file_lock = isinstance(lock_manager, FileLockManager) if lock_manager else False
+            lock_timeout_seconds = 5 if is_file_lock else 15  # Fail faster on stale file locks in LOCAL_MODE
+
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=lock_timeout_seconds):
                 # Lock acquisition failed. Check if it's a permission issue or actual contention.
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
@@ -568,7 +572,14 @@ class OptimalLoader:
                     # Calculation: 5+10+20+40+80+90*15 = 1505s ≈ 25 min (NOT 40 min)
                     # For TRUE 50+ minute coverage: 5+10+20+40+80+90*30 = 2885s ≈ 48 min
                     # Phase 7 halt cascades to entire orchestrator (no entries) - must not timeout on legitimate long loader
-                    if self.table_name == 'signal_quality_scores':
+                    # LOCAL_MODE (Session 45): Use shorter retry budget to fail fast on stale locks
+                    # File locks are from local dev (not production), so stale locks should be cleaned up manually
+                    # rather than waited out for 5-50 minutes. Reduce to 2 min max to encourage cleanup.
+                    if is_file_lock:
+                        # LOCAL_MODE file locks: short budget to encourage cleanup of stale locks
+                        max_retries = 4   # ~1 min total (exponential: 5+10+20+40 = 75s ≈ 1 min)
+                        retry_timeout_label = "1 minute"
+                    elif self.table_name == 'signal_quality_scores':
                         max_retries = 35  # ~50 min total (exponential backoff: 5+10+20+40+80+90*30 = 2885s ≈ 48 min, safely covers observed 5-45+ min range)
                         retry_timeout_label = "50 minutes"
                     else:

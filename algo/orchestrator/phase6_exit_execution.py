@@ -1050,8 +1050,11 @@ def run(
                             with DatabaseContext("write") as cur:
                                 acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                                 try:
+                                    # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
+                                    # Phase 3 computes new trailing stops using current_stop_price and recommends updates to that column
+                                    # Phase 6 was updating stop_loss_price (wrong column), so trailing stops never increased
                                     cur.execute(
-                                        "UPDATE algo_positions SET stop_loss_price = %s WHERE id = %s",
+                                        "UPDATE algo_positions SET current_stop_price = %s WHERE id = %s",
                                         (action["new_stop"], action["position_id"]),
                                     )
                                     # rowcount guards against silently counting a no-op as a success -

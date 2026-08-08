@@ -326,6 +326,24 @@ def run_complete_loader_pipeline() -> bool:
     print("[STARTUP] REFRESHING DATA: Running complete loader pipeline", flush=True)
     print("[STARTUP] ============================================================", flush=True)
 
+    # CRITICAL FIX (Session 45): Clean up stale lock files before running loaders
+    # If a previous loader crashed without releasing its lock, subsequent loaders block
+    # for the full lock TTL (1-2 hours). This ensures clean state.
+    print("[STARTUP] Cleaning up stale loader locks...", flush=True)
+    repo_root = Path(__file__).parent
+    cleanup_script = repo_root / "scripts" / "cleanup_loader_locks.py"
+    if cleanup_script.exists():
+        try:
+            subprocess.run(
+                [sys.executable, str(cleanup_script), "--max-age", "30"],
+                cwd=str(repo_root),
+                timeout=10,
+                capture_output=True,
+                text=True,
+            )
+        except Exception as e:
+            print(f"[STARTUP] [WARN] Lock cleanup failed: {e}", flush=True)
+
     # Step 1: Check if morning pipeline already ran today - skip if it did
     if check_if_run_already_complete("morning"):
         print("[STARTUP] Step 1/3: Morning pipeline (prices, technicals, market status)...", flush=True)
