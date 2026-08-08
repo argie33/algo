@@ -16,7 +16,6 @@ causing 15.4% of exits at exact entry price (0% return).
 """
 
 import logging
-from typing import Any
 
 from utils.db.context import DatabaseContext
 

@@ -1103,7 +1103,7 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
         fixed_count = 0
         with DatabaseContext("write") as cursor:
             for row in corrupted:
-                trade_id, symbol, entry_price, exit_date, pnl_dollars, stop_price, entry_qty = row
+                trade_id, symbol, entry_price, exit_date, _, stop_price, entry_qty = row
                 if entry_price is None or stop_price is None or entry_qty is None:
                     logger.warning(
                         f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
@@ -1954,7 +1954,7 @@ def run(
                 orphans_to_close = debug_cursor.fetchall()
                 if orphans_to_close:
                     logger.info(f"[PHASE 9 DEBUG] Found {len(orphans_to_close)} positions to close:")
-                    for pos_id, symbol, count, statuses in orphans_to_close:
+                    for _, symbol, count, statuses in orphans_to_close:
                         logger.info(f"  {symbol}: {count} trades with statuses={statuses}")
 
             with DatabaseContext("write") as sync_cursor:

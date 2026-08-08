@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
 from algo.exceptions import DataContractError, MissingPhaseDataError
-from algo.risk import ExposurePolicyConstraints
 
 logger = logging.getLogger(__name__)
 

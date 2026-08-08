@@ -98,7 +98,6 @@ from algo.trading.executor import TradeExecutor
 from algo.trading.position_sizer import PositionSizer
 from algo.trading.pretrade_checks import PreTradeChecks
 from utils.db.context import DatabaseContext
-from utils.infrastructure import EASTERN_TZ
 from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
@@ -1968,7 +1967,6 @@ def run(
             )
 
         # Forced close logic disabled (Session 57) - was closing working positions arbitrarily
-        forced_close_count = 0
 
         # Cap daily entries by available slots (can't exceed max_positions)
         max_entries_allowed = min(max_entries, available_slots)

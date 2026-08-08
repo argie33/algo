@@ -22,6 +22,7 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
+from utils.infrastructure import EASTERN_TZ
 from utils.trading.status import PositionStatus
 
 logger = logging.getLogger(__name__)
@@ -488,7 +489,6 @@ def run(
                     f"This safety check is mandatory and must not be skipped."
                 ) from e
             except (ValueError, RuntimeError) as e:
-                error_msg = str(e)
                 raise RuntimeError(
                     f"[PHASE 6 CRITICAL] Sector concentration check failed with error: {e}. "
                     f"Position rebalancing cannot proceed without valid concentration data."
@@ -1226,38 +1226,47 @@ def run(
         engine_errors = 0
         engine_market_hours_blocked = False
         if not dry_run and trade_executor is not None:
-            # CRITICAL FIX (Session 35): Previously blocked ALL exits outside market hours
-            # This was a major architectural flaw for afternoon orchestrator runs - exits
-            # would never execute. Now: use available prices (market close) for exit checks.
-            # Stop-loss checks work with yesterday's/today's close prices equally well -
-            # if a position stopped out by close, it stopped out regardless of time-of-check.
-            engine = ExitEngine(config)
-            engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
-            exit_count += engine_exits
-            # CRITICAL FIX: engine_exits used to also include the engine's own internal
-            # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
-            # exit_count while this phase's separate `stop_raises` counter (from the
-            # Phase-3-recommendation path above) stayed unrelated - so this summary line
-            # could read "16 exits, 0 stop-raises" when 0 positions actually closed and
-            # all 16 were stop-raises. Now added to the same counter its name promises.
-            stop_raises += engine_stop_raises
-            # CRITICAL FIX: check_and_execute_exits() catches per-trade exceptions
-            # internally (logs "Exit check failed for X" and moves on to the next
-            # position) so a real failure never raised past this call - it just
-            # silently produced no exit/stop check for that position this run. This
-            # count was previously discarded entirely, so the phase always reported
-            # "0 errors" and status "ok" no matter how many positions failed their
-            # exit evaluation (confirmed against a live run's log showing 8 logged
-            # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
-            errors += engine_errors
+            # CRITICAL: Exit engine requires current/intraday prices to detect stop losses
+            # Outside market hours, only yesterday's close is available, which can't be used
+            # to check if today's stop loss was triggered. Guard prevents running with stale prices.
+            now_dt = datetime.now(EASTERN_TZ)
+            if not MarketCalendar.is_market_open(now_dt):
+                close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
+                msg = (
+                    f"[PHASE 6 MARKET HOURS GUARD] Cannot execute exits outside market hours - "
+                    f"exit evaluation requires intraday pricing to detect stop losses. "
+                    f"Current time: {now_dt.strftime('%H:%M:%S')} ET, "
+                    f"market hours: 9:30 AM - {close_time} ET. Skipping exit engine."
+                )
+                logger.warning(msg)
+                engine_market_hours_blocked = True
+            else:
+                engine = ExitEngine(config)
+                engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
+                exit_count += engine_exits
+                # CRITICAL FIX: engine_exits used to also include the engine's own internal
+                # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
+                # exit_count while this phase's separate `stop_raises` counter (from the
+                # Phase-3-recommendation path above) stayed unrelated - so this summary line
+                # could read "16 exits, 0 stop-raises" when 0 positions actually closed and
+                # all 16 were stop-raises. Now added to the same counter its name promises.
+                stop_raises += engine_stop_raises
+                # CRITICAL FIX: check_and_execute_exits() catches per-trade exceptions
+                # internally (logs "Exit check failed for X" and moves on to the next
+                # position) so a real failure never raised past this call - it just
+                # silently produced no exit/stop check for that position this run. This
+                # count was previously discarded entirely, so the phase always reported
+                # "0 errors" and status "ok" no matter how many positions failed their
+                # exit evaluation (confirmed against a live run's log showing 8 logged
+                # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
+                errors += engine_errors
 
-            # FIX SESSION 43: Portfolio rotation safety check
-            # If portfolio is full (15/15) and exit engine did 0 exits (only stops-raises),
-            # force-close oldest position to prevent deadlock
-            # CRITICAL FIX 2026-08-08: Check both engine_stop_raises AND stop_raises
-            # stop_raises includes Phase 3 recommendations processed by Phase 6, not just ExitEngine results
-            # Without this, portfolio rotation wouldn't fire when only Phase 3 raised stops
-            if not dry_run:
+                # FIX SESSION 43: Portfolio rotation safety check
+                # If portfolio is full (15/15) and exit engine did 0 exits (only stops-raises),
+                # force-close oldest position to prevent deadlock
+                # CRITICAL FIX 2026-08-08: Check both engine_stop_raises AND stop_raises
+                # stop_raises includes Phase 3 recommendations processed by Phase 6, not just ExitEngine results
+                # Without this, portfolio rotation wouldn't fire when only Phase 3 raised stops
                 try:
                     with DatabaseContext("read") as cur:
                         cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity > 0")

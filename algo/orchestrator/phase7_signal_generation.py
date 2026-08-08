@@ -1324,7 +1324,6 @@ def run(  # noqa: C901
 
         try:
             from loaders.load_signal_quality_scores import SignalQualityScoresLoader
-            from utils.loaders.helpers import get_active_symbols
             from concurrent.futures import TimeoutError as FutureTimeoutError
 
             if today_scores_exist:

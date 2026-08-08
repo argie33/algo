@@ -51,9 +51,7 @@ import psycopg2
 
 from algo.infrastructure.constants import (
     PHASE1_DB_QUERY_TIMEOUT_MS,
-    PHASE1_LOADER_COMPLETION_HIGH_PCT,
     PHASE1_METRIC_COVERAGE_MIN_PCT,
-    PHASE1_SYMBOL_COVERAGE_MIN_PCT,
 )
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
@@ -1547,10 +1545,6 @@ def run(  # noqa: C901
                             f"Portfolio symbols missing prices: {missing_symbols}",
                         )
                     else:
-                        stale_symbols = [
-                            s for s in portfolio_symbols
-                            if price_symbols.get(s) and price_symbols[s] is not None
-                        ]
                         logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices (latest available)")
                         phase_data["portfolio_symbols"] = len(portfolio_symbols)
                         phase_data["portfolio_price_coverage"] = "complete"
