@@ -221,7 +221,20 @@ class PositionContext:
         return False, None
 
     def check_time_exit(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
-        """Time-based exit with O'Neil 8-week rule override."""
+        """Time-based exit with O'Neil 8-week rule override.
+
+        CRITICAL FIX SESSION 41: Time-based exits are discretionary (not capital preservation),
+        so they respect min_hold_days gate. This prevents same-day time exits while still allowing
+        hard stops, targets, and distribution exits that reduce exposure immediately.
+        """
+        min_hold_val = self.config.get("min_hold_days")
+        if min_hold_val is None:
+            raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
+
+        min_hold_days = int(min_hold_val)
+        if self.days_held < min_hold_days:
+            return False, None
+
         max_hold_val = self.config.get("max_hold_days")
         if max_hold_val is None:
             raise ValueError("CRITICAL: max_hold_days config missing. Cannot enforce maximum holding period.")
@@ -964,11 +977,16 @@ class ExitEngine:
                                 "exit_price_override": float(exit_price_for_stop),  # Use stop price as fill
                             }
                         else:
-                            # Enforce minimum holding period (no same-day exits per Curtis Faith)
-                            # But hard stop-loss above already checked and not triggered
-                            if days_held < 1:
+                            # Get min_hold_days from config
+                            # Hard stop-loss above already checked and not triggered
+                            min_hold_val = self.config.get("min_hold_days")
+                            if min_hold_val is None:
+                                raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
+                            min_hold_days_check = int(min_hold_val)
+
+                            if days_held < min_hold_days_check:
                                 if self.verbose:
-                                    logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
+                                    logger.info(f"  {symbol}: hold (minimum hold period not met: {days_held}d held < {min_hold_days_check}d required)")
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
 
@@ -1210,24 +1228,18 @@ class ExitEngine:
                 ),
             }
 
-        min_hold_val = self.config.get("min_hold_days")
-        if min_hold_val is None:
-            raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
-
-        min_hold_days = int(min_hold_val)
-        if days_held < min_hold_days:
-            # CRITICAL FIX: this used to return a "hold" dict with fraction=0.0 and no
-            # new_stop key. The caller's `if not exit_signal:` guard treats any non-empty
-            # dict as truthy - a real signal to act on - so this "nothing to do" outcome
-            # fell through into the stop-raise-only branch downstream, which requires
-            # new_stop and immediately raised. None is what the caller's guard actually
-            # checks for (see check_and_execute_exits's `if not exit_signal:` "hold, log,
-            # continue" branch, which exists specifically for this case).
-            if self.verbose:
-                logger.info(
-                    f"  {symbol}: hold (min hold period not met: {days_held}d held < {min_hold_days}d required)"
-                )
-            return None
+        # CRITICAL FIX SESSION 41: Remove blanket min_hold_days gate that blocks ALL exits on same-day entries.
+        # This was causing portfolio deadlock: 15 positions entered same-day cannot exit, blocking Phase 8 entries.
+        # Solution: Allow target-level, distribution, and technical exits on same-day entries.
+        # Only time-based exits are now gated to min_hold_days (via check_time_exit).
+        # This allows immediate 50% exposure reduction on targets/distribution while blocking discretionary time exits.
+        #
+        # Historical context: This blanket gate was well-intentioned (Curtis Faith's 1-day hold minimum)
+        # but it's TOO RIGID for a portfolio that hits capacity. If all 15 positions enter same-day:
+        # - Old behavior: cannot exit ANY on same day -> portfolio stuck at 15/15
+        # - New behavior: can reduce 50% via targets/distribution -> portfolio can make room for new entries
+        # - Capital preservation (hard stops) already bypassed this gate (lines 950-965 above)
+        # - Time-based discretionary exits still gated (see check_time_exit below)
 
         ctx = PositionContext(
             symbol=symbol,
