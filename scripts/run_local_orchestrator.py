@@ -130,6 +130,12 @@ def main() -> None:
         "producing duplicate-looking trades and oscillating portfolio snapshots. Use --force only "
         "for deliberate re-testing after a real code fix, not as a way to retry past a halt/error.",
     )
+    parser.add_argument(
+        "--date",
+        type=str,
+        help="Simulate orchestrator run for a specific date (YYYY-MM-DD). Useful for testing fixes on trading days. "
+        "Example: --date 2026-08-07 --morning",
+    )
 
     args = parser.parse_args()
 
@@ -162,7 +168,20 @@ def main() -> None:
     # NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents concurrent execution and duplicate trades
 
     et = ZoneInfo("America/New_York")
-    now = datetime.now(et)
+
+    # Parse --date if provided (for testing historical/simulated runs)
+    if args.date:
+        from datetime import datetime as dt_cls
+        try:
+            test_date = dt_cls.strptime(args.date, "%Y-%m-%d").date()
+            # Create a datetime at 12:00 PM ET on the specified date for run_id consistency
+            now = datetime(test_date.year, test_date.month, test_date.day, 12, 0, 0, tzinfo=et)
+            print(f"[TEST MODE] Using simulated date: {test_date} (run_id will show this date)")
+        except ValueError:
+            print(f"ERROR: Invalid date format '{args.date}'. Use YYYY-MM-DD (e.g., 2026-08-07)")
+            sys.exit(1)
+    else:
+        now = datetime.now(et)
 
     print("=" * 70)
     print("LOCAL ORCHESTRATOR RUNNER")

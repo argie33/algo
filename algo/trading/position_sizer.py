@@ -895,7 +895,7 @@ class PositionSizer:
             * vix_mult
             * Decimal(str(regime_mult))
         )
-        risk_dollars = (portfolio_value * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        risk_dollars = (pv_dec * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
         if phase_mult == 0.0:
             logger.warning(
@@ -963,7 +963,7 @@ class PositionSizer:
             raise ValueError(
                 f"CRITICAL: max_position_size_pct config has invalid value '{max_pos_pct_val}': {e}"
             ) from None
-        max_position_value = portfolio_value * max_position_pct
+        max_position_value = pv_dec * max_position_pct
 
         if position_value > max_position_value:
             # ROUND_DOWN, not ROUND_HALF_UP: this caps position_value to a hard ceiling
@@ -974,13 +974,13 @@ class PositionSizer:
             position_value = Decimal(shares) * Decimal(str(entry_price))
             risk_dollars = risk_per_share * Decimal(shares)
 
-        if portfolio_value <= 0:
+        if pv_dec <= 0:
             raise ValueError(
-                f"CRITICAL: Portfolio value invalid ({portfolio_value}) - cannot calculate position sizing. "
+                f"CRITICAL: Portfolio value invalid ({pv_dec}) - cannot calculate position sizing. "
                 f"Position sizing requires current portfolio value > 0."
             )
         try:
-            position_pct_of_portfolio = position_value / Decimal(str(portfolio_value)) * Decimal(100)
+            position_pct_of_portfolio = position_value / pv_dec * Decimal(100)
         except (ValueError, TypeError, decimal.InvalidOperation) as e:
             raise ValueError(
                 f"CRITICAL: Position value calculation failed ({position_value}): {e}. "
@@ -1005,7 +1005,7 @@ class PositionSizer:
         if position_pct_of_portfolio > effective_limit:
             # Scale down the position instead of rejecting it
             # Calculate maximum allowed position value at effective limit
-            max_position_value_at_limit = portfolio_value * (effective_limit / Decimal(100))
+            max_position_value_at_limit = pv_dec * (effective_limit / Decimal(100))
             scaled_shares = int((max_position_value_at_limit / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
 
             if scaled_shares < 1:
@@ -1020,7 +1020,7 @@ class PositionSizer:
 
             # Scale down but still enter - capture the opportunity at reduced size
             scaled_position_value = Decimal(scaled_shares) * Decimal(str(entry_price))
-            scaled_position_pct = (scaled_position_value / Decimal(str(portfolio_value))) * Decimal(100)
+            scaled_position_pct = (scaled_position_value / pv_dec) * Decimal(100)
             scaled_risk_dollars = risk_per_share * Decimal(scaled_shares)
 
             logger.info(
@@ -1044,13 +1044,13 @@ class PositionSizer:
         if max_inv_val is None:
             raise ValueError("CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit.")
         max_invested_pct = Decimal(str(max_inv_val))
-        if portfolio_value > 0 and (total_invested / Decimal(str(portfolio_value)) * Decimal(100)) > max_invested_pct:
+        if pv_dec > 0 and (total_invested / pv_dec * Decimal(100)) > max_invested_pct:
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
                 "status": "no_room",
-                "reason": f"Total invested would be {(total_invested / Decimal(str(portfolio_value)) * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
+                "reason": f"Total invested would be {(total_invested / pv_dec * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
             }
 
         # SESSION 393 IMPLEMENTATION: Enforce total risk limit BEFORE returning success
@@ -1077,7 +1077,6 @@ class PositionSizer:
                     # every other money/threshold computation in this file, instead of the
                     # float arithmetic previously used here (a precision-drift risk on exactly
                     # the check meant to be least tolerant of drift).
-                    portfolio_value_dec = Decimal(str(portfolio_value))
                     if risk_sum is None:
                         # SUM returns NULL when no matching rows, but query succeeded
                         current_risk_dollars = Decimal(0)
@@ -1087,8 +1086,8 @@ class PositionSizer:
                     # Calculate aggregate risk after this position would be added
                     total_risk_after_entry = current_risk_dollars + risk_dollars
                     total_risk_pct = (
-                        (total_risk_after_entry / portfolio_value_dec) * Decimal(100)
-                        if portfolio_value_dec > 0
+                        (total_risk_after_entry / pv_dec) * Decimal(100)
+                        if pv_dec > 0
                         else Decimal(0)
                     )
 
@@ -1099,7 +1098,7 @@ class PositionSizer:
                     if total_risk_pct > max_risk_pct:
                         # Risk limit would be exceeded - scale down position or block
                         available_capacity_dollars = (
-                            max_risk_pct / Decimal(100) * portfolio_value_dec
+                            max_risk_pct / Decimal(100) * pv_dec
                         ) - current_risk_dollars
 
                         if available_capacity_dollars <= 0:
@@ -1109,7 +1108,7 @@ class PositionSizer:
                                 "position_size_pct": 0,
                                 "risk_dollars": 0,
                                 "status": "risk_limit",
-                                "reason": f"Total open risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}% already at/exceeds {max_risk_pct:.1f}% limit - no capacity for new position",
+                                "reason": f"Total open risk {(current_risk_dollars / pv_dec * Decimal(100)):.2f}% already at/exceeds {max_risk_pct:.1f}% limit - no capacity for new position",
                             }
                         else:
                             # Scale down position to fit within available capacity.
@@ -1137,11 +1136,11 @@ class PositionSizer:
                             shares = scaled_shares
                             risk_dollars = risk_per_share * Decimal(shares)
                             position_value = Decimal(shares) * Decimal(str(entry_price))
-                            position_pct_of_portfolio = position_value / Decimal(str(portfolio_value)) * Decimal(100)
+                            position_pct_of_portfolio = position_value / pv_dec * Decimal(100)
 
                             logger.info(
                                 f"[POSITION_SIZER] {symbol}: Risk-limited sizing applied. "
-                                f"Current risk {(current_risk_dollars / portfolio_value_dec * Decimal(100)):.2f}%, "
+                                f"Current risk {(current_risk_dollars / pv_dec * Decimal(100)):.2f}%, "
                                 f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
                             )
             except Exception as e:

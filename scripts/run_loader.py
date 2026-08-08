@@ -190,7 +190,7 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
     logger.info(f"[LOADER] {table_name}: starting execution")
 
     # Special-case loaders with custom symbol selection logic
-    if table_name in ["market_health_daily", "market_exposure_daily", "market_sentiment", "sector_performance"]:
+    if table_name in ["stock_symbols", "etf_symbols", "market_health_daily", "market_exposure_daily", "market_sentiment", "sector_performance"]:
         # Global loaders (market-wide, not per-symbol)
         logger.info(f"[LOADER] {table_name}: using global mode (no per-symbol runs)")
         result = loader.load_global()
