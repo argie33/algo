@@ -2444,10 +2444,14 @@ def run(
                         break
 
                 except (ValueError, TypeError, KeyError, AttributeError) as e:
-                    logger.debug(f"[PHASE 8 CONCENTRATION] {symbol}: Skipping from concentration calc due to data error: {type(e).__name__}: {e}")
+                    error_type = f'error_{type(e).__name__}'
+                    skipped_reason_counts[error_type] = skipped_reason_counts.get(error_type, 0) + 1
+                    logger.debug(f"[PHASE 8 CONCENTRATION] {symbol}: Skipping due to {type(e).__name__}: {e}")
                     continue
                 except Exception as e:
-                    logger.warning(f"[PHASE 8 CONCENTRATION] {symbol}: Unexpected error in concentration calculation: {type(e).__name__}: {e}. Skipping.")
+                    error_type = f'error_{type(e).__name__}'
+                    skipped_reason_counts[error_type] = skipped_reason_counts.get(error_type, 0) + 1
+                    logger.warning(f"[PHASE 8 CONCENTRATION] {symbol}: Unexpected {type(e).__name__} in concentration calc: {e}. Skipping.")
                     continue
 
             # If some but not all signals fit, update the list and log
