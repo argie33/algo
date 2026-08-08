@@ -938,13 +938,13 @@ class EntryHandler:
         # CRITICAL FIX: Check if an open position already exists for this symbol (from a prior entry in the same day).
         # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
         position_id = None
-        logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing open position created today...")
+        logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
         try:
             with DatabaseContext("read") as read_cursor:
                 read_cursor.execute(
                     """
-                    SELECT position_id FROM algo_positions
-                    WHERE symbol = %s AND status = 'open'
+                    SELECT position_id, status FROM algo_positions
+                    WHERE symbol = %s
                     AND created_at::date = CURRENT_DATE
                     ORDER BY created_at DESC
                     LIMIT 1
@@ -953,10 +953,10 @@ class EntryHandler:
                 )
                 existing_pos = read_cursor.fetchone()
                 if existing_pos:
-                    position_id = existing_pos[0]
-                    logger.critical(f"[POSITION REUSE] {symbol}: Reusing existing open position {position_id}")
+                    position_id, existing_status = existing_pos
+                    logger.critical(f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})")
                 else:
-                    logger.debug(f"[POSITION DEDUP] {symbol}: No existing open position found, will create new")
+                    logger.debug(f"[POSITION DEDUP] {symbol}: No existing position found, will create new")
         except Exception as e:
             logger.error(f"[POSITION DEDUP ERROR] {symbol}: {type(e).__name__}: {e}", exc_info=True)
 
@@ -1171,73 +1171,130 @@ class EntryHandler:
                 risk_pct = ((executed_price - stop_loss_price) / executed_price) * 100.0
 
             try:
-                logger.critical(
-                    f"[POSITION INSERT] About to insert position for {symbol} "
-                    f"(position_id={position_id}, trade_id={trade_id})"
-                )
-                cur.execute(
-                    """
-                    INSERT INTO algo_positions (
-                        position_id, symbol, quantity, avg_entry_price, entry_price,
-                        current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
-                        status, entry_date, trade_ids,
-                        trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
-                        target_1_price, target_2_price, target_3_price,
-                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                        r_multiple, risk_pct, cognito_sub, metrics_updated_at, created_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                # Check if position already exists (from reuse logic above)
+                check_exists_sql = "SELECT position_id FROM algo_positions WHERE position_id = %s"
+                cur.execute(check_exists_sql, (position_id,))
+                existing_position = cur.fetchone()
+
+                if existing_position:
+                    # Position exists - UPDATE instead of INSERT
+                    logger.critical(
+                        f"[POSITION UPDATE] Reopening existing position for {symbol} "
+                        f"(position_id={position_id}, trade_id={trade_id})"
                     )
-                    """,
-                    (
-                        position_id,
-                        symbol,
-                        actual_shares,
-                        executed_price,
-                        executed_price,
-                        executed_price,
-                        position_value,
-                        # unrealized_pnl/pct at the instant of entry are trivially 0 (current_price
-                        # == executed_price, no movement yet) - same reasoning as r_multiple below.
-                        # Leaving these NULL (the prior behavior - neither column has a DB default)
-                        # meant a freshly-entered position had NULL unrealized_pnl until the next
-                        # Phase 3 (position_monitor) run updated it. Phase 2 (circuit breakers) runs
-                        # BEFORE Phase 3 on every run, so the sector-drawdown circuit breaker's
-                        # fail-closed NULL check - correct for genuinely missing data - crashed and
-                        # halted the entire orchestrator on every run immediately following any
-                        # entry. Live-reproduced 2026-07-27: NBBK entered in one run, the very next
-                        # run's Phase 2 halted on "Sector drawdown check: position missing P&L/
-                        # cost-basis data (sector=Financial Services)", cascading into exit_engine
-                        # running in Phase-5-halted degraded mode and Phase 9 reconciliation halting
-                        # trading entirely.
-                        0,
-                        0,
-                        position_status,
-                        entry_date,
-                        trade_id,
-                        [trade_id],
-                        stop_loss_price,
-                        stop_loss_price,
-                        target_1_price,
-                        target_2_price,
-                        target_3_price,
-                        self.t1_target_r_multiple if target_1_price else None,
-                        self.t2_target_r_multiple if target_2_price else None,
-                        self.t3_target_r_multiple if target_3_price else None,
-                        r_multiple,
-                        risk_pct,
-                        get_algo_owner_cognito_sub(),
-                    ),
-                )
-                logger.critical(
-                    f"[POSITION INSERT] Successfully inserted position for {symbol} "
-                    f"(position_id={position_id}, trade_id={trade_id})"
-                )
+                    # Fetch existing trade_ids_arr to append new trade_id
+                    cur.execute(
+                        "SELECT trade_ids_arr FROM algo_positions WHERE position_id = %s",
+                        (position_id,)
+                    )
+                    existing_trades_result = cur.fetchone()
+                    existing_trades_arr = existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
+                    # Append new trade_id if not already present
+                    updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
+                    if trade_id not in updated_trades_arr:
+                        updated_trades_arr.append(trade_id)
+                    trade_ids_text = ','.join(updated_trades_arr) if updated_trades_arr else None
+
+                    cur.execute(
+                        """
+                        UPDATE algo_positions
+                        SET quantity = %s, avg_entry_price = %s, entry_price = %s,
+                            current_price = %s, position_value = %s,
+                            unrealized_pnl = %s, unrealized_pnl_pct = %s,
+                            status = %s, entry_date = %s, trade_ids = %s,
+                            trade_ids_arr = %s, current_stop_price = %s, stop_loss_price = %s,
+                            target_1_price = %s, target_2_price = %s, target_3_price = %s,
+                            target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
+                            r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE position_id = %s
+                        """,
+                        (
+                            actual_shares, executed_price, executed_price,
+                            executed_price, position_value,
+                            0, 0,
+                            position_status, entry_date, trade_ids_text,
+                            updated_trades_arr, stop_loss_price, stop_loss_price,
+                            target_1_price, target_2_price, target_3_price,
+                            self.t1_target_r_multiple if target_1_price else None,
+                            self.t2_target_r_multiple if target_2_price else None,
+                            self.t3_target_r_multiple if target_3_price else None,
+                            r_multiple, risk_pct,
+                            position_id
+                        ),
+                    )
+                    logger.critical(
+                        f"[POSITION UPDATE] Successfully reopened position for {symbol} "
+                        f"(position_id={position_id}, trade_id={trade_id})"
+                    )
+                else:
+                    # Position doesn't exist - INSERT new position
+                    logger.critical(
+                        f"[POSITION INSERT] About to insert position for {symbol} "
+                        f"(position_id={position_id}, trade_id={trade_id})"
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO algo_positions (
+                            position_id, symbol, quantity, avg_entry_price, entry_price,
+                            current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
+                            status, entry_date, trade_ids,
+                            trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
+                            target_1_price, target_2_price, target_3_price,
+                            target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                            r_multiple, risk_pct, cognito_sub, metrics_updated_at, created_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        """,
+                        (
+                            position_id,
+                            symbol,
+                            actual_shares,
+                            executed_price,
+                            executed_price,
+                            executed_price,
+                            position_value,
+                            # unrealized_pnl/pct at the instant of entry are trivially 0 (current_price
+                            # == executed_price, no movement yet) - same reasoning as r_multiple below.
+                            # Leaving these NULL (the prior behavior - neither column has a DB default)
+                            # meant a freshly-entered position had NULL unrealized_pnl until the next
+                            # Phase 3 (position_monitor) run updated it. Phase 2 (circuit breakers) runs
+                            # BEFORE Phase 3 on every run, so the sector-drawdown circuit breaker's
+                            # fail-closed NULL check - correct for genuinely missing data - crashed and
+                            # halted the entire orchestrator on every run immediately following any
+                            # entry. Live-reproduced 2026-07-27: NBBK entered in one run, the very next
+                            # run's Phase 2 halted on "Sector drawdown check: position missing P&L/
+                            # cost-basis data (sector=Financial Services)", cascading into exit_engine
+                            # running in Phase-5-halted degraded mode and Phase 9 reconciliation halting
+                            # trading entirely.
+                            0,
+                            0,
+                            position_status,
+                            entry_date,
+                            trade_id,
+                            [trade_id],
+                            stop_loss_price,
+                            stop_loss_price,
+                            target_1_price,
+                            target_2_price,
+                            target_3_price,
+                            self.t1_target_r_multiple if target_1_price else None,
+                            self.t2_target_r_multiple if target_2_price else None,
+                            self.t3_target_r_multiple if target_3_price else None,
+                            r_multiple,
+                            risk_pct,
+                            get_algo_owner_cognito_sub(),
+                        ),
+                    )
+                    logger.critical(
+                        f"[POSITION INSERT] Successfully inserted position for {symbol} "
+                        f"(position_id={position_id}, trade_id={trade_id})"
+                    )
             except Exception as pos_err:
                 logger.critical(
-                    f"[POSITION INSERT CRITICAL] FAILED to insert position for {symbol}: "
+                    f"[POSITION INSERT CRITICAL] FAILED to insert/update position for {symbol}: "
                     f"{type(pos_err).__name__}: {pos_err} "
                     f"(position_id={position_id}, trade_id={trade_id}). "
                     f"Transaction will rollback - trade {trade_id} WILL NOT PERSIST",
