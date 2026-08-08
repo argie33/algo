@@ -1926,7 +1926,11 @@ def run(
                 raise RuntimeError("[PHASE 8] Query to count open positions returned NULL or incomplete")
             current_position_count = result[0] if result[0] is not None else 0
 
-        if current_position_count >= max_positions:
+        # CRITICAL FIX (Session 35): Previous logic blocked entries if position_count >= max_positions,
+        # even though daily rotations (close some, enter new) should be allowed.
+        # New logic: Only block if we can't enter ANY new positions. Allow entries up to max limit.
+        available_slots = max_positions - current_position_count
+        if available_slots <= 0:
             msg = (
                 f"[PHASE 8 POSITION LIMIT] Currently holding {current_position_count} positions "
                 f"(limit: {max_positions}). Must close positions before entering new trades."
@@ -1941,6 +1945,15 @@ def run(
                 False,
                 msg,
             )
+
+        # Cap daily entries by available slots (can't exceed max_positions)
+        max_entries_allowed = min(max_entries, available_slots)
+        if max_entries_allowed < max_entries:
+            logger.info(
+                f"[PHASE 8 POSITION LIMIT] Available slots: {available_slots} of {max_positions}. "
+                f"Reducing daily entries from {max_entries} to {max_entries_allowed}."
+            )
+            max_entries = max_entries_allowed
     except Exception as e:
         msg = (
             f"[PHASE 8 CRITICAL] Position count check failed: {e}. "

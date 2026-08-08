@@ -1780,7 +1780,7 @@ def run(
                     AND NOT EXISTS (
                         SELECT 1 FROM algo_trades t
                         WHERE t.position_id = p.position_id
-                        AND t.status IN ('open', 'pending', 'filled', 'partially_filled')
+                        AND t.status IN ('open', 'pending', 'filled', 'partially_filled', 'paper_pending')
                     );
                 """)
                 if sync_cursor.rowcount > 0:
