@@ -1265,7 +1265,7 @@ def run(
                         config_max = config.get("max_positions")
                         if config_max and open_count >= int(config_max) and engine_exits == 0 and (engine_stop_raises > 0 or stop_raises > 0):
                             logger.warning(
-                                f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/15) but exit engine only raised stops (0 exits). "
+                                f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/{int(config_max)}) but exit engine only raised stops (0 exits). "
                                 f"Forcing rotation by closing oldest position..."
                             )
                             with DatabaseContext("write") as cur_w:
