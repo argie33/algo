@@ -108,16 +108,10 @@ class SectorIndustryDailyLoader(OptimalLoader):
     ) -> dict[str, Any]:
         """Override run() to use market-wide pseudo-symbol.
 
-        CRITICAL FIX (Session 49): This loader is is_symbol_based=False (global), so it MUST
-        always use the pseudo-symbol "market" regardless of what symbols are passed.
-        Previously allowed passing the full symbol list (4936 symbols), which caused:
-        - expected_symbols = 4936, actual_symbols_loaded = 0 (no rows from global fetch)
-        - completion_pct = 0/4936 = 0%, status=FAILED
-        - Phase 5 exposure constraints blocked, trading halted
-
-        Now: Always use ["market"] for global-mode loaders, ignore any passed symbol list.
+        This loader is is_symbol_based=False (global), so it always processes market-wide
+        metrics using the pseudo-symbol "market". Any passed symbols are ignored.
         """
-        # Global-mode loaders ignore any passed symbol list - always use pseudo-symbol "market"
+        # Global-mode loaders always use pseudo-symbol "market", ignoring any passed symbol list
         return super().run(symbols=["market"], parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:

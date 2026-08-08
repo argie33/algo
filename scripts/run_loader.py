@@ -180,6 +180,29 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
         # Global loaders (market-wide, not per-symbol)
         logger.info(f"[LOADER] {table_name}: using global mode (no per-symbol runs)")
         result = loader.load_global()
+        # For global loaders, mark completion status (loader.load_global() doesn't update status)
+        from utils.loaders.status_manager import LoaderStatusManager
+        status_mgr = LoaderStatusManager(table_name)
+        if result > 0:
+            status_mgr.mark_completed(current_run_symbols_loaded=1, current_run_symbol_count=1)
+            logger.info(f"[LOADER] {table_name}: marked as COMPLETED")
+            # Also mark secondary tables if this loader has output_tables
+            if hasattr(loader, 'output_tables') and loader.output_tables:
+                for secondary_table in loader.output_tables:
+                    if secondary_table != table_name:
+                        secondary_mgr = LoaderStatusManager(secondary_table)
+                        secondary_mgr.mark_completed(current_run_symbols_loaded=1, current_run_symbol_count=1)
+                        logger.info(f"[LOADER] {secondary_table}: marked as COMPLETED")
+        else:
+            status_mgr.mark_failed(error_message="Global loader returned 0 rows - no data produced", completion_pct=0.0)
+            logger.info(f"[LOADER] {table_name}: marked as FAILED (no rows produced)")
+            # Also mark secondary tables as failed
+            if hasattr(loader, 'output_tables') and loader.output_tables:
+                for secondary_table in loader.output_tables:
+                    if secondary_table != table_name:
+                        secondary_mgr = LoaderStatusManager(secondary_table)
+                        secondary_mgr.mark_failed(error_message="Global loader returned 0 rows - no data produced", completion_pct=0.0)
+                        logger.info(f"[LOADER] {secondary_table}: marked as FAILED")
     elif table_name in ["trend_template_data"]:
         # Trend analysis has custom run() function in the module
         logger.info(f"[LOADER] {table_name}: using custom module run() function")
