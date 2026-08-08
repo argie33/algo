@@ -1930,10 +1930,10 @@ def run(
         # even though daily rotations (close some, enter new) should be allowed.
         # New logic: Only block if we can't enter ANY new positions. Allow entries up to max limit.
         available_slots = max_positions - current_position_count
-        if available_slots <= 0:
+        if available_slots <= 1:  # FIX: Trigger earlier - when 1 or fewer slots left, don't wait until exactly 0
             logger.warning(
-                f"[PHASE 8 CAPACITY DEADLOCK] Portfolio full: {current_position_count}/{max_positions} positions. "
-                f"Attempting emergency close of worst-performing same-day positions..."
+                f"[PHASE 8 CAPACITY DEADLOCK] Portfolio near capacity: {current_position_count}/{max_positions} positions ({available_slots} slots left). "
+                f"Attempting emergency close of oldest positions to maintain rotation..."
             )
 
             forced_close_count = 0
@@ -1944,43 +1944,40 @@ def run(
                 today_et = datetime.now(EASTERN_TZ).date()
 
                 with DatabaseContext("write") as cur:
+                    # FIX: Priority 1 = oldest positions (most time in portfolio, should rotate out)
+                    # Previous logic closed worst P&L first, which blocked rotation of small winners
                     cur.execute("""
                         SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
                         FROM algo_positions
-                        WHERE status = 'open' AND quantity > 0 AND entry_date = %s
-                        ORDER BY unrealized_pnl ASC
+                        WHERE status = 'open' AND quantity > 0
+                        ORDER BY entry_date ASC
                         LIMIT 3
-                    """, (today_et,))
+                    """)
 
-                    same_day_positions = cur.fetchall()
-
-                    positions_to_close = same_day_positions
-
-                    if not positions_to_close:
-                        logger.warning(
-                            f"[PHASE 8 DEADLOCK] No same-day positions found. "
-                            f"Falling back to closing worst-performing positions from any date..."
-                        )
-                        cur.execute("""
-                            SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
-                            FROM algo_positions
-                            WHERE status = 'open' AND quantity > 0
-                            ORDER BY unrealized_pnl ASC, entry_date ASC
-                            LIMIT 3
-                        """)
-                        positions_to_close = cur.fetchall()
+                    positions_to_close = cur.fetchall()
 
                     if positions_to_close:
-                        close_reason = "same_day_rebalance" if len(same_day_positions) > 0 else "capacity_rebalance"
                         logger.warning(
-                            f"[PHASE 8 EMERGENCY_CLOSE] Found {len(positions_to_close)} positions. "
-                            f"Force-closing worst {min(3, len(positions_to_close))} to free capacity ({close_reason})..."
+                            f"[PHASE 8 EMERGENCY_CLOSE] Found {len(positions_to_close)} oldest positions to close. "
+                            f"Strategy: Close oldest to maintain daily rotation policy."
+                        )
+
+                    if positions_to_close:
+                        close_reason = "oldest_rotation_policy"
+                        logger.warning(
+                            f"[PHASE 8 EMERGENCY_CLOSE] Force-closing oldest {min(3, len(positions_to_close))} to maintain rotation policy..."
                         )
 
                         for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date in positions_to_close:
                             if available_slots >= 1:
+                                logger.info(f"[PHASE 8 EMERGENCY_CLOSE] Freed {forced_close_count} slot(s), stopping at {available_slots} available")
                                 break
                             try:
+                                # Get current price for exit_price field (not NULL)
+                                cur.execute("SELECT current_price FROM algo_positions WHERE id = %s", (pos_int_id,))
+                                price_row = cur.fetchone()
+                                exit_price = price_row[0] if price_row and price_row[0] else None
+
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = 'emergency_close_portfolio_full|{close_reason}'
@@ -1994,7 +1991,7 @@ def run(
                                        exit_reason = 'emergency_close_portfolio_full|{close_reason}',
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE position_id = %s""",
-                                    (None, pnl, pnl_pct, pos_uuid_id)
+                                    (exit_price, pnl, pnl_pct, pos_uuid_id)
                                 )
 
                                 logger.warning(

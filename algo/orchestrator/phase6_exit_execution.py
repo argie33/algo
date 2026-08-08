@@ -1245,6 +1245,46 @@ def run(
             # exit evaluation (confirmed against a live run's log showing 8 logged
             # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
             errors += engine_errors
+
+            # FIX SESSION 43: Portfolio rotation safety check
+            # If portfolio is full (15/15) and exit engine did 0 exits (only stops-raises),
+            # force-close oldest position to prevent deadlock
+            if not dry_run:
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity > 0")
+                        open_count = cur.fetchone()[0]
+                        config_max = config.get("max_positions")
+                        if config_max and open_count >= int(config_max) and engine_exits == 0 and engine_stop_raises > 0:
+                            logger.warning(
+                                f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/15) but exit engine only raised stops (0 exits). "
+                                f"Forcing rotation by closing oldest position..."
+                            )
+                            with DatabaseContext("write") as cur_w:
+                                cur_w.execute("""
+                                    SELECT id, position_id, symbol, unrealized_pnl, entry_date
+                                    FROM algo_positions
+                                    WHERE status = 'open' AND quantity > 0
+                                    ORDER BY entry_date ASC
+                                    LIMIT 1
+                                """)
+                                oldest = cur_w.fetchone()
+                                if oldest:
+                                    pos_id, pos_uuid, symbol, pnl, entry_date = oldest
+                                    cur_w.execute(
+                                        "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, exit_reason = %s WHERE id = %s",
+                                        ("portfolio_rotation_safety_check", pos_id)
+                                    )
+                                    cur_w.execute(
+                                        "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
+                                        ("portfolio_rotation_safety_check", pos_uuid)
+                                    )
+                                    exit_count += 1
+                                    logger.warning(
+                                        f"[PHASE 6 PORTFOLIO_ROTATION] Closed {symbol} (oldest, entry {entry_date}, P&L ${pnl}) to enable daily rotation"
+                                    )
+                except Exception as e:
+                    logger.error(f"[PHASE 6] Portfolio rotation safety check failed: {e}")
         elif dry_run:
             # In dry-run mode, log what the exit engine WOULD have checked
             logger.info("[DRY-RUN] Exit engine checks (tiered targets/stops/time) would run, but execution skipped")

@@ -249,6 +249,13 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         trade_ids_result = cur.fetchone()
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
 
+                        # CRITICAL FIX: Calculate risk_pct for circuit breaker risk calculations
+                        # Risk percentage = (entry_price - stop_loss) / entry_price * 100
+                        # This is required by circuit_breaker.py for portfolio risk evaluation
+                        risk_pct = None
+                        if entry_price and stop_loss_price and entry_price > 0:
+                            risk_pct = ((entry_price - stop_loss_price) / entry_price) * 100.0
+
                         # Insert new position
                         trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
                         cur.execute('''
@@ -258,7 +265,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 stop_loss_price, current_stop_price,
                                 target_1_price, target_2_price, target_3_price,
                                 target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                                trade_ids, trade_ids_arr, cognito_sub, created_at, updated_at
+                                trade_ids, trade_ids_arr, risk_pct, cognito_sub, created_at, updated_at
                             )
                             VALUES (
                                 %s, %s, %s, %s, %s,
@@ -266,7 +273,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                                 %s, %s,
                                 %s, %s, %s,
                                 %s, %s, %s,
-                                %s, %s, %s, NOW(), NOW()
+                                %s, %s, %s, %s, NOW(), NOW()
                             )
                         ''', (
                             trade_position_id, symbol, total_qty, entry_price, entry_price,
@@ -274,7 +281,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                             stop_loss_price, stop_loss_price,
                             target_1_price, target_2_price, target_3_price,
                             target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                            trade_ids_text, trade_ids_arr, get_algo_owner_cognito_sub(),
+                            trade_ids_text, trade_ids_arr, risk_pct, get_algo_owner_cognito_sub(),
                         ))
                         inserted += 1
                         logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
