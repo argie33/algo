@@ -2406,6 +2406,29 @@ def run(
                     skipped_reason_counts['missing_symbol'] = skipped_reason_counts.get('missing_symbol', 0) + 1
                     continue
 
+                # CRITICAL FIX SESSION 53: Prevent duplicate signal execution across multiple orchestrator runs
+                # Root cause: Orchestrator runs multiple times per day (hundreds of times on 2026-08-07)
+                # Each run executes the same signals from Phase 7, creating duplicate trades
+                # Solution: Check if symbol has already been entered today (algo_trades table)
+                # to prevent re-execution of the same signal in subsequent runs
+                try:
+                    with DatabaseContext("read") as cur:
+                        cur.execute("""
+                            SELECT COUNT(*) FROM algo_trades
+                            WHERE symbol = %s AND DATE(entry_time) = %s
+                            AND status NOT IN ('cancelled', 'rejected')
+                        """, (symbol, run_date))
+                        existing_trade_count = cur.fetchone()[0]
+                        if existing_trade_count > 0:
+                            logger.info(
+                                f"[PHASE 8 DEDUP_PREVIOUS_RUN] {symbol}: Already entered today "
+                                f"({existing_trade_count} existing trade). Skipping re-execution to prevent duplicate."
+                            )
+                            skipped_reason_counts['already_entered_today'] = skipped_reason_counts.get('already_entered_today', 0) + 1
+                            continue
+                except Exception as e:
+                    logger.warning(f"[PHASE 8] {symbol}: Error checking for duplicate entry: {type(e).__name__}: {e}. Proceeding with caution.")
+
                 try:
                     tech_data = merged_technical_data.get(str(symbol), {})
                     atr_val = tech_data.get("atr_14") or tech_data.get("atr")
