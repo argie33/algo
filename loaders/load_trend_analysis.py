@@ -78,16 +78,21 @@ def _update_loader_status(
 
     status_mgr = LoaderStatusManager(_TABLE)
 
-    if status == "RUNNING":
-        status_mgr.mark_running(symbol_count=symbol_count)
-    elif status == "COMPLETED":
-        status_mgr.mark_completed(
-            execution_duration_sec=execution_duration_sec,
-            current_run_symbol_count=symbol_count,
-            current_run_symbols_loaded=symbols_loaded if symbols_loaded is not None else symbol_count,
-        )
-    elif status == "FAILED":
-        status_mgr.mark_failed(error_message=error_message or "Unknown error")
+    try:
+        if status == "RUNNING":
+            status_mgr.mark_running(symbol_count=symbol_count)
+        elif status == "COMPLETED":
+            status_mgr.mark_completed(
+                execution_duration_sec=execution_duration_sec,
+                current_run_symbol_count=symbol_count,
+                current_run_symbols_loaded=symbols_loaded if symbols_loaded is not None else symbol_count,
+            )
+        elif status == "FAILED":
+            status_mgr.mark_failed(error_message=error_message or "Unknown error")
+    except Exception as e:
+        logger.error(f"[TREND] Failed to update loader status to {status}: {e}")
+        # Don't re-raise - let the loader continue even if status update fails
+        # (the orchestrator can still function without status table being perfect)
 
 
 def _fetch_latest_dates(cur: psycopg2.extensions.cursor) -> list[date]:
