@@ -1340,6 +1340,40 @@ class Orchestrator:
             except (ValueError, AttributeError, OSError):
                 pass
 
+    def _save_orchestrator_run_status(self, overall_status: str, halt_reason: str | None = None) -> None:
+        """Save orchestrator run status to algo_orchestrator_runs table.
+
+        Extracted common method to avoid duplication of this INSERT statement.
+        Used in both market hours guard block and main execution log.
+
+        Args:
+            overall_status: Status value ('degraded', 'success', 'halted', etc.)
+            halt_reason: Optional reason why orchestrator halted or degraded
+        """
+        try:
+            execution_time = time.time() - self.run_start
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_orchestrator_runs
+                    (run_id, run_date, overall_status, started_at, completed_at, execution_time_seconds, halt_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (run_id) DO NOTHING
+                    """,
+                    (
+                        self.run_id,
+                        self.run_date,
+                        overall_status,
+                        datetime.now(timezone.utc) - timedelta(seconds=execution_time),
+                        datetime.now(timezone.utc),
+                        execution_time,
+                        halt_reason or "",
+                    ),
+                )
+            logger.debug(f"[EXECUTION_LOG] Wrote to algo_orchestrator_runs: run_id={self.run_id} status={overall_status}")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[EXECUTION_LOG] Could not write to algo_orchestrator_runs: {e}")
+
     def log_phase_start(self, phase_num: int | str, name: str) -> None:
         if self.verbose:
             logger.info(f"\n{'=' * 70}")
@@ -2012,25 +2046,7 @@ class Orchestrator:
             halt_reason = f"outside_market_hours: {now_et.strftime('%H:%M:%S')} ET"
             try:
                 self.execution_tracker.save_execution_log("degraded", halt_reason)
-                with DatabaseContext("write") as cur:
-                    execution_time = time.time() - self.run_start
-                    cur.execute(
-                        """
-                        INSERT INTO algo_orchestrator_runs
-                        (run_id, run_date, overall_status, started_at, completed_at, execution_time_seconds, halt_reason)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (run_id) DO NOTHING
-                        """,
-                        (
-                            self.run_id,
-                            self.run_date,
-                            "degraded",
-                            datetime.now(timezone.utc) - timedelta(seconds=execution_time),
-                            datetime.now(timezone.utc),
-                            execution_time,
-                            halt_reason,
-                        ),
-                    )
+                self._save_orchestrator_run_status("degraded", halt_reason)
                 logger.debug(f"[EXECUTION_LOG] Saved degraded status for market hours guard block")
             except Exception as e:
                 logger.warning(f"[EXECUTION_LOG] Could not save guard block status: {e}")
@@ -2583,29 +2599,9 @@ class Orchestrator:
 
             # ALSO write to algo_orchestrator_runs for backward compatibility and dashboard visibility
             try:
-                execution_time = time.time() - self.run_start
-
-                with DatabaseContext("write") as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO algo_orchestrator_runs
-                        (run_id, run_date, overall_status, started_at, completed_at, execution_time_seconds, halt_reason)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (run_id) DO NOTHING
-                        """,
-                        (
-                            self.run_id,
-                            self.run_date,
-                            overall_status,
-                            datetime.now(timezone.utc) - timedelta(seconds=execution_time),
-                            datetime.now(timezone.utc),
-                            execution_time,
-                            halt_reason or "",
-                        ),
-                    )
-                logger.debug(f"[EXECUTION_LOG] Wrote to algo_orchestrator_runs: {self.run_id}")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[EXECUTION_LOG] Could not write to algo_orchestrator_runs: {e}")
+                self._save_orchestrator_run_status(overall_status, halt_reason)
+            except Exception as e:
+                logger.warning(f"[EXECUTION_LOG] Failed to save orchestrator run status: {e}")
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
