@@ -233,33 +233,34 @@ class MarketConstituentsLoader(OptimalLoader):
 
             logger.info(f"Fetched {len(base_symbols)} base symbols from NASDAQ/NYSE")
 
-            # STEP 2: Fetch and index S&P 500 constituents (optional enrichment - same
-            # treatment as Russell 2000 in Step 3 below. Previously an unguarded call: any
-            # failure here (Wikipedia page format change, transient network issue hitting
-            # only Wikipedia, etc.) raised past this function's own try/except (which only
-            # catches requests.RequestException/Timeout/JSONDecodeError, not the RuntimeError
-            # _fetch_sp500_symbols raises on a parse failure) and crashed the ENTIRE
-            # constituents load - discarding the already-successfully-fetched base_symbols
-            # (the foundational NASDAQ/NYSE tradable universe from Step 1) over a failure in
-            # a single enrichment flag. S&P 500 membership is exactly the kind of
-            # non-essential enrichment Russell 2000 already correctly degrades gracefully on.
+            # STEP 2: Fetch and index S&P 500 constituents (critical enrichment for signal generation)
             logger.info("STEP 2/3: Fetching S&P 500 constituents")
+            sp500_set = set()
+            sp500_fetch_failed = False
             try:
                 sp500_symbols = self._fetch_sp500_symbols()
                 if sp500_symbols:
                     sp500_set = set(sp500_symbols)
                     logger.info(f"Fetched {len(sp500_set)} S&P 500 constituents")
                 else:
-                    logger.warning(
-                        "[MARKET_CONSTITUENTS] S&P 500 fetch returned empty list. Continuing without S&P 500 data."
+                    logger.critical(
+                        "[MARKET_CONSTITUENTS] S&P 500 fetch returned 0 symbols. "
+                        "This indicates a data source issue (Wikipedia unavailable or format changed). "
+                        "Marking S&P 500 enrichment as failed to alert operator."
                     )
-                    sp500_set = set()
+                    sp500_fetch_failed = True
             except Exception as e:
-                logger.warning(f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500 ({e}). Continuing without S&P 500 data.")
-                sp500_set = set()
+                logger.critical(
+                    f"[MARKET_CONSTITUENTS] Failed to fetch S&P 500: {type(e).__name__}: {e}. "
+                    f"Cannot enrich market constituents with S&P 500 membership. "
+                    f"Data source issue or network timeout - check Wikipedia/data source availability."
+                )
+                sp500_fetch_failed = True
 
             # STEP 3: Fetch and index Russell 2000 constituents (optional enrichment)
             logger.info("STEP 3/3: Fetching Russell 2000 constituents")
+            russell_set = set()
+            russell_fetch_failed = False
             try:
                 russell_symbols = self._fetch_russell2000_symbols()
                 if russell_symbols:
@@ -267,14 +268,25 @@ class MarketConstituentsLoader(OptimalLoader):
                     logger.info(f"Fetched {len(russell_set)} Russell 2000 constituents")
                 else:
                     logger.warning(
-                        "[MARKET_CONSTITUENTS] Russell 2000 fetch returned empty list. Continuing without Russell 2000 data."
+                        "[MARKET_CONSTITUENTS] Russell 2000 fetch returned 0 symbols. "
+                        "This is optional enrichment data - continuing without it."
                     )
-                    russell_set = set()
+                    russell_fetch_failed = True
             except Exception as e:
                 logger.warning(
-                    f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 ({e}). Continuing without Russell 2000 data."
+                    f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 ({type(e).__name__}: {e}). "
+                    f"This is optional enrichment - continuing without it."
                 )
-                russell_set = set()
+                russell_fetch_failed = True
+
+            # CRITICAL: Fail if S&P 500 fetch failed - this is essential enrichment
+            if sp500_fetch_failed:
+                raise RuntimeError(
+                    "[MARKET_CONSTITUENTS] S&P 500 constituent fetch failed and returned 0 symbols. "
+                    "Cannot proceed with incomplete enrichment. This indicates a data source issue. "
+                    "OPERATOR ACTION: Check if Wikipedia is accessible and not blocked. "
+                    "The loader requires S&P 500 data to properly enrich market constituents."
+                )
 
             # Enrich base symbols with index membership flags
             enriched_count = 0

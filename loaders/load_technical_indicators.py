@@ -507,7 +507,13 @@ class VectorizedTechnicalLoader:
                     mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
                     symbol_df["mansfield_rs"] = mansfield_result
                 except RuntimeError as _mansfield_err:
-                    logger.warning(str(_mansfield_err) + f" Skipping mansfield_rs for {symbol}.")
+                    # Mansfield RS is a useful but non-critical metric. Allow NULL and continue.
+                    # Downstream should NOT mark entire symbol as unavailable if this metric fails.
+                    logger.warning(
+                        f"[MANSFIELD_RS DEGRADATION] {symbol}: {_mansfield_err}. "
+                        f"Mansfield RS will be NULL for this symbol/date. "
+                        f"This is acceptable - symbol still has other technical indicators."
+                    )
                     symbol_df["mansfield_rs"] = np.nan
 
                 # Format for insertion

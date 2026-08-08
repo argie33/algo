@@ -1932,159 +1932,34 @@ def run(
                 raise RuntimeError("[PHASE 8] Query to count open positions returned NULL or incomplete")
             current_position_count = result[0] if result[0] is not None else 0
 
-        # CRITICAL FIX (Session 35): Previous logic blocked entries if position_count >= max_positions,
-        # even though daily rotations (close some, enter new) should be allowed.
-        # New logic: Only block if we can't enter ANY new positions. Allow entries up to max limit.
+        # FIXED (Session 57): Removed emergency close logic that was force-closing working positions
+        # to make room for new entries. This was breaking the exit strategy.
+        # New behavior: Simply stop entering new positions when at or near capacity.
+        # Positions will exit naturally via stops and technical signals.
         available_slots = max_positions - current_position_count
-        if available_slots <= 1:  # FIX: Trigger earlier - when 1 or fewer slots left, don't wait until exactly 0
+        if available_slots <= 0:
             logger.warning(
-                f"[PHASE 8 CAPACITY DEADLOCK] Portfolio near capacity: {current_position_count}/{max_positions} positions ({available_slots} slots left). "
-                f"Attempting emergency close of oldest positions to maintain rotation..."
+                f"[PHASE 8 CAPACITY LIMIT] Portfolio at capacity: {current_position_count}/{max_positions} positions. "
+                f"No slots available for new entries. Waiting for natural exits via stops."
+            )
+            msg = (
+                f"[PHASE 8 POSITION LIMIT] Currently holding {current_position_count} positions "
+                f"(limit: {max_positions}). No available slots. "
+                f"New entries blocked until positions exit naturally via stops."
+            )
+            logger.warning(msg)
+            log_phase_result_fn(8, "entry_execution", "blocked", msg)
+            return PhaseResult(
+                8,
+                "entry_execution",
+                "blocked",
+                {"entered": 0, "emergency_closes": 0},
+                False,
+                msg,
             )
 
-            forced_close_count = 0
-            try:
-                today_et = datetime.now(EASTERN_TZ).date()
-
-                with DatabaseContext("write") as cur:
-                    # FIX: Priority 1 = oldest positions (most time in portfolio, should rotate out)
-                    # Previous logic closed worst P&L first, which blocked rotation of small winners
-                    # CRITICAL FIX 2026-08-08: Fetch current_price and entry_price in initial query
-                    # to avoid NULL exit_price when positions are closed. Previously re-queried
-                    # and could return NULL if price data hadn't been refreshed.
-                    cur.execute("""
-                        SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date,
-                               current_price, entry_price
-                        FROM algo_positions
-                        WHERE status = 'open' AND quantity > 0
-                        ORDER BY entry_date ASC
-                        LIMIT 3
-                    """)
-
-                    positions_to_close = cur.fetchall()
-
-                    if positions_to_close:
-                        logger.warning(
-                            f"[PHASE 8 EMERGENCY_CLOSE] Found {len(positions_to_close)} oldest positions to close. "
-                            f"Strategy: Close oldest to maintain daily rotation policy."
-                        )
-
-                    if positions_to_close:
-                        close_reason = "oldest_rotation_policy"
-                        logger.warning(
-                            f"[PHASE 8 EMERGENCY_CLOSE] Force-closing oldest {min(3, len(positions_to_close))} to maintain rotation policy..."
-                        )
-
-                        for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date, current_price, entry_price in positions_to_close:
-                            # CRITICAL FIX 2026-08-08: Only break when we have safe margin (2+ slots)
-                            # Previous bug: broke after freeing just 1 slot, allowing no buffer for entries
-                            # This caused position limit deadlock (close 1, enter 1, back to limit)
-                            # Now: close until available_slots >= 2 to ensure room for rotation + new entry
-                            if forced_close_count >= 1 and available_slots >= 2:
-                                logger.info(f"[PHASE 8 EMERGENCY_CLOSE] Freed {forced_close_count} slot(s), stopping at {available_slots} available (safe margin reached)")
-                                break
-                            try:
-                                # CRITICAL FIX: Use current_price if available, fall back to entry_price
-                                # Never use NULL - emergency close must have a valid exit price
-                                exit_price = current_price if current_price is not None else entry_price
-                                if exit_price is None:
-                                    logger.error(
-                                        f"[PHASE 8 EMERGENCY_CLOSE CRITICAL] {symbol} (pos_id={pos_uuid_id}) has no current_price or entry_price. "
-                                        f"Cannot safely close without exit price. Skipping this position."
-                                    )
-                                    continue
-
-                                cur.execute(
-                                    f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
-                                       exit_reason = 'emergency_close_portfolio_full|{close_reason}'
-                                       WHERE id = %s""",
-                                    (pos_int_id,)
-                                )
-
-                                cur.execute(
-                                    f"""UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP,
-                                       exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
-                                       exit_reason = 'emergency_close_portfolio_full|{close_reason}',
-                                       updated_at = CURRENT_TIMESTAMP
-                                       WHERE position_id = %s""",
-                                    (float(exit_price), float(pnl) if pnl else None, float(pnl_pct) if pnl_pct else None, pos_uuid_id)
-                                )
-
-                                # CRITICAL FIX 2026-08-08: Handle NULL P&L when formatting log message
-                                # pnl/pnl_pct can be NULL if position hasn't been priced yet
-                                pnl_str = f"${float(pnl):.2f}" if pnl is not None else "N/A"
-                                pnl_pct_str = f"{float(pnl_pct):+.2f}%" if pnl_pct is not None else "N/A"
-                                logger.warning(
-                                    f"[PHASE 8 EMERGENCY_CLOSE] Closed {symbol} (pos_id={pos_uuid_id}): "
-                                    f"entry={entry_date}, qty={qty}, P&L={pnl_str} ({pnl_pct_str})"
-                                )
-                                forced_close_count += 1
-                                available_slots += 1
-                            except Exception as close_err:
-                                logger.error(
-                                    f"[PHASE 8] Failed to emergency-close {symbol} (pos_id={pos_uuid_id}): {close_err}"
-                                )
-
-                        if forced_close_count > 0:
-                            logger.warning(
-                                f"[PHASE 8 EMERGENCY_CLOSE] Closed {forced_close_count} position(s), "
-                                f"now have {available_slots} available slots"
-                            )
-                    else:
-                        logger.critical(
-                            f"[PHASE 8 DEADLOCK] Portfolio full with NO positions to close (database error?). "
-                            f"Cannot make room for new entries."
-                        )
-                        msg = (
-                            f"[PHASE 8 POSITION LIMIT] Currently holding {current_position_count} positions "
-                            f"(limit: {max_positions}). No positions available for emergency close (database integrity issue?). "
-                            f"Must wait for natural exits."
-                        )
-                        logger.warning(msg)
-                        log_phase_result_fn(8, "entry_execution", "blocked", msg)
-                        return PhaseResult(
-                            8,
-                            "entry_execution",
-                            "blocked",
-                            {"entered": 0, "emergency_closes": 0},
-                            False,
-                            msg,
-                        )
-            except Exception as e:
-                logger.error(
-                    f"[PHASE 8] Emergency close attempt failed: {type(e).__name__}: {str(e)[:200]}. "
-                    f"Blocking entries to prevent over-capacity."
-                )
-                msg = (
-                    f"[PHASE 8 POSITION LIMIT] Currently holding {current_position_count} positions "
-                    f"(limit: {max_positions}). Emergency close failed. Must close positions before entering new trades."
-                )
-                log_phase_result_fn(8, "entry_execution", "blocked", msg)
-                return PhaseResult(
-                    8,
-                    "entry_execution",
-                    "blocked",
-                    {"entered": 0, "emergency_closes": 0},
-                    False,
-                    msg,
-                )
-
-            if available_slots <= 0:
-                msg = (
-                    f"[PHASE 8 POSITION LIMIT] Currently holding {current_position_count} positions "
-                    f"(limit: {max_positions}). Emergency close closed {forced_close_count} but still at capacity. "
-                    f"Must close more positions before entering new trades."
-                )
-                logger.warning(msg)
-                log_phase_result_fn(8, "entry_execution", "blocked", msg)
-                return PhaseResult(
-                    8,
-                    "entry_execution",
-                    "blocked",
-                    {"entered": 0, "emergency_closes": forced_close_count},
-                    False,
-                    msg,
-                )
+        # Forced close logic disabled (Session 57) - was closing working positions arbitrarily
+        forced_close_count = 0
 
         # Cap daily entries by available slots (can't exceed max_positions)
         max_entries_allowed = min(max_entries, available_slots)

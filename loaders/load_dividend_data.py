@@ -20,6 +20,7 @@ Run:
 import logging
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -32,6 +33,11 @@ from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
+
+# CRITICAL: SEC API calls can hang indefinitely even with socket timeout.
+# ThreadPoolExecutor enforces a hard timeout at the Python level.
+# This is the only reliable way to prevent 5+ hour hangs observed 2026-08-04.
+_API_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sec-api-")
 
 
 class DividendDataLoader(SecLoaderBase):
@@ -198,6 +204,50 @@ class DividendDataLoader(SecLoaderBase):
 
         return results
 
+    def _fetch_sec_data_with_timeout(self, symbol: str, timeout_sec: float = 20.0) -> dict[str, Any]:
+        """Fetch SEC company facts with hard timeout enforcement.
+
+        Uses ThreadPoolExecutor to enforce a hard timeout at the Python level,
+        preventing indefinite hangs that socket timeout alone cannot catch.
+
+        Args:
+            symbol: Stock ticker
+            timeout_sec: Hard timeout in seconds (default 20s per symbol)
+
+        Returns:
+            Dict with 'cik' and 'facts_response' keys
+
+        Raises:
+            RuntimeError: If timeout exceeded or API call fails
+        """
+        def _fetch():
+            cik_time = time.time()
+            cik = self.sec_client.symbol_to_cik(symbol)
+            cik_elapsed = time.time() - cik_time
+            if cik_elapsed > 5:
+                logger.warning(f"[{symbol}] symbol_to_cik took {cik_elapsed:.1f}s (slow SEC ticker endpoint)")
+
+            facts_time = time.time()
+            facts_response = self.sec_client.get_company_facts(cik)
+            facts_elapsed = time.time() - facts_time
+            if facts_elapsed > 10:
+                logger.warning(f"[{symbol}] get_company_facts took {facts_elapsed:.1f}s (slow SEC API)")
+
+            return {"cik": cik, "facts_response": facts_response}
+
+        try:
+            future = _API_EXECUTOR.submit(_fetch)
+            result = future.result(timeout=timeout_sec)
+            return result
+        except FuturesTimeoutError as e:
+            raise RuntimeError(
+                f"[{symbol}] SEC API call exceeded {timeout_sec}s timeout. "
+                f"This indicates a slow SEC server or network issue. "
+                f"Treating as data unavailable to prevent loader hang."
+            ) from e
+        except Exception as e:
+            raise RuntimeError(f"[{symbol}] SEC API error: {type(e).__name__}: {e}") from e
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch dividend data for symbol from SEC XBRL companyfacts.
 
@@ -206,29 +256,19 @@ class DividendDataLoader(SecLoaderBase):
         - CommonStockDividendsPerShareCashPaid
 
         Returns: Dividend records extracted from XBRL, or data_unavailable marker.
+
+        CRITICAL: Hard timeout (20 seconds) enforced via ThreadPoolExecutor.
+        Prevents indefinite hangs on slow SEC API. 2026-08-04: observed 5+ hour hang.
         """
         now_et = datetime.now(EASTERN_TZ).date()
         start_time = time.time()
 
         try:
-            # Get CIK for symbol - CRITICAL: timeout prevents indefinite hangs on ticker cache refresh
-            # SEC's ticker endpoint can be slow; a stuck DNS/network call to sec.gov could block for hours
-            cik_time = time.time()
-            cik = self.sec_client.symbol_to_cik(symbol)
-            cik_elapsed = time.time() - cik_time
-            if cik_elapsed > 30:  # Log slow ticker lookups
-                logger.warning(f"[{symbol}] symbol_to_cik took {cik_elapsed:.1f}s (slow SEC ticker endpoint)")
+            # Fetch with hard timeout to prevent hangs (socket timeout alone insufficient)
+            sec_data = self._fetch_sec_data_with_timeout(symbol, timeout_sec=20.0)
+            cik = sec_data["cik"]
+            facts_response = sec_data["facts_response"]
 
-            # Fetch companyfacts XBRL - CRITICAL: both API calls must timeout
-            # 2026-08-04: dividend_data loader hung for 5+ hours on single symbol; root cause was
-            # a symbol whose sec_client.get_company_facts() call hung indefinitely in SEC API
-            # Network I/O timeout cannot be killed by ThreadPoolExecutor.cancel() - must be prevented
-            # at the socket level instead.
-            facts_time = time.time()
-            facts_response = self.sec_client.get_company_facts(cik)
-            facts_elapsed = time.time() - facts_time
-            if facts_elapsed > 30:  # Log slow API calls
-                logger.warning(f"[{symbol}] get_company_facts took {facts_elapsed:.1f}s (slow SEC API)")
             if not facts_response or "facts" not in facts_response:
                 return [self._unavailable_record(symbol, now_et, "no_companyfacts")]
 
@@ -278,10 +318,11 @@ class DividendDataLoader(SecLoaderBase):
 
         except Exception as e:
             elapsed = time.time() - start_time
-            if elapsed > 30:  # Log slow failed fetches
-                logger.warning(f"[{symbol}] Dividend fetch failed after {elapsed:.1f}s: {type(e).__name__}: {e}")
-            else:
-                logger.debug(f"[{symbol}] Dividend fetch error: {type(e).__name__}: {e}")
+            # ALWAYS log at WARNING level - this is an operator-visible issue
+            logger.warning(
+                f"[{symbol}] Dividend fetch failed after {elapsed:.1f}s: {type(e).__name__}: {e}. "
+                f"Marking as data unavailable."
+            )
             return [self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")]
 
 
