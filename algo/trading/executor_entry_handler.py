@@ -396,7 +396,7 @@ class EntryHandler:
                     f"Cannot record position without actual fill price for accurate cost basis."
                 )
             if executed_price != entry_price:
-                slippage_pct = abs((executed_price - entry_price) / entry_price * 100)
+                slippage_pct = float(abs((executed_price - entry_price) / entry_price * 100))
                 if slippage_pct > 5.0:
                     logger.warning(
                         f"[SLIPPAGE ALERT] {symbol}: excessive slippage {slippage_pct:.2f}% "
@@ -426,6 +426,7 @@ class EntryHandler:
                 idempotency_key,
                 order_send_time,
                 reentry_count,
+                position_id,
             )
 
             if final_order_status in ("invalid", "unknown"):
@@ -962,8 +963,10 @@ class EntryHandler:
     ) -> str:
         """PHASE 3: Insert trade record, position record, record TCA."""
         # Generate position_id if not provided (required for linking trade to position)
+        # CRITICAL FIX: Ensure position_id is assigned BEFORE any use in this function
+        # to avoid Python's local variable scoping issue where assignment anywhere
+        # in the function makes it local throughout, causing "not defined" errors.
         if position_id is None:
-            import uuid
             position_id = str(uuid.uuid4())
         if executed_price is None:
             raise ValueError(
@@ -1174,7 +1177,10 @@ class EntryHandler:
             # This field is REQUIRED by circuit_breaker.py for portfolio risk calculation
             risk_pct = None
             if executed_price and stop_loss_price and executed_price > 0:
-                risk_pct = float(((executed_price - stop_loss_price) / executed_price) * 100.0)
+                # Convert Decimals to float before arithmetic to avoid mixed-type operations
+                ep = float(executed_price)
+                sl = float(stop_loss_price)
+                risk_pct = float(((ep - sl) / ep) * 100.0)
 
             try:
                 # Check if position already exists (from reuse logic above)
