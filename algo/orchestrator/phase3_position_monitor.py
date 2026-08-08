@@ -490,6 +490,22 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
                     logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises" %
                                (len(recommendations), n_early_exit, n_raise_stop))
+                    # CRITICAL DIAGNOSTIC: Log each recommendation to understand exit decisions
+                    for rec in recommendations:
+                        if rec["action"] == "EARLY_EXIT":
+                            logger.warning(
+                                "[PHASE 3 EARLY_EXIT] %s: days_held=%d, reason=%s",
+                                rec["symbol"],
+                                rec.get("days_held", "N/A"),
+                                rec.get("action_reason", "no reason")
+                            )
+                        elif rec["action"] == "RAISE_STOP":
+                            logger.info(
+                                "[PHASE 3 RAISE_STOP] %s: new_stop=%.2f, reason=%s",
+                                rec["symbol"],
+                                rec.get("new_stop", 0),
+                                rec.get("action_reason", "no reason")
+                            )
                     break  # Success - exit retry loop
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as review_err:
                     last_error = review_err

@@ -848,6 +848,17 @@ class PositionMonitor:
         if market_dist_days is not None and market_dist_days > max_dist_days:
             flags.append("MARKET_DISTRIBUTION_STRESS")
 
+        # CRITICAL DIAGNOSTIC: Log health flags to understand exit decisions
+        if len(flags) > 0 or days_held >= 1:
+            logger.info(
+                "[POSITION_MONITOR] %s: days_held=%d, flags=%s (need %d for exit), "
+                "stop=%.2f->%.2f, unrealized=%.1f%%, r_multiple=%.2f",
+                symbol, days_held, flags if flags else "[]",
+                halt_flag_count,
+                active_stop, proposed_stop,
+                unrealized_pct, r_multiple
+            )
+
         # Decision logic
         action = "HOLD"
         action_reason = ""

@@ -1254,13 +1254,16 @@ def run(
             # FIX SESSION 43: Portfolio rotation safety check
             # If portfolio is full (15/15) and exit engine did 0 exits (only stops-raises),
             # force-close oldest position to prevent deadlock
+            # CRITICAL FIX 2026-08-08: Check both engine_stop_raises AND stop_raises
+            # stop_raises includes Phase 3 recommendations processed by Phase 6, not just ExitEngine results
+            # Without this, portfolio rotation wouldn't fire when only Phase 3 raised stops
             if not dry_run:
                 try:
                     with DatabaseContext("read") as cur:
                         cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity > 0")
                         open_count = cur.fetchone()[0]
                         config_max = config.get("max_positions")
-                        if config_max and open_count >= int(config_max) and engine_exits == 0 and engine_stop_raises > 0:
+                        if config_max and open_count >= int(config_max) and engine_exits == 0 and (engine_stop_raises > 0 or stop_raises > 0):
                             logger.warning(
                                 f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/15) but exit engine only raised stops (0 exits). "
                                 f"Forcing rotation by closing oldest position..."
