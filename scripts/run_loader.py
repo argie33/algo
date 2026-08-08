@@ -271,6 +271,7 @@ def main():
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
     parser.add_argument("--backfill", type=int, default=0, help="Days to backfill (default: 0 = load incremental data using watermarks)")
     parser.add_argument("--limit", type=int, help="Limit for limited-dataset loaders")
+    parser.add_argument("--run-date", help="Run date (YYYY-MM-DD) for loader execution (default: today). Used by Phase 1 failsafe to set correct data expectations.")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--force-refresh", action="store_true", help="Force refresh by bypassing watermarks and updating status")
     parser.add_argument("--list-loaders", action="store_true", help="List all available loaders")
@@ -287,6 +288,11 @@ def main():
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # Handle --run-date: pass orchestrator's run_date to loader (Phase 1 failsafe override)
+    if args.run_date:
+        os.environ["ORCHESTRATOR_RUN_DATE"] = args.run_date
+        logger.info(f"[RUN_DATE] Set ORCHESTRATOR_RUN_DATE={args.run_date} for loader execution")
 
     # Handle --force-refresh: bypass watermarks and update loader status
     if args.force_refresh:

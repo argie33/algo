@@ -411,7 +411,8 @@ def run(  # noqa: C901
     )
 
     # PHASE 1 FAILSAFE: Check for and retry incomplete loaders before freshness check
-    failsafe_result = check_and_retry_incomplete_loaders(dry_run=dry_run)
+    # CRITICAL FIX (Session 54): Pass run_date so loaders know which trading day to expect
+    failsafe_result = check_and_retry_incomplete_loaders(run_date=run_date, dry_run=dry_run)
     failsafe_halt = _check_failsafe_retry_result(failsafe_result, log_phase_result_fn)
     if failsafe_halt:
         return failsafe_halt

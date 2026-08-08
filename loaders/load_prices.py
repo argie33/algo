@@ -2235,8 +2235,21 @@ class PriceLoader(OptimalLoader):
         # Loaders should not fail just because it's Saturday - that's expected behavior
         from algo.infrastructure import MarketCalendar
 
-        now_et = datetime.now(EASTERN_TZ)
-        run_date = now_et.date()
+        # CRITICAL FIX (Session 54): Respect orchestrator's run_date, not system date
+        # When orchestrator runs for 2026-08-12 but system date is 2026-08-08 (Saturday),
+        # loader should check if 2026-08-12 is a trading day, not if 2026-08-08 is
+        orchestrator_run_date_str = os.getenv("ORCHESTRATOR_RUN_DATE")
+        if orchestrator_run_date_str:
+            try:
+                run_date = date.fromisoformat(orchestrator_run_date_str)
+                logger.info(f"[{self.table_name}] Using orchestrator run_date: {run_date}")
+            except ValueError:
+                logger.warning(f"[{self.table_name}] Invalid ORCHESTRATOR_RUN_DATE format: {orchestrator_run_date_str}, using system date")
+                now_et = datetime.now(EASTERN_TZ)
+                run_date = now_et.date()
+        else:
+            now_et = datetime.now(EASTERN_TZ)
+            run_date = now_et.date()
         if not MarketCalendar.is_trading_day(run_date):
             logger.info(
                 f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "

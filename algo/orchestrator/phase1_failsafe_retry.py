@@ -314,8 +314,13 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                 env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters
 
                 repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                # CRITICAL FIX (Session 54): Pass run_date to loader so it respects orchestrator's date, not system date
+                # When orchestrator runs for 2026-08-12 but system date is 2026-08-08 (Saturday),
+                # loader needs run_date to know which trading day data to expect
+                from datetime import date as _date_class
+                run_date_str = run_date.isoformat() if run_date else _date_class.today().isoformat()
                 result = subprocess.run(
-                    [sys.executable, "scripts/run_loader.py", loader_key, "--force-refresh"],
+                    [sys.executable, "scripts/run_loader.py", loader_key, "--force-refresh", "--run-date", run_date_str],
                     capture_output=True,
                     text=True,
                     timeout=300,
@@ -367,7 +372,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
     return results
 
 
-def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
+def check_and_retry_incomplete_loaders(run_date: _date | None = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
     """Check for incomplete loaders and retry them.
 
     Args:
