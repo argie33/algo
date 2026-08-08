@@ -20,7 +20,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime as _datetime
 from datetime import timedelta
-from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, cast
 
 import psycopg2
@@ -804,9 +804,24 @@ class PositionSizer:
         zero/negative portfolio value or an inverted stop/entry (the single most basic
         long-only risk-management invariant) through with no validation at all. Converted
         to explicit checks so they're real, unconditional, correctly-typed validation.
+
+        CRITICAL FIX (Session 64): Convert portfolio_value to Decimal BEFORE arithmetic.
+        If caller passes float (from Alpaca API), Decimal arithmetic would fail with TypeError.
+        This ensures all Decimal * float operations are prevented.
         """
         if not symbol or not isinstance(symbol, str):
             raise ValueError(f"Symbol must be non-empty string, got {symbol!r}")
+
+        # CRITICAL: Convert portfolio_value to Decimal before any arithmetic
+        # Prevents: Decimal * float TypeError when multiplying max_position_pct
+        if portfolio_value is not None:
+            if not isinstance(portfolio_value, Decimal):
+                try:
+                    portfolio_value = Decimal(str(portfolio_value))
+                except (ValueError, TypeError, InvalidOperation) as e:
+                    raise ValueError(f"Invalid portfolio_value: cannot convert {portfolio_value!r} to Decimal: {e}") from e
+        else:
+            portfolio_value = self.get_portfolio_value()
         entry_dec = Decimal(str(entry_price))
         if not entry_dec > 0:
             raise ValueError(f"Entry price must be > 0, got {entry_price}")
