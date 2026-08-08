@@ -583,6 +583,8 @@ def run(
                     # not exact-match which fails if snapshot hasn't been created yet for today.
                     # On first run of the day: portfolio_snapshot is from yesterday (correct baseline)
                     # On subsequent runs: portfolio_snapshot is from today (updated by Phase 9)
+                    # CRITICAL FIX 2026-08-08: If no snapshot exists at all, fall back to SUM of open position values
+                    # Previous behavior: returned empty and skipped concentration checks (allowing oversized positions to survive)
                     cur.execute(
                         """
                         SELECT COALESCE(total_portfolio_value, 0) FROM algo_portfolio_snapshots
@@ -593,12 +595,31 @@ def run(
                     )
                     result = cur.fetchone()
                     total_value = result[0] if result else 0
+
                     if total_value is None or total_value == 0:
-                        logger.info(
-                            "[PHASE 6] No portfolio snapshot for today. "
-                            "Concentration checks not possible without portfolio baseline."
+                        # FALLBACK: No snapshot exists (dev environment or first ever run)
+                        # Use current sum of open position values as denominator for concentration check
+                        # This is NOT ideal (shrinking denominator problem) but better than skipping check entirely
+                        logger.warning(
+                            "[PHASE 6] No portfolio snapshot found for concentration check. "
+                            "Using current sum of open position values as fallback denominator."
                         )
-                        return []
+                        cur.execute(
+                            """
+                            SELECT COALESCE(SUM(position_value), 0)
+                            FROM algo_positions
+                            WHERE status = 'open' AND position_value > 0
+                            """
+                        )
+                        fallback_result = cur.fetchone()
+                        total_value = fallback_result[0] if fallback_result else 0
+
+                        if total_value is None or total_value == 0:
+                            logger.warning(
+                                "[PHASE 6] No portfolio snapshot AND no open positions with value. "
+                                "Concentration checks not possible - skipping."
+                            )
+                            return []
 
                     try:
                         total_value_float = _ensure_float(total_value, "total_portfolio_value")
