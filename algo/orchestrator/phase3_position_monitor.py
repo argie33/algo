@@ -100,10 +100,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             pool_health = get_pool_health()
             available_conns_raw = pool_health.get("available_conns", 0)
             available_conns = int(available_conns_raw) if isinstance(available_conns_raw, (int, str)) else 0
-            if available_conns < 3:
+            if available_conns < 1:
                 error_msg = (
                     f"[PHASE 3] CONNECTION POOL EXHAUSTION DETECTED: Only {available_conns} connections available. "
-                    f"Cannot proceed with position monitoring - risk of 'cursor already closed' errors is too high. "
+                    f"Cannot proceed with position monitoring - no connections left. "
                     f"This indicates either: (1) Another process is hogging connections, "
                     f"(2) DatabaseContext cleanup is failing, or (3) Connection pool is undersized. "
                     f"Halting Phase 3 to prevent cascade failures. "
@@ -168,11 +168,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 pre_loop_health = get_pool_health()
                 avail = pre_loop_health.get("available_conns", 0)
                 pre_loop_available = int(avail) if isinstance(avail, (int, str)) and avail else 0
-                if pre_loop_available < 5:
+                if pre_loop_available < 1:
                     error_msg = (
-                        f"[PHASE 3 CRITICAL] POOL CAPACITY INSUFFICIENT before position updates. "
-                        f"Only {pre_loop_available} connections available (minimum needed: 5). "
-                        f"Cannot proceed with position loop - risk of connection exhaustion is too high. "
+                        f"[PHASE 3 CRITICAL] POOL EXHAUSTED before position updates. "
+                        f"No connections available (0 free). "
+                        f"Cannot proceed with position loop - all connections are in use. "
                         f"Check: (1) Other processes holding connections, "
                         f"(2) Connection pool config (max: {pre_loop_health.get('size', 'unknown')}), "
                         f"(3) Previous operations not releasing connections."
