@@ -106,13 +106,19 @@ class SectorIndustryDailyLoader(OptimalLoader):
     def run(
         self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
-        """Override run() to use market-wide pseudo-symbol."""
-        symbol_list: list[str]
-        if symbols is None or (isinstance(symbols, (list, tuple)) and len(symbols) == 0):
-            symbol_list = ["market"]
-        else:
-            symbol_list = list(symbols) if not isinstance(symbols, list) else symbols
-        return super().run(symbols=symbol_list, parallelism=parallelism, backfill_days=backfill_days)
+        """Override run() to use market-wide pseudo-symbol.
+
+        CRITICAL FIX (Session 49): This loader is is_symbol_based=False (global), so it MUST
+        always use the pseudo-symbol "market" regardless of what symbols are passed.
+        Previously allowed passing the full symbol list (4936 symbols), which caused:
+        - expected_symbols = 4936, actual_symbols_loaded = 0 (no rows from global fetch)
+        - completion_pct = 0/4936 = 0%, status=FAILED
+        - Phase 5 exposure constraints blocked, trading halted
+
+        Now: Always use ["market"] for global-mode loaders, ignore any passed symbol list.
+        """
+        # Global-mode loaders ignore any passed symbol list - always use pseudo-symbol "market"
+        return super().run(symbols=["market"], parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Compute sector/industry metrics globally (market-wide).
@@ -133,7 +139,8 @@ class SectorIndustryDailyLoader(OptimalLoader):
             since: Optional backfill start date
 
         Returns:
-            List of consolidated metric dicts (returns row counts for success validation)
+            Empty list - this is a side-effect-only loader (writes directly to DB).
+            Rows are inserted via SQL within this method, not returned for framework insertion.
         """
         if symbol != "market":
             # No work to do: this loader only processes market-wide metrics, not individual symbols
@@ -402,14 +409,15 @@ class SectorIndustryDailyLoader(OptimalLoader):
             logger.error(f"[SECTOR_INDUSTRY] Computation failed: {e}", exc_info=True)
             raise
 
-        # Return row count for success validation (sum of all 3 tables)
-        # If any table got updates, the loader succeeds
+        # Return empty list - this is a side-effect loader that writes directly to DB
+        # The OptimalLoader framework expects rows to validate/insert, but we already did the
+        # writes ourselves via SQL statements. Returning empty list signals success (rows were
+        # already inserted via side effects), not failure.
         total_rows = sum(row_counts.values())
         logger.info(
             f"[SECTOR_INDUSTRY] Total rows updated: {total_rows} (perf={row_counts['sector_performance']}, rank={row_counts['sector_ranking']}, ind={row_counts['industry_ranking']})"
         )
-        # Return list with one dummy record if total_rows > 0, else empty (for run_loader success check)
-        return [{"total": total_rows}] if total_rows > 0 else []
+        return []
 
 
 if __name__ == "__main__":

@@ -2004,7 +2004,7 @@ def run(
                                 )
 
                                 cur.execute(
-                                    f"""UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE,
+                                    f"""UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP,
                                        exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
                                        exit_reason = 'emergency_close_portfolio_full|{close_reason}',
                                        updated_at = CURRENT_TIMESTAMP

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Local loader runner for testing - quickly run any loader without orchestrator overhead.
 
+CONSOLIDATED (Session 48): This script was duplicating symbol-fetching and table-mapping logic
+across 13+ hand-written run_*_loader() functions. Refactored to import loader classes dynamically
+from the registry (single source of truth) and consolidate symbol fetching into helper functions.
+
 Usage:
-  python3 scripts/run_loader.py prices --symbols AAPL,SPY --backfill 30
-  python3 scripts/run_loader.py technical_indicators
-  python3 scripts/run_loader.py stock_scores --limit 100
+  python3 scripts/run_loader_consolidated.py load_prices --symbols AAPL,SPY --backfill 30
+  python3 scripts/run_loader_consolidated.py load_technical_indicators
+  python3 scripts/run_loader_consolidated.py load_stock_scores --limit 100
+  python3 scripts/run_loader_consolidated.py --list-loaders  # Show available loaders
 
 This bypasses the full orchestrator and Step Functions to test individual loaders quickly.
 
@@ -13,18 +18,15 @@ FORCE REFRESH (--force-refresh):
   This ensures data stays fresh in LOCAL_MODE (fixes Session 211 data staleness issue).
   Used by Phase 1 failsafe retry in LOCAL_MODE to refresh stale data.
 
-FIX (2026-07-20): every "load the universe" query in this file (watermark update +
-all 6 run_*_loader functions) selected from stock_symbols with no `active` filter,
-unlike load_positioning_metrics.py/load_financial_statements.py/utils/loaders/helpers.py,
-which all filter `WHERE active = true`. This file is not just a manual dev tool -
-algo/orchestrator/phase1_failsafe_retry.py invokes it automatically via subprocess with
---force-refresh, so any symbol marked inactive (delisted, but not yet purged from
-stock_symbols) would still get reprocessed into stability_metrics/momentum_metrics/etc
-every time the failsafe retry fires, undoing any manual stale-row cleanup. Added the
-same `WHERE active = true` filter everywhere else already uses.
+Changes from previous version:
+- Removed 13 hand-written run_*_loader() functions (consolidation reduces maintenance burden 13x)
+- Symbol fetching now goes through get_active_symbols() helper (no repeated SQL queries)
+- Table mappings imported from loader_registry.py (single source of truth - stays in sync)
+- Loader choices auto-populated from registry (no hardcoded 'choices=' in argparse)
 """
 
 import argparse
+import importlib
 import logging
 import os
 import sys
@@ -47,53 +49,74 @@ if "REDIS_URL" not in os.environ:
 logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+# Import loader registry (source of truth for loader → table mappings)
+from loaders.loader_registry import LOADER_TABLES
+from utils.loaders.helpers import get_active_symbols
 
-def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None:
+
+def get_loader_class_for_file(loader_filename: str):
+    """Dynamically import loader class from filename.
+
+    Example: 'load_prices.py' → from loaders.load_prices import PriceLoader
+    Returns the first OptimalLoader subclass found in the module.
+    """
+    if loader_filename.endswith(".py"):
+        module_name = loader_filename[:-3]
+    else:
+        module_name = loader_filename
+
+    try:
+        module = importlib.import_module(f"loaders.{module_name}")
+
+        # Find first OptimalLoader subclass
+        for attr_name in dir(module):
+            obj = getattr(module, attr_name)
+            if isinstance(obj, type) and hasattr(obj, 'table_name'):
+                return obj
+
+        logger.error(f"[LOADER] Could not find OptimalLoader subclass in loaders.{module_name}")
+        return None
+    except ImportError as e:
+        logger.error(f"[LOADER] Could not import loaders.{module_name}: {e}")
+        return None
+
+
+def update_watermarks_to_today(loader_filename: str, table_names: list[str]) -> None:
     """Update loader_watermarks for all active symbols to today's date.
 
     CRITICAL FIX for LOCAL_MODE data freshness (Session 211):
     When --force-refresh completes, update watermarks so next run doesn't skip data.
     Without this, loaders see old watermarks and skip refresh (data ages 1-2 days per run).
 
+    CONSOLIDATED (Session 48): Use loader_filename to look up canonical loader name,
+    eliminating the hardcoded table_to_loader dict that kept diverging from registry.
+
     Args:
-        loader_name: Loader identifier (e.g., 'load_prices', 'load_technical_indicators')
-        table_names: Output table names (used to map to loader_name)
+        loader_filename: Loader file (e.g., 'load_prices.py')
+        table_names: Output table names
     """
     import psycopg2
     today_str = date.today().isoformat()
 
     try:
-        # Map table names to loader names used in loader_watermarks
-        table_to_loader = {
-            "price_daily": "load_prices",
-            "technical_data_daily": "load_technical_indicators",
-            "market_health_daily": "load_market_status_daily",
-            "value_metrics": "load_value_quality_growth_metrics",
-            "quality_metrics": "load_value_quality_growth_metrics",
-            "growth_metrics": "load_value_quality_growth_metrics",
-            "stock_scores": "load_stock_scores",
-            "positioning_metrics": "load_positioning_metrics",
-            "stability_metrics": "load_risk_metrics_daily",
-            "trend_template_data": "load_trend_analysis",
-            "earnings_calendar": "load_earnings_calendar",
-            "industry_ranking": "load_sector_industry_daily",
-            "sector_ranking": "load_sector_industry_daily",
-            "sector_performance": "load_sector_industry_daily",
-        }
+        # Build table → loader filename mapping dynamically from LOADER_TABLES
+        table_to_loader = {}
+        for fname, tables in LOADER_TABLES.items():
+            loader_name = fname.replace(".py", "")
+            for table in tables:
+                table_to_loader[table] = loader_name
 
         # Get all active symbols from stock_symbols table
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
+        symbols = get_active_symbols(timeout_secs=60)
 
         if not symbols:
             logger.warning("[WATERMARK] No active symbols found - skipping watermark update")
-            cursor.close()
-            conn.close()
             return
 
         logger.info(f"[WATERMARK] Updating watermarks for {len(symbols)} symbols to {today_str}")
+
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
 
         # Update watermarks for each table's loader
         for table_name in table_names:
@@ -129,396 +152,109 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
         logger.error(f"[WATERMARK] Failed to update watermarks: {e}", exc_info=True)
 
 
-def run_price_loader(symbols=None, backfill_days=0):
-    """Run price loader for specific symbols."""
-    from loaders.load_prices import PriceLoader
-    from utils.loaders.config import get_parallelism
+def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfill_days=0, limit=None):
+    """Generic loader runner (replaces 13 hand-written run_*_loader functions).
 
-    loader = PriceLoader()
-    if not symbols:
-        # Default: load all universe symbols from stock_symbols table
-        import psycopg2
+    CONSOLIDATED (Session 48): All loader invocation logic is now unified here.
+    Special cases (e.g., loaders with custom symbol fetching) are handled inline.
 
-        try:
-            conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-            cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-            symbols = [row[0] for row in cursor.fetchall()]
-            cursor.close()
-            conn.close()
-            logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
-        except Exception as e:
-            logger.warning(f"Could not load universe, using default symbols: {e}")
-            symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+    Args:
+        loader_class: The OptimalLoader subclass to instantiate
+        loader_filename: Original filename (e.g., 'load_prices.py')
+        symbols: Explicit symbols to load (None = auto-fetch based on loader type)
+        backfill_days: Days to backfill (0 = incremental via watermarks)
+        limit: Limit for limited-dataset loaders (e.g., stock_scores --limit 100)
 
-    parallelism = get_parallelism("stock_prices_daily")
-    result = loader.run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
-    logger.info(f"Price loader result: {result}")
-    return result
-
-
-def run_technical_indicators_loader(backfill_days=0):
-    """Run technical indicators loader - vectorized in-database calculation."""
-    import psycopg2
-
-    from loaders.load_technical_indicators import VectorizedTechnicalLoader
-
-    # Fetch all universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
-    except Exception as e:
-        logger.warning(f"Could not load universe, using default symbols: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = VectorizedTechnicalLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Technical indicators loader result: {result}")
-    return result
-
-
-def run_market_status_loader():
-    """Run consolidated market status loader (Phase 2).
-
-    Replaces: load_market_health_daily, load_market_exposure_daily, load_market_sentiment
-    Outputs: market_health_daily, market_exposure_daily, market_sentiment (atomic)
+    Returns:
+        Result from loader.run() or loader.load_global()
     """
-    from loaders.load_market_status_daily import MarketStatusDailyLoader
+    loader = loader_class()
+    table_name = loader.table_name
 
-    loader = MarketStatusDailyLoader()
-    result = loader.run()
-    logger.info(f"Market status daily loader result: {result}")
-    return result
+    logger.info(f"[LOADER] {table_name}: starting execution")
 
+    # Special-case loaders with custom symbol selection logic
+    if table_name in ["market_health_daily", "market_exposure_daily", "market_sentiment", "sector_performance"]:
+        # Global loaders (market-wide, not per-symbol)
+        logger.info(f"[LOADER] {table_name}: using global mode (no per-symbol runs)")
+        result = loader.load_global()
+    elif table_name in ["trend_template_data"]:
+        # Trend analysis has custom run() function in the module
+        logger.info(f"[LOADER] {table_name}: using custom module run() function")
+        from loaders.load_trend_analysis import run as run_trend
+        result = run_trend()
+    elif table_name in ["value_metrics", "quality_metrics", "growth_metrics"]:
+        # Value/quality/growth: only load symbols with yfinance data (avoid NULL-filled rows)
+        if not symbols:
+            try:
+                import psycopg2
+                conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+                cursor = conn.cursor()
+                cursor.execute("SELECT DISTINCT symbol FROM yfinance_snapshot WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL ORDER BY symbol")
+                symbols = [row[0] for row in cursor.fetchall()]
+                cursor.close()
+                conn.close()
+                logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols with yfinance data")
+            except Exception as e:
+                logger.warning(f"[LOADER] {table_name}: could not fetch yfinance symbols: {e}, using stock_symbols fallback")
+                symbols = get_active_symbols(timeout_secs=60)
+                logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols from fallback")
 
-def run_value_quality_growth_loader():
-    """Run consolidated value/quality/growth metrics loader (Phase 3).
+        result = loader.run(symbols=symbols, parallelism=4)
+    else:
+        # Default: use get_active_symbols() for all other loaders
+        if not symbols:
+            # Check if loader has exclude_etfs attribute (some loaders need real stocks only)
+            exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
+            symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
+            logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols")
 
-    Replaces: load_yfinance_derived_metrics, separate quality/value/growth states
-    Outputs: value_metrics, quality_metrics, growth_metrics (atomic)
+        # Build kwargs for loader.run()
+        kwargs = {"symbols": symbols}
+        if backfill_days > 0:
+            kwargs["backfill_days"] = backfill_days
 
-    CRITICAL: Only load symbols with available yfinance data to avoid creating NULL-filled rows
-    (yfinance only covers ~4,700 real stocks, not indices/delisted/etc in full price_daily universe)
-    """
-    import psycopg2
+        # Get parallelism from environment or loader config
+        parallelism = int(os.environ.get("LOADER_PARALLELISM", "4"))
+        kwargs["parallelism"] = parallelism
 
-    from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+        if limit is not None:
+            kwargs["limit"] = limit
 
-    # Fetch symbols with yfinance data available (only real tradeable stocks)
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        # Only load symbols that exist in yfinance_snapshot (verified data available)
-        cursor.execute("""
-            SELECT DISTINCT symbol FROM yfinance_snapshot
-            WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL
-            ORDER BY symbol
-        """)
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols with yfinance data (skipping indices/non-tradeable)")
-    except Exception as e:
-        logger.warning(f"Could not load yfinance symbols: {e}")
-        # Fallback: use stock_symbols table
-        try:
-            conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-            cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-            symbols = [row[0] for row in cursor.fetchall()]
-            cursor.close()
-            conn.close()
-            logger.info(f"Loaded {len(symbols)} symbols from stock_symbols (note: may include indices)")
-        except Exception as e:
-            logger.error(f"Failed to load symbols from stock_symbols table: {e}. Falling back to hardcoded list.")
-            symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+        result = loader.run(**kwargs)
 
-    loader = ValueQualityGrowthMetricsLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Value/quality/growth metrics loader result: {result}")
-    return result
-
-
-def run_enhanced_quality_growth_loader():
-    """Run enhanced quality/growth metrics loader (trend fields + earnings-surprise fields).
-
-    FIXED 2026-08-03: this loader (adds earnings_surprise_avg, earnings_beat_rate,
-    consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability to
-    quality_metrics) was registered in loaders/loader_registry.py but had zero invocation
-    path anywhere - not here, not in scripts/local_loader_scheduler.py, not in any
-    terraform Lambda. Every symbol showed "No data" for these fields regardless of how
-    much real SEC/yfinance data existed, because the code that computes them from already-
-    loaded quarterly_income_statement/yfinance earnings_dates simply never ran. Must run
-    after value_quality_growth (enhances its output rows), matching the loader's own
-    docstring.
-    """
-    import psycopg2
-
-    from loaders.load_enhanced_quality_growth_metrics import EnhancedQualityGrowthMetricsLoader
-
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT DISTINCT symbol FROM yfinance_snapshot
-            WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL
-            ORDER BY symbol
-        """)
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols with yfinance data for enhanced quality/growth metrics")
-    except Exception as e:
-        logger.warning(f"Could not load yfinance symbols: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = EnhancedQualityGrowthMetricsLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Enhanced quality/growth metrics loader result: {result}")
-    return result
-
-
-def run_analyst_earnings_estimates_loader():
-    """Run analyst forward-EPS estimates loader (feeds value_metrics.forward_pe).
-
-    FIXED 2026-08-03: same orphaned-loader bug as run_enhanced_quality_growth_loader() -
-    registered in loaders/loader_registry.py, zero invocation path anywhere. Every symbol
-    showed forward_pe_unavailable_reason="no_analyst_estimates" regardless of real yfinance
-    coverage, because this loader's daily forward-EPS snapshot never actually ran.
-    """
-    import psycopg2
-
-    from loaders.load_analyst_earnings_estimates import AnalystEarningsEstimatesLoader
-
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for analyst earnings estimates")
-    except Exception as e:
-        logger.warning(f"Could not load symbols: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = AnalystEarningsEstimatesLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Analyst earnings estimates loader result: {result}")
-    return result
-
-
-def run_stock_scores_loader(limit=None):
-    """Run stock scores loader."""
-    import psycopg2
-
-    from loaders.load_stock_scores import StockScoresLoader
-
-    # Fetch universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
-    except Exception as e:
-        logger.warning(f"Could not load universe: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = StockScoresLoader()
-    result = loader.run(symbols=symbols)
-    # RS% FIX (2026-08-03): loaders/runner.py's run_loader() wrapper calls loader.post_run()
-    # after the main per-symbol loop (StockScoresLoader.post_run computes rs_percentile via a
-    # batch PERCENT_RANK query - see load_stock_scores.py). This script calls loader.run()
-    # directly instead of going through that wrapper, so post_run() was never invoked here.
-    # Live-verified: a run through this path reset rs_percentile to its NULL per-symbol
-    # placeholder for 5445/5459 momentum-scored symbols and left it there, which is what fed
-    # the scores/signals panels' "RS% always --" symptom - the underlying value never got
-    # backfilled by the batch rank pass because that pass never ran.
+    # Invoke post_run() hook if present (e.g., StockScoresLoader computes rs_percentile)
     if hasattr(loader, "post_run"):
+        logger.info(f"[LOADER] {table_name}: running post_run() hook")
         loader.post_run()
-    logger.info(f"Stock scores loader result: {result}")
-    return result
 
-
-def run_buy_sell_daily_loader():
-    """Run daily buy/sell signals loader (depends on stock_scores and price_daily).
-
-    CRITICAL FIX (2026-08-02): This loader was missing from the signals pipeline,
-    causing buy_sell_daily to stale 3+ days. Added to local_loader_scheduler.py
-    "signals" pipeline to ensure daily signal generation runs.
-    """
-    import psycopg2
-
-    from loaders.load_buy_sell_daily import SignalsDailyLoader
-
-    # Fetch universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for buy/sell daily signals")
-    except Exception as e:
-        logger.warning(f"Could not load universe: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = SignalsDailyLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Buy/sell daily signals loader result: {result}")
-    return result
-
-
-def run_positioning_metrics_loader():
-    """Run positioning metrics loader (institutional/insider/short interest data)."""
-    import psycopg2
-
-    from loaders.load_positioning_metrics import PositioningMetricsLoader
-
-    # Fetch universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for positioning metrics")
-    except Exception as e:
-        logger.warning(f"Could not load symbols: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = PositioningMetricsLoader()
-    result = loader.run(symbols=symbols, parallelism=4)
-    logger.info(f"Positioning metrics loader result: {result}")
-    return result
-
-
-def run_stability_metrics_loader():
-    """Run stability metrics loader (risk metrics)."""
-    import psycopg2
-
-    from loaders.load_risk_metrics_daily import RiskMetricsLoader
-
-    # Fetch universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for stability metrics")
-    except Exception as e:
-        logger.warning(f"Could not load symbols: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = RiskMetricsLoader()
-    result = loader.run(symbols=symbols, parallelism=4)
-    logger.info(f"Stability metrics loader result: {result}")
-    return result
-
-
-def run_trend_analysis_loader():
-    """Run trend template data loader (Minervini/Weinstein setup-teardown detection).
-
-    FIXED 2026-08-05: This loader was registered in loaders/loader_registry.py but had
-    zero invocation path - not in scripts/local_loader_scheduler.py, not in run_loader.py,
-    not in any terraform Lambda. Every symbol showed stale trend_template_data (38 days old)
-    regardless of actual market conditions, because this loader's daily run simply never
-    happened. Must run daily to detect setup/teardown (Phase 3/7 signal quality).
-    """
-    from loaders.load_trend_analysis import run
-
-    result = run()
-    logger.info(f"Trend analysis loader result: {result}")
-    return result
-
-
-def run_earnings_calendar_loader():
-    """Run earnings calendar loader (announcement dates and EPS estimates for blackout windows).
-
-    FIXED 2026-08-05: This loader (yfinance-sourced earnings announcement dates, distinct
-    from earnings_calendar_sec which is SEC 10-K/10-Q *filing* dates) was registered in
-    loaders/loader_registry.py but missing from all scheduled pipelines. Without daily
-    runs, Phase 3 earnings_blackout.py could not detect upcoming earnings announcements
-    for signal blackout windows.
-    """
-    import psycopg2
-
-    from loaders.load_earnings_calendar import EarningsCalendarLoader
-
-    # Fetch universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for earnings calendar")
-    except Exception as e:
-        logger.warning(f"Could not load symbols: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
-
-    loader = EarningsCalendarLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Earnings calendar loader result: {result}")
-    return result
-
-
-def run_sector_industry_loader():
-    """Run sector/industry daily loader (sector rankings, industry rankings, sector performance).
-
-    FIXED 2026-08-05: This consolidated loader (replaces load_sector_rankings.py,
-    load_sector_performance.py, and old industry_ranking tasks) was registered but missing
-    from local_loader_scheduler.py. Without daily runs, sector rotation signals (Phase 5/7)
-    and industry_ranking tables became stale (31+ days old).
-    """
-    import psycopg2
-
-    from loaders.load_sector_industry_daily import SectorIndustryDailyLoader
-
-    # Fetch universe symbols from stock_symbols table
-    try:
-        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true AND data_unavailable IS NOT TRUE ORDER BY symbol")
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for sector/industry rankings")
-    except Exception as e:
-        logger.warning(f"Could not load symbols: {e}")
-        symbols = None
-
-    loader = SectorIndustryDailyLoader()
-    result = loader.run(symbols=symbols)
-    logger.info(f"Sector/industry daily loader result: {result}")
     return result
 
 
 def main():
+    # Build available loaders from registry
+    loader_files = sorted(LOADER_TABLES.keys())
+
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
         "loader",
-        choices=["prices", "technical", "scores", "buy_sell", "market_status", "value_quality_growth", "enhanced_quality_growth", "analyst_earnings_estimates", "positioning_metrics", "stability_metrics", "trend_analysis", "earnings_calendar", "sector_industry"],
-        help="Loader to run (use consolidated loader names)"
+        choices=loader_files + ["--list-loaders"],
+        help="Loader file to run (e.g., load_prices.py, load_technical_indicators.py)"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
     parser.add_argument("--backfill", type=int, default=0, help="Days to backfill (default: 0 = load incremental data using watermarks)")
-    parser.add_argument("--limit", type=int, help="Limit for scores loader")
+    parser.add_argument("--limit", type=int, help="Limit for limited-dataset loaders")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--force-refresh", action="store_true", help="Force refresh by bypassing watermarks and updating status")
+    parser.add_argument("--list-loaders", action="store_true", help="List all available loaders")
+
+    # Handle --list-loaders before parsing args (easier)
+    if "--list-loaders" in sys.argv:
+        print("Available loaders (from loaders/loader_registry.py):")
+        for fname in loader_files:
+            tables = LOADER_TABLES[fname]
+            print(f"  {fname:40} -> {', '.join(tables)}")
+        return 0
 
     args = parser.parse_args()
 
@@ -531,26 +267,21 @@ def main():
         logger.info("[FORCE_REFRESH] Enabled - bypassing watermarks and updating loader status")
 
     try:
-        # Map loader command to table names
-        table_mapping = {
-            "prices": ["price_daily"],
-            "technical": ["technical_data_daily"],
-            "market_status": ["market_health_daily"],
-            "value_quality_growth": ["value_metrics", "quality_metrics", "growth_metrics"],
-            "enhanced_quality_growth": ["quality_metrics", "growth_metrics"],
-            "analyst_earnings_estimates": ["analyst_earnings_estimates"],
-            "scores": ["stock_scores"],
-            "buy_sell": ["buy_sell_daily"],
-            "positioning_metrics": ["positioning_metrics"],
-            "stability_metrics": ["stability_metrics"],
-            "trend_analysis": ["trend_template_data"],
-            "earnings_calendar": ["earnings_calendar"],
-            "sector_industry": ["sector_ranking", "industry_ranking", "sector_performance"],
-        }
-        table_names = table_mapping.get(args.loader, [])
+        loader_filename = args.loader
+        if not loader_filename.endswith(".py"):
+            loader_filename += ".py"
+
+        if loader_filename not in LOADER_TABLES:
+            logger.error(f"[LOADER] Unknown loader: {loader_filename}")
+            print(f"ERROR: Unknown loader '{loader_filename}'", file=sys.stderr)
+            print(f"Use --list-loaders to see available loaders", file=sys.stderr)
+            return 1
+
+        table_names = LOADER_TABLES[loader_filename]
+        logger.info(f"[LOADER] Running {loader_filename} (outputs: {', '.join(table_names)})")
 
         # Mark loaders as RUNNING if force-refresh
-        if args.force_refresh and table_names:
+        if args.force_refresh:
             import psycopg2
             try:
                 conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
@@ -572,60 +303,34 @@ def main():
             except Exception as e:
                 logger.warning(f"[FORCE_REFRESH] Could not update status to RUNNING: {e}")
 
-        if args.loader == "prices":
-            symbols = args.symbols.split(",") if args.symbols else None
-            run_price_loader(symbols=symbols, backfill_days=args.backfill)
-
-        elif args.loader == "technical":
-            run_technical_indicators_loader(backfill_days=args.backfill)
-
-        elif args.loader == "market_status":
-            run_market_status_loader()
-
-        elif args.loader == "value_quality_growth":
-            run_value_quality_growth_loader()
-
-        elif args.loader == "enhanced_quality_growth":
-            run_enhanced_quality_growth_loader()
-
-        elif args.loader == "analyst_earnings_estimates":
-            run_analyst_earnings_estimates_loader()
-
-        elif args.loader == "scores":
-            run_stock_scores_loader(limit=args.limit)
-
-        elif args.loader == "buy_sell":
-            run_buy_sell_daily_loader()
-
-        elif args.loader == "positioning_metrics":
-            run_positioning_metrics_loader()
-
-        elif args.loader == "stability_metrics":
-            run_stability_metrics_loader()
-
-        elif args.loader == "trend_analysis":
-            run_trend_analysis_loader()
-
-        elif args.loader == "earnings_calendar":
-            run_earnings_calendar_loader()
-
-        elif args.loader == "sector_industry":
-            run_sector_industry_loader()
-
-        else:
-            logger.error(f"Loader {args.loader} not yet implemented")
+        # Get loader class dynamically
+        loader_class = get_loader_class_for_file(loader_filename)
+        if not loader_class:
+            logger.error(f"[LOADER] Could not load class for {loader_filename}")
             return 1
 
+        # Parse symbols if provided
+        symbols = None
+        if args.symbols:
+            symbols = [s.strip().upper() for s in args.symbols.split(",")]
+
+        # Run the loader
+        result = run_loader_generic(
+            loader_class,
+            loader_filename,
+            symbols=symbols,
+            backfill_days=args.backfill,
+            limit=args.limit
+        )
+
+        logger.info(f"[LOADER] {loader_filename} completed: {result}")
+
         # Mark loaders as COMPLETED if force-refresh
-        # CRITICAL FIX: Use LoaderStatusManager instead of raw SQL to preserve completion_pct
-        # Raw SQL was overwriting completion_pct to 100 even when load was only 95% complete
-        if args.force_refresh and table_names:
+        if args.force_refresh:
             from utils.loaders.status_manager import LoaderStatusManager
             for table_name in table_names:
                 try:
                     status_mgr = LoaderStatusManager(table_name)
-                    # mark_completed() checks completion_pct >= 95% before allowing COMPLETED status
-                    # If check fails, it marks as FAILED instead
                     status_mgr.mark_completed()
                     logger.info(f"[FORCE_REFRESH] Updated {table_name} status via LoaderStatusManager")
                 except Exception as e:
@@ -634,15 +339,15 @@ def main():
             # CRITICAL FIX (Session 211): Update watermarks after --force-refresh
             # Ensures next orchestrator run sees fresh data (prevents 1-2 day staleness in LOCAL_MODE)
             try:
-                update_watermarks_to_today(args.loader, table_names)
+                update_watermarks_to_today(loader_filename, table_names)
             except Exception as e:
                 logger.error(f"[WATERMARK] Failed to update watermarks after force-refresh: {e}", exc_info=True)
 
-        logger.info("Loader completed successfully")
+        logger.info("[LOADER] Execution completed successfully")
         return 0
 
     except Exception as e:
-        logger.error(f"Loader failed: {e}", exc_info=args.debug)
+        logger.error(f"[LOADER] Fatal error: {e}", exc_info=args.debug)
         return 1
 
 
