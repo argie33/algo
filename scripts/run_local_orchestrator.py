@@ -58,6 +58,11 @@ from lambda_function import (  # noqa: E402
 def _find_todays_run(run_type: str, run_date) -> dict | None:
     """Return the most recent orchestrator_execution_log row for this run_type/run_date, if any.
 
+    CRITICAL FIX: Check DATE(started_at) instead of run_date. Runs that start late on one
+    calendar day (e.g. 22:00 ET) have run_date from the PREVIOUS trading day but actually
+    execute into the next calendar day. Without this fix, the deduplication check fails
+    and allows re-runs of the same session (causing the 67+ duplicate afternoon runs issue).
+
     Matches on run_id's "LOCAL-{TYPE}-" prefix (the format this script itself generates) rather
     than a dedicated run_type column, since that's what actually distinguishes morning/afternoon/
     evening runs in this table today.
@@ -70,7 +75,7 @@ def _find_todays_run(run_type: str, run_date) -> dict | None:
                 """
                 SELECT run_id, overall_status, started_at
                 FROM orchestrator_execution_log
-                WHERE run_date = %s AND run_id ILIKE %s
+                WHERE DATE(started_at) = %s AND run_id ILIKE %s
                 ORDER BY started_at DESC LIMIT 1
                 """,
                 (run_date, f"LOCAL-{run_type.upper()}-%"),
