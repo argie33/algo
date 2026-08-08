@@ -285,23 +285,29 @@ class EntryHandler:
             logger.debug(f"[POSITION CREATE] {symbol}: Generated new position_id {position_id}")
 
         # Generate deterministic idempotency key for Alpaca order deduplication.
-        # CRITICAL FIX 2026-08-07: INCLUDE position_id in idempotency key to prevent
-        # ON CONFLICT from updating trades linked to different positions.
-        # Previously: idempotency_key = HASH(symbol + entry_price + signal_date)
-        # Problem: On rerun, ON CONFLICT would match old trade (from orphaned position)
-        #          and update its position_id to new position, leaving old position orphaned
-        # Solution: Include position_id so each position entry gets unique idempotency key
-        # This preserves the idempotency goal (same signal = same trade ID) while
-        # ensuring each position attempt creates its own trade record.
+        # CRITICAL: Idempotency key MUST use ONLY stable values that don't change between retries.
+        # Stable values:
+        #   - symbol (immutable)
+        #   - entry_price (from signal data, doesn't change)
+        #   - signal_date (doesn't change)
+        #
+        # MUST NOT include position_id because:
+        #   - position_id is randomly generated with uuid.uuid4() (line 284)
+        #   - If trade insert fails and we retry, position_id changes
+        #   - Different position_id → different idempotency_key
+        #   - Different key → bypasses ON CONFLICT deduplication
+        #   - Result: duplicate trades created (same issue as stop_loss_price bug Session 60)
+        #
+        # Load-bearing rule: feedback_idempotency_key_stop_loss_bug.md
+        # "Idempotency key must use ONLY values that are deterministic across orchestrator reruns"
 
         # Normalize entry price to 4 decimals to ensure deterministic key across retries
         entry_price_normalized = f"{float(entry_price):.4f}"
 
-        # Use stable values that identify THIS specific entry attempt:
-        # symbol + entry_price + signal_date + position_id
-        # position_id is generated per attempt, so same signal on different entry attempts
-        # won't collide, preventing orphaned-position confusion
-        key_source = f"{symbol}_{entry_price_normalized}_{signal_date}_{position_id}"
+        # Use only stable values that identify the SIGNAL, not the entry attempt:
+        # symbol + entry_price + signal_date
+        # This allows ON CONFLICT to properly deduplicate retries of the same signal
+        key_source = f"{symbol}_{entry_price_normalized}_{signal_date}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks
