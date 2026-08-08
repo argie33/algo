@@ -50,6 +50,7 @@ class MarketStatusDailyLoader(OptimalLoader):
     """
 
     table_name = "market_health_daily"  # Primary table for watermark tracking
+    output_tables = ["market_health_daily", "market_exposure_daily", "market_sentiment"]
     primary_key = ("date",)
     watermark_field = "date"
     is_symbol_based = False
