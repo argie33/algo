@@ -887,7 +887,7 @@ class ExitEngine:
                                        )""",
                                     (
                                         current_date,
-                                        current_price if current_price and current_price > 0 else None,
+                                        cur_price if cur_price and cur_price > 0 else None,
                                         "delisted_or_unavailable|price_data_missing",
                                         symbol,
                                         *open_trade_statuses_close,
