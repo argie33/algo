@@ -2781,7 +2781,9 @@ def run(
 
             shares = sizing["shares"]
 
-            position_value = shares * entry_price
+            # CRITICAL FIX: Convert to float before arithmetic - Decimal * float raises TypeError
+            # Load-bearing rule: Convert Decimal→float before math (feedback_psycopg2_decimal_arithmetic)
+            position_value = float(shares) * float(entry_price)
 
             # Final hard-stop validation (includes earnings blackout check)
 
