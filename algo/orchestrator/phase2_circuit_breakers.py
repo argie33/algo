@@ -164,6 +164,7 @@ def run(  # noqa: C901
                 error_msg = error_reason
                 is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
                 is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()
+                is_data_validation_error = "data_validation" in error_reason.lower() or "validation" in error_reason.lower()
                 execution_mode = config.get("execution_mode")
                 if execution_mode is None:
                     raise ValueError(
@@ -172,10 +173,10 @@ def run(  # noqa: C901
                         "Set explicit execution_mode in algo_config table."
                     )
 
-                if is_credential_error and execution_mode == "paper":
+                if (is_credential_error or is_data_validation_error) and execution_mode == "paper":
                     logger.warning(
-                        f"[PHASE 2] Market circuit breaker check skipped in paper mode (credentials unavailable). "
-                        f"Production trading requires valid Alpaca credentials. Error: {error_msg}"
+                        f"[PHASE 2] Market circuit breaker check skipped in paper mode (API error or incomplete data). "
+                        f"Production trading requires valid market data access. Error: {error_msg}"
                     )
                     log_phase_result_fn(
                         2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)"
