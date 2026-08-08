@@ -583,18 +583,21 @@ def run(
                     # not exact-match which fails if snapshot hasn't been created yet for today.
                     # On first run of the day: portfolio_snapshot is from yesterday (correct baseline)
                     # On subsequent runs: portfolio_snapshot is from today (updated by Phase 9)
-                    # CRITICAL FIX 2026-08-08: If no snapshot exists at all, fall back to SUM of open position values
-                    # Previous behavior: returned empty and skipped concentration checks (allowing oversized positions to survive)
+                    # CRITICAL: Snapshot MUST be from TODAY (run_date), not a stale previous snapshot
+                    # Using yesterday's snapshot with today's positions causes:
+                    # - Wrong denominator for concentration calculations
+                    # - Positions appear smaller than they are
+                    # - Concentration limits are effectively masked
+                    # SOLUTION: Require snapshot_date = run_date ONLY, no fallback to stale snapshots
                     cur.execute(
                         """
-                        SELECT COALESCE(total_portfolio_value, 0) FROM algo_portfolio_snapshots
-                        WHERE snapshot_date <= %s
-                        ORDER BY snapshot_date DESC LIMIT 1
+                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                        WHERE snapshot_date = %s
                         """,
                         (run_date,),
                     )
                     result = cur.fetchone()
-                    total_value = result[0] if result else 0
+                    total_value = result[0] if result else None
 
                     if total_value is None or total_value == 0:
                         # CRITICAL FIX SESSION 60: NO FALLBACK - must have portfolio snapshot
