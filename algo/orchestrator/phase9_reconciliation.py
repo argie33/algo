@@ -1147,6 +1147,7 @@ def _record_closed_positions_exits(
                   AND at.exit_date IS NULL
                   AND at.status = ANY(%s)
                   AND (ap.exit_reason IS NULL OR ap.exit_reason NOT ILIKE 'CLEANUP%%')
+                  AND ap.created_at < NOW() - INTERVAL '60 seconds'
                 ORDER BY ap.closed_at DESC
             """,
                 (run_date, list(open_trade_statuses)),
