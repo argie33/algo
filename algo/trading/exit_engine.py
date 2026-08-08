@@ -232,7 +232,10 @@ class PositionContext:
             raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
 
         min_hold_days = int(min_hold_val)
-        if self.days_held < min_hold_days:
+        # CRITICAL FIX: Clamp negative days_held to 0 (data corruption safeguard)
+        # Negative values block all exits - treat same-day entries as 0 days, not negative
+        days_held_for_check = max(0, self.days_held)
+        if days_held_for_check < min_hold_days:
             return False, None
 
         max_hold_val = self.config.get("max_hold_days")
@@ -951,6 +954,17 @@ class ExitEngine:
                                 continue
 
                         days_held = (current_date - trade_date).days
+
+                        # CRITICAL FIX: Clamp negative days_held to 0 (same-day entries should have 0 days, not negative)
+                        # Negative values indicate data corruption (e.g., entry_date set to future date by mistake)
+                        # Clamping prevents false "minimum hold not met" blocks on valid exits
+                        if days_held < 0:
+                            logger.warning(
+                                f"{symbol}: days_held is negative ({days_held}) - data corruption detected. "
+                                f"Clamping to 0 for exit evaluation. "
+                                f"trade_date={trade_date}, current_date={current_date}"
+                            )
+                            days_held = 0
 
                         # CRITICAL: Check hard stop-loss BEFORE min_hold_days gate
                         # Hard stop-loss is unconditional capital preservation, not discretionary

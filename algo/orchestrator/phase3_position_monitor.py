@@ -373,6 +373,16 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         # Calculate enrichment fields: days held and ladder % to stop
                         # Use authoritative db_today from database (not run_date parameter which may be stale)
                         days_since_entry = (db_today - entry_date).days if entry_date else 0
+                        # CRITICAL FIX: Clamp negative days to 0 (same-day entries should be 0, not negative)
+                        # Negative values indicate data corruption (e.g., entry_date > current_date)
+                        # which causes the exit engine to block all exits
+                        if days_since_entry < 0:
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: days_since_entry is negative ({days_since_entry}). "
+                                f"Data corruption: entry_date ({entry_date}) > db_today ({db_today}). "
+                                f"Clamping to 0 for consistent exit engine behavior."
+                            )
+                            days_since_entry = max(0, days_since_entry)
                         ladder_pct_stop = 0.0
                         if current_price and avg_entry > stop_loss:
                             # ladder_pct_stop: how far we are from stop to entry as % of entry-to-stop range
