@@ -256,6 +256,7 @@ class EntryHandler:
         # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
         import hashlib
         from utils.db.context import DatabaseContext
+        position_id: str | None = None
         logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
         try:
             with DatabaseContext("read") as read_cursor:
