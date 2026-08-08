@@ -500,10 +500,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 rec.get("action_reason", "no reason")
                             )
                         elif rec["action"] == "RAISE_STOP":
+                            new_stop_val = rec.get("new_stop_recommended")
                             logger.info(
-                                "[PHASE 3 RAISE_STOP] %s: new_stop=%.2f, reason=%s",
+                                "[PHASE 3 RAISE_STOP] %s: new_stop=%s, reason=%s",
                                 rec["symbol"],
-                                rec.get("new_stop_recommended", 0),
+                                f"${new_stop_val:.2f}" if new_stop_val is not None else "None",
                                 rec.get("action_reason", "no reason")
                             )
                     break  # Success - exit retry loop
