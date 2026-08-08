@@ -1062,6 +1062,131 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
     return opt_result
 
 
+def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None:
+    """CRITICAL FIX 2026-08-08: Detect and repair trades with exit_date set but exit_price NULL.
+
+    This is a data corruption scenario from Phase 9 reconciliation runs where the UPDATE statement
+    ran but exit_price didn't get persisted (see _record_closed_positions_exits comments).
+    Trades in this state have:
+    - exit_date: populated (not NULL)
+    - exit_reason: populated (says "Closed position recorded during reconciliation")
+    - profit_loss_dollars: populated (but based on missing exit_price, likely 0.00)
+    - exit_price: NULL (MISSING - the bug!)
+    - status: 'open' (should be 'closed' if exit was recorded)
+
+    This function finds such trades and recovers the exit_price from price_daily or broker fills.
+    """
+    try:
+        with DatabaseContext("read") as cursor:
+            cursor.execute("""
+                SELECT trade_id, symbol, entry_price, exit_date,
+                       profit_loss_dollars, stop_loss_price, entry_quantity
+                FROM algo_trades
+                WHERE exit_date IS NOT NULL
+                  AND exit_price IS NULL
+                  AND exit_reason ILIKE '%Closed position recorded during reconciliation%'
+                  AND (status = 'open' OR status = 'filled' OR status = 'partially_filled')
+                ORDER BY exit_date DESC
+                LIMIT 100
+            """)
+            corrupted = cursor.fetchall()
+
+        if not corrupted:
+            logger.info("[PHASE 9] No corrupted trades found with missing exit_price")
+            return
+
+        logger.warning(
+            f"[PHASE 9 CRITICAL] Found {len(corrupted)} trades with corrupted exit data "
+            f"(exit_date set but exit_price NULL). Attempting recovery..."
+        )
+
+        fixed_count = 0
+        with DatabaseContext("write") as cursor:
+            for row in corrupted:
+                trade_id, symbol, entry_price, exit_date, pnl_dollars, stop_price, entry_qty = row
+                if entry_price is None or stop_price is None or entry_qty is None:
+                    logger.warning(
+                        f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
+                        f"missing required fields (entry_price={entry_price}, stop_price={stop_price}, entry_qty={entry_qty})"
+                    )
+                    continue
+
+                # Try to recover exit_price from price_daily
+                cursor.execute("""
+                    SELECT close FROM price_daily
+                    WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
+                    LIMIT 1
+                """, (symbol, exit_date))
+                price_row = cursor.fetchone()
+
+                if price_row is None or price_row[0] is None:
+                    logger.warning(
+                        f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
+                        f"no price_daily close available for {exit_date}"
+                    )
+                    continue
+
+                recovered_exit_price = float(price_row[0])
+                if recovered_exit_price <= 0:
+                    logger.warning(
+                        f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
+                        f"recovered exit_price {recovered_exit_price} is invalid (must be > 0)"
+                    )
+                    continue
+
+                # Recalculate P&L based on recovered exit_price
+                pnl_per_share = recovered_exit_price - float(entry_price)
+                pnl_dollars_corrected = float(pnl_per_share * float(entry_qty))
+                pnl_pct_corrected = float((pnl_per_share / float(entry_price)) * 100) if entry_price != 0 else 0.0
+
+                risk_per_share = float(entry_price) - float(stop_price)
+                if risk_per_share > 0:
+                    r_multiple = pnl_per_share / risk_per_share
+                else:
+                    r_multiple = 0.0
+
+                # Update the trade with recovered exit_price
+                cursor.execute("""
+                    UPDATE algo_trades
+                    SET exit_price = %s::numeric,
+                        profit_loss_dollars = %s,
+                        profit_loss_pct = %s,
+                        exit_r_multiple = %s,
+                        reconciliation_note = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE trade_id = %s
+                """, (
+                    Decimal(str(recovered_exit_price)),
+                    pnl_dollars_corrected,
+                    pnl_pct_corrected,
+                    r_multiple,
+                    f"REPAIRED: exit_price recovered from price_daily EOD close {exit_date} "
+                    f"(original was NULL despite exit_date being set)",
+                    trade_id,
+                ))
+
+                if cursor.rowcount > 0:
+                    logger.info(
+                        f"[PHASE 9 REPAIR] {symbol} (trade_id={trade_id}): "
+                        f"recovered exit_price ${recovered_exit_price:.2f}, "
+                        f"corrected P&L ${pnl_dollars_corrected:+.2f}"
+                    )
+                    fixed_count += 1
+
+        if fixed_count > 0:
+            logger.info(f"[PHASE 9] Repaired {fixed_count} corrupted trades with missing exit_price")
+            log_phase_result_fn(
+                9, "repair_missing_exit_prices", "success",
+                f"repaired {fixed_count} trades with recovered exit prices"
+            )
+        else:
+            logger.info("[PHASE 9] No trades could be repaired (missing price_daily data)")
+
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[PHASE 9] Repair of missing exit prices failed: {e}")
+        log_phase_result_fn(9, "repair_missing_exit_prices", "warn", f"repair failed: {str(e)[:100]}")
+
+
 def _record_closed_positions_exits(
     config: Any,
     run_date: _date,
@@ -1303,11 +1428,17 @@ def _record_closed_positions_exits(
                             open_trade_statuses_2 = TradeStatus.all_open()
                             trade_status_ph_2 = ", ".join(["%s"] * len(open_trade_statuses_2))
                             write_cursor.execute(f"SAVEPOINT {sp}")
+
+                            # CRITICAL FIX 2026-08-08: Cast exit_price explicitly to numeric to prevent NULL binding
+                            # Some trades (IBEX, DAC) had all fields updated EXCEPT exit_price stayed NULL.
+                            # This suggests either a parameter binding issue or PostgreSQL type coercion problem.
+                            # Explicitly cast to numeric in SQL to force proper type handling.
+                            exit_price_numeric = Decimal(str(exit_price))
                             write_cursor.execute(
                                 f"""
                                 UPDATE algo_trades
                                 SET exit_date = %s, exit_time = CURRENT_TIMESTAMP,
-                                    exit_price = %s, estimated_exit_price = NULL,
+                                    exit_price = %s::numeric, estimated_exit_price = NULL,
                                     profit_loss_dollars = %s, profit_loss_pct = %s, exit_r_multiple = %s,
                                     exit_reason = %s, status = 'closed',
                                     trade_duration_days = %s::date - entry_date,
@@ -1318,7 +1449,7 @@ def _record_closed_positions_exits(
                             """,
                                 (
                                     run_date,
-                                    float(exit_price),
+                                    exit_price_numeric,
                                     cumulative_pnl_dollars,
                                     cumulative_pnl_pct,
                                     cumulative_r_multiple,
@@ -1329,7 +1460,30 @@ def _record_closed_positions_exits(
                                     *open_trade_statuses_2,
                                 ),
                             )
-                            if write_cursor.rowcount == 0:
+
+                            # CRITICAL FIX 2026-08-08: Verify exit_price was actually written
+                            # If rowcount > 0 but exit_price is NULL in the database, something silently corrupted the data.
+                            # Check immediately and raise if validation fails to prevent silent data corruption.
+                            if write_cursor.rowcount > 0:
+                                write_cursor.execute(
+                                    "SELECT exit_price FROM algo_trades WHERE trade_id = %s",
+                                    (trade_id,),
+                                )
+                                verify_row = write_cursor.fetchone()
+                                if verify_row and verify_row[0] is None:
+                                    error_msg = (
+                                        f"[PHASE 9 CRITICAL DATA CORRUPTION] Trade {symbol} (trade_id={trade_id}) exit_price was NOT written despite successful UPDATE. "
+                                        f"All other exit fields were set correctly (exit_date, exit_reason, P/L), but exit_price={verify_row[0]}. "
+                                        f"This indicates a database constraint violation, trigger, or type binding bug. "
+                                        f"Cannot proceed - halting Phase 9 to prevent audit trail corruption."
+                                    )
+                                    logger.critical(error_msg)
+                                    raise RuntimeError(error_msg)
+                                exits_recorded += 1
+                                logger.info(
+                                    f"[PHASE 9 VERIFICATION] Trade {symbol}: exit_price written correctly (${float(exit_price_numeric):.2f})"
+                                )
+                            elif write_cursor.rowcount == 0:
                                 logger.warning(
                                     f"[PHASE 9] Trade {symbol} (trade_id={trade_id}) exit already recorded. "
                                     f"This can happen if another process updated the trade between our SELECT and UPDATE. "
@@ -1361,7 +1515,6 @@ def _record_closed_positions_exits(
                                     f"[PHASE 9] Position {symbol} was already finalized (status='closed'), "
                                     f"skipping position update since algo_trades exit was recorded"
                                 )
-                            exits_recorded += 1
                             write_cursor.execute(f"RELEASE SAVEPOINT {sp}")
                             logger.info(
                                 f"Recorded exit: {symbol} {position_qty}sh @ ${exit_price:.2f} ({price_source}) on {run_date} "
@@ -1536,6 +1689,14 @@ def run(
     except Exception as cleanup_err:
         logger.warning(f"[PHASE 9] Orphan cleanup step encountered unexpected error: {cleanup_err}", exc_info=True)
         # Don't halt Phase 9 for cleanup failures - proceed with reconciliation
+
+    # MAINTENANCE: Repair trades with missing exit_price (data corruption from previous runs)
+    # This detects trades where exit_date was set but exit_price stayed NULL
+    try:
+        _repair_missing_exit_prices(log_phase_result_fn)
+    except Exception as repair_err:
+        logger.warning(f"[PHASE 9] Exit price repair step encountered unexpected error: {repair_err}", exc_info=True)
+        # Don't halt Phase 9 for repair failures - proceed with reconciliation
 
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation

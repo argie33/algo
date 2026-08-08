@@ -313,23 +313,35 @@ def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict
             return None
         return None if val != val else val  # NaN check
 
-    rows: list[dict[str, Any]] = []
+    # CRITICAL FIX (Session 45): Deduplicate earnings dates within a single symbol
+    # yfinance may return the same earnings_date multiple times (index duplicates or
+    # different timestamps on the same date). A single INSERT batch can't upsert the
+    # same (symbol, earnings_date) pair twice - Postgres raises CardinalityViolation.
+    # Keep the row with the most recent data (latest timestamp), same as
+    # fetch_analyst_actions() does for (action_date, firm) duplicates.
+    by_date: dict[date, tuple[Any, dict[str, Any]]] = {}
     for ts, row in df.iterrows():
         try:
             earnings_date = ts.date() if hasattr(ts, "date") else ts
         except (AttributeError, ValueError):
             continue
 
-        rows.append(
-            {
-                "symbol": symbol,
-                "earnings_date": earnings_date,
-                "eps_estimate": _num(row, "EPS Estimate"),
-                "actual_eps": _num(row, "Reported EPS"),
-                "surprise_pct": _num(row, "Surprise(%)"),
-            }
-        )
+        data = {
+            "symbol": symbol,
+            "earnings_date": earnings_date,
+            "eps_estimate": _num(row, "EPS Estimate"),
+            "actual_eps": _num(row, "Reported EPS"),
+            "surprise_pct": _num(row, "Surprise(%)"),
+        }
 
+        # Keep the entry with the latest timestamp for this date
+        # (in case yfinance updates an earnings record intraday)
+        existing = by_date.get(earnings_date)
+        if existing is not None and existing[0] >= ts:
+            continue  # already have a same-or-later timestamp
+        by_date[earnings_date] = (ts, data)
+
+    rows = [v[1] for v in by_date.values()]
     return rows or None
 
 
