@@ -58,7 +58,8 @@ def get_loader_class_for_file(loader_filename: str):
     """Dynamically import loader class from filename.
 
     Example: 'load_prices.py' → from loaders.load_prices import PriceLoader
-    Returns the first OptimalLoader subclass found in the module.
+    Returns the first OptimalLoader subclass with non-empty table_name found in the module.
+    FIXED: Skip OptimalLoader base class (has empty table_name) and find the actual subclass.
     """
     if loader_filename.endswith(".py"):
         module_name = loader_filename[:-3]
@@ -68,13 +69,14 @@ def get_loader_class_for_file(loader_filename: str):
     try:
         module = importlib.import_module(f"loaders.{module_name}")
 
-        # Find first OptimalLoader subclass
+        # Find OptimalLoader subclass with non-empty table_name (skip base class)
         for attr_name in dir(module):
             obj = getattr(module, attr_name)
-            if isinstance(obj, type) and hasattr(obj, 'table_name'):
+            if isinstance(obj, type) and hasattr(obj, 'table_name') and obj.table_name:
+                # Found a class with non-empty table_name, return it
                 return obj
 
-        logger.error(f"[LOADER] Could not find OptimalLoader subclass in loaders.{module_name}")
+        logger.error(f"[LOADER] Could not find OptimalLoader subclass with table_name in loaders.{module_name}")
         return None
     except ImportError as e:
         logger.error(f"[LOADER] Could not import loaders.{module_name}: {e}")
