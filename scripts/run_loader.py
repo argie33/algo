@@ -6,10 +6,10 @@ across 13+ hand-written run_*_loader() functions. Refactored to import loader cl
 from the registry (single source of truth) and consolidate symbol fetching into helper functions.
 
 Usage:
-  python3 scripts/run_loader_consolidated.py load_prices --symbols AAPL,SPY --backfill 30
-  python3 scripts/run_loader_consolidated.py load_technical_indicators
-  python3 scripts/run_loader_consolidated.py load_stock_scores --limit 100
-  python3 scripts/run_loader_consolidated.py --list-loaders  # Show available loaders
+  python3 scripts/run_loader.py load_prices --symbols AAPL,SPY --backfill 30
+  python3 scripts/run_loader.py load_technical_indicators
+  python3 scripts/run_loader.py load_stock_scores --limit 100
+  python3 scripts/run_loader.py --list-loaders  # Show available loaders
 
 This bypasses the full orchestrator and Step Functions to test individual loaders quickly.
 

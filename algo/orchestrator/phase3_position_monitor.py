@@ -729,10 +729,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
         for attempt in range(max_retries):
             try:
-                # CRITICAL FIX 2026-08-06: Use previous trading day, not run_date
-                # price_daily only has through yesterday during intraday runs
+                # CRITICAL FIX 2026-08-08: Use current run_date for position monitoring
+                # Previous fix (2026-08-06) used yesterday's prices, breaking detection of same-day losses
+                # Must use run_date to detect same-day entry losses in live mode too
                 from datetime import timedelta
-                monitoring_date = run_date - timedelta(days=1)
+                monitoring_date = run_date
                 recommendations = monitor.review_positions(monitoring_date)
                 break  # Success - exit retry loop
             except Exception as review_err:
