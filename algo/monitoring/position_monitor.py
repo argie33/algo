@@ -1176,7 +1176,18 @@ class PositionMonitor:
             cap = float(Decimal(str(cur_price)) - atr_dec)
             candidates = [c for c in candidates if c <= cap]
             if not candidates:
-                candidates = [cap]
+                # CRITICAL FIX (Session 55): If cap is <= 0 due to very large ATR,
+                # don't use it as stop-loss (would allow unlimited downside).
+                # Instead, clamp to minimum of 1 cent above zero or entry_price * 0.5
+                if cap > 0:
+                    candidates = [cap]
+                else:
+                    min_stop = max(0.01, entry_price * 0.5)
+                    candidates = [min_stop]
+                    logger.warning(
+                        f"  ATR too large: cap={cap:.2f} <= 0. Clamping stop to min={min_stop:.2f} "
+                        f"(50% of entry ${entry_price:.2f}) to prevent unlimited downside."
+                    )
 
         # For a stop loss, pick the highest valid candidate (most conservative protection).
         # This ratchets stops UP as price rises, but never above current price - ATR.
