@@ -2899,17 +2899,28 @@ def run(
 
             sig_date_obj = signal.get("signal_date")
             if sig_date_obj:
+                # Convert signal_date to date object if it's a string
                 if isinstance(sig_date_obj, str):
-                    sig_date_obj = datetime.fromisoformat(sig_date_obj).date()
-                run_date_obj = run_date if isinstance(run_date, _date) else run_date.date()
-                signal_age_days = (run_date_obj - sig_date_obj).days
-                signal_age_hours = signal_age_days * 24
-                if signal_age_hours > max_signal_age_hours:
-                    rejection_reason = f"Signal too old: {signal_age_days}d {signal_age_hours}h (max {max_signal_age_hours}h). Generated {sig_date_obj}, entered {run_date_obj}."
-                    logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
-                    _log_signal_rejection(symbol, "stale_signal", rejection_reason, run_date, entry_price, risk_pct)
-                    skipped_count += 1
-                    continue
+                    try:
+                        sig_date_obj = datetime.fromisoformat(sig_date_obj).date()
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_obj}': {e}. Skipping age check.")
+                        sig_date_obj = None
+                elif not isinstance(sig_date_obj, _date):
+                    logger.warning(f"[PHASE 8] {symbol}: signal_date has unexpected type {type(sig_date_obj).__name__}. Skipping age check.")
+                    sig_date_obj = None
+
+                # Only check signal age if we have a valid date
+                if sig_date_obj:
+                    run_date_obj = run_date if isinstance(run_date, _date) else run_date.date()
+                    signal_age_days = (run_date_obj - sig_date_obj).days
+                    signal_age_hours = signal_age_days * 24
+                    if signal_age_hours > max_signal_age_hours:
+                        rejection_reason = f"Signal too old: {signal_age_days}d {signal_age_hours}h (max {max_signal_age_hours}h). Generated {sig_date_obj}, entered {run_date_obj}."
+                        logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
+                        _log_signal_rejection(symbol, "stale_signal", rejection_reason, run_date, entry_price, risk_pct)
+                        skipped_count += 1
+                        continue
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
             min_sqs_val = config.get("min_signal_quality_score")
@@ -2972,13 +2983,19 @@ def run(
 
                         # CRITICAL FIX (Session 30): Convert signal_date from string to date object
                         # Phase 7 stores signal_date as ISO string, but TradeContext expects date object
-                        sig_date = signal.get("signal_date")
-                        if isinstance(sig_date, str):
+                        # Ensure sig_date is always a date object before passing to execute_trade
+                        sig_date_raw = signal.get("signal_date")
+                        if isinstance(sig_date_raw, str):
                             try:
-                                sig_date = datetime.strptime(sig_date, "%Y-%m-%d").date()
-                            except (ValueError, TypeError):
+                                sig_date = datetime.strptime(sig_date_raw, "%Y-%m-%d").date()
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_raw}': {e}. Using run_date instead.")
                                 sig_date = run_date
-                        sig_date = sig_date or run_date
+                        elif isinstance(sig_date_raw, _date):
+                            sig_date = sig_date_raw
+                        else:
+                            # signal_date is None or unexpected type
+                            sig_date = run_date
 
                         trade_result = trade_executor.execute_trade(
                             symbol=symbol,
