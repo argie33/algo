@@ -2807,12 +2807,14 @@ def run(
 
             # Regime-aware, drawdown-adjusted sizing
 
+            # CRITICAL FIX: Ensure portfolio_value is Decimal - sizer does Decimal arithmetic
+            pv_for_sizer = portfolio_value if isinstance(portfolio_value, Decimal) else Decimal(str(portfolio_value))
             sizing = sizer.calculate_position_size(
                 symbol=symbol,
                 entry_price=entry_price,
                 stop_loss_price=stop_loss,
                 signal_date=run_date,
-                portfolio_value=portfolio_value,
+                portfolio_value=pv_for_sizer,
             )
 
             if "status" not in sizing or sizing["status"] is None:
