@@ -3,15 +3,13 @@
 import logging
 import time
 from collections.abc import Callable
-from datetime import date as _date, datetime, time as _time
+from datetime import date as _date, time as _time
 from decimal import Decimal
 from typing import Any, cast
-from zoneinfo import ZoneInfo
 
 import psycopg2
 
 from algo.exceptions import ValidationError
-from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
@@ -22,7 +20,6 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
-from utils.infrastructure import EASTERN_TZ
 from utils.trading.status import PositionStatus
 
 logger = logging.getLogger(__name__)
@@ -1224,100 +1221,88 @@ def run(
         engine_exits = 0
         engine_stop_raises = 0
         engine_errors = 0
-        engine_market_hours_blocked = False
         if not dry_run and trade_executor is not None:
-            # CRITICAL: Exit engine requires current/intraday prices to detect stop losses
-            # Outside market hours, only yesterday's close is available, which can't be used
-            # to check if today's stop loss was triggered. Guard prevents running with stale prices.
-            now_dt = datetime.now(EASTERN_TZ)
-            if not MarketCalendar.is_market_open(now_dt):
-                close_time = "1:00 PM" if MarketCalendar.is_early_close(now_dt.date()) else "4:00 PM"
-                msg = (
-                    f"[PHASE 6 MARKET HOURS GUARD] Cannot execute exits outside market hours - "
-                    f"exit evaluation requires intraday pricing to detect stop losses. "
-                    f"Current time: {now_dt.strftime('%H:%M:%S')} ET, "
-                    f"market hours: 9:30 AM - {close_time} ET. Skipping exit engine."
-                )
-                logger.warning(msg)
-                engine_market_hours_blocked = True
-            else:
-                engine = ExitEngine(config)
-                engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
-                exit_count += engine_exits
-                # CRITICAL FIX: engine_exits used to also include the engine's own internal
-                # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
-                # exit_count while this phase's separate `stop_raises` counter (from the
-                # Phase-3-recommendation path above) stayed unrelated - so this summary line
-                # could read "16 exits, 0 stop-raises" when 0 positions actually closed and
-                # all 16 were stop-raises. Now added to the same counter its name promises.
-                stop_raises += engine_stop_raises
-                # CRITICAL FIX: check_and_execute_exits() catches per-trade exceptions
-                # internally (logs "Exit check failed for X" and moves on to the next
-                # position) so a real failure never raised past this call - it just
-                # silently produced no exit/stop check for that position this run. This
-                # count was previously discarded entirely, so the phase always reported
-                # "0 errors" and status "ok" no matter how many positions failed their
-                # exit evaluation (confirmed against a live run's log showing 8 logged
-                # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
-                errors += engine_errors
+            # CRITICAL FIX (Session 35): Exit engine can now use EOD prices as fallback
+            # When market is open: uses current/intraday prices via Alpaca API
+            # When market is closed: falls back to price_daily close prices
+            # This allows exits to run all day, not just during market hours
+            engine = ExitEngine(config)
+            engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
+            exit_count += engine_exits
+            # CRITICAL FIX: engine_exits used to also include the engine's own internal
+            # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
+            # exit_count while this phase's separate `stop_raises` counter (from the
+            # Phase-3-recommendation path above) stayed unrelated - so this summary line
+            # could read "16 exits, 0 stop-raises" when 0 positions actually closed and
+            # all 16 were stop-raises. Now added to the same counter its name promises.
+            stop_raises += engine_stop_raises
+            # CRITICAL FIX: check_and_execute_exits() catches per-trade exceptions
+            # internally (logs "Exit check failed for X" and moves on to the next
+            # position) so a real failure never raised past this call - it just
+            # silently produced no exit/stop check for that position this run. This
+            # count was previously discarded entirely, so the phase always reported
+            # "0 errors" and status "ok" no matter how many positions failed their
+            # exit evaluation (confirmed against a live run's log showing 8 logged
+            # "Exit check failed" errors alongside a "0 errors" Phase 6 summary).
+            errors += engine_errors
 
-                # FIX SESSION 43: Portfolio rotation safety check
-                # If portfolio is full (15/15) and exit engine did 0 exits (only stops-raises),
-                # force-close oldest position to prevent deadlock
-                # CRITICAL FIX 2026-08-08: Check both engine_stop_raises AND stop_raises
-                # stop_raises includes Phase 3 recommendations processed by Phase 6, not just ExitEngine results
-                # Without this, portfolio rotation wouldn't fire when only Phase 3 raised stops
-                try:
-                    with DatabaseContext("read") as cur:
-                        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity > 0")
-                        open_count = cur.fetchone()[0]
-                        config_max = config.get("max_positions")
-                        if config_max and open_count >= int(config_max) and engine_exits == 0 and (engine_stop_raises > 0 or stop_raises > 0):
-                            logger.warning(
-                                f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/{int(config_max)}) but exit engine only raised stops (0 exits). "
-                                f"Forcing rotation by closing oldest position..."
-                            )
-                            with DatabaseContext("write") as cur_w:
-                                # CRITICAL FIX 2026-08-08: Fetch current_price when selecting oldest position
-                                # to avoid NULL exit_price in trades table
-                                cur_w.execute("""
-                                    SELECT id, position_id, symbol, unrealized_pnl, entry_date, current_price
-                                    FROM algo_positions
-                                    WHERE status = 'open' AND quantity > 0
-                                    ORDER BY entry_date ASC
-                                    LIMIT 1
-                                """)
-                                oldest = cur_w.fetchone()
-                                if oldest:
-                                    pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
-                                    # CRITICAL FIX 2026-08-08: Set profit_loss_dollars when closing position
-                                    # Previous bug: only set exit_reason, leaving P/L as NULL
-                                    pnl_dollars = float(pnl) if pnl is not None else 0.0
-                                    cur_w.execute(
-                                        "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, "
-                                        "exit_reason = %s, profit_loss_dollars = %s, unrealized_pnl = NULL, "
-                                        "current_price = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                                        ("portfolio_rotation_safety_check", pnl_dollars,
-                                         float(current_price) if current_price is not None else None, pos_id)
+            # FIX SESSION 43: Portfolio rotation safety check
+            # If portfolio is full (15/15) and exit engine did 0 exits (only stops-raises),
+            # force-close oldest position to prevent deadlock
+            # CRITICAL FIX 2026-08-08: Check both engine_stop_raises AND stop_raises
+            # stop_raises includes Phase 3 recommendations processed by Phase 6, not just ExitEngine results
+            # Without this, portfolio rotation wouldn't fire when only Phase 3 raised stops
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity > 0")
+                    open_count = cur.fetchone()[0]
+                    config_max = config.get("max_positions")
+                    if config_max and open_count >= int(config_max) and engine_exits == 0 and (engine_stop_raises > 0 or stop_raises > 0):
+                        logger.warning(
+                            f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/{int(config_max)}) but exit engine only raised stops (0 exits). "
+                            f"Forcing rotation by closing oldest position..."
+                        )
+                        with DatabaseContext("write") as cur_w:
+                            # CRITICAL FIX 2026-08-08: Fetch current_price when selecting oldest position
+                            # to avoid NULL exit_price in trades table
+                            cur_w.execute("""
+                                SELECT id, position_id, symbol, unrealized_pnl, entry_date, current_price
+                                FROM algo_positions
+                                WHERE status = 'open' AND quantity > 0
+                                ORDER BY entry_date ASC
+                                LIMIT 1
+                            """)
+                            oldest = cur_w.fetchone()
+                            if oldest:
+                                pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
+                                # CRITICAL FIX 2026-08-08: Set profit_loss_dollars when closing position
+                                # Previous bug: only set exit_reason, leaving P/L as NULL
+                                pnl_dollars = float(pnl) if pnl is not None else 0.0
+                                cur_w.execute(
+                                    "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, "
+                                    "exit_reason = %s, profit_loss_dollars = %s, unrealized_pnl = NULL, "
+                                    "current_price = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                                    ("portfolio_rotation_safety_check", pnl_dollars,
+                                     float(current_price) if current_price is not None else None, pos_id)
+                                )
+                                # Also update algo_trades for audit trail (if they exist)
+                                cur_w.execute(
+                                    "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP, exit_price = %s, "
+                                    "profit_loss_dollars = %s, "
+                                    "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
+                                    (
+                                        float(current_price) if current_price is not None else None,
+                                        pnl_dollars,
+                                        "portfolio_rotation_safety_check",
+                                        pos_uuid
                                     )
-                                    # Also update algo_trades for audit trail (if they exist)
-                                    cur_w.execute(
-                                        "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_time = CURRENT_TIMESTAMP, exit_price = %s, "
-                                        "profit_loss_dollars = %s, "
-                                        "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
-                                        (
-                                            float(current_price) if current_price is not None else None,
-                                            pnl_dollars,
-                                            "portfolio_rotation_safety_check",
-                                            pos_uuid
-                                        )
-                                    )
-                                    exit_count += 1
-                                    logger.warning(
-                                        f"[PHASE 6 PORTFOLIO_ROTATION] Closed {symbol} (oldest, entry {entry_date}, P&L ${pnl}) to enable daily rotation"
-                                    )
-                except Exception as e:
-                    logger.error(f"[PHASE 6] Portfolio rotation safety check failed: {e}")
+                                )
+                                exit_count += 1
+                                logger.warning(
+                                    f"[PHASE 6 PORTFOLIO_ROTATION] Closed {symbol} (oldest, entry {entry_date}, P&L ${pnl}) to enable daily rotation"
+                                )
+            except Exception as e:
+                logger.error(f"[PHASE 6] Portfolio rotation safety check failed: {e}")
         elif dry_run:
             # In dry-run mode, log what the exit engine WOULD have checked
             logger.info("[DRY-RUN] Exit engine checks (tiered targets/stops/time) would run, but execution skipped")
@@ -1340,10 +1325,7 @@ def run(
         # algo_audit_log and was pushed live via the event hub's PhaseCompletedEvent before
         # that correction ran - same non-canonical-status-string bug class as the phase 7
         # "no_signals" fix, just not yet exercised because this code path is dead in dry-run.
-        if engine_market_hours_blocked:
-            phase_status = "blocked"
-            detail_text = "MARKET HOURS GUARD: exit engine skipped (requires intraday pricing)"
-        elif dry_run:
+        if dry_run:
             phase_status = "degraded"
             detail_text = f"DRY-RUN: execution skipped (no real trades) - would have: {exit_count} exits, {stop_raises} stop-raises"
         else:
