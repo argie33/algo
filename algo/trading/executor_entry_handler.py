@@ -581,6 +581,24 @@ class EntryHandler:
                 ),
             )
             logger.info(f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id} status={request.order_status} position_id={request.position_id}")
+
+            # CRITICAL VALIDATION: Verify that open trades NEVER have exit_price set
+            # If exit_price is set for an open trade, it indicates a bug in entry logic or data corruption
+            cur.execute(
+                "SELECT exit_price FROM algo_trades WHERE trade_id = %s",
+                (request.trade_id,)
+            )
+            verify_row = cur.fetchone()
+            if verify_row and verify_row[0] is not None and request.order_status in ('open', 'paper_pending', 'pending', 'filled', 'partially_filled'):
+                logger.critical(
+                    f"[TRADE INSERT VALIDATION CRITICAL] {request.symbol}: Trade {request.trade_id} has "
+                    f"status='{request.order_status}' but exit_price={verify_row[0]} (should be NULL for open trades). "
+                    f"This indicates a data corruption bug - exit_price must NEVER be set for open trades!"
+                )
+                raise ValueError(
+                    f"[CRITICAL BUG] Trade inserted with status='open' but exit_price is set to {verify_row[0]}. "
+                    f"Open trades must have exit_price=NULL. This is a data integrity violation."
+                )
         except Exception as e:
             logger.critical(
                 f"[TRADE INSERT FAILED] {request.symbol}: trade_id={request.trade_id}, "
@@ -911,8 +929,37 @@ class EntryHandler:
 
         # Generate position_id upfront so it can be linked in both trade and position records
         import uuid
+        from utils.db.context import DatabaseContext
 
-        position_id = str(uuid.uuid4())
+        # CRITICAL FIX: Check if an open position already exists for this symbol (from a prior entry in the same day).
+        # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
+        position_id = None
+        logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing open position created today...")
+        try:
+            with DatabaseContext("read") as read_cursor:
+                read_cursor.execute(
+                    """
+                    SELECT position_id FROM algo_positions
+                    WHERE symbol = %s AND status = 'open'
+                    AND created_at::date = CURRENT_DATE
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                existing_pos = read_cursor.fetchone()
+                if existing_pos:
+                    position_id = existing_pos[0]
+                    logger.critical(f"[POSITION REUSE] {symbol}: Reusing existing open position {position_id}")
+                else:
+                    logger.debug(f"[POSITION DEDUP] {symbol}: No existing open position found, will create new")
+        except Exception as e:
+            logger.error(f"[POSITION DEDUP ERROR] {symbol}: {type(e).__name__}: {e}", exc_info=True)
+
+        # If no existing position found, generate new position_id
+        if position_id is None:
+            position_id = str(uuid.uuid4())
+            logger.debug(f"[POSITION CREATE] {symbol}: Generated new position_id {position_id}")
 
         # Resolve the FINAL order_status and actual filled share count BEFORE building the
         # trade record, so algo_trades and algo_positions can never disagree. Previously this
