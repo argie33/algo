@@ -1162,6 +1162,14 @@ class EntryHandler:
                 if risk_per_share > 0:
                     r_multiple = 0.0
 
+            # CRITICAL FIX: Calculate and persist position-level risk_pct
+            # This is the percentage risk of the trade based on stop loss distance
+            # Formula: (entry_price - stop_loss) / entry_price * 100
+            # This field is REQUIRED by circuit_breaker.py for portfolio risk calculation
+            risk_pct = None
+            if executed_price and stop_loss_price and executed_price > 0:
+                risk_pct = ((executed_price - stop_loss_price) / executed_price) * 100.0
+
             try:
                 logger.critical(
                     f"[POSITION INSERT] About to insert position for {symbol} "
@@ -1176,11 +1184,11 @@ class EntryHandler:
                         trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
                         target_1_price, target_2_price, target_3_price,
                         target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                        r_multiple, cognito_sub, metrics_updated_at, created_at
+                        r_multiple, risk_pct, cognito_sub, metrics_updated_at, created_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
-                        %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                     )
                     """,
                     (
@@ -1219,6 +1227,7 @@ class EntryHandler:
                         self.t2_target_r_multiple if target_2_price else None,
                         self.t3_target_r_multiple if target_3_price else None,
                         r_multiple,
+                        risk_pct,
                         get_algo_owner_cognito_sub(),
                     ),
                 )

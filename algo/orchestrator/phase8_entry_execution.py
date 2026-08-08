@@ -2407,11 +2407,13 @@ def run(
                         continue
 
                     # Get position size from sizer
+                    # CRITICAL FIX: Ensure portfolio_value is Decimal - sizer does Decimal arithmetic
+                    pv_for_sizer = portfolio_value if isinstance(portfolio_value, Decimal) else Decimal(str(portfolio_value))
                     position_result = sizer.calculate_position_size(
                         symbol=symbol,
                         entry_price=entry_price,
                         stop_loss_price=stop_loss,
-                        portfolio_value=portfolio_value,
+                        portfolio_value=pv_for_sizer,
                         enforce_total_risk_limit=False,
                     )
 
