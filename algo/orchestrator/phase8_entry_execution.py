@@ -1945,7 +1945,7 @@ def run(
 
                 with DatabaseContext("write") as cur:
                     cur.execute("""
-                        SELECT id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
+                        SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
                         FROM algo_positions
                         WHERE status = 'open' AND quantity > 0 AND entry_date = %s
                         ORDER BY unrealized_pnl ASC
@@ -1962,7 +1962,7 @@ def run(
                             f"Falling back to closing worst-performing positions from any date..."
                         )
                         cur.execute("""
-                            SELECT id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
+                            SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
                             FROM algo_positions
                             WHERE status = 'open' AND quantity > 0
                             ORDER BY unrealized_pnl ASC, entry_date ASC
@@ -1977,7 +1977,7 @@ def run(
                             f"Force-closing worst {min(3, len(positions_to_close))} to free capacity ({close_reason})..."
                         )
 
-                        for pos_id, symbol, qty, pnl, pnl_pct, entry_date in positions_to_close:
+                        for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date in positions_to_close:
                             if available_slots >= 1:
                                 break
                             try:
@@ -1985,7 +1985,7 @@ def run(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        exit_reason = 'emergency_close_portfolio_full|{close_reason}'
                                        WHERE id = %s""",
-                                    (pos_id,)
+                                    (pos_int_id,)
                                 )
 
                                 cur.execute(
@@ -1994,18 +1994,18 @@ def run(
                                        exit_reason = 'emergency_close_portfolio_full|{close_reason}',
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE position_id = %s""",
-                                    (None, pnl, pnl_pct, pos_id)
+                                    (None, pnl, pnl_pct, pos_uuid_id)
                                 )
 
                                 logger.warning(
-                                    f"[PHASE 8 EMERGENCY_CLOSE] Closed {symbol} (pos_id={pos_id}): "
+                                    f"[PHASE 8 EMERGENCY_CLOSE] Closed {symbol} (pos_id={pos_uuid_id}): "
                                     f"entry={entry_date}, qty={qty}, P&L=${pnl:.2f} ({pnl_pct:+.2f}%)"
                                 )
                                 forced_close_count += 1
                                 available_slots += 1
                             except Exception as close_err:
                                 logger.error(
-                                    f"[PHASE 8] Failed to emergency-close {symbol} (pos_id={pos_id}): {close_err}"
+                                    f"[PHASE 8] Failed to emergency-close {symbol} (pos_id={pos_uuid_id}): {close_err}"
                                 )
 
                         if forced_close_count > 0:
