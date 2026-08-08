@@ -6,6 +6,7 @@ Responsibility: Fetch price data from yfinance API with error handling, retries,
 """
 
 import logging
+import os
 import random
 import threading
 import time
@@ -189,13 +190,30 @@ class PriceFetcher:
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
 
+        # CRITICAL FIX (Session 55): Use orchestrator's run_date if available, not system date.
+        # When orchestrator simulates 2026-08-12 but system is 2026-08-08, the price fetcher
+        # must use 2026-08-12 to determine what date's data to fetch. This prevents the
+        # fetch_incremental logic from thinking "system is Saturday, so fetch Friday's data"
+        # when the orchestrator actually needs Wednesday's data.
+        orchestrator_run_date_str = os.getenv("ORCHESTRATOR_RUN_DATE")
+        if orchestrator_run_date_str:
+            try:
+                run_date_obj = date.fromisoformat(orchestrator_run_date_str)
+                reference_date = run_date_obj
+                logger.info(f"[{symbol}] Using ORCHESTRATOR_RUN_DATE ({reference_date}) instead of system date ({now_et.date()})")
+            except ValueError:
+                logger.warning(f"[{symbol}] Invalid ORCHESTRATOR_RUN_DATE format, using system date")
+                reference_date = now_et.date()
+        else:
+            reference_date = now_et.date()
+
         # CRITICAL FIX: During trading hours (9:30 AM - 4:00 PM ET), don't fetch today's data.
         # yfinance returns partial/intraday OHLC during market hours, which violates OHLC logic
         # (e.g., low > min(open, close) for data still forming). This causes the price validator
         # to reject all today's rows as corrupted data. Only fetch complete daily closes.
         # After market close (4:00 PM+), yfinance has today's final OHLC, so fetch it.
         # EOD pipeline (which runs after 4 PM) always fetches today's data.
-        end_date = now_et.date()
+        end_date = reference_date
         if not is_eod_pipeline:
             # Morning/afternoon runs: only fetch through yesterday if market is open
             market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)

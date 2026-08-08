@@ -2250,6 +2250,9 @@ class PriceLoader(OptimalLoader):
         else:
             now_et = datetime.now(EASTERN_TZ)
             run_date = now_et.date()
+
+        # Store run_date as instance variable so staleness checks use the correct date
+        self._run_date_context = run_date
         if not MarketCalendar.is_trading_day(run_date):
             logger.info(
                 f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
@@ -2408,7 +2411,8 @@ class PriceLoader(OptimalLoader):
 
                 # SESSION 297 FIX: Check if watermarks are stale (>2 days old)
                 # If so, force a fresh fetch from 7 days ago to break deadlock
-                today = datetime.now(EASTERN_TZ).date()
+                # CRITICAL FIX (Session 55): Use orchestrator's run_date, not system date
+                today = getattr(self, '_run_date_context', datetime.now(EASTERN_TZ).date())
                 days_stale = (today - previous_date).days
                 if days_stale > 2:
                     logger.warning(
