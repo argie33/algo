@@ -579,7 +579,7 @@ class EntryHandler:
                     request.position_id,
                 ),
             )
-            logger.info(f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id}")
+            logger.info(f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id} status={request.order_status} position_id={request.position_id}")
         except Exception as e:
             logger.critical(
                 f"[TRADE INSERT FAILED] {request.symbol}: trade_id={request.trade_id}, "
