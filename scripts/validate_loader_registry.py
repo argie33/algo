@@ -28,9 +28,17 @@ except ImportError as e:
 
 
 def load_scheduler_config():
-    """Load PIPELINES and LOADER_TIMEOUTS from scheduler."""
+    """Load PIPELINES and LOADER_TIMEOUTS from scheduler.
+
+    Returns:
+        (pipelines, loader_timeouts, shorthand_count)
+        - pipelines: dict of pipeline names to loader lists
+        - loader_timeouts: dict of unique loader filenames that have timeouts
+        - shorthand_count: number of shorthand aliases defined (before deduplication)
+    """
     pipelines = {}
     loader_timeouts = {}
+    shorthand_count = 0
 
     try:
         # Direct import
@@ -56,19 +64,20 @@ def load_scheduler_config():
             dict_lines = content[start:end+1]
             # Extract all timeout key names (shorthand names)
             shorthand_matches = re.findall(r'"([^"]+)":\s*\d+', dict_lines)
+            shorthand_count = len(shorthand_matches)
             # Convert shorthand to filenames
             for shorthand in shorthand_matches:
                 if shorthand in SHORTHAND_TO_FILENAME:
                     loader_timeouts[SHORTHAND_TO_FILENAME[shorthand]] = True
 
-        return pipelines, loader_timeouts
+        return pipelines, loader_timeouts, shorthand_count
     except Exception as e:
         print(f"WARNING: Could not load scheduler config: {e}", file=sys.stderr)
-        return pipelines, loader_timeouts
+        return pipelines, loader_timeouts, shorthand_count
 
 
 def main():
-    pipelines, loader_timeouts = load_scheduler_config()
+    pipelines, loader_timeouts, timeout_shorthand_count = load_scheduler_config()
 
     print("=" * 70)
     print("LOADER REGISTRY CONSISTENCY AUDIT")
@@ -77,14 +86,8 @@ def main():
     all_loaders = set(LOADER_TABLES.keys())
     shorthand_loaders = set(SHORTHAND_TO_FILENAME.values())
 
-    # Map timeout shorthand names to actual loader filenames
-    timeout_loader_names = set()
-    for shorthand_name in loader_timeouts.keys():
-        if shorthand_name in SHORTHAND_TO_FILENAME:
-            timeout_loader_names.add(SHORTHAND_TO_FILENAME[shorthand_name])
-        else:
-            # Timeout key doesn't map to any known shorthand (potential issue)
-            timeout_loader_names.add(shorthand_name)
+    # loader_timeouts keys are already converted to filenames by load_scheduler_config
+    timeout_loader_names = set(loader_timeouts.keys())
 
     # Convert pipelines to filenames
     pipeline_loaders = set()
@@ -98,8 +101,10 @@ def main():
 
     print(f"\nRegistry Statistics:")
     print(f"  Total loaders in LOADER_TABLES: {len(all_loaders)}")
-    print(f"  Shorthand aliases (some point to same loader): {sum(1 for _ in loader_timeouts.keys())}")
+    print(f"  Shorthand aliases defined: {timeout_shorthand_count}")
     print(f"  Unique loaders with timeout definitions: {len(timeout_loader_names)}")
+    if timeout_shorthand_count > len(timeout_loader_names):
+        print(f"    (Note: {timeout_shorthand_count - len(timeout_loader_names)} alias(es) map to same loader as another)")
     print(f"  Loaders scheduled in PIPELINES: {len(pipeline_loaders)}")
 
     issues = []
@@ -131,6 +136,14 @@ def main():
                 print(f"    Shorthand: {', '.join(shorthand_names)}")
     else:
         print("Check 3: All loaders have timeout definitions [OK]")
+
+    # Check 3b: Warn about orphaned timeout definitions
+    orphaned_timeouts = timeout_loader_names - all_loaders
+    if orphaned_timeouts:
+        print(f"\nCheck 3b: WARNING - Timeout definitions for unknown loaders:")
+        for loader in sorted(orphaned_timeouts):
+            print(f"  {loader} (may indicate a typo in scheduler timeouts)")
+            issues.append(f"ORPHANED_TIMEOUT: {loader} has no corresponding loader in LOADER_TABLES")
 
     # Check 4: Warn about loaders not scheduled in any pipeline
     unscheduled = all_loaders - pipeline_loaders

@@ -154,12 +154,15 @@ def all_tables(loader_name: str) -> list[str]:
 # 2. SHORTHAND: What local_loader_scheduler.py uses (friendly names)
 #    Examples: "prices", "technical", "market_status"
 #    Used in PIPELINES dict (morning, metrics, signals)
+#    Note: Some loaders have multiple shorthand aliases (e.g., load_risk_metrics_daily.py
+#    is accessible as both "momentum" and "stability_metrics" for user convenience)
 #
 # 3. TASK_DEFINITION: What terraform/lambda use (ECS task definitions + table names)
 #    Examples: "stock_prices_daily", "technical_data_daily"
 #    Used in terraform loader_file_map keys and Lambda VALID_LOADER_NAMES
 #
 # The mappings below normalize these to avoid drift.
+# Design: 34 shorthand aliases → 33 unique loaders (1 loader has 2 aliases).
 
 SHORTHAND_TO_FILENAME: dict[str, str] = {
     # Core pricing & market data
