@@ -88,7 +88,39 @@ def scheduler_loop() -> None:
     sessions_str = ", ".join(f"{k}={v.strftime('%H:%M')} ET" for k, v in TRADING_SESSIONS.items())
     logger.info(f"Trading sessions scheduled for: {sessions_str}")
 
-    executed_today = set()
+    # CRITICAL FIX SESSION 53: Persist executed sessions to database instead of in-memory set
+    # Previous bug: executed_today was only in memory, so any scheduler restart cleared it,
+    # causing all sessions to re-run on the same day. With 189 runs on 2026-08-07, we need
+    # persistent tracking to prevent duplicate session execution after process restarts.
+    from datetime import date as _date_class
+    from utils.db.connection import get_db_connection
+
+    def get_executed_sessions(today: _date_class) -> set[str]:
+        """Get sessions already executed today from database."""
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT run_id FROM orchestrator_execution_log WHERE DATE(started_at) = %s",
+                    (today,)
+                )
+                runs = cur.fetchall()
+                # Extract session names from run_ids (format: LOCAL-{SESSION_NAME}-...)
+                sessions = set()
+                for (run_id,) in runs:
+                    # Parse "LOCAL-AFTERNOON-..." or "LOCAL-MORNING-..." etc
+                    parts = run_id.split('-')
+                    if len(parts) >= 2:
+                        session = parts[1].lower()
+                        if session in TRADING_SESSIONS:
+                            sessions.add(session)
+                return sessions
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to fetch executed sessions from database: {e}. Assuming none executed.")
+            return set()
+
+    executed_today = get_executed_sessions(datetime.now(ET).date())
 
     while True:
         now = datetime.now(ET)
@@ -110,6 +142,11 @@ def scheduler_loop() -> None:
                 now.time()
                 time_until = datetime.combine(now.date(), session_time, tzinfo=ET) - now
                 time_until_secs = max(0, int(time_until.total_seconds()))
+
+                # CRITICAL FIX SESSION 53: Re-check database to handle manual runs or other scheduler instances
+                # Reload executed sessions from database each time we check (handles concurrent runs)
+                current_executed = get_executed_sessions(now.date())
+                executed_today.update(current_executed)
 
                 if session_name not in executed_today:
                     # Check if it's time to run (within 2 minutes of scheduled time)
