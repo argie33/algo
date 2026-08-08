@@ -2781,9 +2781,12 @@ def run(
 
             shares = sizing["shares"]
 
-            # CRITICAL FIX: Convert to float before arithmetic - Decimal * float raises TypeError
+            # CRITICAL FIX: Convert to Decimal for arithmetic consistency, then to float for APIs
             # Load-bearing rule: Convert Decimal→float before math (feedback_psycopg2_decimal_arithmetic)
-            position_value = float(shares) * float(entry_price)
+            # Shares is int from sizer, entry_price is float from DB
+            shares_dec = Decimal(str(shares))
+            entry_price_dec = Decimal(str(entry_price))
+            position_value = float((shares_dec * entry_price_dec).quantize(Decimal("0.01")))
 
             # Final hard-stop validation (includes earnings blackout check)
 

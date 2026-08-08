@@ -597,29 +597,27 @@ def run(
                     total_value = result[0] if result else 0
 
                     if total_value is None or total_value == 0:
-                        # FALLBACK: No snapshot exists (dev environment or first ever run)
-                        # Use current sum of open position values as denominator for concentration check
-                        # This is NOT ideal (shrinking denominator problem) but better than skipping check entirely
-                        logger.warning(
-                            "[PHASE 6] No portfolio snapshot found for concentration check. "
-                            "Using current sum of open position values as fallback denominator."
+                        # CRITICAL FIX SESSION 60: NO FALLBACK - must have portfolio snapshot
+                        # Previous: Used SUM(position_value) as fallback, causing "shrinking denominator" bug:
+                        # - When positions close, denominator shrinks
+                        # - Remaining positions appear LARGER percentage than they are
+                        # - Causes false force-exits or prevents proper concentration detection
+                        # - Oscillating exits result
+                        #
+                        # SOLUTION: HALT if no portfolio snapshot. This is not optional.
+                        # Portfolio snapshot is mandatory for safe concentration calculations.
+                        # If missing, Phase 9 (Reconciliation) has not run, so don't force-exit yet.
+                        error_msg = (
+                            f"[PHASE 6 CRITICAL] Portfolio snapshot missing or has 0 value. "
+                            f"Cannot safely calculate position concentrations without portfolio baseline. "
+                            f"Concentration enforcement is mandatory for risk management - cannot proceed. "
+                            f"This indicates Phase 9 (Reconciliation) has not run successfully today, "
+                            f"or run_date is mismatched. Check: (1) Phase 9 logs for errors, "
+                            f"(2) algo_portfolio_snapshots table for run_date={run_date}, "
+                            f"(3) Orchestrator run_date vs system date."
                         )
-                        cur.execute(
-                            """
-                            SELECT COALESCE(SUM(position_value), 0)
-                            FROM algo_positions
-                            WHERE status = 'open' AND position_value > 0
-                            """
-                        )
-                        fallback_result = cur.fetchone()
-                        total_value = fallback_result[0] if fallback_result else 0
-
-                        if total_value is None or total_value == 0:
-                            logger.warning(
-                                "[PHASE 6] No portfolio snapshot AND no open positions with value. "
-                                "Concentration checks not possible - skipping."
-                            )
-                            return []
+                        logger.critical(error_msg)
+                        raise RuntimeError(error_msg)
 
                     try:
                         total_value_float = _ensure_float(total_value, "total_portfolio_value")
