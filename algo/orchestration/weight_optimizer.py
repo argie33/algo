@@ -67,14 +67,21 @@ class WeightOptimizer:
         """
         if config is None:
             raise ValueError("WeightOptimizer requires explicit config parameter (dependency injection)")
+
+        # Detailed config validation with helpful debugging
+        config_type_name = type(config).__name__
+        config_module = type(config).__module__
+
         if not hasattr(config, "get"):
             raise ValueError(
-                f"config missing get() method. Expected AlgoConfig, got {type(config).__name__}. "
+                f"config missing get() method. Expected AlgoConfig, got {config_module}.{config_type_name}. "
+                f"Config is_dict={isinstance(config, dict)}, has_keys={hasattr(config, 'keys')}, "
+                f"dir_methods={[m for m in dir(config) if not m.startswith('_')][:5]}. "
                 f"Config object: {str(config)[:100]}"
             )
         if not hasattr(config, "set"):
             raise ValueError(
-                f"config missing set() method. Expected AlgoConfig, got {type(config).__name__}. "
+                f"config missing set() method. Expected AlgoConfig, got {config_module}.{config_type_name}. "
                 f"Config object: {str(config)[:100]}"
             )
         self.config = config
