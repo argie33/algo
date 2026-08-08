@@ -2294,7 +2294,16 @@ def run(
 
                     shares = position_result.get("shares", 0)
                     if shares == 0:
-                        skipped_reason_counts['sizer_zero_shares'] = skipped_reason_counts.get('sizer_zero_shares', 0) + 1
+                        # CRITICAL FIX (Session 41): Log the actual sizer rejection reason, not just "sizer_zero_shares"
+                        # Sizer can reject for: no_room, drawdown_halt, phase_climax, invalid, concentration, etc.
+                        sizer_status = position_result.get("status", "unknown")
+                        sizer_reason = position_result.get("reason", "no reason provided")
+                        skip_key = f'sizer_{sizer_status}' if sizer_status != "unknown" else 'sizer_zero_shares'
+                        skipped_reason_counts[skip_key] = skipped_reason_counts.get(skip_key, 0) + 1
+                        logger.debug(
+                            f"[PHASE 8 SIZER] {symbol}: Rejected with shares=0. "
+                            f"Status={sizer_status}, Reason={sizer_reason}"
+                        )
                         continue
 
                     position_value = Decimal(shares) * Decimal(str(entry_price))
@@ -2319,22 +2328,35 @@ def run(
             # If some but not all signals fit, update the list and log
             if len(qualified_trades_that_fit) < len(qualified_trades):
                 skip_summary = ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items())) if skipped_reason_counts else "none"
+                # CRITICAL FIX (Session 41): Log is misleading if sizer rejected for "no_room" (position limit)
+                # Check if the main rejection reason is position limit, and adjust label accordingly
+                is_position_limit_issue = 'sizer_no_room' in skipped_reason_counts and skipped_reason_counts.get('sizer_no_room', 0) == len(qualified_trades)
+                label = "[PHASE 8 POSITION_LIMIT]" if is_position_limit_issue else "[PHASE 8 CONCENTRATION]"
                 logger.info(
-                    f"[PHASE 8 CONCENTRATION] {len(qualified_trades_that_fit)} of {len(qualified_trades)} "
-                    f"signals fit within {tier_max_conc_val:.0f}% concentration limit. "
-                    f"Total concentration would be: {cumulative_conc:.1f}%. "
+                    f"{label} {len(qualified_trades_that_fit)} of {len(qualified_trades)} "
+                    f"signals processed (concentration limit: {tier_max_conc_val:.0f}%). "
+                    f"Total would be: {cumulative_conc:.1f}%. "
                     f"Proceeding with {len(qualified_trades_that_fit)} highest-quality signals. "
                     f"(Skipped: {skip_summary})"
                 )
                 qualified_trades = qualified_trades_that_fit
             elif len(qualified_trades_that_fit) == 0:
                 skip_summary = ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items())) if skipped_reason_counts else "unknown"
-                msg = (
-                    f"[PHASE 8 PRE-ENTRY CONCENTRATION] No signals fit within {tier_max_conc_val:.0f}% "
-                    f"concentration limit. Evaluated {len(qualified_trades)} signals. "
-                    f"Skipped: {skip_summary}. "
-                    f"Rejecting ALL trades to maintain concentration policy. Blocked by individual limits: []"
-                )
+                # CRITICAL FIX (Session 41): Distinguish position limit issues from concentration issues
+                is_position_limit_issue = 'sizer_no_room' in skipped_reason_counts and skipped_reason_counts.get('sizer_no_room', 0) == len(qualified_trades)
+                if is_position_limit_issue:
+                    msg = (
+                        f"[PHASE 8 POSITION_LIMIT] Cannot enter new trades: position limit reached. "
+                        f"Evaluated {len(qualified_trades)} signals, all rejected (reason: {skipped_reason_counts.get('sizer_no_room', 0)}/sizer_no_room). "
+                        f"Must close existing positions to make room for new entries. "
+                        f"Skipped details: {skip_summary}"
+                    )
+                else:
+                    msg = (
+                        f"[PHASE 8 PRE-ENTRY] No signals fit within {tier_max_conc_val:.0f}% "
+                        f"concentration limit. Evaluated {len(qualified_trades)} signals. "
+                        f"Rejecting ALL trades. Rejection breakdown: {skip_summary}"
+                    )
                 logger.warning(msg)
                 log_phase_result_fn(8, "entry_execution", "blocked", msg)
                 return PhaseResult(
