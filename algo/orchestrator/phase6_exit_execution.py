@@ -1261,8 +1261,10 @@ def run(
                                 f"Forcing rotation by closing oldest position..."
                             )
                             with DatabaseContext("write") as cur_w:
+                                # CRITICAL FIX 2026-08-08: Fetch current_price when selecting oldest position
+                                # to avoid NULL exit_price in trades table
                                 cur_w.execute("""
-                                    SELECT id, position_id, symbol, unrealized_pnl, entry_date
+                                    SELECT id, position_id, symbol, unrealized_pnl, entry_date, current_price
                                     FROM algo_positions
                                     WHERE status = 'open' AND quantity > 0
                                     ORDER BY entry_date ASC
@@ -1270,14 +1272,23 @@ def run(
                                 """)
                                 oldest = cur_w.fetchone()
                                 if oldest:
-                                    pos_id, pos_uuid, symbol, pnl, entry_date = oldest
+                                    pos_id, pos_uuid, symbol, pnl, entry_date, current_price = oldest
                                     cur_w.execute(
                                         "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, exit_reason = %s WHERE id = %s",
                                         ("portfolio_rotation_safety_check", pos_id)
                                     )
+                                    # CRITICAL FIX: Set exit_price, profit_loss_dollars, profit_loss_pct when closing
                                     cur_w.execute(
-                                        "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
-                                        ("portfolio_rotation_safety_check", pos_uuid)
+                                        "UPDATE algo_trades SET status = 'closed', exit_date = CURRENT_DATE, exit_price = %s, "
+                                        "profit_loss_dollars = %s, profit_loss_pct = %s, "
+                                        "exit_reason = %s, updated_at = CURRENT_TIMESTAMP WHERE position_id = %s",
+                                        (
+                                            float(current_price) if current_price is not None else None,
+                                            float(pnl) if pnl is not None else None,
+                                            None,  # profit_loss_pct calculated by trigger
+                                            "portfolio_rotation_safety_check",
+                                            pos_uuid
+                                        )
                                     )
                                     exit_count += 1
                                     logger.warning(

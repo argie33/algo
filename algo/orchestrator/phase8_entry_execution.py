@@ -1946,8 +1946,12 @@ def run(
                 with DatabaseContext("write") as cur:
                     # FIX: Priority 1 = oldest positions (most time in portfolio, should rotate out)
                     # Previous logic closed worst P&L first, which blocked rotation of small winners
+                    # CRITICAL FIX 2026-08-08: Fetch current_price and entry_price in initial query
+                    # to avoid NULL exit_price when positions are closed. Previously re-queried
+                    # and could return NULL if price data hadn't been refreshed.
                     cur.execute("""
-                        SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date
+                        SELECT id, position_id, symbol, quantity, unrealized_pnl, unrealized_pnl_pct, entry_date,
+                               current_price, entry_price
                         FROM algo_positions
                         WHERE status = 'open' AND quantity > 0
                         ORDER BY entry_date ASC
@@ -1968,17 +1972,22 @@ def run(
                             f"[PHASE 8 EMERGENCY_CLOSE] Force-closing oldest {min(3, len(positions_to_close))} to maintain rotation policy..."
                         )
 
-                        for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date in positions_to_close:
+                        for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date, current_price, entry_price in positions_to_close:
                             # Only break if we've successfully freed at least 1 slot AND have enough space
                             # Don't break on first iteration (forced_close_count=0) even if available_slots=1
                             if forced_close_count >= 1 and available_slots >= 1:
                                 logger.info(f"[PHASE 8 EMERGENCY_CLOSE] Freed {forced_close_count} slot(s), stopping at {available_slots} available")
                                 break
                             try:
-                                # Get current price for exit_price field (not NULL)
-                                cur.execute("SELECT current_price FROM algo_positions WHERE id = %s", (pos_int_id,))
-                                price_row = cur.fetchone()
-                                exit_price = price_row[0] if price_row and price_row[0] else None
+                                # CRITICAL FIX: Use current_price if available, fall back to entry_price
+                                # Never use NULL - emergency close must have a valid exit price
+                                exit_price = current_price if current_price is not None else entry_price
+                                if exit_price is None:
+                                    logger.error(
+                                        f"[PHASE 8 EMERGENCY_CLOSE CRITICAL] {symbol} (pos_id={pos_uuid_id}) has no current_price or entry_price. "
+                                        f"Cannot safely close without exit price. Skipping this position."
+                                    )
+                                    continue
 
                                 cur.execute(
                                     f"""UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
@@ -1993,7 +2002,7 @@ def run(
                                        exit_reason = 'emergency_close_portfolio_full|{close_reason}',
                                        updated_at = CURRENT_TIMESTAMP
                                        WHERE position_id = %s""",
-                                    (exit_price, pnl, pnl_pct, pos_uuid_id)
+                                    (float(exit_price), float(pnl) if pnl else None, float(pnl_pct) if pnl_pct else None, pos_uuid_id)
                                 )
 
                                 logger.warning(
