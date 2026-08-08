@@ -1202,7 +1202,7 @@ class EntryHandler:
                             current_price = %s, position_value = %s,
                             unrealized_pnl = %s, unrealized_pnl_pct = %s,
                             status = %s, entry_date = %s, trade_ids = %s,
-                            trade_ids_arr = %s, current_stop_price = %s, stop_loss_price = %s,
+                            trade_ids_arr = %s, stop_loss_price = %s,
                             target_1_price = %s, target_2_price = %s, target_3_price = %s,
                             target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
                             r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
@@ -1213,7 +1213,7 @@ class EntryHandler:
                             executed_price, position_value,
                             0, 0,
                             position_status, entry_date, trade_ids_text,
-                            updated_trades_arr, stop_loss_price, stop_loss_price,
+                            updated_trades_arr, stop_loss_price,
                             target_1_price, target_2_price, target_3_price,
                             self.t1_target_r_multiple if target_1_price else None,
                             self.t2_target_r_multiple if target_2_price else None,
