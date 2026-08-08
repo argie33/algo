@@ -211,6 +211,19 @@ SHORTHAND_TO_FILENAME: dict[str, str] = {
 }
 
 
+def get_table_names() -> frozenset[str]:
+    """Return all table names from LOADER_TABLES (primary tables only, for Lambda validation).
+
+    This is the source of truth for valid loader identifiers used in terraform's
+    loader_file_map and Lambda's VALID_LOADER_NAMES. Always derived from LOADER_TABLES
+    so drift is impossible.
+
+    Returns:
+        Frozenset of primary table names (e.g., {"stock_prices_daily", "technical_data_daily", ...})
+    """
+    return frozenset(tables[0] for tables in LOADER_TABLES.values())
+
+
 def normalize_loader_name(name: str) -> str:
     """Convert a shorthand or filename to the canonical filename format.
 

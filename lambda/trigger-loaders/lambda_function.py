@@ -19,53 +19,18 @@ from base_handler import LambdaHandler, LambdaResponse, create_lambda_handler
 
 logger = logging.getLogger()
 
-# Mirrors terraform/modules/loaders/main.tf's `loader_file_map` keys -- the only
-# task-definition families Terraform actually provisions and keeps deployed.
-# Without this allowlist, an arbitrary/misremembered loader_name (e.g. the retired
-# "stock_symbols" alias for what's now "market_constituents") silently launches
-# whatever stale/orphaned ECS task definition still happens to exist by that name
-# instead of failing with a clear error.
-VALID_LOADER_NAMES = frozenset(
-    {
-        "stock_prices_daily",
-        "technical_data_daily",
-        "trend_template_data",
-        "market_exposure_daily",
-        # DEPRECATED (Session 275): yfinance_snapshot replaced by SEC loaders
-        # "yfinance_snapshot",
-        "quality_metrics",
-        "growth_metrics",
-        "value_metrics",
-        "positioning_metrics",
-        "company_profile",
-        # DEPRECATED (Session 349): earnings_history is orphaned (no writer, never populated)
-        # "earnings_history",
-        "earnings_calendar",
-        "stability_metrics",
-        "momentum_metrics",
-        "stock_scores",
-        "market_constituents",
-        "market_health_daily",
-        "market_sentiment",
-        # DEPRECATED (Session 273): Consolidated into sector_industry_daily
-        # "sector_ranking", "industry_ranking", "sector_performance"
-        "algo_metrics_daily",
-        "buy_sell_daily",
-        "economic_data",
-        "financials_all",
-        "sector_industry_daily",
-        # NEW SEC loaders (Session 274-275)
-        "company_info_sec",
-        "earnings_calendar_sec",
-        "institutional_holdings_13f",
-        "insider_holdings_sec",
-        # DEPRECATED (2026-07-27): sec_cash_flow_metrics removed - duplicated quality_metrics
-        # formulas exactly, zero incremental signal for real SEC API cost. Terraform no longer
-        # provisions this task definition.
-        # "sec_cash_flow_metrics",
-        "sec_segment_metrics",
-    }
-)
+# Import the canonical loader registry (single source of truth)
+# Add repo root to path so we can import loaders module
+repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, repo_root)
+from loaders.loader_registry import get_table_names
+
+# VALID_LOADER_NAMES is auto-generated from loaders/loader_registry.py, so it stays
+# in sync with terraform's loader_file_map keys automatically. Without this allowlist,
+# an arbitrary/misremembered loader_name (e.g. the retired "stock_symbols" alias for
+# what's now "market_constituents") silently launches whatever stale/orphaned ECS
+# task definition still happens to exist by that name instead of failing with a clear error.
+VALID_LOADER_NAMES = get_table_names()
 
 
 class TriggerLoadersHandler(LambdaHandler):
