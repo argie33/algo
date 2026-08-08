@@ -2786,12 +2786,14 @@ def run(
             # Shares is int from sizer, entry_price is float from DB
             shares_dec = Decimal(str(shares))
             entry_price_dec = Decimal(str(entry_price))
-            position_value = float((shares_dec * entry_price_dec).quantize(Decimal("0.01")))
+            position_value_dec = (shares_dec * entry_price_dec).quantize(Decimal("0.01"))
+            position_value_float: float = float(position_value_dec)
+            portfolio_value_float: float = float(portfolio_value)
 
             # Final hard-stop validation (includes earnings blackout check)
 
             try:
-                pt_ok, pt_reason = pretrade.run_all(symbol, position_value, float(portfolio_value), eval_date=run_date)
+                pt_ok, pt_reason = pretrade.run_all(symbol, position_value_float, portfolio_value_float, eval_date=run_date)
 
             except ValueError as e:
                 raise RuntimeError(
