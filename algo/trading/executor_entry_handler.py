@@ -1177,17 +1177,30 @@ class EntryHandler:
                 existing_position = cur.fetchone()
 
                 if existing_position:
-                    # Position exists - UPDATE instead of INSERT
-                    logger.critical(
-                        f"[POSITION UPDATE] Reopening existing position for {symbol} "
-                        f"(position_id={position_id}, trade_id={trade_id})"
-                    )
-                    # Fetch existing trade_ids_arr to append new trade_id
+                    # Position exists - fetch current status to determine if reopening or adding
                     cur.execute(
-                        "SELECT trade_ids_arr FROM algo_positions WHERE position_id = %s",
+                        "SELECT trade_ids_arr, status FROM algo_positions WHERE position_id = %s",
                         (position_id,)
                     )
-                    existing_trades_result = cur.fetchone()
+                    fetch_result = cur.fetchone()
+                    existing_trades_result = fetch_result
+                    existing_status = fetch_result[1] if fetch_result and len(fetch_result) > 1 else None
+
+                    is_reopening_closed_position = existing_status == 'closed'
+                    if is_reopening_closed_position:
+                        logger.critical(
+                            f"[POSITION REOPEN] {symbol}: Reopening CLOSED position "
+                            f"(position_id={position_id}, trade_id={trade_id}). "
+                            f"Will reset current_stop_price to new stop_loss_price."
+                        )
+                    else:
+                        logger.critical(
+                            f"[POSITION UPDATE] {symbol}: Adding to OPEN position "
+                            f"(position_id={position_id}, trade_id={trade_id}). "
+                            f"Will preserve existing current_stop_price."
+                        )
+
+                    # Fetch existing trade_ids_arr to append new trade_id
                     existing_trades_arr = existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
                     # Append new trade_id if not already present
                     updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
@@ -1195,33 +1208,64 @@ class EntryHandler:
                         updated_trades_arr.append(trade_id)
                     trade_ids_text = ','.join(updated_trades_arr) if updated_trades_arr else None
 
-                    cur.execute(
-                        """
-                        UPDATE algo_positions
-                        SET quantity = %s, avg_entry_price = %s, entry_price = %s,
-                            current_price = %s, position_value = %s,
-                            unrealized_pnl = %s, unrealized_pnl_pct = %s,
-                            status = %s, entry_date = %s, trade_ids = %s,
-                            trade_ids_arr = %s, stop_loss_price = %s,
-                            target_1_price = %s, target_2_price = %s, target_3_price = %s,
-                            target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
-                            r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
-                        WHERE position_id = %s
-                        """,
-                        (
-                            actual_shares, executed_price, executed_price,
-                            executed_price, position_value,
-                            0, 0,
-                            position_status, entry_date, trade_ids_text,
-                            updated_trades_arr, stop_loss_price,
-                            target_1_price, target_2_price, target_3_price,
-                            self.t1_target_r_multiple if target_1_price else None,
-                            self.t2_target_r_multiple if target_2_price else None,
-                            self.t3_target_r_multiple if target_3_price else None,
-                            r_multiple, risk_pct,
-                            position_id
-                        ),
-                    )
+                    if is_reopening_closed_position:
+                        # Reopening closed position: reset current_stop_price to new stop_loss_price
+                        cur.execute(
+                            """
+                            UPDATE algo_positions
+                            SET quantity = %s, avg_entry_price = %s, entry_price = %s,
+                                current_price = %s, position_value = %s,
+                                unrealized_pnl = %s, unrealized_pnl_pct = %s,
+                                status = %s, entry_date = %s, trade_ids = %s,
+                                trade_ids_arr = %s, current_stop_price = %s, stop_loss_price = %s,
+                                target_1_price = %s, target_2_price = %s, target_3_price = %s,
+                                target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
+                                r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
+                            WHERE position_id = %s
+                            """,
+                            (
+                                actual_shares, executed_price, executed_price,
+                                executed_price, position_value,
+                                0, 0,
+                                position_status, entry_date, trade_ids_text,
+                                updated_trades_arr, stop_loss_price, stop_loss_price,
+                                target_1_price, target_2_price, target_3_price,
+                                self.t1_target_r_multiple if target_1_price else None,
+                                self.t2_target_r_multiple if target_2_price else None,
+                                self.t3_target_r_multiple if target_3_price else None,
+                                r_multiple, risk_pct,
+                                position_id
+                            ),
+                        )
+                    else:
+                        # Adding to open position: preserve current_stop_price
+                        cur.execute(
+                            """
+                            UPDATE algo_positions
+                            SET quantity = %s, avg_entry_price = %s, entry_price = %s,
+                                current_price = %s, position_value = %s,
+                                unrealized_pnl = %s, unrealized_pnl_pct = %s,
+                                status = %s, entry_date = %s, trade_ids = %s,
+                                trade_ids_arr = %s, stop_loss_price = %s,
+                                target_1_price = %s, target_2_price = %s, target_3_price = %s,
+                                target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
+                                r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
+                            WHERE position_id = %s
+                            """,
+                            (
+                                actual_shares, executed_price, executed_price,
+                                executed_price, position_value,
+                                0, 0,
+                                position_status, entry_date, trade_ids_text,
+                                updated_trades_arr, stop_loss_price,
+                                target_1_price, target_2_price, target_3_price,
+                                self.t1_target_r_multiple if target_1_price else None,
+                                self.t2_target_r_multiple if target_2_price else None,
+                                self.t3_target_r_multiple if target_3_price else None,
+                                r_multiple, risk_pct,
+                                position_id
+                            ),
+                        )
                     logger.critical(
                         f"[POSITION UPDATE] Successfully reopened position for {symbol} "
                         f"(position_id={position_id}, trade_id={trade_id})"
