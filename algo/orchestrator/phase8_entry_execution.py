@@ -1969,7 +1969,9 @@ def run(
                         )
 
                         for pos_int_id, pos_uuid_id, symbol, qty, pnl, pnl_pct, entry_date in positions_to_close:
-                            if available_slots >= 1:
+                            # Only break if we've successfully freed at least 1 slot AND have enough space
+                            # Don't break on first iteration (forced_close_count=0) even if available_slots=1
+                            if forced_close_count >= 1 and available_slots >= 1:
                                 logger.info(f"[PHASE 8 EMERGENCY_CLOSE] Freed {forced_close_count} slot(s), stopping at {available_slots} available")
                                 break
                             try:
