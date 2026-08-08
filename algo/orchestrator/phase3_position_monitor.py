@@ -503,7 +503,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                             logger.info(
                                 "[PHASE 3 RAISE_STOP] %s: new_stop=%.2f, reason=%s",
                                 rec["symbol"],
-                                rec.get("new_stop", 0),
+                                rec.get("new_stop_recommended", 0),
                                 rec.get("action_reason", "no reason")
                             )
                     break  # Success - exit retry loop

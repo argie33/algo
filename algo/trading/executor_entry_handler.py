@@ -220,6 +220,14 @@ class EntryHandler:
         entry_price = Decimal(str(entry_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP)
         stop_loss_price = Decimal(str(stop_loss_price)).quantize(Decimal("0.0001"), ROUND_HALF_UP)
 
+        # CRITICAL FIX: Initialize position_id BEFORE any database checks that might fail
+        # Previously position_id was initialized after the idempotent duplicate check,
+        # so if a DatabaseError occurred, position_id would be undefined when the exception
+        # handler tried to use it, causing a NameError. Initializing here ensures it's
+        # always defined for use in idempotency key and error handling.
+        import uuid
+        position_id = None
+
         # Check for idempotent duplicate (same symbol + signal_date = same signal, should not re-enter)
         def _check_idem_dup(cur: PsycopgCursor[Any]) -> dict[str, str] | None:
             is_dup, msg, existing_id = self.validator.check_idempotent_duplicate(
@@ -244,15 +252,10 @@ class EntryHandler:
             logger.error(f"Failed to check for idempotent duplicate: {e}")
             raise
 
-        # CRITICAL FIX: Generate position_id UPFRONT before using in idempotency key (line 265)
-        # Previously this was delayed until line 940, causing NameError when used at line 265
-        import hashlib
-        import uuid
-        from utils.db.context import DatabaseContext
-
         # CRITICAL FIX: Check if an open position already exists for this symbol (from a prior entry in the same day).
         # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
-        position_id = None
+        import hashlib
+        from utils.db.context import DatabaseContext
         logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
         try:
             with DatabaseContext("read") as read_cursor:
@@ -396,7 +399,9 @@ class EntryHandler:
                     f"Cannot record position without actual fill price for accurate cost basis."
                 )
             if executed_price != entry_price:
-                slippage_pct = float(abs((executed_price - entry_price) / entry_price * 100))
+                ep = float(executed_price)
+                ep_price = float(entry_price)
+                slippage_pct = float(abs((ep - ep_price) / ep_price * 100))
                 if slippage_pct > 5.0:
                     logger.warning(
                         f"[SLIPPAGE ALERT] {symbol}: excessive slippage {slippage_pct:.2f}% "
