@@ -97,9 +97,9 @@ logger = logging.getLogger(__name__)
 from algo.orchestrator.validation_thresholds import (
     LIQUIDITY_CHECK_LIMIT,
     BUY_SELL_DAILY_ANOMALY_THRESHOLD,
+    PHASE7_LIQUIDITY_CHECK_WORKERS,
 )
 
-_MAX_WORKERS = 4
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
 
 
@@ -1932,7 +1932,7 @@ def run(  # noqa: C901
 
     if to_check:
         try:
-            executor = ThreadPoolExecutor(max_workers=_MAX_WORKERS, thread_name_prefix="phase7_liq")
+            executor = ThreadPoolExecutor(max_workers=PHASE7_LIQUIDITY_CHECK_WORKERS, thread_name_prefix="phase7_liq")
             pending_symbols = []
             completed_results = {}
 

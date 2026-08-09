@@ -70,6 +70,10 @@ BUY_SELL_DAILY_ANOMALY_THRESHOLD = 250  # Historical median 300-1000+
 # RATIONALE: Performance vs completeness tradeoff
 LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 (AUDIT FIX Session 276)
 
+# Number of worker threads for parallel liquidity checks in Phase 7
+# RATIONALE: Limits I/O contention on database connections
+PHASE7_LIQUIDITY_CHECK_WORKERS = 4
+
 # =============================================================================
 # DATA QUALITY THRESHOLDS
 # =============================================================================
@@ -135,6 +139,7 @@ def get_threshold(key: str, default: Any = None) -> Any:
         'MIN_SIGNAL_QUALITY_SCORE': MIN_SIGNAL_QUALITY_SCORE,
         'BUY_SELL_DAILY_ANOMALY_THRESHOLD': BUY_SELL_DAILY_ANOMALY_THRESHOLD,
         'LIQUIDITY_CHECK_LIMIT': LIQUIDITY_CHECK_LIMIT,
+        'PHASE7_LIQUIDITY_CHECK_WORKERS': PHASE7_LIQUIDITY_CHECK_WORKERS,
         'REJECTION_REASON_MAX_LEN': REJECTION_REASON_MAX_LEN,
         'MIN_PRICE_HISTORY_DAYS': MIN_PRICE_HISTORY_DAYS,
         'MIN_RISK_PER_TRADE_PCT': MIN_RISK_PER_TRADE_PCT,
