@@ -333,9 +333,23 @@ class AdvancedFilters:
                 components["earnings_quality_score"] = None
 
             # CATALYST (15)
-            grw_pts, grw_breakdown = self._growth_score(symbol, cur)
-            components["growth"] = grw_breakdown
-            subscores["catalyst"] += grw_pts
+            # FIX (2026-08-09): this used to propagate ValueError uncaught, unlike every other
+            # CATALYST/QUALITY dimension (earnings quality, analyst, insider all catch and fold
+            # into hard_fail below) - so a candidate merely missing growth_metrics data crashed
+            # the whole evaluate_candidate() call with an unhandled exception instead of a
+            # structured hard_fail result. Empirically this was 6/20 of the crashes seen when
+            # testing against real candidates (growth_metrics eps_growth_3y coverage is only
+            # ~62% - see advanced_filters_dead_code_investigation_20260809 memory).
+            try:
+                grw_pts, grw_breakdown = self._growth_score(symbol, cur)
+                components["growth"] = grw_breakdown
+                subscores["catalyst"] += grw_pts
+            except ValueError as e:
+                if not hard_fail:
+                    hard_fail = f"Growth data unavailable: {str(e)[:40]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (growth score) but already failed: {hard_fail}")
+                components["growth"] = None
 
             try:
                 an_pts, an_net = self._analyst_score(symbol, signal_date, cur)
