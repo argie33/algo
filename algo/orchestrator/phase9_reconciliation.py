@@ -266,20 +266,30 @@ def _populate_missing_trade_ids_arr(log_phase_result_fn: Callable[..., Any]) -> 
             if missing_count > 0:
                 logger.info(f"[PHASE 9] Found {missing_count} positions with missing trade_ids_arr - populating...")
 
-                # Update positions with their trade_ids from corresponding trades
-                cur.execute("""
+                # Update positions with their trade_ids from corresponding trades.
+                # Session 81: status filter broadened from ('open', 'filled') to
+                # TradeStatus.all_open() - a trade sitting in 'partially_filled'/
+                # 'paper_pending'/'pending'/'active' at repair time previously fell out of
+                # the ARRAY_AGG, so this repair silently failed to fix exactly the
+                # positions it exists to fix. Matches position_sync.py's LINKED_TRADE_STATUSES fix.
+                linked_statuses = TradeStatus.all_open()
+                status_placeholders = ",".join(["%s"] * len(linked_statuses))
+                cur.execute(
+                    f"""
                     UPDATE algo_positions ap SET
                         trade_ids_arr = t_agg.trade_ids,
                         updated_at = NOW()
                     FROM (
                         SELECT position_id, ARRAY_AGG(DISTINCT trade_id::text) as trade_ids
                         FROM algo_trades
-                        WHERE status IN ('open', 'filled')
+                        WHERE status IN ({status_placeholders})
                         GROUP BY position_id
                     ) t_agg
                     WHERE ap.position_id = t_agg.position_id
                     AND (ap.trade_ids_arr IS NULL OR array_length(ap.trade_ids_arr, 1) IS NULL)
-                """)
+                    """,
+                    linked_statuses,
+                )
 
                 updated_count = cur.rowcount
                 logger.info(f"[PHASE 9] Populated trade_ids_arr for {updated_count} positions")

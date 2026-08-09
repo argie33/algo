@@ -150,6 +150,8 @@ class PipelineHealth:
         "economic_data": {"date_column": "date", "sla_days": 7},
         "market_health_daily": {"date_column": "date", "sla_days": 1},
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
+        "algo_performance_metrics": {"date_column": "updated_at", "sla_days": 1},
+        "circuit_breaker_status": {"date_column": "updated_at", "sla_days": 1},
     }
 
     # Tables that only update once per trading day - a weekend/holiday gap since the

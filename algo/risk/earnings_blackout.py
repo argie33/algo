@@ -80,9 +80,15 @@ class EarningsBlackout:
                     }
 
                 # Check staleness: if last load was 2+ days ago, we may be missing recent earnings
-                from utils.infrastructure.timezone import EASTERN_TZ
-                now_et = datetime.now(EASTERN_TZ)
-                hours_since_last_load = (now_et.replace(tzinfo=timezone.utc) - last_load_time.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                # BUG (found Session 81): previously computed now_et = datetime.now(EASTERN_TZ) then
+                # did now_et.replace(tzinfo=timezone.utc) - .replace() relabels the tzinfo without
+                # converting the clock value, so an Eastern wall-clock reading (UTC-4/-5) got treated
+                # as if it were already UTC. That understated hours_since_last_load by 4-5 hours,
+                # silently letting the "48-hour" staleness gate tolerate ~52-53 hours of stale earnings
+                # data - undermining the exact safety check this function exists to enforce. Comparing
+                # against UTC directly avoids the ET round-trip entirely.
+                now_utc = datetime.now(timezone.utc)
+                hours_since_last_load = (now_utc - last_load_time.replace(tzinfo=timezone.utc)).total_seconds() / 3600
 
                 if hours_since_last_load > 48:
                     # Earnings data is 2+ days old - loader may have missed recent announcements

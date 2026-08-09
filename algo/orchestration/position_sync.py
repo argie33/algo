@@ -34,8 +34,20 @@ from typing import Tuple
 
 from algo.config.credential_manager import get_algo_owner_cognito_sub
 from utils.db import DatabaseContext
+from utils.trading import TradeStatus
 
 logger = logging.getLogger(__name__)
+
+# Statuses that represent a trade genuinely linked to a live/recent position. Session 81:
+# this previously only listed ('filled', 'open'), so a trade sitting in a transitional
+# broker status (partially_filled, paper_pending, pending, active) at the instant Phase 1
+# runs fell out of the ARRAY_AGG entirely - returning zero rows - and the position's
+# trade_ids_arr got overwritten with an empty array even though the position had a real,
+# just-momentarily-transitional trade. That's the "orphaned trade_ids_arr" fail-closed
+# halt in circuit_breaker.py's total-risk check (see feedback_array_agg_null_on_zero_rows).
+# Use the canonical status set (same one PositionSyncChecker/exit_engine were fixed to use
+# for the identical bug class) instead of a hand-rolled subset.
+LINKED_TRADE_STATUSES = TradeStatus.all_open()
 
 
 def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
@@ -163,11 +175,34 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
                         # if a symbol has been traded multiple times (closed/reopened).
                         cur.execute(
-                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s AND status IN (%s, %s)',
-                            (trade_position_id, 'filled', 'open')
+                            f'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s '
+                            f'AND status IN ({",".join(["%s"] * len(LINKED_TRADE_STATUSES))})',
+                            (trade_position_id, *LINKED_TRADE_STATUSES)
                         )
                         trade_ids_result = cur.fetchone()
-                        trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
+                        new_trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
+
+                        # Session 81: never overwrite a position's trade_ids_arr with an empty
+                        # result. ARRAY_AGG returns NULL on zero matching rows (e.g. a transient
+                        # status blip, or a race with the trade INSERT) - blindly writing that
+                        # through corrupts an already-correct trade_ids_arr and manufactures the
+                        # exact "orphaned trade_ids_arr" fail-closed halt this sync exists to
+                        # prevent. Fall back to whatever trade_ids_arr the position already has.
+                        if new_trade_ids_arr:
+                            trade_ids_arr = new_trade_ids_arr
+                        else:
+                            cur.execute(
+                                'SELECT trade_ids_arr FROM algo_positions WHERE position_id = %s',
+                                (existing_id,)
+                            )
+                            existing_arr_row = cur.fetchone()
+                            trade_ids_arr = existing_arr_row[0] if existing_arr_row and existing_arr_row[0] else []
+                            if trade_ids_arr:
+                                logger.warning(
+                                    f"[POSITION_SYNC] {symbol}: no trades matched linked-status filter "
+                                    f"for position_id={trade_position_id}; preserving existing "
+                                    f"trade_ids_arr ({len(trade_ids_arr)} id(s)) instead of blanking it."
+                                )
 
                         # Update existing position, reopen if needed, and sync stop_loss_price and trade_ids_arr
                         # CRITICAL: Use position_id to update ONLY this specific position (not all positions for the symbol)
@@ -243,8 +278,9 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
                         # if a symbol has been traded multiple times (closed/reopened).
                         cur.execute(
-                            'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s AND status IN (%s, %s)',
-                            (trade_position_id, 'filled', 'open')
+                            f'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s '
+                            f'AND status IN ({",".join(["%s"] * len(LINKED_TRADE_STATUSES))})',
+                            (trade_position_id, *LINKED_TRADE_STATUSES)
                         )
                         trade_ids_result = cur.fetchone()
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []

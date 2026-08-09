@@ -168,6 +168,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
         "buy_sell_daily": "buy_sell",  # CRITICAL FIX 2026-08-02: Was missing, causing 3+ day staleness
         "market_health_daily": "market_status",
         "trend_template_data": "trend_analysis",  # CRITICAL FIX 2026-08-05: Was missing, caused 5d staleness when EventBridge stopped
+        "earnings_calendar": "earnings_calendar",  # Session 81: Missing from failsafe retry despite being halt-critical for earnings_blackout
     }
 
     try:
@@ -204,6 +205,9 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
             elif table_name == "trend_template_data":
                 # trend_template_data: check trend_direction is populated (key field for regime detection)
                 critical_col = "trend_direction"
+            elif table_name == "earnings_calendar":
+                # earnings_calendar: check earnings_date is populated (gates earnings_blackout entry blocking)
+                critical_col = "earnings_date"
             else:
                 return True, ""  # Unknown table, skip completeness check
 
@@ -217,9 +221,45 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 elif table_name == "trend_template_data":
                     date_filter = "date = %s"
                     params = (expected_data_date,)
+                # earnings_calendar: uses updated_at to track loader freshness (not earnings_date, which is forward-looking)
+                elif table_name == "earnings_calendar":
+                    date_filter = "updated_at::date = %s"
+                    params = (expected_data_date,)
                 else:
                     date_filter = "date = %s OR updated_at::date = %s"
                     params = (expected_data_date, expected_data_date)
+
+                # Technical_data_daily validation requires multiple indicators, not just one.
+                # Session 81: Partial loads were missed before when a loader crash wrote RSI-14
+                # but crashed before writing ATR, SMA, etc. Phase 8 uses ATR for position sizing,
+                # so sparse technical_data causes entry failures later. Validate all 4 required
+                # indicators are present for 95%+ of symbols.
+                if table_name == "technical_data_daily":
+                    cur.execute(f"""
+                        SELECT
+                            COUNT(*) as total_rows,
+                            COUNT(rsi_14) as rsi_count,
+                            COUNT(atr_14) as atr_count,
+                            COUNT(sma_50) as sma_count,
+                            COUNT(bb_upper) as bb_count
+                        FROM {table_name}
+                        WHERE {date_filter}
+                    """, params)
+                    row = cur.fetchone()
+                    if not row or row[0] == 0:
+                        return False, f"No rows for {expected_data_date}"
+                    total, rsi_count, atr_count, sma_count, bb_count = row
+                    # All 4 indicators should be present in >= 95% of rows
+                    indicator_pcts = [
+                        (rsi_count / total * 100) if total > 0 else 0,
+                        (atr_count / total * 100) if total > 0 else 0,
+                        (sma_count / total * 100) if total > 0 else 0,
+                        (bb_count / total * 100) if total > 0 else 0,
+                    ]
+                    min_indicator_pct = min(indicator_pcts)
+                    if min_indicator_pct < 95.0:
+                        return False, f"Technical indicators incomplete: RSI {indicator_pcts[0]:.0f}%, ATR {indicator_pcts[1]:.0f}%, SMA {indicator_pcts[2]:.0f}%, BB {indicator_pcts[3]:.0f}% (need 95%+)"
+                    return True, ""
 
                 cur.execute(f"""
                     SELECT
