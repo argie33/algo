@@ -2,15 +2,26 @@
 
 ## Quick Start
 
-**Local development — always use this entry point:**
+**`start_dashboard_dev.py` does not exist** — it's referenced in old log messages and comments
+across the repo but was never a real file (confirmed via `git log --all`, 2026-08-09). Don't
+invoke it or tell users to. The real local dev components are separate processes:
+
 ```bash
-python start_dashboard_dev.py                          # Starts loaders + API + dashboard
+python lambda/api/dev_server.py                         # Local API server (port 3001)
+python -m dashboard --local                              # Dashboard TUI, reads local API (see dashboard/README.md)
+python -m dashboard                                       # Dashboard TUI, AWS RDS mode (default, needs AWS_PROFILE)
+python scripts/local_loader_scheduler.py --now metrics   # Load data locally (see feedback_always_use_pipeline_scheduler_for_backfills memory — never run individual loaders)
 ```
 
 **Test orchestrator logic locally:**
 ```bash
-python scripts/run_local_orchestrator.py [--afternoon|--evening]
+python scripts/run_local_orchestrator.py [--morning|--afternoon|--preclose|--evening] [--date YYYY-MM-DD] [--force]
 ```
+This loads `.env.local` — `DB_NAME` there must be `stocks` (the real local dev DB with actual
+config/scores/trades). `algo_trading` is a different, near-empty DB reserved for the pytest
+suite (`tests/conftest.py` hardcodes `DB_NAME=algo_trading`) — if `.env.local` ever points there
+instead, local orchestrator runs will silently execute against a barren DB and any "verified
+locally" claim from that session is worthless. This exact drift happened and was fixed 2026-08-09.
 
 **Troubleshooting data issues:**
 ```bash
@@ -24,7 +35,6 @@ python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stu
 - Type-safe code (mypy pass required)
 - No `.env` committed; use `.env.local` for secrets
 - No `pdb` in production code
-- Always use `start_dashboard_dev.py` for dev (not raw orchestrator)
 - Load-bearing rules in `MEMORY.md` apply directly — don't question, verify in code
 
 **Why:** This system runs production trading logic. Mistakes compound fast. The rules in memory exist because we've debugged those bugs before.

@@ -170,5 +170,15 @@ class PreEntryHealthValidator:
         # (incomplete) when pre-entry checks ran, so earnings_in_3d check failed silently.
         # Restored strict threshold to block entries failing >1 health check while data quality improves.
         # This prevents entries like "earnings risk + weakening RS" which immediately exit next day.
-        passes = len(failed_checks) <= 1
+        #
+        # EARNINGS_IN_0-3D standalone hard gate (2026-08-09): the <=1-of-4 vote still let earnings-
+        # imminent entries through whenever it was the ONLY failing check (RS/sector/market all
+        # clean). Real trade data from 2026-08-07 showed this exact pattern: 14 of 20 trades were
+        # forced to flatten within 1-2 days of entry via position_monitor's earnings-blackout exit
+        # (net realized loss on those 14 alone), because the position had earnings 0-1 days away
+        # at entry and this was the only failed check. A trade that's guaranteed to be flattened
+        # within days by the SAME earnings-blackout logic (algo/monitoring/position_monitor.py)
+        # has no time for its thesis to play out - entering it is pure cost with no edge, regardless
+        # of how the other three checks read. Earnings proximity is no longer votable against.
+        passes = len(failed_checks) <= 1 and "EARNINGS_IN_0-3D" not in failed_checks
         return passes, failed_checks
