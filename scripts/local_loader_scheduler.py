@@ -42,6 +42,13 @@ PIPELINES = {
         # FIXED 2026-08-03: same orphaned-loader bug - see run_enhanced_quality_growth_loader()
         # docstring. Must run after value_quality_growth (enhances its output rows).
         "enhanced_quality_growth",
+        # FIXED 2026-08-09: analyst_upgrade_downgrade & analyst_sentiment were "restored" in
+        # late July but never added to any pipeline - table was empty for ~2 months, causing
+        # _analyst_score() to silently return 0 for every symbol. These loaders are independent
+        # of the quality/growth metrics chain and populate analyst_upgrade_downgrade and
+        # analyst_sentiment_analysis tables used by signals and sentiment endpoints.
+        "analyst_upgrades",
+        "analyst_sentiment",
         "positioning_metrics",
         "stability_metrics",
     ],
