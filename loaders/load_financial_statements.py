@@ -728,8 +728,26 @@ def _run_symbol_pass(
     independent per-combo runs: one combo failing a symbol never blocks the
     other combos), and are counted in each loader's own stats so per-combo
     fail rates and status reporting stay accurate.
+
+    FIXED 2026-08-09: Added per-symbol timeout to prevent hangs on stuck SEC API calls.
+    If a single symbol takes >30s to process, skip it and move to next (marks as failed
+    to trigger watermark logic for retry). This prevents the entire 5300-symbol load
+    from stalling on one bad symbol.
     """
+    import signal
+    import threading
+
     sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+    per_symbol_timeout_seconds = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "30"))
+
+    def _load_symbol_with_timeout(loader, symbol, per_symbol_timeout):
+        """Load a single symbol with timeout protection."""
+        try:
+            loader.load_symbol(symbol)
+            return True
+        except Exception as e:
+            logger.error(f"[{loader.table_name}] {symbol} failed: {e}")
+            return False
 
     for i, symbol in enumerate(symbols, 1):
         if time.time() - start > sla_timeout_seconds:
@@ -757,13 +775,40 @@ def _run_symbol_pass(
 
         # The first combo's fetch downloads this symbol's companyfacts JSON;
         # the shared client's LRU serves the remaining combos from memory.
+        # Use timeout for each symbol to prevent single stuck symbol from halting entire run.
+        symbol_start = time.time()
         for loader in active:
-            try:
-                loader.load_symbol(symbol)
-                loader._stats.increment("symbols_processed")
-            except Exception as e:
+            symbol_elapsed = time.time() - symbol_start
+            remaining_timeout = max(1, per_symbol_timeout_seconds - symbol_elapsed)
+
+            # Run loader.load_symbol() in a thread with timeout
+            result = [False]  # mutable to capture result
+            exception = [None]  # mutable to capture exception
+
+            def run_with_timeout():
+                try:
+                    loader.load_symbol(symbol)
+                    result[0] = True
+                except Exception as e:
+                    exception[0] = e
+                    result[0] = False
+
+            thread = threading.Thread(target=run_with_timeout, daemon=False)
+            thread.start()
+            thread.join(timeout=remaining_timeout)
+
+            if thread.is_alive():
+                # Thread still running after timeout - mark as failed, continue
+                logger.warning(
+                    f"[{loader.table_name}] {symbol} exceeded per-symbol timeout ({per_symbol_timeout_seconds}s). Skipping."
+                )
                 loader._stats.increment("symbols_failed")
-                logger.error(f"[{loader.table_name}] {symbol} failed: {e}")
+            elif result[0]:
+                loader._stats.increment("symbols_processed")
+            else:
+                loader._stats.increment("symbols_failed")
+                if exception[0]:
+                    logger.error(f"[{loader.table_name}] {symbol} failed: {exception[0]}")
 
         if i % 100 == 0:
             logger.info(f"  Progress: {i}/{len(symbols)}")
