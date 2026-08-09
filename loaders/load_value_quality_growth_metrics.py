@@ -1619,8 +1619,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # result here always means the prior fiscal year's row was missing that
             # specific input, never a math failure. Surface that instead of leaving the
             # frontend with no reason code (renders as the ambiguous, unlabeled "No data"
-            # badge instead of an explained one). quarterly_growth_momentum excluded: it
-            # has no computation path at all (dead field, not a per-symbol data gap).
+            # badge instead of an explained one). quarterly_growth_momentum excluded: it's
+            # computed from quarterly (not prior-year annual) data in
+            # _compute_quarterly_metrics(), which sets its own reason (FIXED 2026-08-09: that
+            # function previously left it - and 3 sibling quarterly fields - unset with no
+            # reason when >=4 quarters existed but the growth-rate list still came out empty;
+            # a stale comment here previously called it a "dead field", which is wrong and led
+            # to a real bug: _insert_quality_metrics() hardcoded its DB column to None instead
+            # of reading the computed reason - fixed alongside this).
             # sustainable_growth_rate excluded from this blanket loop: FIXED 2026-08-04 -
             # unlike every other field here it uses NO prior-year data at all (see its own
             # computation above), so "insufficient_prior_year_data" was always a factually
@@ -2225,7 +2231,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("net_margin_trend_unavailable_reason"),
                 row.get("roe_trend_unavailable_reason"),
                 row.get("sustainable_growth_rate_unavailable_reason"),
-                None,  # quarterly_growth_momentum_unavailable_reason - dead field, no computation path
+                row.get("quarterly_growth_momentum_unavailable_reason"),
                 row.get("fcf_growth_yoy_unavailable_reason"),
                 row.get("ocf_growth_yoy_unavailable_reason"),
                 row.get("asset_growth_yoy_unavailable_reason"),
@@ -2434,6 +2440,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "cash_per_share_unavailable_reason": "missing_sec_data",
                 "earnings_growth_yoy_unavailable_reason": "missing_sec_data",
                 "revenue_growth_yoy_unavailable_reason": "missing_sec_data",
+                # _SHARED_TREND_FIELDS (consecutive_positive_quarters, earnings_growth_4q_avg,
+                # eps_growth_stability, quarterly_growth_momentum, earnings_surprise_avg,
+                # earnings_beat_rate, and the *_yoy/*_trend fields) - these are also
+                # quality_metrics columns but were missing from this fallback marker, leaving
+                # ~344-3,173 rows per field (whichever symbols hit this fully-unavailable path)
+                # with a NULL value AND no reason code, indistinguishable from a bug.
+                **{field: None for field in _SHARED_TREND_FIELDS},
+                **{f"{field}_unavailable_reason": "missing_sec_data" for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient SEC financial data",
@@ -2455,6 +2469,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_1y_unavailable_reason": "insufficient_history",
                 "eps_growth_3y_unavailable_reason": "insufficient_history",
                 "eps_growth_5y_unavailable_reason": "insufficient_history",
+                # Same _SHARED_TREND_FIELDS gap as the quality_metrics branch above (these
+                # columns are mirrored from quality_metrics on the success path - see
+                # _SHARED_TREND_FIELDS mirroring in fetch_incremental - but this fallback path
+                # never went through that mirror, so they were previously left NULL with no
+                # reason instead of an explained gap).
+                **{field: None for field in _SHARED_TREND_FIELDS},
+                **{f"{field}_unavailable_reason": "insufficient_history" for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient historical data",
