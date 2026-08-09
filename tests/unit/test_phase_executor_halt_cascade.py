@@ -102,6 +102,34 @@ def test_success_count_only_reflects_ok_phases():
     assert summary["success"] is False
 
 
+def test_skipped_phase_error_names_the_actual_halting_phase():
+    """A phase skipped due to an EARLIER phase's halt must carry that phase's real reason in
+    .error, not None/"unknown reason" - this is what downstream always_run phases (e.g. Phase 6)
+    read when logging why they're running in degraded mode. Regression test for the bug where
+    Phase 6 logged "Phase 5 halted: unknown reason" even though the actual halt was Phase 2's
+    circuit breaker - Phase 5 itself never ran and never set an error, so downstream code
+    got None with no way to see the real cause."""
+    executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
+    executor.register_phases(
+        [
+            PhaseDefinition(
+                2, "circuit_breakers", [],
+                lambda executor, **kw: PhaseResult(2, "circuit_breakers", "halted", {}, True,
+                                                    "Consecutive Losses Limit: 10 consecutive losses >= 5"),
+            ),
+            PhaseDefinition(5, "exposure_policy", [], lambda executor, **kw: _ok_phase(5)),
+        ]
+    )
+
+    executor.run()
+
+    result_5 = executor.get_result(5)
+    assert result_5.status == "skipped"
+    assert result_5.halted
+    assert "Phase 2" in result_5.error
+    assert "Consecutive Losses Limit" in result_5.error
+
+
 def test_dependency_failure_stores_error_result_not_missing():
     """A phase whose dependency failed must get a stored 'error' PhaseResult, not be silently absent
     (silent absence would make downstream code treat it as 'never executed' instead of 'failed')."""

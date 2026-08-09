@@ -266,6 +266,17 @@ def run_loader(
                     retry_count=stats.get("retry_count"),
                     http_status=stats.get("http_status_code"),
                 )
+                # CRITICAL FIX: secondary output tables (e.g. load_sector_industry_daily's
+                # sector_ranking/industry_ranking) were only ever marked on the SUCCESS path
+                # below. On failure they kept whatever status they had from their last
+                # successful run - a stale "completed" row that staleness monitors and Phase 1
+                # freshness checks read as fine, hiding that this run never refreshed them.
+                if hasattr(loader, 'output_tables') and loader.output_tables:
+                    for secondary_table in loader.output_tables:
+                        if secondary_table != loader.table_name:
+                            LoaderStatusManager(secondary_table).mark_failed(
+                                error_message=f"Primary loader {loader.table_name} failed (fail rate exceeded): {symbols_failed} symbols failed",
+                            )
                 return 1
 
             # Some loaders define post-run steps (e.g. StockScoresLoader.post_run computes
@@ -294,6 +305,21 @@ def run_loader(
     except Exception as e:
         loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
         logger.error(f"[LOADER FATAL] {loader_name} loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        # CRITICAL FIX: OptimalLoader.run() marks its own (primary) table failed internally,
+        # but secondary output_tables (e.g. sector_ranking/industry_ranking for
+        # load_sector_industry_daily) are never touched on a crash - only on success below.
+        # Without this they keep a stale prior "completed" status that hides the fact this
+        # run never refreshed them.
+        if hasattr(loader, 'output_tables') and loader.output_tables:
+            from utils.loaders.status_manager import LoaderStatusManager
+            for secondary_table in loader.output_tables:
+                if secondary_table != loader.table_name:
+                    try:
+                        LoaderStatusManager(secondary_table).mark_failed(
+                            error_message=f"Primary loader {loader_name} crashed: {type(e).__name__}: {str(e)[:200]}",
+                        )
+                    except Exception as mark_err:
+                        logger.error(f"[LOADER FATAL] Failed to mark secondary table {secondary_table} as failed: {mark_err}")
         return 1
     finally:
         loader.close()
