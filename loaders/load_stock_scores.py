@@ -302,7 +302,7 @@ class StockScoresLoader(OptimalLoader):
                 "current_ratio, quick_ratio, debt_to_assets, quality_score, data_unavailable, "
                 "gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, "
                 "payout_ratio, free_cash_flow, operating_cash_flow, total_debt, total_cash, "
-                "cash_per_share, ebitda, earnings_growth_yoy, revenue_growth_yoy FROM quality_metrics"
+                "cash_per_share, ebitda, earnings_growth_yoy, revenue_growth_yoy, interest_coverage FROM quality_metrics"
             )
             self._quality_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -841,20 +841,20 @@ class StockScoresLoader(OptimalLoader):
         CRITICAL FIX 2026-07-23 (Session 359): Now fetches all Phase 3 expansion fields
         (gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
         free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
-        earnings_growth_yoy, revenue_growth_yoy). These are required for Phase 8 quality scoring
+        earnings_growth_yoy, revenue_growth_yoy, interest_coverage). These are required for Phase 8 quality scoring
         enhancement via _enhance_quality_score().
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 24 columns. Missing columns causes immediate
+        MINIMUM DATA REQUIREMENT: Row must have exactly 25 columns. Missing columns causes immediate
         fail-fast ValueError to prevent silent data corruption.
         """
         row = self._quality_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 24 columns before accessing indices
-            # (10 original + 14 Phase 3 expansion + 1 data_unavailable flag = 25 total, minus symbol = 24)
-            if len(row) < 24:
+            # CRITICAL: Validate row has expected 25 columns before accessing indices
+            # (10 original + 14 Phase 3 expansion + 1 interest_coverage + 1 data_unavailable flag = 26 total, minus symbol = 25)
+            if len(row) < 25:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 24. "
-                    f"Schema mismatch detected - Phase 3 fields missing. Failing fast."
+                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 25. "
+                    f"Schema mismatch detected - Phase 3 or interest_coverage fields missing. Failing fast."
                 )
             data_unavailable = row[9]
             quality_score = safe_float(row[8], f"{symbol}.quality_score")
@@ -891,6 +891,7 @@ class StockScoresLoader(OptimalLoader):
                 "ebitda": safe_float(row[21], f"{symbol}.ebitda", allow_none=True),
                 "earnings_growth_yoy": safe_float(row[22], f"{symbol}.earnings_growth_yoy", allow_none=True),
                 "revenue_growth_yoy": safe_float(row[23], f"{symbol}.revenue_growth_yoy", allow_none=True),
+                "interest_coverage": safe_float(row[24], f"{symbol}.interest_coverage", allow_none=True),
             }
         # No row exists at all
         logger.warning(
