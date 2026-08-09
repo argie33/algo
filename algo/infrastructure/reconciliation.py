@@ -1189,10 +1189,18 @@ class DailyReconciliation:
                         f"herfindahl_index={float(herfindahl_index_dec):.2f}"
                     )
 
-                cur.execute("""
+                # CRITICAL FIX 2026-08-09: bound by reconcile_date - an unbounded "latest
+                # snapshot" query picks up any stray future-dated row (e.g. a leftover
+                # local --date simulation snapshot in the shared dev DB) ahead of the real
+                # current one. See algo/risk/circuit_breaker.py for the same bug class.
+                cur.execute(
+                    """
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= %s
                     ORDER BY snapshot_date DESC LIMIT 1
-                """)
+                """,
+                    (reconcile_date,),
+                )
 
                 from decimal import Decimal
 
@@ -1332,13 +1340,19 @@ class DailyReconciliation:
                 )
 
                 # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
+                # CRITICAL FIX 2026-08-09: bound by reconcile_date - an unbounded trailing
+                # window can pull in a stray future-dated row (e.g. a leftover local
+                # --date simulation snapshot), corrupting the return series.
                 sharpe_ratio = None
                 try:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT daily_return_pct FROM algo_portfolio_snapshots
-                        WHERE daily_return_pct IS NOT NULL
+                        WHERE daily_return_pct IS NOT NULL AND snapshot_date <= %s
                         ORDER BY snapshot_date DESC LIMIT 252
-                    """)
+                    """,
+                        (reconcile_date,),
+                    )
                     returns = [float(r[0]) / 100.0 for r in cur.fetchall() if r[0] is not None]
                     if len(returns) > 1:
                         import statistics

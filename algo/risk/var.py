@@ -357,7 +357,7 @@ class ValueAtRisk:
                     }
 
                 cur.execute(
-                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date <= CURRENT_DATE ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
                 if portfolio_row is None or len(portfolio_row) < 1 or portfolio_row[0] is None:
@@ -623,7 +623,7 @@ class ValueAtRisk:
                     }
 
                 cur.execute(
-                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                    "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots WHERE snapshot_date <= CURRENT_DATE ORDER BY snapshot_date DESC LIMIT 1"
                 )
                 portfolio_row = cur.fetchone()
                 if portfolio_row is None or len(portfolio_row) < 1 or portfolio_row[0] is None:

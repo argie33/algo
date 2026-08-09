@@ -493,6 +493,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0, run_date:
             else:
                 cur.execute("""
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= CURRENT_DATE
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
             pf_row = cur.fetchone()

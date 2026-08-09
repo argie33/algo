@@ -374,10 +374,18 @@ class PositionMonitor:
             recs = []
             logger.info("[POSITION_MONITOR] review_positions: cursor acquired")
             try:
-                cursor.execute("""
+                # CRITICAL FIX 2026-08-09: bound by current_date - an unbounded "latest
+                # snapshot" query picks up any stray future-dated row (e.g. a leftover
+                # local --date simulation snapshot) ahead of the real current one. See
+                # algo/risk/circuit_breaker.py for the same bug class.
+                cursor.execute(
+                    """
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= %s
                     ORDER BY snapshot_date DESC LIMIT 1
-                """)
+                """,
+                    (current_date,),
+                )
                 eq_row = cursor.fetchone()
 
                 if eq_row is None or eq_row[0] is None:

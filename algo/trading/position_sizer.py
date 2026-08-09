@@ -157,8 +157,17 @@ class PositionSizer:
             cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
             cur.fetchone()
             try:
+                # CRITICAL FIX 2026-08-09: bound by CURRENT_DATE - an unbounded "latest
+                # snapshot" query picks up any stray future-dated row (e.g. a leftover
+                # local --date simulation snapshot in the shared dev DB) ahead of the
+                # real current one. Live-reproduced: a leftover 2026-08-11 test snapshot
+                # outranked the real current snapshot in this exact query (see
+                # algo/risk/circuit_breaker.py and phase8_entry_execution.py for the
+                # same bug class, fixed there by binding to the caller's run_date - this
+                # function has no run_date in scope, so CURRENT_DATE is the correct bound).
                 cur.execute("""
                     SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= CURRENT_DATE
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
                 return cur.fetchone()
@@ -269,8 +278,11 @@ class PositionSizer:
                 from utils.db.context import DatabaseContext
 
                 with DatabaseContext("read") as cur:
+                    # CRITICAL FIX 2026-08-09: bound by CURRENT_DATE - see fetch_snapshot()
+                    # above for why an unbounded "latest snapshot" query is unsafe.
                     cur.execute(
-                        "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                        "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                        "WHERE snapshot_date <= CURRENT_DATE ORDER BY snapshot_date DESC LIMIT 1"
                     )
                     row = cur.fetchone()
                     if row and row[0] is not None:
@@ -424,11 +436,14 @@ class PositionSizer:
                     "drawdown tracking, and scripts/record_capital_flow.py must have backfilled adjusted_equity."
                 )
 
+            # CRITICAL FIX 2026-08-09: bound the "current" subquery by CURRENT_DATE - see
+            # fetch_snapshot() above for why an unbounded "latest snapshot" query is
+            # unsafe. MAX(adjusted_equity) for the peak stays unbounded (all-time high).
             cur.execute("""
                 SELECT
                     MAX(adjusted_equity) as peak,
                     (SELECT adjusted_equity FROM algo_portfolio_snapshots
-                     WHERE adjusted_equity IS NOT NULL
+                     WHERE adjusted_equity IS NOT NULL AND snapshot_date <= CURRENT_DATE
                      ORDER BY snapshot_date DESC LIMIT 1) as current
                 FROM algo_portfolio_snapshots
                 WHERE adjusted_equity IS NOT NULL
