@@ -60,9 +60,12 @@ PIPELINES = {
 # CRITICAL: Loader dependencies - some loaders must run before others
 # Session 81/82 fix: enforce these dependencies to prevent silent data degradation
 LOADER_DEPENDENCIES = {
-    # value_quality_growth reads valuations and analyst earnings data
-    # financial_statements disabled 2026-08-06 pending timeout fix (Session 83)
-    "value_quality_growth": ["valuations", "analyst_earnings_estimates"],
+    # value_quality_growth reads valuations, analyst earnings, and financial_statements data
+    # RE-ENABLED 2026-08-09: financial_statements was missing here even though the "metrics"
+    # pipeline's own comment calls it a CRITICAL DEPENDENCY of value_quality_growth - the
+    # dependency check silently never verified it, relying only on incidental list ordering
+    # in PIPELINES["metrics"] to run it first.
+    "value_quality_growth": ["financial_statements", "valuations", "analyst_earnings_estimates"],
     # Enhanced metrics layer depends on value_quality_growth base metrics
     "enhanced_quality_growth": ["value_quality_growth"],
 }
@@ -167,10 +170,22 @@ def run_pipeline(pipeline_name: str) -> int:
         try:
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
             loader_filename = normalize_loader_name(loader)
+            env = os.environ.copy()
+            if loader == "financial_statements":
+                # load_financial_statements.py can't go through scripts/run_loader.py:
+                # run_loader.py instantiates ConsolidatedFinancialStatementsLoader directly
+                # (loader_class()), which requires LOADER_STATEMENT_TYPE to already name ONE
+                # of the 6 statement/period combos - it never reaches this module's own
+                # main(), where LOADER_STATEMENT_TYPE="all" fans out to all 6 combos via
+                # load_all_statements(). Must invoke the module directly instead.
+                env["LOADER_STATEMENT_TYPE"] = "all"
+                cmd = [sys.executable, f"loaders/{loader_filename}"]
+            else:
+                cmd = [sys.executable, "scripts/run_loader.py", loader_filename]
             result = subprocess.run(
-                [sys.executable, "scripts/run_loader.py", loader_filename],
+                cmd,
                 cwd=str(repo_root),
-                env=os.environ.copy(),
+                env=env,
                 timeout=timeout,
             )
             if result.returncode != 0:

@@ -178,6 +178,12 @@ SHORTHAND_TO_FILENAME: dict[str, str] = {
     "momentum": "load_risk_metrics_daily.py",
     "stability_metrics": "load_risk_metrics_daily.py",
     "valuations": "load_sec_valuations.py",
+    # RE-ENABLED 2026-08-09 alongside scripts/local_loader_scheduler.py's metrics
+    # pipeline entry - that re-enable added the shorthand to the pipeline list but
+    # never added it here, so normalize_loader_name() raised ValueError on the very
+    # first step of every "metrics" pipeline run (same wiring-drift bug class as the
+    # rest of this file's history).
+    "financial_statements": "load_financial_statements.py",
     # Fundamental metrics
     "value_quality_growth": "load_value_quality_growth_metrics.py",
     "enhanced_quality_growth": "load_enhanced_quality_growth_metrics.py",
