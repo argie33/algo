@@ -81,6 +81,7 @@ class EarningsBlackout:
 
             if row:
                 earnings_date = row[0]
+                # Note: data_unavailable flag is in row[1] if we queried it above
                 # Count trading days between eval_date and earnings_date (excluding earnings date itself)
                 is_earnings_day = eval_date == earnings_date
                 direction = 1 if earnings_date >= eval_date else -1  # 1=future, -1=past

@@ -90,6 +90,10 @@ class PreTradeChecks:
             try:
                 earnings_check = EarningsBlackout(config=self.config)
                 result = earnings_check.run(symbol, eval_date)
+
+                # DEBUG: Log what earnings check returned (Session 78 bug fix)
+                logger.debug(f"[PRETRADE EARNINGS] {symbol} on {eval_date}: {result}")
+
                 if result is None or not isinstance(result, dict):
                     raise ValueError(
                         f"Earnings blackout check returned invalid result: {type(result).__name__}. "
@@ -100,8 +104,13 @@ class PreTradeChecks:
                     reason = result.get("reason")
                     if reason is None:
                         raise ValueError("Earnings check failed but 'reason' field is missing")
+
+                    # Log the rejection (this is important for debugging why trades are losing)
+                    logger.info(f"[PRETRADE EARNINGS BLOCK] {symbol}: {reason}")
                     return (False, reason)
             except ValueError as e:
+                # Log the error (not just swallow it)
+                logger.error(f"[PRETRADE EARNINGS ERROR] {symbol}: {e}")
                 return (False, f"Earnings blackout check failed: {e}")
 
         try:
