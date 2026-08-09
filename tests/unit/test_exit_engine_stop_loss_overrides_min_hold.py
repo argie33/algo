@@ -42,6 +42,18 @@ def mock_config():
         "require_target_pullback": True,
         "execution_mode": "paper",
         "alpaca_paper_trading": True,
+        # Required by TradeValidator._validate_and_load_r_multiples(), reached via a NESTED
+        # ExitEngine that exit_strategies.py's check_minervini_break constructs internally
+        # (algo/trading/exit_strategies.py:133) - that construction happens outside this
+        # module's `with patch("...TradeExecutor")` window (which only covers the OUTER
+        # engine built by _engine() above), so it hits the real TradeExecutor ->
+        # TradeValidator chain. Values match exit_engine.py's own T1/T2/T3 R-multiple
+        # convention (1.5R/3R/4R, see its "T1 exit"/"T2 exit"/"T3 target hit" log messages).
+        "t1_target_r_multiple": 1.5,
+        "t2_target_r_multiple": 3.0,
+        "t3_target_r_multiple": 4.0,
+        "max_reentries_per_name": 2,
+        "min_days_before_reentry_same_symbol": 5,
     }
 
 

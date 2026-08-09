@@ -27,7 +27,11 @@ def _handler():
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
         mock_cred_manager.return_value = mock_cm
-        return MarketEventHandler({"execution_mode": "paper"})
+        # NOT "paper": MarketEventHandler.__init__ hard-codes alpaca_key/secret to None and
+        # returns immediately for execution_mode == "paper" (market_events.py:60-67), bypassing
+        # get_credential_manager entirely, so check_single_stock_halt/check_delisting always hit
+        # the "credentials unavailable" short-circuit instead of the retry logic under test.
+        return MarketEventHandler({"execution_mode": "auto"})
 
 
 def _ok_asset_response(status="ACTIVE", tradable=True):

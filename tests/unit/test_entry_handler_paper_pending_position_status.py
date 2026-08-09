@@ -48,6 +48,22 @@ def test_paper_pending_trade_creates_position_with_open_status_not_paper_open():
     handler = EntryHandler(handler_context)
     cur = MagicMock()
 
+    # cur.fetchone() backs several DIFFERENT queries in this call path (an existing-position
+    # lookup, then _insert_trade_record's post-insert exit_price verification at
+    # executor_entry_handler.py:637-655) - a single blanket return_value answers all of them
+    # identically, which is wrong for at least one. Route by the SQL text of the most recent
+    # execute() call instead: the exit_price verification must see (None,) (a real NULL) to
+    # pass its "must be NULL for open trades" check; any other query should see a bare None
+    # (no row found), matching a fresh MagicMock()'s implicit default for an unconfigured
+    # position lookup - which is what let this test pass before verification was added.
+    def _fetchone_side_effect():
+        last_sql = str(cur.execute.call_args.args[0]) if cur.execute.call_args else ""
+        if "exit_price" in last_sql and "algo_trades" in last_sql:
+            return (None,)
+        return None
+
+    cur.fetchone.side_effect = _fetchone_side_effect
+
     handler._record_entry_phase(
         cur=cur,
         trade_id="TRD-TEST1",

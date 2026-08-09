@@ -883,7 +883,16 @@ class ExitEngine:
                                        WHERE trade_id = %s AND status IN ({trade_status_placeholders})""",
                                     (
                                         current_date,
-                                        cur_price if cur_price and cur_price > 0 else None,
+                                        # BUG FIX: `cur_price` is never assigned here - the tuple-unpack
+                                        # `cur_price, prev_close = self._fetch_recent_prices(...)` above
+                                        # raised BEFORE assigning anything, which is exactly why we're in
+                                        # this except block. Referencing it raised UnboundLocalError,
+                                        # crashing the exit loop instead of gracefully closing the
+                                        # position for manual review - live-confirmed via
+                                        # tests/unit/test_exit_engine_delisted_close_bugs.py. This branch's
+                                        # own comment above already says "Do NOT fall back... leave NULL",
+                                        # so the correct value here has always been None.
+                                        None,
                                         "delisted_or_unavailable|price_data_missing",
                                         trade_id,
                                         *open_trade_statuses_close,

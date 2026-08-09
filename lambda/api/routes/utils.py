@@ -861,8 +861,18 @@ def set_current_cursor(cursor_or_service: Any) -> None:
     to get the actual underlying psycopg2 cursor.
     """
     # Unwrap nested cursor wrappers to get the actual psycopg2 cursor
+    # CRITICAL: bounded depth. Only 2 wrapper levels exist today (_ErrorLoggedCursor,
+    # _CorrelationIdCursor), but `hasattr(x, "cursor")` never naturally terminates for
+    # some objects (e.g. unittest.mock.MagicMock auto-creates any attribute, including
+    # `.cursor` and `.description`, on every child it returns) - confirmed live via a
+    # test using a bare MagicMock as a fake cursor, which hung the process indefinitely
+    # walking `.cursor.cursor.cursor...` forever. A real malformed/self-wrapping wrapper
+    # in production would hit the same failure mode. 10 iterations is generous headroom
+    # over the 2 known levels.
     current = cursor_or_service
-    while hasattr(current, "cursor"):
+    for _ in range(10):
+        if not hasattr(current, "cursor"):
+            break
         # Keep unwrapping until we reach the actual psycopg2 cursor
         # (which has a description attribute but no nested cursor attribute)
         next_cursor = current.cursor
@@ -870,6 +880,11 @@ def set_current_cursor(cursor_or_service: Any) -> None:
             current = next_cursor
         else:
             break
+    else:
+        logger.error(
+            f"[set_current_cursor] Exceeded max unwrap depth (10) for {type(cursor_or_service).__name__}; "
+            "possible self-referential or malformed cursor wrapper. Using last-unwrapped value."
+        )
 
     _thread_local.cursor = current
 

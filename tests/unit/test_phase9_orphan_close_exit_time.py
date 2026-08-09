@@ -20,8 +20,8 @@ from algo.orchestrator.phase9_reconciliation import _record_closed_positions_exi
 
 def test_orphan_close_sets_exit_time_not_just_exit_date():
     mock_read_cur = MagicMock()
-    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id
-    mock_read_cur.fetchall.return_value = [("AAPL", 100.0, 10, 95.0, 10, 456)]
+    # Query returns: symbol, avg_entry_price, quantity, stop_loss_price, entry_quantity, trade_id, current_price
+    mock_read_cur.fetchall.return_value = [("AAPL", 100.0, 10, 95.0, 10, 456, 98.0)]
     mock_read_ctx = MagicMock()
     mock_read_ctx.__enter__.return_value = mock_read_cur
     mock_read_ctx.__exit__.return_value = False
@@ -31,9 +31,12 @@ def test_orphan_close_sets_exit_time_not_just_exit_date():
     # Mock fetchone for multiple calls in sequence:
     # 1. price_daily query (line 1068) - returns exit price
     # 2. prior partial P&L query (line 1120) - returns prior P&L sum
+    # 3. post-UPDATE verification query (line 1514, added 2026-08-08) - confirms exit_price
+    #    was actually persisted; must be non-None or this path raises a data-corruption error
     mock_write_cur.fetchone.side_effect = [
         (150.0,),  # price_daily close price
         (0,),      # COALESCE(SUM(prior_partial), 0)
+        (150.0,),  # verify exit_price was written
     ]
     mock_write_ctx = MagicMock()
     mock_write_ctx.__enter__.return_value = mock_write_cur

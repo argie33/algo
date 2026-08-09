@@ -60,8 +60,14 @@ def test_phase6_dry_run_counts_exits():
     with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext') as mock_db:
         # Set up mock cursor with side_effect for multiple queries
         mock_cursor = MagicMock()
-        # Configure fetchone responses for: concentration checks + force_exit price fetches
+        # Configure fetchone responses for: orphaned-trade validation + concentration checks
+        # + force_exit price fetches. run() does an orphaned-trade DELETE first (reads
+        # cur.rowcount, not fetchone - see rowcount=0 below), then a separate
+        # SELECT COUNT(*) validation query that DOES consume a fetchone() - that must be
+        # first in this list or every later fetchone() shifts by one and the shapes stop
+        # matching what each query actually expects.
         mock_cursor.fetchone.side_effect = [
+            (0,),        # Orphaned-trade validation count query
             (0, 0),      # Sector concentration check - count query
             (0,),        # Sector concentration check - SUM query
             (0, 0),      # Size concentration check - count query
@@ -69,7 +75,7 @@ def test_phase6_dry_run_counts_exits():
             (150.0,),    # current_price for force_exit
         ]
         mock_cursor.fetchall.return_value = []  # No positions for concentration check (empty portfolio)
-        mock_cursor.rowcount = 1
+        mock_cursor.rowcount = 0  # No orphaned trades deleted by the cleanup DELETE
         mock_context = MagicMock()
         mock_context.__enter__.return_value = mock_cursor
         mock_context.__exit__.return_value = None
@@ -140,13 +146,14 @@ def test_phase6_dry_run_returns_degraded_status():
         # Set up mock cursor for concentration checks with empty portfolio
         mock_cursor = MagicMock()
         mock_cursor.fetchone.side_effect = [
+            (0,),        # Orphaned-trade validation count query
             (0, 0),      # Sector concentration check - count query
             (0,),        # Sector concentration check - SUM query
             (0, 0),      # Size concentration check - count query
             (0,),        # Size concentration check - SUM query
         ]
         mock_cursor.fetchall.return_value = []  # No positions for concentration checks
-        mock_cursor.rowcount = 1
+        mock_cursor.rowcount = 0  # No orphaned trades deleted by the cleanup DELETE
         mock_context = MagicMock()
         mock_context.__enter__.return_value = mock_cursor
         mock_context.__exit__.return_value = None

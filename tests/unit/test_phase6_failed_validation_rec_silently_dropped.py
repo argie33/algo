@@ -52,8 +52,14 @@ def test_failed_validation_rec_counted_as_error_not_silently_dropped():
         # Mock DatabaseContext to return proper values for position sizing checks
         mock_cur = MagicMock()
         mock_cur.fetchall.return_value = []  # No sectors over limit
-        # Configure fetchone with side_effect for multiple queries
+        mock_cur.rowcount = 0  # Orphaned-trade cleanup DELETE reads this; must be a real int
+        # Configure fetchone with side_effect for multiple queries. This mock is a single
+        # shared cursor reused across every `with DatabaseContext(...) as cur:` block phase6
+        # opens, in call order - the orphaned-trade validation SELECT (a separate query from
+        # the cleanup DELETE above, which uses rowcount not fetchone) runs first and must be
+        # first in this list, or every later fetchone() shifts by one.
         mock_cur.fetchone.side_effect = [
+            (0,),    # Orphaned-trade validation count query
             (0, 0),  # Sector concentration check - count query
             (0,),    # Sector concentration check - SUM query
             (0, 0),  # Size concentration check - count query

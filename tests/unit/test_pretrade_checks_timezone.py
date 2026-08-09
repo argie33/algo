@@ -225,16 +225,26 @@ class TestReentryCooldownWorksAgainstRealConfigObjectNotJustPlainDict:
 
         mock_cur = MagicMock()
         mock_cur.fetchone.side_effect = [
-            None,
-            None,
-            (1, closed_at_naive),
-            ["America/Chicago"],
+            None,  # Check 1: no open position
+            None,  # Check 1b: no open trade
+            (1, closed_at_naive),  # Check 2: recently closed position
+            ("STOP_LOSS_HIT",),  # exit_reason query - must be a stop-out to trigger cooldown
         ]
         mock_db_context = MagicMock()
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
-        with patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context):
+        # closed_at_naive has tzinfo=None, so the code resolves the DB session timezone via
+        # get_db_timezone() - a SEPARATE module (utils.db.timezone_utils) that opens its own
+        # DatabaseContext and caches the result process-wide, so it doesn't consume from
+        # mock_cur's fetchone.side_effect above (that 4th list item was previously being
+        # misread as the exit_reason row instead, silently defeating this test - see the
+        # exit_reason fix above). Patch it directly instead of relying on incidental real DB
+        # connectivity or whatever a prior test happened to cache.
+        with (
+            patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context),
+            patch("utils.db.timezone_utils.get_db_timezone", return_value=ZoneInfo("America/Chicago")),
+        ):
             passed, reason = checks.run_all(
                 symbol="AAPL",
                 position_value=1000.0,

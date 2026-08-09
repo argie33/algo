@@ -27,7 +27,13 @@ def handler():
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "k", "secret": "s"}
         mock_cred_manager.return_value = mock_cm
-        return MarketEventHandler({"execution_mode": "paper"})
+        # NOT "paper": MarketEventHandler.__init__ hard-codes alpaca_key/secret to None and
+        # returns immediately for execution_mode == "paper" (market_events.py:60-67), which
+        # bypasses get_credential_manager entirely (the mock above would never be consulted)
+        # and makes check_market_circuit_breaker() short-circuit to bare `None` before ever
+        # reaching the retry logic these tests exist to exercise. "auto" takes the real
+        # credential-loading path this fixture's mocking is meant to feed.
+        return MarketEventHandler({"execution_mode": "auto"})
 
 
 def _quote_resp(status_code, ap=485.0):

@@ -13,6 +13,15 @@ import pytest
 import requests
 
 from algo.infrastructure.market_events import MarketEventHandler
+from utils.infrastructure import EASTERN_TZ
+
+# Fixed, known-in-market-hours timestamp (Monday, noon ET) for tests that exercise
+# check_market_circuit_breaker(). That method gates on the REAL wall-clock time
+# (datetime.now(EASTERN_TZ) against 9:30-16:00 ET) with no way to inject a test time, so
+# without patching it these tests pass or fail depending on when they happen to run -
+# deterministically failing entirely outside market hours (e.g. weekends).
+_MARKET_HOURS_NOW = datetime(2026, 8, 10, 12, 0, 0, tzinfo=EASTERN_TZ)
+
 
 class TestMarketEventHandlerInit:
     """Test MarketEventHandler initialization."""
@@ -28,7 +37,7 @@ class TestMarketEventHandlerInit:
 
         config = MagicMock()
         config.get.side_effect = lambda key, default=None: {
-            "execution_mode": "paper"
+            "execution_mode": "auto"
         }.get(key, default)
         handler = MarketEventHandler(config)
 
@@ -71,7 +80,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "HALTED", "tradable": False}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("AAPL")
 
         assert result is not None
@@ -98,7 +107,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "INACTIVE", "tradable": True}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("XYZ")
 
         assert result is not None
@@ -122,7 +131,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "ACTIVE", "tradable": True}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("AAPL")
 
         assert result is not None
@@ -147,7 +156,7 @@ class TestCheckSingleStockHalt:
         mock_response.status_code = 404
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("INVALID")
 
         # Code catches RuntimeError and returns error dict (graceful degradation)
@@ -172,7 +181,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.side_effect = json.JSONDecodeError("msg", "doc", 0)
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches RuntimeError and returns error dict (graceful degradation)
@@ -197,7 +206,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"tradable": True}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches ValueError and returns error dict (graceful degradation)
@@ -223,7 +232,7 @@ class TestCheckSingleStockHalt:
         mock_response.json.return_value = {"status": "ACTIVE"}
         mock_get.return_value = mock_response
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches ValueError and returns error dict (graceful degradation)
@@ -246,7 +255,7 @@ class TestCheckSingleStockHalt:
 
         mock_get.side_effect = requests.Timeout("Connection timed out")
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
         result = handler.check_single_stock_halt("AAPL")
 
         # Code catches Timeout and returns error dict (graceful degradation)
@@ -257,11 +266,13 @@ class TestCheckSingleStockHalt:
 class TestCheckMarketCircuitBreaker:
     """Test check_market_circuit_breaker() method - critical circuit breaker detection."""
 
+    @patch("algo.infrastructure.market_events.datetime")
     @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
-    def test_circuit_breaker_level_3_triggered_20_percent(self, mock_base_url, mock_cred_manager, mock_executor):
+    def test_circuit_breaker_level_3_triggered_20_percent(self, mock_base_url, mock_cred_manager, mock_executor, mock_datetime):
         """Test Level 3 (20%+ down) detection."""
+        mock_datetime.now.return_value = _MARKET_HOURS_NOW
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
@@ -287,7 +298,7 @@ class TestCheckMarketCircuitBreaker:
             MagicMock(result=lambda t: fetch_bars()),
         ]
 
-        handler = MarketEventHandler({"execution_mode": "paper"})
+        handler = MarketEventHandler({"execution_mode": "auto"})
 
         # We need to mock the thread pool execution
         with patch("algo.infrastructure.market_events.ThreadPoolExecutor") as mock_pool:
@@ -309,11 +320,13 @@ class TestCheckMarketCircuitBreaker:
         assert result["action"] == "HALT_ALL_ENTRIES"
         assert "timestamp" in result
 
+    @patch("algo.infrastructure.market_events.datetime")
     @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
-    def test_circuit_breaker_level_2_triggered_13_percent(self, mock_base_url, mock_cred_manager, mock_executor):
+    def test_circuit_breaker_level_2_triggered_13_percent(self, mock_base_url, mock_cred_manager, mock_executor, mock_datetime):
         """Test Level 2 (13%+ down) detection."""
+        mock_datetime.now.return_value = _MARKET_HOURS_NOW
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
@@ -330,7 +343,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({"execution_mode": "paper"})
+            handler = MarketEventHandler({"execution_mode": "auto"})
             result = handler.check_market_circuit_breaker()
 
         assert result is not None
@@ -338,11 +351,13 @@ class TestCheckMarketCircuitBreaker:
         assert result["pct_down"] == 13.0
         assert result["action"] == "PAUSE_NEW_ENTRIES_15MIN"
 
+    @patch("algo.infrastructure.market_events.datetime")
     @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
-    def test_circuit_breaker_level_1_triggered_7_percent(self, mock_base_url, mock_cred_manager, mock_executor):
+    def test_circuit_breaker_level_1_triggered_7_percent(self, mock_base_url, mock_cred_manager, mock_executor, mock_datetime):
         """Test Level 1 (7%+ down) detection."""
+        mock_datetime.now.return_value = _MARKET_HOURS_NOW
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
@@ -359,7 +374,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({"execution_mode": "paper"})
+            handler = MarketEventHandler({"execution_mode": "auto"})
             result = handler.check_market_circuit_breaker()
 
         assert result is not None
@@ -367,11 +382,18 @@ class TestCheckMarketCircuitBreaker:
         assert result["pct_down"] == 7.0
         assert result["action"] == "PAUSE_NEW_ENTRIES_15MIN"
 
+    @patch("algo.infrastructure.market_events.datetime")
     @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
-    def test_no_circuit_breaker_less_than_7_percent(self, mock_base_url, mock_cred_manager, mock_executor):
-        """Test no circuit breaker triggered when down < 7%."""
+    def test_no_circuit_breaker_less_than_7_percent(self, mock_base_url, mock_cred_manager, mock_executor, mock_datetime):
+        """Test no circuit breaker triggered when down < 7%.
+
+        Pinned to market hours (see _MARKET_HOURS_NOW) so this exercises the real
+        <7%-down-is-fine branch, not the market-closed early-return that happens to also
+        return None - without pinning, this test would silently stop testing anything
+        outside 9:30-16:00 ET."""
+        mock_datetime.now.return_value = _MARKET_HOURS_NOW
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
@@ -388,7 +410,7 @@ class TestCheckMarketCircuitBreaker:
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({"execution_mode": "paper"})
+            handler = MarketEventHandler({"execution_mode": "auto"})
             result = handler.check_market_circuit_breaker()
 
         assert result is None
@@ -396,7 +418,15 @@ class TestCheckMarketCircuitBreaker:
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
     def test_circuit_breaker_no_credentials_skip_check(self, mock_base_url, mock_cred_manager):
-        """Test that check is skipped when Alpaca credentials are not configured."""
+        """Test that check is skipped when Alpaca credentials are not configured.
+
+        NOTE: this scenario is only reachable in "paper" mode. MarketEventHandler.__init__
+        already fails closed with a hard ValueError for any non-paper execution_mode if
+        credentials are missing (see market_events.py:72-80) - by the time
+        check_market_circuit_breaker() runs, missing creds can only mean paper mode, where
+        silently skipping (returning None) is the correct, intentional contract, not a
+        degraded-error case. Previously asserted an "error dict" return that doesn't match
+        current behavior."""
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": None, "secret": None}
@@ -408,16 +438,22 @@ class TestCheckMarketCircuitBreaker:
 
         result = handler.check_market_circuit_breaker()
 
-        # Code returns error dict when credentials missing (graceful degradation)
-        assert result is not None
-        assert result.get("error") == "circuit_breaker_check_failed"
-        assert result.get("reason") == "credentials_not_configured"
+        assert result is None
 
+    @patch("algo.infrastructure.market_events.datetime")
     @patch("algo.infrastructure.market_events.ThreadPoolExecutor")
     @patch("algo.infrastructure.market_events.get_credential_manager")
     @patch("algo.infrastructure.market_events.get_alpaca_base_url")
-    def test_circuit_breaker_missing_prices(self, mock_base_url, mock_cred_manager, mock_executor):
-        """Test error when prices are missing."""
+    def test_circuit_breaker_missing_prices(self, mock_base_url, mock_cred_manager, mock_executor, mock_datetime):
+        """Test error when the SPY open price is missing.
+
+        NOTE: missing CURRENT price and missing OPEN price are handled differently by
+        design (see market_events.py:364-378) - a missing/zero current price is treated
+        as benign after-hours data and returns bare None (no error), while a missing open
+        price is fail-closed: without it % down can't be computed at all, so it raises and
+        surfaces as this error dict. This test previously nulled out the current price,
+        which doesn't exercise the error path it claims to test."""
+        mock_datetime.now.return_value = _MARKET_HOURS_NOW
         mock_base_url.return_value = "https://api.alpaca.markets"
         mock_cm = MagicMock()
         mock_cm.get_alpaca_credentials.return_value = {"key": "key", "secret": "secret"}
@@ -428,13 +464,13 @@ class TestCheckMarketCircuitBreaker:
             mock_pool.return_value.__enter__.return_value = mock_context
 
             quote_future = MagicMock()
-            quote_future.result.return_value = None  # Missing current price
+            quote_future.result.return_value = 465.0
             bars_future = MagicMock()
-            bars_future.result.return_value = 500.0
+            bars_future.result.return_value = None  # Missing open price
 
             mock_context.submit.side_effect = [quote_future, bars_future]
 
-            handler = MarketEventHandler({"execution_mode": "paper"})
+            handler = MarketEventHandler({"execution_mode": "auto"})
             result = handler.check_market_circuit_breaker()
 
             # Code catches RuntimeError and returns error dict (graceful degradation)

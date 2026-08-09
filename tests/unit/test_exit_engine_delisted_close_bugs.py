@@ -7,7 +7,16 @@ Bug 1 (SQL syntax error, confirmed live against Postgres): both branches ran
 LIMIT 1`. PostgreSQL does not support ORDER BY/LIMIT directly on an UPDATE statement - this raised a bare `psycopg2.errors.SyntaxError: syntax error at
 or near "ORDER"` every time either branch was reached, meaning a delisted symbol or missing
 price data crashed the exit loop instead of gracefully marking the position for manual
-review. Fixed by moving the ORDER BY/LIMIT into a subquery that resolves the target trade_id.
+review. Fixed by targeting `WHERE trade_id = %s` directly instead - the calling loop already
+has the unique trade_id in hand from the SELECT that surfaced this row (trade_id has a UNIQUE
+constraint - algo_trades_trade_id_key), so no ORDER BY/LIMIT-driven resolution is needed at
+all, and this sidesteps the ambiguous-match class of bug entirely (see the general warning
+about matching by non-unique columns like symbol in exit_subquery_bug_session60).
+
+(2026-08-09: fixed a second, separate crash in this same delisted branch - `cur_price` was
+referenced in the except block that only runs when `_fetch_recent_prices` raised before
+`cur_price` was ever assigned, an UnboundLocalError that crashed the exit loop on every
+delisted symbol. See algo/trading/exit_engine.py's inline comment at the fix site.)
 
 Bug 2 (status mismatch): both branches hardcoded `status = 'open'` in the close UPDATE, but
 the exit-candidate SELECT that surfaces trades into this loop was separately widened to
@@ -110,10 +119,14 @@ def _assert_close_updates_are_valid(mock_cur):
     assert position_update_calls, "expected a close UPDATE against algo_positions"
 
     trade_sql, trade_params = trade_update_calls[0].args
-    # Bug 1: ORDER BY/LIMIT must be inside a subquery, never trailing a bare UPDATE.
-    assert "WHERE trade_id = (" in trade_sql, (
-        "ORDER BY/LIMIT must be scoped inside a subquery - PostgreSQL rejects "
-        "ORDER BY/LIMIT directly on an UPDATE statement"
+    # Bug 1: must never trail a bare UPDATE with ORDER BY/LIMIT (invalid Postgres syntax).
+    # The actual fix targets the already-known unique trade_id directly - simpler than a
+    # subquery and avoids symbol-based ambiguity entirely (trade_id is UNIQUE).
+    assert "ORDER BY" not in trade_sql.upper(), (
+        "ORDER BY/LIMIT directly on an UPDATE statement is invalid Postgres syntax"
+    )
+    assert "WHERE trade_id = %s" in trade_sql, (
+        "expected an unambiguous match on the unique trade_id column"
     )
     # Bug 2: the close must cover every live status the candidate SELECT can surface,
     # not just 'open'.

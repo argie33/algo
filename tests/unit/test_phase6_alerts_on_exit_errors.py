@@ -49,6 +49,12 @@ def test_alert_sent_when_exit_errors_occur():
                 (0,),    # Concentration check - SUM query
             ]
             mock_cur.fetchall.return_value = []  # No positions for concentration checks
+            # CRITICAL: rowcount must be a real int, not the default auto-generated MagicMock -
+            # phase6_exit_execution.py's orphaned-trade cleanup DELETE reads cur.rowcount and
+            # compares it `> 0`. An unset MagicMock attribute there raised
+            # "TypeError: '>' not supported between instances of 'MagicMock' and 'int'"
+            # every time this factory produced the cursor for that DELETE.
+            mock_cur.rowcount = 0
             mock_context = MagicMock()
             mock_context.__enter__.return_value = mock_cur
             mock_context.__exit__.return_value = False
@@ -100,6 +106,12 @@ def test_no_alert_when_no_exit_errors():
                 (0,),    # Concentration check - SUM query
             ]
             mock_cur.fetchall.return_value = []  # No positions for concentration checks
+            # CRITICAL: rowcount must be a real int, not the default auto-generated MagicMock -
+            # phase6_exit_execution.py's orphaned-trade cleanup DELETE reads cur.rowcount and
+            # compares it `> 0`. An unset MagicMock attribute there raised
+            # "TypeError: '>' not supported between instances of 'MagicMock' and 'int'"
+            # every time this factory produced the cursor for that DELETE.
+            mock_cur.rowcount = 0
             mock_context = MagicMock()
             mock_context.__enter__.return_value = mock_cur
             mock_context.__exit__.return_value = False

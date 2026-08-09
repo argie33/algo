@@ -65,4 +65,7 @@ class TestCompletenessCheckFailsClosed:
             "buy_sell_daily",
             "market_health_daily",
             "trend_template_data",
+            # Session 81 fix: earnings_calendar added to the failsafe retry table set
+            # (fixes the earnings-blackout staleness gap) - this fixed set predates that fix.
+            "earnings_calendar",
         }
