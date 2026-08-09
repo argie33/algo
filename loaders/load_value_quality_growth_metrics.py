@@ -744,6 +744,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 quarters = cur.fetchall()
 
             if len(quarters) < 4:
+                # Not enough quarterly data - set unavailable reasons for metrics that depend on quarters
+                for field in [
+                    "consecutive_positive_quarters", "quarterly_growth_momentum",
+                    "earnings_growth_4q_avg", "eps_growth_stability",
+                ]:
+                    metrics[f"{field}_unavailable_reason"] = "insufficient_quarterly_history"
                 return metrics
 
             quarters.reverse()
@@ -815,6 +821,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     beat_count = sum(1 for rate in eps_growth_rates if rate > 0)
                     beat_rate = (beat_count / len(eps_growth_rates)) * 100
                     metrics["earnings_beat_rate"] = float(round(beat_rate, 2))
+            else:
+                # Set unavailable reasons for earnings metrics when analyst data missing
+                if forward_eps is None:
+                    metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
+                    metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
+                elif last_eps is None:
+                    metrics["earnings_surprise_avg_unavailable_reason"] = "insufficient_quarterly_history"
+                    metrics["earnings_beat_rate_unavailable_reason"] = "insufficient_quarterly_history"
 
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to compute quarterly metrics: {type(e).__name__}: {e}")
@@ -1604,6 +1618,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     metrics[f"{field}_unavailable_reason"] = "insufficient_prior_year_data"
             if metrics.get("sustainable_growth_rate") is None:
                 metrics["sustainable_growth_rate_unavailable_reason"] = sgr_reason or "missing_sec_data"
+
+            # Set unavailable reasons for quarterly metrics (computed from quarterly_income_statement)
+            # These will be set to "insufficient_quarterly_history" in _compute_quarterly_metrics() if <4 quarters
+            for field in (
+                "consecutive_positive_quarters", "quarterly_growth_momentum",
+                "earnings_growth_4q_avg", "eps_growth_stability",
+                "earnings_surprise_avg", "earnings_beat_rate",
+            ):
+                if metrics.get(field) is None and f"{field}_unavailable_reason" not in metrics:
+                    # Reason was already set by _compute_quarterly_metrics() for these specific cases
+                    # Only set a fallback if not already set (to avoid overwriting specific reasons)
+                    pass
 
             # Mark unavailable if all metrics are None
             if all(
