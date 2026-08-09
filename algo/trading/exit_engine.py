@@ -15,6 +15,7 @@ from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.config.sql_intervals import get_interval_sql
+from algo.infrastructure.constants import MARKET_DIST_DAYS_MAX_STALE_TRADING_DAYS
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
@@ -1660,7 +1661,7 @@ class ExitEngine:
         # market_exposure_daily's same-day row already had a real count).
         cur.execute(
             """
-            SELECT distribution_days, data_unavailable, reason
+            SELECT distribution_days, data_unavailable, reason, date
             FROM market_exposure_daily
             WHERE date <= %s AND distribution_days IS NOT NULL
             ORDER BY date DESC LIMIT 1
@@ -1681,6 +1682,22 @@ class ExitEngine:
                 f"{row[2] or 'no reason provided'}. Cannot evaluate exit conditions without valid distribution "
                 f"day counts."
             )
+
+        # Phase 1 treats market_exposure_daily staleness as a WARNING, not a halt condition,
+        # so a stalled EOD loader would otherwise never stop exit_engine from silently reusing
+        # an arbitrarily old distribution-day count for de-risking decisions. Gate on it here
+        # instead. Trading-day-aware (not calendar days) so weekends/holidays don't false-trigger.
+        row_date = row[3]
+        check_date = current_date.date() if isinstance(current_date, datetime) else current_date
+        if row_date < check_date:
+            stale_trading_days = len(MarketCalendar.get_trading_days(row_date, check_date)) - 1
+            if stale_trading_days > MARKET_DIST_DAYS_MAX_STALE_TRADING_DAYS:
+                raise RuntimeError(
+                    f"[MARKET_DIST_DAYS_STALE] Market distribution data for {current_date} falls back to "
+                    f"{row_date}, {stale_trading_days} trading day(s) old (max "
+                    f"{MARKET_DIST_DAYS_MAX_STALE_TRADING_DAYS}). market_exposure_daily loader appears "
+                    f"stalled - cannot trust distribution day counts for risk control decisions."
+                )
         return int(row[0])
 
     def _is_pulling_back(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> bool:

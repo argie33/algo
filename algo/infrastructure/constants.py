@@ -79,6 +79,14 @@ STALENESS_WINDOW_SIGNAL_QUALITY = 7
 STALENESS_WINDOW_STOCK_SCORES = 14
 STALENESS_WINDOW_EARNINGS_HISTORY = 120
 
+# market_exposure_daily is WARNING-only in Phase 1 (doesn't halt the run), so
+# exit_engine's distribution-day fetch is the only hard gate against a silently
+# stalled EOD loader. Normal morning runs see the prior trading day's row (1 trading
+# day lag by design); anything beyond that for multiple trading days means the loader
+# is stuck, not just lagging - and risk decisions (position de-risking on distribution
+# days) would silently run on outdated data if we didn't gate on it here.
+MARKET_DIST_DAYS_MAX_STALE_TRADING_DAYS = 3
+
 # NULL value anomaly detection
 NULL_ANOMALY_MAX_PCT = 5  # Alert if >5% NULLs on latest date
 
