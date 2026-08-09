@@ -353,4 +353,95 @@ router.get("/:ticker/key-metrics", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/financials/:ticker/ownership
+ * Insider and segment ownership/diversification metrics
+ */
+router.get("/:ticker/ownership", async (req, res) => {
+  try {
+    const { ticker } = req.params;
+
+    if (!ticker) {
+      return sendError(res, "Missing ticker parameter", 400);
+    }
+
+    const pool = getPool();
+
+    // Query both insider holdings and segment metrics
+    const result = await pool.query(
+      `
+      SELECT
+        COALESCE(i.symbol, s.symbol) as symbol,
+        i.insider_ownership_pct,
+        i.number_of_insiders,
+        i.recent_buys,
+        s.segment_count,
+        s.largest_segment_revenue_pct,
+        s.revenue_concentration_hhi,
+        s.is_diversified
+      FROM insider_holdings_sec i
+      FULL OUTER JOIN sec_segment_metrics s ON i.symbol = s.symbol
+      WHERE COALESCE(i.symbol, s.symbol) = $1
+    `,
+      [ticker.toUpperCase()]
+    );
+
+    validateQueryResult(result, { requireRows: false });
+
+    if (result.rows.length === 0) {
+      return sendSuccess(res, { ticker: ticker.toUpperCase(), data: {} });
+    }
+
+    const validated = extractSingleRow(result, {
+      symbol: { type: "string", required: true },
+      insider_ownership_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      number_of_insiders: {
+        type: "integer",
+        required: false,
+        defaultValue: null,
+      },
+      recent_buys: {
+        type: "integer",
+        required: false,
+        defaultValue: null,
+      },
+      segment_count: {
+        type: "integer",
+        required: false,
+        defaultValue: null,
+      },
+      largest_segment_revenue_pct: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      revenue_concentration_hhi: {
+        type: "float",
+        required: false,
+        defaultValue: null,
+      },
+      is_diversified: {
+        type: "boolean",
+        required: false,
+        defaultValue: null,
+      },
+    });
+
+    return sendSuccess(res, {
+      ticker: ticker.toUpperCase(),
+      data: validated || {},
+    });
+  } catch (error) {
+    logger.error("Error fetching ownership metrics:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(res, `Failed to fetch ownership metrics: ${error.message}`, 500);
+  }
+});
+
 module.exports = router;

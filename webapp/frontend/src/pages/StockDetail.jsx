@@ -615,6 +615,7 @@ function StockDetailContent() {
             high52={high52}
             low52={low52}
             last={last?.close}
+            symbol={symbol}
           />
         )}
         {tab === "algo" && (
@@ -973,12 +974,20 @@ function Triangle({ cx, cy, fill, dir }) {
 }
 
 // â”€â”€â”€ Statistics tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
+function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
   const v = scoreRow?.value_inputs || {};
   const q = scoreRow?.quality_inputs || {};
   const m = scoreRow?.momentum_inputs || {};
   const s = scoreRow?.stability_inputs || {};
   const p = scoreRow?.positioning_inputs || {};
+
+  // Fetch insider ownership and segment metrics
+  const { data: ownershipData } = useApiQuery(
+    [“ownership”, symbol],
+    () => api.get(`/api/financials/${symbol}/ownership`),
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const o = ownershipData?.data || {};
 
   const distHigh = last && high52 ? ((last - high52) / high52) * 100 : null;
   const distLow = last && low52 ? ((last - low52) / low52) * 100 : null;
@@ -1024,6 +1033,22 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
       "Net Margin",
       q.profit_margin_pct != null ? fmtPct(q.profit_margin_pct, 1) : "—",
     ],
+    [
+      "Operating Cash Flow",
+      q.operating_cashflow != null ? fmtBig(Number(q.operating_cashflow)) : "—",
+    ],
+    [
+      "Free Cash Flow",
+      q.free_cashflow != null ? fmtBig(Number(q.free_cashflow)) : "—",
+    ],
+    [
+      "OCF / Net Income",
+      q.operating_cf_to_net_income != null ? num(q.operating_cf_to_net_income, 2) : "—",
+    ],
+    [
+      "Interest Coverage",
+      q.interest_coverage != null ? num(q.interest_coverage, 2) : "—",
+    ],
     ["Debt / Equity", num(q.debt_to_equity, 2)],
     ["Current Ratio", num(q.current_ratio, 2)],
     ["Beta (12m)", num(s.beta, 2)],
@@ -1055,6 +1080,40 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last }) {
         : km?.held_percent_insiders != null
           ? fmtPct(Number(km.held_percent_insiders) * 100, 1)
           : "—",
+    ],
+    [
+      "Insiders (SEC Form 4/5)",
+      o.insider_ownership_pct != null
+        ? fmtPct(o.insider_ownership_pct, 1)
+        : "—",
+    ],
+    [
+      "# of Insiders",
+      o.number_of_insiders != null ? o.number_of_insiders : "—",
+    ],
+    [
+      "Recent Insider Buys (90d)",
+      o.recent_buys != null ? o.recent_buys : "—",
+    ],
+    [
+      "Business Segments",
+      o.segment_count != null ? o.segment_count : "—",
+    ],
+    [
+      "Largest Segment % Rev",
+      o.largest_segment_revenue_pct != null
+        ? fmtPct(o.largest_segment_revenue_pct, 1)
+        : "—",
+    ],
+    [
+      "Revenue Concentration (HHI)",
+      o.revenue_concentration_hhi != null
+        ? num(o.revenue_concentration_hhi, 0)
+        : "—",
+    ],
+    [
+      "Diversified",
+      o.is_diversified != null ? (o.is_diversified ? "Yes" : "No") : "—",
     ],
     [
       "Short % of Shares O/S",
