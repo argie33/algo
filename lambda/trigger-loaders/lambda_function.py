@@ -32,9 +32,53 @@ from loaders.loader_registry import get_table_names
 # task definition still happens to exist by that name instead of failing with a clear error.
 VALID_LOADER_NAMES = get_table_names()
 
+# CRITICAL: Loader dependencies (must match terraform computed_metrics_pipeline Step Function ordering)
+# Session 82 fix: enforce these in AWS to prevent silent NULL degradation when upstream loaders fail
+# Prevents manual/ad-hoc loader invocations from bypassing required dependencies
+# (The Step Function already enforces these, but this guards against out-of-band loader triggers)
+LOADER_DEPENDENCIES = {
+    "growth_metrics": ["analyst_earnings_estimates"],  # value_quality_growth_metrics needs analyst data for forward_pe
+}
+
 
 class TriggerLoadersHandler(LambdaHandler):
     """Triggers ECS loader tasks."""
+
+    @staticmethod
+    def _check_loader_dependencies(loader_name: str) -> tuple[bool, str | None]:
+        """Check if a loader's dependencies have been completed.
+
+        Returns:
+            (satisfied, error_message) - True if all dependencies met, False + error message if not
+        """
+        dependencies = LOADER_DEPENDENCIES.get(loader_name, [])
+        if not dependencies:
+            return True, None
+
+        try:
+            import psycopg2
+            import psycopg2.extras
+            from utils.db.config import get_db_config
+
+            db_config = get_db_config()
+            with psycopg2.connect(**db_config) as conn:
+                with conn.cursor() as cur:
+                    for dep in dependencies:
+                        cur.execute(
+                            "SELECT status, completion_pct FROM data_loader_status WHERE table_name = %s",
+                            (dep,)
+                        )
+                        result = cur.fetchone()
+                        if not result:
+                            return False, f"Dependency {dep} has no loader status record"
+                        status, completion_pct = result
+                        if status != "COMPLETED" or (completion_pct or 0) < 95:
+                            return False, f"Dependency {dep} not completed: status={status}, completion_pct={completion_pct}%"
+            return True, None
+        except Exception as e:
+            # On DB error, log and allow the loader to run (fail-open: prioritize running over blocking)
+            logger.error(f"[DEPENDENCY_CHECK] Error checking dependencies for {loader_name}: {e}")
+            return True, None
 
     @staticmethod
     def _parse_task_count(task_count_raw: Any) -> int | LambdaResponse:
@@ -115,6 +159,16 @@ class TriggerLoadersHandler(LambdaHandler):
                 "loader_name",
                 f"Unknown loader_name {loader_name!r}. Must be one of the loaders defined in "
                 f"terraform/modules/loaders/main.tf's loader_file_map: {sorted(VALID_LOADER_NAMES)}",
+            )
+
+        # CRITICAL FIX (Session 82): Check loader dependencies before running
+        # Prevents silent NULL degradation if upstream loaders fail or haven't completed
+        deps_satisfied, dep_error = self._check_loader_dependencies(loader_name)
+        if not deps_satisfied:
+            logger.error(f"[DEPENDENCY_CHECK] {loader_name}: {dep_error}")
+            return LambdaResponse.validation_error(
+                "dependencies",
+                f"Cannot run {loader_name}: {dep_error}. Trigger dependencies first.",
             )
 
         task_count = self._parse_task_count(event.get("task_count"))

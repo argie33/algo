@@ -439,13 +439,21 @@ class OrchestratorPhaseExecutor:
 
             # Skip non-always_run phases after a halt (they will fail dep checks anyway)
             if halted and not phase_def.always_run:
-                logger.info(f"Phase {phase_num} ({phase_def.phase_name}) skipped due to earlier phase halt")
+                # Propagate the ORIGINAL halting phase's reason so downstream consumers
+                # (e.g. Phase 6's degraded-mode logging) don't report "unknown reason" -
+                # they were reading THIS phase's (unset) error instead of the upstream cause.
+                upstream_reason = f"upstream Phase {error_phase} halted: {error_message}"
+                logger.info(
+                    f"Phase {phase_num} ({phase_def.phase_name}) skipped due to earlier phase halt "
+                    f"({upstream_reason})"
+                )
                 result = PhaseResult(
                     phase_num=phase_num,
                     phase_name=phase_def.phase_name,
                     status="skipped",
                     data=self._get_default_skip_data(phase_num),
                     halted=True,
+                    error=upstream_reason,
                 )
                 self.phase_results[phase_num] = result
                 continue
