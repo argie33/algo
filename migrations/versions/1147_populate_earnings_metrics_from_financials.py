@@ -1,25 +1,40 @@
 #!/usr/bin/env python3
 """Migration 1147: Populate earnings_metrics from quarterly financial statements.
 
-DO NOT RUN THIS MIGRATION (2026-08-09 finding): its earnings_quality_score and
-consistency_score calculations use raw SQL RANDOM() - `50 + RANDOM()*30`,
-`75 + RANDOM()*25`, etc. - not a real computation from the "historical EPS accuracy /
-beat-miss / revenue beat rate" the docstring below describes. Running this would
-populate earnings_metrics with literal random noise disguised as a real 0-100 quality
-score, which AdvancedFilters._earnings_quality_score() and downstream composite scoring
-would consume as if it were real signal. Left with its upgrade()/downgrade() names
-UNCHANGED (not renamed to up()/down()) so migrations/run.py's `apply --all` cannot pick
-it up by accident - migration 1146 (which only creates the empty tables, no fake data)
-was fixed and applied separately. Before this can be safely written for real: replace
-the RANDOM() terms with an actual formula from analyst_quarterly_estimates
-(beat_earnings_flag rate) and/or quarterly_income_statement (EPS trend consistency).
+REWRITTEN (2026-08-09): the original version computed earnings_quality_score and
+consistency_score with raw SQL RANDOM() - fake data, not a real signal - and also
+referenced columns that don't exist (`q.period_end_date`, `q.eps` - the real table is
+`quarterly_income_statement.fiscal_year`/`fiscal_quarter`/`earnings_per_share`), so it
+would have crashed even before the RANDOM() problem was noticed.
+
+The originally-envisioned formula (beat/miss percentage vs analyst estimates, revenue
+beat rate - see APPROACH below) is NOT possible right now: both tables that would supply
+it, analyst_quarterly_estimates (migration 1199) and earnings_history, are fully created
+but have ZERO rows - no loader has ever populated either one. Confirmed live 2026-08-09.
+
+Replaced with a simpler, honest, fully real formula computed from
+quarterly_income_statement.earnings_per_share, which IS well populated (122,965/147,318
+rows, ~83%): profitability consistency over the trailing 4 reported quarters (fraction
+of quarters with positive EPS), dampened by relative EPS volatility (coefficient of
+variation). This is a legitimate earnings-quality proxy - "how consistently profitable
+has this company been lately" - just a much simpler one than the original beat-rate
+design, and deterministic (same inputs always produce the same score, unlike RANDOM()).
+If a real analyst-estimates loader is ever built for analyst_quarterly_estimates or
+earnings_history, revisit this to add a real beat-rate component.
+
+Renamed upgrade()/downgrade() to up()/down() (see migration 1146's fix - every other
+.py migration in this repo uses up()/down(), the runner won't apply upgrade()/downgrade())
+and changed DatabaseContext("postgres") to DatabaseContext("write") (the "postgres" role
+always rolls back on __exit__, so the original version would have silently persisted
+nothing even with a real formula - see migration 1146's fix for the same bug, confirmed
+live).
 
 CONTEXT:
-- earnings_metrics table was just created (migration 1146)
-- Now populate with earnings quality scores derived from quarterly income statements
-- This enables AdvancedFilters._earnings_quality_score() to work
+- earnings_metrics table was created by migration 1146
+- Populates it with a real, deterministic earnings-consistency score
+- This enables AdvancedFilters._earnings_quality_score() to return real data
 
-APPROACH:
+ORIGINALLY ENVISIONED APPROACH (not currently possible - see above):
 1. For each symbol, get most recent quarterly earnings
 2. Calculate earnings quality score based on:
    - Historical EPS accuracy (consistency over past 4 quarters)
@@ -33,44 +48,54 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def upgrade() -> None:
-    """Populate earnings_metrics from quarterly financial data."""
+def up() -> None:
+    """Populate earnings_metrics from real quarterly EPS consistency."""
     from utils.db.context import DatabaseContext
 
-    with DatabaseContext("postgres") as cur:
-        # Populate earnings_metrics from quarterly_income_statement
-        # Calculate earnings quality score (0-100) based on historical consistency
+    with DatabaseContext("write") as cur:
+        # earnings_quality_score / consistency_score from trailing-4-quarter EPS:
+        # consistency_score = % of trailing quarters with positive EPS
+        # earnings_quality_score = same, dampened by relative EPS volatility (stdev/|mean|)
         cur.execute("""
+            WITH recent AS (
+                SELECT symbol, fiscal_year, fiscal_quarter, earnings_per_share,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY symbol ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                       ) AS rn
+                FROM quarterly_income_statement
+                WHERE earnings_per_share IS NOT NULL
+            ),
+            trailing4 AS (
+                SELECT symbol,
+                       COUNT(*) AS n_quarters,
+                       COUNT(*) FILTER (WHERE earnings_per_share > 0) AS positive_quarters,
+                       AVG(earnings_per_share) AS avg_eps,
+                       STDDEV_SAMP(earnings_per_share) AS stdev_eps
+                FROM recent
+                WHERE rn <= 4
+                GROUP BY symbol
+                HAVING COUNT(*) >= 2
+            )
             INSERT INTO earnings_metrics
-            (symbol, report_date, earnings_quality_score, actual_eps,
-             consistency_score, created_at, updated_at)
+            (symbol, report_date, earnings_quality_score, consistency_score, created_at, updated_at)
             SELECT
-                q.symbol,
-                q.period_end_date as report_date,
-                CASE
-                    -- Base score on EPS consistency and recent growth
-                    WHEN COUNT(*) OVER (PARTITION BY q.symbol) >= 4
-                        THEN LEAST(100, 50 + SQRT(COALESCE(q.eps, 0)^2) + RANDOM()*30)
-                    ELSE 50 + RANDOM()*20
-                END as earnings_quality_score,
-                q.eps as actual_eps,
-                CASE
-                    WHEN COUNT(*) OVER (PARTITION BY q.symbol) >= 4
-                        THEN 75 + RANDOM()*25
-                    ELSE 50 + RANDOM()*25
-                END as consistency_score,
+                symbol,
+                CURRENT_DATE,
+                ROUND(
+                    LEAST(100, GREATEST(0,
+                        (positive_quarters::numeric / n_quarters) * 100
+                        * (1 - LEAST(1, COALESCE(stdev_eps / NULLIF(ABS(avg_eps), 0), 0) / 2))
+                    )), 2
+                ),
+                ROUND((positive_quarters::numeric / n_quarters) * 100, 2),
                 NOW(),
                 NOW()
-            FROM quarterly_income_statement q
-            WHERE q.period_end_date >= NOW() - INTERVAL '18 months'
-            ORDER BY q.symbol, q.period_end_date DESC
+            FROM trailing4
             ON CONFLICT (symbol, report_date) DO NOTHING
         """)
+        logger.info("Populated earnings_metrics from real quarterly_income_statement EPS history")
 
-        inserted = cur.fetchone()
-        logger.info(f"Populated earnings_metrics from quarterly_income_statement")
-
-        # Mark symbols without earnings data as unavailable
+        # Mark symbols without enough quarterly EPS history as unavailable
         cur.execute("""
             INSERT INTO earnings_metrics
             (symbol, report_date, earnings_quality_score, data_unavailable,
@@ -80,7 +105,7 @@ def upgrade() -> None:
                 CURRENT_DATE,
                 NULL,
                 TRUE,
-                'no_quarterly_earnings_data',
+                'insufficient_quarterly_eps_history',
                 NOW(),
                 NOW()
             FROM stock_symbols s
@@ -88,19 +113,22 @@ def upgrade() -> None:
                 SELECT 1 FROM earnings_metrics e WHERE e.symbol = s.symbol
             )
             AND s.active = TRUE
+            AND length(s.symbol) <= 10  -- earnings_metrics.symbol is VARCHAR(10); stock_symbols
+                                         -- has a handful of longer non-ticker test fixture rows
+                                         -- (HEALTH_CHECK_TEST, DB_CONTEXT_TEST, etc.)
             ON CONFLICT (symbol, report_date) DO NOTHING
         """)
 
-        logger.info("Marked symbols without earnings data as unavailable")
-        logger.info("Migration 1147 complete: earnings_metrics populated from quarterly financials")
+        logger.info("Marked symbols without sufficient EPS history as unavailable")
+        logger.info("Migration 1147 complete: earnings_metrics populated with real EPS-consistency scores")
 
 
-def downgrade() -> None:
+def down() -> None:
     """Clear earnings_metrics data."""
     from utils.db.context import DatabaseContext
 
-    with DatabaseContext("postgres") as cur:
-        cur.execute("DELETE FROM earnings_metrics WHERE report_date >= NOW() - INTERVAL '18 months'")
+    with DatabaseContext("write") as cur:
+        cur.execute("DELETE FROM earnings_metrics WHERE report_date = CURRENT_DATE")
         logger.info("Migration 1147 downgrade complete: earnings_metrics cleared")
 
 
@@ -108,9 +136,9 @@ if __name__ == "__main__":
     import sys
     action = sys.argv[1] if len(sys.argv) > 1 else "upgrade"
     if action == "upgrade":
-        upgrade()
+        up()
     elif action == "downgrade":
-        downgrade()
+        down()
     else:
         print(f"Unknown action: {action}")
         sys.exit(1)
