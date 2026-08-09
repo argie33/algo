@@ -752,20 +752,10 @@ def _run_symbol_pass(
     to trigger watermark logic for retry). This prevents the entire 5300-symbol load
     from stalling on one bad symbol.
     """
-    import signal
     import threading
 
     sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
     per_symbol_timeout_seconds = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "30"))
-
-    def _load_symbol_with_timeout(loader, symbol, per_symbol_timeout):
-        """Load a single symbol with timeout protection."""
-        try:
-            loader.load_symbol(symbol)
-            return True
-        except Exception as e:
-            logger.error(f"[{loader.table_name}] {symbol} failed: {e}")
-            return False
 
     for i, symbol in enumerate(symbols, 1):
         if time.time() - start > sla_timeout_seconds:
