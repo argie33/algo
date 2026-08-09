@@ -811,7 +811,16 @@ def _run_symbol_pass(
                     exception[0] = e
                     result[0] = False
 
-            thread = threading.Thread(target=run_with_timeout, daemon=False)
+            # daemon=True (FIXED 2026-08-09): Python cannot force-kill a thread, so a symbol
+            # whose load_symbol() call is genuinely stuck (not just slow - e.g. hangs before
+            # the socket ever connects, so configure_socket_timeout(30) never engages) leaves
+            # this thread running forever after we abandon it below. A non-daemon thread left
+            # running blocks the whole process from exiting (CPython's interpreter shutdown
+            # waits on every non-daemon thread) - that would silently recreate the exact
+            # "hangs 5+ hours in prod" bug this per-symbol timeout exists to prevent, just
+            # moved from mid-loop to process-exit time. daemon=True lets the process exit
+            # normally even if some abandoned threads never finish.
+            thread = threading.Thread(target=run_with_timeout, daemon=True)
             thread.start()
             thread.join(timeout=remaining_timeout)
 
