@@ -371,8 +371,10 @@ router.get("/details/:symbol", async (req, res) => {
       interest_coverage_unavailable_reason: row?.interest_coverage_unavailable_reason,
       earnings_surprise_avg: row?.earnings_surprise_avg,
       eps_growth_stability: row?.eps_growth_stability,
+      eps_growth_stability_unavailable_reason: row?.eps_growth_stability_unavailable_reason,
       earnings_beat_rate: row?.earnings_beat_rate,
       consecutive_positive_quarters: row?.consecutive_positive_quarters,
+      consecutive_positive_quarters_unavailable_reason: row?.consecutive_positive_quarters_unavailable_reason,
       estimate_revision_direction: row?.estimate_revision_direction,
       revision_activity_30d: row?.revision_activity_30d,
       estimate_momentum_60d: row?.estimate_momentum_60d,
@@ -395,6 +397,7 @@ router.get("/details/:symbol", async (req, res) => {
       revenue_growth_pct: row?.revenue_growth_yoy,
       revenue_growth_pct_unavailable_reason: row?.revenue_growth_yoy_unavailable_reason,
       earnings_growth_4q_avg: row?.earnings_growth_4q_avg,
+      earnings_growth_4q_avg_unavailable_reason: row?.earnings_growth_4q_avg_unavailable_reason,
     });
 
     const mapGrowthInputs = (row) => ({
