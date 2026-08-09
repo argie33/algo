@@ -180,6 +180,18 @@ _INCOME_FIELD_MAPPING = {
     **_MARKER_FIELDS,
 }
 
+# FIXED 2026-08-09: these two concepts are a last-resort revenue proxy for banks/REITs
+# with no standard revenue tag (see the mapping comments above) - the "last-listed wins"
+# overwrite this dict relies on only produces the documented behavior ("wins for filers
+# with nothing else") when a company genuinely never reports one of the concepts above
+# it. Live-confirmed that's not always true: ORLY (a normal retailer) reports a small
+# real InterestAndDividendIncomeOperating line item (interest on cash investments)
+# alongside its real revenue - sec_base.py's transform() now only writes these two into
+# "revenue" if nothing else already has, instead of unconditionally overwriting.
+_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
+    {"interest_income_operating", "interest_and_dividend_income_operating"}
+)
+
 _BALANCE_FIELD_MAPPING = {
     "assets": "total_assets",
     "assets_current": "current_assets",
@@ -270,6 +282,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "annual_income_statement",
             "field_mapping": dict(_INCOME_FIELD_MAPPING),
+            "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -300,6 +313,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "quarterly_income_statement",
             "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_EXTRA},
+            "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -331,6 +345,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
         return {
             "table_name": "ttm_income_statement",
             "field_mapping": dict(_INCOME_FIELD_MAPPING),
+            "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "report_date"),
             "schema_cols": frozenset(
                 [

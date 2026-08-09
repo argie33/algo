@@ -10,12 +10,23 @@ Fixed by giving fetch_quotes/fetch_bars the same up-to-3-attempt retry loop alre
 elsewhere in this file.
 """
 
+from datetime import datetime as real_datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from algo.infrastructure.market_events import MarketEventHandler
+from utils.infrastructure import EASTERN_TZ
+
+# check_market_circuit_breaker() returns None immediately outside 09:30-16:00 ET
+# (algo/infrastructure/market_events.py:239-241) without ever reaching the
+# fetch_quotes/fetch_bars retry logic these tests exercise. Freeze the clock to a
+# fixed weekday market-hours timestamp so results don't depend on the wall-clock
+# time/day the suite happens to run - previously 3 of these 5 tests spuriously
+# failed whenever run nights/weekends (result was None from the market-closed
+# short-circuit, not from the retry logic actually running).
+_MARKET_HOURS_NOW = real_datetime(2026, 8, 10, 12, 0, 0, tzinfo=EASTERN_TZ)  # Monday, noon ET
 
 
 @pytest.fixture
@@ -63,6 +74,12 @@ def _routed_get(quote_codes, bar_codes, quote_ap=485.0, bar_o=500.0):
 
 
 class TestCircuitBreakerQuoteBarsRetryTransientErrors:
+    @pytest.fixture(autouse=True)
+    def _freeze_market_hours(self):
+        with patch("algo.infrastructure.market_events.datetime") as mock_dt:
+            mock_dt.now.return_value = _MARKET_HOURS_NOW
+            yield
+
     def test_quotes_429_then_success_retries_and_returns_result(self, handler):
         with (
             patch("algo.infrastructure.market_events.get_alpaca_data_url", return_value="https://data.alpaca.markets"),

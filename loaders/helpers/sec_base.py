@@ -246,6 +246,17 @@ class SecEdgarStatementLoader(SecLoaderBase):
         self.primary_key: tuple[str, ...] = cast(tuple[str, ...], cfg["primary_key"])
         self._schema_cols: frozenset[str] = cast(frozenset[str], cfg["schema_cols"])
         self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
+        # FIXED 2026-08-09: sec_fields listed here only ever WRITE their target db_field
+        # when nothing else has already populated it. Needed for the revenue fallback
+        # chain (interest_income_operating/interest_and_dividend_income_operating) -
+        # those concepts are meant as a last resort for banks/REITs with no standard
+        # revenue tag, but transform()'s normal "last one iterated wins" merge let them
+        # silently clobber a real revenue figure for any company that happens to ALSO
+        # report a genuine interest/dividend income line item (ORLY live-confirmed: real
+        # ~$4B/quarter retail revenue overwritten by a $1.75M interest-income fact).
+        self._fallback_only_fields: frozenset[str] = cast(
+            frozenset[str], cfg.get("fallback_only_fields", frozenset())
+        )
 
         super().__init__()
         self._sec_client = sec_client if sec_client is not None else SecEdgarClient()
@@ -408,6 +419,8 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     continue
 
                 db_field = field_mapping[sec_field]
+                if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
+                    continue  # A higher-priority concept already populated this field
                 if db_field not in self._schema_cols:
                     raise RuntimeError(
                         f"[{self.table_name}] Field mapping configuration error: SEC field '{sec_field}' "

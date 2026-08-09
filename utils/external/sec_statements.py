@@ -15,6 +15,7 @@ produce, so downstream field_mapping in load_financial_statements.py needs no ch
 an IFRS-sourced row looks identical to a GAAP-sourced one once aggregated.
 """
 
+import datetime
 import logging
 from typing import Any
 
@@ -519,9 +520,39 @@ def _aggregate_concepts(
                 # - Proxy statements with annual data: fp=None (e.g., EE's net income from DEF 14A)
                 # Use the end date to derive the fiscal year. This fixes 466 companies (8.4%)
                 # with zero net_income coverage because extraction silently skipped them.
+                #
+                # FIXED 2026-08-09: the fp in ('Q1'-'Q4') branch above had no check on the
+                # entry's actual reporting SPAN, so a genuine single-quarter duration fact
+                # (~90 days) was accepted into the annual "FY" bucket with no annualization -
+                # silently masquerading as a full year's figure. Live-confirmed via ORLY: its
+                # FY2026 10-K hasn't been filed yet (mid-year), so revenue/gross_profit had no
+                # real annual entry; but a real Q1-2026 "InterestAndDividendIncomeOperating"
+                # fact (a minor interest-income line, $1.75M, unrelated to their real ~$4B/qtr
+                # retail revenue) got bucketed into fiscal_year=2026 "FY" as if it were the
+                # year's revenue, producing garbage 1000%+ margins downstream once divided
+                # against a genuine (also wrongly quarter-only) gross_profit figure. Duration
+                # (end - start) is only meaningful for flow/duration facts (revenue, income,
+                # cash flow - always have "start"); instant/point-in-time balance-sheet facts
+                # (Assets, Liabilities, ...) have no "start" and are correctly accepted for any
+                # fp, since an "as of" balance is valid regardless of the tag's fp. Threshold
+                # (330 days) intentionally excludes real single-quarter chunks (~90 days) while
+                # still accepting genuine full-year cumulative facts that got mistagged with a
+                # quarterly fp (e.g. some Q4 YTD figures span the whole year).
+                start_date = entry.get("start")
+                if fp in ("Q1", "Q2", "Q3", "Q4") and start_date and entry.get("end"):
+                    try:
+                        span_days = (
+                            datetime.date.fromisoformat(entry["end"])
+                            - datetime.date.fromisoformat(start_date)
+                        ).days
+                    except ValueError:
+                        span_days = None
+                    if span_days is not None and span_days < 330:
+                        continue  # Real single-quarter/partial-year data - not annual
+
                 if period == "annual":
                     if fp == "FY" or fp is None or fp in ("Q1", "Q2", "Q3", "Q4"):
-                        pass  # Accept annual, proxy, and quarterly data for annual extraction
+                        pass  # Accept annual, proxy, and quarterly(-but-full-span) data
                     else:
                         continue  # Skip other FP values
                 elif period == "quarterly" and fp not in fp_filter:
