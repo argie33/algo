@@ -406,10 +406,15 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         """
         try:
             import yfinance as yf
+            from utils.loaders.retry_helper import retry_with_backoff
             ticker = yf.Ticker(symbol)
 
-            # Get last 4 quarters of earnings data
-            earnings_dates = ticker.earnings_dates
+            # Get last 4 quarters of earnings data. Retried (2026-08-09) for the same reason
+            # as _compute_estimate_revision_metrics's eps_trend/eps_revisions fetch - a single
+            # transient yfinance failure here shouldn't be indistinguishable from real absence.
+            earnings_dates = retry_with_backoff(
+                lambda: ticker.earnings_dates, context=f"{symbol} earnings_dates", max_retries=2, backoff_seconds=1.0
+            )
             if earnings_dates is None or earnings_dates.empty:
                 logger.debug(f"[ENHANCED_METRICS] {symbol}: No earnings_dates from yfinance")
                 return
@@ -440,8 +445,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except ImportError:
             logger.debug(f"[ENHANCED_METRICS] {symbol}: yfinance not available")
         except Exception as e:
-            # yfinance may not have data or may be rate-limited
-            logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise: {type(e).__name__}: {e}")
+            logger.warning(
+                f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise after retries: "
+                f"{type(e).__name__}: {e}"
+            )
 
     def _compute_estimate_revision_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
         """Compute analyst estimate revision trend metrics from yfinance eps_trend/eps_revisions.
@@ -453,13 +460,28 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         Uses the '0q' (current-quarter) row - the most immediately actionable estimate window,
         matching the same non-`.info` API family already used for forward_eps
         (utils/external/yfinance_analyst_ratings.py) and upgrades_downgrades.
+
+        CONFIRMED 2026-08-09: on a full-universe run, this call transiently fails for many
+        symbols that DO have real eps_trend/eps_revisions data (live-verified: CMS, D, TNDM all
+        got a real earnings_surprise_avg from _compute_earnings_surprise_metrics on the same run,
+        proving the symbol/loader/DB path works, yet estimate_momentum_60d/revision_activity_30d
+        stayed NULL - re-fetching eps_trend for the same symbols moments later succeeded
+        instantly). The bare `except Exception: logger.debug(...)` below used to swallow this
+        indistinguishably from genuine "no analyst coverage", with no retry - explains most of
+        the low (~7-8%) coverage on these fields despite real data being available. Now retries
+        the fetch itself before giving up.
         """
         try:
             import yfinance as yf
+            from utils.loaders.retry_helper import retry_with_backoff
             ticker = yf.Ticker(symbol)
 
-            eps_trend = ticker.eps_trend
-            eps_revisions = ticker.eps_revisions
+            eps_trend = retry_with_backoff(
+                lambda: ticker.eps_trend, context=f"{symbol} eps_trend", max_retries=2, backoff_seconds=1.0
+            )
+            eps_revisions = retry_with_backoff(
+                lambda: ticker.eps_revisions, context=f"{symbol} eps_revisions", max_retries=2, backoff_seconds=1.0
+            )
 
             if eps_trend is not None and not eps_trend.empty and "0q" in eps_trend.index:
                 row = eps_trend.loc["0q"]
@@ -500,8 +522,13 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         except ImportError:
             logger.debug(f"[ENHANCED_METRICS] {symbol}: yfinance not available")
         except Exception as e:
-            # yfinance may not have data or may be rate-limited
-            logger.debug(f"[ENHANCED_METRICS] {symbol}: Could not fetch estimate revisions: {type(e).__name__}: {e}")
+            # WARNING not DEBUG (2026-08-09): retries above already absorb transient blips;
+            # a failure reaching here means 2 retries were exhausted, which is worth surfacing
+            # instead of silently blending into "no coverage for this symbol".
+            logger.warning(
+                f"[ENHANCED_METRICS] {symbol}: Could not fetch estimate revisions after retries: "
+                f"{type(e).__name__}: {e}"
+            )
 
     def _compute_quarterly_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
         """Compute metrics from quarterly earnings data."""
