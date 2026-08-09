@@ -1,16 +1,23 @@
-"""Regression test: gross_margin, ebitda_margin, and roic_pct must be bounded against the
-same near-zero-denominator garbage-value class already fixed for interest_coverage (see
-test_interest_coverage_ebit_fallback.py / interest_coverage_roic_ebit_approximation_fix_20260809
-memory) - that fix was scoped only to interest_coverage's own code block and missed the
-identical division pattern in these three adjacent metrics.
+"""Regression test: gross_margin, ebitda_margin, roic_pct, operating_margin, and net_margin must
+be bounded against the same near-zero-denominator garbage-value class already fixed for
+interest_coverage (see test_interest_coverage_ebit_fallback.py /
+interest_coverage_roic_ebit_approximation_fix_20260809 memory) - that fix was scoped only to
+interest_coverage's own code block and missed the identical division pattern in these adjacent
+metrics.
 
 Live DB audit (2026-08-09) found real, already-written garbage values from exactly this gap:
 99 symbols with |gross_margin| > 1000% (worst: CRML at 23,148,148%, from a quarter reporting
 revenue=$540 against gross_profit=$125,000,000 - almost certainly a mis-scaled/mis-tagged SEC
 fact, not real data), 274 symbols with |ebitda_margin| > 1000%, and MCK at roic_pct=1347.77%
 (from invested_capital being real but implausibly close to zero, same failure mode as the
-already-fixed interest_coverage near-zero-interest-expense case). All three are now bounded at
+already-fixed interest_coverage near-zero-interest-expense case). All three were bounded at
 |ratio| <= 1000, mirroring interest_coverage's existing bound exactly.
+
+That fix (commit 12063b32a) itself missed operating_margin and net_margin, which share the
+identical revenue-denominator division pattern - live-confirmed still-garbage on a fresh row
+written by an in-flight loader run that started before this fix even landed: KARO showing
+operating_margin=3545.12% and net_margin=2531.50% alongside its now-bounded gross_margin. Both
+now bounded the same way.
 """
 
 from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
@@ -163,3 +170,42 @@ class TestRoicPctGarbageValueBound:
         invested_capital = 500_000_000.0 + 200_000_000.0 - 50_000_000.0
         nopat = 100_000_000.0 * (1 - 0.2)
         assert metrics["roic_pct"] == (nopat / invested_capital) * 100
+
+
+class TestOperatingMarginGarbageValueBound:
+    def test_implausible_ratio_from_near_zero_revenue_marked_unavailable(self, monkeypatch):
+        # KARO-shaped: operating_income real-scale, revenue implausibly tiny relative to it.
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(operating_income=35_000_000.0, revenue=987_000.0)
+
+        metrics = loader._compute_quality_metrics("KARO", row, ev_metrics=None)
+
+        assert metrics["operating_margin"] is None
+
+    def test_normal_ratio_still_computes(self, monkeypatch):
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(operating_income=30_000_000.0, revenue=200_000_000.0)
+
+        metrics = loader._compute_quality_metrics("NORMALCO3", row, ev_metrics=None)
+
+        assert metrics["operating_margin"] == (30_000_000.0 / 200_000_000.0) * 100
+
+
+class TestNetMarginGarbageValueBound:
+    def test_implausible_ratio_from_near_zero_revenue_marked_unavailable(self, monkeypatch):
+        # KARO-shaped: net_income (fixed at 50_000_000.0 by _quality_row) real-scale,
+        # revenue implausibly tiny relative to it.
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(revenue=987_000.0)
+
+        metrics = loader._compute_quality_metrics("KARO", row, ev_metrics=None)
+
+        assert metrics["net_margin"] is None
+
+    def test_normal_ratio_still_computes(self, monkeypatch):
+        loader = _make_loader(monkeypatch)
+        row = _quality_row(revenue=200_000_000.0)
+
+        metrics = loader._compute_quality_metrics("NORMALCO4", row, ev_metrics=None)
+
+        assert metrics["net_margin"] == (50_000_000.0 / 200_000_000.0) * 100

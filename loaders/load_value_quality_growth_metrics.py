@@ -1074,12 +1074,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Fallback for banks (NULL revenue): use Operating Income / Total Assets instead
             if operating_income is not None and operating_income != 0:
                 if revenue is not None and revenue != 0:
-                    metrics["operating_margin"] = float((operating_income / revenue) * 100)
+                    computed_operating_margin = (operating_income / revenue) * 100
                 elif total_assets is not None and total_assets != 0:
                     # Fallback: ROA of operating income (useful for banks with NULL revenue)
-                    metrics["operating_margin"] = float((operating_income / total_assets) * 100)
+                    computed_operating_margin = (operating_income / total_assets) * 100
                 else:
+                    computed_operating_margin = None
+                if computed_operating_margin is None:
                     failed_metrics.append("operating_margin")
+                else:
+                    # CRITICAL FIX 2026-08-09: same near-zero-denominator garbage-value bound
+                    # as gross_margin/ebitda_margin/roic_pct above - this metric shares the
+                    # identical division pattern and was live-confirmed producing the same
+                    # class of garbage (KARO: operating_margin=3545.12% from the same
+                    # near-zero-revenue root cause as its gross_margin/ebitda_margin blowup).
+                    if abs(computed_operating_margin) > 1000:
+                        failed_metrics.append("operating_margin")
+                    else:
+                        metrics["operating_margin"] = float(computed_operating_margin)
             else:
                 failed_metrics.append("operating_margin")
 
@@ -1087,12 +1099,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Fallback for banks (NULL revenue): use Net Income / Total Assets instead
             if net_income is not None and net_income != 0:
                 if revenue is not None and revenue != 0:
-                    metrics["net_margin"] = float((net_income / revenue) * 100)
+                    computed_net_margin = (net_income / revenue) * 100
                 elif total_assets is not None and total_assets != 0:
                     # Fallback: ROA of net income (useful for banks with NULL revenue)
-                    metrics["net_margin"] = float((net_income / total_assets) * 100)
+                    computed_net_margin = (net_income / total_assets) * 100
                 else:
+                    computed_net_margin = None
+                if computed_net_margin is None:
                     failed_metrics.append("net_margin")
+                else:
+                    # CRITICAL FIX 2026-08-09: same near-zero-denominator garbage-value bound
+                    # as gross_margin/ebitda_margin/roic_pct/operating_margin above (KARO:
+                    # net_margin=2531.50% from the same near-zero-revenue root cause).
+                    if abs(computed_net_margin) > 1000:
+                        failed_metrics.append("net_margin")
+                    else:
+                        metrics["net_margin"] = float(computed_net_margin)
             else:
                 failed_metrics.append("net_margin")
 
