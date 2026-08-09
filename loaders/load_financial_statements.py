@@ -706,7 +706,7 @@ def load_all_statements() -> int:
         _run_symbol_pass(active, symbols, shutdown_watcher, start)
 
         duration = round(time.time() - start, 2)
-        return _finalize_all(active, len(combos), len(symbols), duration)
+        return _finalize_all(active, len(combos), len(symbols), duration, symbols)
     except Exception as e:
         logger.error(f"[FINANCIAL_STATEMENTS ALL MODE] Fatal: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         for loader in started:
@@ -839,6 +839,7 @@ def _finalize_combo(
     loader: "ConsolidatedFinancialStatementsLoader",
     symbol_count: int,
     duration_sec: float,
+    symbols: list[str],
 ) -> bool:
     """Per-combo finalization mirroring OptimalLoader.run + run_loader.
 
@@ -876,7 +877,7 @@ def _finalize_combo(
         loader._log_execution_history("failed", msg[:500])
         return False
 
-    loader._update_final_status(symbol_count)
+    loader._update_final_status(symbol_count, symbols)
     loader._log_execution_history("success")
     return True
 
@@ -886,11 +887,12 @@ def _finalize_all(
     total_combos: int,
     symbol_count: int,
     duration_sec: float,
+    symbols: list[str],
 ) -> int:
     """Finalize every active combo and compute the all-mode exit code."""
     combos_failed = 0
     for loader in active:
-        if not _finalize_combo(loader, symbol_count, duration_sec):
+        if not _finalize_combo(loader, symbol_count, duration_sec, symbols):
             combos_failed += 1
     active[0]._invalidate_cache()
 
