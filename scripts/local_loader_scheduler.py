@@ -53,6 +53,35 @@ PIPELINES = {
     ],
 }
 
+# CRITICAL: Loader dependencies - some loaders must run before others
+# Session 81 fix: enforce these dependencies to prevent silent data degradation
+LOADER_DEPENDENCIES = {
+    "value_quality_growth": ["analyst_earnings_estimates"],  # Must have analyst data for forward_pe computation
+    "enhanced_quality_growth": ["value_quality_growth"],    # Enhances value_quality_growth output
+}
+
+
+def _check_loader_dependencies(loader: str, completed_loaders: set[str]) -> bool:
+    """Check if a loader's dependencies have completed.
+
+    Args:
+        loader: The loader name to check
+        completed_loaders: Set of loader names that have already completed successfully
+
+    Returns:
+        True if all dependencies are met, False otherwise
+    """
+    dependencies = LOADER_DEPENDENCIES.get(loader, [])
+    missing = [dep for dep in dependencies if dep not in completed_loaders]
+
+    if missing:
+        print(
+            f"[LOCAL_SCHEDULER] ERROR: {loader} requires {missing} to run first, but they have not completed",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
 
 def run_pipeline(pipeline_name: str) -> int:
     """Run all loaders for a given pipeline."""
@@ -64,6 +93,7 @@ def run_pipeline(pipeline_name: str) -> int:
 
     print(f"[LOCAL_SCHEDULER] Starting {pipeline_name} pipeline ({len(loaders)} loaders)...")
     repo_root = Path(__file__).parent.parent
+    completed_loaders = set()  # Track completed loaders for dependency checking
 
     # CRITICAL FIX: Loader-specific timeouts
     # Prevents hangs when loaders block on lock acquisition from crashed previous runs.
@@ -116,6 +146,11 @@ def run_pipeline(pipeline_name: str) -> int:
     }
 
     for loader in loaders:
+        # CRITICAL FIX (Session 81): Check loader dependencies before running
+        # Prevents silent data degradation if a required upstream loader fails
+        if not _check_loader_dependencies(loader, completed_loaders):
+            return 1
+
         timeout = LOADER_TIMEOUTS.get(loader, 30 * 60)  # 30 min default
         print(f"[LOCAL_SCHEDULER] Running {loader} loader (timeout: {timeout}s)...")
         try:
@@ -133,6 +168,8 @@ def run_pipeline(pipeline_name: str) -> int:
                     file=sys.stderr,
                 )
                 return 1
+            # Mark loader as completed for dependency checking of subsequent loaders
+            completed_loaders.add(loader)
         except subprocess.TimeoutExpired:
             print(
                 f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
