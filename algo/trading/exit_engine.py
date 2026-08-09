@@ -157,19 +157,6 @@ class PositionContext:
                 f"Check orchestrator config validation."
             )
 
-    def check_stop_loss(self) -> tuple[bool, dict[str, Any] | None]:
-        """Stop loss check: hard capital preservation rule."""
-        if self.cur_price <= self.active_stop:
-            return (
-                True,
-                {
-                    "stage": "stop",
-                    "fraction": 1.0,
-                    "reason": f"STOP hit: ${float(self.cur_price):.2f} <= ${float(self.active_stop):.2f}",
-                },
-            )
-        return False, None
-
     def check_minervini_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """Minervini break: DISABLED (0% win rate in backtest 2026-08-05).
 
@@ -1991,72 +1978,6 @@ class ExitEngine:
             )
 
         return td_state
-
-    def _is_minervini_break(
-        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, cur_price: float
-    ) -> bool:
-        """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
-
-        interval_50d = get_interval_sql("50d")
-        cur.execute(
-            f"""
-
-            SELECT td.sma_50, td.ema_21,
-
-                   (SELECT volume FROM price_daily p WHERE p.symbol = td.symbol AND p.date = td.date) AS vol,
-
-                   (SELECT AVG(volume) FROM price_daily p
-
-                     WHERE p.symbol = td.symbol AND p.date <= td.date
-
-                       AND p.date >= td.date - {interval_50d}) AS avg_vol_50
-
-            FROM technical_data_daily td
-
-            WHERE td.symbol = %s AND td.date <= %s
-
-            ORDER BY td.date DESC LIMIT 1
-
-            """,
-            (symbol, current_date),
-        )
-
-        row = cur.fetchone()
-
-        if row is None:
-            raise ValueError(
-                f"Cannot evaluate Minervini break for {symbol}: technical_data_daily missing for {current_date}"
-            )
-
-        sma_50, ema_21, vol, avg_vol_50 = row
-
-        sma_50 = Decimal(str(sma_50)) if sma_50 is not None else None
-
-        ema_21 = Decimal(str(ema_21)) if ema_21 is not None else None
-
-        if vol is None:
-            raise ValueError(f"Volume data missing for {symbol}; cannot evaluate volume-based exits")
-        vol = float(vol)
-
-        if avg_vol_50 is None:
-            raise ValueError(f"50-day average volume missing for {symbol}; cannot evaluate relative volume")
-        avg_vol_50 = float(avg_vol_50)
-
-        cur_price_decimal = Decimal(str(cur_price))
-
-        # Clean break of 50-DMA
-
-        if sma_50 is not None and cur_price_decimal < sma_50 * Decimal("0.99"):
-            return True
-
-        # Break of EMA(21) on rising volume (institutional selling)
-
-        ema_21_float = float(ema_21) if ema_21 is not None else None
-
-        if ema_21_float is not None and cur_price < ema_21_float and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
-            return True
-
-        return False
 
     def _check_volume_spike(
         self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, volume_multiplier: float
