@@ -245,7 +245,6 @@ def main() -> None:
                     # with no other signal that this run type wasn't supposed to be dry-run.
                     # 2026-08-03: this happened repeatedly across a day's runs, discovered only
                     # by manually diffing orchestrator_execution_log after the fact.
-                    import sys
                     print(f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' is forcing "
                           f"dry-run for --{run_type}, a live-trading run type. No real orders will "
                           f"execute this run. Unset ORCHESTRATOR_DRY_RUN if this is unintended.",
