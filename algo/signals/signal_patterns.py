@@ -82,6 +82,21 @@ class SignalPatternsMixin:
                     "reason": f"insufficient_price_history ({len(rows)}/{self.BASE_MIN_HISTORY} bars)",
                 }
 
+            # FIX (2026-08-09): price_daily.volume (and in principle high/low/close) can be NULL
+            # on real gap days for thinly-traded symbols. A bare float(None) here raised an
+            # uncaught TypeError - surfaced empirically by running AdvancedFilters against a
+            # 300-symbol sample (16/300 crashed, most via this path). buy_signal_generator.py's
+            # only live caller already wraps this in a broad try/except (best-effort enrichment),
+            # so this never broke live signal generation - but it silently discarded valid base-
+            # pattern data for any symbol with even one gap day in its 60-bar window. Now treated
+            # the same as insufficient history, matching this function's existing convention.
+            if any(r[1] is None or r[2] is None or r[3] is None or r[4] is None for r in rows):
+                return {
+                    "in_base": None,
+                    "data_unavailable": True,
+                    "reason": "null_ohlcv_in_price_history",
+                }
+
             # Chronological order (oldest -> newest/eval_date), matching classify_base_type's
             # own fetch and vcp_detection - rows above come back newest-first from ORDER BY date DESC.
             rows = list(reversed(rows))

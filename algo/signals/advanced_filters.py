@@ -196,13 +196,22 @@ class AdvancedFilters:
             # ===== HARD-FAIL gates (independent) =====
 
             # H1. Earnings proximity (CRITICAL: must not skip on exception)
+            # FIX (2026-08-09): "must not skip on exception" means missing data must produce a
+            # HARD_FAIL verdict (this function's own mechanism for rejecting a candidate - see
+            # `"pass": hard_fail is None` at the end of this method), not an uncaught exception
+            # thrown at the caller. Re-raising here bypassed that mechanism entirely. Empirically
+            # verified via a 300-symbol sample against the real DB: H2/H4 below and
+            # _financial_quality_score() were hit this way (16/300 crashed); H1 didn't happen to
+            # fire in that sample but has the identical bug, so it's fixed the same way for
+            # consistency rather than waiting to empirically rediscover it too.
             days_to_earnings: int | None = None
             try:
                 days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
             except ValueError as e:
-                # Earnings data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
-                # Continuing without earnings check exposes position to surprise earnings gaps.
-                raise ValueError(f"Earnings data unavailable (cannot validate blackout): {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Earnings data unavailable (cannot validate blackout): {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (earnings proximity) but already failed: {hard_fail}")
 
             components["days_to_earnings"] = days_to_earnings
             if days_to_earnings is not None and 0 <= days_to_earnings <= self.block_days_before_earnings:
@@ -215,9 +224,10 @@ class AdvancedFilters:
             try:
                 ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
             except ValueError as e:
-                # SMA_50 data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
-                # Cannot measure extension without SMA_50; trade validity is unmeasurable.
-                raise ValueError(f"Extension validation failed (SMA_50 missing): {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Extension validation failed (SMA_50 missing): {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (extension) but already failed: {hard_fail}")
 
             components["extension_pct"] = ext_pct
             if ext_pct is not None and ext_pct > self.max_extension_above_50ma_pct:
@@ -233,9 +243,10 @@ class AdvancedFilters:
             try:
                 avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
             except ValueError as e:
-                # Liquidity data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
-                # Cannot validate minimum liquidity; trade size calculation is unreliable.
-                raise ValueError(f"Liquidity validation failed (price/volume missing): {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Liquidity validation failed (price/volume missing): {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (liquidity) but already failed: {hard_fail}")
 
             components["avg_dollar_volume"] = avg_dollar_vol
             if avg_dollar_vol is not None and avg_dollar_vol < self.min_avg_daily_dollar_volume:
@@ -270,6 +281,13 @@ class AdvancedFilters:
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
             # MOMENTUM (40) - missing data in soft scoring is INCOMPLETE VALIDATION, hard-fail
+            # FIX (2026-08-09): all 5 of these (plus setup_quality below) had the same uncaught-
+            # exception bug fixed above for H1/H2/H4/RISK/QUALITY - none happened to fire in
+            # either the 20- or 300-symbol empirical samples (RS/sector/industry/volume/price-
+            # trend data coverage is evidently good for established names), but a different
+            # symbol mix (recent IPOs, thin trading history) could easily hit any of these
+            # data-availability raises, so fixed for consistency rather than waiting to
+            # empirically rediscover each one individually.
             try:
                 rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date, cur)
                 components["relative_strength"] = {
@@ -278,48 +296,91 @@ class AdvancedFilters:
                 }
                 subscores["momentum"] += rs_pts
             except ValueError as e:
-                raise ValueError(f"Mansfield RS score unavailable: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Mansfield RS score unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (RS score) but already failed: {hard_fail}")
 
             try:
                 sec_pts = self._sector_momentum_score(sector)
                 components["sector_strength"] = round(sec_pts, 1)
                 subscores["momentum"] += sec_pts
             except ValueError as e:
-                raise ValueError(f"Sector momentum score unavailable: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Sector momentum score unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (sector momentum) but already failed: {hard_fail}")
 
             try:
                 ind_pts = self._industry_momentum_score(industry)
                 components["industry_strength"] = round(ind_pts, 1)
                 subscores["momentum"] += ind_pts
             except ValueError as e:
-                raise ValueError(f"Industry momentum score unavailable: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Industry momentum score unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (industry momentum) but already failed: {hard_fail}")
 
             try:
                 vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date, cur)
                 components["volume_ratio"] = vol_ratio
                 subscores["momentum"] += vol_pts
             except ValueError as e:
-                raise ValueError(f"Volume confirmation score unavailable: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Volume confirmation score unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (volume confirmation) but already failed: {hard_fail}")
 
             try:
                 trend_pts = self._price_trend_score(symbol, signal_date, cur)
                 components["price_trend_pts"] = round(trend_pts, 1)
                 subscores["momentum"] += trend_pts
             except ValueError as e:
-                raise ValueError(f"Price trend score unavailable: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Price trend score unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (price trend) but already failed: {hard_fail}")
 
-            setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
-            components["setup_quality"] = setup_breakdown
+            try:
+                setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
+                components["setup_quality"] = setup_breakdown
+                subscores["momentum"] += setup_pts
+            except Exception as e:
+                # setup_quality calls base/VCP/pivot/power-trend detection (signal_patterns.py) -
+                # broader than ValueError alone (e.g. the base_detection None-volume bug fixed
+                # separately today raised TypeError, not ValueError, before that fix).
+                if not hard_fail:
+                    hard_fail = f"Setup quality unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (setup quality) but already failed: {hard_fail}")
+                components["setup_quality"] = None
             subscores["momentum"] += setup_pts
 
             # QUALITY (30)
-            ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol, cur)
-            components["ibd_composite"] = ibd_breakdown
-            subscores["quality"] += ibd_pts
+            # FIX (2026-08-09): both were fully unwrapped (not even a re-raise-with-context, just
+            # a direct call) - same uncaught-exception bug as H1/H2/H4 and RISK above, now fixed
+            # the same way for consistency across the whole function.
+            try:
+                ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol, cur)
+                components["ibd_composite"] = ibd_breakdown
+                subscores["quality"] += ibd_pts
+            except ValueError as e:
+                if not hard_fail:
+                    hard_fail = f"IBD composite unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (IBD composite) but already failed: {hard_fail}")
+                components["ibd_composite"] = None
 
-            fin_pts, fin_val = self._financial_quality_score(symbol, cur)
-            components["financial_quality"] = fin_val
-            subscores["quality"] += fin_pts
+            try:
+                fin_pts, fin_val = self._financial_quality_score(symbol, cur)
+                components["financial_quality"] = fin_val
+                subscores["quality"] += fin_pts
+            except ValueError as e:
+                if not hard_fail:
+                    hard_fail = f"Financial quality unavailable: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (financial quality) but already failed: {hard_fail}")
+                components["financial_quality"] = None
 
             try:
                 eq_pts, eq_val = self._earnings_quality_score(symbol, cur)
@@ -373,20 +434,34 @@ class AdvancedFilters:
                 components["insider_net_value"] = None
 
             # RISK (15) - these are GOOD when low risk
+            # FIX (2026-08-09): both re-raised uncaught, same bug as H1/H2/H4 above. The earnings
+            # proximity call additionally had no `is not None` guard, so once H1 above stopped
+            # crashing on missing earnings data (days_to_earnings left None), this would have
+            # crashed instead - _earnings_proximity_score() itself raises when days_to_earnings is
+            # None. Guarded and caught for the same reason as everywhere else in this function.
             try:
                 if ext_pct is not None:
                     ext_pts = self._extension_risk_score(ext_pct)
                     components["extension_pts"] = round(ext_pts, 1)
                     subscores["risk"] += ext_pts
             except ValueError as e:
-                raise ValueError(f"Extension risk assessment failed: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Extension risk assessment failed: {str(e)[:60]}"
+                else:
+                    logger.warning(f"  {symbol}: Additional failure (extension risk) but already failed: {hard_fail}")
 
             try:
-                ep_pts = self._earnings_proximity_score(days_to_earnings, self.block_days_before_earnings)
-                components["earnings_proximity_pts"] = round(ep_pts, 1)
-                subscores["risk"] += ep_pts
+                if days_to_earnings is not None:
+                    ep_pts = self._earnings_proximity_score(days_to_earnings, self.block_days_before_earnings)
+                    components["earnings_proximity_pts"] = round(ep_pts, 1)
+                    subscores["risk"] += ep_pts
             except ValueError as e:
-                raise ValueError(f"Earnings proximity assessment failed: {e}") from e
+                if not hard_fail:
+                    hard_fail = f"Earnings proximity assessment failed: {str(e)[:60]}"
+                else:
+                    logger.warning(
+                        f"  {symbol}: Additional failure (earnings proximity risk) but already failed: {hard_fail}"
+                    )
 
             composite_score = min(100.0, sum(subscores.values()))
             return {
