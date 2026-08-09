@@ -964,16 +964,28 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
     """Run weight optimization. Gracefully skip if regime data unavailable (data quality issue, not code bug)."""
     from algo.orchestration import RegimeManager as _RegimeManager
     from algo.orchestration import WeightOptimizer
+    from algo.infrastructure.config.main import AlgoConfig
 
     opt_result: dict[str, Any] = {"changes": []}
     try:
-        # CRITICAL: Validate config has required methods before passing to WeightOptimizer
+        # CRITICAL: Validate config is actually an AlgoConfig instance
         # This prevents obscure errors and provides clear failure message
         if config is None:
             raise ValueError(
                 "[PHASE 9 CRITICAL] config is None when calling weight optimizer. "
                 "Configuration must be passed explicitly through entire phase chain."
             )
+
+        # Verify config is an AlgoConfig instance (not a dict or other type)
+        if not isinstance(config, AlgoConfig):
+            logger.error(
+                f"[PHASE 9] Config type mismatch: expected AlgoConfig, got {type(config).__module__}.{type(config).__name__}. "
+                f"Skipping weight optimization to prevent downstream failures. "
+                f"This indicates config was transformed or incorrectly passed from orchestrator."
+            )
+            log_phase_result_fn(9, "weight_optimization", "skipped", f"config type error: {type(config).__name__}")
+            return {"success": True, "changes": [], "skipped": True, "reason": "config type mismatch"}
+
         if not hasattr(config, "get"):
             raise ValueError(
                 f"[PHASE 9 CRITICAL] config missing get() method. "

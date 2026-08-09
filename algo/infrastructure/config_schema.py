@@ -364,4 +364,7 @@ VALIDATION_SCHEMA = {
     "retry_count_fred_api": ("int", 0, 10, False, 3),  # Retries for FRED API
     "retry_count_aaii_sentiment": ("int", 0, 10, False, 3),  # Retries for AAII sentiment
     "retry_count_db_migration": ("int", 0, 10, False, 3),  # Retries for DB migration
+    # Market Open Entry Exclusion (prevent entries in the first N minutes after market open)
+    "market_open_exclusion_enabled": ("bool", None, None, False, False),  # Enable market open exclusion
+    "market_open_exclusion_minutes": ("int", 0, 120, False, 30),  # Minutes after market open to exclude entries (0=disabled, 30=default)
 }
