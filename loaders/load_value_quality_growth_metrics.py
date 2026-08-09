@@ -1674,6 +1674,33 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             metrics["revenue_growth_yoy_unavailable_reason"] = (
                 "missing_sec_data" if "revenue_growth_yoy" in failed_metrics else None
             )
+
+            # Quarterly metrics unavailable reasons (Session 78+)
+            if metrics.get("consecutive_positive_quarters") is None:
+                metrics["consecutive_positive_quarters_unavailable_reason"] = "insufficient_quarterly_data"
+            if metrics.get("earnings_growth_4q_avg") is None:
+                metrics["earnings_growth_4q_avg_unavailable_reason"] = "insufficient_quarterly_data"
+            if metrics.get("eps_growth_stability") is None:
+                metrics["eps_growth_stability_unavailable_reason"] = "insufficient_quarterly_data"
+            if metrics.get("quarterly_growth_momentum") is None:
+                metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_quarterly_data"
+
+            # Analyst metrics - not yet implemented
+            if metrics.get("earnings_surprise_avg") is None:
+                metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
+            if metrics.get("earnings_beat_rate") is None:
+                metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
+            if metrics.get("estimate_revision_direction") is None:
+                metrics["estimate_revision_direction_unavailable_reason"] = "no_analyst_estimates"
+            if metrics.get("revision_activity_30d") is None:
+                metrics["revision_activity_30d_unavailable_reason"] = "no_analyst_estimates"
+            if metrics.get("estimate_momentum_60d") is None:
+                metrics["estimate_momentum_60d_unavailable_reason"] = "no_analyst_estimates"
+            if metrics.get("estimate_momentum_90d") is None:
+                metrics["estimate_momentum_90d_unavailable_reason"] = "no_analyst_estimates"
+            if metrics.get("revision_trend_score") is None:
+                metrics["revision_trend_score_unavailable_reason"] = "no_analyst_estimates"
+
             metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed
 
             if failed_metrics:
@@ -2141,7 +2168,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
              ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
              consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
