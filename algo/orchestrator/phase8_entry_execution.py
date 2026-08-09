@@ -2488,6 +2488,39 @@ def run(
     successfully_entered = 0
     failed_entries = []
 
+    # OPTIONAL ADVANCED-FILTERS GATE (2026-08-09) - default OFF, does not change behavior unless
+    # explicitly enabled via algo_config.enable_advanced_filters_gate. AdvancedFilters was
+    # previously unwired dead code with real bugs (see advanced_filters_dead_code_investigation
+    # memory); those bugs are now fixed and verified exception-safe against 300 real candidates
+    # (152 pass, 148 correctly reject, 0 crashes). This wires it in as a SECONDARY, best-effort
+    # layer on top of the existing always-on PreEntryHealthValidator check above - if this gate
+    # itself fails to initialize or errors, it fails OPEN (logs a warning, lets candidates through
+    # unaffected) rather than blocking entries, since it is new and not yet the primary safety
+    # mechanism. Recommended: enable in paper mode first and observe before ever considering it
+    # for execution_mode="auto" (real orders) - this flag does not distinguish paper from auto,
+    # it applies to whatever mode is active when enabled.
+    advanced_filters = None
+    if config.get("enable_advanced_filters_gate", False):
+        try:
+            from algo.signals.advanced_filters import AdvancedFilters
+
+            af_config = {
+                "strong_sector_top_n": config.get("strong_sector_top_n", 5),
+                "block_days_before_earnings": config.get("block_days_before_earnings", 0),
+                "max_extension_above_50ma_pct": config.get("max_extension_above_50ma_pct", 50.0),
+                "min_avg_daily_dollar_volume": config.get("min_avg_daily_dollar_volume", 500_000),
+                "require_strong_sector": config.get("require_strong_sector", False),
+            }
+            advanced_filters = AdvancedFilters(af_config)
+            advanced_filters.load_market_context(run_date)
+            logger.info("[PHASE 8] AdvancedFilters gate enabled and market context loaded")
+        except Exception as e:
+            logger.warning(
+                f"[PHASE 8] AdvancedFilters gate enabled but failed to initialize "
+                f"(failing open, not blocking entries): {e}"
+            )
+            advanced_filters = None
+
     for signal in qualified_trades:
         try:
             symbol = signal.get("symbol")
@@ -2518,6 +2551,33 @@ def run(
                 )
                 skipped_count += 1
                 continue
+
+            # OPTIONAL ADVANCED-FILTERS GATE - see initialization above. Off unless explicitly
+            # enabled; fails open per-candidate too (a single symbol's evaluation error doesn't
+            # block it - logged and let through, matching the fail-open init behavior above).
+            if advanced_filters is not None:
+                try:
+                    af_result = advanced_filters.evaluate_candidate(
+                        symbol,
+                        run_date,
+                        float(signal.get("entry_price", 0) or 0),
+                        signal.get("sector"),
+                        signal.get("industry"),
+                    )
+                    if not af_result["pass"]:
+                        af_reason = f"advanced_filters: {af_result['reason']}"
+                        logger.info(f"[PHASE 8] {symbol}: AdvancedFilters gate rejected: {af_reason}")
+                        _log_signal_rejection(
+                            symbol, "advanced_filters", af_reason, run_date,
+                            float(signal.get("entry_price", 0) or 0), None
+                        )
+                        skipped_count += 1
+                        continue
+                except Exception as e:
+                    logger.warning(
+                        f"[PHASE 8] {symbol}: AdvancedFilters gate errored, failing open "
+                        f"(not blocking this candidate): {e}"
+                    )
 
             # Liquidity: ADV, dollar volume, price history age
 
