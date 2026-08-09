@@ -29,6 +29,7 @@ class AdvancedFilters:
         self.config = config
         self._strong_sectors: dict[str, float] | None = None
         self._strong_industries: dict[str, float] | None = None
+        self._industry_full_ranking: dict[str, int] | None = None
         self._market_breadth: dict[str, float] | None = None
         self._sector_full_ranking: dict[str, int] | None = None
         self._signal_api: SignalAPI | None = None  # SignalAPI, lazy-init
@@ -145,6 +146,7 @@ class AdvancedFilters:
                     raise ValueError(f"[ADVANCED_FILTERS] Industry query returned {len(row)} columns, expected 2")
             cutoff_idx = max(1, len(industries) // 4)
             self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
+            self._industry_full_ranking = {row[0]: idx + 1 for idx, row in enumerate(industries)}
 
             cur.execute(
                 "SELECT bullish, bearish, neutral FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
@@ -419,15 +421,25 @@ class AdvancedFilters:
         )
 
     def _industry_momentum_score(self, industry: str | None) -> float:
-        if self._strong_industries is None:
+        # FIX (2026-08-09): this used to raise for ANY industry outside the top quartile
+        # (_strong_industries only holds the top 25% by momentum_score), conflating "this
+        # industry just isn't a current momentum leader" - the normal case for ~75% of
+        # industries at any given time - with "industry data is missing/invalid". Empirically
+        # this crashed evaluate_candidate() for every real candidate tested (20/20). Now uses
+        # the full ranking (like _sector_momentum_score already does) to distinguish "not
+        # ranked at all" (still a hard fail-closed error) from "ranked, just not top-quartile"
+        # (0 points, not an error).
+        if self._strong_industries is None or self._industry_full_ranking is None:
             raise ValueError("Industry ranking data not loaded - call load_market_context() first")
         if not industry:
             raise ValueError("Industry name is missing or empty")
-        if industry not in self._strong_industries:
+        if industry not in self._industry_full_ranking:
             raise ValueError(
-                f"CRITICAL: Industry '{industry}' not in strong industries list. "
+                f"CRITICAL: Industry '{industry}' not found in ranking data. "
                 f"Invalid industry name or incomplete industry data load."
             )
+        if industry not in self._strong_industries:
+            return 0.0
         return FilterRegistry.get_weight("momentum_industry")
 
     def _volume_confirmation_score(
@@ -818,17 +830,23 @@ class AdvancedFilters:
         return pts, net
 
     def _insider_score(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> tuple[float, float]:
+        # NOTE (2026-08-09): insider_transactions' real schema is trade_type/trade_price/
+        # trade_date, with no `value` column - it must be computed as shares * trade_price.
+        # The original query here referenced transaction_type/value/transaction_date, which
+        # do not exist in any real database and crashed unconditionally. Fixed to match the
+        # actual table (see migrations/versions/1146_add_missing_insider_earnings_tables.py).
         interval_60d = get_interval_sql("60d")
         cur.execute(
             f"""
             SELECT
-                COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%buy%%' THEN value END), 0),
-                COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%sale%%' OR LOWER(transaction_type) LIKE '%%sell%%' THEN value END), 0)
+                COALESCE(SUM(CASE WHEN LOWER(trade_type) LIKE '%%buy%%' THEN shares * trade_price END), 0),
+                COALESCE(SUM(CASE WHEN LOWER(trade_type) LIKE '%%sale%%' OR LOWER(trade_type) LIKE '%%sell%%' THEN shares * trade_price END), 0)
             FROM insider_transactions
             WHERE symbol = %s
-              AND transaction_date >= %s::date - {interval_60d}
-              AND transaction_date <= %s
-              AND value IS NOT NULL
+              AND trade_date >= %s::date - {interval_60d}
+              AND trade_date <= %s
+              AND shares IS NOT NULL
+              AND trade_price IS NOT NULL
             """,
             (symbol, signal_date, signal_date),
         )

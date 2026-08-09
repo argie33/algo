@@ -1,6 +1,19 @@
 #!/usr/bin/env python3
 """Migration 1147: Populate earnings_metrics from quarterly financial statements.
 
+DO NOT RUN THIS MIGRATION (2026-08-09 finding): its earnings_quality_score and
+consistency_score calculations use raw SQL RANDOM() - `50 + RANDOM()*30`,
+`75 + RANDOM()*25`, etc. - not a real computation from the "historical EPS accuracy /
+beat-miss / revenue beat rate" the docstring below describes. Running this would
+populate earnings_metrics with literal random noise disguised as a real 0-100 quality
+score, which AdvancedFilters._earnings_quality_score() and downstream composite scoring
+would consume as if it were real signal. Left with its upgrade()/downgrade() names
+UNCHANGED (not renamed to up()/down()) so migrations/run.py's `apply --all` cannot pick
+it up by accident - migration 1146 (which only creates the empty tables, no fake data)
+was fixed and applied separately. Before this can be safely written for real: replace
+the RANDOM() terms with an actual formula from analyst_quarterly_estimates
+(beat_earnings_flag rate) and/or quarterly_income_statement (EPS trend consistency).
+
 CONTEXT:
 - earnings_metrics table was just created (migration 1146)
 - Now populate with earnings quality scores derived from quarterly income statements
