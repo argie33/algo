@@ -521,13 +521,13 @@ def _aggregate_concepts(
                 # Use the end date to derive the fiscal year. This fixes 466 companies (8.4%)
                 # with zero net_income coverage because extraction silently skipped them.
                 #
-                # FIXED 2026-08-09: the fp in ('Q1'-'Q4') branch above had no check on the
-                # entry's actual reporting SPAN, so a genuine single-quarter duration fact
-                # (~90 days) was accepted into the annual "FY" bucket with no annualization -
-                # silently masquerading as a full year's figure. Live-confirmed via ORLY: its
-                # FY2026 10-K hasn't been filed yet (mid-year), so revenue/gross_profit had no
-                # real annual entry; but a real Q1-2026 "InterestAndDividendIncomeOperating"
-                # fact (a minor interest-income line, $1.75M, unrelated to their real ~$4B/qtr
+                # FIXED 2026-08-09: annual extraction had no check on the entry's actual
+                # reporting SPAN, so a genuine single-quarter duration fact (~90 days) was
+                # accepted into the annual "FY" bucket with no annualization - silently
+                # masquerading as a full year's figure. Live-confirmed via ORLY: its FY2026
+                # 10-K hasn't been filed yet (mid-year), so revenue/gross_profit had no real
+                # annual entry; but a real Q1-2026 "InterestAndDividendIncomeOperating" fact
+                # (a minor interest-income line, $1.75M, unrelated to their real ~$4B/qtr
                 # retail revenue) got bucketed into fiscal_year=2026 "FY" as if it were the
                 # year's revenue, producing garbage 1000%+ margins downstream once divided
                 # against a genuine (also wrongly quarter-only) gross_profit figure. Duration
@@ -538,8 +538,22 @@ def _aggregate_concepts(
                 # (330 days) intentionally excludes real single-quarter chunks (~90 days) while
                 # still accepting genuine full-year cumulative facts that got mistagged with a
                 # quarterly fp (e.g. some Q4 YTD figures span the whole year).
+                #
+                # WIDENED 2026-08-09 (same day, later session): the check above only fired for
+                # fp in ('Q1'-'Q4'), on the assumption a short-duration entry would always carry
+                # a quarterly fp tag. Live-confirmed false via AAT (American Assets Trust, a
+                # REIT): its FY2025 10-K's XBRL "Revenues" facts include a genuinely 90-day
+                # entry (2024-01-01 to 2024-03-31, real Q1 2024 data used as a comparative
+                # figure elsewhere in the filing) tagged fp='FY' - the SEC fy/fp combination
+                # apparently isn't a reliable proxy for actual span even when fp='FY'. That
+                # entry was accepted into the FY2024 annual bucket, understating real revenue
+                # ($110.7M quarter vs a real ~$440M+ full year, confirmed via the same filing's
+                # own comparative FY2023 entry). Now applies the same span check to every fp
+                # value during annual extraction, not just Q1-Q4 - only gated on period=="annual"
+                # so quarterly extraction (which legitimately wants short-duration entries) is
+                # unaffected.
                 start_date = entry.get("start")
-                if fp in ("Q1", "Q2", "Q3", "Q4") and start_date and entry.get("end"):
+                if period == "annual" and start_date and entry.get("end"):
                     try:
                         span_days = (
                             datetime.date.fromisoformat(entry["end"])

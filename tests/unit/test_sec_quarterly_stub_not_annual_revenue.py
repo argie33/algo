@@ -88,6 +88,35 @@ class TestQuarterlyFactNotAcceptedAsAnnual:
 
         assert by_year[2025]["sales_revenue_net"] == 16_000_000_000.0
 
+    def test_quarter_fact_mistagged_fp_fy_still_rejected_from_annual_bucket(self):
+        # WIDENED 2026-08-09 (same day, later session): live-confirmed via AAT (American
+        # Assets Trust, a REIT) that SEC XBRL sometimes tags a genuinely 90-day comparative
+        # entry with fp='FY' (not just Q1-Q4) - the original fix above only guarded
+        # fp in ('Q1'-'Q4'), so this case slipped through and understated AAT's real
+        # ~$457M FY2024 revenue down to a $110.7M single-quarter fragment. A real full-year
+        # fp='FY' entry for the SAME fiscal year (span >= 330 days) must still win.
+        facts = {
+            "us-gaap": {
+                "Revenues": {
+                    "units": {
+                        "USD": [
+                            # Genuinely 90-day span, but tagged fp='FY' - must be rejected.
+                            _quarter_entry("2024-01-01", "2024-03-31", 110_695_000.0, "2026-02-06", "FY"),
+                            # The real full-year figure for the same fiscal_year=2024 bucket.
+                            _quarter_entry("2024-01-01", "2024-12-31", 457_855_000.0, "2026-02-06", "FY"),
+                        ]
+                    }
+                },
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_income_statement(client, "AAT", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        assert by_year[2024]["revenues"] == 457_855_000.0
+
 
 class TestRevenueFallbackOnlyWinsWhenNothingElsePresent:
     def _make_loader(self):
