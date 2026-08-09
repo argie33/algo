@@ -49,6 +49,52 @@ class EarningsBlackout:
         """
         try:
             with DatabaseContext("read") as cur:
+                # CRITICAL FIX (Session 79): Check if earnings data is CURRENT before allowing entries
+                # RATIONALE: Trades were entering without earnings knowledge (2026-08-07 entries
+                # for 2026-08-08 earnings that weren't in DB yet). Loader didn't have loaded Aug 8 earnings yet.
+                # SOLUTION: Verify earnings_calendar was refreshed recently (within 24-48 hours).
+                # If the last load was 2+ days ago, we're missing recent earnings announcements.
+
+                from datetime import datetime, timezone
+
+                # Check when this symbol's earnings_calendar was last refreshed
+                cur.execute(
+                    """SELECT MAX(created_at) as last_load
+                       FROM earnings_calendar
+                       WHERE symbol = %s
+                       AND created_at >= (NOW() - interval '7 days')""",
+                    (symbol,),
+                )
+                last_load_row = cur.fetchone()
+                last_load_time = last_load_row[0] if last_load_row and last_load_row[0] else None
+
+                if last_load_time is None:
+                    # No earnings_calendar data for this symbol in last 7 days - loader is stale
+                    logger.warning(
+                        f"[EARNINGS_BLACKOUT] {symbol}: earnings_calendar not refreshed in 7+ days. "
+                        f"Loader may be broken or symbol never loaded. BLOCKING ENTRY as safety measure."
+                    )
+                    return {
+                        "pass": False,
+                        "reason": f"Earnings data not refreshed in 7+ days - cannot verify earnings",
+                    }
+
+                # Check staleness: if last load was 2+ days ago, we may be missing recent earnings
+                from utils.infrastructure.timezone import EASTERN_TZ
+                now_et = datetime.now(EASTERN_TZ)
+                hours_since_last_load = (now_et.replace(tzinfo=timezone.utc) - last_load_time.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+
+                if hours_since_last_load > 48:
+                    # Earnings data is 2+ days old - loader may have missed recent announcements
+                    logger.warning(
+                        f"[EARNINGS_BLACKOUT] {symbol}: earnings_calendar last refreshed {hours_since_last_load:.0f}h ago. "
+                        f"May be missing recent earnings announcements. BLOCKING ENTRY as safety measure."
+                    )
+                    return {
+                        "pass": False,
+                        "reason": f"Earnings data is {hours_since_last_load:.0f}h stale - cannot verify upcoming earnings",
+                    }
+
                 # Issue #27: Compute trading day windows instead of calendar days
                 # Count back N trading days before, forward N trading days after
                 # CRITICAL FIX: Look far enough ahead (365 days) to capture real future earnings

@@ -79,6 +79,7 @@ _SHARED_TREND_FIELDS = (
     "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
     "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
     "consecutive_positive_quarters", "earnings_growth_4q_avg", "eps_growth_stability",
+    "earnings_surprise_avg", "earnings_beat_rate",
 )
 
 
@@ -703,8 +704,30 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return None
         return value
 
+    def _get_analyst_forward_eps(self, symbol: str) -> float | None:
+        """Fetch latest analyst forward EPS estimate for symbol from analyst_earnings_estimates table.
+
+        Returns forward_eps value or None if no data available.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT forward_eps FROM analyst_earnings_estimates
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    return safe_float(row[0], f"{symbol}.forward_eps", allow_none=True)
+        except Exception as e:
+            logger.debug(f"[{symbol}] Failed to fetch analyst forward EPS: {type(e).__name__}")
+        return None
+
     def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:
-        """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability."""
+        """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability, earnings_surprise_avg, earnings_beat_rate."""
         metrics = {}
         try:
             with DatabaseContext("read") as cur:
@@ -776,6 +799,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             if revenue_growth_rates:
                 metrics["quarterly_growth_momentum"] = float(round(sum(revenue_growth_rates) / len(revenue_growth_rates), 2))
+
+            # Phase 3A: Earnings surprise and beat rate
+            # Use last quarter EPS vs current analyst forward EPS as proxy for surprise
+            last_eps = last_4q[-1]["eps"]
+            forward_eps = self._get_analyst_forward_eps(symbol)
+
+            if last_eps is not None and forward_eps is not None and last_eps != 0:
+                # Earnings surprise: (last reported - forward estimate) / |forward estimate| * 100
+                surprise = ((last_eps - forward_eps) / abs(forward_eps)) * 100
+                metrics["earnings_surprise_avg"] = float(round(surprise, 2))
+
+                # Earnings beat rate: % of recent quarters with positive EPS growth (proxy for beats)
+                if len(eps_growth_rates) > 0:
+                    beat_count = sum(1 for rate in eps_growth_rates if rate > 0)
+                    beat_rate = (beat_count / len(eps_growth_rates)) * 100
+                    metrics["earnings_beat_rate"] = float(round(beat_rate, 2))
 
         except Exception as e:
             logger.debug(f"[{symbol}] Failed to compute quarterly metrics: {type(e).__name__}: {e}")
