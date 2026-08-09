@@ -192,8 +192,35 @@ _INCOME_FIELD_MAPPING = {
 # real InterestAndDividendIncomeOperating line item (interest on cash investments)
 # alongside its real revenue - sec_base.py's transform() now only writes these two into
 # "revenue" if nothing else already has, instead of unconditionally overwriting.
+#
+# FIXED 2026-08-09 (same day, later session): "sales_revenue_net" added to this set too.
+# That key is fed by two different source concepts depending on taxonomy - us-gaap
+# "SalesRevenueNet" (a real total-revenue tag for some legacy/pre-ASC-606 filers, where
+# it's meant to be primary) and ifrs-full "RevenueFromSaleOfGoods" (see
+# sec_statements.py's _INCOME_IFRS_ALIASES) - but the latter is only the GOODS sub-line
+# for companies that also report separate services/subscription revenue, not the total.
+# Live-confirmed via KARO (Karooooo/Cartrack, pure IFRS 20-F filer, live companyfacts
+# JSON): real total "Revenue" FY2025 = ZAR 4,567,459,000 (built from
+# SubscriptionCirculationRevenue ZAR 4,055,394,000 + RevenueFromRenderingOfTransportServices
+# ZAR 2,099,000 + RevenueFromSaleOfGoods ZAR 37,018,000 + other lines), but
+# "RevenueFromSaleOfGoods" alone (ZAR 37,018,000) was overwriting it in the "revenue"
+# column - same "last-listed wins unconditionally" bug class as the ORLY case above, this
+# time triggered by two semantically-different concepts colliding on the same alias
+# target_key rather than a single concept's fallback role. Making it fallback-only is
+# safe for the legacy us-gaap filers this key also serves: when they have no separate
+# "Revenues"/ASC-606 tag (the case the AGCO-style fix for sales_revenue_goods_net below
+# depends on), "revenue" isn't populated yet when this key is reached, so it still writes
+# normally - it only stops clobbering an already-real total. "sales_revenue_goods_net"
+# (a separate, distinctly-keyed us-gaap concept - see the AGCO/pre-2011-filer comment on
+# it in sec_statements.py) is added for the same defensive reason, though not yet
+# live-confirmed as double-booked for any filer.
 _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
-    {"interest_income_operating", "interest_and_dividend_income_operating"}
+    {
+        "interest_income_operating",
+        "interest_and_dividend_income_operating",
+        "sales_revenue_net",
+        "sales_revenue_goods_net",
+    }
 )
 
 # FIXED 2026-08-09: REIT-specific fallback (SIC 6798 only, see sec_base.py's
