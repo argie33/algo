@@ -74,6 +74,11 @@ const formatReasonDisplay = (reason) => {
     bank_special_reporting: "Financial institution - alternative metrics",
     insufficient_prior_year_data: "Prior fiscal year data unavailable",
     no_segment_disclosure: "Single-segment filer",
+    insufficient_quarterly_history: "Fewer than 4 quarters of history",
+    insufficient_quarterly_data: "Quarterly data unavailable",
+    insufficient_eps_data: "EPS data missing for recent quarters",
+    insufficient_revenue_data: "Revenue data missing for recent quarters",
+    insufficient_eps_growth_datapoints: "Not enough EPS comparisons for a trend",
   };
   return reasonMap[reason] || reason;
 };

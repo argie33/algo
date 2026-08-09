@@ -37,19 +37,21 @@ from loaders.load_value_quality_growth_metrics import (
 
 
 class _FakeCursor:
-    """Serves canned quarterly_income_statement rows; anything else raises so the
-    caller's own except-and-return-None fallback (_get_analyst_forward_eps) kicks in."""
+    """Serves canned quarterly_income_statement rows; every other query (prior-year
+    lookups, forward-EPS, etc.) gets an empty/None result so those callers take their
+    own already-tested "no data" path instead of raising."""
 
     def __init__(self, quarters):
         self._quarters = quarters
+        self._last_query = ""
 
     def execute(self, query, params=None):
         self._last_query = query
-        if "quarterly_income_statement" not in query:
-            raise RuntimeError("no data for this query in test fake")
 
     def fetchall(self):
-        return self._quarters
+        if "quarterly_income_statement" in self._last_query:
+            return self._quarters
+        return []
 
     def fetchone(self):
         return None
@@ -168,6 +170,76 @@ class TestUnavailableMarkerCoversAllReasonColumns:
             assert marker.get(f"{field}_unavailable_reason") is not None, (
                 f"growth_metrics unavailable marker left {field}_unavailable_reason unset"
             )
+
+
+class TestDownstreamFallbackDoesNotClobberSpecificReason:
+    """_compute_quality_metrics() merges _compute_quarterly_metrics()'s output, then later
+    (originally unconditionally) fills a generic "insufficient_quarterly_data"/
+    "no_analyst_estimates" reason for any of these fields still None. That later block must
+    only fire when no specific reason was already set - otherwise it silently discards
+    exactly the diagnosis _compute_quarterly_metrics() just computed.
+    """
+
+    # SELECT column order from _compute_quality_metrics's quality_row query (see the
+    # "SELECT abs.stockholders_equity, ..." query this loader issues): 31 columns,
+    # fiscal_year at index 8. Real revenue/net_income/etc keep the function past its
+    # "all core metrics None -> _unavailable_marker" early return; everything else is None.
+    _QUALITY_ROW = (
+        500_000_000.0,  # 0 stockholders_equity
+        200_000_000.0,  # 1 total_liabilities
+        700_000_000.0,  # 2 total_assets
+        50_000_000.0,  # 3 net_income
+        400_000_000.0,  # 4 revenue
+        60_000_000.0,  # 5 operating_income
+        150_000_000.0,  # 6 current_assets
+        100_000_000.0,  # 7 current_liabilities
+        2025,  # 8 fiscal_year
+        None,  # 9 inventory
+        None,  # 10 interest_expense
+        None,  # 11 shares_outstanding
+        None,  # 12 cost_of_revenue
+        None,  # 13 operating_cash_flow
+        None,  # 14 free_cash_flow
+        None,  # 15 dividends_paid
+        None,  # 16 earnings_per_share
+        None,  # 17 prior_year_eps
+        None,  # 18 prior_year_revenue
+        None,  # 19 gross_profit
+        None,  # 20 long_term_debt
+        None,  # 21 cash_and_equivalents
+        None,  # 22 income_tax_expense
+        None,  # 23 pretax_income
+        None,  # 24 prior_year_net_income
+        None,  # 25 prior_year_operating_income
+        None,  # 26 prior_year_operating_cash_flow
+        None,  # 27 prior_year_free_cash_flow
+        None,  # 28 prior_year_cost_of_revenue
+        None,  # 29 prior_year_total_assets
+        None,  # 30 prior_year_stockholders_equity
+    )
+
+    def _run(self, monkeypatch, quarters):
+        import loaders.load_value_quality_growth_metrics as mod
+
+        cursor = _FakeCursor(quarters)
+        monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _FakeDatabaseContext(cursor))
+        loader = ValueQualityGrowthMetricsLoader.__new__(ValueQualityGrowthMetricsLoader)
+        return loader._compute_quality_metrics("TESTCO", self._QUALITY_ROW, ev_metrics=None)
+
+    def test_specific_eps_and_revenue_reasons_survive(self, monkeypatch):
+        metrics = self._run(monkeypatch, _quarters_missing_eps_and_revenue())
+
+        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") == "insufficient_eps_data"
+        assert metrics.get("eps_growth_stability_unavailable_reason") == "insufficient_eps_data"
+        assert metrics.get("quarterly_growth_momentum_unavailable_reason") == "insufficient_revenue_data"
+
+    def test_generic_fallback_still_fires_when_truly_unset(self, monkeypatch):
+        # <4 quarters: _compute_quarterly_metrics's own early return sets
+        # "insufficient_quarterly_history" for these fields - also a specific reason, so the
+        # generic "insufficient_quarterly_data" fallback must still stay out of the way here.
+        metrics = self._run(monkeypatch, _quarters_missing_eps_and_revenue()[:2])
+
+        assert metrics.get("earnings_growth_4q_avg_unavailable_reason") == "insufficient_quarterly_history"
 
 
 class TestInsertQualityMetricsDoesNotDiscardReason:

@@ -1641,17 +1641,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if metrics.get("sustainable_growth_rate") is None:
                 metrics["sustainable_growth_rate_unavailable_reason"] = sgr_reason or "missing_sec_data"
 
-            # Set unavailable reasons for quarterly metrics (computed from quarterly_income_statement)
-            # These will be set to "insufficient_quarterly_history" in _compute_quarterly_metrics() if <4 quarters
-            for field in (
-                "consecutive_positive_quarters", "quarterly_growth_momentum",
-                "earnings_growth_4q_avg", "eps_growth_stability",
-                "earnings_surprise_avg", "earnings_beat_rate",
-            ):
-                if metrics.get(field) is None and f"{field}_unavailable_reason" not in metrics:
-                    # Reason was already set by _compute_quarterly_metrics() for these specific cases
-                    # Only set a fallback if not already set (to avoid overwriting specific reasons)
-                    pass
+            # Quarterly-derived fields (consecutive_positive_quarters, quarterly_growth_momentum,
+            # earnings_growth_4q_avg, eps_growth_stability, earnings_surprise_avg,
+            # earnings_beat_rate) are merged in from _compute_quarterly_metrics() above, which
+            # sets its own specific reason when the value is None. The generic
+            # "insufficient_quarterly_data"/"no_analyst_estimates" fallback for these fields
+            # lives further below and only fires if that specific reason wasn't already set.
 
             # Mark unavailable if all metrics are None
             if all(
@@ -1762,20 +1757,32 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "missing_sec_data" if "revenue_growth_yoy" in failed_metrics else None
             )
 
-            # Quarterly metrics unavailable reasons (Session 78+)
-            if metrics.get("consecutive_positive_quarters") is None:
+            # Quarterly metrics unavailable reasons (Session 78+). Only fill the generic
+            # fallback when _compute_quarterly_metrics() (merged into `metrics` above) didn't
+            # already set a more specific reason (e.g. "insufficient_eps_data",
+            # "insufficient_revenue_data", "insufficient_eps_growth_datapoints",
+            # "insufficient_quarterly_history") - this block previously overwrote every one of
+            # those with the generic "insufficient_quarterly_data" unconditionally, silently
+            # discarding the more specific diagnosis the moment it was computed.
+            if metrics.get("consecutive_positive_quarters") is None and not metrics.get(
+                "consecutive_positive_quarters_unavailable_reason"
+            ):
                 metrics["consecutive_positive_quarters_unavailable_reason"] = "insufficient_quarterly_data"
-            if metrics.get("earnings_growth_4q_avg") is None:
+            if metrics.get("earnings_growth_4q_avg") is None and not metrics.get("earnings_growth_4q_avg_unavailable_reason"):
                 metrics["earnings_growth_4q_avg_unavailable_reason"] = "insufficient_quarterly_data"
-            if metrics.get("eps_growth_stability") is None:
+            if metrics.get("eps_growth_stability") is None and not metrics.get("eps_growth_stability_unavailable_reason"):
                 metrics["eps_growth_stability_unavailable_reason"] = "insufficient_quarterly_data"
-            if metrics.get("quarterly_growth_momentum") is None:
+            if metrics.get("quarterly_growth_momentum") is None and not metrics.get(
+                "quarterly_growth_momentum_unavailable_reason"
+            ):
                 metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_quarterly_data"
 
-            # Analyst metrics - not yet implemented
-            if metrics.get("earnings_surprise_avg") is None:
+            # Analyst metrics - not yet implemented. Same already-set guard: _compute_quarterly_metrics()
+            # sets "insufficient_quarterly_history" here when last_eps itself was unavailable
+            # (a different cause than no_analyst_estimates), which this must not clobber.
+            if metrics.get("earnings_surprise_avg") is None and not metrics.get("earnings_surprise_avg_unavailable_reason"):
                 metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("earnings_beat_rate") is None:
+            if metrics.get("earnings_beat_rate") is None and not metrics.get("earnings_beat_rate_unavailable_reason"):
                 metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
             if metrics.get("estimate_revision_direction") is None:
                 metrics["estimate_revision_direction_unavailable_reason"] = "no_analyst_estimates"
