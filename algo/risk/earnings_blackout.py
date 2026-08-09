@@ -57,12 +57,18 @@ class EarningsBlackout:
                 lookback_date = eval_date - timedelta(days=max(self.days_before * 2, 30))  # At least 30 days back
                 lookahead_date = eval_date + timedelta(days=365)  # Full year ahead for all future earnings
 
+                # CRITICAL FIX (Session 70): INCLUDE data_unavailable=TRUE in blackout check
+                # Previously: filtered out (data_unavailable IS FALSE OR data_unavailable IS NULL)
+                # This caused trades on earnings days to be APPROVED when data was marked unavailable,
+                # resulting in -19%, -9%, -8% losses on 2026-08-08 (5 trades with earnings that day).
+                # NEW APPROACH: Fail-closed design - unavailable data = ASSUME RISKY, block the trade
+                # Only query earnings regardless of data_unavailable status, treating incomplete data
+                # as "potentially risky" rather than "safe because missing".
                 cur.execute(
                     """SELECT earnings_date FROM earnings_calendar
                        WHERE symbol = %s
                        AND earnings_date >= %s
                        AND earnings_date <= %s
-                       AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
                        ORDER BY CASE
                                   WHEN earnings_date >= %s THEN 0
                                   ELSE 1

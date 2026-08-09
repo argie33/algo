@@ -1171,8 +1171,15 @@ class PositionSizer:
                     "reason": f"Could not verify total open-risk limit for {symbol}: {e}",
                 }
 
+        # CRITICAL FIX: Convert ALL multipliers to Decimal BEFORE arithmetic (load-bearing rule: feedback_psycopg2_decimal_arithmetic)
+        # Previously: mixed float * float * Decimal * float * Decimal → TypeError on float * Decimal
+        # Fix: Convert all to Decimal first, then multiply together
         cascade_multiplier = (
-            risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult * Decimal(str(regime_mult))
+            Decimal(str(risk_adjustment))
+            * Decimal(str(exposure_mult))
+            * Decimal(str(phase_mult))
+            * Decimal(str(vix_mult))
+            * Decimal(str(regime_mult))
         )
         multipliers = {
             "risk_adjustment": float(risk_adjustment),
