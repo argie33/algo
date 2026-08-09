@@ -37,7 +37,7 @@ Pipeline:
 6. Filter: close > sma_50 (uptrend confirmation)
 7. Filter: composite_score >= min threshold (30)
 8. Close quality gate: skip weak closes (bottom of day's range = distribution)
-9. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
+9. Liquidity checks on top LIQUIDITY_CHECK_LIMIT candidates
 10. Return composite-score-ranked candidates to Phase 8
 
 CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipeline
@@ -94,10 +94,13 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-_LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDIT FIX Session 276)
+from algo.orchestrator.validation_thresholds import (
+    LIQUIDITY_CHECK_LIMIT,
+    BUY_SELL_DAILY_ANOMALY_THRESHOLD,
+)
+
 _MAX_WORKERS = 4
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
-_SIGNAL_COUNT_ANOMALY_THRESHOLD = 250  # Default/fallback if dynamic calculation fails (historical median 300-1000+)
 
 
 def _calculate_dynamic_anomaly_threshold() -> int:
@@ -141,15 +144,15 @@ def _calculate_dynamic_anomaly_threshold() -> int:
             else:
                 logger.warning(
                     f"[PHASE 7] Could not calculate dynamic threshold (insufficient historical data). "
-                    f"Using fallback: {_SIGNAL_COUNT_ANOMALY_THRESHOLD}"
+                    f"Using fallback: {BUY_SELL_DAILY_ANOMALY_THRESHOLD}"
                 )
-                return _SIGNAL_COUNT_ANOMALY_THRESHOLD
+                return BUY_SELL_DAILY_ANOMALY_THRESHOLD
     except Exception as e:
         logger.warning(
             f"[PHASE 7] Error calculating dynamic anomaly threshold: {e}. "
-            f"Using fallback: {_SIGNAL_COUNT_ANOMALY_THRESHOLD}"
+            f"Using fallback: {BUY_SELL_DAILY_ANOMALY_THRESHOLD}"
         )
-        return _SIGNAL_COUNT_ANOMALY_THRESHOLD
+        return BUY_SELL_DAILY_ANOMALY_THRESHOLD
 
 
 def _buysell_lookback_start_date(run_date: _date) -> _date:
@@ -1925,7 +1928,7 @@ def run(  # noqa: C901
     # ISSUE 13 FIX: Improved timeout handling with per-task monitoring
     liq_passed = []
     liq_checked = 0
-    to_check = quality_filtered[:_LIQUIDITY_CHECK_LIMIT]
+    to_check = quality_filtered[:LIQUIDITY_CHECK_LIMIT]
 
     if to_check:
         try:

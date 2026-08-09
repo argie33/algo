@@ -12,6 +12,7 @@ import psycopg2
 from algo.exceptions import ValidationError
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
+from algo.orchestrator.type_converters import ensure_int, ensure_float
 from algo.reporting import AlertManager
 from algo.trading.exceptions import DatabaseError
 from utils.db.advisory_locks import (
@@ -24,44 +25,9 @@ from utils.trading.status import PositionStatus
 
 logger = logging.getLogger(__name__)
 
-
-def _ensure_int(val: Any, field_name: str = "value") -> int:
-    """Convert any integer value to native Python int with diagnostic logging."""
-    if val is None:
-        raise ValueError(f"Cannot convert None {field_name} to int")
-    try:
-        # Convert to int first, then ensure it's a native Python int (not numpy.int64, etc.)
-        # For Decimal, convert via string to ensure clean break from Decimal type
-        if isinstance(val, Decimal):
-            result = int(str(val))
-        elif isinstance(val, int) and not isinstance(val, bool):
-            result = val
-        else:
-            result = int(val)
-        # Force to native Python int to eliminate numpy/psycopg2 int types
-        native_int = int(result)
-        if not isinstance(native_int, int) or isinstance(native_int, bool):
-            raise TypeError(f"{field_name}: int() returned {type(native_int).__name__}, cannot force to native int")
-        return native_int
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to native Python int: {e}") from e
-
-
-def _ensure_float(val: Any, field_name: str = "value") -> float:
-    """Convert any numeric value to native Python float, handling psycopg2 Decimal types."""
-    if val is None:
-        raise ValueError(f"Cannot convert None {field_name} to float")
-    try:
-        # Force conversion through native Python float to eliminate numpy/psycopg2 types
-        # First, convert to string then to float to break Decimal type binding
-        # This is more robust than float() which can sometimes return Decimal-derived types
-        result = float(str(val))
-        native_float = float(result)  # Second conversion to ensure native type
-        if not isinstance(native_float, float) or isinstance(native_float, bool):
-            raise TypeError(f"{field_name}: conversion returned {type(native_float).__name__}, not native float")
-        return native_float
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"{field_name}: Cannot convert {type(val).__name__} to native Python float: {e}") from e
+# Legacy aliases for backward compatibility
+_ensure_int = ensure_int
+_ensure_float = ensure_float
 
 
 def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dict[str, Any]:

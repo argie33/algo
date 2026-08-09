@@ -92,6 +92,7 @@ from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
 from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
+from algo.orchestrator.validation_thresholds import REJECTION_REASON_MAX_LEN
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
 from algo.trading.executor import TradeExecutor
@@ -530,7 +531,6 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
 # orchestrator run for every remaining symbol. The full untruncated message is always
 # captured first via logger.error/logger.info at the call site, so nothing is lost from
 # the operational logs - only the DB audit row is shortened.
-_REJECTION_REASON_MAX_LEN = 200
 
 # TradeExecutor.execute_trade() returns these statuses from its pre-submission validation
 # checks (CheckHandlerRegistry in check_handler_strategies.py, plus the direct
@@ -638,8 +638,8 @@ def _log_signal_rejection(
     2. Updates algo_signals to set execution_status='rejected' (dashboard visibility)
     3. Preserves rejection_reason for quick lookup in dashboard queries
     """
-    if len(rejection_reason) > _REJECTION_REASON_MAX_LEN:
-        rejection_reason = rejection_reason[: _REJECTION_REASON_MAX_LEN - 3] + "..."
+    if len(rejection_reason) > REJECTION_REASON_MAX_LEN:
+        rejection_reason = rejection_reason[: REJECTION_REASON_MAX_LEN - 3] + "..."
     try:
         with DatabaseContext("write") as cur:
             # 1. Log to audit table (existing behavior)

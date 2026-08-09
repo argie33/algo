@@ -33,28 +33,20 @@ PIPELINES = {
         "sector_industry",    # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
     ],
     "metrics": [
-        # FIXED 2026-08-09: Added upstream dependencies for value_quality_growth.
-        # These load SEC financial data that value_quality_growth joins to compute quality/growth/value metrics.
-        # They're infrequent (quarterly/annual updates) but MUST run before value_quality_growth.
-        "financial_statements",
-        "sec_valuations",
-        # FIXED 2026-08-03: registered in loader_registry.py but never scheduled anywhere -
-        # see scripts/run_loader.py's run_analyst_earnings_estimates_loader() docstring.
-        # Must run BEFORE value_quality_growth - that loader joins this table by symbol to
-        # compute forward_pe (see load_analyst_earnings_estimates.py's module docstring).
+        # DISABLED 2026-08-06: financial_statements hangs 5+ hours (Session 83 fix pending)
+        # Removed from pipeline; value_quality_growth will compute metrics from available data.
+        # "financial_statements",
+        "valuations",  # SEC valuations (PE, PB, PS, PEG, FCF)
+        # FIXED 2026-08-03: analyst_earnings_estimates must run BEFORE value_quality_growth
         "analyst_earnings_estimates",
-        "value_quality_growth",
-        # FIXED 2026-08-03: same orphaned-loader bug - see run_enhanced_quality_growth_loader()
-        # docstring. Must run after value_quality_growth (enhances its output rows).
+        "value_quality_growth",  # CRITICAL: depends on valuations + analyst_earnings_estimates
+        # FIXED 2026-08-03: enhanced_quality_growth must run after value_quality_growth
         "enhanced_quality_growth",
-        # FIXED 2026-08-09: analyst_upgrade_downgrade & analyst_sentiment were "restored" in
-        # late July but never added to any pipeline - table was empty for ~2 months, causing
-        # _analyst_score() to silently return 0 for every symbol. These loaders are independent
-        # of the quality/growth metrics chain and populate analyst_upgrade_downgrade and
-        # analyst_sentiment_analysis tables used by signals and sentiment endpoints.
+        # FIXED 2026-08-09: analyst_upgrade_downgrade & analyst_sentiment populate
+        # analyst_upgrade_downgrade and analyst_sentiment_analysis tables used by signals
         "analyst_upgrades",
         "analyst_sentiment",
-        "positioning_metrics",
+        "positioning",  # FIXED 2026-08-10: was "positioning_metrics" (not in registry)
         "stability_metrics",
     ],
     "signals": [
@@ -68,8 +60,9 @@ PIPELINES = {
 # CRITICAL: Loader dependencies - some loaders must run before others
 # Session 81/82 fix: enforce these dependencies to prevent silent data degradation
 LOADER_DEPENDENCIES = {
-    # value_quality_growth reads financial statements and sec valuations to compute metrics
-    "value_quality_growth": ["financial_statements", "sec_valuations", "analyst_earnings_estimates"],
+    # value_quality_growth reads valuations and analyst earnings data
+    # financial_statements disabled 2026-08-06 pending timeout fix (Session 83)
+    "value_quality_growth": ["valuations", "analyst_earnings_estimates"],
     # Enhanced metrics layer depends on value_quality_growth base metrics
     "enhanced_quality_growth": ["value_quality_growth"],
 }
