@@ -33,6 +33,11 @@ PIPELINES = {
         "sector_industry",    # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
     ],
     "metrics": [
+        # FIXED 2026-08-09: Added upstream dependencies for value_quality_growth.
+        # These load SEC financial data that value_quality_growth joins to compute quality/growth/value metrics.
+        # They're infrequent (quarterly/annual updates) but MUST run before value_quality_growth.
+        "financial_statements",
+        "sec_valuations",
         # FIXED 2026-08-03: registered in loader_registry.py but never scheduled anywhere -
         # see scripts/run_loader.py's run_analyst_earnings_estimates_loader() docstring.
         # Must run BEFORE value_quality_growth - that loader joins this table by symbol to
@@ -61,10 +66,12 @@ PIPELINES = {
 }
 
 # CRITICAL: Loader dependencies - some loaders must run before others
-# Session 81 fix: enforce these dependencies to prevent silent data degradation
+# Session 81/82 fix: enforce these dependencies to prevent silent data degradation
 LOADER_DEPENDENCIES = {
-    "value_quality_growth": ["analyst_earnings_estimates"],  # Must have analyst data for forward_pe computation
-    "enhanced_quality_growth": ["value_quality_growth"],    # Enhances value_quality_growth output
+    # value_quality_growth reads financial statements and sec valuations to compute metrics
+    "value_quality_growth": ["financial_statements", "sec_valuations", "analyst_earnings_estimates"],
+    # Enhanced metrics layer depends on value_quality_growth base metrics
+    "enhanced_quality_growth": ["value_quality_growth"],
 }
 
 
@@ -121,6 +128,9 @@ def run_pipeline(pipeline_name: str) -> int:
         "momentum": 30 * 60,                     # 30 min - risk metrics (momentum + stability)
         "stability_metrics": 30 * 60,            # 30 min - alias for momentum
         "valuations": 20 * 60,                   # 20 min - SEC API calls
+        # SEC/Financial data (batch API calls)
+        "financial_statements": 30 * 60,         # 30 min - SEC EDGAR batch queries (5500+ symbols)
+        "sec_valuations": 30 * 60,               # 30 min - valuation computation from SEC data
         # Fundamental metrics (API-heavy)
         "value_quality_growth": 40 * 60,         # 40 min - multi-source aggregation
         "enhanced_quality_growth": 25 * 60,      # 25 min - earnings surprise calculations
@@ -135,6 +145,7 @@ def run_pipeline(pipeline_name: str) -> int:
         "dividends": 15 * 60,                    # 15 min - yfinance dividend data
         # Holdings & positioning
         "positioning": 30 * 60,                  # 30 min - multi-source aggregation
+        "positioning_metrics": 30 * 60,          # 30 min - alias for positioning loader
         "institutional": 15 * 60,                # 15 min - SEC Schedule 13G parsing
         "insider_holdings": 15 * 60,             # 15 min - SEC Form 4/5 parsing
         "short_interest": 10 * 60,               # 10 min - FINRA data
