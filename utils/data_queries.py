@@ -7,9 +7,15 @@ be made here.
 Principle: One query pattern, used everywhere. Never duplicate WHERE clauses.
 """
 
+import os
 from typing import Any
 
 from psycopg2.extensions import cursor
+
+
+def _is_local_mode() -> bool:
+    """Check if running in LOCAL_MODE (development without AWS/RDS permissions)."""
+    return os.environ.get("LOCAL_MODE", "").lower() == "true"
 
 
 def get_open_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
@@ -17,29 +23,68 @@ def get_open_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
 
     Returns positions from algo_positions_with_risk view filtered by status='open'.
     Single source of truth: all open position queries use this function.
+
+    In LOCAL_MODE: Uses base tables since materialized view requires elevated permissions.
     """
-    cur.execute(
-        """
-        SELECT * FROM algo_positions_with_risk
-        WHERE status = 'open'
-        ORDER BY position_value DESC
-        LIMIT %s
-    """,
-        (limit,),
-    )
+    if _is_local_mode():
+        # Fallback for LOCAL_MODE - query base tables instead of materialized view
+        cur.execute(
+            """
+            SELECT
+                p.position_id, p.symbol, p.entry_price, p.quantity,
+                p.status, p.created_at, p.updated_at,
+                COALESCE(p.entry_price * p.quantity, 0) as position_value,
+                0 as daily_pnl, 0 as total_pnl
+            FROM algo_positions p
+            WHERE p.status = 'open'
+            ORDER BY (p.entry_price * p.quantity) DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT * FROM algo_positions_with_risk
+            WHERE status = 'open'
+            ORDER BY position_value DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
     return cur.fetchall()  # type: ignore
 
 
 def get_closed_positions(cur: cursor, limit: int = 100) -> list[dict[str, Any]]:
-    cur.execute(
-        """
-        SELECT * FROM algo_positions_with_risk
-        WHERE status = 'closed'
-        ORDER BY updated_at DESC
-        LIMIT %s
-    """,
-        (limit,),
-    )
+    """Get all closed positions ordered by most recent first.
+
+    In LOCAL_MODE: Uses base tables since materialized view requires elevated permissions.
+    """
+    if _is_local_mode():
+        cur.execute(
+            """
+            SELECT
+                p.position_id, p.symbol, p.entry_price, p.quantity,
+                p.status, p.created_at, p.updated_at,
+                COALESCE(p.entry_price * p.quantity, 0) as position_value,
+                0 as daily_pnl, 0 as total_pnl
+            FROM algo_positions p
+            WHERE p.status = 'closed'
+            ORDER BY p.updated_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT * FROM algo_positions_with_risk
+            WHERE status = 'closed'
+            ORDER BY updated_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
     return cur.fetchall()  # type: ignore
 
 
@@ -197,14 +242,33 @@ def get_open_portfolio_totals(cur: cursor) -> dict[str, float | None]:
 
 
 def get_all_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
-    cur.execute(
-        """
-        SELECT * FROM algo_positions_with_risk
-        ORDER BY position_value DESC
-        LIMIT %s
-    """,
-        (limit,),
-    )
+    """Get all positions (open and closed) ordered by position value.
+
+    In LOCAL_MODE: Uses base tables since materialized view requires elevated permissions.
+    """
+    if _is_local_mode():
+        cur.execute(
+            """
+            SELECT
+                p.position_id, p.symbol, p.entry_price, p.quantity,
+                p.status, p.created_at, p.updated_at,
+                COALESCE(p.entry_price * p.quantity, 0) as position_value,
+                0 as daily_pnl, 0 as total_pnl
+            FROM algo_positions p
+            ORDER BY (p.entry_price * p.quantity) DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT * FROM algo_positions_with_risk
+            ORDER BY position_value DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
     return cur.fetchall()  # type: ignore
 
 
@@ -315,12 +379,31 @@ def sum_open_position_value(cur: cursor) -> float:
 
 
 def get_positions_by_symbol(cur: cursor, symbol: str) -> list[dict[str, Any]]:
-    cur.execute(
-        """
-        SELECT * FROM algo_positions_with_risk
-        WHERE symbol = %s
-        ORDER BY created_at DESC
-    """,
-        (symbol,),
-    )
+    """Get all positions for a specific symbol, ordered by creation time.
+
+    In LOCAL_MODE: Uses base tables since materialized view requires elevated permissions.
+    """
+    if _is_local_mode():
+        cur.execute(
+            """
+            SELECT
+                p.position_id, p.symbol, p.entry_price, p.quantity,
+                p.status, p.created_at, p.updated_at,
+                COALESCE(p.entry_price * p.quantity, 0) as position_value,
+                0 as daily_pnl, 0 as total_pnl
+            FROM algo_positions p
+            WHERE p.symbol = %s
+            ORDER BY p.created_at DESC
+        """,
+            (symbol,),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT * FROM algo_positions_with_risk
+            WHERE symbol = %s
+            ORDER BY created_at DESC
+        """,
+            (symbol,),
+        )
     return cur.fetchall()  # type: ignore
