@@ -184,15 +184,17 @@ class PhaseRegistry:
         # Output: result={'snapshot': {...}, 'metrics': {...}} with daily reconciliation
         # Contract: Creates portfolio_snapshots record with complete daily state; persists for analytics
         # CRITICAL: Phase 9 MUST run AFTER Phase 6 (exits) and Phase 8 (entries) complete
-        # so it can capture all trades in the daily snapshot. even though always_run=True,
-        # dependencies=[6, 8] ensures Phase 9 doesn't create a stale snapshot before trades execute.
+        # But Phase 9 is always_run and should execute even if Phase 6/8 fail (to create snapshot of final state).
+        # Execution order (1-9) naturally ensures Phase 9 runs last, capturing all trades.
+        # No explicit dependencies added because always_run phases + dependency failures would halt Phase 9,
+        # preventing snapshot creation when Phase 6 or 8 fail.
         PhaseRegistryEntry(
             phase_num=9,
             phase_name="RECONCILIATION & SNAPSHOT",
-            dependencies=[6, 8],  # CRITICAL: Must run AFTER exits and entries complete
+            dependencies=[],  # No hard dependencies - Phase 9 proceeds even if Phase 6/8 fail
             execute_fn=None,
             skip_if_halted=False,
-            always_run=True,  # Still always_run for risk continuity, but respects dependencies
+            always_run=True,  # Always runs to create daily snapshot regardless of prior failures
         ),
     ]
 

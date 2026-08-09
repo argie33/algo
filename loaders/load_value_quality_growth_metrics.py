@@ -78,6 +78,7 @@ _SHARED_TREND_FIELDS = (
     "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
     "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
     "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+    "consecutive_positive_quarters", "earnings_growth_4q_avg", "eps_growth_stability",
 )
 
 
