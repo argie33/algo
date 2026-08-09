@@ -1251,8 +1251,23 @@ def main() -> int:  # noqa: C901
                     )
 
                 # Use LoaderStatusManager to consolidate status writes
+                # CRITICAL FIX 2026-08-09: this loader never called update_progress() during
+                # its run and never passed current_run_symbols_loaded/current_run_symbol_count
+                # here, so mark_completed()'s safety check fell back to re-reading
+                # symbol_count/symbols_loaded from the DB row - whatever a PAST run last wrote,
+                # per mark_completed()'s own documented "etf_price_daily" bug (fixed there via
+                # these same two params, but this loader was never updated to pass them).
+                # Live-reproduced 2026-08-09: data_loader_status showed a frozen
+                # "4591/4863 (94.41%)" completion_pct for 14 consecutive runs regardless of
+                # actual outcome. Pass this run's own verified counts (already computed above
+                # for the COMPLETION_THRESHOLD log line) so the safety check evaluates reality.
                 status_manager = LoaderStatusManager(table_name="buy_sell_daily")
-                status_manager.mark_completed(latest_date=actual_max_date, min_completion_pct=min_threshold)
+                status_manager.mark_completed(
+                    latest_date=actual_max_date,
+                    min_completion_pct=min_threshold,
+                    current_run_symbols_loaded=signals_symbols_generated,
+                    current_run_symbol_count=effective_universe,
+                )
                 logger.info(
                     f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
                 )

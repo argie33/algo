@@ -894,6 +894,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
             )
+            pretax_income = self._nan_to_none(
+                safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True)
+            )
             # FIXED 2026-08-03: quality_row above is ONE joined (balance_sheet, income_statement,
             # cash_flow) row for a SINGLE fiscal_year, chosen to prioritize free_cash_flow
             # availability (see the ORDER BY above) - a live audit found interest_expense
@@ -908,16 +911,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # operating_income were present in fallback year - could mix years (fallback
             # interest_expense with original operating_income). Now requires BOTH fields
             # in WHERE clause for fallback row, improving from 56.8% to 85%+ coverage.
+            # FIXED 2026-08-09: that 85%+ target was never actually reached (stuck at
+            # ~57.5% even after fresh full-universe SEC data landed) because it silently
+            # assumed OperatingIncomeLoss is universally tagged - live audit found 647
+            # real symbols (e.g. TJX, AFL, JCI - all with real debt and real interest
+            # expense every year) where SEC XBRL simply never tags OperatingIncomeLoss at
+            # all (confirmed: not a missing-year issue, NULL across their entire filing
+            # history) but DOES tag pretax_income every year alongside interest_expense.
+            # EBIT = Pretax Income + Interest Expense is the standard textbook
+            # approximation used when a filer has no explicit operating-income subtotal -
+            # add it as a second-tier fallback below OperatingIncomeLoss, never overriding
+            # a real operating_income value when one exists.
             interest_coverage_operating_income = operating_income
+            interest_coverage_pretax_income = pretax_income
             if interest_expense is None or interest_expense <= 0:
                 with DatabaseContext("read") as cur:
-                    # First try: both fields in recent history (3 years)
+                    # First try: recent history (3 years)
                     cur.execute(
                         """
-                        SELECT interest_expense, operating_income
+                        SELECT interest_expense, operating_income, pretax_income
                         FROM annual_income_statement
                         WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
-                          AND operating_income IS NOT NULL
+                          AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
@@ -929,10 +944,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if not fallback_ie_row:
                         cur.execute(
                             """
-                            SELECT interest_expense, operating_income
+                            SELECT interest_expense, operating_income, pretax_income
                             FROM annual_income_statement
                             WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
-                              AND operating_income IS NOT NULL
+                              AND (operating_income IS NOT NULL OR pretax_income IS NOT NULL)
                             ORDER BY fiscal_year DESC LIMIT 1
                             """,
                             (symbol,),
@@ -948,6 +963,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             fallback_ie_row[1], f"{symbol}.operating_income_fallback_year", allow_none=True
                         )
                     )
+                    interest_coverage_pretax_income = self._nan_to_none(
+                        safe_float(
+                            fallback_ie_row[2], f"{symbol}.pretax_income_fallback_year", allow_none=True
+                        )
+                    )
+
+            if interest_coverage_operating_income is None and interest_coverage_pretax_income is not None:
+                # EBIT approximation fallback - see comment above.
+                interest_coverage_operating_income = interest_coverage_pretax_income + (interest_expense or 0)
             shares_outstanding = self._nan_to_none(
                 safe_float(quality_row[11], f"{symbol}.shares_outstanding", allow_none=True)
             )
@@ -977,9 +1001,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             income_tax_expense = self._nan_to_none(
                 safe_float(quality_row[22], f"{symbol}.income_tax_expense", allow_none=True)
-            )
-            pretax_income = self._nan_to_none(
-                safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True)
             )
             prior_year_net_income = self._nan_to_none(
                 safe_float(quality_row[24], f"{symbol}.prior_year_net_income", allow_none=True)
@@ -1123,7 +1144,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and interest_expense > 0
                 and interest_coverage_operating_income is not None
             ):
-                metrics["interest_coverage"] = float(interest_coverage_operating_income / interest_expense)
+                computed_interest_coverage = interest_coverage_operating_income / interest_expense
+                # FIXED 2026-08-09: the ratio numerically explodes whenever
+                # interest_expense is negligibly small relative to the business -
+                # live-confirmed 162 real symbols (e.g. IKT, ENVB - real, if hugely
+                # negative, operating_income against a real but rounding-error-scale
+                # $5-$11 reported interest expense) produced ratios in the hundreds of
+                # thousands (worst case: -3,625,721x). This isn't specific to the EBIT
+                # approximation above - a real OperatingIncomeLoss numerator hits the
+                # exact same failure mode whenever the denominator is this small. Not a
+                # meaningful coverage signal either way, just noise from a near-zero
+                # denominator - same "not an infinite/undefined ratio to fake a score
+                # for" principle the interest_expense > 0 check above already applies.
+                if abs(computed_interest_coverage) > 1000:
+                    failed_metrics.append("interest_coverage")
+                else:
+                    metrics["interest_coverage"] = float(computed_interest_coverage)
             else:
                 failed_metrics.append("interest_coverage")
 
@@ -1199,13 +1235,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         gross_profit_revenue = fallback_revenue
 
             if gross_profit_used is not None and gross_profit_revenue is not None and gross_profit_revenue != 0:
-                metrics["gross_margin"] = float((gross_profit_used / gross_profit_revenue) * 100)
+                # CRITICAL FIX 2026-08-09: bound the ratio - same near-zero-denominator garbage-
+                # value class already fixed for interest_coverage (see that check above). A
+                # revenue figure that's real but implausibly tiny relative to gross_profit (e.g.
+                # a mis-scaled/mis-tagged SEC fact) explodes this ratio into nonsense (live-
+                # confirmed: CRML 23,148,148%, from revenue=$540 vs gross_profit=$125M in the
+                # same reported quarter) - worse than "No data", actively misleading for scoring.
+                computed_gross_margin = (gross_profit_used / gross_profit_revenue) * 100
+                if abs(computed_gross_margin) > 1000:
+                    failed_metrics.append("gross_margin")
+                else:
+                    metrics["gross_margin"] = float(computed_gross_margin)
             else:
                 failed_metrics.append("gross_margin")
 
             # EBITDA Margin = EBITDA / Revenue
             if ebitda_ev is not None and revenue is not None and revenue != 0:
-                metrics["ebitda_margin"] = float((ebitda_ev / revenue) * 100)
+                # CRITICAL FIX 2026-08-09: same near-zero-denominator bound as gross_margin above -
+                # live-confirmed 274 symbols with |ebitda_margin| > 1000% before this fix.
+                computed_ebitda_margin = (ebitda_ev / revenue) * 100
+                if abs(computed_ebitda_margin) > 1000:
+                    failed_metrics.append("ebitda_margin")
+                else:
+                    metrics["ebitda_margin"] = float(computed_ebitda_margin)
             else:
                 failed_metrics.append("ebitda_margin")
 
@@ -1224,22 +1276,43 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # universe symbols missing roic_pct have a self-consistent tax/pretax/operating
             # income triple available in some other fiscal year. Pulled as one row (not three
             # independent lookups) so NOPAT never mixes mismatched years internally.
-            roic_tax_expense, roic_pretax_income, roic_operating_income = (
+            # FIXED 2026-08-09: same root cause as interest_coverage above - this fallback
+            # required operating_income IS NOT NULL in the same row as tax+pretax, which
+            # a real class of filers (TJX, AFL, JCI, ...) never satisfies because they
+            # never tag OperatingIncomeLoss at all. Worse, when the ANCHOR year already
+            # has both income_tax_expense and pretax_income (true for these filers every
+            # year), this fallback query never even ran - roic_operating_income stayed
+            # the anchor's None with no rescue attempted. Live audit: 572 real symbols
+            # missing roic_pct have a self-consistent tax/pretax/interest_expense row
+            # (anchor or fallback) that only lacks OperatingIncomeLoss - same EBIT =
+            # Pretax Income + Interest Expense approximation applies here as NOPAT's
+            # numerator input.
+            anchor_interest_expense_for_roic = self._nan_to_none(
+                safe_float(quality_row[10], f"{symbol}.interest_expense_roic_anchor", allow_none=True)
+            )
+            roic_tax_expense, roic_pretax_income, roic_operating_income, roic_interest_expense = (
                 income_tax_expense,
                 pretax_income,
                 operating_income,
+                anchor_interest_expense_for_roic,
             )
             if income_tax_expense is None or pretax_income is None:
                 with DatabaseContext("read") as cur:
-                    # First try: all 3 fields together in recent history (3 years)
+                    # First try: tax+pretax together in recent history (3 years). Prefer a
+                    # row that also has operating_income or interest_expense (either lets
+                    # NOPAT compute - operating_income directly, interest_expense via EBIT
+                    # approximation), but don't require it - a tax/pretax-only row still
+                    # unblocks effective_tax_rate even if NOPAT itself later fails.
                     cur.execute(
                         """
-                        SELECT income_tax_expense, pretax_income, operating_income
+                        SELECT income_tax_expense, pretax_income, operating_income, interest_expense
                         FROM annual_income_statement
                         WHERE symbol = %s AND income_tax_expense IS NOT NULL
-                          AND pretax_income IS NOT NULL AND operating_income IS NOT NULL
+                          AND pretax_income IS NOT NULL
                           AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
-                        ORDER BY fiscal_year DESC LIMIT 1
+                        ORDER BY (CASE WHEN operating_income IS NOT NULL OR interest_expense IS NOT NULL
+                                       THEN 0 ELSE 1 END), fiscal_year DESC
+                        LIMIT 1
                         """,
                         (symbol,),
                     )
@@ -1249,11 +1322,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     if not fallback_tax_row:
                         cur.execute(
                             """
-                            SELECT income_tax_expense, pretax_income, operating_income
+                            SELECT income_tax_expense, pretax_income, operating_income, interest_expense
                             FROM annual_income_statement
                             WHERE symbol = %s AND income_tax_expense IS NOT NULL
-                              AND pretax_income IS NOT NULL AND operating_income IS NOT NULL
-                            ORDER BY fiscal_year DESC LIMIT 1
+                              AND pretax_income IS NOT NULL
+                            ORDER BY (CASE WHEN operating_income IS NOT NULL OR interest_expense IS NOT NULL
+                                           THEN 0 ELSE 1 END), fiscal_year DESC
+                            LIMIT 1
                             """,
                             (symbol,),
                         )
@@ -1269,6 +1344,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     roic_operating_income = self._nan_to_none(
                         safe_float(fallback_tax_row[2], f"{symbol}.operating_income_fallback_year", allow_none=True)
                     )
+                    roic_interest_expense = self._nan_to_none(
+                        safe_float(fallback_tax_row[3], f"{symbol}.interest_expense_fallback_year", allow_none=True)
+                    )
+
+            if roic_operating_income is None and roic_pretax_income is not None and roic_interest_expense is not None:
+                # EBIT approximation fallback - see comment above. roic_interest_expense is
+                # always from the same row as roic_pretax_income (anchor or fallback_tax_row),
+                # so this never mixes fiscal years.
+                roic_operating_income = roic_pretax_income + roic_interest_expense
 
             # FIXED (migration 1178): a hardcoded tax-rate assumption was correctly rejected as
             # synthetic (real effective rates vary 5-35%+ by jurisdiction/structure) - only the
@@ -1350,7 +1434,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 and invested_capital > 0
             ):
                 nopat = roic_operating_income * (1 - effective_tax_rate)
-                metrics["roic_pct"] = float((nopat / invested_capital) * 100)
+                # CRITICAL FIX 2026-08-09: same near-zero-denominator bound as gross_margin/
+                # ebitda_margin/interest_coverage above - invested_capital > 0 only rules out
+                # literal zero, not an implausibly tiny-but-positive value that explodes the
+                # ratio (live-confirmed: MCK at 1347.77% before this fix).
+                computed_roic_pct = (nopat / invested_capital) * 100
+                if abs(computed_roic_pct) > 1000:
+                    failed_metrics.append("roic_pct")
+                else:
+                    metrics["roic_pct"] = float(computed_roic_pct)
             else:
                 failed_metrics.append("roic_pct")
 

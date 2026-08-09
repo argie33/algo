@@ -60,6 +60,7 @@ def handle(  # noqa: C901
                 SELECT
                     vm.symbol,
                     CURRENT_DATE AS date,
+                    vm.market_cap,
                     vm.pe_ratio,
                     vm.pb_ratio AS price_to_book,
                     vm.ps_ratio AS price_to_sales,
