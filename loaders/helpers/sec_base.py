@@ -257,6 +257,21 @@ class SecEdgarStatementLoader(SecLoaderBase):
         self._fallback_only_fields: frozenset[str] = cast(
             frozenset[str], cfg.get("fallback_only_fields", frozenset())
         )
+        # FIXED 2026-08-09: REIT-specific fallback fields - same "don't overwrite
+        # something already found" mechanism as _fallback_only_fields above, but
+        # scoped to REIT filers only (SIC 6798). Most post-2018 filers legitimately
+        # have their ASC-606 contract-revenue tag supersede the legacy "Revenues" tag
+        # (fuller, more current figure) - true for the general priority chain above.
+        # False for equity REITs specifically: their real revenue ("Revenues", mostly
+        # lease income) is explicitly OUT of ASC 606's scope, so their ASC-606 tag only
+        # ever captures a much smaller non-lease fee-income line. Live-confirmed UDR:
+        # revenues=$1.67B (real) vs revenue_from_contract_with_customer_excluding_
+        # assessed_tax=$8.3M (real but minor fee income) - the general chain let the
+        # $8.3M win.
+        self._reit_only_fallback_fields: frozenset[str] = cast(
+            frozenset[str], cfg.get("reit_only_fallback_fields", frozenset())
+        )
+        self._reit_symbols: frozenset[str] | None = None
 
         super().__init__()
         self._sec_client = sec_client if sec_client is not None else SecEdgarClient()
@@ -267,6 +282,20 @@ class SecEdgarStatementLoader(SecLoaderBase):
         if cli_arg:
             return cli_arg
         return os.getenv("LOADER_PERIOD", "annual")
+
+    def _get_reit_symbols(self) -> frozenset[str]:
+        """Bulk-fetch REIT symbols (SIC 6798) once per loader run, not per-row.
+
+        Same SIC code scores.py already uses for CEF/trust filtering (see
+        lambda/api/routes/scores.py's sic_code exclusion comment).
+        """
+        if self._reit_symbols is None:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol FROM company_info_sec WHERE sic_code = 6798")
+                self._reit_symbols = frozenset(row[0] for row in cur.fetchall())
+        return self._reit_symbols
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
         """Build an explicit data_unavailable marker row for this loader's period.
@@ -421,6 +450,12 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 db_field = field_mapping[sec_field]
                 if sec_field in getattr(self, "_fallback_only_fields", frozenset()) and db_field in row:
                     continue  # A higher-priority concept already populated this field
+                if (
+                    sec_field in getattr(self, "_reit_only_fallback_fields", frozenset())
+                    and db_field in row
+                    and r.get("symbol") in self._get_reit_symbols()
+                ):
+                    continue  # REIT filer: real lease revenue already populated this field
                 if db_field not in self._schema_cols:
                     raise RuntimeError(
                         f"[{self.table_name}] Field mapping configuration error: SEC field '{sec_field}' "

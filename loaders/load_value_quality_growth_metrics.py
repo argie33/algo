@@ -775,8 +775,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         positive_count = consecutive_positive
                     consecutive_positive = 0
 
-            if consecutive_positive > 0:
-                metrics["consecutive_positive_quarters"] = int(consecutive_positive)
+            # 0 is a legitimate answer (no positive quarters in the trailing window), not a
+            # missing value - always record it instead of leaving the field (and thus its
+            # _unavailable_reason) unset, which previously made ~3,173 real stocks with a
+            # net-loss quarter show as unexplained "No data" instead of "0".
+            metrics["consecutive_positive_quarters"] = int(consecutive_positive)
 
             eps_growth_rates = []
             for i in range(1, len(last_4q)):
@@ -794,6 +797,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     variance = sum((x - mean_growth) ** 2 for x in eps_growth_rates) / len(eps_growth_rates)
                     stability_stddev = sqrt(variance)
                     metrics["eps_growth_stability"] = float(round(stability_stddev, 2))
+                else:
+                    # Only one quarter-over-quarter EPS comparison available - not enough to
+                    # compute a variance/stddev, but this is a real, explainable gap.
+                    metrics["eps_growth_stability_unavailable_reason"] = "insufficient_eps_growth_datapoints"
+            else:
+                # >=4 quarters existed (the insufficient_quarterly_history branch above was not
+                # hit) but none had both a current and prior EPS value to diff - e.g. missing
+                # EPS in the source rows. Previously this left earnings_growth_4q_avg/
+                # eps_growth_stability unset with no reason, indistinguishable from a bug.
+                metrics["earnings_growth_4q_avg_unavailable_reason"] = "insufficient_eps_data"
+                metrics["eps_growth_stability_unavailable_reason"] = "insufficient_eps_data"
 
             revenue_growth_rates = []
             for i in range(1, len(last_4q)):
@@ -805,6 +819,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             if revenue_growth_rates:
                 metrics["quarterly_growth_momentum"] = float(round(sum(revenue_growth_rates) / len(revenue_growth_rates), 2))
+            else:
+                metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_revenue_data"
 
             # Phase 3A: Earnings surprise and beat rate
             # Use last quarter EPS vs current analyst forward EPS as proxy for surprise
@@ -2353,6 +2369,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "fcf_yield_unavailable_reason": "missing_sec_data",
                 "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings",
                 "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded",
+                "ev_revenue": None,
+                "ev_revenue_unavailable_reason": "missing_sec_data",
                 "market_cap": None,
                 "market_cap_unavailable_reason": "missing_sec_data",
                 "held_percent_insiders_unavailable_reason": None,

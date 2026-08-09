@@ -192,6 +192,21 @@ _REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
     {"interest_income_operating", "interest_and_dividend_income_operating"}
 )
 
+# FIXED 2026-08-09: REIT-specific fallback (SIC 6798 only, see sec_base.py's
+# _reit_only_fallback_fields comment). Equity REITs' real revenue ("revenues", mostly
+# lease income) is explicitly out of ASC 606's scope, so their ASC-606 contract-revenue
+# tags only ever capture a much smaller non-lease fee-income line - unlike the general
+# case (most post-2018 filers), where the ASC-606 tag legitimately supersedes "revenues"
+# as the fuller, more current figure. Live-confirmed UDR: revenues=$1.67B (real) vs.
+# revenue_from_contract_with_customer_excluding_assessed_tax=$8.3M (real but minor fee
+# income) - the general priority chain let the $8.3M win.
+_REIT_REVENUE_FALLBACK_ONLY_FIELDS = frozenset(
+    {
+        "revenue_from_contract_with_customer_including_assessed_tax",
+        "revenue_from_contract_with_customer_excluding_assessed_tax",
+    }
+)
+
 _BALANCE_FIELD_MAPPING = {
     "assets": "total_assets",
     "assets_current": "current_assets",
@@ -283,6 +298,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
             "table_name": "annual_income_statement",
             "field_mapping": dict(_INCOME_FIELD_MAPPING),
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
+            "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -314,6 +330,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
             "table_name": "quarterly_income_statement",
             "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_EXTRA},
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
+            "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -346,6 +363,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
             "table_name": "ttm_income_statement",
             "field_mapping": dict(_INCOME_FIELD_MAPPING),
             "fallback_only_fields": _REVENUE_FALLBACK_ONLY_FIELDS,
+            "reit_only_fallback_fields": _REIT_REVENUE_FALLBACK_ONLY_FIELDS,
             "primary_key": ("symbol", "report_date"),
             "schema_cols": frozenset(
                 [
