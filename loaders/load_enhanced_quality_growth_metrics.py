@@ -53,6 +53,24 @@ logger = logging.getLogger(__name__)
 # revision_trend_score.
 MAX_TREND_PERCENTAGE_POINTS = 100_000.0
 
+# CRITICAL FIX 2026-08-09: same near-zero-revenue-denominator bound as commits 12063b32a/
+# 5ceda9952 (which bounded gross_margin/ebitda_margin/roic_pct/operating_margin/net_margin
+# in load_value_quality_growth_metrics.py at |ratio| <= 1000). This loader recomputes
+# gross/operating/net margin independently from raw annual_income_statement rows to derive
+# *_margin_trend/roe_trend, using the same revenue-denominator division pattern, but never
+# inherited the bound - a garbage current-year or prior-year margin (e.g. near-zero revenue)
+# was flowing straight into a trend value in the thousands of percentage points.
+MAX_MARGIN_ABS_PCT = 1000.0
+
+
+def _bounded_margin_pct(numerator: float | None, denominator: float | None) -> float | None:
+    """(numerator / denominator * 100), or None if denominator missing/non-positive or the
+    result exceeds MAX_MARGIN_ABS_PCT (near-zero-denominator garbage value)."""
+    if numerator is None or denominator is None or denominator <= 0:
+        return None
+    margin = numerator / denominator * 100
+    return None if abs(margin) > MAX_MARGIN_ABS_PCT else margin
+
 
 class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
     """Adds 21 new computed metrics to existing quality_metrics and growth_metrics.
@@ -111,6 +129,20 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
                     metric_dict = metrics[0]
 
+                    # FIX 2026-08-09: fetch_incremental() returns a truthy
+                    # {"data_unavailable": True, "reason": ...} marker dict (not an empty list)
+                    # when the symbol has no annual_income_statement history - the `if not
+                    # metrics` check above only catches an empty list, not this marker. Without
+                    # this check, the marker dict has none of the growth_fields/quality_fields
+                    # keys, so both update_fields lists below stay empty, no UPDATE ever runs,
+                    # and symbols_succeeded still increments - a symbol with zero real data
+                    # written is silently counted as a success. Same bug class as
+                    # earnings_calendar's fetch-failure placeholder rows fooling Phase 8 (see
+                    # earnings_calendar_placeholder_false_rejection_fix_20260809).
+                    if metric_dict.get("data_unavailable"):
+                        symbols_failed += 1
+                        continue
+
                     with DatabaseContext("write") as cur:
                         growth_fields = [
                             "gross_margin_trend", "operating_margin_trend", "net_margin_trend",
@@ -134,19 +166,27 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             )
 
                         quality_fields = [
-                            # roic_pct REMOVED 2026-08-03: this loader isn't wired into any
-                            # active pipeline (grep-confirmed zero terraform/Step Functions
-                            # references, despite being in loader_registry.py) - found while
-                            # fixing quality_metrics.roic_pct's real gap (was hardcoded
-                            # unavailable in load_value_quality_growth_metrics.py, now computes
-                            # real NOPAT/invested-capital ROIC using actual SEC-reported income
-                            # tax data, migration 1178). This loader's own roic_pct formula
+                            # roic_pct REMOVED 2026-08-03: found while fixing
+                            # quality_metrics.roic_pct's real gap (was hardcoded unavailable in
+                            # load_value_quality_growth_metrics.py, now computes real
+                            # NOPAT/invested-capital ROIC using actual SEC-reported income tax
+                            # data, migration 1178). This loader's own roic_pct formula
                             # (operating_income / (total_assets - current_liabilities), no tax
-                            # adjustment, no debt/cash netting) is a strictly cruder duplicate -
-                            # if this loader were ever scheduled, its unconditional UPDATE would
-                            # silently overwrite the accurate value with the cruder one, same bug
-                            # class as this codebase's other confirmed-duplicate-computation
-                            # fixes (see steering/DATA_LOADERS.md's sec_cash_flow_metrics entry).
+                            # adjustment, no debt/cash netting) is a strictly cruder duplicate.
+                            #
+                            # CORRECTION 2026-08-09: this comment used to also claim "this loader
+                            # isn't wired into any active pipeline" as the reason the removal was
+                            # only theoretical ("if this loader were ever scheduled..."). That was
+                            # already false the day it was written - terraform/modules/pipeline/
+                            # main.tf's EnhancedQualityGrowthMetrics Step Functions state and
+                            # terraform/modules/loaders/main.tf's loader_file_map both schedule
+                            # this loader in AWS production (a separate same-day 2026-08-03 fix
+                            # enabled it), running after ValueQualityGrowthMetrics on the real
+                            # quality_metrics/growth_metrics tables. It does NOT run in the local
+                            # dev pipeline (scripts/local_loader_scheduler.py has zero references
+                            # to it), so this file's behavior cannot be verified via a local
+                            # orchestrator run - only in AWS. The roic_pct removal above was and
+                            # is load-bearing in production, not a hypothetical.
                             "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
                             "consecutive_positive_quarters", "estimate_revision_direction",
                             "revision_activity_30d", "estimate_momentum_60d", "estimate_momentum_90d",
@@ -180,10 +220,21 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             fail_rate = (symbols_failed / max(symbols_succeeded + symbols_failed, 1)) * 100
 
             # Use LoaderStatusManager for final status (RACE CONDITION FIX)
+            # FIX 2026-08-09: quality_metrics/growth_metrics are shared status rows also
+            # written by load_value_quality_growth_metrics.py. A bare mark_completed() (no
+            # current_run_* overrides) makes its internal <98%-completion safety check
+            # re-read whatever symbol_count/symbols_loaded THAT OTHER loader last wrote,
+            # instead of this run's own real counts - so this loader's actual completeness
+            # was never actually verified by that safety check. Passing this run's own
+            # symbols_succeeded/attempted counts closes that gap (same pattern as the
+            # 2026-08-03 fix documented in LoaderStatusManager.mark_completed's docstring).
             for table in ["quality_metrics", "growth_metrics"]:
                 status_mgr = LoaderStatusManager(table)
                 if success and fail_rate <= self.max_fail_rate:
-                    status_mgr.mark_completed()
+                    status_mgr.mark_completed(
+                        current_run_symbols_loaded=symbols_succeeded,
+                        current_run_symbol_count=symbols_succeeded + symbols_failed,
+                    )
                 else:
                     status_mgr.mark_failed(
                         error_message=f"Failed symbols: {symbols_failed}/{symbols_failed + symbols_succeeded}",
@@ -298,47 +349,27 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             if prior_gross_profit is None and prior_cogs is not None:
                                 prior_gross_profit = prior_rev_f - prior_cogs
 
-                            if curr_gross_profit is not None and curr_rev_f > 0:
-                                curr_gross_margin = (curr_gross_profit / curr_rev_f * 100)
-                            else:
-                                curr_gross_margin = None
-                            # Prior year margin
-                            if prior_gross_profit is not None and prior_rev_f > 0:
-                                prior_gross_margin = (prior_gross_profit / prior_rev_f * 100)
-                            else:
-                                prior_gross_margin = None
-
+                            curr_gross_margin = _bounded_margin_pct(curr_gross_profit, curr_rev_f)
+                            prior_gross_margin = _bounded_margin_pct(prior_gross_profit, prior_rev_f)
                             if curr_gross_margin is not None and prior_gross_margin is not None:
                                 metrics["gross_margin_trend"] = float(curr_gross_margin - prior_gross_margin)
 
                             # Operating margin trend
-                            if curr_oi_f is not None and curr_rev_f > 0:
-                                curr_op_margin = (curr_oi_f / curr_rev_f * 100)
-                            else:
-                                curr_op_margin = None
-                            if prior_oi_f is not None and prior_rev_f > 0:
-                                prior_op_margin = (prior_oi_f / prior_rev_f * 100)
-                            else:
-                                prior_op_margin = None
+                            curr_op_margin = _bounded_margin_pct(curr_oi_f, curr_rev_f)
+                            prior_op_margin = _bounded_margin_pct(prior_oi_f, prior_rev_f)
                             if curr_op_margin is not None and prior_op_margin is not None:
                                 metrics["operating_margin_trend"] = float(curr_op_margin - prior_op_margin)
 
                             # Net margin trend
-                            if curr_ni_f is not None and curr_rev_f > 0:
-                                curr_net_margin = (curr_ni_f / curr_rev_f * 100)
-                            else:
-                                curr_net_margin = None
-                            if prior_ni_f is not None and prior_rev_f > 0:
-                                prior_net_margin = (prior_ni_f / prior_rev_f * 100)
-                            else:
-                                prior_net_margin = None
+                            curr_net_margin = _bounded_margin_pct(curr_ni_f, curr_rev_f)
+                            prior_net_margin = _bounded_margin_pct(prior_ni_f, prior_rev_f)
                             if curr_net_margin is not None and prior_net_margin is not None:
                                 metrics["net_margin_trend"] = float(curr_net_margin - prior_net_margin)
 
                 # ROE trend
                 if curr_equity_f and curr_equity_f > 0 and prior_equity_f and prior_equity_f > 0:
-                    curr_roe = (curr_ni_f / curr_equity_f * 100) if curr_ni_f else None
-                    prior_roe = (prior_ni_f / prior_equity_f * 100) if prior_ni_f else None
+                    curr_roe = _bounded_margin_pct(curr_ni_f, curr_equity_f)
+                    prior_roe = _bounded_margin_pct(prior_ni_f, prior_equity_f)
                     if curr_roe and prior_roe:
                         metrics["roe_trend"] = float(curr_roe - prior_roe)
 
