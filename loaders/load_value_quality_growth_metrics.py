@@ -2132,14 +2132,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y,
              net_income_growth_yoy, operating_income_growth_yoy, gross_margin_trend, operating_margin_trend, net_margin_trend,
              roe_trend, sustainable_growth_rate, quarterly_growth_momentum, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
+             consecutive_positive_quarters, earnings_growth_4q_avg, eps_growth_stability,
              data_unavailable, reason, data_source, updated_at,
              revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
              eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason,
              net_income_growth_yoy_unavailable_reason, operating_income_growth_yoy_unavailable_reason, gross_margin_trend_unavailable_reason,
              operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason, roe_trend_unavailable_reason,
              sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason, fcf_growth_yoy_unavailable_reason,
-             ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
+             consecutive_positive_quarters_unavailable_reason, earnings_growth_4q_avg_unavailable_reason, eps_growth_stability_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -2158,6 +2160,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fcf_growth_yoy = EXCLUDED.fcf_growth_yoy,
                 ocf_growth_yoy = EXCLUDED.ocf_growth_yoy,
                 asset_growth_yoy = EXCLUDED.asset_growth_yoy,
+                consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
+                earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg,
+                eps_growth_stability = EXCLUDED.eps_growth_stability,
                 revenue_growth_1y_unavailable_reason = EXCLUDED.revenue_growth_1y_unavailable_reason,
                 revenue_growth_3y_unavailable_reason = EXCLUDED.revenue_growth_3y_unavailable_reason,
                 revenue_growth_5y_unavailable_reason = EXCLUDED.revenue_growth_5y_unavailable_reason,
@@ -2175,6 +2180,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fcf_growth_yoy_unavailable_reason = EXCLUDED.fcf_growth_yoy_unavailable_reason,
                 ocf_growth_yoy_unavailable_reason = EXCLUDED.ocf_growth_yoy_unavailable_reason,
                 asset_growth_yoy_unavailable_reason = EXCLUDED.asset_growth_yoy_unavailable_reason,
+                consecutive_positive_quarters_unavailable_reason = EXCLUDED.consecutive_positive_quarters_unavailable_reason,
+                earnings_growth_4q_avg_unavailable_reason = EXCLUDED.earnings_growth_4q_avg_unavailable_reason,
+                eps_growth_stability_unavailable_reason = EXCLUDED.eps_growth_stability_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -2199,6 +2207,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("fcf_growth_yoy"),
                 row.get("ocf_growth_yoy"),
                 row.get("asset_growth_yoy"),
+                row.get("consecutive_positive_quarters"),
+                row.get("earnings_growth_4q_avg"),
+                row.get("eps_growth_stability"),
                 row["data_unavailable"],
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
@@ -2220,6 +2231,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("fcf_growth_yoy_unavailable_reason"),
                 row.get("ocf_growth_yoy_unavailable_reason"),
                 row.get("asset_growth_yoy_unavailable_reason"),
+                row.get("consecutive_positive_quarters_unavailable_reason"),
+                row.get("earnings_growth_4q_avg_unavailable_reason"),
+                row.get("eps_growth_stability_unavailable_reason"),
             ),
         )
 
