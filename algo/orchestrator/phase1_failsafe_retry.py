@@ -300,9 +300,12 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
         with DatabaseContext("read") as cur:
             for table_name, loader_key in loaders_to_refresh.items():
                 try:
-                    if table_name == "stock_scores":
-                        # stock_scores doesn't have a date column, use updated_at instead
-                        cur.execute("SELECT MAX(updated_at) FROM stock_scores")
+                    if table_name in ("stock_scores", "earnings_calendar"):
+                        # stock_scores and earnings_calendar have no `date` column - stock_scores
+                        # tracks freshness via updated_at; earnings_calendar's `earnings_date` is
+                        # forward-looking (future announcement dates), not a load timestamp, so it
+                        # also uses updated_at (matches the completeness-check special case below).
+                        cur.execute(f"SELECT MAX(updated_at) FROM {table_name}")
                     else:
                         cur.execute(f"SELECT MAX(date) FROM {table_name}")
 
