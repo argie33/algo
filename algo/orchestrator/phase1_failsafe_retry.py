@@ -71,8 +71,12 @@ RETRY_WAIT_SECONDS = 5
 # the loader is left "still_failing" for this run (existing halt_required handling
 # applies), and the NEXT scheduled orchestrator run picks up the by-then-completed
 # data. Multiple incomplete critical loaders are retried sequentially in the
-# calling loop, so keep this small to bound total Phase 1 time.
-RETRY_MONITOR_TIMEOUT_SECONDS = 45
+# calling loop, so keep this window reasonable but not so small it times out before
+# "quick" loaders (analyst_earnings: 20 min, small-to-medium loaders) have a chance.
+# Session 81 fix: increased from 45s (too aggressive) to 300s (5 min) to give
+# large loaders like prices (60-90 min), value_quality_growth (40 min), positioning_metrics (30 min)
+# a brief window to complete if they're already underway.
+RETRY_MONITOR_TIMEOUT_SECONDS = 300
 
 
 def _get_expected_data_date(run_date: _date | None = None, pipeline_context: str | None = None) -> tuple[_date, str]:
