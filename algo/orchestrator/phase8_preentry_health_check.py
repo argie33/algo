@@ -100,6 +100,16 @@ def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
     """Check if earnings announcement within 0-3 days."""
     try:
         with DatabaseContext("read") as cur:
+            # CRITICAL FIX 2026-08-09: exclude data_unavailable rows - load_earnings_calendar.py's
+            # _unavailable_record() stamps earnings_date=today (the fetch-attempt date, not a real
+            # earnings date) whenever a symbol's fetch fails, so an unfiltered query treats "yfinance
+            # errored today" as "earnings in 0 days" for every affected symbol. This is a hard,
+            # non-votable gate (2026-08-09 hardening) - a mass fetch failure was silently blocking
+            # 100% of entries market-wide (live-reproduced: 4918 placeholder rows dated 2026-08-08
+            # from one fetch-failure event). Safe to narrow to real earnings dates only because this
+            # check is independently backstopped by pretrade_checks.py's EarningsBlackout, which
+            # deliberately stays fail-closed on data_unavailable (see earnings_blackout.py) right
+            # before order placement - that backstop still blocks genuinely-uncertain symbols.
             cur.execute(
                 """
                 SELECT COUNT(*)
@@ -107,6 +117,7 @@ def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
                 WHERE symbol = %s
                 AND earnings_date >= %s::date
                 AND earnings_date <= %s::date + interval '3 days'
+                AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
                 """,
                 (ticker, signal_date, signal_date),
             )

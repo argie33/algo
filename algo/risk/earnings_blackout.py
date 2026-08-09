@@ -116,14 +116,29 @@ class EarningsBlackout:
                 # NEW APPROACH: Fail-closed design - unavailable data = ASSUME RISKY, block the trade
                 # Only query earnings regardless of data_unavailable status, treating incomplete data
                 # as "potentially risky" rather than "safe because missing".
+                #
+                # CRITICAL FIX 2026-08-09: rank data_unavailable rows BELOW real ones, not equally.
+                # load_earnings_calendar.py's _unavailable_record() stamps earnings_date=today (the
+                # fetch-attempt date, not a real earnings date) on any outright fetch failure. The
+                # old tiering ("any future date beats any past date, regardless of data quality") let
+                # that phantom "today" placeholder outrank a symbol's own real, already-past earnings
+                # date whenever the real next cycle (~90 days out) hadn't been fetched yet - live-
+                # reproduced 2026-08-09: WPM/BDX/DAC/GAIN/ERO all have real earnings_date rows days in
+                # the past (correctly outside the blackout window) but were blocked anyway on "earnings
+                # tomorrow", sourced entirely from a same-day mass yfinance fetch-failure event (4918
+                # placeholder rows in one run). Real dates (future, then past) now always outrank
+                # unavailable placeholders; a placeholder is only used as a fail-closed fallback signal
+                # when NO real earnings_date exists for this symbol anywhere in the window - preserving
+                # the original incident's protection for genuinely never-confirmed symbols.
                 cur.execute(
-                    """SELECT earnings_date FROM earnings_calendar
+                    """SELECT earnings_date, data_unavailable FROM earnings_calendar
                        WHERE symbol = %s
                        AND earnings_date >= %s
                        AND earnings_date <= %s
                        ORDER BY CASE
-                                  WHEN earnings_date >= %s THEN 0
-                                  ELSE 1
+                                  WHEN data_unavailable IS NOT TRUE AND earnings_date >= %s THEN 0
+                                  WHEN data_unavailable IS NOT TRUE THEN 1
+                                  ELSE 2
                                 END,
                                 ABS(earnings_date - %s::date) ASC
                        LIMIT 1""",

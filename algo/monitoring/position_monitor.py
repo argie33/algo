@@ -1541,10 +1541,19 @@ class PositionMonitor:
         try:
             # CRITICAL FIX 2026-08-01: If caller passed a cursor, use it instead of opening new context
             # Nested DatabaseContext calls close the outer cursor, causing "cursor already closed" errors.
+            # CRITICAL FIX 2026-08-09: exclude data_unavailable rows - load_earnings_calendar.py's
+            # _unavailable_record() stamps earnings_date=today (the fetch-attempt date, not a real
+            # earnings date) whenever a symbol's fetch fails, so an unfiltered query finds this
+            # phantom "today" row instead of raising ValueError below, silently defeating this
+            # function's own documented "graceful degradation on missing data" contract and firing
+            # a false EARNINGS_IN_0D flag that can force-exit a healthy open position for a reason
+            # unrelated to real earnings risk. Live-reproduced 2026-08-09: a mass yfinance fetch
+            # failure created 4918 such placeholder rows dated 2026-08-08 across the universe.
             if cur is not None:
                 cur.execute(
                     """SELECT earnings_date FROM earnings_calendar
                        WHERE symbol = %s AND earnings_date >= %s
+                       AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
                        ORDER BY earnings_date ASC LIMIT 1""",
                     (symbol, current_date),
                 )
@@ -1554,6 +1563,7 @@ class PositionMonitor:
                     fresh_cur.execute(
                         """SELECT earnings_date FROM earnings_calendar
                            WHERE symbol = %s AND earnings_date >= %s
+                           AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
                            ORDER BY earnings_date ASC LIMIT 1""",
                         (symbol, current_date),
                     )
