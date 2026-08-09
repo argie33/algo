@@ -422,13 +422,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
             surprises = reported['Surprise(%)'].dropna()
             if len(surprises) > 0:
-                # Average surprise over available quarters
-                metrics["earnings_surprise_avg"] = float(surprises.mean())
+                # Average surprise over available quarters (guard against outlier earnings surprises)
+                avg_surprise = float(surprises.mean())
+                if abs(avg_surprise) < MAX_TREND_PERCENTAGE_POINTS:
+                    metrics["earnings_surprise_avg"] = avg_surprise
 
                 # Beat rate: % of quarters with positive surprise
                 beat_count = (surprises > 0).sum()
                 beat_rate = (beat_count / len(surprises)) * 100
-                metrics["earnings_beat_rate"] = float(beat_rate)
+                if beat_rate <= 100:  # Should always be <=100 but guard anyway
+                    metrics["earnings_beat_rate"] = float(beat_rate)
 
                 logger.info(f"[ENHANCED_METRICS] {symbol}: earnings_surprise_avg={metrics['earnings_surprise_avg']:.2f}%, earnings_beat_rate={metrics['earnings_beat_rate']:.2f}%")
             else:
@@ -544,14 +547,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                     # Average EPS growth (last 4 quarters)
                     if len(eps_growth_rates) >= 4:
                         avg_growth = sum(eps_growth_rates[:4]) / 4
-                        metrics["earnings_growth_4q_avg"] = float(avg_growth * 100)
+                        avg_growth_pct = avg_growth * 100
+                        # Guard against overflow: EPS near-zero can cause huge percentage swings
+                        if abs(avg_growth_pct) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["earnings_growth_4q_avg"] = float(avg_growth_pct)
 
                     # EPS growth stability (standard deviation)
                     if len(eps_growth_rates) >= 2:
                         import statistics
                         try:
                             stdev = statistics.stdev(eps_growth_rates)
-                            metrics["eps_growth_stability"] = float(stdev)
+                            # Cap stability metric too (same reason as growth rates)
+                            if stdev < MAX_TREND_PERCENTAGE_POINTS:
+                                metrics["eps_growth_stability"] = float(stdev)
                         except (ValueError, statistics.StatisticsError) as e:
                             # CRITICAL FIX 2026-08-02: Log failed calculations at WARNING level
                             # Silent pass hides data quality issues (insufficient data, invalid values)
@@ -568,7 +576,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                         growth = (valid_eps[i] - valid_eps[i + 1]) / abs(valid_eps[i + 1]) * 100
                         recent_growth.append(growth)
                 if recent_growth:
-                    metrics["quarterly_growth_momentum"] = float(sum(recent_growth) / len(recent_growth))
+                    momentum = sum(recent_growth) / len(recent_growth)
+                    # Guard against overflow: same near-zero EPS issue
+                    if abs(momentum) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["quarterly_growth_momentum"] = float(momentum)
 
 
 def main() -> int:
