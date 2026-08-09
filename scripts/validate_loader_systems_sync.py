@@ -17,8 +17,10 @@ import re
 import sys
 from pathlib import Path
 
-# Force UTF-8 output on Windows
-if sys.platform == 'win32':
+# Force UTF-8 output on Windows. Guarded against pytest: reassigning sys.stdout/stderr
+# to a new TextIOWrapper while pytest has already substituted its own capture streams
+# corrupts pytest's capture teardown the first time anything imports this module.
+if sys.platform == 'win32' and "pytest" not in sys.modules:
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
