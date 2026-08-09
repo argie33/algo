@@ -57,17 +57,16 @@ LOADER_TABLES: dict[str, list[str]] = {
     # flag a healthy loader as CRITICAL/stale on a table nothing expects fresh
     # anymore. Worth a separate look at why the loader's config wasn't cleaned
     # up to match, but that's a distinct question from this mapping's accuracy.
-    # DISABLED 2026-08-06: SEC financial statement loaders hang for 5+ hours and get force-killed.
-    # Not used by trading logic (only referenced in data_patrol monitoring).
-    # Can be re-enabled after fixing the hang issue with per-request timeouts.
-    # "load_financial_statements.py": [
-    #     "annual_income_statement",
-    #     "annual_balance_sheet",
-    #     "annual_cash_flow",
-    #     "quarterly_income_statement",
-    #     "quarterly_balance_sheet",
-    #     "quarterly_cash_flow",
-    # ],
+    # RE-ENABLED 2026-08-09: Financial statements loader with timeout optimizations.
+    # Per-symbol incremental loading prevents full universe hangs.
+    "load_financial_statements.py": [
+        "annual_income_statement",
+        "annual_balance_sheet",
+        "annual_cash_flow",
+        "quarterly_income_statement",
+        "quarterly_balance_sheet",
+        "quarterly_cash_flow",
+    ],
     "load_sec_valuations.py": ["sec_valuations"],
     # load_sec_cash_flow_metrics.py REMOVED 2026-07-27: duplicated quality_metrics formulas
     # exactly, zero incremental signal for real SEC API cost - see steering/DATA_LOADERS.md.

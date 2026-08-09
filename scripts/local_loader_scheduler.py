@@ -33,9 +33,9 @@ PIPELINES = {
         "sector_industry",    # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
     ],
     "metrics": [
-        # DISABLED 2026-08-06: financial_statements hangs 5+ hours (Session 83 fix pending)
-        # Removed from pipeline; value_quality_growth will compute metrics from available data.
-        # "financial_statements",
+        # RE-ENABLED 2026-08-09: financial_statements with optimized per-symbol timeouts
+        # CRITICAL DEPENDENCY: Must run BEFORE value_quality_growth (needs annual_income_statement, annual_balance_sheet, annual_cash_flow)
+        "financial_statements",
         "valuations",  # SEC valuations (PE, PB, PS, PEG, FCF)
         # FIXED 2026-08-03: analyst_earnings_estimates must run BEFORE value_quality_growth
         "analyst_earnings_estimates",
