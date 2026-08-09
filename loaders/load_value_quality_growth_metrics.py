@@ -36,7 +36,7 @@ import logging
 import sys
 import time
 from datetime import date
-from math import isnan
+from math import isnan, sqrt
 from typing import Any
 
 from loaders.runner import run_loader
@@ -701,6 +701,85 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if value is not None and isinstance(value, float) and isnan(value):
             return None
         return value
+
+    def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:
+        """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability."""
+        metrics = {}
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT fiscal_year, fiscal_quarter, net_income, revenue, earnings_per_share
+                    FROM quarterly_income_statement
+                    WHERE symbol = %s
+                    ORDER BY fiscal_year DESC, fiscal_quarter DESC
+                    LIMIT 8
+                    """,
+                    (symbol,),
+                )
+                quarters = cur.fetchall()
+
+            if len(quarters) < 4:
+                return metrics
+
+            quarters.reverse()
+            quarterly_data = [
+                {
+                    "net_income": self._nan_to_none(safe_float(q[2], f"{symbol}.q_net_income", allow_none=True)),
+                    "revenue": self._nan_to_none(safe_float(q[3], f"{symbol}.q_revenue", allow_none=True)),
+                    "eps": self._nan_to_none(safe_float(q[4], f"{symbol}.q_eps", allow_none=True)),
+                }
+                for q in quarters
+            ]
+
+            last_4q = quarterly_data[-4:]
+
+            positive_count = 0
+            consecutive_positive = 0
+            for q in last_4q:
+                if q["net_income"] is not None and q["net_income"] > 0:
+                    positive_count += 1
+                    consecutive_positive += 1
+                else:
+                    if consecutive_positive < positive_count:
+                        positive_count = consecutive_positive
+                    consecutive_positive = 0
+
+            if consecutive_positive > 0:
+                metrics["consecutive_positive_quarters"] = int(consecutive_positive)
+
+            eps_growth_rates = []
+            for i in range(1, len(last_4q)):
+                curr_eps = last_4q[i]["eps"]
+                prev_eps = last_4q[i - 1]["eps"]
+                if curr_eps is not None and prev_eps is not None and prev_eps != 0:
+                    growth = ((curr_eps - prev_eps) / abs(prev_eps)) * 100
+                    eps_growth_rates.append(growth)
+
+            if eps_growth_rates:
+                metrics["earnings_growth_4q_avg"] = float(round(sum(eps_growth_rates) / len(eps_growth_rates), 2))
+
+                if len(eps_growth_rates) >= 2:
+                    mean_growth = sum(eps_growth_rates) / len(eps_growth_rates)
+                    variance = sum((x - mean_growth) ** 2 for x in eps_growth_rates) / len(eps_growth_rates)
+                    stability_stddev = sqrt(variance)
+                    metrics["eps_growth_stability"] = float(round(stability_stddev, 2))
+
+            revenue_growth_rates = []
+            for i in range(1, len(last_4q)):
+                curr_rev = last_4q[i]["revenue"]
+                prev_rev = last_4q[i - 1]["revenue"]
+                if curr_rev is not None and prev_rev is not None and prev_rev != 0:
+                    growth = ((curr_rev - prev_rev) / abs(prev_rev)) * 100
+                    revenue_growth_rates.append(growth)
+
+            if revenue_growth_rates:
+                metrics["quarterly_growth_momentum"] = float(round(sum(revenue_growth_rates) / len(revenue_growth_rates), 2))
+
+        except Exception as e:
+            logger.debug(f"[{symbol}] Failed to compute quarterly metrics: {type(e).__name__}: {e}")
+
+        return metrics
 
     def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:  # noqa: C901
         """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
@@ -1448,6 +1527,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         metrics["asset_growth_yoy"] = float(round(asset_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
+
+            # Quarterly Metrics (Session 74+)
+            quarterly_metrics = self._compute_quarterly_metrics(symbol)
+            metrics.update(quarterly_metrics)
 
             # Initialize missing trend fields as None
             for field in [

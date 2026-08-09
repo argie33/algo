@@ -91,6 +91,86 @@ MIGRATIONS = [
         "ALTER TABLE stability_metrics ADD COLUMN IF NOT EXISTS downside_volatility_252d_unavailable_reason VARCHAR(255)",
         "Add 252d downside volatility unavailable reason to stability_metrics",
     ),
+    # Migration: quarterly metrics (2026-08-09)
+    (
+        "growth_metrics.consecutive_positive_quarters",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='consecutive_positive_quarters'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS consecutive_positive_quarters INTEGER",
+        "Add consecutive_positive_quarters to growth_metrics",
+    ),
+    (
+        "growth_metrics.earnings_growth_4q_avg",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='earnings_growth_4q_avg'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS earnings_growth_4q_avg NUMERIC(10, 2)",
+        "Add earnings_growth_4q_avg to growth_metrics",
+    ),
+    (
+        "growth_metrics.quarterly_growth_momentum",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='quarterly_growth_momentum'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS quarterly_growth_momentum NUMERIC(10, 2)",
+        "Add quarterly_growth_momentum to growth_metrics",
+    ),
+    (
+        "growth_metrics.eps_growth_stability",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='eps_growth_stability'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS eps_growth_stability NUMERIC(10, 2)",
+        "Add eps_growth_stability to growth_metrics",
+    ),
+    (
+        "quality_metrics.consecutive_positive_quarters",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='consecutive_positive_quarters'",
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS consecutive_positive_quarters INTEGER",
+        "Add consecutive_positive_quarters to quality_metrics",
+    ),
+    (
+        "quality_metrics.earnings_growth_4q_avg",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='earnings_growth_4q_avg'",
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS earnings_growth_4q_avg NUMERIC(10, 2)",
+        "Add earnings_growth_4q_avg to quality_metrics",
+    ),
+    (
+        "quality_metrics.eps_growth_stability",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='eps_growth_stability'",
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS eps_growth_stability NUMERIC(10, 2)",
+        "Add eps_growth_stability to quality_metrics",
+    ),
+    # Migration: quarterly unavailable reason fields
+    (
+        "growth_metrics.consecutive_positive_quarters_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='consecutive_positive_quarters_unavailable_reason'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS consecutive_positive_quarters_unavailable_reason VARCHAR(255)",
+        "Add consecutive_positive_quarters unavailable reason to growth_metrics",
+    ),
+    (
+        "growth_metrics.earnings_growth_4q_avg_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='earnings_growth_4q_avg_unavailable_reason'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS earnings_growth_4q_avg_unavailable_reason VARCHAR(255)",
+        "Add earnings_growth_4q_avg unavailable reason to growth_metrics",
+    ),
+    (
+        "growth_metrics.eps_growth_stability_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='growth_metrics' AND column_name='eps_growth_stability_unavailable_reason'",
+        "ALTER TABLE growth_metrics ADD COLUMN IF NOT EXISTS eps_growth_stability_unavailable_reason VARCHAR(255)",
+        "Add eps_growth_stability unavailable reason to growth_metrics",
+    ),
+    (
+        "quality_metrics.consecutive_positive_quarters_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='consecutive_positive_quarters_unavailable_reason'",
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS consecutive_positive_quarters_unavailable_reason VARCHAR(255)",
+        "Add consecutive_positive_quarters unavailable reason to quality_metrics",
+    ),
+    (
+        "quality_metrics.earnings_growth_4q_avg_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='earnings_growth_4q_avg_unavailable_reason'",
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS earnings_growth_4q_avg_unavailable_reason VARCHAR(255)",
+        "Add earnings_growth_4q_avg unavailable reason to quality_metrics",
+    ),
+    (
+        "quality_metrics.eps_growth_stability_unavailable_reason",
+        "SELECT 1 FROM information_schema.columns WHERE table_name='quality_metrics' AND column_name='eps_growth_stability_unavailable_reason'",
+        "ALTER TABLE quality_metrics ADD COLUMN IF NOT EXISTS eps_growth_stability_unavailable_reason VARCHAR(255)",
+        "Add eps_growth_stability unavailable reason to quality_metrics",
+    ),
 ]
 
 

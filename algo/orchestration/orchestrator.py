@@ -1246,14 +1246,17 @@ class Orchestrator:
 
         try:
             missing_tables = []
+            found_tables = []
             for table_name in required_tables:
                 try:
-                    # Check if table exists by querying information_schema
+                    # Check if table exists by querying information_schema in public schema
                     cur.execute(
-                        "SELECT 1 FROM information_schema.tables WHERE table_name = %s LIMIT 1",
+                        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s",
                         (table_name,),
                     )
-                    if not cur.fetchone():
+                    if cur.fetchone():
+                        found_tables.append(table_name)
+                    else:
                         missing_tables.append(table_name)
                         logger.error(f"[TABLE-CHECK] Missing required table: {table_name}")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1261,7 +1264,7 @@ class Orchestrator:
                     missing_tables.append(table_name)
 
             if missing_tables:
-                logger.error(f"[TABLE-CHECK] Cannot proceed: missing tables {missing_tables}")
+                logger.error(f"[TABLE-CHECK] Cannot proceed: missing {len(missing_tables)} tables: {missing_tables}")
                 self.log_phase_result(
                     0,
                     "table_validation",
@@ -1270,7 +1273,7 @@ class Orchestrator:
                 )
                 return False
 
-            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist [OK]")
+            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist [OK] - {', '.join(found_tables[:3])}...")
             return True
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
