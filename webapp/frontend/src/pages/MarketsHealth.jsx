@@ -365,6 +365,12 @@ function MarketsHealthPage() {
           <BreadthCard markets={m} />
         </ErrorBoundary>
         <ErrorBoundary>
+          <TrendHealthCard />
+        </ErrorBoundary>
+      </div>
+
+      <div className="grid grid-1" style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
           <NewHighsLowsCard markets={m} />
         </ErrorBoundary>
       </div>
@@ -3339,6 +3345,103 @@ function FGGauge({ value, regime }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // 19. ECONOMIC CALENDAR
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+function TrendHealthCard() {
+  const { data: trendData, loading, error } = useApiQuery(
+    ["trend-health"],
+    () => api.get("/api/market/trends"),
+    { refetchInterval: 300000 }
+  );
+
+  const stats = useMemo(() => {
+    if (!trendData || !Array.isArray(trendData)) return null;
+    const uptrends = trendData.filter((t) => t.trend_type === "uptrend").length;
+    const downtrends = trendData.filter((t) => t.trend_type === "downtrend").length;
+    const consolidations = trendData.filter((t) => t.trend_type === "consolidation").length;
+    const total = trendData.length;
+    if (total === 0) return null;
+    const ages = trendData
+      .filter((t) => t.days_in_trend != null)
+      .map((t) => t.days_in_trend);
+    const avgAge = ages.length ? (ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1) : null;
+    return {
+      uptrend_pct: ((uptrends / total) * 100).toFixed(1),
+      downtrend_pct: ((downtrends / total) * 100).toFixed(1),
+      consolidation_pct: ((consolidations / total) * 100).toFixed(1),
+      avgAge,
+      total,
+    };
+  }, [trendData]);
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Market Trend Health</div>
+          <div className="card-sub">Distribution of technical trend states</div>
+        </div>
+      </div>
+      <div className="card-body">
+        {loading && !stats && <div className="muted">Loading trends…</div>}
+        {error && <div className="alert alert-danger">Trend data unavailable</div>}
+        {stats && (
+          <div style={{ padding: "var(--space-2) 0" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "var(--space-3)",
+                marginBottom: "var(--space-4)",
+              }}
+            >
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: "var(--t-lg)",
+                    fontWeight: "var(--w-semibold)",
+                    color: C.success,
+                  }}
+                >
+                  {stats.uptrend_pct}%
+                </div>
+                <div className="muted t-xs">Uptrend ↑</div>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: "var(--t-lg)",
+                    fontWeight: "var(--w-semibold)",
+                    color: C.danger,
+                  }}
+                >
+                  {stats.downtrend_pct}%
+                </div>
+                <div className="muted t-xs">Downtrend ↓</div>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: "var(--t-lg)",
+                    fontWeight: "var(--w-semibold)",
+                    color: C.brand2,
+                  }}
+                >
+                  {stats.consolidation_pct}%
+                </div>
+                <div className="muted t-xs">Consolidation →</div>
+              </div>
+            </div>
+            <div className="border-top" style={{ paddingTop: "var(--space-3)" }}>
+              <div className="muted t-xs">
+                Avg Trend Age: <strong>{stats.avgAge ?? "—"}</strong> days ({stats.total} symbols analyzed)
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function EconomicCalendarCard() {
   const today = new Date();

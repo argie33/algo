@@ -304,6 +304,20 @@ export default function TradingSignals() {
       return !isNaN(sqs) && sqs != null && sqs > 80;
     }).length;
 
+    // Average hold time (days) — mean age of all BUY signals
+    const buyAges = buys
+      .filter((r) => r._age != null)
+      .map((r) => r._age);
+    const avgHold = buyAges.length ?
+      (buyAges.reduce((a, b) => a + b, 0) / buyAges.length).toFixed(1)
+      : null;
+
+    // Weekly active BUYs — BUYs within last 7 days
+    const weeklyActive = buys.filter((r) => {
+      const age = Number(r._age);
+      return !isNaN(age) && age != null && age >= 0 && age <= 7;
+    }).length;
+
     return {
       // Filtered counts (what user sees in table)
       total: filtered.length,
@@ -318,6 +332,9 @@ export default function TradingSignals() {
       cross200,
       fresh,
       hq,
+      // New: Average hold time and weekly active
+      avgHold,
+      weeklyActive,
     };
   }, [filtered, enriched]);
 
@@ -508,14 +525,14 @@ export default function TradingSignals() {
             <div className="kpi-sub">close 0-2% above SMA200</div>
           </div>
           <div className="kpi">
-            <div className="kpi-label">Fresh BUYs</div>
-            <div className="kpi-value up">{kpi.fresh}</div>
-            <div className="kpi-sub">≤ 3 days old</div>
+            <div className="kpi-label">Avg Hold Time</div>
+            <div className="kpi-value">{kpi.avgHold ?? "—"}</div>
+            <div className="kpi-sub">days in BUY signals</div>
           </div>
           <div className="kpi">
-            <div className="kpi-label">High Quality BUYs</div>
-            <div className="kpi-value up">{kpi.hq}</div>
-            <div className="kpi-sub">SQS &gt; 80</div>
+            <div className="kpi-label">Weekly Active</div>
+            <div className="kpi-value up">{kpi.weeklyActive}</div>
+            <div className="kpi-sub">BUYs ≤ 7 days old</div>
           </div>
         </div>
 

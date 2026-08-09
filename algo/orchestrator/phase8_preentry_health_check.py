@@ -164,9 +164,11 @@ class PreEntryHealthValidator:
         if _check_market_distribution_stress(signal_date):
             failed_checks.append("MARKET_DISTRIBUTION_STRESS")
 
-        # PASS if <=2 checks fail (>=2 pass minimum)
-        # RELAXED (2026-08-05): Was blocking ALL 19 signals. Temporarily relaxed to <=2 failures
-        # to allow trading while we diagnose which health check is overly restrictive.
-        # If >= 3 checks fail, that's a real health issue worth blocking.
-        passes = len(failed_checks) <= 2
+        # PASS if <=1 checks fail (>= 3 pass minimum)
+        # RESTORED (2026-08-08 Session 70): Aug 5 relaxation caused Aug 7-8 losses (8 of 14 entries
+        # had earnings risk AT ENTRY but weren't blocked). Earnings_calendar loader was RUNNING
+        # (incomplete) when pre-entry checks ran, so earnings_in_3d check failed silently.
+        # Restored strict threshold to block entries failing >1 health check while data quality improves.
+        # This prevents entries like "earnings risk + weakening RS" which immediately exit next day.
+        passes = len(failed_checks) <= 1
         return passes, failed_checks

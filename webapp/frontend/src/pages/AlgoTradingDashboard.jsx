@@ -141,6 +141,81 @@ function toPhaseSet(val) {
   );
 }
 
+function TodaysEconomicReleasesCard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: events, loading, error } = useApiQuery(
+    ["economic-releases-today", today],
+    () => api.get(`/api/economic/calendar?start_date=${today}&end_date=${today}&limit=10`),
+    { refetchInterval: 1800000 }
+  );
+
+  const eventList = Array.isArray(events) ? events : events?.items || [];
+  const items = eventList.slice(0, 10);
+
+  return (
+    <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Today's Economic Releases</div>
+          <div className="card-sub">Real-time macro events · impact assessment</div>
+        </div>
+      </div>
+      <div className="card-body">
+        {loading && !items.length && <div className="muted t-sm">Loading economic calendar…</div>}
+        {error && <div className="alert alert-danger t-sm">Calendar unavailable</div>}
+        {items.length === 0 && !loading && (
+          <div className="muted t-sm">No scheduled releases today</div>
+        )}
+        {items.length > 0 && (
+          <div style={{ fontSize: "var(--t-xs)" }}>
+            {items.map((e, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr auto auto",
+                  gap: "var(--space-2)",
+                  alignItems: "center",
+                  padding: "var(--space-2) 0",
+                  borderBottom: i < items.length - 1 ? "1px solid var(--border-soft)" : "none",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "var(--t-2xs)",
+                    color: e.impact === "HIGH" ? "var(--danger)" : e.impact === "MEDIUM" ? "var(--amber)" : "var(--text-faint)",
+                    fontWeight: "var(--w-bold)",
+                    minWidth: 36,
+                  }}
+                >
+                  {e.impact || "LOW"}
+                </div>
+                <div>
+                  <div style={{ fontWeight: "var(--w-medium)", color: "var(--text)" }}>
+                    {e.name || e.event || "Release"}
+                  </div>
+                  {e.forecast || e.prior ? (
+                    <div className="muted" style={{ fontSize: "var(--t-2xs)" }}>
+                      Forecast: {e.forecast || "—"} · Prior: {e.prior || "—"}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="muted" style={{ fontSize: "var(--t-2xs)", minWidth: 40, textAlign: "right" }}>
+                  {new Date(e.date || e.release_time).toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PhaseChips({ phasesCompleted, phasesHalted, phasesErrored }) {
   // All 9 orchestrator phases (see algo/orchestration/orchestrator.py) - P8 (entry_execution,
   // the phase that actually places real orders) and P9 (reconciliation) were missing here,
@@ -748,6 +823,11 @@ function AlgoTradingDashboardContent() {
           </div>
         </div>
       </div>
+
+      {/* Today's Economic Releases */}
+      <ErrorBoundary>
+        <TodaysEconomicReleasesCard />
+      </ErrorBoundary>
 
       {/* Loader Health Panel */}
       <div className="card" style={{ marginBottom: "var(--space-6)" }}>

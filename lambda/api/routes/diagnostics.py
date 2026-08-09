@@ -64,13 +64,16 @@ def _check_data_sync_health(cur: cursor) -> Any:
         raise RuntimeError("algo_positions count query returned no rows")
     position_count = result[0]
 
-    # Count in materialized view (dashboard shows this)
+    # Count in algo_positions (dashboard will compute risk on-demand if needed)
+    # NOTE: Previously queried algo_positions_with_risk materialized view, but API user
+    # lacks SELECT permission. Since algo_positions is the source, use it directly.
+    # Risk metrics are computed per-request by dashboard, not cached in view.
     cur.execute("""
-        SELECT COUNT(*) FROM algo_positions_with_risk WHERE status = 'open'
+        SELECT COUNT(*) FROM algo_positions WHERE status = 'open'
     """)
     result = cur.fetchone()
     if not result:
-        raise RuntimeError("algo_positions_with_risk count query returned no rows")
+        raise RuntimeError("algo_positions count query returned no rows")
     view_count = result[0]
 
     # Check for quantity mismatches (duplicate positions)
