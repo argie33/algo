@@ -196,6 +196,17 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
     """
     concepts = [
         "Revenues",
+        # FIXED 2026-08-09: pre-2011-ish filers (AGCO live-confirmed: FY2009-2015 10-Ks)
+        # sometimes tag neither "Revenues" nor "SalesRevenueNet" at all - their only real
+        # revenue concept is this older, goods-specific tag (AGCO FY2009: $6.52B here vs
+        # nothing under either concept above it). Left completely unmapped before this fix,
+        # so transform() silently discarded it and a tiny fallback concept
+        # (InterestAndDividendIncomeOperating, ~$20-30M) won "revenue" by default for these
+        # years - same visible symptom (revenue << gross_profit) as the REIT/duration bugs
+        # fixed earlier today, different root cause (missing concept mapping, not a
+        # priority-chain or duration-check bug). Listed before SalesRevenueNet since it's
+        # the older/narrower of the two - SalesRevenueNet should win when both are present.
+        "SalesRevenueGoodsNet",
         "SalesRevenueNet",
         # Post-ASC 606 (post-2018) revenue concepts used by most large-cap companies.
         # IncludingAssessedTax must be listed BEFORE ExcludingAssessedTax: both map to

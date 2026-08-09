@@ -93,6 +93,10 @@ _MARKER_FIELDS = {
 
 _INCOME_FIELD_MAPPING = {
     "revenues": "revenue",
+    # FIXED 2026-08-09: older/narrower goods-revenue tag some pre-2011-ish filers use
+    # instead of "Revenues"/"SalesRevenueNet" - see sec_statements.py's concepts-list
+    # comment on SalesRevenueGoodsNet for the live-verified AGCO case this recovers.
+    "sales_revenue_goods_net": "revenue",
     "sales_revenue_net": "revenue",
     "revenue_from_contract_with_customer_including_assessed_tax": "revenue",
     "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",

@@ -118,6 +118,33 @@ class TestQuarterlyFactNotAcceptedAsAnnual:
         assert by_year[2024]["revenues"] == 457_855_000.0
 
 
+class TestSalesRevenueGoodsNetRecoveredForOlderFilers:
+    def test_pre_2011_filer_with_only_goods_revenue_tag_is_captured(self):
+        # Live-confirmed via AGCO (agricultural equipment manufacturer): FY2009-2015
+        # 10-Ks tag neither "Revenues" nor "SalesRevenueNet" - only the older, narrower
+        # "SalesRevenueGoodsNet". Previously completely unmapped, so transform() silently
+        # discarded it and a tiny fallback concept (interest income, ~$20-30M) won
+        # "revenue" by default despite GrossProfit alone being >$1B for the same year.
+        facts = {
+            "us-gaap": {
+                "SalesRevenueGoodsNet": {
+                    "units": {
+                        "USD": [
+                            _quarter_entry("2009-01-01", "2009-12-31", 6_516_400_000.0, "2010-02-25", "FY"),
+                        ]
+                    }
+                },
+            },
+            "ifrs-full": {},
+        }
+        client = _FakeClient(facts)
+
+        rows = get_income_statement(client, "AGCO", period="annual")
+        by_year = {r["fiscal_year"]: r for r in rows}
+
+        assert by_year[2009]["sales_revenue_goods_net"] == 6_516_400_000.0
+
+
 class TestRevenueFallbackOnlyWinsWhenNothingElsePresent:
     def _make_loader(self):
         loader = SecEdgarStatementLoader.__new__(SecEdgarStatementLoader)
