@@ -49,8 +49,18 @@ def _check_rs_weakening(ticker: str, signal_date: str) -> bool:
             # If price is NOT above SMA50, RS is weakening
             return not row[0]
     except Exception as e:
-        logger.debug(f"[PREENTRY] RS check failed for {ticker}: {e}")
-        return False
+        # FIXED 2026-08-09: fail CLOSED (flag as weakening), not open. Unlike the earnings
+        # check below, RS/sector/distribution have no independent fail-closed backstop
+        # elsewhere in the entry path (exposure_policy.py's tiers reduce sizing on real
+        # distribution stress, but nothing else re-checks a specific candidate's RS/sector/
+        # distribution status before an order is placed) - a transient DB error here used to
+        # be silently indistinguishable from "no problem found", which could let a real
+        # RS-weakening candidate through this specific check on nothing more than a
+        # connection blip. This is a soft signal (>=2 of 4 checks must pass), so one flagged
+        # check from a transient error won't reject a candidate on its own - it just stops
+        # silently discarding the signal that something couldn't be verified.
+        logger.warning(f"[PREENTRY] RS check errored for {ticker}, failing closed (flagged): {e}")
+        return True
 
 
 def _check_sector_weak(ticker: str, signal_date: str) -> bool:
@@ -81,8 +91,9 @@ def _check_sector_weak(ticker: str, signal_date: str) -> bool:
             signal = sector_row[0]
             return signal and signal.lower() in ("weak", "decline", "warning", "negative")
     except Exception as e:
-        logger.debug(f"[PREENTRY] Sector check failed for {ticker}: {e}")
-        return False
+        # FIXED 2026-08-09: fail CLOSED - see _check_rs_weakening's comment above for why.
+        logger.warning(f"[PREENTRY] Sector check errored for {ticker}, failing closed (flagged): {e}")
+        return True
 
 
 def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
@@ -103,8 +114,12 @@ def _check_earnings_in_3d(ticker: str, signal_date: str) -> bool:
             count = row[0] if row else 0
             return bool(count > 0)
     except Exception as e:
-        logger.debug(f"[PREENTRY] Earnings check failed for {ticker}: {e}")
-        return False
+        # FIXED 2026-08-09: fail CLOSED - see _check_rs_weakening's comment above. This
+        # specific check IS also independently backstopped by pretrade_checks.py's
+        # fail-closed EarningsBlackout re-check in the real order-placement path, but this
+        # function's own contract should fail safe regardless of what backstops it.
+        logger.warning(f"[PREENTRY] Earnings check errored for {ticker}, failing closed (flagged): {e}")
+        return True
 
 
 def _check_market_distribution_stress(signal_date: str) -> bool:
@@ -126,8 +141,11 @@ def _check_market_distribution_stress(signal_date: str) -> bool:
             dist_days = int(row[0])
             return dist_days >= 3
     except Exception as e:
-        logger.debug(f"[PREENTRY] Market distribution check failed: {e}")
-        return False
+        # FIXED 2026-08-09: fail CLOSED - see _check_rs_weakening's comment above. This is
+        # a market-wide check (not per-symbol), so an error here would have silently waved
+        # every candidate that day through this specific gate.
+        logger.warning(f"[PREENTRY] Market distribution check errored, failing closed (flagged): {e}")
+        return True
 
 
 class PreEntryHealthValidator:
