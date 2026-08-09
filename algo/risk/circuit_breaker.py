@@ -549,12 +549,7 @@ class CircuitBreaker:
 
         cur.execute(
             """
-            SELECT CASE
-                WHEN (entry_price * quantity) != 0
-                THEN (realized_pnl / (entry_price * quantity)) * 100.0
-                ELSE NULL
-            END as pnl_pct, exit_date
-            FROM algo_trades
+            SELECT profit_loss_pct, exit_date FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
               AND trade_id NOT ILIKE 'EXT-%%'
               AND exit_reason NOT ILIKE %s
@@ -638,15 +633,9 @@ class CircuitBreaker:
             FROM (
                 -- Most recent 30 closed trades with confirmed exits (rolling window, not all-time)
                 -- Do NOT include open positions - they're transient and managed separately by exit_engine
-                -- CRITICAL FIX: Column profit_loss_pct does not exist in algo_trades table.
-                -- Calculate percentage from realized_pnl / (entry_price * quantity)
-                SELECT CASE
-                    WHEN (entry_price * quantity) != 0
-                    THEN (realized_pnl / (entry_price * quantity)) * 100.0
-                    ELSE NULL
-                END as pnl_pct
+                SELECT profit_loss_pct as pnl_pct
                 FROM (
-                    SELECT realized_pnl, entry_price, quantity, id
+                    SELECT profit_loss_pct, id
                     FROM algo_trades
                     WHERE status = %s AND exit_date IS NOT NULL
                       AND exit_r_multiple IS NOT NULL
