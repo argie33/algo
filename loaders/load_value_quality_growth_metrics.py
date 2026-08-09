@@ -762,17 +762,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_coverage_operating_income = operating_income
             if interest_expense is None or interest_expense <= 0:
                 with DatabaseContext("read") as cur:
+                    # First try: both fields in recent history (3 years)
                     cur.execute(
                         """
                         SELECT interest_expense, operating_income
                         FROM annual_income_statement
                         WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
                           AND operating_income IS NOT NULL
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
                         (symbol,),
                     )
                     fallback_ie_row = cur.fetchone()
+
+                    # If 3-year window fails, search entire history
+                    if not fallback_ie_row:
+                        cur.execute(
+                            """
+                            SELECT interest_expense, operating_income
+                            FROM annual_income_statement
+                            WHERE symbol = %s AND interest_expense IS NOT NULL AND interest_expense > 0
+                              AND operating_income IS NOT NULL
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_ie_row = cur.fetchone()
+
                 if fallback_ie_row:
                     interest_expense = self._nan_to_none(
                         safe_float(fallback_ie_row[0], f"{symbol}.interest_expense_fallback_year", allow_none=True)
@@ -996,11 +1013,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         FROM annual_income_statement
                         WHERE symbol = %s AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
                           AND revenue IS NOT NULL
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
                         (symbol,),
                     )
                     fallback_gm_row = cur.fetchone()
+                    if not fallback_gm_row:
+                        # If 3-year window has nothing, search entire history (for very old data)
+                        cur.execute(
+                            """
+                            SELECT gross_profit, cost_of_revenue, revenue
+                            FROM annual_income_statement
+                            WHERE symbol = %s AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
+                              AND revenue IS NOT NULL
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_gm_row = cur.fetchone()
                 if fallback_gm_row:
                     fallback_gross_profit = self._nan_to_none(
                         safe_float(fallback_gm_row[0], f"{symbol}.gross_profit_fallback_year", allow_none=True)
@@ -1051,17 +1082,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )
             if income_tax_expense is None or pretax_income is None:
                 with DatabaseContext("read") as cur:
+                    # First try: all 3 fields together in recent history (3 years)
                     cur.execute(
                         """
                         SELECT income_tax_expense, pretax_income, operating_income
                         FROM annual_income_statement
                         WHERE symbol = %s AND income_tax_expense IS NOT NULL
                           AND pretax_income IS NOT NULL AND operating_income IS NOT NULL
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
                         (symbol,),
                     )
                     fallback_tax_row = cur.fetchone()
+
+                    # If 3-year window fails, search entire history
+                    if not fallback_tax_row:
+                        cur.execute(
+                            """
+                            SELECT income_tax_expense, pretax_income, operating_income
+                            FROM annual_income_statement
+                            WHERE symbol = %s AND income_tax_expense IS NOT NULL
+                              AND pretax_income IS NOT NULL AND operating_income IS NOT NULL
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_tax_row = cur.fetchone()
+
                 if fallback_tax_row:
                     roic_tax_expense = self._nan_to_none(
                         safe_float(fallback_tax_row[0], f"{symbol}.income_tax_expense_fallback_year", allow_none=True)
@@ -1100,17 +1148,34 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             roic_stockholders_equity, roic_cash_and_equivalents = stockholders_equity, cash_and_equivalents_bs
             if stockholders_equity is None or cash_and_equivalents_bs is None:
                 with DatabaseContext("read") as cur:
+                    # First try: both fields in recent history (3 years)
                     cur.execute(
                         """
                         SELECT stockholders_equity, cash_and_equivalents
                         FROM annual_balance_sheet
                         WHERE symbol = %s AND stockholders_equity IS NOT NULL
                           AND cash_and_equivalents IS NOT NULL
+                          AND fiscal_year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3
                         ORDER BY fiscal_year DESC LIMIT 1
                         """,
                         (symbol,),
                     )
                     fallback_bs_row = cur.fetchone()
+
+                    # If 3-year window fails, search entire history
+                    if not fallback_bs_row:
+                        cur.execute(
+                            """
+                            SELECT stockholders_equity, cash_and_equivalents
+                            FROM annual_balance_sheet
+                            WHERE symbol = %s AND stockholders_equity IS NOT NULL
+                              AND cash_and_equivalents IS NOT NULL
+                            ORDER BY fiscal_year DESC LIMIT 1
+                            """,
+                            (symbol,),
+                        )
+                        fallback_bs_row = cur.fetchone()
+
                 if fallback_bs_row:
                     roic_stockholders_equity = self._nan_to_none(
                         safe_float(fallback_bs_row[0], f"{symbol}.stockholders_equity_fallback_year", allow_none=True)
