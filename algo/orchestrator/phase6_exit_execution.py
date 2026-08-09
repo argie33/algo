@@ -1147,9 +1147,15 @@ def run(
                             )
                             continue
                         assert trade_executor is not None, "trade_executor must be initialized in non-dry-run mode"
+                        # A stop-loss-triggered EARLY_EXIT (position_monitor.py's STOP_LOSS_HIT
+                        # branch) sets exit_price_override=active_stop so paper-mode fills use
+                        # the stop price, not this run's possibly-gapped evaluation-time quote -
+                        # same convention exit_engine.py's own stop-exit path already uses.
+                        # Other EARLY_EXIT reasons (health-flag accumulation, earnings-forced)
+                        # aren't tied to a price level, so they keep using current_price.
                         result = trade_executor.exit_trade(
                             trade_id=rec["trade_id"],
-                            exit_price=rec["current_price"],
+                            exit_price=rec.get("exit_price_override", rec["current_price"]),
                             exit_reason=rec["action_reason"],
                             exit_fraction=1.0,
                             exit_stage="early_exit",

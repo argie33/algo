@@ -791,6 +791,16 @@ class PositionMonitor:
                 "urgent_exit": True,
                 "new_stop_recommended": None,
                 "trade_id": trade_id,
+                # In paper mode, exit_price is the final, deterministic simulated fill (never
+                # reconciled against a real broker fill - see executor_exit_handler.py's
+                # is_estimated_price comment). cur_price here is only as fresh as this run's
+                # evaluation cycle, so a position that gapped well past active_stop between
+                # checks would otherwise record that gapped price as the "fill", producing
+                # phantom slippage that has nothing to do with real execution quality - the
+                # exact bug exit_engine.py's own hard-capital-preservation stop path already
+                # avoids via exit_price_override=stop price. Mirror that convention here so
+                # both stop-exit code paths model a stop-loss fill the same way.
+                "exit_price_override": active_stop,
             }
 
         # 3. Health flags
