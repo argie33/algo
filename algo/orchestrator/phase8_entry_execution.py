@@ -411,7 +411,7 @@ def _calculate_pre_entry_concentration_impact(
     return total_concentration, blocked_symbols
 
 
-def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[float, float]:
+def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0, run_date: _date | None = None) -> tuple[float, float]:
     """Calculate total open risk as percentage of portfolio.
 
     PROACTIVE RISK CHECK: Used by Phase 8 to verify entry won't exceed risk limit BEFORE executing.
@@ -476,10 +476,25 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
             open_count = result[1] if result[1] is not None else 0
 
             # Get portfolio value
-            cur.execute("""
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date DESC LIMIT 1
-            """)
+            # CRITICAL FIX: bound by run_date - an unbounded "ORDER BY snapshot_date DESC"
+            # picks up any stray future-dated row (e.g. a leftover local --date simulation
+            # snapshot) ahead of the real current one, silently corrupting the risk-limit
+            # calculation. Live-reproduced 2026-08-09: a leftover 2026-08-11 test snapshot
+            # in the shared dev DB outranked the real 2026-08-07 run's own snapshot.
+            if run_date is not None:
+                cur.execute(
+                    """
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= %s
+                    ORDER BY snapshot_date DESC LIMIT 1
+                    """,
+                    (run_date,),
+                )
+            else:
+                cur.execute("""
+                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """)
             pf_row = cur.fetchone()
             if not pf_row or not pf_row[0]:
                 raise RuntimeError("Portfolio value unavailable - cannot calculate risk")
@@ -1762,18 +1777,27 @@ def run(
     # CRITICAL FIX (Session 12): Phase 6 (exit execution) runs BEFORE Phase 8 (entry execution) in the
     # orchestrator pipeline. Using a stale snapshot causes positions to be sized too large after Phase 6
     # has closed positions. Use the LATEST snapshot (which reflects current state), not the run_date snapshot.
+    # CRITICAL FIX: still bound by "<= run_date" - an unbounded "latest by snapshot_date"
+    # picks up any stray future-dated row (e.g. a leftover local --date simulation
+    # snapshot in the shared dev DB) ahead of the real current one. Live-reproduced
+    # 2026-08-09: a leftover 2026-08-11 test snapshot outranked the real 2026-08-07 run's
+    # own same-day snapshot. Bounding by run_date preserves the "use today's own
+    # Phase-6-updated snapshot, not a stale prior day" intent above without allowing
+    # future contamination.
     portfolio_value = None
     portfolio_value_source = None
 
-    # Primary: Use LATEST portfolio snapshot (not stale start-of-day snapshot)
+    # Primary: Use LATEST portfolio snapshot as of run_date (not stale start-of-day snapshot)
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT total_portfolio_value, snapshot_date
                 FROM algo_portfolio_snapshots
+                WHERE snapshot_date <= %s
                 ORDER BY snapshot_date DESC LIMIT 1
-            """
+            """,
+                (run_date,),
             )
             result = cur.fetchone()
             if result and len(result) > 0 and result[0] is not None:
@@ -2001,7 +2025,7 @@ def run(
             raise ValueError("[PHASE 8] Config missing 'max_total_risk_pct'. Required for risk pre-check.")
         max_risk_limit_pct = float(config_max_risk_pct)
         current_risk_pct, available_capacity_pct = _calculate_current_total_risk_pct(
-            max_risk_limit_pct=max_risk_limit_pct
+            max_risk_limit_pct=max_risk_limit_pct, run_date=run_date
         )
         if available_capacity_pct < 0.3:  # Less than 0.3% room left (rounding safety)
             msg = (

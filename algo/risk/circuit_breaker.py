@@ -287,11 +287,23 @@ class CircuitBreaker:
         # by migration 1134 (see algo_capital_flows) - this circuit breaker must measure
         # trading performance, not account size. Every capital flow must be recorded in
         # algo_capital_flows (see scripts/record_capital_flow.py) or it will misreport here.
-        cur.execute("""
+        # CRITICAL FIX: bound the "current" subquery by current_date - an unbounded
+        # "ORDER BY snapshot_date DESC LIMIT 1" picks up any stray future-dated row (e.g. a
+        # leftover local --date simulation snapshot in the shared dev DB) ahead of the real
+        # current one, corrupting the drawdown halt check with the wrong equity value.
+        # Live-reproduced 2026-08-09: a leftover 2026-08-11 test snapshot outranked the real
+        # current run's own snapshot. _check_daily_loss below already bounds by current_date
+        # correctly - this sibling check (and _check_drawdown_re_engagement) had been missed.
+        # MAX(adjusted_equity) for the peak is intentionally unbounded (all-time high).
+        cur.execute(
+            """
             SELECT MAX(adjusted_equity),
-                   (SELECT adjusted_equity FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+                   (SELECT adjusted_equity FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1)
             FROM algo_portfolio_snapshots
-            """)
+            """,
+            (current_date,),
+        )
         row = cur.fetchone()
         # Bootstrap path: if table is empty (first ever run), allow through with explicit logging
         if row is None or row[0] is None or row[1] is None:
@@ -336,12 +348,17 @@ class CircuitBreaker:
         2. Market shows Follow-Through Day signal (optional)
         3. At least N days have passed since halt
         """
-        # Cash-flow-adjusted, same reasoning as _check_drawdown above.
-        cur.execute("""
+        # Cash-flow-adjusted, same reasoning as _check_drawdown above. Also bound by
+        # current_date for the same reason (see CRITICAL FIX comment in _check_drawdown).
+        cur.execute(
+            """
             SELECT MAX(adjusted_equity),
-                   (SELECT adjusted_equity FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+                   (SELECT adjusted_equity FROM algo_portfolio_snapshots
+                    WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1)
             FROM algo_portfolio_snapshots
-            """)
+            """,
+            (current_date,),
+        )
         row = cur.fetchone()
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "No halt history"}
@@ -839,7 +856,13 @@ class CircuitBreaker:
             logger.critical("Cannot calculate total open risk - risk calculation failed")
             return {"halted": True, "reason": "Risk calculation failed - fail-closed"}
 
-        cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+        # CRITICAL FIX: bound by current_date - see _check_drawdown for why an unbounded
+        # "latest snapshot" query is unsafe (stray future-dated rows outrank the real one).
+        cur.execute(
+            "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+            "WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1",
+            (current_date,),
+        )
         row = cur.fetchone()
         if row is None or row[0] is None:
             # First run (no portfolio snapshots yet) - skip risk check but log
