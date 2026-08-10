@@ -832,7 +832,20 @@ def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hou
                 )
             stale = cur.fetchall()
     except Exception as e:
-        logger.error(f"[STATUS_MANAGER] Failed to query stale RUNNING loaders: {e}")
+        # BUG FOUND 2026-08-10 (fail-fast governance sweep): returning [] here is
+        # indistinguishable from "queried successfully, found zero stale loaders" - a caller
+        # (or a human skimming logs) can't tell "all clear" from "the check itself never ran".
+        # Not escalated to raise: this reaper is explicitly best-effort bookkeeping called once
+        # at the start of run_pipeline() (scripts/local_loader_scheduler.py), and crashing the
+        # whole pipeline over a transient reaper-query failure would be worse than skipping one
+        # reap cycle - a genuinely stuck loader still gets caught on the next invocation. Made
+        # the log line itself unambiguous instead, so this doesn't read as a routine "0 stale
+        # loaders" result.
+        logger.error(
+            f"[STATUS_MANAGER] Stale-loader reap check FAILED (not '0 stale loaders found' - "
+            f"the query itself errored, so any genuinely stuck loader is NOT being detected "
+            f"this cycle): {e}"
+        )
         return []
 
     for table_name, execution_started in stale:
