@@ -211,6 +211,24 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
         "market_health_daily": "market_status",
         "trend_template_data": "trend_analysis",  # CRITICAL FIX 2026-08-05: Was missing, caused 5d staleness when EventBridge stopped
         "earnings_calendar": "earnings_calendar",  # Session 81: Missing from failsafe retry despite being halt-critical for earnings_blackout
+        # BUG FOUND 2026-08-10: etf_price_daily is PHASE_1_CRITICAL in utils/loader_priority.py
+        # ("Must complete before Phase 1") but was entirely absent here, so nothing in the
+        # local dev path ever checks or refreshes it - live-confirmed: sat 5 calendar days
+        # stale (2026-08-05 vs today 2026-08-10) while price_daily (same "prices" loader_key,
+        # refreshed by the SAME load_prices.py run - see PriceLoader's per
+        # asset_class x interval loop in loaders/load_prices.py's main()) stayed fresh the
+        # whole time, because the trigger for a "prices" refresh here only ever depended on
+        # price_daily's own staleness - etf_price_daily going stale independently (e.g. its
+        # own sub-run within the same "prices" invocation hanging/crashing while price_daily's
+        # sub-run already succeeded) had no detection path of its own. Reuses "prices" - the
+        # same loader_key already used for price_daily, since both are output tables of the
+        # same load_prices.py run. price_weekly/price_monthly/etf_price_weekly/
+        # etf_price_monthly are also PHASE_1_CRITICAL but deliberately NOT added here: this
+        # dict's staleness check assumes daily cadence (_get_expected_data_date() expects
+        # "previous trading day" data every run), which would false-positive-flag weekly/
+        # monthly tables as stale on every single intraday run - needs its own cadence-aware
+        # check, not a copy-paste of the daily assumption.
+        "etf_price_daily": "prices",
     }
 
     try:
@@ -250,8 +268,8 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
             if table_name == "stock_scores":
                 # stock_scores: check that symbol column is non-NULL (composite_score can be NULL for unavailable stocks)
                 critical_col = "symbol"
-            elif table_name == "price_daily":
-                # price_daily: check close price is populated
+            elif table_name in ("price_daily", "etf_price_daily"):
+                # price_daily/etf_price_daily: check close price is populated (same schema)
                 critical_col = "close"
             elif table_name == "technical_data_daily":
                 # technical_data_daily: check rsi_14 (core technical indicator)

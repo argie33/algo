@@ -68,4 +68,7 @@ class TestCompletenessCheckFailsClosed:
             # Session 81 fix: earnings_calendar added to the failsafe retry table set
             # (fixes the earnings-blackout staleness gap) - this fixed set predates that fix.
             "earnings_calendar",
+            # 2026-08-10 fix: etf_price_daily added to the failsafe retry table set (was
+            # PHASE_1_CRITICAL but entirely unchecked, sat 5 days stale undetected).
+            "etf_price_daily",
         }
