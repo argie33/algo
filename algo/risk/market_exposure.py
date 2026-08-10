@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
@@ -957,6 +958,18 @@ class MarketExposure:
         first_spy = float(rows[0][2])
         last_spy = float(rows[-1][2])
 
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `first_spy <= 0` never catches
+        # NaN/Inf (always False in Python), and last_spy had no finiteness check at all - a
+        # NaN would produce a NaN spy_change_pct, whose `> 0`/`< 0` comparisons below all
+        # silently evaluate False, falling through to a default relation/score instead of
+        # this function's own fail-closed RuntimeError contract for invalid benchmark data.
+        if math.isnan(first_spy) or math.isinf(first_spy) or math.isnan(last_spy) or math.isinf(last_spy):
+            raise RuntimeError(
+                f"[MARKET_EXPOSURE CRITICAL] Non-finite SPY price (first={first_spy}, last={last_spy}) on {eval_date}. "
+                f"Cannot compute A/D line direction without valid benchmark price. "
+                f"Check price_daily table for SPY data integrity."
+            )
+
         if first_spy <= 0:
             raise RuntimeError(
                 f"[MARKET_EXPOSURE CRITICAL] Invalid first SPY price {first_spy} on {eval_date}. "
@@ -1150,9 +1163,13 @@ class MarketExposure:
                 )
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
-            if claims_26w <= 0:
+            # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `claims_26w <= 0` never
+            # caught NaN/Inf (always False in Python), and claims_now had no finiteness
+            # check - a NaN would produce a NaN chg_pct whose `> 30`/`> 20` comparisons below
+            # all silently evaluate False, masking a real jobless-claims stress signal.
+            if math.isnan(claims_now) or math.isinf(claims_now) or math.isnan(claims_26w) or math.isinf(claims_26w) or claims_26w <= 0:
                 msg = (
-                    f"[MARKET_STRESS] Invalid 26-week claims baseline ({claims_26w}) - cannot compute jobless claims signal. "
+                    f"[MARKET_STRESS] Invalid jobless claims data (now={claims_now}, 26w_baseline={claims_26w}) - cannot compute jobless claims signal. "
                     "Jobless claims are REQUIRED for accurate market stress calculation. "
                     "Check economic_data table for ICSA series."
                 )
