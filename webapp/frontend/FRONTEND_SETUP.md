@@ -25,8 +25,7 @@ npm run dev
 ### Backend Must Be Running First
 ```bash
 # Terminal 1: Backend
-cd webapp/lambda
-python api/dev_server.py
+python lambda/api/dev_server.py
 # Wait for: [INFO] Starting API dev server on http://localhost:3001
 
 # Terminal 2: Frontend (only after backend is ready)
@@ -90,8 +89,7 @@ curl http://localhost:5173/api/health
 # Should return same response as above
 
 # 3. If port 3001 is not listening, start backend:
-cd webapp/lambda
-python api/dev_server.py
+python lambda/api/dev_server.py
 ```
 
 ### Frontend shows "Data not available"
@@ -129,8 +127,7 @@ python -m dashboard --local           # dashboard TUI, reads local API
 ### Manual Setup
 ```bash
 # Terminal 1: Backend
-cd webapp/lambda
-python api/dev_server.py
+python lambda/api/dev_server.py
 
 # Terminal 2: Frontend
 cd webapp/frontend
