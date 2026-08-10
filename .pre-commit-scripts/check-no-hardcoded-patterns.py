@@ -29,8 +29,13 @@ def check_file(filepath: str) -> list[str]:
         return []
 
     # Check 1: status = 'open'/'closed' (must use constants)
+    # BUG FOUND 2026-08-10: this script has never successfully run - the (?:...) group opened
+    # at the very start was never closed (every `)` inside is either the balanced capture
+    # group or an escaped literal `\)` matching a literal parenthesis in the source code being
+    # scanned), so `re.compile()` raised "missing ), unterminated subpattern" on the very
+    # first invocation against any file, for anyone, ever. Added the missing closing `)`.
     status_pattern = re.compile(
-        r"""(?:status\s*[!=]=\s*['"](open|closed|halted|cancelled)['"]\)|\.get\(["']status["']\)\s*[!=]="""
+        r"""(?:status\s*[!=]=\s*['"](open|closed|halted|cancelled)['"]\)|\.get\(["']status["']\)\s*[!=]=)"""
     )
     for i, line in enumerate(lines, 1):
         if "# noqa" in line:
@@ -44,8 +49,15 @@ def check_file(filepath: str) -> list[str]:
                 )
 
     # Check 2: score >= 60/70/80 (must use config or constants)
+    # BUG FOUND 2026-08-10: unlike Check 1, this never skipped comment lines at all - only
+    # lines containing the literal substring "# noqa". Live-reproduced: matched plain prose
+    # in multi-line comments (e.g. "...formula would produce risk_score=0..." in
+    # phase7_signal_generation.py) as if it were real code. Added the same
+    # `line.strip().startswith("#")` comment-skip Check 1 already had.
     score_pattern = re.compile(r"score\s*[><=]{1,2}\s*[0-9]+")
     for i, line in enumerate(lines, 1):
+        if line.strip().startswith("#"):
+            continue
         if "# noqa" in line or "def " in line or "==" in line:
             continue
         if score_pattern.search(line):
@@ -57,6 +69,8 @@ def check_file(filepath: str) -> list[str]:
     # Check 3: completeness >= 0.70 (must use constants)
     completeness_pattern = re.compile(r"completeness\s*[><=]{1,2}\s*0\.[0-9]+")
     for i, line in enumerate(lines, 1):
+        if line.strip().startswith("#"):
+            continue
         if "# noqa" in line or "DEFAULT_" in line:
             continue
         if completeness_pattern.search(line):

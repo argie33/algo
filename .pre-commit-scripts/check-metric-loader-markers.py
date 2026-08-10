@@ -44,7 +44,18 @@ def check_metric_loader_markers(filename: str) -> int:
                     has_reason = True
                     break
 
-            if not has_reason and field_name not in ["symbol", "date", "created_at", "updated_at"]:
+            # BUG FOUND 2026-08-10: a field whose OWN name already ends in "_unavailable_reason"
+            # is itself the meta-marker for some other field - demanding it have a companion
+            # "{field}_unavailable_reason_unavailable_reason" marker is a nonsensical, impossible
+            # rule (the marker can't be its own marker). Live-reproduced against
+            # loaders/load_value_quality_growth_metrics.py:2133's
+            # `metrics["quality_score_unavailable_reason"] = None` - a legitimate "not yet
+            # determined, may be filled in below" initialization, incorrectly flagged.
+            if (
+                not has_reason
+                and field_name not in ["symbol", "date", "created_at", "updated_at"]
+                and not field_name.endswith("_unavailable_reason")
+            ):
                 violations.append(f"Line {i}: Field '{field_name}' set to None without {reason_field} marker")
 
     # Pattern 2: Check for data_unavailable assignments without reason
