@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -276,9 +277,12 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
 
     peak = float(row["peak"])
     current = float(row["current"])
-    if peak <= 0:
+    # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `peak <= 0` never caught NaN/Inf
+    # (always False in Python), and `current` had no finiteness check at all - either would
+    # silently produce a NaN drawdown_pct on this risk dashboard.
+    if math.isnan(peak) or math.isinf(peak) or math.isnan(current) or math.isinf(current) or peak <= 0:
         raise ValueError(
-            f"Portfolio snapshot data invalid: peak value must be > 0, got {peak}. "
+            f"Portfolio snapshot data invalid: peak={peak}, current={current} (peak must be finite and > 0). "
             "This indicates corrupted data or abnormal portfolio state. Check algo_portfolio_snapshots."
         )
     drawdown_pct = (peak - current) / peak * 100

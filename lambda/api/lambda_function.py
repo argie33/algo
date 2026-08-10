@@ -1813,7 +1813,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                         _NAIVE_DB_TZ_CACHE_TIME = now
             return _NAIVE_DB_TZ_CACHE
 
-        def _json_default(obj: Any) -> str | float:
+        def _json_default(obj: Any) -> str | float | None:
+            import math
             from decimal import Decimal
 
             if isinstance(obj, datetime):
@@ -1822,9 +1823,25 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if isinstance(obj, date):
                 return obj.isoformat()
             if isinstance(obj, Decimal):
-                return float(obj)
+                try:
+                    val = float(obj)
+                    if math.isnan(val) or math.isinf(val):
+                        return None
+                    return val
+                except (ValueError, TypeError):
+                    return None
+            if isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return None
+                return obj
             if hasattr(obj, "__float__"):
-                return float(obj)
+                try:
+                    val = float(obj)
+                    if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                        return None
+                    return val
+                except (ValueError, TypeError):
+                    return str(obj)
             return str(obj)
 
         if isinstance(response, dict):

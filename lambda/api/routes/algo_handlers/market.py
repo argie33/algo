@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 
@@ -1754,9 +1755,14 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             # Validate VIX is numeric and > 0 (VIX is never zero or negative)
             try:
                 vix_float = float(vix_val)
-                if vix_float <= 0:
+                # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `vix_float <= 0` never
+                # caught NaN/Inf (always False in Python) - the raise below silently never
+                # fired for a NaN VIX, so this try block "succeeded" and a NaN VIX (this
+                # dashboard's own docstring: "critical for position sizing") reached the
+                # caller unvalidated.
+                if math.isnan(vix_float) or math.isinf(vix_float) or vix_float <= 0:
                     raise ValueError(
-                        f"VIX {vix_float} is invalid (must be > 0). Data quality issue in market_health_daily."
+                        f"VIX {vix_float} is invalid (must be > 0 and finite). Data quality issue in market_health_daily."
                     )
             except (ValueError, TypeError) as e:
                 logger.error(
@@ -1797,7 +1803,9 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 return error_response(503, "data_unavailable", "SPY price data not available")
             spy_close = float(spy_row["close"])
             # CRITICAL: Validate SPY price is reasonable (> 0)
-            if spy_close <= 0:
+            # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `spy_close <= 0` never
+            # caught NaN/Inf (always False in Python).
+            if math.isnan(spy_close) or math.isinf(spy_close) or spy_close <= 0:
                 logger.error(
                     f"[MARKETS API] Invalid SPY close: {spy_close} <= 0. Data quality issue in price_daily table."
                 )

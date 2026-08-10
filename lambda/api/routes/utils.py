@@ -955,6 +955,7 @@ def safe_json_serialize(obj: Any) -> Any:
 
     Converts non-JSON types: Decimal→float, datetime/date→ISO string, UUID→string.
     Handles nested dicts and lists recursively.
+    Converts NaN/Infinity to null (JSON spec doesn't support them).
 
     Args:
         obj: Dict, list, or scalar to convert
@@ -962,6 +963,7 @@ def safe_json_serialize(obj: Any) -> Any:
     Returns:
         Object with all non-JSON-serializable values converted
     """
+    import math
     from datetime import date, datetime
     from decimal import Decimal
     from uuid import UUID
@@ -971,7 +973,17 @@ def safe_json_serialize(obj: Any) -> Any:
     elif isinstance(obj, list):
         return [safe_json_serialize(item) for item in obj]
     elif isinstance(obj, Decimal):
-        return float(obj)
+        try:
+            val = float(obj)
+            if math.isnan(val) or math.isinf(val):
+                return None
+            return val
+        except (ValueError, TypeError):
+            return None
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
     elif isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, date):
