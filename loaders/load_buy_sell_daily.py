@@ -1225,7 +1225,9 @@ def main() -> int:  # noqa: C901
                     tech_result = cur.fetchone()
                     tech_symbols_available = tech_result[0] if tech_result else 0
 
-                    # Count actual buy_sell_daily signals generated for this date
+                    # Count actual buy_sell_daily signals generated for this date. This is
+                    # informational only - see the completion-check note below for why it
+                    # must NOT be used as the completion numerator.
                     cur.execute("""
                         SELECT COUNT(DISTINCT symbol)
                         FROM buy_sell_daily
@@ -1235,18 +1237,43 @@ def main() -> int:  # noqa: C901
                     signals_result = cur.fetchone()
                     signals_symbols_generated = signals_result[0] if signals_result else 0
 
-                    # buy_sell_daily should complete if it covers min(price_available, tech_available) with reasonable margin
+                    # buy_sell_daily should complete if it PROCESSED min(price_available,
+                    # tech_available) with reasonable margin.
+                    #
+                    # BUG FOUND 2026-08-10 (this session, real DB evidence): the completion
+                    # numerator used to be signals_symbols_generated (COUNT DISTINCT symbol in
+                    # buy_sell_daily WHERE date=actual_max_date) - i.e. "how many symbols got an
+                    # actual triggered BUY/SELL row on this exact date". But
+                    # _generate_signals()/BuySignalGenerator.run() only emits a row when a real
+                    # pivot breakout (BUY) or swing-low breakdown (SELL) fires that day - most
+                    # symbols on most days trigger neither, by design (this is a sparse signal
+                    # table, not a full-universe daily snapshot). Requiring 95% of the universe
+                    # to breakout/breakdown on the SAME day is unattainable - confirmed live:
+                    # only 945-1000 of ~4885 symbols (~19-20%) had a row on any of 2026-08-05/06/07,
+                    # so this loader had been marking itself FAILED on every single run since
+                    # 2026-08-08 despite generating signals correctly every time.
+                    #
+                    # Fix: use symbols_processed (from loader.run()'s own per-symbol success/
+                    # failure accounting in utils/optimal_loader.py - incremented whether or not
+                    # a symbol produced a signal, only decremented via symbols_failed on a real
+                    # per-symbol exception) as the numerator instead. This measures what the
+                    # Session 56 comment above actually intended: "did upstream data quality let
+                    # us attempt signal generation for ~everyone", not "did everyone breakout
+                    # today".
+                    symbols_successfully_processed = result.get("symbols_processed", 0)
                     effective_universe = min(price_symbols_available, tech_symbols_available)
                     if effective_universe > 0:
-                        actual_coverage_pct = (signals_symbols_generated / effective_universe) * 100.0
+                        actual_coverage_pct = (symbols_successfully_processed / effective_universe) * 100.0
                         # Need 95% coverage of what's actually available (not theoretical universe)
                         min_threshold = 95.0 if effective_universe >= 4500 else 90.0
                     else:
+                        actual_coverage_pct = 0.0
                         min_threshold = 90.0
 
                     logger.info(
                         f"[COMPLETION_THRESHOLD] Upstream coverage: Price={price_symbols_available}, Tech={tech_symbols_available}. "
-                        f"Effective universe: {effective_universe}. buy_sell_daily generated signals for {signals_symbols_generated} ({actual_coverage_pct:.1f}% of effective). "
+                        f"Effective universe: {effective_universe}. buy_sell_daily processed {symbols_successfully_processed} symbols "
+                        f"({actual_coverage_pct:.1f}% of effective; {signals_symbols_generated} had an actual triggered signal on {actual_max_date}). "
                         f"Threshold: {min_threshold:.1f}%"
                     )
 
@@ -1265,8 +1292,9 @@ def main() -> int:  # noqa: C901
                 status_manager.mark_completed(
                     latest_date=actual_max_date,
                     min_completion_pct=min_threshold,
-                    current_run_symbols_loaded=signals_symbols_generated,
+                    current_run_symbols_loaded=symbols_successfully_processed,
                     current_run_symbol_count=effective_universe,
+                    symbols_failed=result.get("symbols_failed"),
                 )
                 logger.info(
                     f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
