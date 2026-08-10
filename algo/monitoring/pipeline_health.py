@@ -13,6 +13,7 @@ import psycopg2
 from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db import DatabaseContext, assert_safe_column, assert_safe_table
 from utils.infrastructure import EASTERN_TZ
+from utils.loaders.status_manager import LoaderStatusManager
 
 logger = logging.getLogger(__name__)
 
@@ -508,10 +509,10 @@ class PipelineHealth:
                     for stuck in self._check_stuck_loaders(cur):
                         table_name = stuck["table_name"]
                         msg = (
-                            f"{table_name}: loader stuck in RUNNING status, no heartbeat "
-                            f"update in {stuck['stale_minutes'] / 60:.1f}h "
-                            f"(started {stuck['execution_started']}) "
-                            f"- likely crashed or was killed without updating status"
+                            f"{table_name}: loader stuck in RUNNING status for "
+                            f"{stuck['stale_minutes'] / 60:.1f}h "
+                            f"(started {stuck['execution_started']}) - far beyond any "
+                            f"legitimate run, likely crashed or was killed without updating status"
                         )
                         existing = status.tables.get(table_name)
                         if existing is not None:
@@ -543,29 +544,55 @@ class PipelineHealth:
         return status
 
     def _check_stuck_loaders(self, cur: Any) -> list[dict[str, Any]]:
-        """Find loaders orphaned mid-run: status=RUNNING with a frozen heartbeat.
+        """Find loaders orphaned mid-run: status=RUNNING for far longer than any
+        legitimate run takes.
 
-        update_loader_status("RUNNING") is written at loader start, and a background
-        heartbeat thread (60s interval, see utils/loader_infrastructure.py
-        start_heartbeat) refreshes last_updated for as long as the process stays
-        alive - both the normal success path (_update_final_status) and the
-        exception handler rewrite status away from RUNNING before exit. Neither runs
-        on a hard kill (OOM, or ecs.stop_task() from lambda/loader-timeout-guardian,
-        which only calls ECS StopTask and never touches this table) - SIGTERM/SIGKILL
-        bypasses Python's except block entirely, so the row is left at status=RUNNING
-        with a frozen last_updated forever. Every other check in this file derives
-        health from the target table's own row age, which still looks fresh from
-        whatever the last *successful* run loaded - masking the fact that the most
-        recent attempt crashed. 15 minutes is 15x the heartbeat interval, comfortably
-        beyond any live GC/DB-hiccup pause.
+        update_loader_status("RUNNING") is written at loader start via
+        LoaderStatusManager.mark_running(), and a background heartbeat thread (60s
+        interval, see utils/loader_infrastructure.py start_heartbeat) refreshes
+        last_updated for as long as the process stays alive - both the normal
+        success path (_update_final_status) and the exception handler rewrite
+        status away from RUNNING before exit. Neither runs on a hard kill (OOM, or
+        ecs.stop_task() from lambda/loader-timeout-guardian, which only calls ECS
+        StopTask and never touches this table) - SIGTERM/SIGKILL bypasses Python's
+        except block entirely, so the row is left at status=RUNNING forever. Every
+        other check in this file derives health from the target table's own row
+        age, which still looks fresh from whatever the last *successful* run
+        loaded - masking the fact that the most recent attempt crashed.
+
+        FIXED 2026-08-10: previously kept the above heartbeat-interval reasoning
+        but measured staleness off `last_updated` instead of `execution_started` -
+        wrong, because `last_updated` is NOT loader-owned for most tables.
+        log_health_check() below (this same class) deliberately overwrites
+        last_updated with each table's own business date (latest_date, at
+        midnight ET) on every single orchestrator run, and start_heartbeat() is
+        only wired into OptimalLoader.run()'s own default flow - any loader whose
+        run() fully overrides that base (ValueQualityGrowthMetricsLoader,
+        VectorizedTechnicalLoader, load_trend_analysis.run(), etc. - the same
+        override pattern already found bypassing production logic 3+ times this
+        session, see load_buy_sell_daily.py/load_prices.py/
+        load_financial_statements.py) never starts a heartbeat at all. Combined,
+        both make last_updated frozen at a stale midnight timestamp within seconds
+        of a perfectly healthy run starting - live-confirmed 2026-08-10:
+        growth_metrics/quality_metrics (actively progressing, completion_pct
+        climbing) and earnings_calendar/trend_template_data all falsely flagged
+        "likely crashed" here, at 1.4h/1.4h/5.8h/5.8h of real elapsed runtime
+        respectively, none of them actually stuck. execution_started is always
+        set to a real NOW() by mark_running() regardless of which run() path a
+        loader takes, so it's the one column every loader reliably owns. 180
+        minutes is comfortably beyond this repo's longest configured loader
+        timeout (150 min, financial_statements/enhanced_quality_growth in
+        scripts/local_loader_scheduler.py) and production's default guardian
+        budget (60 min * 1.5 safety multiplier, lambda/loader-timeout-guardian) -
+        a RUNNING row still open past that has outlived any legitimate run.
         """
         cur.execute(
             """
             SELECT table_name, execution_started, last_updated,
-                   EXTRACT(EPOCH FROM (NOW() - last_updated)) / 60 AS stale_minutes
+                   EXTRACT(EPOCH FROM (NOW() - execution_started)) / 60 AS stale_minutes
             FROM data_loader_status
             WHERE status = 'RUNNING'
-              AND last_updated < NOW() - INTERVAL '15 minutes'
+              AND execution_started < NOW() - INTERVAL '180 minutes'
             """
         )
         results = []
@@ -798,7 +825,21 @@ class PipelineHealth:
                             latest_date = EXCLUDED.latest_date,
                             age_days = EXCLUDED.age_days,
                             stale_threshold_days = EXCLUDED.stale_threshold_days,
-                            last_updated = EXCLUDED.last_updated,
+                            -- FIXED 2026-08-10: this used to be a blind `= EXCLUDED.last_updated`,
+                            -- clobbering an actively-RUNNING loader's last_updated with this
+                            -- sweep's own business-date value (latest_date at midnight ET) on
+                            -- every single orchestrator run, regardless of whether the row's
+                            -- status was just preserved as RUNNING above. _check_stuck_loaders()
+                            -- (this same class) reads last_updated as a heartbeat/liveness signal -
+                            -- live-confirmed 2026-08-10 this clobbering made every RUNNING loader
+                            -- falsely appear "stuck" within minutes of a healthy run starting.
+                            -- Preserve the loader's own last_updated while RUNNING; resume writing
+                            -- this sweep's fresh business-date value once the loader reaches a
+                            -- terminal status.
+                            last_updated = CASE
+                                WHEN EXCLUDED.status = 'RUNNING' THEN data_loader_status.last_updated
+                                ELSE EXCLUDED.last_updated
+                            END,
                             last_success_at = CASE
                                 WHEN EXCLUDED.status = 'HEALTHY' THEN EXCLUDED.last_updated
                                 ELSE data_loader_status.last_success_at

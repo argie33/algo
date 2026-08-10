@@ -21,6 +21,7 @@ if "LOADER_PARALLELISM" not in os.environ:
 
 # Import registry mapping to convert shorthand names to filenames
 from loaders.loader_registry import normalize_loader_name
+from utils.loaders.status_manager import reap_stale_running_loaders
 
 
 PIPELINES = {
@@ -129,6 +130,19 @@ def run_pipeline(pipeline_name: str) -> int:
         return 1
 
     print(f"[LOCAL_SCHEDULER] Starting {pipeline_name} pipeline ({len(loaders)} loaders)...")
+
+    # STALE-RUNNING REAPER: local dev has no equivalent of production's ECS-task-based
+    # _kill_long_running_loaders (that makes real AWS ListTasks calls, which always fail
+    # locally with no credentials - see orchestrator.py's "[OOM_PREVENTION] Could not
+    # check/kill" warning). Without this, a crashed process or a scheduler still running
+    # stale in-memory code from before a same-day timeout fix leaves data_loader_status
+    # stuck at RUNNING indefinitely (see buy_sell_daily_stuck_running_74_hours_20260810,
+    # where this exact auto-recovery was recommended but never implemented). Run it once
+    # up front so this invocation starts from a clean bookkeeping slate.
+    reaped = reap_stale_running_loaders()
+    if reaped:
+        print(f"[LOCAL_SCHEDULER] Reaped {len(reaped)} stale RUNNING loader(s): {', '.join(reaped)}")
+
     repo_root = Path(__file__).parent.parent
     completed_loaders = set()  # Track completed loaders for dependency checking
 

@@ -133,11 +133,19 @@ class LoaderStatusManager:
                             f"{current_status} -> RUNNING"
                         )
 
+                # FIXED 2026-08-10: neither branch used to touch last_updated at all, leaving it
+                # frozen at whatever the previous run (or pipeline_health.py's own business-date
+                # health-sweep) last wrote - stale from the very first second of a fresh run, for
+                # any loader whose run() doesn't call start_heartbeat() (see
+                # algo/monitoring/pipeline_health.py's _check_stuck_loaders docstring for the full
+                # chain this fed into: false "stuck/crashed" alerts on healthy, actively-running
+                # loaders). Stamping it here gives every run an accurate baseline the moment it
+                # starts, regardless of whether anything updates it again mid-run.
                 if symbol_count is not None:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, last_updated = NOW()
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, symbol_count, self.table_name),
@@ -146,7 +154,7 @@ class LoaderStatusManager:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, last_updated = NOW()
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, self.table_name),
@@ -748,3 +756,86 @@ class LoaderStatusManager:
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to fetch status for {self.table_name}: {e}")
             return None
+
+
+def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hours: float = 4.0) -> list[str]:
+    """Mark any of the given tables' RUNNING status as FAILED if execution_started is older
+    than max_age_hours.
+
+    No local-dev process supervises data_loader_status independently of the loader process
+    itself - a crashed process, a killed subprocess whose parent's subprocess.run(timeout=...)
+    failed to reap it, or a scheduler still running old in-memory code from before a same-day
+    timeout fix all leave the row stuck at RUNNING forever (see
+    buy_sell_daily_stuck_running_74_hours_20260810: a prior incident required a one-off manual
+    fix and explicitly recommended, but never implemented, an automatic version of this check).
+    Production has an ECS-task-based equivalent (orchestrator._kill_long_running_loaders), but
+    it makes real AWS ListTasks calls that always fail locally (no AWS credentials in
+    LOCAL_MODE), so local runs had no equivalent safety net at all.
+
+    Deliberately DB-only (no OS process management): the actual run-to-run exclusion is
+    already enforced by utils/db/local_file_lock.py's own TTL, so a still-genuinely-running
+    process that gets marked FAILED here only produces a transient, self-correcting status
+    inaccuracy (overwritten the moment that process finishes and calls its own
+    mark_completed()/mark_failed()) - not a second concurrent run of real work.
+
+    Args:
+        table_names: Tables to check, or None to check every table currently in
+            data_loader_status (a stuck loader anywhere is worth correcting - this isn't
+            scoped to a single pipeline run).
+        max_age_hours: How old execution_started must be before a RUNNING row is considered
+            abandoned. Deliberately coarse (default 4h, comfortably above every entry in
+            local_loader_scheduler.py's LOADER_TIMEOUTS) so this never fires on a loader that
+            is still legitimately within its own configured budget.
+
+    Returns:
+        Table names that were reaped (previously RUNNING, now marked FAILED).
+    """
+    reaped: list[str] = []
+    try:
+        with DatabaseContext("read") as cur:
+            if table_names:
+                cur.execute(
+                    """
+                    SELECT table_name, execution_started
+                    FROM data_loader_status
+                    WHERE table_name = ANY(%s)
+                      AND status = %s
+                      AND execution_started IS NOT NULL
+                      AND execution_started < NOW() - (%s || ' hours')::interval
+                    """,
+                    (table_names, LoaderStatus.RUNNING.value, max_age_hours),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT table_name, execution_started
+                    FROM data_loader_status
+                    WHERE status = %s
+                      AND execution_started IS NOT NULL
+                      AND execution_started < NOW() - (%s || ' hours')::interval
+                    """,
+                    (LoaderStatus.RUNNING.value, max_age_hours),
+                )
+            stale = cur.fetchall()
+    except Exception as e:
+        logger.error(f"[STATUS_MANAGER] Failed to query stale RUNNING loaders: {e}")
+        return []
+
+    for table_name, execution_started in stale:
+        try:
+            LoaderStatusManager(table_name).mark_failed(
+                error_message=(
+                    f"[REAPED] Stuck in RUNNING since {execution_started} (>{max_age_hours:.0f}h ago) "
+                    "with no owning process confirmed alive - auto-marked FAILED so stale data isn't "
+                    "trusted and proactive-wait/health checks don't report a phantom in-progress run."
+                )
+            )
+            logger.warning(
+                f"[STATUS_MANAGER] Reaped stale RUNNING loader: {table_name} "
+                f"(started {execution_started}, >{max_age_hours:.0f}h ago)"
+            )
+            reaped.append(table_name)
+        except Exception as e:
+            logger.error(f"[STATUS_MANAGER] Failed to reap stale RUNNING loader {table_name}: {e}")
+
+    return reaped

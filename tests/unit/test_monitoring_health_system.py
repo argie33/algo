@@ -174,7 +174,11 @@ class TestPipelineHealthMonitoring:
         insert_values = executemany_call[0][1]
 
         assert "NOW()" not in sql_text.replace("COALESCE(%s::timestamptz, NOW())", "")
-        assert "last_updated = EXCLUDED.last_updated" in sql_text
+        # FIXED 2026-08-10: last_updated is only taken from EXCLUDED (this sweep's fresh
+        # business-date value) for non-RUNNING rows now - see
+        # test_log_health_check_preserves_last_updated_while_running below for why.
+        assert "WHEN EXCLUDED.status = 'RUNNING' THEN data_loader_status.last_updated" in sql_text
+        assert "ELSE EXCLUDED.last_updated" in sql_text
 
         last_updated_by_table = {row[0]: row[-1] for row in insert_values}
         assert last_updated_by_table["price_daily"] == fresh_date
@@ -401,10 +405,10 @@ class TestPipelineHealthMonitoring:
 
     def test_check_stuck_loaders_parses_query_rows(self):
         """_check_stuck_loaders() must surface loaders orphaned mid-run: status=RUNNING
-        with a heartbeat frozen for >15min (see method docstring - a hard kill, e.g. OOM
-        or loader-timeout-guardian's ecs.stop_task(), bypasses the except block that
-        would normally rewrite status away from RUNNING, so the row sits stuck forever
-        with no other check catching it)."""
+        for far longer than any legitimate run takes (see method docstring - a hard
+        kill, e.g. OOM or loader-timeout-guardian's ecs.stop_task(), bypasses the
+        except block that would normally rewrite status away from RUNNING, so the row
+        sits stuck forever with no other check catching it)."""
         from algo.monitoring.pipeline_health import PipelineHealth
 
         mock_cur = Mock()
@@ -418,6 +422,30 @@ class TestPipelineHealthMonitoring:
         assert stuck[0]["table_name"] == "stock_symbols"
         assert stuck[0]["execution_started"] == started
         assert stuck[0]["stale_minutes"] == 132.5
+
+    def test_check_stuck_loaders_measures_off_execution_started_not_last_updated(self):
+        """FIX (2026-08-10): staleness must be measured off execution_started, not
+        last_updated. last_updated is NOT loader-owned for most tables -
+        log_health_check() (this same class) deliberately overwrites it with each
+        table's own business date on every orchestrator run, and start_heartbeat() is
+        only wired into OptimalLoader.run()'s default flow - loaders whose run()
+        fully overrides that base never touch it at all. Live-confirmed 2026-08-10:
+        measuring off last_updated made every RUNNING loader in exactly that
+        situation (growth_metrics, quality_metrics, earnings_calendar,
+        trend_template_data) falsely appear "stuck/crashed" within minutes of a
+        healthy run starting. execution_started is always a real NOW() from
+        LoaderStatusManager.mark_running(), regardless of which run() path a loader
+        takes - the one column every loader reliably owns."""
+        from algo.monitoring.pipeline_health import PipelineHealth
+
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = []
+        monitor = PipelineHealth()
+        monitor._check_stuck_loaders(mock_cur)
+
+        sql_text = mock_cur.execute.call_args[0][0]
+        assert "execution_started < NOW() - INTERVAL '180 minutes'" in sql_text
+        assert "last_updated < NOW()" not in sql_text
 
     def test_get_pipeline_status_flags_orphaned_running_loader_as_critical(self):
         """Integration path: a critical table (stock_symbols) whose underlying data still
