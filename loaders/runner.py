@@ -138,7 +138,7 @@ def run_loader(
             import time
             start_time = time.time()
             result = loader.load_global()
-            execution_duration = time.time() - start_time
+            execution_duration: float | None = time.time() - start_time
 
             if result > 0:
                 logger.info(f"SUCCESS: {result} records loaded in {execution_duration:.2f}s")
@@ -244,7 +244,8 @@ def run_loader(
             # here always returned None, so every runner.py-driven loader (all but load_prices.py, which
             # has its own bespoke main()) left execution_duration_sec NULL and the dashboard's Duration
             # column showed "--" for every table except price_daily.
-            execution_duration = stats.get("duration_sec")
+            duration_sec_raw = stats.get("duration_sec")
+            execution_duration = float(duration_sec_raw) if duration_sec_raw is not None else None
 
             # CRITICAL LOGGING: Record max_fail_rate so we can debug status issues
             loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__

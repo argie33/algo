@@ -40,8 +40,9 @@ from utils.db.context import DatabaseContext as _DatabaseContext
 __all__ = ["DatabaseContext"]
 
 
-# mypy is invoked per-directory here (`cd lambda/api && mypy .`, see Makefile), so it
-# cannot resolve utils.db.context outside this search root and treats it as Any.
+# mypy's pre-commit hook invokes this directory in isolation (`cd lambda/api && mypy .`,
+# see .pre-commit-config.yaml), so utils.db.context - outside lambda/api - resolves as Any
+# there regardless of pyproject.toml's mypy_path (which only adds lambda/api itself).
 class DatabaseContext(_DatabaseContext):  # type: ignore[misc]
     """REST API database context with disabled correlation tracking.
 

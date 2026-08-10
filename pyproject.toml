@@ -45,6 +45,14 @@ dashboard = ["*.py", "**/*.py"]
 
 [tool.mypy]
 python_version = "3.11"
+# lambda/api is added to sys.path at runtime (see lambda/api/dev_server.py's
+# sys.path.insert), which is how "from routes.xxx import ..." resolves in
+# lambda/api/routes/**. Without this, mypy can't find the routes package,
+# and ignore_missing_imports=true silently treats it as Any - masking real
+# type errors and cascading into spurious "untyped decorator" errors on
+# every db_route_handler/validate_api_response usage.
+mypy_path = "lambda/api"
+explicit_package_bases = true
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -73,6 +81,12 @@ exclude = [
     "^start_.*\\.py",  # Startup scripts
     "^test_.*\\.py",  # Test/exploration scripts
     "^verify_.*\\.py",
+    # lambda/api/utils is a physically separate local-dev package from root utils/ (mypy_path
+    # above makes lambda/api a source root for routes.* resolution) - at deploy time
+    # deploy-api-lambda.yml merges root utils/ on top of it into one directory, so the
+    # collision this exclude avoids does not exist in the real deployed artifact, only in
+    # mypy's static view of two same-named local dev directories.
+    "^lambda/api/utils/",
     # Lambda deployed functions with hyphenated names (invalid Python package names)
     "^lambda/circuit-breaker/",
     "^lambda/cognito-email-trigger/",
