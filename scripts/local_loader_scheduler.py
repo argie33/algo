@@ -55,6 +55,14 @@ PIPELINES = {
         "technical",
         "scores",
         "buy_sell",
+        # ADDED 2026-08-10: same "no PIPELINES entry" bug class as the "reference" pipeline
+        # fixes below - both registered (SHORTHAND_TO_FILENAME + LOADER_TIMEOUTS) but
+        # reachable from no PIPELINES list, so untestable locally without bypassing the
+        # scheduler. Placed after buy_sell to match terraform/modules/pipeline/main.tf's
+        # production ordering (SignalQualityScores -> AlgoMetricsAfterSignals, both
+        # downstream of signal generation).
+        "signal_quality",
+        "algo",
     ],
     # ADDED 2026-08-10: these 9 loaders had no PIPELINES entry, making them unreachable
     # locally via the sanctioned `--now {pipeline}` path - the only way to run/backfill them
@@ -79,6 +87,29 @@ PIPELINES = {
         "short_interest",
         "segment_info",
         "segment_metrics",
+        # ADDED 2026-08-10: 10th loader in this same "no PIPELINES entry" bug class, missed
+        # by the fix above - earnings_calendar_sec (SEC 10-K/10-Q filing-date earnings
+        # calendar, the official replacement for yfinance earnings_date) was reachable
+        # neither here nor anywhere else in PIPELINES despite having both a
+        # SHORTHAND_TO_FILENAME entry ("earnings_sec") and a LOADER_TIMEOUTS entry -
+        # DB-confirmed stale locally (earnings_calendar_sec's last local run was 10 days
+        # before this fix) while production stays fresh via terraform's separately-wired
+        # Step Functions EarningsCalendarSec state. Not to be confused with "earnings_calendar"
+        # above (yfinance-backed announcement dates/EPS, a different table/concept).
+        "earnings_sec",
+        # ADDED 2026-08-10: same "registered but reachable from no PIPELINES list" gap,
+        # for slow-changing/low-frequency reference data - all confirmed correctly wired
+        # in terraform/modules/pipeline/main.tf's production Step Functions (FredEconomicData,
+        # NaaimSentiment, AaiiSentiment, DividendData, StockSymbols), so this was purely a
+        # local-backfill gap, not a production one. "dividends" is the one yfinance-backed
+        # loader in this otherwise SEC/free-API pipeline - a single sequential yfinance
+        # loader here doesn't reintroduce the parallel multi-loader yfinance IP-ban risk
+        # documented for the "metrics" pipeline, but keep an eye on it if that changes.
+        "constituents",
+        "economic",
+        "naaim",
+        "aaii",
+        "dividends",
     ],
 }
 

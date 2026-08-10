@@ -227,6 +227,16 @@ class PipelineHealth:
             # already-covered siblings. Real portfolio performance now comes from
             # algo_performance_daily/algo_risk_daily (see commit 47ff447db).
             "equity_curve_daily",
+            # Confirmed live 2026-08-10: no writer since 2026-06-30 (frozen at 20 rows,
+            # metric_date maxes out 2026-07-31) - already documented as dead in
+            # algo/reporting/daily_report.py's _fetch_risk() docstring ("the latter has had
+            # no writer since 2026-06-30"), which - along with the dashboard API
+            # (lambda/api/routes/algo_handlers/metrics.py) - already migrated to reading
+            # algo_performance_daily/algo_risk_daily instead (both written every orchestrator
+            # run by Phase 9). This table is in CRITICAL_TABLES (sla_days=1) but was never
+            # added here, so every health sweep reported it VERY_STALE - real noise, not a
+            # real gap, since nothing currently reads or writes it.
+            "algo_performance_metrics",
         }
     )
 
