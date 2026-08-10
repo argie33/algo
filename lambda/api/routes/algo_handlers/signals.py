@@ -43,7 +43,17 @@ def _validate_portfolio_snapshot(cur: cursor) -> tuple[dict[str, Any], Any] | An
         return None, error_response(503, "service_unavailable", "Portfolio snapshot unavailable")
 
     port_row = safe_dict_convert(port_row)
-    portfolio_value = float(port_row["total_portfolio_value"])
+    # BUG FOUND 2026-08-10 (NaN-comparison-guard class): bare float() here bypassed this
+    # same module's already-imported safe_float() (utils/validation/framework.py), which
+    # explicitly rejects NaN/Infinity. `not portfolio_value or portfolio_value <= 0` never
+    # catches NaN (always False in Python) - a NaN total_portfolio_value would have sailed
+    # through and silently produced a NaN pct_of_portfolio in this endpoint's response.
+    try:
+        portfolio_value = safe_float(
+            port_row["total_portfolio_value"], strict=True, field_name="total_portfolio_value"
+        )
+    except Exception:
+        return None, error_response(503, "service_unavailable", "Portfolio value unavailable")
     open_positions = int(port_row["position_count"])
 
     if not portfolio_value or portfolio_value <= 0:
@@ -170,7 +180,12 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
             )
             price_row = cur.fetchone()
             if price_row and price_row[0]:
-                entry_price = float(price_row[0])
+                # BUG FOUND 2026-08-10 (NaN-comparison-guard class): bare float() here meant
+                # a NaN price_daily.close would reach `int(position_dollars / entry_price)`
+                # below unguarded (`entry_price <= 0` at line ~187 never catches NaN).
+                # safe_float() rejects NaN/Infinity explicitly; caught by this function's
+                # own outer `except (..., Exception)` and turned into a clean error response.
+                entry_price = safe_float(price_row[0], strict=True, field_name="entry_price")
 
         if req.position_dollars:
             position_dollars = req.position_dollars
