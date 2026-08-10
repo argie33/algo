@@ -1,12 +1,33 @@
 #!/usr/bin/env python3
-"""Stress test: Run multiple orchestrators concurrently to find race conditions."""
+"""Stress test: Run multiple orchestrators concurrently to find race conditions.
 
+BUG FOUND 2026-08-10 (live-reproduced): this file lives directly under tests/, matches
+python_files/python_functions = "test_*" (pyproject.toml [tool.pytest.ini_options]), and
+testpaths=["tests"] has no marker-based exclusion in addopts - so a routine `pytest tests/`
+or bare `pytest` collects and RUNS this by default. It spawns 5 REAL
+`run_local_orchestrator.py --afternoon --force` subprocesses (not mocked) against whatever
+DB .env.local points at, each with its own 300s subprocess.run(timeout=...). On Windows,
+subprocess timeout only kills the immediate child, not grandchildren it spawns (e.g. Phase 1
+failsafe retry's own `run_loader.py --force-refresh` subprocess) - those are orphaned and
+keep running. Live-confirmed: a `pytest tests/ -q` run at 08:39 left 5 concurrent orchestrator
+processes (plus an orphaned loader grandchild) running against the real local dev DB for over
+5 hours, corrupting data_loader_status (rapid mark_running/mark_failed thrashing on
+technical_data_daily) and very likely contributing to a live "Win Rate Floor Breached: 28.6%"
+halt from 5 concurrent runs racing on the same trade/position rows. Gated behind
+RUN_ORCHESTRATOR_STRESS_TEST=1 so it never runs as a side effect of the normal suite; run
+deliberately with `RUN_ORCHESTRATOR_STRESS_TEST=1 python tests/test_concurrent_orchestrator_phase3_stress.py`
+(or the equivalent pytest invocation) when actually stress-testing concurrency.
+"""
+
+import os
 import sys
 import subprocess
 import time
 import threading
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -54,6 +75,13 @@ def run_orchestrator_subprocess(run_num: int, verbose: bool = False) -> dict:
         }
 
 
+@pytest.mark.skipif(
+    os.environ.get("RUN_ORCHESTRATOR_STRESS_TEST") != "1",
+    reason=(
+        "Spawns 5 real run_local_orchestrator.py --force subprocesses against the live DB "
+        "(not mocked). Set RUN_ORCHESTRATOR_STRESS_TEST=1 to run deliberately."
+    ),
+)
 def test_concurrent_orchestrator_stress():
     """Run 5 orchestrators concurrently to stress test the system."""
     print("=" * 80)
