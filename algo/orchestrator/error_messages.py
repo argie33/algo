@@ -5,6 +5,8 @@ Single source of truth for error messages ensures consistency and makes
 global updates (e.g., adding runbook links) possible without grep-and-replace.
 """
 
+from typing import Any
+
 
 class PhaseErrorMessages:
     """Error message templates for phase execution."""
@@ -45,7 +47,7 @@ class PhaseErrorMessages:
     ALPACA_ORDER_SUBMISSION_FAILED = "Order submission to Alpaca failed: {error}. Check market hours and account status."
 
     @staticmethod
-    def format(template: str, **kwargs) -> str:
+    def format(template: str, **kwargs: Any) -> str:
         """Format error message template with provided kwargs.
 
         Args:

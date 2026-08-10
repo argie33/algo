@@ -49,7 +49,7 @@ class FileAlertLogger:
             return ""
 
 
-def ensure_file_alerts():
+def ensure_file_alerts() -> Optional["FileAlertLogger"]:
     """Initialize file-based alert logging if external channels not configured."""
     import os
     

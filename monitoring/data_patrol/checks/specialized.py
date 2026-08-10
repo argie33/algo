@@ -392,7 +392,7 @@ class DataIntegrityChecker:
         """Run all data integrity checks and return comprehensive report."""
         logger.info("[DATA_PATROL] Running comprehensive data integrity checks...")
 
-        results = {
+        results: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "checks": {},
             "summary": {

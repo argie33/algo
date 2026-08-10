@@ -832,7 +832,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
     def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:
         """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability, earnings_surprise_avg, earnings_beat_rate."""
-        metrics = {}
+        metrics: dict[str, Any] = {}
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
