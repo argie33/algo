@@ -182,17 +182,22 @@ class LoaderInfrastructure:
                     cur.execute("SET statement_timeout = 0")
                     if status == "RUNNING":
                         # FIX 2026-07-31: Use actual schema columns (migration 1164)
-                        # Mark as running: status=loading, execution_started=now
+                        # BUG FOUND 2026-08-10: this docstring already documented consolidating
+                        # onto the canonical RUNNING/COMPLETED/FAILED vocabulary, but this branch
+                        # still hardcoded the literal "loading" instead of using `db_status`
+                        # (computed above, and already correctly used by the COMPLETED/FAILED/
+                        # INCOMPLETE branch below) - the exact "third vocabulary" this docstring
+                        # claims was removed. Mark as running: status=RUNNING, execution_started=now
                         cur.execute(
                             "UPDATE data_loader_status SET status = %s, execution_started = NOW(), last_updated = NOW() "
                             "WHERE table_name = %s",
-                            ("loading", self.table_name),
+                            (db_status, self.table_name),
                         )
                         if cur.rowcount == 0:
                             cur.execute(
                                 "INSERT INTO data_loader_status (table_name, status, execution_started, last_updated) "
                                 "VALUES (%s, %s, NOW(), NOW())",
-                                (self.table_name, "loading"),
+                                (self.table_name, db_status),
                             )
                         logger.debug(f"[{self.table_name}] Status updated to RUNNING")
                     elif status in ("COMPLETED", "FAILED", "INCOMPLETE"):
