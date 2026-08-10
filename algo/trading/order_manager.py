@@ -519,12 +519,20 @@ class OrderManager:
         specifically when a crash/timeout lost the response to an EARLIER submission that
         actually succeeded, and this call is a crash-recovery retry reusing the same id
         (see send_bracket_order/send_market_exit docstrings). Rather than pattern-matching
-        Alpaca's rejection error text/code for "duplicate" (unverified against Alpaca's
-        actual API in this codebase - see memory:
-        project_client_order_id_duplicate_rejection_not_handled), this checks ground truth:
-        does an order with this client_order_id actually exist at the broker? If yes, that
+        Alpaca's rejection error text/code for "duplicate", this checks ground truth: does
+        an order with this client_order_id actually exist at the broker? If yes, that
         order's real status is authoritative - the original attempt succeeded. If no (404),
         the rejection was genuine and the caller's existing failure handling is correct.
+
+        VERIFIED 2026-08-10 against Alpaca's official API reference (docs.alpaca.markets):
+        POST /v2/orders only documents 200/403/422 responses and does not document a
+        specific status for a duplicate client_order_id - but that's a non-issue here by
+        design, since the caller (send_bracket_order/send_market_exit) falls through to
+        this ground-truth check on ANY non-429/503 response, not a specific code. What
+        actually matters is THIS lookup being correct, and it is: GET
+        /v2/orders:by_client_order_id (URL/method/query-param below) and its 200 response's
+        Order-object schema (confirmed fields include id/status/filled_qty/filled_avg_price)
+        both match Alpaca's official reference docs exactly.
 
         Returns: the order dict if found, None if not found.
 
