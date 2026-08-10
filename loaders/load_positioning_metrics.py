@@ -43,6 +43,36 @@ logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
 
 
+def _compute_short_interest_trend(current_pct: Any, prior_pct: Any) -> str | None:
+    """Classify short-interest trend from the current vs. prior settlement period.
+
+    BUG FOUND 2026-08-10 (NaN-comparison-guard class, inverted variant): the original
+    guard used `prior_pct != 0` to avoid division by zero - `!=` is TRUE for NaN against
+    everything including 0, so a NaN prior_pct would sail past that "protection" into a
+    real division, producing a NaN relative_change. That NaN then failed both the `> 0.05`
+    and `< -0.05` comparisons (both False for NaN) and fell through to the else branch,
+    silently mislabeling corrupted/unavailable short-interest data as "stable" instead of
+    leaving the trend unset. Guards explicitly instead of relying on `!= 0`.
+
+    Returns None when the trend cannot be determined (missing or non-finite inputs, or
+    prior_pct is genuinely zero).
+    """
+    if current_pct is None or prior_pct is None:
+        return None
+    if (
+        math.isnan(current_pct) or math.isinf(current_pct)
+        or math.isnan(prior_pct) or math.isinf(prior_pct)
+        or prior_pct == 0
+    ):
+        return None
+    relative_change = (current_pct - prior_pct) / prior_pct
+    if relative_change > 0.05:
+        return "increasing"
+    if relative_change < -0.05:
+        return "decreasing"
+    return "stable"
+
+
 class PositioningMetricsLoader(OptimalLoader):
     """Load positioning metrics from official SEC sources.
 
@@ -161,31 +191,9 @@ class PositioningMetricsLoader(OptimalLoader):
             if len(short_rows) >= 2:
                 shares_short_prior_month = short_rows[1][1]
                 current_pct, prior_pct = short_rows[0][0], short_rows[1][0]
-                # BUG FOUND 2026-08-10 (NaN-comparison-guard class, inverted variant): `!=`
-                # is TRUE for NaN against everything including 0, so a NaN prior_pct would
-                # sail past this "protection" into a real division, producing a NaN
-                # relative_change. That NaN then failed both the `> 0.05` and `< -0.05`
-                # checks (both False for NaN) and fell through to the else branch, silently
-                # mislabeling corrupted/unavailable short-interest data as "stable" instead
-                # of leaving short_interest_trend unset. Guard explicitly instead of relying
-                # on `!= 0`, matching the fix already applied to phase9_reconciliation.py's
-                # identical pattern.
-                if (
-                    current_pct is not None
-                    and prior_pct is not None
-                    and not math.isnan(current_pct)
-                    and not math.isinf(current_pct)
-                    and not math.isnan(prior_pct)
-                    and not math.isinf(prior_pct)
-                    and prior_pct != 0
-                ):
-                    relative_change = (current_pct - prior_pct) / prior_pct
-                    if relative_change > 0.05:
-                        short_interest_trend = "increasing"
-                    elif relative_change < -0.05:
-                        short_interest_trend = "decreasing"
-                    else:
-                        short_interest_trend = "stable"
+                computed_trend = _compute_short_interest_trend(current_pct, prior_pct)
+                if computed_trend is not None:
+                    short_interest_trend = computed_trend
 
             # NOTE: this is short_shares / shares_outstanding, NOT true public float -
             # SEC filings don't expose a float figure (it would require subtracting
