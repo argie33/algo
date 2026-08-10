@@ -2237,8 +2237,20 @@ class StockScoresLoader(OptimalLoader):
             raise
 
     def post_run(self) -> None:
-        self.audit_upstream_coverage()
+        # ORDER MATTERS: update_rs_percentiles() reads only momentum_score, which is
+        # unrelated to what audit_upstream_coverage() checks (value_metrics/stability_metrics
+        # coverage). Live-reproduced 2026-08-10: a transient dip in value_metrics coverage
+        # (contention from concurrent sessions) made audit_upstream_coverage() raise, which
+        # crashed the whole subprocess (exit 1) BEFORE update_rs_percentiles() ever ran - even
+        # though all 4917 symbols' per-symbol scoring (including momentum_score) had already
+        # completed successfully. rs_percentile stayed NULL for the entire universe, and
+        # Phase 7 silently filtered out every single candidate as a result (100+ candidates
+        # otherwise qualified) with a misleading "no signals found" message that never named
+        # the real cause. Compute the RS ranking first (it doesn't depend on the audited
+        # tables), THEN run the audit - a coverage problem should still fail the run for
+        # visibility, but must not collaterally block an unrelated, Phase-7-critical step.
         self.update_rs_percentiles()
+        self.audit_upstream_coverage()
 
     def update_rs_percentiles(self) -> None:
         """Batch pass: rank all stocks by momentum_score and write true RS percentile.
