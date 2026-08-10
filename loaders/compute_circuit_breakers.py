@@ -23,6 +23,7 @@ Metrics computed:
 """
 
 import logging
+import math
 from collections.abc import Callable
 from datetime import date, timedelta
 from datetime import datetime as dt
@@ -255,10 +256,13 @@ def _compute_drawdown(cur: Any) -> float:
         raise RuntimeError(error_msg)
     peak = float(row["peak"])
     current = float(row["current"])
-    if peak <= 0:
+    # BUG FOUND 2026-08-10 (NaN-comparison-guard class, same as algo/risk/circuit_breaker.py's
+    # sibling fix): `<= 0` never catches NaN, and `current` had no validation at all - this
+    # feeds the CB1 drawdown value on the dashboard's circuit-breaker reporting.
+    if math.isnan(peak) or math.isinf(peak) or math.isnan(current) or math.isinf(current) or peak <= 0:
         error_msg = (
-            f"[CIRCUIT_BREAKER CRITICAL] Invalid peak portfolio value: {peak}. "
-            f"Peak equity must be positive."
+            f"[CIRCUIT_BREAKER CRITICAL] Invalid peak/current portfolio value: peak={peak}, current={current}. "
+            f"Peak equity must be positive and both must be finite."
         )
         logger.critical(error_msg)
         raise RuntimeError(error_msg)
@@ -317,8 +321,8 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
         raise RuntimeError(error_msg)
     cur_val = float(today_row["adjusted_equity"])
     prev_val = float(prev_row["adjusted_equity"])
-    if prev_val <= 0:
-        raise ValueError(f"Invalid prior adjusted_equity for daily loss calculation: {prev_val}")
+    if math.isnan(cur_val) or math.isinf(cur_val) or math.isnan(prev_val) or math.isinf(prev_val) or prev_val <= 0:
+        raise ValueError(f"Invalid adjusted_equity for daily loss calculation: cur={cur_val}, prev={prev_val}")
     daily = (cur_val - prev_val) / prev_val * 100
     loss = abs(min(0, daily))
     return loss
@@ -413,8 +417,12 @@ def _compute_weekly_loss(cur: Any, today: date) -> float:
 
     cur_val = float(row["cur_val"])
     week_ago_val = float(row["week_ago_val"])
-    if week_ago_val <= 0:
-        raise ValueError(f"Invalid week-ago adjusted_equity for 7-day calculation: {week_ago_val}")
+    if (
+        math.isnan(cur_val) or math.isinf(cur_val)
+        or math.isnan(week_ago_val) or math.isinf(week_ago_val)
+        or week_ago_val <= 0
+    ):
+        raise ValueError(f"Invalid adjusted_equity for 7-day calculation: cur={cur_val}, week_ago={week_ago_val}")
 
     weekly_ret = (cur_val - week_ago_val) / week_ago_val * 100
     loss = abs(min(0, weekly_ret))
@@ -507,8 +515,12 @@ def _compute_open_risk(cur: Any) -> float:
         raise ValueError("Portfolio value unavailable for risk calculation")
     port_val = float(port_row["total_portfolio_value"])
 
-    if port_val <= 0:
-        raise ValueError(f"Invalid portfolio value for risk calculation: {port_val}")
+    if (
+        math.isnan(port_val) or math.isinf(port_val)
+        or math.isnan(total_risk) or math.isinf(total_risk)
+        or port_val <= 0
+    ):
+        raise ValueError(f"Invalid portfolio/risk value for risk calculation: port_val={port_val}, total_risk={total_risk}")
 
     risk_pct = total_risk / port_val * 100
     return risk_pct
@@ -531,7 +543,11 @@ def _compute_spy_change(cur: Any, today: date) -> float:
     latest = float(prices[0]["close"])
     prior = float(prices[1]["close"])
 
-    if latest <= 0 or prior <= 0:
+    if (
+        math.isnan(latest) or math.isinf(latest)
+        or math.isnan(prior) or math.isinf(prior)
+        or latest <= 0 or prior <= 0
+    ):
         raise ValueError(f"Invalid SPY prices for {today}: latest={latest}, prior={prior}")
 
     change = (latest - prior) / prior * 100

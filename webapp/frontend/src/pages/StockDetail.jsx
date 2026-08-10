@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Stock Detail — institutional-grade per-symbol research view (/app/stock/:symbol).
  *
  * Tabs: Chart · Statistics · Algo · Financials · Analysts · Signals
@@ -104,7 +104,7 @@ function computeRSI(series, period = 14) {
   return out;
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ────────────────────────────────────────────────────────────
 function StockDetailContent() {
   const { symbol } = useParams();
   const navigate = useNavigate();
@@ -121,7 +121,7 @@ function StockDetailContent() {
     { "1M": 30, "3M": 65, "6M": 130, "1Y": 260, "5Y": 1260, All: 5200 }[tf] ||
     130;
 
-  // â”€â”€ Queries â”€â”€
+  // ── Queries ──
   const {
     data: priceData,
     loading: priceLoading,
@@ -248,7 +248,7 @@ function StockDetailContent() {
     { enabled: !!symbol }
   );
 
-  // â”€â”€ Derived chart series â”€â”€
+  // ── Derived chart series ──
   const priceSeries = useMemo(() => {
     const priceItems = priceError
       ? []
@@ -274,7 +274,7 @@ function StockDetailContent() {
     const sma200 = computeSMA(rows, 200);
     const rsi = computeRSI(rows, 14);
 
-    // Map signal dates â†’ marker on the chart
+    // Map signal dates → marker on the chart
     const sigByDate = new Map();
     const signalItems = signalsError
       ? []
@@ -301,7 +301,7 @@ function StockDetailContent() {
     });
   }, [priceData, signalsData]);
 
-  // â”€â”€ Hero KPIs â”€â”€
+  // ── Hero KPIs ──
   const last = priceSeries[priceSeries.length - 1];
   const prev = priceSeries[priceSeries.length - 2];
   const yearAgo = priceSeries[Math.max(0, priceSeries.length - 252)];
@@ -651,7 +651,7 @@ function StockDetailContent() {
   );
 }
 
-// â”€â”€â”€ Hero stat tile (compact) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Hero stat tile (compact) ──────────────────────────────────────
 function HeroStat({ label, value, sub }) {
   return (
     <div>
@@ -676,7 +676,7 @@ function HeroStat({ label, value, sub }) {
   );
 }
 
-// â”€â”€â”€ Chart tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Chart tab ──────────────────────────────────────────────────────
 function ChartTab({
   series,
   loading,
@@ -973,7 +973,7 @@ function Triangle({ cx, cy, fill, dir }) {
   );
 }
 
-// â”€â”€â”€ Statistics tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Statistics tab ───────────────────────────────────────────────────
 function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
   const v = scoreRow?.value_inputs || {};
   const q = scoreRow?.quality_inputs || {};
@@ -983,7 +983,7 @@ function StatsTab({ scoreRow, km, marketCap, high52, low52, last, symbol }) {
 
   // Fetch insider ownership and segment metrics
   const { data: ownershipData } = useApiQuery(
-    [“ownership”, symbol],
+    ["ownership", symbol],
     () => api.get(`/api/financials/${symbol}/ownership`),
     { staleTime: 5 * 60 * 1000 }
   );
@@ -1207,7 +1207,7 @@ function ScoreBars({ scores }) {
   );
 }
 
-// â”€â”€â”€ Algo tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Algo tab ──────────────────────────────────────────────────────
 function AlgoTab({ swing, scoreRow, signals, error }) {
   if (error)
     return (
@@ -1394,7 +1394,7 @@ function AlgoTab({ swing, scoreRow, signals, error }) {
   );
 }
 
-// â”€â”€â”€ Financials tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Financials tab ──────────────────────────────────────────────────
 function FinancialsTab({
   income,
   balance,
@@ -1665,7 +1665,7 @@ function num1(v) {
   return isNaN(n) ? null : n;
 }
 
-// â”€â”€â”€ Analysts tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Analysts tab ──────────────────────────────────────────────────
 function AnalystsTab({ data, last, error }) {
   if (error)
     return (
@@ -1834,9 +1834,9 @@ function AnalystsTab({ data, last, error }) {
                 className="flex items-center justify-between"
                 style={{ marginBottom: 6 }}
               >
-                <span className="eyebrow">Current â†’ Target</span>
+                <span className="eyebrow">Current → Target</span>
                 <span className="mono tnum t-sm">
-                  {fmtMoney(last)} â†’ {fmtMoney(target)}
+                  {fmtMoney(last)} → {fmtMoney(target)}
                 </span>
               </div>
               <div className="bar" style={{ height: 8 }}>
@@ -1853,7 +1853,7 @@ function AnalystsTab({ data, last, error }) {
   );
 }
 
-// â”€â”€â”€ Signals tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Signals tab ──────────────────────────────────────────────────
 function SignalsTab({ signals, error }) {
   if (error)
     return (
@@ -1948,7 +1948,7 @@ function SignalsTab({ signals, error }) {
   );
 }
 
-// â”€â”€â”€ shared little components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── shared little components ──────────────────────────────────────
 function Stile({ label, value, sub }) {
   return (
     <div className="stile">
