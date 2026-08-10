@@ -71,6 +71,18 @@ MAX_FISCAL_YEAR_AGE_YEARS = 3
 # storing it prevents that crash without fabricating a fake capped number.
 MAX_TREND_PERCENTAGE_POINTS = 100_000.0
 
+# Sanity bound for absolute-dollar fields (free_cash_flow, operating_cash_flow, total_debt,
+# total_cash, ebitda) - all stored in NUMERIC(15,2) columns (max abs value < 10^13, i.e.
+# $10 trillion). Live-confirmed via the 2026-08-09 metrics pipeline run: VFS and KEP (both
+# foreign filers reporting in local currency - VND/KRW) overflowed this column, aborting
+# the entire 3-table quality/value/growth write transaction for those symbols - not just
+# the one garbage field, the whole row, same failure mode as MAX_TREND_PERCENTAGE_POINTS
+# above. Root cause not yet fixed (likely a missing currency-unit conversion for these
+# filers, same class of bug as sec_statements.py's other foreign-filer fixes) - this bound
+# only prevents the crash-and-lose-everything symptom by marking the implausible value
+# unavailable instead of writing it.
+MAX_ABSOLUTE_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion - no real company in this universe exceeds this for any single one of these fields
+
 # Computed once in _compute_quality_metrics (needs balance-sheet data _compute_growth_metrics
 # doesn't have), then mirrored into growth_dict in fetch_incremental - see that call site for
 # why quality_metrics and growth_metrics each carry their own copy of the same 11 values.
@@ -790,13 +802,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     eps_growth_rates.append(growth)
 
             if eps_growth_rates:
-                metrics["earnings_growth_4q_avg"] = float(round(sum(eps_growth_rates) / len(eps_growth_rates), 2))
+                earnings_growth_4q_avg = sum(eps_growth_rates) / len(eps_growth_rates)
+                # Bounded like every other growth/trend field in this file (see
+                # MAX_TREND_PERCENTAGE_POINTS above) - a near-zero prior-quarter EPS makes a
+                # single quarter's growth rate (and therefore this average) mathematically
+                # enormous despite being a "real" computation, which would overflow this
+                # NUMERIC(10,4) column and abort the entire row's write.
+                if abs(earnings_growth_4q_avg) < MAX_TREND_PERCENTAGE_POINTS:
+                    metrics["earnings_growth_4q_avg"] = float(round(earnings_growth_4q_avg, 2))
+                else:
+                    metrics["earnings_growth_4q_avg_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
 
                 if len(eps_growth_rates) >= 2:
                     mean_growth = sum(eps_growth_rates) / len(eps_growth_rates)
                     variance = sum((x - mean_growth) ** 2 for x in eps_growth_rates) / len(eps_growth_rates)
                     stability_stddev = sqrt(variance)
-                    metrics["eps_growth_stability"] = float(round(stability_stddev, 2))
+                    # Same overflow risk as earnings_growth_4q_avg above - stddev of a set
+                    # containing one enormous near-zero-denominator growth rate is itself
+                    # enormous.
+                    if stability_stddev < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["eps_growth_stability"] = float(round(stability_stddev, 2))
+                    else:
+                        metrics["eps_growth_stability_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
                 else:
                     # Only one quarter-over-quarter EPS comparison available - not enough to
                     # compute a variance/stddev, but this is a real, explainable gap.
@@ -818,7 +845,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     revenue_growth_rates.append(growth)
 
             if revenue_growth_rates:
-                metrics["quarterly_growth_momentum"] = float(round(sum(revenue_growth_rates) / len(revenue_growth_rates), 2))
+                quarterly_growth_momentum = sum(revenue_growth_rates) / len(revenue_growth_rates)
+                # Same near-zero-prior-quarter overflow risk as earnings_growth_4q_avg above.
+                if abs(quarterly_growth_momentum) < MAX_TREND_PERCENTAGE_POINTS:
+                    metrics["quarterly_growth_momentum"] = float(round(quarterly_growth_momentum, 2))
+                else:
+                    metrics["quarterly_growth_momentum_unavailable_reason"] = "garbage_metric_value_abs_gt_100000"
             else:
                 metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_revenue_data"
 
@@ -1509,28 +1541,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     )
 
             # Absolute cash flow values
-            if free_cash_flow is not None:
+            if free_cash_flow is not None and abs(free_cash_flow) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 metrics["free_cash_flow"] = float(free_cash_flow)
             else:
                 failed_metrics.append("free_cash_flow")
 
-            if operating_cash_flow is not None:
+            if operating_cash_flow is not None and abs(operating_cash_flow) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 metrics["operating_cash_flow"] = float(operating_cash_flow)
             else:
                 failed_metrics.append("operating_cash_flow")
 
             # Absolute balance sheet values from sec_valuations
-            if total_debt_ev is not None:
+            if total_debt_ev is not None and abs(total_debt_ev) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 metrics["total_debt"] = float(total_debt_ev)
             else:
                 failed_metrics.append("total_debt")
 
-            if total_cash_ev is not None:
+            if total_cash_ev is not None and abs(total_cash_ev) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 metrics["total_cash"] = float(total_cash_ev)
             else:
                 failed_metrics.append("total_cash")
 
-            if ebitda_ev is not None:
+            if ebitda_ev is not None and abs(ebitda_ev) < MAX_ABSOLUTE_DOLLAR_VALUE:
                 metrics["ebitda"] = float(ebitda_ev)
             else:
                 failed_metrics.append("ebitda")
