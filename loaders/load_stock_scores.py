@@ -2189,13 +2189,38 @@ class StockScoresLoader(OptimalLoader):
                 # Require at least 95% coverage on critical metric loaders for real-money readiness
                 min_coverage_pct = 95.0
                 critical_metric_loaders = ["value_metrics", "stability_metrics"]
+                # FIX 2026-08-10: value_metrics/quality_metrics/growth_metrics' data_loader_status
+                # row is SHARED across every invocation of load_value_quality_growth_metrics.py,
+                # including small scoped `--symbols` diagnostic/spot-check runs (e.g. re-verifying
+                # a couple of symbols after a data fix). completion_pct/symbol_count reflect
+                # whatever the MOST RECENT run's own requested scope was, not the real universe -
+                # live-reproduced: a 2-symbol diagnostic run that legitimately failed both (unrelated
+                # missing SEC valuation data) left symbol_count=2/symbols_loaded=0, which this audit
+                # then read as "value_metrics is 0.0% complete" and hard-failed EVERY subsequent
+                # stock_scores run universe-wide, even though the real full-universe run moments
+                # earlier had already loaded 5699/4917 symbols successfully. A tiny symbol_count is
+                # not a statistically meaningful sample of universe-wide health - require the row to
+                # actually represent a full-universe run before trusting its percentage.
+                min_representative_symbol_count = 1000
 
                 for table_name, completion_pct, symbols_loaded, symbol_count in metric_coverage:
                     if completion_pct is None:
                         logger.warning(f"[STOCK_SCORES] {table_name}: completion_pct is NULL (loader still running?)")
                         continue
 
-                    if table_name in critical_metric_loaders and completion_pct < min_coverage_pct:
+                    if table_name not in critical_metric_loaders:
+                        continue
+
+                    if not symbol_count or symbol_count < min_representative_symbol_count:
+                        logger.warning(
+                            f"[STOCK_SCORES] {table_name}: symbol_count={symbol_count} is too small to represent "
+                            f"the full universe (likely a scoped/diagnostic run) - skipping the {min_coverage_pct}% "
+                            f"coverage gate for this table rather than judging universe-wide health from a "
+                            f"non-representative sample."
+                        )
+                        continue
+
+                    if completion_pct < min_coverage_pct:
                         raise RuntimeError(
                             f"[STOCK_SCORES] Post-run audit failed: {table_name} only {completion_pct:.1f}% complete "
                             f"({symbols_loaded}/{symbol_count} symbols). "
