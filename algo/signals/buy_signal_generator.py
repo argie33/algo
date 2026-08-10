@@ -402,7 +402,15 @@ class BuySignalGenerator:
             breakout_pct = (high - recent_swing_high) / recent_swing_high * 100
             strength = min(0.5 + (breakout_pct / 5.0), 1.0)
             reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
-            buylevel = round(recent_swing_high, 4)
+            # BUG FOUND 2026-08-10: bare round() on a float, the same binary-representation
+            # risk this file's own SELL branch below (~line 432) was already fixed for and
+            # explicitly cites as "already fixed 2026-07-21 in order_manager.py,
+            # exposure_policy.py, and position_monitor.py" - just never applied here, in the
+            # branch that actually feeds real BUY trades (SELL signals aren't consumed by
+            # real entry execution - see phase7_signal_generation.py's `signal = 'BUY'`
+            # filter). buylevel/stoplevel here become _calculate_entry_exit_levels()'s
+            # Decimal(str(buylevel)) input, baking in any float-rounding drift permanently.
+            buylevel = float(Decimal(str(recent_swing_high)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
             if not recent_swing_low:
                 raise RuntimeError(
                     f"[SIGNAL_GENERATION_CRITICAL] {symbol}: BUY signal detected but cannot calculate stop loss. "
@@ -411,7 +419,7 @@ class BuySignalGenerator:
                     f"Incomplete signal generation indicates data quality or pivot detection issue. "
                     f"Verify: (1) sufficient price history, (2) data completeness, (3) pivot detection logic."
                 )
-            stoplevel = round(recent_swing_low, 4)
+            stoplevel = float(Decimal(str(recent_swing_low)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
 
         # SELL: Breakdown below swing low (stop loss)
         elif recent_swing_low and low < recent_swing_low:
@@ -424,7 +432,9 @@ class BuySignalGenerator:
             breakdown_pct = (recent_swing_low - low) / recent_swing_low * 100
             strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
             reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
-            buylevel = round(close, 4)
+            # Same bare-round() inconsistency as the BUY branch's buylevel/stoplevel above -
+            # this one line was missed when stoplevel just below got the Decimal fix.
+            buylevel = float(Decimal(str(close)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
             # Decimal, not round(close * 1.08, 4): close * 1.08 is float multiplication -
             # same binary-representation risk already fixed 2026-07-21 in order_manager.py,
             # exposure_policy.py, and position_monitor.py. This stoplevel is the actual stop
