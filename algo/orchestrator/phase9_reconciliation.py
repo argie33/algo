@@ -1183,6 +1183,30 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                     )
                     continue
 
+                # BUG FOUND 2026-08-10 (NaN-comparison-guard class, inverted variant): the
+                # `pnl_pct_corrected` guard below reads `if entry_price != 0 else 0.0` -
+                # `!=` is TRUE for NaN against everything including 0 (NaN != 0 is True in
+                # Python), so a NaN entry_price would sail straight past that "protection"
+                # into a real division, writing a NaN profit_loss_pct for a real trade via
+                # the UPDATE below. Postgres numeric/float columns can genuinely store NaN.
+                # Validate here, matching this same function's own recovered_exit_price
+                # guard a few lines down, before entry_price/stop_price/entry_qty are used
+                # in any arithmetic.
+                entry_price_f = float(entry_price)
+                stop_price_f = float(stop_price)
+                entry_qty_f = float(entry_qty)
+                if (
+                    math.isnan(entry_price_f) or math.isinf(entry_price_f)
+                    or math.isnan(stop_price_f) or math.isinf(stop_price_f)
+                    or math.isnan(entry_qty_f) or math.isinf(entry_qty_f)
+                ):
+                    logger.warning(
+                        f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
+                        f"non-finite required field (entry_price={entry_price_f}, "
+                        f"stop_price={stop_price_f}, entry_qty={entry_qty_f})"
+                    )
+                    continue
+
                 # Try to recover exit_price from price_daily
                 cursor.execute("""
                     SELECT close FROM price_daily
