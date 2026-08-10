@@ -1060,8 +1060,20 @@ def run(
                                     # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
                                     # Phase 3 computes new trailing stops using current_stop_price and recommends updates to that column
                                     # Phase 6 was updating stop_loss_price (wrong column), so trailing stops never increased
+                                    # DB-LEVEL MONOTONICITY GUARD (2026-08-10): exposure_policy.py's tighten_winners_at_r
+                                    # already computes new_stop as max(active_stop, ...) at generation time, using an
+                                    # active_stop snapshot read earlier in the Phase 5->6 pipeline - but this write is
+                                    # unconditional, so a stale snapshot applied after some OTHER path (e.g. ExitEngine's
+                                    # own breakeven/chandelier raise, run 2026-08-10 for exactly this class of stop
+                                    # inconsistency - see exit_engine_active_stop_missing_exit_price_override_20260810)
+                                    # already committed a HIGHER current_stop_price for this same position earlier in
+                                    # the same run would silently overwrite it with the older, lower value - a real
+                                    # risk-management regression (loosening a stop), not just a cosmetic race. GREATEST()
+                                    # makes the write itself monotonic regardless of staleness upstream; rowcount==0
+                                    # still means exactly "position not found" as before (this never changes match
+                                    # semantics, only the value written when matched).
                                     cur.execute(
-                                        "UPDATE algo_positions SET current_stop_price = %s WHERE id = %s",
+                                        "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) WHERE id = %s",
                                         (action["new_stop"], action["position_id"]),
                                     )
                                     # rowcount guards against silently counting a no-op as a success -
@@ -1185,8 +1197,12 @@ def run(
                                 try:
                                     # CRITICAL FIX: Update current_stop_price (live trailing stop), not stop_loss_price (entry-time stop)
                                     # Position monitor recommends updates to current_stop_price for trailing stop adjustments
+                                    # DB-LEVEL MONOTONICITY GUARD (2026-08-10): position_monitor.py's own recommendation
+                                    # (`if proposed_stop > active_stop`) is only guaranteed monotonic against the
+                                    # active_stop snapshot it read - same staleness risk, same GREATEST() fix, as the
+                                    # sibling tighten_stop write above (see its comment for the full reasoning).
                                     cur.execute(
-                                        "UPDATE algo_positions SET current_stop_price = %s "
+                                        "UPDATE algo_positions SET current_stop_price = GREATEST(current_stop_price, %s) "
                                         "WHERE id = %s AND status = %s",
                                         (
                                             rec["new_stop_recommended"],
