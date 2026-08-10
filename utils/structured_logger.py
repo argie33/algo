@@ -80,7 +80,7 @@ class StructuredFormatter(logging.Formatter):
             )
 
             log_entry["correlation_id"] = get_corr_id()
-        except (ImportError, Exception):
+        except Exception:
             pass  # correlation_context not available or not set
 
         # Merge in extra fields from the record

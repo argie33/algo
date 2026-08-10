@@ -142,7 +142,7 @@ NEXT STEPS
 ================================================================================
 
 1. Verify system still works:
-   $ python start_dashboard_dev.py
+   $ python lambda/api/dev_server.py
 
 2. Verify memory is loaded correctly:
    - Check MEMORY.md index

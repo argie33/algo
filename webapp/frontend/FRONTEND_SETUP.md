@@ -119,15 +119,11 @@ npm run dev
 
 ## 🎯 Local Development Workflow
 
-### Full Stack Start (Recommended)
+### Full Stack Start
 ```bash
-# From project root
-python start_dashboard_dev.py
-# This:
-# - Starts backend dev server (port 3001)
-# - Starts frontend dev server (port 5173)
-# - Opens dashboard
-# - Auto-refreshes every 30s (optional flag: -w 30)
+# From project root, in separate terminals:
+python lambda/api/dev_server.py       # backend dev server (port 3001)
+python -m dashboard --local           # dashboard TUI, reads local API
 ```
 
 ### Manual Setup

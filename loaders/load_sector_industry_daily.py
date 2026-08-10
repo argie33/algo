@@ -54,14 +54,17 @@ class SectorIndustryDailyLoader(OptimalLoader):
         import os
 
         from utils.db.dynamo_lock import DynamoDBLockManager
-        from utils.db.local_file_lock import get_lock_manager
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
         from utils.db.rds_lock import RDSLockManager
 
-        # get_lock_manager()'s real return type is DynamoDBLockManager | RDSLockManager (see
-        # its docstring: DynamoDB preferred, RDS fallback - FileLockManager was a prior
-        # fallback this codebase deliberately moved away from, see the RuntimeError handler
-        # below). Declared type must match what's actually assigned.
-        lock_manager: DynamoDBLockManager | RDSLockManager | None = None
+        # get_lock_manager() returns FileLockManager when LOCAL_MODE=true (all local dev runs
+        # take this path - see utils/db/local_file_lock.py), else DynamoDBLockManager with
+        # RDSLockManager fallback. All three duck-type the same acquire/release/
+        # lock_duration_seconds interface used below. The RuntimeError handler further down
+        # only fires when BOTH DynamoDB and RDS are unavailable in non-LOCAL_MODE (production)
+        # runs - it does not apply to FileLockManager, which was already fixed for its former
+        # Windows race condition (Session 281: atomic O_CREAT|O_EXCL file creation).
+        lock_manager: "FileLockManager | DynamoDBLockManager | RDSLockManager | None" = None
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
@@ -71,9 +74,10 @@ class SectorIndustryDailyLoader(OptimalLoader):
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:
-                # CRITICAL (Session 282): DynamoDB unavailable - fail fast, no fallback
-                # Reason: FileLockManager has Windows race condition (non-atomic file creation).
-                # Better to fail-fast and trigger infrastructure retry than silently degrade to unsafe locking.
+                # CRITICAL (Session 282): DynamoDB unavailable in a non-LOCAL_MODE (production)
+                # run, and RDS fallback also failed - fail fast rather than proceed unlocked.
+                # (LOCAL_MODE=true never reaches this branch: get_lock_manager() returns
+                # FileLockManager directly without raising.)
                 logger.critical(
                     f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
                     f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."

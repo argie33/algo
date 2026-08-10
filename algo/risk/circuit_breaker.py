@@ -598,7 +598,19 @@ class CircuitBreaker:
         # CRITICAL FIX: Use paper_mode_max_consecutive_losses when in paper trading mode
         # Paper mode allows higher threshold (5 vs 3) for thorough testing without interruption.
         # This prevents false halts during normal market volatility testing.
-        is_paper_trading = self.config.get("alpaca_paper_trading", True)
+        #
+        # BUG FOUND 2026-08-10: this used to silently default missing config to True (paper
+        # mode), which is backwards for a capital-protection check - if alpaca_paper_trading
+        # were ever missing while actually live, it would silently apply the LENIENT
+        # threshold (5) instead of the strict live threshold (3), under-protecting real
+        # capital. Every other consumer of this same config key in the codebase (phase6/8,
+        # alpaca_broker_adapter.py, execution_config.py, alpaca_sync_manager.py,
+        # infrastructure/reconciliation.py) already fails fast with "NO FALLBACK TO LIVE
+        # TRADING" - and this file's own _get_required_config() docstring says the same
+        # thing: "missing thresholds must ALWAYS cause failure. There are no safe defaults
+        # for risk control parameters." This call site was the one place that didn't follow
+        # its own file's rule.
+        is_paper_trading = self._get_required_config("alpaca_paper_trading", "in consecutive losses check")
         if is_paper_trading:
             config_key = "paper_mode_max_consecutive_losses"
             # Fallback to regular threshold if paper mode not configured yet

@@ -91,7 +91,6 @@ class PreTradeChecks:
                 earnings_check = EarningsBlackout(config=self.config)
                 result = earnings_check.run(symbol, eval_date)
 
-                # DEBUG: Log what earnings check returned (Session 78 bug fix)
                 logger.debug(f"[PRETRADE EARNINGS] {symbol} on {eval_date}: {result}")
 
                 if result is None or not isinstance(result, dict):

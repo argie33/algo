@@ -21,8 +21,8 @@ python scripts/dev_server_health_check.py --diagnose
 
 **3. Start fresh:**
 ```bash
-# This automatically kills orphaned processes and starts clean
-python start_dashboard_dev.py
+python scripts/dev_server_health_check.py --kill-orphaned
+python lambda/api/dev_server.py
 ```
 
 ---
@@ -42,10 +42,9 @@ python start_dashboard_dev.py
 **Verified:** All dashboard client code uses `http://127.0.0.1:3001` not `http://localhost:3001`
 
 ### ✅ Fix 3: Orphaned Port 3001 Cleanup
-**Location:** `start_dashboard_dev.py` lines 77-121
-**Issue:** When launcher is killed (Ctrl+C), the dev_server subprocess keeps running, causing "Port 3001 already in use" on next startup.
-**Fix:** `cleanup_orphaned_dev_servers()` kills any existing process on port 3001 before starting.
-**Verified:** Called automatically in `start_dev_server()` line 403
+**Location:** `scripts/dev_server_health_check.py`
+**Issue:** When `lambda/api/dev_server.py` is killed (Ctrl+C) without a clean shutdown, the process can keep running, causing "Port 3001 already in use" on next startup.
+**Fix:** `kill_orphaned_server()` kills any existing process on port 3001; run via `python scripts/dev_server_health_check.py --kill-orphaned`.
 
 ---
 
@@ -68,7 +67,7 @@ When dev_server fails to start:
 python scripts/dev_server_health_check.py --kill-orphaned
 
 # Then start fresh
-python start_dashboard_dev.py
+python lambda/api/dev_server.py
 ```
 
 ### "Connection refused" or "Port not responding"

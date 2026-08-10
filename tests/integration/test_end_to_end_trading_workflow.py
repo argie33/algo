@@ -260,10 +260,9 @@ class TestEndToEndTradingWorkflow:
 
     def test_database_schema_migration_exists(self):
         """Verify database migration scripts exist."""
-        scripts_dir = Path(__file__).parent.parent.parent / "scripts"
+        migrations_dir = Path(__file__).parent.parent.parent / "migrations" / "versions"
 
-        # Check for migration script
-        migration_scripts = list(scripts_dir.glob("*migration*")) + list(scripts_dir.glob("*database*"))
+        migration_scripts = list(migrations_dir.glob("*.py")) + list(migrations_dir.glob("*.sql"))
         assert len(migration_scripts) > 0, "Database migration scripts must exist"
 
         print("[OK] Database migration scripts available")

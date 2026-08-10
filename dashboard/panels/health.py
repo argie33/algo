@@ -505,7 +505,7 @@ def _build_phase_execution_panel(
             # dry_run branch reports status="degraded" unconditionally, before any real
             # per-item exit-execution logic runs, so this literal "DRY-RUN" summary can never
             # coexist with a genuine exit error. Left unexempted here, this panel - the primary
-            # way this system is actually observed per start_dashboard_dev.py - showed "~
+            # way this system is actually observed via `python -m dashboard --local` - showed "~
             # HALTED" for Exit Execution on every single local dry-run, indistinguishable from
             # a real halt.
             status_icon = "[dim]⊘[/]"

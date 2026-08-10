@@ -83,8 +83,8 @@ class FileLockManager:
                                 if expiry.tzinfo is None:
                                     expiry = expiry.replace(tzinfo=timezone.utc)
                                 is_content_expired = now > expiry
-                    except Exception:
-                        pass
+                    except Exception as parse_err:
+                        logger.debug(f"[FILE_LOCK] Could not parse lock file content, treating as not-expired: {parse_err}")
 
                     # Remove lock if EITHER content is expired OR file is too old (crashed process)
                     if is_content_expired or is_file_stale:

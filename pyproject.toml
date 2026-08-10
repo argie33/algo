@@ -165,7 +165,6 @@ ignore = ["E203", "E501", "UP031", "RUF012", "N999", "N812"]  # N812: `cursor as
 "scripts/backfill_buy_sell_daily.py" = ["E402"]  # Script: sys.path/env setup before imports
 "scripts/load_credentials.py" = ["E402"]  # Script: sys.path/env setup before imports
 "scripts/run_orchestrator_with_creds.py" = ["E402"]  # Script: credential loading before imports
-"start_dashboard_dev.py" = ["E402"]  # Script: sys.path setup before imports
 "test_fetcher_speed.py" = ["E402"]  # Scratch debug script: setup before imports
 "test_single_fetcher.py" = ["E402"]  # Scratch debug script: setup before imports
 

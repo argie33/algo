@@ -10,7 +10,7 @@ but with a different summary). algo/orchestration/orchestrator.py's _final_repor
 already exempts this literal "DRY-RUN" stub from both its console [DEGRAD] flag and
 its overall success/failure calculation (see that file's 2026-07-27 fix), but
 _build_phase_execution_panel() - the dashboard panel that is the primary way this
-system is actually observed per start_dashboard_dev.py - independently re-derives
+system is actually observed via `python -m dashboard --local` - independently re-derives
 its badge from the raw status string with no equivalent exemption, so it showed
 "~ HALTED" for Exit Execution on every single local dry-run.
 """

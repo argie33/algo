@@ -78,7 +78,7 @@ class StructuredFormatter(logging.Formatter):
             from utils.infrastructure import get_correlation_id as get_corr_id
 
             log_entry["correlation_id"] = get_corr_id()
-        except (ImportError, Exception):
+        except Exception:
             pass  # correlation_context not available or not set
 
         # Merge in extra fields from the record

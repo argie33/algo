@@ -139,13 +139,12 @@ def diagnose_issue() -> None:
     logger.info("=" * 60)
 
     if not is_open:
-        logger.info("1. Start dev_server: python start_dashboard_dev.py")
-        logger.info("2. Or manually: python lambda/api/dev_server.py")
+        logger.info("1. Start dev_server: python lambda/api/dev_server.py")
     else:
         is_healthy, msg = check_dev_server_health()
         if not is_healthy:
             logger.info(f"Dev server is stuck: {msg}")
-            logger.info("Try restarting: Kill process and run start_dashboard_dev.py")
+            logger.info("Try restarting: Kill process and run python lambda/api/dev_server.py")
             pid = get_process_holding_port(port)
             if pid:
                 logger.info(f"Kill command: taskkill /PID {pid} /F")

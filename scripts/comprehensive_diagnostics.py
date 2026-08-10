@@ -20,10 +20,11 @@ Usage:
 import sys
 import argparse
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Dict, Any
 
-# Add parent directory to path
-sys.path.insert(0, '/'.join(__file__.split('/')[:-2]))
+# Add repo root (parent of this script's scripts/ directory) to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from utils.db.context import DatabaseContext
 

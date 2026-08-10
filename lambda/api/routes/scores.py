@@ -1559,8 +1559,8 @@ def _get_incomplete_stocks(
                     if isinstance(d["unavailable_metrics"], str):
                         import json
                         d["unavailable_metrics"] = json.loads(d["unavailable_metrics"])
-                except:
-                    pass  # Keep as-is if parsing fails
+                except (TypeError, ValueError) as parse_err:
+                    logger.warning(f"Could not parse unavailable_metrics, keeping raw value: {parse_err}")
 
             items.append(d)
 

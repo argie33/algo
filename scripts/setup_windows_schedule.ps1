@@ -156,9 +156,9 @@ Write-Host "Task 3: Metrics Pipeline (7:00 PM ET, MON-FRI)"
 Write-Host "  - Refreshes slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, value/quality/growth"
 
 # ADDED 2026-07-21: previously there was no scheduled task for the slow SEC/EDGAR fundamentals
-# refresh at all - only start_dashboard_dev.py's manual, completeness-gated invocation covered
-# it. A pure Task-Scheduler-only setup (no one ever running start_dashboard_dev.py) would never
-# refresh financial statements/13F/insider/positioning/value-quality-growth data.
+# refresh at all - only a manual, completeness-gated `local_loader_scheduler.py --now metrics`
+# invocation covered it. A pure Task-Scheduler-only setup (no one ever running that manually)
+# would never refresh financial statements/13F/insider/positioning/value-quality-growth data.
 $metricsAction = New-ScheduledTaskAction `
     -Execute $pythonExe `
     -Argument "scripts/local_loader_scheduler.py --now metrics" `

@@ -156,8 +156,8 @@ def main() -> None:
     os.environ["LOCAL_MODE"] = "true"
     os.environ["ENVIRONMENT"] = "development"
     # CRITICAL: Force paper trading for this local-dev entry point, matching every other
-    # local launcher (start_dashboard_dev.py, run_dev_pipeline.py, start_dev.py,
-    # dev_environment_setup.py). Without this, ALPACA_PAPER_TRADING falls through to
+    # local launcher (lambda/api/dev_server.py, python -m dashboard --local). Without this,
+    # ALPACA_PAPER_TRADING falls through to
     # whatever the ambient shell happens to have - algo/infrastructure/config/main.py and
     # executor_strategies.py both default "unset" to paper, but an explicit "false" left
     # over in the shell environment (e.g. from a prior session) would silently flip live,

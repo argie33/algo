@@ -163,7 +163,7 @@ echo "Cleanup complete! Run 'du -sh .git' to verify"
 
 1. **Verify everything still works**:
    ```bash
-   python start_dashboard_dev.py  # Should start normally
+   python lambda/api/dev_server.py  # Should start normally
    python scripts/run_local_orchestrator.py --afternoon
    ```
 
