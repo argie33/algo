@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from typing import Any, cast
 
@@ -49,10 +50,15 @@ class TradePreviewRequest(BaseModel):
     @field_validator("stop_loss_price")
     @classmethod
     def validate_stop_loss(cls, v: Any, info: ValidationInfo) -> float | None:
-        if v is not None and "entry_price" in info.data:
-            entry_price = info.data["entry_price"]
-            if v >= entry_price:
-                raise ValueError("Stop loss price must be below entry price")
+        # BUG FOUND 2026-08-10: `v >= entry_price` never catches NaN/Infinity - always False
+        # in Python (same bug class fixed 11x elsewhere this session). Explicit guard closes it.
+        if v is not None:
+            if math.isnan(v) or math.isinf(v):
+                raise ValueError("Stop loss price must be a finite number")
+            if "entry_price" in info.data:
+                entry_price = info.data["entry_price"]
+                if v >= entry_price:
+                    raise ValueError("Stop loss price must be below entry price")
         return cast(float | None, v)
 
 
@@ -178,8 +184,15 @@ class ManualTradeRequest(BaseModel):
     @field_validator("stop_loss_price")
     @classmethod
     def validate_stop_loss(cls, v: Any, info: ValidationInfo) -> float | None:
-        if v is not None and v <= 0:
-            raise ValueError("Stop loss price must be greater than 0")
+        # BUG FOUND 2026-08-10: `v <= 0` never catches NaN/Infinity - always False in Python
+        # (same bug class fixed 11x elsewhere this session). This endpoint manually logs a
+        # real trade entry (POST /api/trades/manual) that feeds the exit engine for the
+        # position's whole lifetime, so a NaN stop_loss_price here is money-critical.
+        if v is not None:
+            if math.isnan(v) or math.isinf(v):
+                raise ValueError("Stop loss price must be a finite number")
+            if v <= 0:
+                raise ValueError("Stop loss price must be greater than 0")
         return cast(float | None, v)
 
 
@@ -217,7 +230,14 @@ class PositionUpdateRequest(BaseModel):
     @field_validator("stop_loss_price")
     @classmethod
     def validate_stop_loss_price(cls, v: float | None) -> float | None:
+        # BUG FOUND 2026-08-10: `v <= 0` / `v > 1_000_000` never catch NaN or +/-Infinity -
+        # those comparisons are always False in Python (same bug class fixed 11x elsewhere
+        # this session in internal money-math call sites; this is the same gap on an
+        # HTTP-reachable admin endpoint that writes straight into algo_positions for a real
+        # open position the exit engine reads from). Explicit isnan/isinf check closes it.
         if v is not None:
+            if math.isnan(v) or math.isinf(v):
+                raise ValueError("Stop loss price must be a finite number")
             if v <= 0:
                 raise ValueError("Stop loss price must be greater than 0")
             if v > 1_000_000:
@@ -228,6 +248,8 @@ class PositionUpdateRequest(BaseModel):
     @classmethod
     def validate_target_price(cls, v: float | None) -> float | None:
         if v is not None:
+            if math.isnan(v) or math.isinf(v):
+                raise ValueError("Target price must be a finite number")
             if v <= 0:
                 raise ValueError("Target price must be greater than 0")
             if v > 1_000_000:
@@ -238,6 +260,8 @@ class PositionUpdateRequest(BaseModel):
     @classmethod
     def validate_entry_price(cls, v: float | None) -> float | None:
         if v is not None:
+            if math.isnan(v) or math.isinf(v):
+                raise ValueError("Entry price must be a finite number")
             if v <= 0:
                 raise ValueError("Entry price must be greater than 0")
             if v > 1_000_000:
