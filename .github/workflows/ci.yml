@@ -149,6 +149,45 @@ jobs:
         working-directory: webapp/lambda
         run: npm audit --audit-level=high
 
+  lint-frontend:
+    # ADDED 2026-08-10: this job never existed - CI only ever covered webapp/lambda
+    # (a separate Node backend-glue directory), never webapp/frontend (the actual React
+    # app users load). No automated lint/test ran on it on any push or PR, ever; the only
+    # workflow touching webapp/frontend at all was deploy-frontend-only.yml, which is
+    # workflow_dispatch-only (manual, not merge-triggered) and only runs `build:prod`, no
+    # lint or test. Found via a live audit that had already caught 4 real, previously-
+    # unnoticed frontend bugs (mojibake corruption, a NaN-renders-as-text bug, 2 permanently-
+    # 404ing API calls) this same session - none of which any automated check would have
+    # caught pre-merge. Both `npm run lint` and `npm run test:unit` verified clean
+    # (0 warnings, 839 passed/18 skipped) before wiring this in, so this starts CI-green,
+    # not CI-red on day one.
+    name: Lint & Test Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: webapp/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: webapp/frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: webapp/frontend
+        run: npm run lint
+
+      - name: Run Vitest unit tests
+        working-directory: webapp/frontend
+        run: npm run test:unit
+
   coverage:
     name: Test Coverage
     runs-on: ubuntu-latest

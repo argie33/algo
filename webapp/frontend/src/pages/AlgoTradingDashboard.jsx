@@ -80,19 +80,6 @@ const STATUS_ICON = {
   running: <Activity size={14} />,
 };
 
-// Phase status colors for the chip display
-const PHASE_STATUS_COLORS = {
-  success: "#10b981",
-  ok: "#10b981",
-  degraded: "#f59e0b",
-  warn: "#f59e0b",
-  halt: "#f59e0b",
-  halted: "#f59e0b",
-  error: "#ef4444",
-  alert: "#ef4444",
-  skipped: "#6b7280",
-};
-
 const fmtAgo = (ts) => {
   if (!ts) return "—";
   const s = (Date.now() - new Date(ts).getTime()) / 1000;
