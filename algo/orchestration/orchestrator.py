@@ -870,7 +870,7 @@ class Orchestrator:
         90%+ completion or timeout. This prevents Phase 1 from running with stale data.
 
         Strategy:
-        1. Query which critical loaders are actively running (status = 'running', completion_pct < 95)
+        1. Query which critical loaders are actively running (status = 'RUNNING', completion_pct < 95)
         2. Poll every 5 seconds, checking for completion
         3. If all critical loaders complete, Phase 1 proceeds immediately
         4. If timeout expires, Phase 1 proceeds anyway but may detect degraded mode
@@ -904,12 +904,22 @@ class Orchestrator:
                         # This is acceptable data quality for trading. Previous 95% threshold would timeout
                         # every day at ~94.6%, causing unnecessary halts. Phase 1 validates actual data quality,
                         # so orchestrator can proceed with 90%+ loaders and let Phase 1 catch data issues.
+                        # BUG FOUND 2026-08-10 (live evidence): every status value this table
+                        # actually stores is uppercase (LoaderStatus.RUNNING.value == "RUNNING" -
+                        # confirmed via `SELECT DISTINCT status FROM data_loader_status`: RUNNING,
+                        # COMPLETED, TIMEOUT, etc., never lowercase). Postgres string equality is
+                        # case-sensitive by default, so `status = 'running'` never matched a single
+                        # row - this half of the OR was silently dead. Live-reproduced: a crashed
+                        # mid-run left quality_metrics/growth_metrics (both critical loaders)
+                        # status='RUNNING' with completion_pct 95.57%/94.00% (both >=90), so neither
+                        # half of the original condition caught them - the proactive wait treated a
+                        # genuinely stuck-mid-run critical loader as fine.
                         cur.execute(
                             """
                             SELECT table_name, status, completion_pct, symbols_loaded, symbol_count
                             FROM data_loader_status
                             WHERE table_name = ANY(%s)
-                            AND (status = 'running' OR completion_pct < 90.0)
+                            AND (status = 'RUNNING' OR completion_pct < 90.0)
                             ORDER BY completion_pct ASC
                             """,
                             (list(critical_loaders),),
@@ -964,6 +974,13 @@ class Orchestrator:
                 f"Halting to investigate and prevent partial data load."
             )
 
+        except RuntimeError:
+            # Our own intentionally-raised "loader stalled" signal from the timeout
+            # branch above (line ~960) - let it propagate as-is. It must NOT fall into
+            # the generic Exception handler below, which would relabel a legitimate
+            # stalled-loader condition as a "programming error", misleading anyone
+            # reading the logs about what actually happened.
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
             msg = f"[PROACTIVE WAIT] Infrastructure error during loader status check: {e}. Cannot proceed with uncertain loader state."
             logger.error(msg)

@@ -126,16 +126,31 @@ class SystemDiagnostics:
         """Check for stale and orphaned locks."""
         try:
             with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
-                # Check for stale locks (>2 hours old)
+                # Check for stale locks (>2 hours old).
+                #
+                # BUG FOUND 2026-08-10: this used to query data_loader_runs for
+                # status='running' - but every writer of that table (load_prices.py,
+                # load_technical_indicators.py, loader_success_logger.py, provenance.py)
+                # does a single INSERT after a run finishes, with status in
+                # ('success','failed','completed') - never 'running'. No row in that table
+                # can ever match this WHERE clause, so this check vacuously always reported
+                # "No stale loader locks found" regardless of real state. The table that
+                # actually tracks in-progress loaders is data_loader_status
+                # (utils/loaders/status_manager.py's mark_running() sets
+                # status=LoaderStatus.RUNNING.value == 'RUNNING', uppercase - confirmed via
+                # `SELECT DISTINCT status FROM data_loader_status`), which is exactly what
+                # this check needs. Live-reproduced the same day: a crashed metrics-pipeline
+                # run left quality_metrics/growth_metrics genuinely stuck at status='RUNNING'
+                # for hours - this diagnostic would have reported "OK" throughout.
                 query = """
                 SELECT
-                    loader_name,
-                    started_at,
-                    EXTRACT(EPOCH FROM (NOW() - started_at)) as age_seconds
-                FROM data_loader_runs
-                WHERE started_at < NOW() - INTERVAL '2 hours'
-                  AND status = 'running'
-                ORDER BY started_at DESC
+                    table_name AS loader_name,
+                    execution_started AS started_at,
+                    EXTRACT(EPOCH FROM (NOW() - execution_started)) as age_seconds
+                FROM data_loader_status
+                WHERE execution_started < NOW() - INTERVAL '2 hours'
+                  AND status = 'RUNNING'
+                ORDER BY execution_started DESC
                 LIMIT 20
                 """
 
@@ -168,7 +183,7 @@ class SystemDiagnostics:
                         self.results.append(DiagnosticResult(
                             'Stale Locks',
                             'OK',
-                            'data_loader_runs table not found'
+                            'data_loader_status table not found'
                         ))
                     else:
                         raise
