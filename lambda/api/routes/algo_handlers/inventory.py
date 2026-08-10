@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
+import psycopg2.sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     db_route_handler,
@@ -68,7 +69,13 @@ def _get_table_inventory(cur: cursor) -> Any:
         untracked_tables = []
         for tbl_name in sorted(actual_tables_set - tracked_tables_set):
             try:
-                cur.execute(f'SELECT COUNT(*) FROM "{tbl_name}"')
+                # tbl_name is enumerated from information_schema.tables (real Postgres
+                # catalog data, not request-derived), so this isn't reachable from any HTTP
+                # input - but building SQL identifiers via f-string instead of
+                # psycopg2.sql.Identifier() is still the wrong pattern (every other dynamic-
+                # identifier query in this codebase uses it), so hardened for defense in
+                # depth/consistency rather than left as a latent landmine for a future caller.
+                cur.execute(psycopg2.sql.SQL("SELECT COUNT(*) FROM {}").format(psycopg2.sql.Identifier(tbl_name)))
                 result = cur.fetchone()
                 cnt = result[0] if result else 0
                 untracked_tables.append(
