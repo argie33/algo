@@ -426,9 +426,12 @@ Fundamentals fallback to yfinance already had the right instinct: `require_sec=T
 `data_unavailable` instead - the price path had no equivalent strict mode before this,
 though this doc doesn't add one, since dropping price data outright for 0.6% of the
 universe would trade "we can't tell the source" for "we don't have the data at all",
-without an ask for that tradeoff. Compare historical sources anytime with
-`python scripts/compare_price_sources.py` (prior result: 99.4% coverage, close diff
-median 0.0000%, volume ratio median 1.000 = true SIP). **Session 275+:** yfinance_snapshot
+without an ask for that tradeoff. This was evaluated once via `scripts/compare_price_sources.py`
+(prior result: 99.4% coverage, close diff median 0.0000%, volume ratio median 1.000 = true
+SIP) before switching `PRICE_DATA_SOURCE` - that script was a one-time Alpaca-migration
+evaluation harness, since deleted (2026-07-27, commit f6d061869); it is NOT available to
+rerun "anytime" as this doc previously implied. If re-verifying source parity is needed
+again, it would need to be rewritten. **Session 275+:** yfinance_snapshot
 (the metrics/fundamentals table, unrelated to the OHLCV fallback above) fully deprecated
 from all loaders (removed from terraform pipeline and trigger-loaders). The $99/mo plan
 is only needed for intraday/real-time (recent-SIP + websocket + 10k/min).

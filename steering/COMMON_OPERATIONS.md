@@ -62,11 +62,23 @@ python3 -m dashboard --local -w 30
 1. Check dev server is running: `curl http://localhost:3001/api/health`
 2. Check for API errors: `curl http://localhost:3001/api/algo/portfolio`
 3. Review dev server logs for errors
-4. Run diagnostics: `python3 scripts/diagnose_system.py`
+4. Run diagnostics: `python3 scripts/comprehensive_diagnostics.py`
+   (FIXED 2026-08-10: this used to say `scripts/diagnose_system.py`, deleted 2026-07-27 in
+   commit f6d061869 - `comprehensive_diagnostics.py` is the current live equivalent, covers
+   DB pool/locks/loader health/config validation)
 
 **If using AWS (not local):**
-- See [AWS_LAMBDA_503_FIX.md](AWS_LAMBDA_503_FIX.md) for Lambda 503 troubleshooting
-- Run: `python3 scripts/fix-lambda-vpc-config.py`
+- FIXED 2026-08-10: this used to say "See AWS_LAMBDA_503_FIX.md" + "Run
+  scripts/fix-lambda-vpc-config.py" - neither exists (both deleted 2026-07-27, commit
+  f6d061869, no replacement written), AND the underlying advice is now architecturally
+  wrong: `terraform/modules/services/main.tf`'s `aws_lambda_function.api` resource has a
+  `# REMOVED VPC: Public Lambda is cheaper (no ENI costs), dashboard doesn't need VPC
+  security` comment - the API Lambda is deliberately NOT in a VPC anymore, so a VPC-config
+  fix does not apply to current architecture. If you're seeing 503s, they are not a VPC
+  issue - check CloudWatch logs for the actual Lambda error first (`aws logs tail
+  /aws/lambda/<api-lambda-name> --since 30m`), then verify RDS Proxy reachability
+  (`var.rds_proxy_address`) and `ALGO_SECRETS_ARN`/`DB_SECRET_ARN` resolve correctly -
+  those are the Lambda's actual DB-connectivity dependencies per its `environment` block.
 - Redeploy: `gh workflow run deploy-api-lambda.yml`
 
 ---

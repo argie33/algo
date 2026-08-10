@@ -15,9 +15,13 @@ from pathlib import Path
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
-# LOCAL DEV OPTIMIZATION: Set higher parallelism for local development
+# BUG FOUND 2026-08-10 (via [[analyst_loaders_reloaded_and_local_parallelism_ban_20260810]]):
+# this used to default to "4" for "local dev optimization". Live-reproduced: LOADER_PARALLELISM=4
+# self-triggered the yfinance shared-IP circuit breaker from a single local machine, causing
+# 84%+ false-failure rates on analyst loaders (same fix applied to scripts/run_loader.py).
+# Default to 1 to match the value actually verified safe.
 if "LOADER_PARALLELISM" not in os.environ:
-    os.environ["LOADER_PARALLELISM"] = "4"
+    os.environ["LOADER_PARALLELISM"] = "1"
 
 # Import registry mapping to convert shorthand names to filenames
 from loaders.loader_registry import all_tables, normalize_loader_name
