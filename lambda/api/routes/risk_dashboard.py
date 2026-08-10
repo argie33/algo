@@ -342,7 +342,13 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
 
     try:
         exposure_pct_raw = row["exposure_pct"]
-        if exposure_pct_raw is None or (isinstance(exposure_pct_raw, float) and exposure_pct_raw < 0):
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `< 0` never catches NaN (NaN
+        # comparisons are always False in Python) - this directly feeds position sizing per
+        # this function's own error message below.
+        if exposure_pct_raw is None or (
+            isinstance(exposure_pct_raw, float)
+            and (math.isnan(exposure_pct_raw) or math.isinf(exposure_pct_raw) or exposure_pct_raw < 0)
+        ):
             raise ValueError(
                 "CRITICAL: exposure_pct missing or invalid from market_exposure_daily. "
                 "Phase 4 (market exposure calculation) must complete successfully. "

@@ -1311,7 +1311,10 @@ def _normalize_exposure(exp: dict[str, Any]) -> Any:
         raise ValueError("exposure_pct is required but missing")
     try:
         exposure_pct = float(exposure_pct_raw)
-        if exposure_pct < 0 or exposure_pct > 100:
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<0`/`>100` never catch NaN
+        # (NaN comparisons are always False in Python) - this function's own docstring says
+        # "AWS position sizing depends on this", so a NaN would have passed as "valid".
+        if math.isnan(exposure_pct) or math.isinf(exposure_pct) or exposure_pct < 0 or exposure_pct > 100:
             raise ValueError(f"exposure_pct {exposure_pct} outside valid range [0,100]")
     except (TypeError, ValueError) as e:
         raise ValueError(
