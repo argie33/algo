@@ -125,7 +125,20 @@ def run_pipeline(pipeline_name: str) -> int:
         "stability_metrics": 30 * 60,            # 30 min - alias for momentum
         "valuations": 20 * 60,                   # 20 min - SEC API calls
         # SEC/Financial data (batch API calls)
-        "financial_statements": 30 * 60,         # 30 min - SEC EDGAR batch queries (5500+ symbols)
+        # BUG FOUND 2026-08-10: 30 min was never enough for a genuine full-universe local
+        # reload - live-reproduced twice this session, each run making comparable, real
+        # progress (~2000-2500 of ~4900 symbols fetched via SEC EDGAR, one statement/period
+        # combo at a time) but still short of completion at the 1800s mark, so
+        # subprocess.TimeoutExpired killed it both times before it ever reached the
+        # loaders after it in the pipeline (sec_valuations, value_quality_growth, etc.) -
+        # `_check_loader_dependencies()` only tracks loaders completed *within this same
+        # invocation* (a local `completed_loaders` set, not real DB freshness), so there is
+        # no way to skip financial_statements even when its data is already fresh from a
+        # separate production run. Bumped to match this loader's real full-universe runtime
+        # (matches the ~3.5h whole-pipeline figure in memory, of which this loader is the
+        # largest chunk), consistent with how "prices" already budgets 90 min for a
+        # comparably-sized universe.
+        "financial_statements": 150 * 60,        # 150 min - SEC EDGAR batch queries (5500+ symbols, 6 statement/period combos each)
         "sec_valuations": 30 * 60,               # 30 min - valuation computation from SEC data
         # Fundamental metrics (API-heavy)
         "value_quality_growth": 40 * 60,         # 40 min - multi-source aggregation
