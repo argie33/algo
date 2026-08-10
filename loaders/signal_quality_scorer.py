@@ -103,22 +103,41 @@ class SellSignalScorer(SignalQualityScorer):
         return score
 
     def calculate_trend_template_score(self, minervini: float | None, weinstein_stage: int | None) -> int:
-        """For SELL: Similar to BUY (uses same scoring rules)."""
-        # Note: SELL scoring appears identical to BUY in the original code
+        """For SELL: rewards BEARISH trend confirmation - the inverse of BuySignalScorer.
+
+        BUG FOUND 2026-08-10 (live-reproduced): this was byte-for-byte identical to
+        BuySignalScorer.calculate_trend_template_score() - rewarding a HIGH Minervini score
+        (strong uptrend) and Weinstein Stage 2/3 (accumulation/advancing) for a SELL signal,
+        exactly backwards for confirming a bearish breakdown setup. The prior "Note: SELL
+        scoring appears identical to BUY in the original code" comment flagged the smell
+        without fixing it. Confirmed reachable, not dead code: buy_sell_daily.signal_type has
+        34,227 real 'SELL' rows (vs 28,745 'BUY'), and load_signal_quality_scores.py queries
+        `signal_type IN ('BUY', 'SELL')` and dispatches each through get_signal_scorer(),
+        so every one of those rows' signal_quality_score was computed with this backwards
+        logic. Note: buy_sell_daily.signal (a separate column) is what actually gates real
+        entry execution in Phase 7/8 - this system is long-only in practice - so this bug
+        doesn't misprice real trades, but it does corrupt signal_quality_score for every SELL
+        row, which feeds dashboard/analytics/API consumers (lambda/api/routes/signals.py and
+        others) that surface sell-signal quality to an operator.
+
+        Weinstein stage 3/4 (distribution/decline) and a LOW Minervini score (weak trend
+        template) are the natural inversion - a stock breaking down while genuinely leaving
+        its uptrend, not one still showing bullish trend-template strength.
+        """
         score = 0
 
         if minervini is not None and not pd.isna(minervini):
             m_val = float(minervini)
-            if m_val >= 3:
+            if m_val < 2:
                 score += 15
-            elif m_val >= 2:
+            elif m_val < 3:
                 score += 10
             else:
                 score += 5
 
         if weinstein_stage is not None and not pd.isna(weinstein_stage):
             stage_val = int(weinstein_stage)
-            if stage_val in [2, 3]:
+            if stage_val in [3, 4]:
                 score += 10
             else:
                 score += 3
