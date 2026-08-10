@@ -1225,6 +1225,19 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
     return True, None
 
 
+def _should_halt_on_zero_scored_symbols(score_result: dict[str, Any]) -> bool:
+    """A symbols_processed == 0 signal-quality-score result should only halt Phase 7 when it
+    signals a real failure (lock contention aside, which is its own non-halting degraded path
+    handled by the caller). `already_computed_today` and `no_signals_found` are both legitimate,
+    non-error reasons for an empty result and must not trip the halt.
+    """
+    return not (
+        score_result.get("lock_contention", False)
+        or score_result.get("already_computed_today", False)
+        or score_result.get("no_signals_found", False)
+    )
+
+
 def run(  # noqa: C901
     run_date: _date,
     dry_run: bool,
@@ -1474,7 +1487,13 @@ def run(  # noqa: C901
         # 09:42, correctly skipped re-computing, and this check treated that intentional
         # skip as "loader failed to acquire lock" and halted the entire orchestrator -
         # blocking Phase 8 entries on data that was valid and current.
-        if symbols_processed == 0 and not score_result.get("lock_contention", False) and not score_result.get("already_computed_today", False):
+        # EXCEPTION: If no_signals_found is set, symbols_processed=0 means there were simply
+        # no BUY signals in buy_sell_daily to score (e.g. stale upstream data, quiet market) -
+        # live-confirmed 2026-08-10: this legitimately-empty result was falling through to the
+        # same "failed to acquire the processing lock" halt message despite the no_signals_found
+        # branch's own comment saying "Phase 8 handles gracefully", cascading a benign
+        # zero-signals morning into a full orchestrator halt (Phase 7 halted -> Phase 8/9 errored).
+        if symbols_processed == 0 and _should_halt_on_zero_scored_symbols(score_result):
             msg = (
                 "[PHASE 7 CRITICAL] Signal quality score computation produced 0 symbols processed. "
                 "This indicates the loader failed to acquire the processing lock (likely held by stale process) "
@@ -2099,6 +2118,7 @@ def run(  # noqa: C901
         # batch pre-computation had contention. This is safe degradation (inline scores still computed)
         # but Phase 8 should log it for visibility.
         "lock_contention": score_result.get("lock_contention", False),
+        "no_signals_found": score_result.get("no_signals_found", False),
     }
     validate_phase_data(7, phase_data)
     return PhaseResult(
