@@ -107,8 +107,26 @@ def check_secrets_freshness() -> tuple[bool, str]:
         name = parts[0]
         updated_str = parts[1]
 
-        # Skip known long-lived secrets (static config)
-        if name in ["DB_NAME", "DB_USER", "AWS_ACCOUNT_ID", "API_GATEWAY_URL"]:
+        # Skip known long-lived secrets (static config, not credential material - nothing to
+        # "rotate" for an AWS region name, an email address, a boolean flag, or a numeric
+        # threshold). BUG FOUND 2026-08-10: this skip-list was incomplete - live-reproduced
+        # via `gh secret list --repo argie33/algo` returning 13 "stale" (>90 days) findings,
+        # of which only DB_PASSWORD (and arguably RDS_USERNAME/LAMBDA_ROLE_ARN, left flagged
+        # deliberately - a username or IAM role ARN can meaningfully be treated as sensitive
+        # even if not literally rotated on a schedule) is genuine credential material; the
+        # rest (AWS_REGION, BILLING_EMAIL, BILLING_MONTHLY_LIMIT, BILLING_PHONE_NUMBER,
+        # DATA_PATROL_ENABLED, DATA_PATROL_TIMEOUT_MS, EXECUTION_MODE, NOTIFICATION_EMAIL,
+        # ORCHESTRATOR_DRY_RUN, ORCHESTRATOR_LOG_LEVEL) are plain operational config stored in
+        # GitHub Secrets purely as the mechanism to inject env vars into Actions workflows,
+        # not because they're sensitive - flagging them as "stale" every 90 days is pure noise
+        # that would train whoever runs this to ignore its output, the same "cry wolf" alert-
+        # fatigue pattern already fixed once this session for entry_handler's routine-trade logging.
+        if name in [
+            "DB_NAME", "DB_USER", "AWS_ACCOUNT_ID", "API_GATEWAY_URL",
+            "AWS_REGION", "BILLING_EMAIL", "BILLING_MONTHLY_LIMIT", "BILLING_PHONE_NUMBER",
+            "DATA_PATROL_ENABLED", "DATA_PATROL_TIMEOUT_MS", "EXECUTION_MODE",
+            "NOTIFICATION_EMAIL", "ORCHESTRATOR_DRY_RUN", "ORCHESTRATOR_LOG_LEVEL",
+        ]:
             continue
 
         try:
