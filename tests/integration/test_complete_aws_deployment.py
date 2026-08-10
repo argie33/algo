@@ -27,14 +27,17 @@ class TestCompleteAWSDeployment:
         assert len(phases) == 9, f"Expected 9 phases, got {len(phases)}"
         assert sorted(phase_nums) == [1, 2, 3, 4, 5, 6, 7, 8, 9], f"Phase numbers invalid: {phase_nums}"
 
-        # Verify key phases are not always marked skip_if_halted
+        # Phases 3-9 are all always_run=True by design (fixed 2026-08-10): risk-management
+        # phases (reconciliation, exposure policy, exits, signal generation, entry execution)
+        # must keep running during a halt so a halted state can't trap capital in a position
+        # or leave stale risk data. A halted dependency now reports status="skipped" rather
+        # than status="error" (see phase_executor.py's halted-dependency-cascade fix).
         phase_4 = registry.get_phase(4)
         phase_5 = registry.get_phase(5)
         phase_8 = registry.get_phase(8)
 
-        # On trading days, these should be executable (not inherently skipped)
-        assert phase_4 is not None and not phase_4.always_run, "Phase 4 must be skippable by halt"
-        assert phase_5 is not None and not phase_5.always_run, "Phase 5 must be skippable by halt"
+        assert phase_4 is not None and phase_4.always_run, "Phase 4 must always run (risk-management, 2026-08-10 fix)"
+        assert phase_5 is not None and phase_5.always_run, "Phase 5 must always run (risk-management, 2026-08-10 fix)"
         # Phase 8 must ALWAYS run for proactive risk enforcement (Session 396 fix)
         assert phase_8 is not None and phase_8.always_run, "Phase 8 must always run for proactive risk checks"
 
