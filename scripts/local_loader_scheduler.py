@@ -55,6 +55,30 @@ PIPELINES = {
         "scores",
         "buy_sell",
     ],
+    # ADDED 2026-08-10: these 9 loaders had no PIPELINES entry, making them unreachable
+    # locally via the sanctioned `--now {pipeline}` path - the only way to run/backfill them
+    # was to invoke the script directly, bypassing this scheduler entirely (see
+    # feedback_always_use_pipeline_scheduler_for_backfills). segment_metrics depends on
+    # segment_info (see LOADER_DEPENDENCIES below - terraform/modules/pipeline/main.tf
+    # documents this as a CRITICAL DEPENDENCY: "SecSegmentMetrics depends on sec_segment_info
+    # being freshly populated"), so it's listed after. institutional/insider_holdings feed
+    # positioning_metrics (also a terraform-documented CRITICAL DEPENDENCY) but are NOT wired
+    # as a same-run LOADER_DEPENDENCIES entry here deliberately - unlike financial statements,
+    # these are slow-changing filings (13F is quarterly) that positioning_metrics reads from
+    # whatever's already in the table, not from this specific run; forcing a same-run
+    # dependency would make every local "metrics" run wait on a quarterly-cadence reload it
+    # doesn't need.
+    "reference": [
+        "company_info",
+        "profile",
+        "institutional",
+        "insider_holdings",
+        "insider_velocity",
+        "sec_reports",
+        "short_interest",
+        "segment_info",
+        "segment_metrics",
+    ],
 }
 
 # CRITICAL: Loader dependencies - some loaders must run before others
@@ -68,6 +92,9 @@ LOADER_DEPENDENCIES = {
     "value_quality_growth": ["financial_statements", "valuations", "analyst_earnings_estimates"],
     # Enhanced metrics layer depends on value_quality_growth base metrics
     "enhanced_quality_growth": ["value_quality_growth"],
+    # sec_segment_metrics computes Herfindahl index / diversification from sec_segment_info -
+    # terraform/modules/pipeline/main.tf documents this as a CRITICAL DEPENDENCY.
+    "segment_metrics": ["segment_info"],
 }
 
 
@@ -220,6 +247,23 @@ def run_pipeline(pipeline_name: str) -> int:
                 # signal that only exists in local dev because it never exercises the same
                 # code path as production. Invoke the module directly so local runs
                 # validate the same logic that actually gates production.
+                cmd = [sys.executable, f"loaders/{loader_filename}"]
+            elif loader == "prices":
+                # BUG FOUND 2026-08-10: same class of bug as the buy_sell case above.
+                # load_prices.py's main() merges MarketSymbolsConfig.get_essential_stocks()
+                # (SPY, QQQ, IWM, GLD, TLT, ^VIX) into the "stock" asset_class run_symbols
+                # list (main() only, ~line 3543) - scripts/run_loader.py's generic path calls
+                # PriceLoader.run() directly via get_active_symbols(), which never includes
+                # this essential-symbol merge. Live-confirmed: after running "signals"
+                # repeatedly via the generic path, price_daily showed AAPL/SPY/QQQ/IWM fresh
+                # through 2026-08-07 but GLD/TLT/^VIX stuck at 2026-08-06 - one real trading
+                # day stale. This matters beyond staleness: ^VIX gates the circuit breaker's
+                # market-halt decision (VIX >= 35 halts trading) and
+                # algo/risk/factors/vix_mean_reversion_factor.py - Phase 1's own VIX
+                # freshness check (algo/orchestrator/phase1_data_freshness.py) can never be
+                # genuinely exercised against fresh data via the local pipeline scheduler
+                # without this fix. Invoke the module directly so local runs refresh the same
+                # essential-symbol set production does.
                 cmd = [sys.executable, f"loaders/{loader_filename}"]
             else:
                 cmd = [sys.executable, "scripts/run_loader.py", loader_filename]
