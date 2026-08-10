@@ -74,6 +74,11 @@ jobs:
           python scripts/validate_memory.py
         continue-on-error: false
 
+      - name: Validate loader registry/Terraform/Lambda sync
+        run: |
+          python scripts/validate_loader_systems_sync.py
+        continue-on-error: false
+
       - name: Run unit tests
         run: |
           pytest tests/ -m unit -v --tb=short

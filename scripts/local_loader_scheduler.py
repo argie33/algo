@@ -301,90 +301,33 @@ def run_pipeline(pipeline_name: str) -> int:
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
             loader_filename = normalize_loader_name(loader)
             env = os.environ.copy()
+            # ROOT-CAUSE FIX 2026-08-10: always invoke the loader module directly
+            # (`python loaders/{file}.py`, exactly what terraform/modules/loaders/main.tf
+            # runs in production), never scripts/run_loader.py's generic path.
+            #
+            # Previously only financial_statements/buy_sell/prices/trend_analysis/economic
+            # were special-cased for direct invocation, and everything else fell through to
+            # run_loader.py's generic OptimalLoader-class introspection path, which imports
+            # the loader CLASS and calls .run() directly - it never reaches the module's own
+            # main(). Each of those 5 was independently discovered and patched one at a time
+            # ("Nth main()-bypass instance" commits) after main()-only logic silently never
+            # ran locally: buy_sell's real completion thresholds, prices' essential-symbol
+            # (SPY/QQQ/IWM/GLD/TLT/^VIX) merge, financial_statements' LOADER_STATEMENT_TYPE
+            # fan-out, and trend_analysis/economic's plain function-based modules (no
+            # OptimalLoader subclass at all, so the generic path couldn't even load them and
+            # exited 1 immediately). A follow-up audit found the same bug class still live and
+            # un-special-cased in load_technical_indicators.py (schema migrations + hang-
+            # detection heartbeat, main()-only) and load_positioning_metrics.py (crash-safe
+            # data_unavailable marking, main()-only) - patching those two in as a 6th and 7th
+            # entry would just leave the next loader's main()-only logic as an 8th. Fixed at
+            # the root instead: every loader now runs its real production entrypoint locally,
+            # so there is no generic path left to silently diverge from production.
             if loader == "financial_statements":
-                # load_financial_statements.py can't go through scripts/run_loader.py:
-                # run_loader.py instantiates ConsolidatedFinancialStatementsLoader directly
-                # (loader_class()), which requires LOADER_STATEMENT_TYPE to already name ONE
-                # of the 6 statement/period combos - it never reaches this module's own
-                # main(), where LOADER_STATEMENT_TYPE="all" fans out to all 6 combos via
-                # load_all_statements(). Must invoke the module directly instead.
+                # load_financial_statements.py's main() fans LOADER_STATEMENT_TYPE="all" out
+                # to all 6 statement/period combos via load_all_statements(); the class
+                # constructor alone requires one specific combo to already be named.
                 env["LOADER_STATEMENT_TYPE"] = "all"
-                cmd = [sys.executable, f"loaders/{loader_filename}"]
-            elif loader == "buy_sell":
-                # BUG FOUND 2026-08-10: load_buy_sell_daily.py's own main() (the real
-                # production entrypoint - terraform/modules/loaders/main.tf runs
-                # `loaders/load_buy_sell_daily.py` directly) contains custom completion
-                # logic (effective_universe bounded by the stock_scores/price-filtered
-                # symbol count, a threshold of 90-95% instead of the generic 98% default,
-                # proper mark_completed() min_completion_pct). scripts/run_loader.py never
-                # calls that main() - it imports the loader CLASS and calls the generic
-                # OptimalLoader.run()/_update_final_status() path instead, which knows
-                # nothing about buy_sell_daily's legitimate ~94% cap (stock_scores only
-                # covers ~4885 of the full active-symbol universe by design). Confirmed
-                # live: routing through run_loader.py left buy_sell_daily stuck FAILED at
-                # 94.25% completion in data_loader_status for days, even on a run whose own
-                # loader.run() summary showed only 1/4885 real per-symbol failures - a false
-                # signal that only exists in local dev because it never exercises the same
-                # code path as production. Invoke the module directly so local runs
-                # validate the same logic that actually gates production.
-                cmd = [sys.executable, f"loaders/{loader_filename}"]
-            elif loader == "prices":
-                # BUG FOUND 2026-08-10: same class of bug as the buy_sell case above.
-                # load_prices.py's main() merges MarketSymbolsConfig.get_essential_stocks()
-                # (SPY, QQQ, IWM, GLD, TLT, ^VIX) into the "stock" asset_class run_symbols
-                # list (main() only, ~line 3543) - scripts/run_loader.py's generic path calls
-                # PriceLoader.run() directly via get_active_symbols(), which never includes
-                # this essential-symbol merge. Live-confirmed: after running "signals"
-                # repeatedly via the generic path, price_daily showed AAPL/SPY/QQQ/IWM fresh
-                # through 2026-08-07 but GLD/TLT/^VIX stuck at 2026-08-06 - one real trading
-                # day stale. This matters beyond staleness: ^VIX gates the circuit breaker's
-                # market-halt decision (VIX >= 35 halts trading) and
-                # algo/risk/factors/vix_mean_reversion_factor.py - Phase 1's own VIX
-                # freshness check (algo/orchestrator/phase1_data_freshness.py) can never be
-                # genuinely exercised against fresh data via the local pipeline scheduler
-                # without this fix. Invoke the module directly so local runs refresh the same
-                # essential-symbol set production does.
-                cmd = [sys.executable, f"loaders/{loader_filename}"]
-            elif loader == "trend_analysis":
-                # BUG FOUND 2026-08-10: not a "different logic" bypass like the 3 cases above -
-                # this one is a hard, currently-reproducing failure. load_trend_analysis.py is a
-                # plain function-based module (run()/main() functions, no OptimalLoader subclass
-                # or any class at all) - scripts/run_loader.py's generic path requires
-                # get_loader_class_for_file() to find a loader CLASS before it will call
-                # run_loader_generic() (whose own "trend_template_data" special-case branch is
-                # consequently dead code, unreachable). Confirmed live: `python scripts/
-                # run_loader.py load_trend_analysis.py` exits 1 immediately with "Could not find
-                # OptimalLoader subclass" / "Could not load class" - it has never worked via this
-                # path. Since "trend_analysis" was never special-cased for direct invocation
-                # (unlike financial_statements/buy_sell/prices), every local "morning" pipeline
-                # run's trend_analysis step has always failed outright, and since a failed loader
-                # aborts run_pipeline() here (see the returncode check below), this also blocked
-                # sector_industry (the next step in "morning") from ever running locally via
-                # --now morning. Root cause of trend_template_data sitting stuck in RUNNING for
-                # 6+ hours with no owning process alive (see status_manager.reap_stale_running_loaders) -
-                # whatever last set it RUNNING never reached a real run() to complete or fail it
-                # through this broken path. `python loaders/load_trend_analysis.py` directly
-                # (production's real entrypoint, terraform/modules/loaders/main.tf) works fine -
-                # live-verified 2026-08-10: completed in 6s (pure price_daily computation, no
-                # yfinance calls), stuck status flipped RUNNING -> COMPLETED.
-                cmd = [sys.executable, f"loaders/{loader_filename}"]
-            elif loader == "economic":
-                # BUG FOUND 2026-08-10, same class as the trend_analysis case above (and
-                # caught via the systematic sweep that fix's own memory note recommended -
-                # every LOADER_TABLES entry checked against get_loader_class_for_file()).
-                # load_economic_data.py is a plain function-based module (load()/_load_impl(),
-                # no class at all) - confirmed live: get_loader_class_for_file(
-                # "load_economic_data.py") returns None, so scripts/run_loader.py's generic
-                # path would exit 1 immediately. "economic" sits before naaim/aaii/dividends
-                # in the "reference" pipeline (added this same session), and run_pipeline()
-                # aborts on any loader failure - left as-is, this would have silently blocked
-                # naaim/aaii/dividends from ever backfilling locally too, not just economic_data
-                # itself. Direct invocation matches production's real entrypoint
-                # (terraform/modules/loaders/main.tf runs loaders/load_economic_data.py
-                # directly).
-                cmd = [sys.executable, f"loaders/{loader_filename}"]
-            else:
-                cmd = [sys.executable, "scripts/run_loader.py", loader_filename]
+            cmd = [sys.executable, f"loaders/{loader_filename}"]
             result = subprocess.run(
                 cmd,
                 cwd=str(repo_root),
