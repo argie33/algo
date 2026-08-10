@@ -207,6 +207,31 @@ def test_dependency_halted_stores_skipped_result_not_missing_or_critical_error()
     assert "DEPENDENCY FAILED" in (result_5.error or "")
 
 
+def test_halted_dependency_fix_covers_every_real_phase_not_just_one_pair() -> None:
+    """The fix lives once in execute_phase()'s shared dependency-check fallback, not
+    duplicated per phase - so it must protect every real dependency edge in
+    phase_registry.py's actual topology (4->3, 5->4, 6->3, 7->5, 8->[5,7]), not just the
+    Phase 7->8 pair that was live-reproduced. Mirrors the real registry: phase 3 halts, and
+    phases 4 and 6 (two independent, unrelated dependents of 3) must both come back
+    'skipped', not 'error' - proving the fix isn't hardcoded to one specific phase pair."""
+    executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
+    executor.register_phases(
+        [
+            PhaseDefinition(3, "position_monitor", [], lambda executor, **kw: _halting_phase(3), always_run=True),
+            PhaseDefinition(4, "reconciliation", [3], lambda executor, **kw: _ok_phase(4), always_run=True),
+            PhaseDefinition(6, "exit_execution", [3], lambda executor, **kw: _ok_phase(6), always_run=True),
+        ]
+    )
+
+    executor.run()
+
+    for phase_num in (4, 6):
+        result = executor.get_result(phase_num)
+        assert result is not None
+        assert result.status == "skipped", f"phase {phase_num} expected 'skipped', got {result.status!r}"
+        assert result.halted
+
+
 def test_dependency_genuinely_errored_still_stores_critical_error_result() -> None:
     """A phase whose dependency genuinely errored (not halted - e.g. an unhandled exception
     in the dependency's own logic) must still get the original CRITICAL 'error' treatment,
