@@ -286,20 +286,41 @@ def run_loader(
                 loader.post_run()
 
             # Mark completion with error count visibility so dashboard shows partial success (e.g. "95 of 100 succeeded")
+            #
+            # BUG FIX: this call used to omit min_completion_pct, so LoaderStatusManager.mark_completed()
+            # fell back to its own hardcoded 98% default when re-deriving completion_pct from the
+            # symbol_count/symbols_loaded row this same function just verified against the loader's
+            # REAL max_fail_rate (line 258's fail_rate > max_fail_rate check, just passed to reach this
+            # line). For any loader with max_fail_rate > 2% - i.e. any loader that legitimately expects
+            # more than 2% of symbols to lack data (ADRs, foreign filers, delisted symbols, thin
+            # coverage - common: quality/growth/value metrics at 20%, financial statements at 15%) -
+            # a run that correctly PASSED this function's own fail-rate gate moments above could still
+            # land between (100-max_fail_rate)% and 98%, and this redundant mark_completed() call would
+            # then flip it straight back to FAILED using the wrong, stricter threshold - directly
+            # contradicting the PASS verdict this same function just computed. Passing the loader's own
+            # threshold keeps this call consistent with the gate above instead of second-guessing it.
+            min_completion_pct = max(0.0, 100.0 - max_fail_rate_pct)
             from utils.loaders.status_manager import LoaderStatusManager
             status_mgr = LoaderStatusManager(loader.table_name)
             status_mgr.mark_completed(
                 execution_duration_sec=execution_duration,
-                symbols_failed=symbols_failed if symbols_failed > 0 else None  # Only log if there were failures
+                symbols_failed=symbols_failed if symbols_failed > 0 else None,  # Only log if there were failures
+                min_completion_pct=min_completion_pct,
             )
 
             # For loaders that write to multiple tables, also record execution time for secondary tables
-            # (e.g., load_sector_industry_daily writes to sector_performance, sector_ranking, industry_ranking)
+            # (e.g., load_sector_industry_daily writes to sector_performance, sector_ranking, industry_ranking).
+            # Same min_completion_pct fix as above - these secondary tables share the primary's fail-rate
+            # verdict (output_tables means "rises and falls with the primary loader run"), so they must be
+            # judged against the same threshold that verdict was computed with, not the 98% default.
             if hasattr(loader, 'output_tables') and loader.output_tables:
                 for secondary_table in loader.output_tables:
                     if secondary_table != loader.table_name:
                         secondary_mgr = LoaderStatusManager(secondary_table)
-                        secondary_mgr.mark_completed(execution_duration_sec=execution_duration)
+                        secondary_mgr.mark_completed(
+                            execution_duration_sec=execution_duration,
+                            min_completion_pct=min_completion_pct,
+                        )
 
             return 0
     except Exception as e:

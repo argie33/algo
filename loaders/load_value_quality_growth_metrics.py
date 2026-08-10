@@ -105,6 +105,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     """
 
     table_name = "value_metrics"  # Primary table for watermarking
+    # Deliberately NOT declaring output_tables here (unlike e.g. load_sector_industry_daily).
+    # That mechanism makes runner.py force quality_metrics/growth_metrics to the SAME
+    # success/failure verdict as the primary table - correct for loaders with one shared
+    # per-symbol outcome, wrong here: this loader tracks value/quality/growth failures
+    # independently (see per_table_counts below, and the quality_succeeded/growth_succeeded
+    # comment near their declaration) specifically because they fail independently in real
+    # data (216 symbols: value ok, growth unavailable). run() already marks all 3 tables'
+    # true independent status directly - output_tables would overwrite that with a false
+    # coupling to value_metrics's outcome on every run.
     primary_key = ("symbol",)
     watermark_field = "updated_at"
     max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
@@ -126,6 +135,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         growth_inserts = 0
         symbols_succeeded = 0
         symbols_failed = 0
+        # Tracked independently from symbols_succeeded/symbols_failed (which reflect only
+        # value_row - see the completion-pct fix below) because quality_row/growth_row come
+        # from different source queries and fail independently in practice: live-confirmed
+        # 216 symbols where value_metrics succeeds but growth_metrics is unavailable, and 18
+        # where value succeeds but quality is unavailable. Reusing value's counter for all 3
+        # tables' completion_pct would silently mask quality/growth-specific failure rates.
+        quality_succeeded = 0
+        quality_failed = 0
+        growth_succeeded = 0
+        growth_failed = 0
 
         parallelism = parallelism or get_default_parallelism("value_quality_growth_metrics")
 
@@ -147,6 +166,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             f"[VALUE_QUALITY_GROWTH] {symbol}: fetch_incremental returned empty list (CRITICAL BUG)"
                         )
                         symbols_failed += 1
+                        quality_failed += 1
+                        growth_failed += 1
                         continue
 
                     # Debug: check metrics structure before unpacking
@@ -155,6 +176,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             f"[VALUE_QUALITY_GROWTH] {symbol}: metrics is {type(metrics)}, metrics[0] is {type(metrics[0]) if metrics else 'None'} (CRITICAL BUG)"
                         )
                         symbols_failed += 1
+                        quality_failed += 1
+                        growth_failed += 1
                         continue
 
                     metric_tuple = metrics[0]
@@ -163,6 +186,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             f"[VALUE_QUALITY_GROWTH] {symbol}: metric_tuple is {type(metric_tuple)}, len={len(metric_tuple) if hasattr(metric_tuple, '__len__') else 'unknown'} (expected tuple of 3)"
                         )
                         symbols_failed += 1
+                        quality_failed += 1
+                        growth_failed += 1
                         continue
 
                     # Extract metrics tuple
@@ -207,20 +232,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             self._insert_quality_metrics(cur, quality_row)
                             if not quality_row.get("data_unavailable"):
                                 quality_inserts += 1
+                                quality_succeeded += 1
                             else:
                                 logger.warning(
                                     f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}"
                                 )
+                                quality_failed += 1
+                        else:
+                            quality_failed += 1
 
                         # Insert growth metrics (same reasoning as quality metrics above).
                         if growth_row:
                             self._insert_growth_metrics(cur, growth_row)
                             if not growth_row.get("data_unavailable"):
                                 growth_inserts += 1
+                                growth_succeeded += 1
                             else:
                                 logger.warning(
                                     f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}"
                                 )
+                                growth_failed += 1
+                        else:
+                            growth_failed += 1
 
                     if value_row and value_row.get("data_unavailable"):
                         logger.warning(
@@ -236,6 +269,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: {type(e).__name__}: {e}")
                     logger.error(f"[TRACEBACK]\n{traceback.format_exc()}")
                     symbols_failed += 1
+                    quality_failed += 1
+                    growth_failed += 1
 
             # VERIFY: Confirm all 3 tables actually have TODAY's data before claiming success (FAIL-FAST)
             today_iso = date.today().isoformat()
@@ -280,18 +315,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # apply here per runner.py's own comment: "value/growth/quality metrics may have higher
             # expected failure rates for symbols without financial data" (foreign filers, ADRs,
             # non-SEC-reporting issuers, etc. are legitimately unavailable, not a loader failure).
-            actual_completion_pct = (symbols_succeeded / len(symbols) * 100.0) if symbols else 100.0
-            for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
+            # Per-table counters (not one shared count) - see the quality_succeeded/growth_succeeded
+            # comment near their declaration above for why value/quality/growth can't share one
+            # completion figure: they come from independent source queries and fail independently.
+            per_table_counts = {
+                "value_metrics": (symbols_succeeded, symbols_failed),
+                "quality_metrics": (quality_succeeded, quality_failed),
+                "growth_metrics": (growth_succeeded, growth_failed),
+            }
+            min_completion_pct = max(0.0, 100.0 - self.max_fail_rate)
+            for table, (table_succeeded, table_failed) in per_table_counts.items():
+                table_completion_pct = (table_succeeded / len(symbols) * 100.0) if symbols else 100.0
                 manager = managers.get(table) or LoaderStatusManager(table)
                 manager.update_progress(
-                    symbols_loaded=symbols_succeeded,
+                    symbols_loaded=table_succeeded,
                     symbol_count=len(symbols),
-                    completion_pct=actual_completion_pct,
+                    completion_pct=table_completion_pct,
                 )
                 manager.mark_completed(
                     execution_duration_sec=execution_duration,
-                    symbols_failed=symbols_failed,
-                    min_completion_pct=max(0.0, 100.0 - self.max_fail_rate),
+                    symbols_failed=table_failed,
+                    min_completion_pct=min_completion_pct,
                 )
 
             logger.info(
@@ -321,6 +365,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "symbols_succeeded": symbols_succeeded,
                 "symbols_loaded": symbols_succeeded,  # runner.py's completion log/mark_failed() read this key, not symbols_succeeded
                 "symbols_failed": symbols_failed,
+                "quality_symbols_succeeded": quality_succeeded,
+                "quality_symbols_failed": quality_failed,
+                "growth_symbols_succeeded": growth_succeeded,
+                "growth_symbols_failed": growth_failed,
                 "value_metrics": value_inserts,
                 "quality_metrics": quality_inserts,
                 "growth_metrics": growth_inserts,
