@@ -225,6 +225,17 @@ class CurrentReports8KLoader(SecLoaderBase):
 
             return results
 
+        except RuntimeError:
+            # FIX 2026-08-10: _get_cik() deliberately raises RuntimeError for network/API
+            # failures ("Network/API errors must not be masked" - see its own docstring),
+            # but the blanket `except Exception` below used to catch it anyway and convert
+            # it into an ordinary data_unavailable record - the exact masking _get_cik was
+            # written to prevent. That silently defeated this loader's max_fail_rate=2.0
+            # circuit breaker: a full SEC EDGAR outage looked like COMPLETED/~100% with
+            # every symbol marked data_unavailable instead of a failed run. Re-raise so
+            # OptimalLoader._safe_load_symbol counts it as a real symbols_failed.
+            raise
+
         except Exception as e:
             logger.error(f"[{symbol}] 8-K fetch error: {type(e).__name__}: {e}")
             now_et = datetime.now(EASTERN_TZ).date()

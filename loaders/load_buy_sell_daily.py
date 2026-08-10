@@ -1261,7 +1261,20 @@ def main() -> int:  # noqa: C901
                     # us attempt signal generation for ~everyone", not "did everyone breakout
                     # today".
                     symbols_successfully_processed = result.get("symbols_processed", 0)
-                    effective_universe = min(price_symbols_available, tech_symbols_available)
+                    # BUG FOUND 2026-08-10 (this session, real DB evidence): effective_universe
+                    # was min(price_symbols_available, tech_symbols_available) - counts of the
+                    # RAW price_daily/technical_data_daily population for the date, ignoring that
+                    # main() already filtered `symbols` down to only the stock_scores-qualified
+                    # universe before ever calling loader.run() (see "[UNIVERSE FILTER]" above -
+                    # ~4605 of ~4885 active symbols have stock_scores; this is deliberate,
+                    # documented behavior, not a defect). Confirmed live 2026-08-10: symbols_loaded
+                    # 4604 / effective_universe 4885 = 94.25%, permanently just under the 95%
+                    # threshold, with only 1 real symbols_failed - i.e. the loader was processing
+                    # ~100% of what it was actually asked to process (4604/4605) but being graded
+                    # against a denominator ~280 symbols larger than its real, intentionally
+                    # filtered universe. Bounding by len(symbols) - the actual population this run
+                    # was allowed to touch - fixes the false FAILED.
+                    effective_universe = min(price_symbols_available, tech_symbols_available, len(symbols))
                     if effective_universe > 0:
                         actual_coverage_pct = (symbols_successfully_processed / effective_universe) * 100.0
                         # Need 95% coverage of what's actually available (not theoretical universe)

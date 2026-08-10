@@ -55,6 +55,7 @@ class VectorizedTechnicalLoader:
     def __init__(self) -> None:
         self.table_name = "technical_data_daily"
         self.vcp_patterns_inserted = 0
+        self.skipped_symbols_count = 0
 
     def run(self, symbols: list[str], since_date: date | None = None) -> dict[str, Any]:
         """Load technical indicators for all symbols vectorized.
@@ -186,6 +187,10 @@ class VectorizedTechnicalLoader:
 
             return {
                 "symbols_processed": len(symbols),
+                # Real per-run completion count (attempted minus symbols skipped for data
+                # quality reasons inside _compute_all_indicators_vectorized), not an echo of
+                # the attempted count - see that method's skipped_symbols_count comment.
+                "symbols_loaded": len(symbols) - self.skipped_symbols_count,
                 "rows_inserted": inserted,
                 "vcp_patterns_inserted": self.vcp_patterns_inserted,
                 "duration_sec": round(duration, 2),
@@ -542,6 +547,13 @@ class VectorizedTechnicalLoader:
                 ) from e
 
         # Report skipped symbols for audit trail
+        # FIX 2026-08-10: this count used to be logged and then discarded - run()'s
+        # completion status always reported symbols_processed=len(symbols) (the attempted
+        # input count, not how many actually got indicator rows), so mark_completed()'s
+        # safety check had no real per-run signal to fall back on and DB-verified as frozen
+        # at the exact same "10549/10549" across 12+ consecutive runs. Stashing this on the
+        # instance lets run() report a real completed-vs-attempted count.
+        self.skipped_symbols_count = len(skipped_symbols)
         if skipped_symbols:
             logger.warning(
                 f"[INDICATORS] {len(skipped_symbols)} symbols skipped due to data quality issues "
@@ -998,6 +1010,8 @@ def _update_tech_loader_status(
     error_message: str | None = None,
     latest_date: date | None = None,
     execution_duration_sec: float | None = None,
+    current_run_symbol_count: int | None = None,
+    current_run_symbols_loaded: int | None = None,
 ) -> None:
     # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
     # Map old status values to LoaderStatusManager methods
@@ -1006,7 +1020,19 @@ def _update_tech_loader_status(
     if status == "RUNNING":
         status_mgr.mark_running()
     elif status == "COMPLETED":
-        status_mgr.mark_completed(latest_date=latest_date, execution_duration_sec=execution_duration_sec)
+        # FIX 2026-08-10: previously never passed current_run_* here, so mark_completed()'s
+        # <98%-completion safety check fell back to whatever symbol_count/symbols_loaded was
+        # last in the DB row - a value this loader itself never wrote with real per-run data.
+        # DB-verified: data_loader_status_history showed the identical "10549/10549" frozen
+        # across 12+ consecutive runs. Passing this run's real attempted/completed counts
+        # (from VectorizedTechnicalLoader.run()'s symbols_processed/symbols_loaded) lets the
+        # safety check actually see a partial-failure run instead of a stale echo.
+        status_mgr.mark_completed(
+            latest_date=latest_date,
+            execution_duration_sec=execution_duration_sec,
+            current_run_symbol_count=current_run_symbol_count,
+            current_run_symbols_loaded=current_run_symbols_loaded,
+        )
     elif status == "FAILED":
         status_mgr.mark_failed(error_message=error_message or "Unknown error")
     else:
@@ -1143,14 +1169,22 @@ def main() -> int:
         # Update status to COMPLETED or FAILED based on result
         if result["rows_inserted"] > 0:
             _update_tech_loader_status(
-                "COMPLETED", latest_date=result["latest_date"], execution_duration_sec=result.get("duration_sec")
+                "COMPLETED",
+                latest_date=result["latest_date"],
+                execution_duration_sec=result.get("duration_sec"),
+                current_run_symbol_count=result.get("symbols_processed"),
+                current_run_symbols_loaded=result.get("symbols_loaded"),
             )
             final_status = "completed"
             exit_code = 0
         elif not result["data_available"] and result["error"] is None:
             # Data unavailable (market closed, etc) - this is NO_DATA, not an error
             _update_tech_loader_status(
-                "COMPLETED", latest_date=result["latest_date"], execution_duration_sec=result.get("duration_sec")
+                "COMPLETED",
+                latest_date=result["latest_date"],
+                execution_duration_sec=result.get("duration_sec"),
+                current_run_symbol_count=result.get("symbols_processed"),
+                current_run_symbols_loaded=result.get("symbols_loaded"),
             )
             final_status = "no_data"
             exit_code = 2
@@ -1159,7 +1193,11 @@ def main() -> int:
             # No new rows but data available (non-trading day, or already cached)
             # This is normal and expected - market data isn't changing when market is closed
             _update_tech_loader_status(
-                "COMPLETED", latest_date=result["latest_date"], execution_duration_sec=result.get("duration_sec")
+                "COMPLETED",
+                latest_date=result["latest_date"],
+                execution_duration_sec=result.get("duration_sec"),
+                current_run_symbol_count=result.get("symbols_processed"),
+                current_run_symbols_loaded=result.get("symbols_loaded"),
             )
             final_status = "completed"
             exit_code = 0

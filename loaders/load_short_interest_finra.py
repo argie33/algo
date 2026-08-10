@@ -34,6 +34,7 @@ from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.finra_short_interest import FINRAShortInterestFetcher  # noqa: E402
 from utils.infrastructure.timezone import EASTERN_TZ  # noqa: E402
+from utils.loaders.status_manager import LoaderStatusManager  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,11 @@ class ShortInterestFinraLoader(OptimalLoader):
     primary_key = ("symbol", "settlement_date")
     watermark_field = "settlement_date"
     exclude_etfs_from_symbols = True
+    # DB-verified 2026-08-10 (most recent 2 settlement dates): ~9.5-9.8% of symbols land in
+    # data_unavailable (no FINRA row, or FINRA row but no shares_outstanding from
+    # company_info_sec) - a real, structural coverage gap, not a bug. 15% gives margin above
+    # the observed rate without masking a genuine regression.
+    max_fail_rate = 15.0
 
     def run(self, symbols: Iterable[str], parallelism: int = 8, backfill_days: int | None = None) -> dict[str, Any]:
         """Load short interest from FINRA, computing short_pct via shares_outstanding.
@@ -65,10 +71,22 @@ class ShortInterestFinraLoader(OptimalLoader):
         symbols = list(symbols)
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
+        status_mgr = LoaderStatusManager(self.table_name)
+
+        # FIX 2026-08-10: this run() fully overrides OptimalLoader.run() and never called
+        # LoaderStatusManager itself - relying entirely on runner.py's generic post-run
+        # mark_completed()/mark_failed() call. DB-verified live: data_loader_status stayed
+        # frozen at execution_completed=2026-07-18/status=HEALTHY (a health-sweep label, not
+        # something this loader's own completion logic produced) while short_interest_finra
+        # itself had real fresh rows through 2026-08-05 - status fully decoupled from what
+        # actually happened each run, so a real failure wouldn't reliably surface. Marking
+        # status directly here makes it self-sufficient regardless of the caller.
+        status_mgr.mark_running()
 
         # Skip on non-trading days (short interest data not updated)
         if not MarketCalendar.is_trading_day(run_date):
             logger.info(f"[SHORT_INTEREST] Skipping: {run_date} is not a trading day")
+            status_mgr.mark_completed()
             return {
                 "symbols_succeeded": 0,
                 "symbols_failed": 0,
@@ -204,10 +222,27 @@ class ShortInterestFinraLoader(OptimalLoader):
                 f"{rows_unavailable} unavailable in {duration:.1f}s "
                 f"(settlement_date={settlement_date})"
             )
+
+            total = max(len(symbols), 1)
+            fail_rate_pct = (rows_unavailable / total) * 100
+            if fail_rate_pct > self.max_fail_rate:
+                status_mgr.mark_failed(
+                    error_message=f"{rows_unavailable}/{total} symbols data_unavailable "
+                    f"({fail_rate_pct:.1f}% exceeds max_fail_rate {self.max_fail_rate:.0f}%)",
+                    completion_pct=(rows_inserted / total) * 100,
+                )
+            else:
+                status_mgr.mark_completed(
+                    execution_duration_sec=duration,
+                    current_run_symbol_count=total,
+                    current_run_symbols_loaded=rows_inserted,
+                    min_completion_pct=max(0.0, 100.0 - self.max_fail_rate),
+                )
             return result
 
         except Exception as e:
             logger.error(f"[SHORT_INTEREST] Fatal error: {type(e).__name__}: {e!s}", exc_info=True)
+            status_mgr.mark_failed(error_message=f"{type(e).__name__}: {str(e)[:200]}")
             # CRITICAL: Fail-fast on fatal errors (no silent fallback to empty result dict)
             # Returning a dict with status="error" masks the failure from orchestrator.
             # Re-raise to ensure orchestrator detects the failure and marks data unavailable.
