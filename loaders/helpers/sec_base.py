@@ -331,6 +331,32 @@ class SecEdgarStatementLoader(SecLoaderBase):
         return marker
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
+        # FIX 2026-08-10: watermark/table desync self-heal. loader_watermarks can advance
+        # for a symbol (via bulk_insert_manager's advance_watermark, called with
+        # in_transaction=False - a separate write from the actual row INSERT) while the
+        # real rows for that symbol are later deleted/never persisted (table
+        # truncation/reset, a rolled-back shared "ALL MODE" transaction, etc.) - live-
+        # reproduced 2026-08-10 for BFS/UDR: watermark claimed fiscal_year data through
+        # 2026-12-31 with rows_loaded=112/114, but annual_income_statement had ZERO real
+        # rows for either symbol. Since `since` only ever narrows what gets fetched
+        # (fetch_incremental filters to fiscal_year > since.year below), a stale
+        # "already loaded" watermark permanently starves that symbol of ever being
+        # re-fetched via the normal incremental path - it looks like "no new data" forever.
+        # Guard: if the watermark claims data exists but this symbol genuinely has zero
+        # rows in the target table, the watermark is provably wrong - ignore it and fetch
+        # the full history instead of trusting a claim the table itself contradicts.
+        if since is not None and self.is_symbol_based:
+            from utils.db.context import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute(f"SELECT 1 FROM {self.table_name} WHERE symbol = %s LIMIT 1", (symbol,))
+                if cur.fetchone() is None:
+                    logger.warning(
+                        f"[{self.table_name}] {symbol}: watermark={since} claims data already loaded, "
+                        f"but table has zero rows for this symbol - watermark/table desync, "
+                        f"ignoring watermark and fetching full history."
+                    )
+                    since = None
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
         except ValueError:
