@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date as _date
 from typing import Any
 
@@ -975,9 +976,18 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if row is None or len(row) < 1 or row[0] is None or float(row[0]) <= 0:
+        if row is None or len(row) < 1 or row[0] is None:
             raise ValueError(f"50-day SMA not available for {symbol} on {signal_date}")
         sma_50 = float(row[0])
+        # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
+        # class): `float(row[0]) <= 0` doesn't catch NaN (NaN comparisons are always False
+        # in Python) - a NaN sma_50 silently produced ext_pct=nan, which then cascaded
+        # through _extension_risk_score's own chain of `<` comparisons (also all silently
+        # False for NaN) to fall through to its worst-case 0.0 return. Fails toward
+        # rejecting the stock rather than favoring it, but a NaN input should raise here,
+        # not silently cascade through several unrelated comparisons.
+        if math.isnan(sma_50) or math.isinf(sma_50) or sma_50 <= 0:
+            raise ValueError(f"50-day SMA invalid ({sma_50!r}) for {symbol} on {signal_date}")
         return ((entry_price - sma_50) / sma_50) * 100.0
 
     def _extension_risk_score(self, ext_pct: float) -> float:
