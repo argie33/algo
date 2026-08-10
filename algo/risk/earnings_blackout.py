@@ -205,25 +205,3 @@ class EarningsBlackout:
             ) from e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(f"Earnings blackout check error for {symbol}: {str(e)[:50]} - explicit halt") from e
-
-    def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list[Any]:
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """SELECT earnings_date FROM earnings_calendar
-                       WHERE symbol = %s
-                       AND earnings_date >= %s
-                       AND earnings_date <= %s
-                       AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
-                       ORDER BY earnings_date""",
-                    (
-                        symbol,
-                        _date.today(),
-                        _date.today() + timedelta(days=days_ahead),
-                    ),
-                )
-                rows = cur.fetchall()
-
-            return [{"date": row[0]} for row in rows]
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(f"Failed to fetch earnings for {symbol}: {str(e)[:50]} - explicit halt") from e
