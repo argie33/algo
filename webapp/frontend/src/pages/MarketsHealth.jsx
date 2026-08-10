@@ -3354,13 +3354,18 @@ function TrendHealthCard() {
   );
 
   const stats = useMemo(() => {
-    if (!trendData || !Array.isArray(trendData)) return null;
-    const uptrends = trendData.filter((t) => t.trend_type === "uptrend").length;
-    const downtrends = trendData.filter((t) => t.trend_type === "downtrend").length;
-    const consolidations = trendData.filter((t) => t.trend_type === "consolidation").length;
-    const total = trendData.length;
-    if (total === 0) return null;
-    const ages = trendData
+    // BUG FOUND 2026-08-10: list_response-backed endpoints unwrap to {items: [...], ...}
+    // via useApiQuery's extractData, not a bare array - matching every other consumer of a
+    // list_response endpoint in this codebase (StockDetail.jsx, SectorAnalysis.jsx,
+    // TradingSignals.jsx). The old `!Array.isArray(trendData)` check would always be true
+    // even with a correctly-implemented backend.
+    const items = Array.isArray(trendData) ? trendData : trendData?.items || [];
+    if (!items.length) return null;
+    const uptrends = items.filter((t) => t.trend_type === "uptrend").length;
+    const downtrends = items.filter((t) => t.trend_type === "downtrend").length;
+    const consolidations = items.filter((t) => t.trend_type === "consolidation").length;
+    const total = items.length;
+    const ages = items
       .filter((t) => t.days_in_trend != null)
       .map((t) => t.days_in_trend);
     const avgAge = ages.length ? (ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1) : null;
