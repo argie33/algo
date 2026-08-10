@@ -67,6 +67,7 @@ use the run_date parameter or query price_daily MAX(date) to align with ET-based
 """
 
 import logging
+import math
 import os
 import time
 from collections.abc import Callable
@@ -252,10 +253,18 @@ def _calculate_dynamic_stop_loss(entry_price: float, atr: float, sma_50: float) 
     Returns:
         Calculated stop loss price (always > 0 and < entry_price)
     """
-    if entry_price <= 0:
-        raise ValueError(f"Invalid entry_price={entry_price} for stop-loss calculation. Must be > 0.")
-    if atr < 0:
-        raise ValueError(f"Invalid atr={atr} for stop-loss calculation. Must be >= 0.")
+    # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): NaN silently passed both
+    # the `entry_price <= 0` and `atr < 0` checks (NaN comparisons are always False in
+    # Python), then propagated through arithmetic (NaN doesn't raise) to produce
+    # `stop_loss = nan` - violating this function's own documented postcondition
+    # ("always > 0 and < entry_price") with no error. Same bug class already found and
+    # fixed in position_sizer.py and utils/validation/financial.py this session.
+    if math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
+        raise ValueError(f"Invalid entry_price={entry_price} for stop-loss calculation. Must be a finite number > 0.")
+    if math.isnan(atr) or atr < 0:
+        raise ValueError(f"Invalid atr={atr} for stop-loss calculation. Must be a finite number >= 0.")
+    if math.isnan(sma_50):
+        raise ValueError(f"Invalid sma_50={sma_50} for stop-loss calculation. Must be a finite number.")
 
     atr_ratio = atr / entry_price
 
