@@ -128,6 +128,47 @@ def test_sizer_blocked_and_liquidity_skips_are_persisted_to_audit_table():
     assert '"sizer_blocked"' in sizer_shares_branch
 
 
+def test_every_failed_count_increment_also_records_a_failed_entry():
+    """CRITICAL FIX regression: the final "[PHASE 8 CRITICAL] N trades failed to execute.
+    Failed entries: {failed_entries}." summary log reads failed_entries, a separate list from
+    failed_count. Confirmed live 2026-08-10 (stress_test_fix_verify_1786386690.log): GAIN and
+    ERO both failed pre-trade sizing checks (status="invalid", not a _POLICY_REJECTION_STATUSES
+    skip) and correctly incremented failed_count to 2, but the "else: FAILED to execute trade"
+    branch and the outer per-symbol except block never appended to failed_entries - so the
+    CRITICAL alert read "2 trades failed to execute. Failed entries: [].", giving an operator
+    a count with no way to identify which symbols actually failed. Two of the four failure
+    branches (the ValueError/DatabaseError exec_err branch and the generic-DB-error branch)
+    already appended correctly; this pins that all four do, so the summary log can't silently
+    go blank again.
+    """
+    import inspect
+
+    from algo.orchestrator import phase8_entry_execution as p8
+
+    source = inspect.getsource(p8)
+
+    # Branch 1: non-policy trade_result failure ("else: FAILED to execute trade").
+    branch = source.split('"execution_failed",', 1)[1].split("failed_count += 1", 1)[0]
+    assert "failed_entries.append(" in branch
+
+    # Branch 2: ValueError/ZeroDivisionError/TypeError/DatabaseError during execution.
+    branch = source.split(
+        "except (ValueError, ZeroDivisionError, TypeError, DatabaseError) as exec_err:", 1
+    )[1].split("failed_count += 1", 1)[0]
+    assert "failed_entries.append(" in branch
+
+    # Branch 3: generic (non-duplicate-key) psycopg2.DatabaseError.
+    branch = source.split("# Generic database error", 1)[1].split("failed_count += 1", 1)[0]
+    assert "failed_entries.append(" in branch
+
+    # Branch 4: outer per-symbol except (RuntimeError, ValueError, TypeError, AttributeError,
+    # IndexError, psycopg2.Error, DatabaseError) - "processing_error" catch-all.
+    branch = source.split('"processing_error", str(e), run_date, entry_price_val', 1)[1].split(
+        "failed_count += 1", 1
+    )[0]
+    assert "failed_entries.append(" in branch
+
+
 def test_audit_failure_itself_raises_rather_than_silently_dropping():
     """If the audit insert itself fails, the caller must find out (raise), not swallow it -
     a silently-failing audit trail is worse than no audit trail (false confidence)."""

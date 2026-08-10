@@ -3215,6 +3215,7 @@ def run(
                                     risk_pct,
                                 )
 
+                                failed_entries.append((symbol, f"{message} (status={status})"))
                                 failed_count += 1
 
                 except (ValueError, ZeroDivisionError, TypeError, DatabaseError) as exec_err:
@@ -3302,6 +3303,7 @@ def run(
                 symbol, "processing_error", str(e), run_date, entry_price_val
             )
 
+            failed_entries.append((symbol, str(e)))
             failed_count += 1
 
     elapsed = time.time() - phase_start
