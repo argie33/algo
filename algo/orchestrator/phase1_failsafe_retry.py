@@ -457,7 +457,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 import sys
 
                 env = os.environ.copy()
-                env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters
+                env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters (read by technical_data_daily)
 
                 repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                 # CRITICAL FIX (Session 54): Pass run_date to loader so it respects orchestrator's date, not system date
@@ -465,8 +465,38 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 # loader needs run_date to know which trading day data to expect
                 from datetime import date as _date_class
                 run_date_str = run_date.isoformat() if run_date else _date_class.today().isoformat()
+                env["ORCHESTRATOR_RUN_DATE"] = run_date_str
+
+                # BUG FOUND 2026-08-10: this used to invoke `scripts/run_loader.py {loader_key}
+                # --force-refresh` - the exact "generic path bypasses main()" bug class
+                # scripts/local_loader_scheduler.py was already rearchitected away from earlier
+                # the same session ("ROOT-CAUSE FIX 2026-08-10: always invoke the loader module
+                # directly... never scripts/run_loader.py's generic path" - see that module's
+                # own comment, which names "prices" by name among the loaders whose main()-only
+                # logic silently never ran through the generic path). run_loader.py's generic
+                # dispatch imports the loader CLASS and calls `PriceLoader().run()` with default
+                # constructor args (interval="1d", asset_class="stock") - it never reaches
+                # load_prices.py's own main(), which is the ONLY code path that loops over all
+                # 6 asset_class x interval combos (price_daily/weekly/monthly, etf_price_daily/
+                # weekly/monthly). Live-reproduced: a "prices" refresh via the old path exited 0
+                # ("refreshed successfully") while price_weekly/price_monthly/etf_price_daily/
+                # etf_price_weekly/etf_price_monthly were ALL marked FAILED at 0.00% completion
+                # (0/N symbols) - only price_daily (the one table matching the default
+                # constructor args) ever actually loaded. This meant Phase 1's OWN self-healing
+                # mechanism could never actually recover etf_price_daily even after correctly
+                # detecting it as stale - every retry would silently "succeed" while leaving the
+                # real data untouched. Fixed identically to local_loader_scheduler.py: invoke
+                # `python loaders/{file}.py` directly so every loader's real production
+                # entrypoint runs locally too, with no generic path left to diverge from it.
+                loader_filename = normalize_loader_name(loader_key)
+                if loader_key == "financial_statements":
+                    # Matches local_loader_scheduler.py's identical special case: main() fans
+                    # LOADER_STATEMENT_TYPE="all" out to all 6 statement/period combos; the
+                    # class constructor alone requires one specific combo to already be named.
+                    env["LOADER_STATEMENT_TYPE"] = "all"
+                cmd = [sys.executable, f"loaders/{loader_filename}"]
                 result = subprocess.run(
-                    [sys.executable, "scripts/run_loader.py", loader_key, "--force-refresh", "--run-date", run_date_str],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=300,
@@ -475,14 +505,38 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 )
 
                 if result.returncode == 0:
-                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
-                    results["recovered"].append(table_name)
+                    # BUG FOUND 2026-08-10: exit code 0 only means the subprocess didn't
+                    # crash - it says nothing about whether THIS SPECIFIC table's own load
+                    # actually succeeded. Live-reproduced: a "prices" refresh exited 0 (the
+                    # loader ran to completion without an uncaught exception) while
+                    # etf_price_daily itself was marked FAILED at 0.00% completion by its own
+                    # internal safety check (see the main()-bypass fix above) - reporting this
+                    # as "refreshed successfully"/"recovered" would have been the same
+                    # fail-open-and-fabricate-success shape this codebase's governance rules
+                    # forbid elsewhere. Re-check the table's own terminal status before
+                    # trusting the subprocess's exit code.
+                    post_status = LoaderStatusManager(table_name).get_status()
+                    if post_status and post_status.get("status") == "COMPLETED":
+                        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} refreshed successfully")
+                        results["recovered"].append(table_name)
+                    else:
+                        actual_status = post_status.get("status") if post_status else "MISSING"
+                        logger.error(
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh subprocess exited 0 but the "
+                            f"table's own status is '{actual_status}', not COMPLETED (completion_pct="
+                            f"{post_status.get('completion_pct') if post_status else 'N/A'}, error="
+                            f"{post_status.get('error_message') if post_status else 'N/A'}). Not "
+                            f"reporting as recovered."
+                        )
+                        results["still_failing"].append(table_name)
+                        if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                            results["halt_required"] = True
                 else:
                     stderr_msg = result.stderr if result.stderr else "(no stderr output)"
                     stdout_msg = result.stdout if result.stdout else "(no stdout output)"
                     logger.error(
                         f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh FAILED (exit code {result.returncode}). "
-                        f"Command: python scripts/run_loader.py {loader_key} --force-refresh\n"
+                        f"Command: python loaders/{loader_filename}\n"
                         f"Working directory: {repo_root}\n"
                         f"Python executable: {sys.executable}\n"
                         f"STDOUT: {stdout_msg}\n"
