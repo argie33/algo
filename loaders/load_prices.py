@@ -3135,8 +3135,28 @@ def derive_aggregate_prices(asset_class: str) -> None:
             latest_date = latest_row[0] if latest_row else None
 
         # Use LoaderStatusManager for centralized status update (RACE CONDITION FIX)
+        #
+        # BUG FOUND 2026-08-10: this never called mark_running()/update_progress() before
+        # mark_completed(), so its own safety check fell back to reading symbol_count/
+        # symbols_loaded from the DB row - which this derivation never populates at all
+        # (it's a bulk SQL upsert, not a per-symbol loop). Live-confirmed: symbols_loaded
+        # stuck at 0 while symbol_count held a stale value from an unrelated prior run
+        # (10594/19), so every single derivation - success or not - computed 0% completion
+        # and got marked FAILED, even though the upsert genuinely succeeded. This silently
+        # broke health monitoring for price_weekly/price_monthly/etf_price_weekly/
+        # etf_price_monthly on every price_daily load. Pass this run's own real row count
+        # (derived_rows) as both loaded/total - 100% by construction, since the INSERT
+        # either upserts all `derived_rows` rows or the whole DatabaseContext block raises
+        # (no partial-failure concept for a single atomic SQL statement). min_completion_pct
+        # =0.0 additionally covers the legitimate 0-row case (nothing new to derive since
+        # the last successful run - not a failure).
         status_mgr = LoaderStatusManager(target_table)
-        status_mgr.mark_completed(latest_date=latest_date)
+        status_mgr.mark_completed(
+            latest_date=latest_date,
+            current_run_symbols_loaded=derived_rows,
+            current_run_symbol_count=derived_rows,
+            min_completion_pct=0.0,
+        )
 
 
 def log_loader_execution(
