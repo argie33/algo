@@ -1017,6 +1017,36 @@ class PositionSizer:
             position_value = Decimal(shares) * Decimal(str(entry_price))
             risk_dollars = risk_per_share * Decimal(shares)
 
+            # BUG FOUND 2026-08-10 (position-sizing boundary-condition audit): unlike the two
+            # sibling scaling branches below (concentration-limit scale-down, total-risk-limit
+            # scale-down), this cap never re-checked `shares < 1` after rounding down - a stock
+            # priced above `max_position_size_pct * portfolio_value` (e.g. entry_price=$600,
+            # max_position_value=$500 for a $10k portfolio at a 5% cap) rounds straight to 0
+            # shares here, then falls through every remaining check (concentration/total-
+            # invested/total-risk all trivially pass at position_value=0) to the function's
+            # final `return {..., "status": "ok"}` - a 0-share result reported as success,
+            # violating this function's own documented status contract ('ok' | 'no_room' |
+            # 'drawdown_halt' | 'risk_limit_scaled', not "ok" meaning "zero shares"). Not
+            # currently causing a live bad order - every one of Phase 8's 3 call sites already
+            # independently re-checks `shares < 1` regardless of `status` before using the
+            # result - but that safety is accidental (each caller happening to defensively
+            # re-check), not a contract this function itself upholds. Matches the exact
+            # landmine pattern found elsewhere today (docstring/behavior contradicting actual
+            # code): fix the function's own contract rather than rely on every future caller
+            # independently reinventing the same defensive check.
+            if shares < 1:
+                return {
+                    "shares": 0,
+                    "position_size_pct": 0,
+                    "risk_dollars": 0,
+                    "status": "no_room",
+                    "reason": (
+                        f"Entry price ${entry_price} exceeds max position value "
+                        f"${max_position_value:.2f} ({max_position_pct * 100:.1f}% of "
+                        f"${pv_dec:.2f} portfolio) - cannot afford even 1 share within the cap"
+                    ),
+                }
+
         if pv_dec <= 0:
             raise ValueError(
                 f"CRITICAL: Portfolio value invalid ({pv_dec}) - cannot calculate position sizing. "
