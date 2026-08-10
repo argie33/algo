@@ -2803,7 +2803,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # quality_metrics columns but were missing from this fallback marker, leaving
                 # ~344-3,173 rows per field (whichever symbols hit this fully-unavailable path)
                 # with a NULL value AND no reason code, indistinguishable from a bug.
-                **{field: None for field in _SHARED_TREND_FIELDS},
+                **dict.fromkeys(_SHARED_TREND_FIELDS),
                 **{f"{field}_unavailable_reason": "missing_sec_data" for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",
@@ -2831,7 +2831,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # _SHARED_TREND_FIELDS mirroring in fetch_incremental - but this fallback path
                 # never went through that mirror, so they were previously left NULL with no
                 # reason instead of an explained gap).
-                **{field: None for field in _SHARED_TREND_FIELDS},
+                **dict.fromkeys(_SHARED_TREND_FIELDS),
                 **{f"{field}_unavailable_reason": "insufficient_history" for field in _SHARED_TREND_FIELDS},
                 "data_unavailable": True,
                 "data_source": "none",

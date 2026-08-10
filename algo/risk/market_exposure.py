@@ -65,7 +65,6 @@ from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from typing import Any, TypeVar
-from zoneinfo import ZoneInfo
 
 import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor

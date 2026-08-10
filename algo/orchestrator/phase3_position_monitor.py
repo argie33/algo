@@ -512,10 +512,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     break  # Success - exit retry loop
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as review_err:
                     last_error = review_err
-                    error_str = f"[DB Error] {str(review_err)}"
+                    error_str = f"[DB Error] {review_err!s}"
                 except (RuntimeError, ValueError, KeyError) as review_err:
                     last_error = review_err
-                    error_str = f"[Data Error] {str(review_err)}"
+                    error_str = f"[Data Error] {review_err!s}"
                 except Exception as review_err:
                     last_error = review_err
                     error_str = str(review_err)
@@ -751,7 +751,6 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # CRITICAL FIX 2026-08-08: Use current run_date for position monitoring
                 # Previous fix (2026-08-06) used yesterday's prices, breaking detection of same-day losses
                 # Must use run_date to detect same-day entry losses in live mode too
-                from datetime import timedelta
                 monitoring_date = run_date
                 recommendations = monitor.review_positions(monitoring_date)
                 break  # Success - exit retry loop

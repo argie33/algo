@@ -14,6 +14,7 @@ import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
+from algo.config.credential_manager import get_alpaca_credentials
 from algo.infrastructure.config import AlgoConfig
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.check_handler_strategies import CheckHandlerRegistry
@@ -36,7 +37,6 @@ from algo.trading.handler_context import HandlerContext
 from algo.trading.order_manager import OrderManager
 from algo.trading.position_tracker import PositionTracker
 from algo.trading.trade_context import TradeContext
-from algo.config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
 from utils.db.advisory_locks import (
     ALGO_POSITIONS_LOCK_ID,
@@ -526,7 +526,7 @@ class TradeExecutor:
             )
         except Exception as e:
             # Unexpected error - log fully for debugging
-            error_detail = f"{type(e).__name__}: {str(e)}"
+            error_detail = f"{type(e).__name__}: {e!s}"
             logger.exception(f"[ENTRY] {symbol}: Unexpected exception during order submission: {error_detail}")
             logger.error(f"[ENTRY] {symbol}: Full traceback and context above ^")
             return (
@@ -649,7 +649,7 @@ class TradeExecutor:
                     acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     try:
                         result = operation(cur)
-                        logger.debug(f"[_with_cursor] Operation succeeded, returning result (locks still held)")
+                        logger.debug("[_with_cursor] Operation succeeded, returning result (locks still held)")
                         return result
                     except Exception as op_exc:
                         # CRITICAL FIX 2026-07-30: Transaction is now aborted after operation failure
@@ -674,7 +674,7 @@ class TradeExecutor:
                         try:
                             release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                             release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
-                            logger.debug(f"[_with_cursor] Locks released successfully")
+                            logger.debug("[_with_cursor] Locks released successfully")
                         except Exception as lock_exc:
                             # Lock release failure on success path: log but DO NOT raise
                             # Raising here would cause DatabaseContext to rollback the already-succeeded transaction
@@ -682,7 +682,7 @@ class TradeExecutor:
                             # Database ends up with nothing committed, despite operation succeeding
                             logger.warning(f"Failed to release locks after successful operation (non-fatal): {lock_exc}")
                 else:
-                    logger.debug(f"[_with_cursor] No locks requested, executing operation")
+                    logger.debug("[_with_cursor] No locks requested, executing operation")
                     return operation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Database operation failed: {e}")

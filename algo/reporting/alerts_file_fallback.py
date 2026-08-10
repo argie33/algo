@@ -15,13 +15,13 @@ logger = logging.getLogger(__name__)
 
 class FileAlertLogger:
     """Log alerts to local file for monitoring when email/SNS not configured."""
-    
+
     def __init__(self, log_dir: str = "/tmp/algo_alerts"):
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        
-    def log_alert(self, kind: str, severity: str, title: str, 
-                  message: str, symbol: Optional[str] = None) -> str:
+
+    def log_alert(self, kind: str, severity: str, title: str,
+                  message: str, symbol: str | None = None) -> str:
         """Write alert to daily log file.
         
         Args:
@@ -36,10 +36,10 @@ class FileAlertLogger:
         """
         today = datetime.now().strftime("%Y-%m-%d")
         log_file = self.log_dir / f"algo_alerts_{today}.log"
-        
+
         timestamp = datetime.now().isoformat()
         line = f"[{timestamp}] {severity:8} {kind:15} {symbol or '':6} {title} - {message}\n"
-        
+
         try:
             with open(log_file, "a") as f:
                 f.write(line)
@@ -51,8 +51,7 @@ class FileAlertLogger:
 
 def ensure_file_alerts() -> Optional["FileAlertLogger"]:
     """Initialize file-based alert logging if external channels not configured."""
-    import os
-    
+
     # Only add file alerts if no external channels configured
     if not os.getenv("ALERT_EMAIL_TO") and not os.getenv("ALERTS_SNS_TOPIC"):
         logger.info("[ALERTS] No email/SNS configured. Using file-based alerts at /tmp/algo_alerts/")

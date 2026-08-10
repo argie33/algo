@@ -64,7 +64,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
         # only fires when BOTH DynamoDB and RDS are unavailable in non-LOCAL_MODE (production)
         # runs - it does not apply to FileLockManager, which was already fixed for its former
         # Windows race condition (Session 281: atomic O_CREAT|O_EXCL file creation).
-        lock_manager: "FileLockManager | DynamoDBLockManager | RDSLockManager | None" = None
+        lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",

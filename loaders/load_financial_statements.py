@@ -42,8 +42,8 @@ from typing import Any  # noqa: E402
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
-from utils.loaders.enum_validator import validate_statement_type, validate_period  # noqa: E402
 from utils.external.sec_edgar import SecEdgarClient  # noqa: E402
+from utils.loaders.enum_validator import validate_period, validate_statement_type  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -664,7 +664,7 @@ def load_all_statements() -> int:
     # only fires when BOTH DynamoDB and RDS are unavailable in non-LOCAL_MODE (production)
     # runs - it does not apply to FileLockManager, which was already fixed for its former
     # Windows race condition (Session 281: atomic O_CREAT|O_EXCL file creation).
-    lock_manager: "FileLockManager | DynamoDBLockManager | RDSLockManager | None" = None
+    lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
     active: list[ConsolidatedFinancialStatementsLoader] = []
     try:
         lock_table = os.getenv(

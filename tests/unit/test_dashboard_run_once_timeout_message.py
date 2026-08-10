@@ -23,7 +23,7 @@ def _run_once_with_no_data():
         return 0.0 if call_count[0] <= 2 else 100.0
 
     with (
-        patch("dashboard.dashboard.load_all", side_effect=lambda: {}),
+        patch("dashboard.dashboard.load_all", side_effect=dict),
         patch("dashboard.dashboard.time.monotonic", side_effect=fake_monotonic),
         patch("dashboard.dashboard.time.sleep", return_value=None),
         patch("dashboard.dashboard._keypress", return_value=""),
@@ -47,7 +47,7 @@ def test_timeout_prints_visible_message_after_live_exits() -> None:
 def test_quit_keypress_does_not_print_timeout_message() -> None:
     """A deliberate 'q' quit is not a timeout - must not print the give-up message."""
     with (
-        patch("dashboard.dashboard.load_all", side_effect=lambda: {}),
+        patch("dashboard.dashboard.load_all", side_effect=dict),
         patch("dashboard.dashboard.time.sleep", return_value=None),
         patch("dashboard.dashboard._keypress", return_value="q"),
         patch("dashboard.dashboard.Live"),

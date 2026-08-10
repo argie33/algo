@@ -24,7 +24,7 @@ import pytest
 from pydantic import ValidationError
 
 importlib.import_module("lambda.api.routes.positions")
-from models.requests import ManualTradeRequest, PositionUpdateRequest, TradePreviewRequest  # noqa: E402
+from models.requests import ManualTradeRequest, PositionUpdateRequest, TradePreviewRequest
 
 
 class TestPositionUpdateRequestRejectsNaN:

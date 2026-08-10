@@ -17,7 +17,7 @@ import re
 
 def test_phase1_afternoon_revalidation_uses_correct_context():
     """Verify that Phase 1 validates today's prices only during EOD context."""
-    with open("algo/orchestrator/phase1_data_freshness.py", "r") as f:
+    with open("algo/orchestrator/phase1_data_freshness.py") as f:
         content = f.read()
 
     # Verify the refined fix: should check only "EOD", not "INTRADAY"
@@ -39,7 +39,7 @@ def test_phase1_afternoon_revalidation_uses_correct_context():
 
 def test_phase1_pipeline_context_assignment_matches_validation():
     """Verify that assigned pipeline_context values match what is validated."""
-    with open("algo/orchestrator/phase1_data_freshness.py", "r") as f:
+    with open("algo/orchestrator/phase1_data_freshness.py") as f:
         content = f.read()
 
     # Find where pipeline_context is assigned - check for any order of the three values

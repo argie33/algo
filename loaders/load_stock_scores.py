@@ -168,7 +168,6 @@ class StockScoresLoader(OptimalLoader):
                         if max_update_row and max_update_row[0]:
                             max_update_ts = max_update_row[0]
                             from datetime import datetime, timezone
-                            from zoneinfo import ZoneInfo
 
                             now_utc = datetime.now(timezone.utc)
                             if max_update_ts.tzinfo is None:

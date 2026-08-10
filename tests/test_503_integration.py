@@ -17,6 +17,7 @@ from dashboard.api_data_layer import (
     _response_cache_lock,
 )
 
+
 def test_dashboard_survives_mkt_503_with_stale_fallback():
     """
     Reproduce the actual error condition:

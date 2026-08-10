@@ -216,7 +216,7 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
 
     try:
         # 1. Get recent run history (last N runs)
-        cur.execute(f"""
+        cur.execute("""
             SELECT r.run_id, r.run_date, r.overall_status, r.halt_reason, r.started_at, r.completed_at,
                    l.phase_results, l.phases_completed, l.phases_halted, l.phases_errored
             FROM algo_orchestrator_runs r

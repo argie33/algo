@@ -15,7 +15,7 @@ buylevel/stoplevel become _calculate_entry_exit_levels()'s Decimal(str(buylevel)
 any float-rounding drift here is baked in permanently downstream.
 """
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from algo.signals.buy_signal_generator import BuySignalGenerator
 

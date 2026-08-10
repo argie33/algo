@@ -89,7 +89,7 @@ class EarningsBlackout:
                     )
                     return {
                         "pass": False,
-                        "reason": f"Earnings data not refreshed in 7+ days - cannot verify earnings",
+                        "reason": "Earnings data not refreshed in 7+ days - cannot verify earnings",
                     }
 
                 # Check staleness: if last load was 2+ days ago, we may be missing recent earnings

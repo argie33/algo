@@ -7,6 +7,7 @@ reducing duplication across 15+ files that independently run SHOW timezone.
 
 import logging
 from zoneinfo import ZoneInfo
+
 import psycopg2
 
 from utils.db.context import DatabaseContext

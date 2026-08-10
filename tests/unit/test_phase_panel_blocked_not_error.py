@@ -13,10 +13,14 @@ successful outcome) - before this fix the dashboard badge for that phase
 rendered identically to a genuine phase crash.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
-from dashboard.panels.health import HALTED_STATES, PHASE_HALTED_STATES, _build_phase_execution_panel, _format_phase_badge
+from dashboard.panels.health import (
+    HALTED_STATES,
+    PHASE_HALTED_STATES,
+    _build_phase_execution_panel,
+    _format_phase_badge,
+)
 from dashboard.utilities import Y
+from tests.test_helpers.assertions import render_panel_to_text
 
 
 def test_blocked_phase_shows_guard_badge_not_error():

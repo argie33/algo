@@ -21,8 +21,8 @@ pinning that the per-symbol handler covers psycopg2.Error, so a real constraint 
 the documented race degrades gracefully (skip one symbol) instead of crashing the whole phase.
 """
 
-import re
 import inspect
+import re
 
 import psycopg2
 

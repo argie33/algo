@@ -118,11 +118,11 @@ def get_loader_max_backfill_days() -> int:
     # Default: read from algo/config which supports environment override
     try:
         # Use absolute import to avoid namespace collision with root config/
-        import sys
         import importlib
+        import sys
         algo_config = importlib.import_module("algo.config")
         return getattr(algo_config, "MAX_BACKFILL_DAYS_LIMIT", 1825)
-    except (ImportError, AttributeError) as e:
+    except (ImportError, AttributeError):
         # Fallback to default if import fails
         return 1825
 

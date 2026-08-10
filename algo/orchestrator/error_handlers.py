@@ -7,11 +7,10 @@ and ensure consistent error logging, database recovery, and phase result handlin
 """
 
 import logging
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 import psycopg2
-
-from algo.orchestrator.phase_result import PhaseResult
 
 logger = logging.getLogger(__name__)
 

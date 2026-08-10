@@ -73,7 +73,6 @@ class LoaderStatusManager:
         This method is kept for backwards compatibility but does nothing.
         Lock acquisition now happens inline in mark_running/update_progress/etc.
         """
-        pass
 
     def _release_lock(self) -> None:
         """No-op for backwards compatibility - transaction-level locks auto-release.
@@ -83,7 +82,6 @@ class LoaderStatusManager:
 
         This method is kept for backwards compatibility but does nothing.
         """
-        pass
 
     def _ensure_status_row_exists(self) -> None:
         """Create data_loader_status row if it doesn't exist.

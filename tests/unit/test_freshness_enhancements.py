@@ -1,17 +1,18 @@
 """Tests for freshness panel enhancements (data quality, coverage, failure patterns)."""
 
 import inspect
-import pytest
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from dashboard import freshness_enhancements
 from dashboard.freshness_enhancements import (
-    enrich_health_item_with_data_quality,
-    enrich_health_item_with_coverage,
-    enrich_health_item_with_failure_pattern,
     enrich_health_item_with_api_diagnostics,
+    enrich_health_item_with_coverage,
+    enrich_health_item_with_data_quality,
+    enrich_health_item_with_failure_pattern,
 )
 
 

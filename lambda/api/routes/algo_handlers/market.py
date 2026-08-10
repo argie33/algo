@@ -733,10 +733,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # so dashboard can display comprehensive operational health, not just freshness
         try:
             from dashboard.freshness_enhancements import (
-                enrich_health_item_with_data_quality,
-                enrich_health_item_with_coverage,
-                enrich_health_item_with_failure_pattern,
                 enrich_health_item_with_api_diagnostics,
+                enrich_health_item_with_coverage,
+                enrich_health_item_with_data_quality,
+                enrich_health_item_with_failure_pattern,
                 enrich_health_item_with_row_count_trend,
             )
 

@@ -17,7 +17,6 @@ EVENT TYPES:
 """
 
 import logging
-import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

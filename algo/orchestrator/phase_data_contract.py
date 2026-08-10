@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "DataContractError",
+    "ExposureAction",
+    "ExposureConstraints",
     "MissingPhaseDataError",
     "Phase1Contract",
     "Phase2Contract",
@@ -22,8 +24,6 @@ __all__ = [
     "Phase4Contract",
     "Phase5Contract",
     "Phase6Contract",
-    "ExposureConstraints",
-    "ExposureAction",
     "PositionRecommendation",
     "extract_required_data",
     "validate_dependency_executed",

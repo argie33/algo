@@ -7,7 +7,8 @@ to check prerequisites before running core logic.
 """
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from utils.db.context import DatabaseContext

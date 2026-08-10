@@ -6,9 +6,10 @@ Key findings from comprehensive audit:
 - All critical path tests PASS after fixes
 """
 
-import pytest
-from datetime import date
 import inspect
+from datetime import date
+
+import pytest
 
 
 class TestPhase5HaltBehavior:
@@ -16,9 +17,10 @@ class TestPhase5HaltBehavior:
 
     def test_phase5_halt_constraints_block_all_entries(self):
         """Phase 5 halt MUST have zero-risk constraints."""
-        from algo.orchestrator.phase5_exposure_policy import run as run_phase5
-        from algo.orchestration.halt_flag_manager import HaltFlagManager
         from unittest.mock import MagicMock, patch
+
+        from algo.orchestration.halt_flag_manager import HaltFlagManager
+        from algo.orchestrator.phase5_exposure_policy import run as run_phase5
 
         with patch.object(HaltFlagManager, 'check_halt_flag', return_value=True):
             result = run_phase5(

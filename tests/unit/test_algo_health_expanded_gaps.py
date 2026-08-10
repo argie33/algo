@@ -11,9 +11,8 @@ badge-summary run count (7) / notification count (5), despite exec_hist and
 notifs data supporting more.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
 from dashboard.panels.health import panel_algo_health_expanded
+from tests.test_helpers.assertions import render_panel_to_text
 
 RUN = {
     "run_id": "run-123",

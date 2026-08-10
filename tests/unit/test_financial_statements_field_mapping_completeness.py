@@ -13,16 +13,16 @@ Both fixed same session; this test exists so a future "cleanup" pass can't silen
 reintroduce the same class of bug without a test failing.
 """
 
+from loaders.load_financial_statements import (
+    _BALANCE_FIELD_MAPPING,
+    _CASHFLOW_FIELD_MAPPING,
+    _INCOME_FIELD_MAPPING,
+)
 from utils.external.sec_statements import (
     _BALANCE_IFRS_ALIASES,
     _CASHFLOW_IFRS_ALIASES,
     _INCOME_IFRS_ALIASES,
     _to_snake,
-)
-from loaders.load_financial_statements import (
-    _BALANCE_FIELD_MAPPING,
-    _CASHFLOW_FIELD_MAPPING,
-    _INCOME_FIELD_MAPPING,
 )
 
 # Mirrors the concepts lists inside sec_statements.py's get_income_statement/

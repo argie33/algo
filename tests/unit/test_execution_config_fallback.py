@@ -10,6 +10,7 @@ import pytest
 
 from algo.infrastructure.config.execution_config import ExecutionConfig
 
+
 @pytest.fixture
 def mock_parent_config():
     parent = MagicMock()

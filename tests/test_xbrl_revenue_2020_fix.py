@@ -13,8 +13,9 @@ Background:
 """
 
 import pytest
-from utils.external.sec_statements import get_income_statement
+
 from utils.external.sec_edgar_client import SecEdgarClient
+from utils.external.sec_statements import get_income_statement
 
 
 class TestRevenueExtraction2020Fix:

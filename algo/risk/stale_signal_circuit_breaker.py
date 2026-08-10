@@ -39,6 +39,7 @@ class StaleSignalCircuitBreaker:
             - is_safe=False if signals based on stale price data
         """
         from datetime import timedelta
+
         from algo.infrastructure import MarketCalendar
 
         try:

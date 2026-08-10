@@ -30,7 +30,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "lambda" / "algo_orchestrator"))
 
-from lambda_function import LIVE_TRADING_RUN_IDENTIFIERS, MONITOR_ONLY_RUN_IDENTIFIERS  # noqa: E402
+from lambda_function import LIVE_TRADING_RUN_IDENTIFIERS, MONITOR_ONLY_RUN_IDENTIFIERS
 
 ALL_SCHEDULED_RUN_TYPES = {"morning", "afternoon", "preclose", "evening"}
 

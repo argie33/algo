@@ -14,20 +14,19 @@ Loader developers should use this wrapper instead of raw API calls to prevent ha
 import logging
 import signal
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Max runtime for any loader (seconds)
-LOADER_MAX_RUNTIME_SECONDS = int(10 * 60)  # 10 minutes default, configurable
+LOADER_MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes default, configurable
 
 
 class LoaderTimeoutError(Exception):
     """Raised when a loader exceeds max runtime."""
-    pass
 
 
 def _timeout_handler(signum: int, frame: Any) -> None:
@@ -36,7 +35,7 @@ def _timeout_handler(signum: int, frame: Any) -> None:
 
 
 @contextmanager
-def loader_timeout_context(loader_name: str, timeout_seconds: Optional[int] = None) -> Generator[None, None, None]:
+def loader_timeout_context(loader_name: str, timeout_seconds: int | None = None) -> Generator[None, None, None]:
     """
     Context manager to enforce timeout on loader execution.
 
@@ -88,7 +87,7 @@ def loader_timeout_context(loader_name: str, timeout_seconds: Optional[int] = No
                 pass
 
 
-def with_loader_timeout(timeout_seconds: Optional[int] = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def with_loader_timeout(timeout_seconds: int | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator to add timeout enforcement to a loader function.
 

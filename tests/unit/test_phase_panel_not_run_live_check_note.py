@@ -12,9 +12,8 @@ moment a trader needs to trust the dashboard most. A short note now
 clarifies the detail rows are a live check, not from this run.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
 from dashboard.panels.health import _build_phase_execution_panel
+from tests.test_helpers.assertions import render_panel_to_text
 
 
 def test_not_run_phase_with_live_data_shows_clarifying_note():

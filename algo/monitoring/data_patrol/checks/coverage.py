@@ -47,7 +47,7 @@ class CoverageChecker(BaseCheck):
                     f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."
                 )
             if today_count is None:
-                msg = f"price_daily coverage query returned NULL - data may not be fully loaded yet"
+                msg = "price_daily coverage query returned NULL - data may not be fully loaded yet"
                 logger.warning(msg)
                 self.log("coverage", WARN, "price_daily", msg, {"today_count": today_count})
                 return

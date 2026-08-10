@@ -31,8 +31,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def _run(loader_rows):
-    import utils.db.timezone_utils as timezone_utils
     from routes.algo_handlers.monitoring import _get_orchestrator_history_extended
+
+    import utils.db.timezone_utils as timezone_utils
 
     # Bypass get_db_timezone()'s real DB round-trip (SHOW timezone via DatabaseContext) -
     # same pattern as test_stock_scores_staleness_timezone.py. All timestamps in this file

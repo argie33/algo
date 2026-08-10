@@ -58,6 +58,7 @@ class TriggerLoadersHandler(LambdaHandler):
         try:
             import psycopg2
             import psycopg2.extras
+
             from utils.db.config import get_db_config
 
             db_config = get_db_config()

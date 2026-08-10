@@ -28,7 +28,6 @@ from unittest.mock import MagicMock, patch
 from algo.orchestrator.phase6_exit_execution import run as phase6_run
 from algo.orchestrator.phase_result import PhaseResult
 
-
 BASE_CONFIG = {
     "execution_mode": "paper",
     "alpaca_paper_trading": True,

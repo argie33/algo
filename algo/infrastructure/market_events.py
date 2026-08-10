@@ -31,12 +31,12 @@ from typing import Any
 import psycopg2
 import requests
 
+from algo.config.api_endpoints import get_alpaca_base_url, get_alpaca_data_url
+from algo.config.credential_manager import get_credential_manager
 from algo.infrastructure import (
     get_api_timeout,
     get_market_data_timeout,
 )
-from algo.config.api_endpoints import get_alpaca_base_url, get_alpaca_data_url
-from algo.config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 
@@ -368,13 +368,13 @@ class MarketEventHandler:
                 # But 0 current price is OK - just means market is closed (after-hours)
                 if not open_price:
                     raise RuntimeError(
-                        f"Cannot verify circuit breaker status: missing open price. "
-                        f"Cannot calculate market % down without SPY open price."
+                        "Cannot verify circuit breaker status: missing open price. "
+                        "Cannot calculate market % down without SPY open price."
                     )
 
             if current_price == 0 or not current_price:
                 # After-hours: can't verify circuit breaker with missing current price
-                logger.debug(f"[CIRCUIT_BREAKER] Missing current price data (likely after-hours) - no circuit breaker active")
+                logger.debug("[CIRCUIT_BREAKER] Missing current price data (likely after-hours) - no circuit breaker active")
                 return None
 
             pct_down = (float(open_price) - float(current_price)) / float(open_price) * 100

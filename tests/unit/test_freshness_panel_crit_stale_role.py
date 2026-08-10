@@ -10,9 +10,8 @@ price_daily, producing misleading TRIGGERED/NOT READY-looking alarms even when
 trading was otherwise fine.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
 from dashboard.panels.health import _build_freshness_panel
+from tests.test_helpers.assertions import render_panel_to_text
 
 
 def test_crit_stale_banner_excludes_non_critical_stale_tables():

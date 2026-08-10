@@ -7,8 +7,8 @@ import os
 import traceback
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import psycopg2
@@ -1002,9 +1002,9 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
 
 def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
     """Run weight optimization. Gracefully skip if regime data unavailable (data quality issue, not code bug)."""
+    from algo.infrastructure.config.main import AlgoConfig
     from algo.orchestration import RegimeManager as _RegimeManager
     from algo.orchestration import WeightOptimizer
-    from algo.infrastructure.config.main import AlgoConfig
 
     opt_result: dict[str, Any] = {"changes": []}
     try:

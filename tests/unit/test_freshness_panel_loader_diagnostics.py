@@ -8,9 +8,8 @@ zero rows, and a TIMEOUT looked identical to a FAILED. Separately, /api/admin/in
 (untracked/missing tables) was never consumed by the dashboard at all.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
 from dashboard.panels.health import _build_freshness_panel
+from tests.test_helpers.assertions import render_panel_to_text
 
 
 def test_never_started_loader_shown_separately_from_empty():

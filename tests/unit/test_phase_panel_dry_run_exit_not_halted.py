@@ -15,9 +15,8 @@ its badge from the raw status string with no equivalent exemption, so it showed
 "~ HALTED" for Exit Execution on every single local dry-run.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
 from dashboard.panels.health import _build_phase_execution_panel
+from tests.test_helpers.assertions import render_panel_to_text
 
 
 def test_dry_run_exit_stub_shows_skipped_badge_not_halted():

@@ -12,6 +12,7 @@ import pytest
 
 from loaders.market_health_fetchers import BreadthFetcher
 
+
 class TestBreadthFetcherValidation:
     """Test that BreadthFetcher fails fast when data is missing."""
 

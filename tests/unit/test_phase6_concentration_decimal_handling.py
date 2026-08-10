@@ -8,10 +8,12 @@ when computing percentage calculations with database-returned Decimal types.
 These tests verify the Decimal->float conversion is working correctly.
 """
 
-import pytest
-from decimal import Decimal
-from unittest.mock import MagicMock, patch, call
 from datetime import date as _date
+from decimal import Decimal
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
 from algo.orchestrator.phase6_exit_execution import run as phase6_run
 from algo.orchestrator.phase_result import PhaseResult
 

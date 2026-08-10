@@ -1,8 +1,10 @@
 """Integration test: Phase 6 execution in paper trading mode with real exit counts."""
 
-import pytest
 from datetime import date
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
+
+import pytest
+
 from algo.orchestrator.phase6_exit_execution import run as phase6_run
 from algo.orchestrator.phase_result import PhaseResult
 
@@ -160,7 +162,7 @@ def test_phase6_paper_trading_executes_and_reports_exits():
             assert mock_executor_instance.exit_trade.call_count >= 2, \
                 "TradeExecutor.exit_trade should have been called for position exits"
 
-            print(f"\n✓ PAPER TRADING TEST PASSED")
+            print("\n✓ PAPER TRADING TEST PASSED")
             print(f"  Status: {result.status}")
             print(f"  Exits executed: {exits}")
             print(f"  Stop-raises: {stops}")

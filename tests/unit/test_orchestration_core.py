@@ -19,6 +19,7 @@ import pytest
 from algo.orchestration.execution_tracker import ExecutionTracker
 from algo.orchestration.halt_flag_manager import HaltFlagManager
 
+
 class TestHaltFlagManager:
     """Test halt flag management for fail-safe trading."""
 

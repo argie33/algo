@@ -7,7 +7,6 @@ import logging
 import math
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
@@ -105,7 +104,6 @@ class DailyReconciliation:
         self.broker: BrokerAdapter | None = None  # Allow None for paper trading without credentials
 
         # Initialize broker adapter (abstracted from Alpaca-specific implementation)
-        import os
 
         # CRITICAL: execution_mode governs whether entry execution actually sends orders to
         # Alpaca. executor.py's _submit_and_validate_order() only calls the Alpaca order API

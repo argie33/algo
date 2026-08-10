@@ -796,7 +796,7 @@ class MarketStatusDailyLoader(OptimalLoader):
 
         try:
             with DatabaseContext("write") as cur:
-                logger.info(f"[PERSIST_EXPOSURE] Executing INSERT for market_exposure_daily")
+                logger.info("[PERSIST_EXPOSURE] Executing INSERT for market_exposure_daily")
                 cur.execute(
                 """
                 INSERT INTO market_exposure_daily

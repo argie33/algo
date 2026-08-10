@@ -796,7 +796,7 @@ class OrderManager:
 
     def send_market_exit(
         self, symbol: str, shares: float, execution_mode: str, client_order_id: str | None = None
-    ) -> dict[str, Any]:  # noqa: C901
+    ) -> dict[str, Any]:
         """Send a market sell order to Alpaca.
 
         Returns { success, order_id, filled_price }.

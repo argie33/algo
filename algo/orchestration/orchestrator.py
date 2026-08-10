@@ -35,6 +35,7 @@ from algo.orchestration.phase_event_hub import (
     PhaseStatus,
     get_event_hub,
 )
+from algo.orchestration.position_sync import sync_positions_from_trades, validate_position_count
 
 # Import all phase executors at module load time (not dynamically)
 from algo.orchestrator.phase1_data_freshness import run as run_phase1
@@ -49,7 +50,6 @@ from algo.orchestrator.phase9_reconciliation import run as run_phase9
 from algo.orchestrator.phase_data_contract import ExposureConstraints
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
-from algo.orchestration.position_sync import sync_positions_from_trades, validate_position_count
 from algo.reporting import AlertManager
 from monitoring.metrics_context import (
     TimeBlock,
@@ -463,18 +463,18 @@ class Orchestrator:
                 # Fail here at startup with clear message instead of later during trading
                 if api_key.startswith("PK") and len(api_key) == 20 and api_key[2:].isalnum():
                     raise RuntimeError(
-                        f"[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca credentials (starts with PK followed by hex). "
-                        f"Cannot trade with test credentials in 'auto' mode. "
-                        f"This indicates the system is using database fallback credentials instead of real ones. "
-                        f"REQUIRED: Set real APCA_API_KEY_ID and APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
-                        f"Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api"
+                        "[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca credentials (starts with PK followed by hex). "
+                        "Cannot trade with test credentials in 'auto' mode. "
+                        "This indicates the system is using database fallback credentials instead of real ones. "
+                        "REQUIRED: Set real APCA_API_KEY_ID and APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
+                        "Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api"
                     )
                 if api_secret.startswith("test_"):
                     raise RuntimeError(
-                        f"[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca secret (starts with 'test_'). "
-                        f"Cannot trade with test credentials in 'auto' mode. "
-                        f"REQUIRED: Set real APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
-                        f"Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api"
+                        "[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca secret (starts with 'test_'). "
+                        "Cannot trade with test credentials in 'auto' mode. "
+                        "REQUIRED: Set real APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
+                        "Get real credentials from https://app.alpaca.markets/paper/dashboard/settings/api"
                     )
 
                 logger.info(f"[OK] Alpaca credentials validated for execution_mode={execution_mode!r}")
@@ -2098,7 +2098,7 @@ class Orchestrator:
             try:
                 self.execution_tracker.save_execution_log("degraded", halt_reason)
                 self._save_orchestrator_run_status("degraded", halt_reason)
-                logger.debug(f"[EXECUTION_LOG] Saved degraded status for market hours guard block")
+                logger.debug("[EXECUTION_LOG] Saved degraded status for market hours guard block")
             except Exception as e:
                 logger.warning(f"[EXECUTION_LOG] Could not save guard block status: {e}")
 

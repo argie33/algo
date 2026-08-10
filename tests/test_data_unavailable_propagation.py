@@ -11,6 +11,7 @@ Verifies that when data is unavailable:
 
 import pytest
 
+
 class TestDataUnavailableMarkers:
     """Test that data unavailability is explicitly marked."""
 

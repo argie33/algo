@@ -14,13 +14,12 @@ Run:
 """
 
 import logging
-import sys
 from typing import Any
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
-from utils.optimal_loader import OptimalLoader
 from utils.db.context import DatabaseContext
+from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)

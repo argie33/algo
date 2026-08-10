@@ -555,7 +555,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 _mark_loader_failed_after_crash(loader_key, "failsafe retry subprocess timed out after 300s")
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
-            except (OSError, IOError, RuntimeError) as e:
+            except (OSError, RuntimeError) as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
                 results["still_failing"].append(table_name)
                 _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")

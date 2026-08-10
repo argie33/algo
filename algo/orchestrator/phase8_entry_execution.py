@@ -72,8 +72,7 @@ import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
@@ -91,9 +90,9 @@ from algo.infrastructure.constants import (
 )
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.orchestrator.config_validator import validate_phase_config
+from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
 from algo.orchestrator.phase_data_contract import ExposureConstraints, QualifiedTrade
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.phase8_preentry_health_check import PreEntryHealthValidator
 from algo.orchestrator.validation_thresholds import REJECTION_REASON_MAX_LEN
 from algo.risk import LiquidityChecks
 from algo.trading.exceptions import DatabaseError
@@ -1063,7 +1062,9 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
     Returns:
         (is_fresh, message) - is_fresh=True if price_daily is current for the market phase
     """
-    from datetime import datetime as dt, timedelta as td
+    from datetime import datetime as dt
+    from datetime import timedelta as td
+
     from utils.infrastructure import EASTERN_TZ as _TZ_LOCAL
 
     try:
@@ -1200,8 +1201,9 @@ def run(
     # CRITICAL FIX (Session 30): Import EASTERN_TZ at function level to ensure availability
     # Previous: UnboundLocalError "cannot access local variable 'EASTERN_TZ'" due to scope shadowing
     # This ensures we always have access to the timezone regardless of outer scope
-    from utils.infrastructure import EASTERN_TZ as _EASTERN_TZ
     from datetime import time as dt_time
+
+    from utils.infrastructure import EASTERN_TZ as _EASTERN_TZ
 
     now_dt = datetime.now(_EASTERN_TZ)
     now_et = now_dt.time()
@@ -1413,7 +1415,7 @@ def run(
                 logger.info(f"[PHASE 8] Retrieved {len(qualified_trades_from_executor)} signals from Phase 7")
                 # DEBUG: Log what signal_quality_score values we received
                 if qualified_trades_from_executor:
-                    logger.info(f"[PHASE 8 DEBUG] Top 5 received signals signal_quality_score values:")
+                    logger.info("[PHASE 8 DEBUG] Top 5 received signals signal_quality_score values:")
                     for i, sig in enumerate(qualified_trades_from_executor[:5]):
                         logger.info(f"  {i+1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}")
             elif phase7_result and phase7_result.halted:

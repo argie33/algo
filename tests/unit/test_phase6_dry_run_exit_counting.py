@@ -1,7 +1,9 @@
 """Test that Phase 6 counts exits correctly in dry-run mode."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from algo.orchestrator.phase6_exit_execution import run as phase6_run
 from algo.orchestrator.phase_result import PhaseResult
 
@@ -183,5 +185,5 @@ def test_phase6_dry_run_returns_degraded_status():
 
 if __name__ == "__main__":
     test_phase6_dry_run_counts_exits()
-    test_phase6_live_mode_returns_ok_when_no_errors()
+    test_phase6_dry_run_returns_degraded_status()
     print("✓ All tests passed!")

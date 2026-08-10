@@ -12,9 +12,8 @@ not per-table data freshness, and prepending them to the [l] panel crowded out t
 per-table freshness detail that panel exists to show.
 """
 
-from tests.test_helpers.assertions import render_panel_to_text
-
 from dashboard.panels.health import panel_algo_health_expanded, panel_data_freshness_expanded
+from tests.test_helpers.assertions import render_panel_to_text
 
 HLTH = {"sources": [{"tbl": "price_daily", "st": "ok", "age": 0.1}]}
 

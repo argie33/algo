@@ -314,8 +314,8 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
         raise RuntimeError(error_msg)
     if prev_row["adjusted_equity"] is None:
         error_msg = (
-            f"[CIRCUIT_BREAKER CRITICAL] Prior adjusted equity is NULL. "
-            f"Cannot compute daily loss (CB2). Check adjusted_equity calculation for prior date."
+            "[CIRCUIT_BREAKER CRITICAL] Prior adjusted equity is NULL. "
+            "Cannot compute daily loss (CB2). Check adjusted_equity calculation for prior date."
         )
         logger.critical(error_msg)
         raise RuntimeError(error_msg)

@@ -20,10 +20,10 @@ deliberately with `RUN_ORCHESTRATOR_STRESS_TEST=1 python tests/test_concurrent_o
 """
 
 import os
-import sys
 import subprocess
-import time
+import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 

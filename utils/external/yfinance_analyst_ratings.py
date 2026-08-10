@@ -77,8 +77,9 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
     except YFinanceStillBannedError as e:
         raise RuntimeError(f"yfinance shared IP ban active: {e}") from e
 
-    import yfinance as yf
     import socket
+
+    import yfinance as yf
 
     # Set socket timeout for this request
     old_timeout = socket.getdefaulttimeout()
@@ -86,7 +87,7 @@ def _fetch_with_circuit_breaker(symbol: str, attr: str, timeout_sec: float = 10.
 
     try:
         result = getattr(yf.Ticker(symbol), attr)
-    except socket.timeout:
+    except TimeoutError:
         raise RuntimeError(f"yfinance {attr} fetch timeout for {symbol} (>{timeout_sec}s)") from None
     except Exception as e:
         if _is_rate_limit_error(e):

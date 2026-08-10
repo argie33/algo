@@ -5,9 +5,10 @@ Guards against re-introducing an unscoped DELETE that wipes an economic series'
 entire history instead of just the date range being refreshed.
 """
 
-import pytest
 from datetime import date
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from loaders.load_economic_data import mark_unavailable, store_economic_data
 

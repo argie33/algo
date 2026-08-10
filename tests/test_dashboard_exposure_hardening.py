@@ -12,6 +12,7 @@ from rich.text import Text
 
 from dashboard.panels.exposure import panel_exposure_compact, panel_exposure_expanded
 
+
 class TestExposureCompactMissingFields:
     """Compact exposure panel should handle missing required fields."""
 

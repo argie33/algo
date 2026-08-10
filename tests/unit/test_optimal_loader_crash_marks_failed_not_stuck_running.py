@@ -50,7 +50,7 @@ def _run_with_crash(loader, run_serial_side_effect, sla_timeout_seconds=999999):
         try:
             loader.run(symbols=["AAPL"], parallelism=1)
             return None
-        except Exception as e:  # noqa: BLE001 - test wants to inspect whatever propagates
+        except Exception as e:
             return e
 
 

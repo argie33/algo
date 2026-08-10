@@ -13,7 +13,6 @@ import psycopg2
 from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db import DatabaseContext, assert_safe_column, assert_safe_table
 from utils.infrastructure import EASTERN_TZ
-from utils.loaders.status_manager import LoaderStatusManager
 
 logger = logging.getLogger(__name__)
 

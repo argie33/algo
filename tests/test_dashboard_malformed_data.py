@@ -9,6 +9,7 @@ from dashboard.panels.health import (
     panel_algo_health,
 )
 
+
 class TestPanelWithMalformedRiskData:
     """Dashboard should handle corrupted risk metrics gracefully."""
 

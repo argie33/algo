@@ -49,5 +49,5 @@ def test_no_unbounded_latest_snapshot_queries():
     assert not violations, (
         "Found unbounded 'latest portfolio snapshot' queries (missing "
         "snapshot_date <= bound) - see module docstring for the bug this guards "
-        f"against:\n" + "\n".join(violations)
+        "against:\n" + "\n".join(violations)
     )

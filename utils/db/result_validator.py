@@ -6,7 +6,7 @@ Prevents IndexError and makes code more readable by replacing magic indices
 with named field access.
 """
 
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 T = TypeVar("T")
 

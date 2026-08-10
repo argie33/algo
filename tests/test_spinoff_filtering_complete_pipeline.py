@@ -5,8 +5,9 @@ data_unavailable=True in financial_statements. This test verifies that downstrea
 loaders filter these companies correctly so they don't appear in scores or signals.
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 
 
 class TestSpinoffFilteringPipeline:
@@ -21,7 +22,6 @@ class TestSpinoffFilteringPipeline:
         # This test verifies the database state after load_financial_statements.py runs
         # Expected: spinoff company has row with data_unavailable=True
         # Not testing database directly (would need live connection), but documenting requirement
-        pass
 
     def test_stock_scores_loader_filters_data_unavailable_symbols(self):
         """Verify stock_scores loader skips symbols marked data_unavailable.
@@ -35,7 +35,6 @@ class TestSpinoffFilteringPipeline:
         # Code verification: load_stock_scores.py lines 169, 179, 186, 367, 378, 411
         # all check data_unavailable before processing metrics
         # This test documents the requirement for spinoff filtering
-        pass
 
     def test_phase7_signal_generation_excludes_data_unavailable_symbols(self):
         """Verify Phase 7 signal generation excludes symbols marked data_unavailable.
@@ -48,7 +47,6 @@ class TestSpinoffFilteringPipeline:
         # Code verification: phase7_signal_generation.py line 440
         # SELECT ... WHERE ss.data_unavailable = false OR ss.data_unavailable IS NULL
         # This explicitly filters out data_unavailable=True symbols
-        pass
 
     def test_spinoff_company_not_in_final_signal_output(self):
         """Integration test: Spinoff company never reaches final signal output.
@@ -64,7 +62,6 @@ class TestSpinoffFilteringPipeline:
         """
         # This test documents the complete pipeline requirement
         # Each stage has explicit data_unavailable check
-        pass
 
 
 if __name__ == "__main__":

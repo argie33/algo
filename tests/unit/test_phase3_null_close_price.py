@@ -10,6 +10,7 @@ accessor.get_float(1, allow_none=True)
 """
 
 import pytest
+
 from utils.db.result_validator import RowAccessor, RowValidationError
 
 

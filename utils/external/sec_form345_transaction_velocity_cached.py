@@ -8,9 +8,7 @@ This wrapper:
 - Logs detailed progress for debugging
 """
 
-import json
 import logging
-import os
 import threading
 from datetime import date, datetime, timezone
 from pathlib import Path

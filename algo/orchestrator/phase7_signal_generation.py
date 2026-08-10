@@ -80,7 +80,7 @@ import math
 import time
 import zlib
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as _date
 from datetime import timedelta
 from typing import Any
@@ -96,8 +96,8 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 from algo.orchestrator.validation_thresholds import (
-    LIQUIDITY_CHECK_LIMIT,
     BUY_SELL_DAILY_ANOMALY_THRESHOLD,
+    LIQUIDITY_CHECK_LIMIT,
     PHASE7_LIQUIDITY_CHECK_WORKERS,
 )
 
@@ -114,7 +114,6 @@ def _calculate_dynamic_anomaly_threshold() -> int:
     """
     try:
         from utils.db.context import DatabaseContext
-        from algo.infrastructure import MarketCalendar
 
         with DatabaseContext("read") as cur:
             # Query signal counts for last 30 trading days (only BUY signals per Phase 7 design)
@@ -861,9 +860,9 @@ def _get_candidates_from_buysell(
                             lock_acquired = result[0] if result and result[0] is not None else False
 
                             if lock_acquired:
-                                logger.debug(f"[PHASE 7] Acquired non-blocking advisory lock for signal quality score updates")
+                                logger.debug("[PHASE 7] Acquired non-blocking advisory lock for signal quality score updates")
                             else:
-                                logger.info(f"[PHASE 7] Lock held by concurrent Phase 7 instance, skipping score updates (next run will handle)")
+                                logger.info("[PHASE 7] Lock held by concurrent Phase 7 instance, skipping score updates (next run will handle)")
                         except Exception as lock_err:
                             logger.warning(f"[PHASE 7] Could not acquire advisory lock: {lock_err}. Continuing without lock.")
 
@@ -896,7 +895,7 @@ def _get_candidates_from_buysell(
                             if lock_acquired:
                                 try:
                                     cur_write.execute(f"SELECT pg_advisory_unlock({lock_id})")
-                                    logger.debug(f"[PHASE 7] Released non-blocking advisory lock after signal quality score updates")
+                                    logger.debug("[PHASE 7] Released non-blocking advisory lock after signal quality score updates")
                                 except Exception as unlock_err:
                                     logger.warning(f"[PHASE 7] Could not release advisory lock: {unlock_err}. Lock will auto-release on connection close.")
                 except Exception as write_e:
@@ -1433,8 +1432,9 @@ def run(  # noqa: C901
             )
 
         try:
-            from loaders.load_signal_quality_scores import SignalQualityScoresLoader
             from concurrent.futures import TimeoutError as FutureTimeoutError
+
+            from loaders.load_signal_quality_scores import SignalQualityScoresLoader
 
             if today_scores_exist:
                 logger.info("[PHASE 7] Skipping signal quality score loader (today's scores already available)")
@@ -1507,8 +1507,8 @@ def run(  # noqa: C901
             if is_lock_error:
                 # Temporary lock issue - log warning but don't halt
                 msg = (
-                    f"[PHASE 7 WARNING] Signal quality score loader could not acquire lock (temporary contention). "
-                    f"Will proceed without updated scores. Trades will use previously cached scores if available."
+                    "[PHASE 7 WARNING] Signal quality score loader could not acquire lock (temporary contention). "
+                    "Will proceed without updated scores. Trades will use previously cached scores if available."
                 )
                 logger.warning(msg)
                 log_phase_result_fn(7, "signal_generation", "degraded", msg)
@@ -1517,8 +1517,8 @@ def run(  # noqa: C901
             elif isinstance(e, (TimeoutError, FutureTimeoutError)):
                 # Timeout (separate from lock acquisition) - also graceful degradation
                 msg = (
-                    f"[PHASE 7 WARNING] Signal quality score computation timed out. "
-                    f"Will proceed without updated scores. Trades will use previously cached scores if available."
+                    "[PHASE 7 WARNING] Signal quality score computation timed out. "
+                    "Will proceed without updated scores. Trades will use previously cached scores if available."
                 )
                 logger.warning(msg)
                 log_phase_result_fn(7, "signal_generation", "degraded", msg)
@@ -2175,7 +2175,7 @@ def run(  # noqa: C901
 
     # DEBUG: Log what signal_quality_score values are in liq_passed
     if liq_passed:
-        logger.info(f"[PHASE 7 DEBUG] Top 5 qualified trades signal_quality_score values:")
+        logger.info("[PHASE 7 DEBUG] Top 5 qualified trades signal_quality_score values:")
         for i, sig in enumerate(liq_passed[:5]):
             logger.info(f"  {i+1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}")
 

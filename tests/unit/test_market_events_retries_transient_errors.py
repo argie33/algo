@@ -13,8 +13,9 @@ attempt with zero retries - the same "one attempt only" bug for network-level fa
 that the loop had just fixed for HTTP-level ones.
 """
 
-import requests
 from unittest.mock import MagicMock, patch
+
+import requests
 
 from algo.infrastructure.market_events import MarketEventHandler
 

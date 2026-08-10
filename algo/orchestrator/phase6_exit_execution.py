@@ -4,8 +4,7 @@ import logging
 import math
 import time
 from collections.abc import Callable
-from datetime import date as _date, time as _time
-from decimal import Decimal
+from datetime import date as _date
 from typing import Any, cast
 
 import psycopg2
@@ -13,7 +12,7 @@ import psycopg2
 from algo.exceptions import ValidationError
 from algo.orchestrator.config_validator import validate_phase_config
 from algo.orchestrator.phase_result import PhaseResult
-from algo.orchestrator.type_converters import ensure_int, ensure_float
+from algo.orchestrator.type_converters import ensure_float, ensure_int
 from algo.reporting import AlertManager
 from algo.trading.exceptions import DatabaseError
 from utils.db.advisory_locks import (
@@ -319,7 +318,7 @@ def run(
 
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        f"""
+                        """
                         SELECT cs.sector, COUNT(*) as position_count
                         FROM algo_positions ap
                         JOIN company_profile cs ON ap.symbol = cs.symbol

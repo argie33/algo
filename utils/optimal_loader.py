@@ -451,13 +451,12 @@ class OptimalLoader:
         # This allows loaders to run locally without DynamoDB access.
         is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
         from utils.db.dynamo_lock import DynamoDBLockManager
-        from utils.db.local_file_lock import get_lock_manager
-        from utils.db.rds_lock import RDSLockManager
 
         # Type annotation includes FileLockManager because get_lock_manager() returns it
         # in LOCAL_MODE, even though production code should not rely on it (Windows race condition).
         # get_lock_manager() returns: FileLockManager (LOCAL_MODE), DynamoDBLockManager, or RDS fallback.
-        from utils.db.local_file_lock import FileLockManager
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.rds_lock import RDSLockManager
         lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         if is_local_mode:
             logger.info(f"[{self.table_name}] LOCAL_MODE enabled - using file-based locks")
@@ -756,13 +755,12 @@ class OptimalLoader:
 
     def load_global(self) -> int:
         from utils.db.dynamo_lock import DynamoDBLockManager
-        from utils.db.local_file_lock import get_lock_manager
-        from utils.db.rds_lock import RDSLockManager
 
         # Type annotation includes FileLockManager because get_lock_manager() returns it
         # in LOCAL_MODE, even though production code should not rely on it (Windows race condition).
         # get_lock_manager() returns: FileLockManager (LOCAL_MODE), DynamoDBLockManager, or RDS fallback.
-        from utils.db.local_file_lock import FileLockManager
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.rds_lock import RDSLockManager
         lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         from algo.exceptions import LockAcquisitionError
 

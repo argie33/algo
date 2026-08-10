@@ -8,9 +8,7 @@ Handles retries, pooling, proper credential fallback, and connection tracking.
 
 import logging
 import os
-import sys
 import threading
-from pathlib import Path
 from typing import Any
 
 import psycopg2

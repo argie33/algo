@@ -29,8 +29,6 @@ See also: algo/orchestrator/phase8_entry_execution.py for related position track
 """
 
 import logging
-from decimal import Decimal
-from typing import Tuple
 
 from algo.config.credential_manager import get_algo_owner_cognito_sub
 from utils.db import DatabaseContext
@@ -50,7 +48,7 @@ logger = logging.getLogger(__name__)
 LINKED_TRADE_STATUSES = TradeStatus.all_open()
 
 
-def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
+def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
     """Synchronize algo_positions table with current trades data.
 
     For each symbol with net quantity > 0 in trades:
@@ -137,7 +135,7 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
 
                     trade_row = cur.fetchone()
                     if not trade_row:
-                        error_reason = f"No entry_price found in trades"
+                        error_reason = "No entry_price found in trades"
                         logger.warning(f"[POSITION_SYNC] Could not find entry_price for {symbol}")
                         errors += 1
                         error_details.append({"symbol": symbol, "reason": error_reason})

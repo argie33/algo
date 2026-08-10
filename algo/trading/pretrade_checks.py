@@ -6,7 +6,6 @@ from datetime import date as _date
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 import psycopg2
 

@@ -17,8 +17,8 @@ This test locks in both new mappings so a future "cleanup" pass can't silently d
 catches a mapped-but-unfetched-elsewhere class of the same bug).
 """
 
-from utils.external.sec_statements import _CASHFLOW_IFRS_ALIASES, _to_snake
 from loaders.load_financial_statements import _CASHFLOW_FIELD_MAPPING
+from utils.external.sec_statements import _CASHFLOW_IFRS_ALIASES, _to_snake
 
 
 class TestCapexAlternateConceptFallback:

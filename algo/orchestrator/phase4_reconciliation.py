@@ -116,7 +116,7 @@ def run(  # noqa: C901
             # In paper mode (no_broker=True), partial fill validation was skipped by design.
             # This is safe because we're using database state, not broker state.
             if partial_fill_result.get("no_broker"):
-                logger.info(f"[PHASE 4] Paper mode: broker unavailable, skipping partial fill validation")
+                logger.info("[PHASE 4] Paper mode: broker unavailable, skipping partial fill validation")
 
         # Validate result structure upfront
         if "success" not in result or result["success"] is None:

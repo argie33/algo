@@ -47,10 +47,10 @@ class TestCacheInvalidationFailure:
             # Setup database contexts
             mock_ctx.return_value.__enter__.return_value = cur
             mock_status_ctx.return_value.__enter__.return_value = cur
-            
+
             # Cache invalidation fails
             mock_cache.side_effect = RuntimeError("CRITICAL: Cache invalidation completely failed")
-            
+
             # Should raise before marking status as COMPLETED
             with pytest.raises(RuntimeError, match="Cache invalidation completely failed"):
                 loader._update_loader_status()
@@ -97,11 +97,11 @@ class TestCacheInvalidationFailure:
         ):
             mock_ctx.return_value.__enter__.return_value = cur
             mock_cache.side_effect = RuntimeError("Cache failed")
-            
+
             # Patch LoaderStatusManager to verify it's NOT called
             with patch("utils.loaders.status_manager.LoaderStatusManager") as mock_mgr_class:
                 with pytest.raises(RuntimeError):
                     loader._update_loader_status()
-                
+
                 # LoaderStatusManager should NOT have been instantiated
                 mock_mgr_class.assert_not_called()

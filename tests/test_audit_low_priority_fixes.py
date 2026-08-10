@@ -9,10 +9,11 @@ Tests for:
 - Data quality validation (ATR, SMA, prices)
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import date
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestConstraintValidation:
@@ -305,6 +306,7 @@ class TestValidationLogging:
     def test_successful_constraint_validation_logs_info(self):
         """Successful constraint validation should log at INFO level."""
         import logging
+
         from algo.orchestrator.phase8_entry_execution import _validate_constraints_for_phase8
 
         valid_constraints = {

@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
 class TestBreadthFetcherNewHighsLows:
     """Test BreadthFetcher._compute_new_highs_lows() method - NEW FUNCTIONALITY"""
 

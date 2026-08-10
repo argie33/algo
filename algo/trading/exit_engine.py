@@ -14,6 +14,8 @@ import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
+from algo.config.api_endpoints import get_alpaca_data_url
+from algo.config.credential_manager import get_alpaca_credentials
 from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.infrastructure.constants import MARKET_DIST_DAYS_MAX_STALE_TRADING_DAYS
@@ -21,8 +23,6 @@ from algo.infrastructure.market_calendar import MarketCalendar
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
-from algo.config.api_endpoints import get_alpaca_data_url
-from algo.config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus
@@ -838,7 +838,7 @@ class ExitEngine:
                                         "safely determine live vs. paper mode for exit error handling."
                                     )
                                 error_context = (
-                                    f"live trading (symbol delisted or permission lost)"
+                                    "live trading (symbol delisted or permission lost)"
                                     if execution_mode == "auto"
                                     else f"{execution_mode} mode (sandbox limitation despite DB prices)"
                                 )
@@ -1484,7 +1484,7 @@ class ExitEngine:
                         f"[EXIT_ENGINE] {symbol}: Alpaca quote API authentication failed (401) in {execution_mode} mode - "
                         f"falling back to database prices for exit evaluation"
                     )
-                    return {"data_unavailable": True, "reason": f"Alpaca 401 auth failed - using database fallback"}
+                    return {"data_unavailable": True, "reason": "Alpaca 401 auth failed - using database fallback"}
 
             elif response.status_code == 404:
                 # 404 can mean two different things depending on execution mode:

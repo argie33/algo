@@ -106,7 +106,7 @@ class PhaseErrorClassifier:
         context_str = f" | {context}" if context else ""
 
         log_msg = (
-            f"[{phase_name}] {severity.value.upper()}: {exc_type}: {str(exc)}{context_str}"
+            f"[{phase_name}] {severity.value.upper()}: {exc_type}: {exc!s}{context_str}"
         )
 
         if severity == ErrorSeverity.FATAL:

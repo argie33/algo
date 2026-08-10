@@ -34,8 +34,9 @@ by adding these new columns as UPDATE operations.
 import logging
 import sys
 import time
+from collections.abc import Iterable
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
 import psycopg2
 
@@ -113,7 +114,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             for symbol in symbols:
                 try:
                     # Calculate since_date from backfill_days (matching parent behavior)
-                    from datetime import datetime, timedelta, timezone as tz
+                    from datetime import datetime, timedelta
+                    from datetime import timezone as tz
 
                     since_date = None
                     if self._backfill_days > 0:
@@ -492,6 +494,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         """
         try:
             import yfinance as yf
+
             from utils.loaders.retry_helper import retry_with_backoff
             ticker = yf.Ticker(symbol)
 
@@ -559,6 +562,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         """
         try:
             import yfinance as yf
+
             from utils.loaders.retry_helper import retry_with_backoff
             ticker = yf.Ticker(symbol)
 

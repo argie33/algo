@@ -12,7 +12,6 @@ Handles:
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 import time
@@ -256,6 +255,7 @@ class EntryHandler:
         # CRITICAL FIX: Check if an open position already exists for this symbol (from a prior entry in the same day).
         # Reuse it instead of creating duplicate positions. This prevents multiple positions per symbol.
         import hashlib
+
         from utils.db.context import DatabaseContext
         logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
         try:
