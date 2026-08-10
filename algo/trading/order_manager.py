@@ -277,6 +277,17 @@ class OrderManager:
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 
+        # Every attempt failed with a network-level exception (no HTTP response ever
+        # received) rather than a rejection Alpaca actually responded to - the case the
+        # 422-rejection branch above already ground-truth-checks via client_order_id, but
+        # this exhausted-retries path fell through without ever checking it. If attempt 1
+        # actually reached Alpaca and created the order but the response itself was lost,
+        # this is exactly the scenario client_order_id exists to make recoverable (see this
+        # method's docstring) - check ground truth before reporting a false failure.
+        if client_order_id:
+            existing = self._lookup_order_by_client_order_id(client_order_id)
+            if existing:
+                return self._entry_result_from_order_data(symbol, existing)
         logger.error(f"[SEND_ORDER] {symbol}: Failed after {max_attempts} attempts: {last_error}")
         return {"success": False, "message": last_error}
 
@@ -1003,6 +1014,16 @@ class OrderManager:
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 
+        # Same gap as send_bracket_order's identical fix: every attempt failed with a
+        # network-level exception (no HTTP response ever received), so the 422-rejection
+        # branch's ground-truth client_order_id lookup above never ran. Check it here too -
+        # if attempt 1 actually reached Alpaca and sold the position but the response was
+        # lost, this is exactly the double-sell this method's docstring says client_order_id
+        # exists to prevent; reporting a false failure risks a caller retrying the sell fresh.
+        if client_order_id:
+            existing = self._lookup_order_by_client_order_id(client_order_id)
+            if existing:
+                return self._exit_result_from_order_data(symbol, existing)
         logger.error(f"[SEND_EXIT] {symbol}: Failed after {max_attempts} attempts: {last_error}")
         return {
             "success": False,

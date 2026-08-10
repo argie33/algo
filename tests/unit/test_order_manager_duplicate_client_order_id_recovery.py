@@ -131,6 +131,101 @@ class TestEntryDuplicateRecovery:
         assert result["success"] is False
 
 
+class TestExhaustedRetriesDuplicateRecovery:
+    """2026-08-10: the ground-truth client_order_id lookup only ran on a 422 HTTP
+    rejection. If EVERY retry attempt instead raised a network-level exception (no HTTP
+    response ever received at all), the loop fell through to a bare failure return with
+    no lookup - even though this is the exact "response lost to timeout/crash" scenario
+    client_order_id exists to make recoverable.
+    """
+
+    def test_exit_all_attempts_timeout_but_order_exists_recovers(self):
+        manager = _make_manager()
+        lookup_resp = MagicMock(status_code=200)
+        lookup_resp.json.return_value = {
+            "id": "real-order-789",
+            "status": "filled",
+            "filled_avg_price": "99.75",
+        }
+
+        with (
+            patch(
+                "algo.trading.order_manager.requests.post",
+                side_effect=requests.exceptions.ConnectionError("network down"),
+            ),
+            patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
+            patch("algo.trading.order_manager.time.sleep"),
+        ):
+            result = manager.send_market_exit("AAPL", 5, "auto", client_order_id="exit-timeout-abc")
+
+        assert result["success"] is True
+        assert result["order_id"] == "real-order-789"
+        assert result["filled_price"] == 99.75
+
+    def test_exit_all_attempts_timeout_no_order_exists_still_fails(self):
+        manager = _make_manager()
+        lookup_resp = MagicMock(status_code=404)
+
+        with (
+            patch(
+                "algo.trading.order_manager.requests.post",
+                side_effect=requests.exceptions.ConnectionError("network down"),
+            ),
+            patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
+            patch("algo.trading.order_manager.time.sleep"),
+        ):
+            result = manager.send_market_exit("AAPL", 5, "auto", client_order_id="exit-timeout-xyz")
+
+        assert result["success"] is False
+
+    def test_entry_all_attempts_timeout_but_order_exists_recovers(self):
+        manager = _make_manager()
+        lookup_resp = MagicMock(status_code=200)
+        lookup_resp.json.return_value = {
+            "id": "real-order-321",
+            "status": "filled",
+            "order_class": "bracket",
+            "filled_avg_price": "75.10",
+            "legs": [
+                {"id": "leg-stop", "type": "stop", "status": "held"},
+                {"id": "leg-tp", "type": "limit", "status": "held"},
+            ],
+        }
+
+        with (
+            patch(
+                "algo.trading.order_manager.requests.post",
+                side_effect=requests.exceptions.ConnectionError("network down"),
+            ),
+            patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
+            patch("algo.trading.order_manager.time.sleep"),
+        ):
+            result = manager.send_bracket_order(
+                "MSFT", 10, 75.0, stop_loss_price=72.0, client_order_id="entry-timeout-abc"
+            )
+
+        assert result["success"] is True
+        assert result["order_id"] == "real-order-321"
+
+    def test_entry_all_attempts_timeout_no_order_exists_still_fails(self):
+        manager = _make_manager()
+        lookup_resp = MagicMock(status_code=404)
+
+        with (
+            patch(
+                "algo.trading.order_manager.requests.post",
+                side_effect=requests.exceptions.ConnectionError("network down"),
+            ),
+            patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
+            patch("algo.trading.order_manager.time.sleep"),
+        ):
+            result = manager.send_bracket_order(
+                "MSFT", 10, 75.0, stop_loss_price=72.0, client_order_id="entry-timeout-xyz"
+            )
+
+        assert result["success"] is False
+
+
 class TestLookupHelperConservatism:
     def test_lookup_returns_none_without_credentials(self):
         manager = OrderManager("", "", "https://paper-api.alpaca.markets")
