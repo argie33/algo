@@ -109,7 +109,7 @@ class LoaderStatusManager:
     def mark_running(self, symbol_count: int | None = None) -> None:
         """Mark loader as starting execution now.
 
-        Sets: status=RUNNING, execution_started=NOW
+        Sets: status=RUNNING, execution_started=NOW, completion_pct=0, symbols_loaded=0
 
         ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within a single transaction.
         This prevents concurrent updates from overwriting counts.
@@ -141,11 +141,25 @@ class LoaderStatusManager:
                 # chain this fed into: false "stuck/crashed" alerts on healthy, actively-running
                 # loaders). Stamping it here gives every run an accurate baseline the moment it
                 # starts, regardless of whether anything updates it again mid-run.
+                #
+                # FIXED 2026-08-10 (live evidence): completion_pct/symbols_loaded were left
+                # untouched by the no-symbol_count branch, and only symbols_loaded (not
+                # completion_pct) was reset in the symbol_count branch. A loader that calls
+                # mark_running() and then crashes/hangs before its first update_progress() -
+                # e.g. technical_data_daily, live-reproduced: execution_started stamped fresh,
+                # status stuck at RUNNING, but completion_pct/symbols_loaded still read
+                # "100.00%, 10549/10549" carried over from the PRIOR successful run - leaves a
+                # self-contradictory row that reads as "100% done" to any caller keying off
+                # completion_pct (orchestrator.py's proactive-wait) while status says RUNNING,
+                # producing a false "stalled at 100%" alarm instead of an honest "0% - just
+                # started, no data yet" signal. A fresh run has zero real progress the instant
+                # it starts; reset both fields here unconditionally so a crash before the first
+                # update_progress() call reads as 0%, not a stale echo of the last success.
                 if symbol_count is not None:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, last_updated = NOW()
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, completion_pct = 0, last_updated = NOW()
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, symbol_count, self.table_name),
@@ -154,7 +168,7 @@ class LoaderStatusManager:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, last_updated = NOW()
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbols_loaded = 0, completion_pct = 0, last_updated = NOW()
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, self.table_name),
