@@ -1518,7 +1518,9 @@ class Orchestrator:
         degraded_status = result.status == "degraded"
         if degraded_status:
             logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.error}")
-            halt_set_result = self.halt_manager.set_halt_flag(f"Phase 1 degraded: {result.error}")
+            halt_set_result = self.halt_manager.set_halt_flag(
+                f"Phase 1 degraded: {result.error}", triggered_by="phase1_data_freshness"
+            )
             if not halt_set_result:
                 raise RuntimeError(
                     "[GOVERNANCE VIOLATION] Halt flag could not be set despite degraded data status. "
@@ -1526,11 +1528,30 @@ class Orchestrator:
                     "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
                 )
         elif result.status == "ok":
-            # Clear halt flag after Phase 1 verified data is fresh
-            # If this fails (both DynamoDB and RDS unavailable), clear_halt_flag() raises RuntimeError
-            self.halt_manager.clear_halt_flag(
-                f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
-            )
+            # BUG FOUND 2026-08-10 (live-reproduced): this used to unconditionally clear
+            # the halt flag whenever Phase 1's OWN freshness check passed, regardless of
+            # which phase had actually set the currently-active halt. Phase 2 (circuit
+            # breaker) and Phase 9 (reconciliation governance - set at the END of a run
+            # specifically to block Phase 8 from trading on the *next* run with an
+            # unverified portfolio state) both persist halts through this same flag. Since
+            # Phase 1 runs before Phase 8/9 in the next run, this silently erased Phase 9's
+            # halt before it - or anything else - ever got a chance to re-verify the
+            # underlying problem was resolved. Live-reproduced: manually set halt_flag=True
+            # with an unrelated reason, ran a full orchestrator invocation, confirmed via
+            # "[HALT_FLAG_CLEARED] Phase 1 verified data is fresh" that it was wiped
+            # regardless of origin. Phase 1 may only clear a halt it recognizes as its own.
+            current_trigger = self.halt_manager.get_halt_triggered_by()
+            if current_trigger is None or current_trigger == "phase1_data_freshness":
+                # If this fails (both DynamoDB and RDS unavailable), clear_halt_flag() raises RuntimeError
+                self.halt_manager.clear_halt_flag(
+                    f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
+                )
+            else:
+                logger.warning(
+                    f"[PHASE 1] Data is fresh, but the active halt flag was set by '{current_trigger}', "
+                    "not Phase 1's own freshness check - leaving it in place. That phase's own logic "
+                    "(or explicit manual intervention) must resolve and clear it."
+                )
 
         return not result.halted
 
@@ -1551,7 +1572,7 @@ class Orchestrator:
         if result.halted:
             halt_reason = result.error or "Circuit breaker check failed"
             logger.info(f"[PHASE 2] Setting halt flag due to circuit breaker: {halt_reason}")
-            self.halt_manager.set_halt_flag(halt_reason)
+            self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase2_circuit_breaker")
         return not result.halted
 
     def phase_3_position_monitor(self) -> bool:
@@ -1644,7 +1665,7 @@ class Orchestrator:
         if result.halted:
             halt_reason = result.error or "Phase 9 reconciliation governance halt"
             logger.info(f"[PHASE 9] Setting halt flag due to reconciliation failure: {halt_reason}")
-            self.halt_manager.set_halt_flag(halt_reason)
+            self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase9_reconciliation_governance")
         if "positions" in result.data:
             self.phase_results.setdefault(9, {})["open_positions"] = result.data["positions"]
         else:

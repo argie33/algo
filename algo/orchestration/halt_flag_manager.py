@@ -431,7 +431,66 @@ class HaltFlagManager:
             logger.debug(f"[HALT_FLAG] RDS check failed: {e}. Both DynamoDB and RDS unavailable.")
             return None
 
-    def set_halt_flag(self, reason: str = "") -> bool:
+    def get_halt_triggered_by(self) -> str | None:
+        """Return the identity of whatever last set the currently-active halt flag, or None
+        if no halt is active (or the identity can't be determined).
+
+        BUG FOUND 2026-08-10 (live-reproduced): Phase 1's success path unconditionally called
+        clear_halt_flag() whenever ITS OWN freshness check passed, regardless of which phase
+        had actually set the currently-active halt or why. Phase 2 (circuit breaker) and
+        Phase 9 (reconciliation governance - "unverified portfolio state before real order
+        submission", the most dangerous case) both persist halts through this same mechanism.
+        Phase 9's halt in particular is set at the END of a run specifically to block Phase 8
+        from trading on the *next* run - but since Phase 1 runs before Phase 8 in that next
+        run, its unconditional clear erased the Phase 9 halt before Phase 8 (or Phase 9 itself)
+        ever got a chance to re-verify anything. Live-reproduced: manually set halt_flag=True
+        with an unrelated reason, ran a full orchestrator invocation, confirmed via
+        "[HALT_FLAG_CLEARED] Phase 1 verified data is fresh" that it was wiped regardless.
+
+        Callers should only auto-clear a halt they recognize as their own (see
+        orchestrator.py's phase_1_data_freshness, which now checks this before clearing).
+        """
+        try:
+            import boto3
+
+            if os.environ.get("LOCAL_MODE", "").lower() != "true" and os.environ.get("AWS_ACCESS_KEY_ID"):
+                try:
+                    dynamodb = boto3.resource("dynamodb")
+                    table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+                    table = dynamodb.Table(table_name)
+                    response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
+                    item = response.get("Item")
+                    if item and item.get("halt_flag") is True:
+                        triggered_by = item.get("triggered_by")
+                        return str(triggered_by) if triggered_by is not None else None
+                    if item is not None:
+                        return None
+                except Exception as e:
+                    logger.debug(f"[HALT_FLAG] Could not read triggered_by from DynamoDB: {e}")
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT halt_flag, state_value FROM algo_runtime_state WHERE state_key = %s",
+                    (self.HALT_FLAG_DYNAMODB_KEY,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                halt_flag, state_value = row
+                if not halt_flag:
+                    return None
+                if isinstance(state_value, str):
+                    import json
+
+                    state_value = json.loads(state_value)
+                if isinstance(state_value, dict):
+                    return state_value.get("halt_triggered_by")
+                return None
+        except Exception as e:
+            logger.warning(f"[HALT_FLAG] Could not determine halt_triggered_by: {e}. Treating as unknown origin.")
+            return "unknown"
+
+    def set_halt_flag(self, reason: str = "", triggered_by: str = "orchestrator") -> bool:
         """Set halt flag in DynamoDB or RDS. Returns True if successfully set.
 
         Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
@@ -488,6 +547,7 @@ class HaltFlagManager:
                             "SET halt_flag = :flag, "
                             "triggered_at = if_not_exists(triggered_at, :now), "
                             "reason = if_not_exists(reason, :reason), "
+                            "triggered_by = if_not_exists(triggered_by, :triggered_by), "
                             "last_halt_at = :now "
                             "ADD halt_count :inc"
                         ),
@@ -495,6 +555,7 @@ class HaltFlagManager:
                             ":flag": True,
                             ":now": now_utc.isoformat(),
                             ":reason": reason or "Phase 1 degraded: stale data detected",
+                            ":triggered_by": triggered_by,
                             ":inc": 1,
                         },
                         RetryPolicy={"MaxAttempts": 1},  # Don't retry at boto3 level
@@ -555,7 +616,7 @@ class HaltFlagManager:
                     f"[HALT_FLAG] DynamoDB set attempt {attempt + 1}/{max_retries} failed: {e}. Using RDS fallback."
                 )
                 try:
-                    rds_result = self._set_halt_flag_rds(reason, now_utc, now_et)
+                    rds_result = self._set_halt_flag_rds(reason, now_utc, now_et, triggered_by)
                     if not rds_result:
                         last_error = RuntimeError("RDS returned False (write failed)")
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt + 1})")
@@ -588,11 +649,22 @@ class HaltFlagManager:
         )
         raise RuntimeError(error_msg)
 
-    def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
+    def _set_halt_flag_rds(
+        self, reason: str, now_utc: datetime, now_et: datetime, triggered_by: str = "orchestrator"
+    ) -> bool:
         """Set halt flag in RDS. Returns True if successfully set.
 
         RACE CONDITION FIX: Use advisory lock to serialize halt flag updates across
         concurrent orchestrator instances. Ensures halt_count increment is atomic.
+
+        triggered_by identifies which check set this halt (e.g. "phase1_data_freshness",
+        "phase2_circuit_breaker", "phase9_reconciliation_governance") - see
+        get_halt_triggered_by()'s docstring for why this matters: Phase 1 must not
+        auto-clear a halt some other phase set for an unrelated, possibly still-active
+        reason. Sticky to the FIRST trigger within an active-halt window (matches the
+        DynamoDB path's if_not_exists semantics for triggered_at/reason) - a second
+        set_halt_flag() call while already halted (e.g. Phase 9 halting later in a run
+        Phase 2 already halted) must not overwrite and hide the original cause.
         """
         import json
 
@@ -604,17 +676,20 @@ class HaltFlagManager:
                 try:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
 
-                    state_value = json.dumps({"halt_triggered_by": "orchestrator", "reason": reason or "Phase 1 degraded"})
+                    state_value = json.dumps({"halt_triggered_by": triggered_by, "reason": reason or "Phase 1 degraded"})
                     cur.execute(
                         """
                         INSERT INTO algo_runtime_state (
                             state_key, state_value, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (state_key) DO UPDATE SET
-                            state_value = EXCLUDED.state_value,
+                            state_value = CASE WHEN algo_runtime_state.halt_flag THEN algo_runtime_state.state_value
+                                               ELSE EXCLUDED.state_value END,
                             halt_flag = EXCLUDED.halt_flag,
-                            halt_triggered_at = EXCLUDED.halt_triggered_at,
-                            halt_reason = EXCLUDED.halt_reason,
+                            halt_triggered_at = CASE WHEN algo_runtime_state.halt_flag THEN algo_runtime_state.halt_triggered_at
+                                                     ELSE EXCLUDED.halt_triggered_at END,
+                            halt_reason = CASE WHEN algo_runtime_state.halt_flag THEN algo_runtime_state.halt_reason
+                                               ELSE EXCLUDED.halt_reason END,
                             halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
                             last_updated_at = CURRENT_TIMESTAMP
                         """,
