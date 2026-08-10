@@ -11,6 +11,7 @@ Responsibilities:
 
 import json
 import logging
+import math
 import time
 import uuid
 from decimal import ROUND_HALF_UP, Decimal
@@ -105,8 +106,33 @@ class OrderManager:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
             return {"success": False, "message": "Alpaca credentials not configured"}
 
+        # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): this function - the
+        # ACTUAL real-order-to-the-broker submission path - had zero validation on
+        # entry_price/shares, and the stop_loss_price check below didn't catch NaN (NaN
+        # comparisons are always False in Python, so `stop_loss_price <= 0` silently passes
+        # for NaN). A NaN/Infinite price would then flow into `_q2()` below, which formats
+        # via Decimal.quantize() - Decimal NaN doesn't raise, it silently produces the
+        # literal string "NaN" - and that string would be sent to Alpaca as
+        # order_data["stop_loss"]["stop_price"]/["limit_price"], a real order submission
+        # with a garbage price field. Same bug class already found and fixed this session in
+        # position_sizer.py, financial.py, phase8_entry_execution.py, and exit_engine.py -
+        # this is the most consequential instance since it's the actual broker submission
+        # call, not an internal calculation upstream of it.
+        for label, value in (("entry_price", entry_price), ("shares", shares)):
+            if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))) or value <= 0:
+                error_msg = (
+                    f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order with invalid {label}={value!r}. "
+                    f"Must be a finite positive number. Refusing to submit a real order with corrupted data."
+                )
+                logger.critical(error_msg)
+                return {"success": False, "message": error_msg}
+
         # CRITICAL: Fail-fast if stop loss is missing or invalid - no fallback to naked positions
-        if stop_loss_price is None or stop_loss_price <= 0:
+        if (
+            stop_loss_price is None
+            or (isinstance(stop_loss_price, float) and (math.isnan(stop_loss_price) or math.isinf(stop_loss_price)))
+            or stop_loss_price <= 0
+        ):
             error_msg = (
                 f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order without valid stop_loss_price. "
                 f"Stop loss protection is non-negotiable for risk management. "
