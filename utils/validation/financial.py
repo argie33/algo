@@ -158,24 +158,30 @@ class FinancialDataValidator:
         Returns:
             (is_valid, pnl_dollars, pnl_pct, error_message)
         """
-        if entry <= 0:
-            msg = f"Entry price must be positive for P&L: {entry:.2f} {context}"
-            logger.error(f"[FINANCIAL_VALIDATION] {msg}")
-            return False, None, None, msg
-
-        if exit_price <= 0:
-            msg = f"Exit price must be positive for P&L: {exit_price:.2f} {context}"
-            logger.error(f"[FINANCIAL_VALIDATION] {msg}")
-            return False, None, None, msg
-
-        if qty <= 0:
-            msg = f"Quantity must be positive for P&L: {qty} {context}"
-            logger.error(f"[FINANCIAL_VALIDATION] {msg}")
-            return False, None, None, msg
+        # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): the raw `entry <= 0` /
+        # `exit_price <= 0` / `qty <= 0` checks here silently let NaN and Infinity through -
+        # `float('nan') <= 0` is False in Python (NaN compares False against everything), and
+        # NaN/Inf arithmetic below doesn't raise, so this validator - whose own module
+        # docstring promises "Prevents NaN, Infinity, negative prices" - returned
+        # `valid=True` with pnl_dollars/pnl_pct silently set to NaN or Infinity. A string-typed
+        # entry/exit_price also crashed with an uncaught TypeError on the same raw comparison,
+        # instead of the clean (False, None, None, msg) tuple this function's own signature
+        # promises. Delegate to validate_price/validate_quantity - the sibling static methods
+        # in this same class that already correctly handle type coercion (str/Decimal/float),
+        # NaN, Infinity, and negative/zero values.
+        entry_valid, entry_f, entry_err = FinancialDataValidator.validate_price(entry, f"entry {context}")
+        if not entry_valid or entry_f is None:
+            return False, None, None, entry_err
+        exit_valid, exit_f, exit_err = FinancialDataValidator.validate_price(exit_price, f"exit {context}")
+        if not exit_valid or exit_f is None:
+            return False, None, None, exit_err
+        qty_valid, qty_i, qty_err = FinancialDataValidator.validate_quantity(qty, context)
+        if not qty_valid or qty_i is None:
+            return False, None, None, qty_err
 
         try:
-            pnl_dollars = (exit_price - entry) * qty
-            pnl_pct = (exit_price - entry) / entry * 100.0
+            pnl_dollars = (exit_f - entry_f) * qty_i
+            pnl_pct = (exit_f - entry_f) / entry_f * 100.0
         except (ValueError, TypeError, ZeroDivisionError, OverflowError) as e:
             msg = f"P&L calculation failed {context}: {e}"
             logger.error(f"[FINANCIAL_VALIDATION] {msg}")
