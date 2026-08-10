@@ -56,7 +56,7 @@ class TestHaltFlagRdsSameDayNaiveTimestamp:
         to the generic "could not parse timestamp" path."""
         manager = _manager()
         naive_utc_triggered_at = self._FAKE_NOW_UTC.replace(tzinfo=None) - timedelta(hours=2)
-        row = (True, "stale data detected", naive_utc_triggered_at)
+        row = (True, "stale data detected", naive_utc_triggered_at, {"halt_triggered_by": "phase1_data_freshness"})
 
         class _FrozenDatetime(datetime):
             @classmethod
@@ -84,7 +84,12 @@ class TestHaltFlagRdsSameDayNaiveTimestamp:
     def test_same_day_active_halt_reason_preserved_in_critical_log(self):
         manager = _manager()
         naive_utc_triggered_at = self._FAKE_NOW_UTC.replace(tzinfo=None)
-        row = (True, "Phase 1 degraded: stale data detected", naive_utc_triggered_at)
+        row = (
+            True,
+            "Phase 1 degraded: stale data detected",
+            naive_utc_triggered_at,
+            {"halt_triggered_by": "phase1_data_freshness"},
+        )
 
         class _FrozenDatetime(datetime):
             @classmethod
@@ -119,7 +124,7 @@ class TestProactiveClearRdsDateRolloverWindow:
         fake_now_utc = datetime(2026, 7, 27, 14, 0, 0, tzinfo=timezone.utc)  # 10:00 AM EDT - past market open
 
         manager = _manager()
-        row = (True, naive_utc_triggered_at)
+        row = (True, naive_utc_triggered_at, {"halt_triggered_by": "phase1_data_freshness"})
 
         class _FrozenDatetime(datetime):
             @classmethod
@@ -136,4 +141,33 @@ class TestProactiveClearRdsDateRolloverWindow:
             "a halt genuinely triggered late evening ET the prior day must still be "
             "recognized as stale and auto-cleared the next morning past market open - "
             "not silently kept alive by mislabeling its UTC timestamp as Eastern"
+        )
+
+    def test_manual_operator_halt_not_auto_cleared_at_startup(self):
+        """Regression test for the 2026-08-10 bug: this proactive-clear path (runs at
+        orchestrator STARTUP, before Phase 1 or any other phase reasoning) used to
+        auto-clear ANY prior-day halt purely on calendar rollover with zero check of who
+        set it - so a manual operator kill-switch halt would be silently wiped the very
+        next trading day at market open, regardless of whether the operator's underlying
+        investigation was ever resolved."""
+        naive_utc_triggered_at = datetime(2026, 7, 27, 3, 0, 0)
+        fake_now_utc = datetime(2026, 7, 27, 14, 0, 0, tzinfo=timezone.utc)  # past market open
+
+        manager = _manager()
+        row = (True, naive_utc_triggered_at, {"halt_triggered_by": "manual_operator"})
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fake_now_utc if tz is not None else fake_now_utc.replace(tzinfo=None)
+
+        with (
+            patch("algo.orchestration.halt_flag_manager.DatabaseContext", return_value=_mock_db_context(row)),
+            patch("algo.orchestration.halt_flag_manager.datetime", _FrozenDatetime),
+        ):
+            cleared = manager._proactive_clear_stale_halt_rds()
+
+        assert cleared is False, (
+            "a manual operator halt must NEVER be auto-cleared on pure calendar rollover - "
+            "only an explicit scripts/manage_halt_flag.py --clear may resume trading"
         )

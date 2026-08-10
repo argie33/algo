@@ -220,7 +220,7 @@ class DividendDataLoader(SecLoaderBase):
         Raises:
             RuntimeError: If timeout exceeded or API call fails
         """
-        def _fetch():
+        def _fetch() -> dict[str, Any]:
             cik_time = time.time()
             cik = self.sec_client.symbol_to_cik(symbol)
             cik_elapsed = time.time() - cik_time

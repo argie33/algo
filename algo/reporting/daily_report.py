@@ -347,16 +347,34 @@ class DailyFinanceReport:
         }
 
     def _fetch_signals(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """Signal counts for today. Validates all query results explicitly."""
+        """Signal counts for today. Validates all query results explicitly.
+
+        FIXED: buy_sell_daily for trading day D is only published after D's EOD close
+        (same lag Phase 7 accounts for via latest_buysell_date - see
+        phase7_signal_generation.py). Querying WHERE date = report_date literally showed
+        0 candidates for the entire trading day, every day, until that evening's loader
+        run landed - even on runs where Phase 7 correctly found and qualified real
+        candidates from the latest available prior date (e.g. Friday's data on a Monday
+        run). That made "Today: 0 BUY signals -> N tier-passed" look like a broken
+        pipeline when it wasn't. Resolve to the latest buy_sell_daily date at or before
+        report_date, same as Phase 7 does, so the count reflects what Phase 7 actually saw.
+        """
         try:
+            cur.execute(
+                "SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s",
+                (report_date,),
+            )
+            max_date_row = cur.fetchone()
+            candidates_date = max_date_row[0] if max_date_row and max_date_row[0] else report_date
+
             cur.execute(
                 """SELECT COUNT(*) FROM buy_sell_daily
                    WHERE date = %s AND signal_type = 'BUY'""",
-                (report_date,),
+                (candidates_date,),
             )
             result = cur.fetchone()
             if result is None or result[0] is None:
-                logger.warning(f"[SIGNALS] Unexpected NULL count for buy_sell_daily on {report_date}")
+                logger.warning(f"[SIGNALS] Unexpected NULL count for buy_sell_daily on {candidates_date}")
                 candidates = 0
             else:
                 candidates = result[0]
@@ -391,6 +409,10 @@ class DailyFinanceReport:
 
             return {
                 "candidates_today": candidates,
+                # str, not date: this dict is json.dumps()'d whole by
+                # phase9_reconciliation.py's _generate_daily_report(), which requires
+                # every value to be JSON-serializable (matches "date" below).
+                "candidates_date": str(candidates_date),
                 "passed_tiers": tier_passed,
                 "entries_today": entries,
             }
@@ -479,10 +501,16 @@ class DailyFinanceReport:
                 lines.append(f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}")
 
         signals = report["signals"]
+        candidates_date = signals.get("candidates_date")
+        date_suffix = (
+            f" (as of {candidates_date})"
+            if candidates_date is not None and candidates_date != report.get("date")
+            else ""
+        )
         lines.extend(
             [
                 "",
-                f"Today: {signals['candidates_today']} BUY signals -> "
+                f"Today: {signals['candidates_today']} BUY signals{date_suffix} -> "
                 f"{signals['passed_tiers']} tier-passed -> "
                 f"{signals['entries_today']} entries",
                 f"{'=' * 70}",

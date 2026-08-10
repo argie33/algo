@@ -35,6 +35,17 @@ logger = logging.getLogger(__name__)
 
 NASDAQ_URL = os.getenv("NASDAQ_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt")
 OTHER_URL = os.getenv("OTHER_SYMBOLS_URL", "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt")
+# NO FREE OFFICIAL SOURCE EXISTS for S&P 500 *index membership* - it's S&P Dow Jones
+# Indices' proprietary data, not published by SEC/NASDAQ. Live-verified 2026-08-10: the
+# usual "official-ish" fallback (ETF-sponsor holdings feeds, which track the index almost
+# exactly) doesn't help either - iShares IVV's holdings endpoint returns an HTML
+# compliance/geo-gate interstitial instead of the CSV, and SSGA's SPY holdings file 301s
+# to a similar gate; both would need the same browser-spoofing this is trying to avoid,
+# plus session/cookie handling on top. Wikipedia's table (community-maintained, sourced
+# from S&P's own press releases) is the least-bad option - same class of accepted
+# tradeoff as the NAAIM/AAII survey scrapes and yfinance analyst ratings (see
+# loaders/DEPRECATED_LOADERS.md). This only sets the is_sp500 enrichment flag, not the
+# base tradable universe (that's NASDAQ/OTHER above, both real official feeds).
 SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 
 # GOVERNANCE 2026-08-04: symbols the upstream NASDAQ/NYSE symbol directory's "ETF" column

@@ -54,7 +54,12 @@ def main() -> int:
 
     if args.set:
         print(f"Setting halt flag: {args.set}")
-        result = halt_manager.set_halt_flag(args.set, triggered_by="manual_operator")
+        # force=True: a human operator's halt must always become the attributed cause, even if
+        # an automated halt is already active - otherwise it's silently absorbed into that
+        # automated halt's triggered_by/reason and can be wiped by that phase's own self-clear
+        # or calendar auto-expiry without the operator's halt ever being separately honored.
+        # See halt_flag_manager.set_halt_flag()'s docstring for the live-reproduced bug this fixes.
+        result = halt_manager.set_halt_flag(args.set, triggered_by="manual_operator", force=True)
         if not result:
             print("ERROR: Failed to set halt flag (both DynamoDB and RDS unavailable).", file=sys.stderr)
             return 1

@@ -41,16 +41,28 @@ class OrchestratorPhaseExecutor:
     4. Enable phase reordering, parallelization, and unit testing
     """
 
-    def __init__(self, config: Any, halt_check_fn: Callable[[], bool], skip_phases: list[int | str] | None = None):
+    def __init__(
+        self,
+        config: Any,
+        halt_check_fn: Callable[[], bool],
+        skip_phases: list[int | str] | None = None,
+        halt_reason_fn: Callable[[], str | None] | None = None,
+    ):
         """Initialize executor.
 
         Args:
             config: Configuration object (typically orchestrator runtime config with risk/trading settings)
             halt_check_fn: Function that returns True if orchestrator should halt
             skip_phases: Optional list of phase numbers to skip (useful for non-trading days)
+            halt_reason_fn: Optional function returning the active halt's human-readable reason.
+                Used only to label PhaseResults skipped via halt_check_fn (see execute_phase) so
+                downstream degraded-mode logging (e.g. Phase 6) doesn't report "unknown reason"
+                for a halt this run never itself set (manual kill switch, stale halt from a prior
+                run, etc). If omitted, a generic-but-non-null message is used instead.
         """
         self.config = config
         self.halt_check_fn = halt_check_fn
+        self.halt_reason_fn = halt_reason_fn
         self.phases: dict[int | str, PhaseDefinition] = {}
         self.phase_results: dict[int | str, PhaseResult] = {}
         self.execution_order: list[int | str] = []
@@ -270,7 +282,20 @@ class OrchestratorPhaseExecutor:
         # If phase will be skipped, no need to validate its dependencies
         if not phase.always_run and phase.skip_if_halted:
             if self.halt_check_fn():
-                logger.info(f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag")
+                # BUG FOUND 2026-08-10 (live-reproduced): this branch used to build its
+                # PhaseResult with no `error` at all, since halt_check_fn only returns a bool.
+                # This is a GLOBAL halt flag check (distinct from the run() loop's cascade-skip
+                # below, which propagates an earlier THIS-RUN phase's real error) - it fires for
+                # halts this run never itself set, e.g. the manual operator kill switch or a
+                # halt still active from a prior run. Downstream degraded-mode logging (Phase 6)
+                # read the missing error as "unknown reason", reproducing the exact symptom the
+                # cascade-skip fix (see run()'s upstream_reason) was already supposed to have
+                # eliminated - just via a different skip path it didn't cover.
+                halt_reason = self.halt_reason_fn() if self.halt_reason_fn else None
+                error_msg = f"Phase {phase_num} skipped: halt flag is active" + (
+                    f" ({halt_reason})" if halt_reason else ""
+                )
+                logger.info(f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag: {error_msg}")
                 skip_data = self._get_default_skip_data(phase_num)
                 # CRITICAL: Ensure skip data always includes status field for clarity
                 if "status" not in skip_data:
@@ -281,6 +306,7 @@ class OrchestratorPhaseExecutor:
                     status="skipped",
                     data=skip_data,
                     halted=True,
+                    error=error_msg,
                     dependencies=phase.dependencies,
                 )
                 self.phase_results[phase_num] = result

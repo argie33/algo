@@ -1707,7 +1707,10 @@ class Orchestrator:
             OrchestratorPhaseExecutor ready to execute all phases.
         """
         executor = OrchestratorPhaseExecutor(
-            config=self.config, halt_check_fn=self.halt_manager.check_halt_flag, skip_phases=skip_phases
+            config=self.config,
+            halt_check_fn=self.halt_manager.check_halt_flag,
+            skip_phases=skip_phases,
+            halt_reason_fn=self.halt_manager.get_halt_reason,
         )
 
         # Wire phase executor functions from registry

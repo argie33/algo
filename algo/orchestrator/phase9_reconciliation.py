@@ -629,7 +629,19 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
                             "daily_report",
                             run_date,
                             "PORTFOLIO",
-                            json.dumps(report),
+                            # BUG FOUND 2026-08-10 (live-reproduced): several of DailyFinanceReport's
+                            # sub-fetchers (_fetch_risk/_fetch_strategy/_fetch_components/etc) return
+                            # raw date/datetime values pulled straight from DB rows without str()
+                            # conversion. json.dumps() raised TypeError on every run - not caught by
+                            # this block's except (only catches DatabaseError/OperationalError/
+                            # RuntimeError) - so it propagated uncaught out of Phase 9 as
+                            # "TypeError: Object of type date is not JSON serializable", marking the
+                            # entire orchestrator run FAILED and skipping the audit log INSERT
+                            # entirely, even though reconciliation itself succeeded and no other phase
+                            # had any problem. default=str is the standard safe fallback for an
+                            # archival JSON text column - it doesn't matter which nested sub-fetcher
+                            # the date came from, and there's no reason to chase every possible one.
+                            json.dumps(report, default=str),
                         ),
                     )
                 finally:

@@ -1174,7 +1174,17 @@ def run(  # noqa: C901
                                     warn_stale.append(msg)
                                 stale_table_details.append({"table_name": table_name, "age": f"{days_behind}d"})
                             else:
-                                msg = f"{description} is {days_behind} day(s) behind (within 1-day tolerance)"
+                                # BUG FOUND 2026-08-10 (live-reproduced): this hardcoded "1-day
+                                # tolerance" regardless of the actual max_tolerance_days used in
+                                # the comparison above (algo_config's
+                                # phase1_halt_table_max_tolerance_days, live-confirmed set to 3,
+                                # not 1). A live run logged "3 day(s) behind (within 1-day
+                                # tolerance)" - self-contradictory, and actively misleading for
+                                # anyone trying to diagnose staleness on a CRITICAL halt table.
+                                msg = (
+                                    f"{description} is {days_behind} day(s) behind "
+                                    f"(within {max_tolerance_days}-day tolerance)"
+                                )
                                 logger.info(f"[PHASE 1] {msg}")
 
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

@@ -130,6 +130,52 @@ def test_skipped_phase_error_names_the_actual_halting_phase():
     assert "Consecutive Losses Limit" in result_5.error
 
 
+def test_global_halt_flag_skip_names_the_real_reason_not_unknown():
+    """A phase skipped because the GLOBAL halt flag is active (e.g. manual operator kill
+    switch, or a halt already active before this run started - NOT an earlier phase in this
+    same run halting) must still carry a real reason in .error, not None. Regression test for
+    the live-reproduced bug where this path built its PhaseResult with no `error` at all
+    (halt_check_fn only returns a bool), so downstream degraded-mode logging (Phase 6) fell
+    back to "unknown reason" - the exact symptom test_skipped_phase_error_names_the_actual_halting_phase
+    already fixed for the cascade-skip path, but that fix didn't cover this separate path."""
+    executor = OrchestratorPhaseExecutor(
+        config={},
+        halt_check_fn=lambda: True,
+        halt_reason_fn=lambda: "Operator manual override: investigating anomaly",
+    )
+    executor.register_phases(
+        [
+            PhaseDefinition(5, "exposure_policy", [], lambda executor, **kw: _ok_phase(5)),
+        ]
+    )
+
+    executor.run()
+
+    result_5 = executor.get_result(5)
+    assert result_5.status == "skipped"
+    assert result_5.halted
+    assert result_5.error is not None
+    assert "unknown reason" not in result_5.error
+    assert "Operator manual override: investigating anomaly" in result_5.error
+
+
+def test_global_halt_flag_skip_without_reason_fn_still_non_null():
+    """Same as above, but when the executor wasn't given a halt_reason_fn at all (defensive
+    default) - must still produce a non-null, non-empty error, never bare None."""
+    executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: True)
+    executor.register_phases(
+        [
+            PhaseDefinition(5, "exposure_policy", [], lambda executor, **kw: _ok_phase(5)),
+        ]
+    )
+
+    executor.run()
+
+    result_5 = executor.get_result(5)
+    assert result_5.error
+    assert "halt flag is active" in result_5.error
+
+
 def test_dependency_failure_stores_error_result_not_missing():
     """A phase whose dependency failed must get a stored 'error' PhaseResult, not be silently absent
     (silent absence would make downstream code treat it as 'never executed' instead of 'failed')."""

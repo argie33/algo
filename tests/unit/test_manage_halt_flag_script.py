@@ -30,7 +30,13 @@ class TestManageHaltFlagScript:
             exit_code = _run(["--set", "stop trading now"])
 
         assert exit_code == 0
-        mock_manager.set_halt_flag.assert_called_once_with("stop trading now", triggered_by="manual_operator")
+        # force=True: regression coverage for the 2026-08-10 sticky-trigger bug (live-reproduced) -
+        # without it, a manual halt set while an automated halt is already active gets silently
+        # absorbed into that automated halt's triggered_by/reason and can be auto-cleared alongside
+        # it, despite this script printing "Trading is now halted until explicitly cleared".
+        mock_manager.set_halt_flag.assert_called_once_with(
+            "stop trading now", triggered_by="manual_operator", force=True
+        )
 
     def test_set_failure_returns_nonzero(self):
         mock_manager = MagicMock()
