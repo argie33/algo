@@ -318,6 +318,52 @@ class OrchestratorPhaseExecutor:
         # but they MUST report the error to downstream phases, not silently degrade
         dep_error = self._check_dependencies(phase_num)
         if dep_error:
+            # BUG FOUND 2026-08-10: since every phase from 3-9 is now always_run (fixed earlier
+            # today so risk-management phases run during a halt), the direct halt-flag-check
+            # branch above (which cleanly logs at info and sets status="skipped") became
+            # unreachable for ALL of them - `if not phase.always_run and phase.skip_if_halted`
+            # is never true anymore. Every halt now has to propagate through THIS dependency-
+            # check path instead, which was written for genuine failures (a dependency never
+            # ran, wrong type, invalid schema) - not "my dependency correctly halted." Live-
+            # reproduced: Phase 7 halts on the win-rate circuit breaker (status="halted", by
+            # design), Phase 8 depends on Phase 7, and this branch logged it at CRITICAL and
+            # marked Phase 8 status="error" - identical severity/vocabulary to an actual crash.
+            # dashboard/panels/health.py renders phases_errored in red, so every routine halt
+            # cascade painted the dashboard as if something had broken - the exact "cry wolf"
+            # alert-fatigue pattern already fixed once this session for entry_handler's routine-
+            # trade CRITICAL spam. Phase 9's own comment ("always_run phases + dependency
+            # failures would halt Phase 9") shows a past session hit this same class of problem
+            # and worked around it by removing Phase 9's dependencies entirely rather than
+            # fixing the mechanism - Phase 8 still has a real dependency on Phase 7's signals,
+            # so it couldn't take that shortcut.
+            #
+            # Distinguish "dependency correctly halted" (expected, not an error) from a genuine
+            # dependency failure (missing/wrong-type/invalid-schema data) by checking whether
+            # any failed dependency's own status is "halted".
+            halted_deps = [
+                dep for dep in phase.dependencies
+                if getattr(self.phase_results.get(dep), "status", None) == "halted"
+            ]
+            if halted_deps:
+                logger.info(
+                    f"[PHASE {phase_num}] Skipped: upstream dependency {halted_deps} halted "
+                    f"({dep_error})"
+                )
+                skip_data = self._get_default_skip_data(phase_num)
+                if "status" not in skip_data:
+                    skip_data["status"] = "halted"
+                result = PhaseResult(
+                    phase_num=phase_num,
+                    phase_name=phase.phase_name,
+                    status="skipped",
+                    data=skip_data,
+                    halted=True,
+                    error=dep_error,
+                    dependencies=phase.dependencies,
+                )
+                self.phase_results[phase_num] = result
+                return True, None
+
             logger.critical(f"[DEP-CHECK FAILED] {dep_error}")
             if phase.dependencies:
                 logger.critical(

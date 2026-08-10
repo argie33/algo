@@ -176,13 +176,49 @@ def test_global_halt_flag_skip_without_reason_fn_still_non_null():
     assert "halt flag is active" in result_5.error
 
 
-def test_dependency_failure_stores_error_result_not_missing():
-    """A phase whose dependency failed must get a stored 'error' PhaseResult, not be silently absent
-    (silent absence would make downstream code treat it as 'never executed' instead of 'failed')."""
+def test_dependency_halted_stores_skipped_result_not_missing_or_critical_error() -> None:
+    """A phase whose dependency HALTED (not crashed) must get a stored 'skipped' PhaseResult -
+    not silently absent (downstream code must not treat it as 'never executed'), and not
+    'error' either.
+
+    BUG FOUND 2026-08-10: since every phase 3-9 is now always_run (fixed earlier the same
+    session so risk-management phases run during a halt), the clean direct halt-flag-check
+    path became unreachable for all of them - every halt now has to propagate through the
+    dependency-check path instead, which used to treat "my dependency correctly halted" the
+    same as a genuine crash: CRITICAL log + status="error". dashboard/panels/health.py renders
+    phases_errored in red, so every routine halt cascade painted the dashboard as if something
+    had broken. Fixed to detect a halted (not merely failed) dependency and report status=
+    "skipped"/halted=True at info level instead - matching the vocabulary the direct halt-check
+    path already used before always_run made it unreachable."""
     executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
     executor.register_phases(
         [
             PhaseDefinition(4, "reconciliation", [], lambda executor, **kw: _halting_phase(4), always_run=True),
+            PhaseDefinition(5, "exposure_policy", [4], lambda executor, **kw: _ok_phase(5), always_run=True),
+        ]
+    )
+
+    executor.run()
+
+    result_5 = executor.get_result(5)
+    assert result_5 is not None
+    assert result_5.status == "skipped"
+    assert result_5.halted
+    assert "DEPENDENCY FAILED" in (result_5.error or "")
+
+
+def test_dependency_genuinely_errored_still_stores_critical_error_result() -> None:
+    """A phase whose dependency genuinely errored (not halted - e.g. an unhandled exception
+    in the dependency's own logic) must still get the original CRITICAL 'error' treatment,
+    not be softened to 'skipped' - only a halted dependency gets the gentler treatment."""
+    executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
+    executor.register_phases(
+        [
+            PhaseDefinition(
+                4, "reconciliation", [],
+                lambda executor, **kw: PhaseResult(4, "reconciliation", "error", {}, False, "boom"),
+                always_run=True,
+            ),
             PhaseDefinition(5, "exposure_policy", [4], lambda executor, **kw: _ok_phase(5), always_run=True),
         ]
     )

@@ -22,6 +22,7 @@ Run:
 """
 
 import logging
+import math
 import sys
 from datetime import date, datetime
 from typing import Any
@@ -160,7 +161,24 @@ class PositioningMetricsLoader(OptimalLoader):
             if len(short_rows) >= 2:
                 shares_short_prior_month = short_rows[1][1]
                 current_pct, prior_pct = short_rows[0][0], short_rows[1][0]
-                if current_pct is not None and prior_pct is not None and prior_pct != 0:
+                # BUG FOUND 2026-08-10 (NaN-comparison-guard class, inverted variant): `!=`
+                # is TRUE for NaN against everything including 0, so a NaN prior_pct would
+                # sail past this "protection" into a real division, producing a NaN
+                # relative_change. That NaN then failed both the `> 0.05` and `< -0.05`
+                # checks (both False for NaN) and fell through to the else branch, silently
+                # mislabeling corrupted/unavailable short-interest data as "stable" instead
+                # of leaving short_interest_trend unset. Guard explicitly instead of relying
+                # on `!= 0`, matching the fix already applied to phase9_reconciliation.py's
+                # identical pattern.
+                if (
+                    current_pct is not None
+                    and prior_pct is not None
+                    and not math.isnan(current_pct)
+                    and not math.isinf(current_pct)
+                    and not math.isnan(prior_pct)
+                    and not math.isinf(prior_pct)
+                    and prior_pct != 0
+                ):
                     relative_change = (current_pct - prior_pct) / prior_pct
                     if relative_change > 0.05:
                         short_interest_trend = "increasing"
