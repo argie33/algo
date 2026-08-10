@@ -1256,6 +1256,46 @@ def _should_halt_on_zero_scored_symbols(score_result: dict[str, Any]) -> bool:
     )
 
 
+def _validate_signal_quality_score_for_ranking(sqs: Any, symbol: Any) -> None:
+    """Fail fast if a signal_quality_score is unfit to be used as a ranking sort key.
+
+    None/wrong-type checks alone are not sufficient: isinstance(sqs, (int, float)) does
+    NOT catch NaN/Infinity - float('nan') is a real float instance (BUG FOUND 2026-08-10,
+    same NaN-comparison-guard class fixed elsewhere this session). A NaN key sailing
+    through into a downstream .sort() call has no total order in Python (NaN < x and
+    x < NaN are both False) - the NaN-scored signal's position in the ranked list is
+    undefined, potentially landing at the top and proceeding toward real trade execution
+    as if it were the highest-quality candidate.
+
+    Raises:
+        RuntimeError: if sqs is None (a logic error - callers must filter None first).
+        ValueError: if sqs is non-numeric, NaN, or Infinity.
+    """
+    if sqs is None:
+        msg = (
+            f"[PHASE 7 CRITICAL] Signal {symbol} has None signal_quality_score "
+            f"after all filters. This is a logic error in the filtering code - None values should "
+            f"have been removed by prior filters. Failing fast to expose the issue."
+        )
+        logger.critical(msg)
+        raise RuntimeError(msg)
+    if not isinstance(sqs, (int, float)):
+        msg = (
+            f"[PHASE 7 CRITICAL] Signal {symbol} signal_quality_score is {type(sqs).__name__}, "
+            f"expected float. Signal quality score must be numeric for sorting. Cannot proceed."
+        )
+        logger.critical(msg)
+        raise ValueError(msg)
+    if math.isnan(sqs) or math.isinf(sqs):
+        msg = (
+            f"[PHASE 7 CRITICAL] Signal {symbol} signal_quality_score is non-finite "
+            f"({sqs!r}). Cannot sort/rank by a NaN/Infinity score - would produce undefined "
+            f"ordering and could rank a corrupted signal as top-quality. Failing fast."
+        )
+        logger.critical(msg)
+        raise ValueError(msg)
+
+
 def run(  # noqa: C901
     run_date: _date,
     dry_run: bool,
@@ -1927,24 +1967,7 @@ def run(  # noqa: C901
         )
 
     for sig in quality_filtered:
-        sqs: int | float | None = sig.get("signal_quality_score")
-        if sqs is None:
-            # This should NEVER reach here due to all previous filters removing None values
-            # If it does, it indicates a critical logic error in our filtering
-            msg = (
-                f"[PHASE 7 CRITICAL] Signal {sig.get('symbol')} has None signal_quality_score "
-                f"after all filters. This is a logic error in the filtering code - None values should "
-                f"have been removed by prior filters. Failing fast to expose the issue."
-            )
-            logger.critical(msg)
-            raise RuntimeError(msg)
-        if not isinstance(sqs, (int, float)):
-            msg = (
-                f"[PHASE 7 CRITICAL] Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, "
-                f"expected float. Signal quality score must be numeric for sorting. Cannot proceed."
-            )
-            logger.critical(msg)
-            raise ValueError(msg)
+        _validate_signal_quality_score_for_ranking(sig.get("signal_quality_score"), sig.get("symbol"))
 
     # CRITICAL: Final defensive filter - remove ANY signals with None scores before sorting
     # (defensive in case filtering above had gaps)
