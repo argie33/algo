@@ -823,7 +823,19 @@ class ExitEngine:
                             # Alpaca AND our database. In paper/dry modes, _fetch_alpaca_quote returns None
                             # instead of raising, so _fetch_recent_prices handles it via database fallback.
                             if "unavailable" in str(fetch_err).lower() or "404" in str(fetch_err).lower():
-                                execution_mode = self.config.get("execution_mode", "paper")
+                                # BUG FOUND 2026-08-10 (same class as this session's other
+                                # execution_mode fixes - phase9_reconciliation.py, position_sizer.py):
+                                # defaulting to "paper" here is only reachable if Phase 6's own
+                                # execution_mode validation (phase6_exit_execution.py, fails CRITICAL
+                                # on missing/invalid execution_mode before any exit check runs) were
+                                # bypassed - but exit_engine.py is a shared class, not guaranteed to
+                                # only ever be called through Phase 6. Fail closed instead of guessing.
+                                execution_mode = self.config.get("execution_mode")
+                                if execution_mode is None:
+                                    raise RuntimeError(
+                                        "[EXIT_ENGINE CRITICAL] execution_mode config missing. Cannot "
+                                        "safely determine live vs. paper mode for exit error handling."
+                                    )
                                 error_context = (
                                     f"live trading (symbol delisted or permission lost)"
                                     if execution_mode == "auto"
@@ -1436,7 +1448,21 @@ class ExitEngine:
 
             elif response.status_code == 401:
                 # Authentication failed - CRITICAL in auto mode, gracefully degrade in paper/dry modes
-                execution_mode = self.config.get("execution_mode", "paper")
+                #
+                # BUG FOUND 2026-08-10 (same class as this session's other execution_mode fixes):
+                # a missing execution_mode used to silently default to "paper" here, which would
+                # take the "fall back to stale database prices" branch below instead of the
+                # live-trading hard-stop - the opposite of fail-safe for a real-money stop-loss
+                # decision. Phase 6 already validates execution_mode before invoking exit checks,
+                # so this should be unreachable in production, but exit_engine.py isn't guaranteed
+                # to only ever be called through Phase 6. Fail closed instead of guessing.
+                execution_mode = self.config.get("execution_mode")
+                if execution_mode is None:
+                    raise RuntimeError(
+                        "[EXIT_ENGINE CRITICAL] execution_mode config missing. Cannot safely "
+                        "determine whether to hard-stop or fall back to database prices on "
+                        "Alpaca 401 auth failure."
+                    )
                 if execution_mode == "auto":
                     # Live trading mode: 401 auth failure is a HARD STOP. Do NOT execute exits with stale
                     # database prices when broker communication fails. Broker is the source of truth for
@@ -1469,7 +1495,16 @@ class ExitEngine:
                 # 2. Auto mode (live trading): A 404 in live Alpaca is a real error - the broker
                 #    doesn't recognize this symbol at all. This could indicate delisted symbol,
                 #    account permission change, or data corruption. Fail-fast.
-                execution_mode = self.config.get("execution_mode", "paper")
+                #
+                # BUG FOUND 2026-08-10: same fail-open class as the 401 handler above - a missing
+                # execution_mode must not silently resolve to "paper" (sandbox fallback) here.
+                execution_mode = self.config.get("execution_mode")
+                if execution_mode is None:
+                    raise RuntimeError(
+                        "[EXIT_ENGINE CRITICAL] execution_mode config missing. Cannot safely "
+                        "determine whether to hard-stop or fall back to database prices on "
+                        "Alpaca 404 symbol-not-found."
+                    )
                 if execution_mode in ("paper", "dry", "review"):
                     # Sandbox limitation - return explicit data_unavailable marker for database fallback
                     logger.warning(
