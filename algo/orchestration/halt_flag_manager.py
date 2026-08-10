@@ -145,6 +145,16 @@ class HaltFlagManager:
                 return False
 
             triggered_at_str = item.get("triggered_at")
+            # BUG FOUND 2026-08-10 (companion to halt_flag_cleared_by_unrelated_phase_fix): see
+            # _check_halt_flag_rds()'s identical fix for the full explanation - the
+            # next-trading-day auto-expiry below used to clear ANY halt purely on calendar
+            # rollover, with zero check of who set it. Fail closed on anything not explicitly
+            # known-safe to expire this way.
+            triggered_by = item.get("triggered_by")
+            eligible_for_calendar_auto_expiry = triggered_by in (
+                "phase1_data_freshness",
+                "phase2_circuit_breaker",
+            )
             if triggered_at_str:
                 try:
                     trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
@@ -165,11 +175,11 @@ class HaltFlagManager:
                         )
                         market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
-                        if now_et >= market_open_et:
+                        if now_et >= market_open_et and eligible_for_calendar_auto_expiry:
                             time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
                             logger.info(
-                                f"[HALT_FLAG] Halt from {trigger_date} past market open ({time_str} ET) "
-                                f"on {now_date_et} - auto-clearing with atomic condition"
+                                f"[HALT_FLAG] Halt from {trigger_date} (triggered_by={triggered_by}) past "
+                                f"market open ({time_str} ET) on {now_date_et} - auto-clearing with atomic condition"
                             )
                             # CRITICAL FIX: Use ConditionExpression to atomically check AND clear
                             # Prevents race: if another orchestrator modified halt between our check and write,
@@ -202,10 +212,16 @@ class HaltFlagManager:
                         else:
                             hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
                             reason = item.get("reason") or "N/A"
+                            not_eligible_note = (
+                                "" if now_et < market_open_et else
+                                f" NOT auto-expired: triggered_by={triggered_by!r} requires explicit clear "
+                                "via scripts/manage_halt_flag.py or that phase's own logic."
+                            )
                             logger.critical(
                                 f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et} (triggered prior "
                                 f"trading day, still before {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET "
-                                f"open). Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')} "
+                                f"open, or not eligible for auto-expiry).{not_eligible_note} Triggered "
+                                f"{hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')} "
                                 f"on {trigger_date}. Reason: {reason[:150]}"
                             )
                             return True
@@ -320,7 +336,7 @@ class HaltFlagManager:
                     # Now read halt flag - guaranteed no concurrent modifications during our read
                     cur.execute(
                         """
-                        SELECT halt_flag, halt_reason, halt_triggered_at
+                        SELECT halt_flag, halt_reason, halt_triggered_at, state_value
                         FROM algo_runtime_state
                         WHERE state_key = %s
                         """,
@@ -332,10 +348,46 @@ class HaltFlagManager:
                         logger.debug("[HALT_FLAG] No halt flag in RDS (not set)")
                         return False
 
-                    halt_flag, reason, triggered_at = result
+                    halt_flag, reason, triggered_at, state_value = result
 
                     if not halt_flag:
                         return False
+
+                    # BUG FOUND 2026-08-10 (companion to halt_flag_cleared_by_unrelated_phase_fix):
+                    # the next-trading-day auto-expiry below cleared ANY halt purely on calendar
+                    # rollover, with zero check of who set it - a far more reachable version of
+                    # the exact bug already fixed for Phase 1's explicit clear_halt_flag() call,
+                    # since check_halt_flag() is called from every phase's halt gate (Phase 8's
+                    # entry check among them), not just Phase 1. A manual_operator halt (this
+                    # codebase's only real kill switch) or a phase9_reconciliation_governance halt
+                    # (unverified broker/DB portfolio state in real-money mode) would be silently
+                    # wiped the very next trading day at market open regardless of whether the
+                    # underlying investigation/reconciliation was ever actually resolved. Only
+                    # phases whose halt is inherently tied to "today's" data staleness
+                    # (phase1_data_freshness, phase2_circuit_breaker - both already get their own
+                    # same-run self-clear when conditions improve) are safe to let expire on pure
+                    # calendar rollover as a fallback; governance/manual halts require an explicit,
+                    # human-reviewed clear regardless of how much time has passed.
+                    triggered_by = None
+                    if isinstance(state_value, str):
+                        import json as _json
+
+                        try:
+                            state_value = _json.loads(state_value)
+                        except (ValueError, TypeError):
+                            state_value = None
+                    if isinstance(state_value, dict):
+                        triggered_by = state_value.get("halt_triggered_by")
+                    # Fail closed on anything not explicitly known-safe to expire on calendar
+                    # rollover alone - an unrecognized/legacy/missing tag (None, "orchestrator"
+                    # from set_halt_flag()'s old default, or any future caller that doesn't tag
+                    # itself) must NOT be treated as safe to auto-clear, exactly the same
+                    # reasoning as not auto-clearing an unrecognized halt in
+                    # orchestrator.py's phase_1_data_freshness().
+                    eligible_for_calendar_auto_expiry = triggered_by in (
+                        "phase1_data_freshness",
+                        "phase2_circuit_breaker",
+                    )
 
                     # Check if halt is from previous trading day (auto-expiry)
                     if triggered_at:
@@ -374,11 +426,11 @@ class HaltFlagManager:
                                 )
                                 market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
 
-                                if now_et >= market_open_et:
+                                if now_et >= market_open_et and eligible_for_calendar_auto_expiry:
                                     time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
                                     logger.info(
-                                        f"[HALT_FLAG] Halt from {trigger_date} past market open ({time_str} ET) "
-                                        f"on {now_date_et} - auto-clearing via RDS"
+                                        f"[HALT_FLAG] Halt from {trigger_date} (triggered_by={triggered_by}) past "
+                                        f"market open ({time_str} ET) on {now_date_et} - auto-clearing via RDS"
                                     )
                                     # Clear halt flag in RDS (still holding advisory lock - atomic operation)
                                     try:
@@ -390,6 +442,17 @@ class HaltFlagManager:
                                     except Exception as clear_err:
                                         logger.warning(f"[HALT_FLAG] Could not auto-clear halt in RDS: {clear_err}")
                                     return False
+                                elif now_et >= market_open_et:
+                                    hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                                    logger.critical(
+                                        f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et} "
+                                        f"(triggered_by={triggered_by!r} - not eligible for calendar auto-expiry, "
+                                        f"requires explicit clear via scripts/manage_halt_flag.py or that phase's "
+                                        f"own logic). Triggered {hours_halted:.1f}h ago at "
+                                        f"{trigger_et.strftime('%H:%M ET')} on {trigger_date}. "
+                                        f"Reason: {reason[:150] if reason else 'N/A'}"
+                                    )
+                                    return True
                                 else:
                                     hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
                                     logger.critical(
@@ -490,7 +553,56 @@ class HaltFlagManager:
             logger.warning(f"[HALT_FLAG] Could not determine halt_triggered_by: {e}. Treating as unknown origin.")
             return "unknown"
 
-    def set_halt_flag(self, reason: str = "", triggered_by: str = "orchestrator") -> bool:
+    def get_halt_reason(self) -> str | None:
+        """Return the human-readable reason for the currently-active halt flag, or None if no
+        halt is active (or the reason can't be determined).
+
+        BUG FOUND 2026-08-10 (live-reproduced): OrchestratorPhaseExecutor.execute_phase()'s
+        halt_check_fn skip path (for a phase skipped because the GLOBAL halt flag is active -
+        as opposed to being skipped because an earlier phase IN THIS SAME RUN halted, which is
+        a separate code path already fixed) built its PhaseResult with no `error` at all, since
+        halt_check_fn only returns a bool. Phase 6's degraded-mode logging then read that None
+        as "unknown reason" - reproducing the exact "Phase 5 halted: unknown reason" symptom
+        this session was investigating, but for a halt this run never itself set (e.g. the
+        manual operator kill switch, or any halt already active before this run started).
+        Mirrors get_halt_triggered_by()'s structure/backend fallback so callers can build a
+        real error message instead of a null one.
+        """
+        try:
+            import boto3
+
+            if os.environ.get("LOCAL_MODE", "").lower() != "true" and os.environ.get("AWS_ACCESS_KEY_ID"):
+                try:
+                    dynamodb = boto3.resource("dynamodb")
+                    table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+                    table = dynamodb.Table(table_name)
+                    response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
+                    item = response.get("Item")
+                    if item and item.get("halt_flag") is True:
+                        reason = item.get("reason")
+                        return str(reason) if reason is not None else None
+                    if item is not None:
+                        return None
+                except Exception as e:
+                    logger.debug(f"[HALT_FLAG] Could not read reason from DynamoDB: {e}")
+
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT halt_flag, halt_reason FROM algo_runtime_state WHERE state_key = %s",
+                    (self.HALT_FLAG_DYNAMODB_KEY,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                halt_flag, halt_reason = row
+                if not halt_flag:
+                    return None
+                return str(halt_reason) if halt_reason is not None else None
+        except Exception as e:
+            logger.warning(f"[HALT_FLAG] Could not determine halt reason: {e}. Treating as unknown reason.")
+            return None
+
+    def set_halt_flag(self, reason: str = "", triggered_by: str = "orchestrator", force: bool = False) -> bool:
         """Set halt flag in DynamoDB or RDS. Returns True if successfully set.
 
         Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
@@ -508,6 +620,21 @@ class HaltFlagManager:
         Phase 5 from generating full-intensity signals during degradation.
 
         ISSUE #10 FIX: Track multiple halt events in a day for escalation.
+
+        BUG FOUND 2026-08-10 (live-reproduced): by default this is "sticky to the first
+        trigger" (see _set_halt_flag_rds's docstring) so automated phases can't clobber each
+        other's halt reason. But scripts/manage_halt_flag.py's manual operator --set relied on
+        this SAME method - live-reproduced: with an automated halt already active (e.g.
+        phase2_circuit_breaker), calling set_halt_flag(triggered_by="manual_operator") left
+        triggered_by/reason as the ORIGINAL automated values; get_halt_triggered_by() still
+        returned "phase2_circuit_breaker" afterward. manage_halt_flag.py printed "Trading is
+        now halted until explicitly cleared" - a false assurance, since Phase 2's own self-clear
+        logic (current_trigger == "phase2_circuit_breaker") would silently clear the flag - and
+        the operator's manual halt with it - the next time Phase 2's circuit breaker recovers.
+        `force=True` (used only by the manual kill switch) makes this call unconditionally
+        overwrite triggered_by/reason/triggered_at so a human halt is never silently absorbed
+        into - and later auto-cleared alongside - an automated one. halt_count still increments
+        normally so escalation tracking (ISSUE #10) is unaffected.
 
         Raises: RuntimeError if both DynamoDB and RDS fail (safety-critical, no fallback left).
         """
@@ -540,17 +667,25 @@ class HaltFlagManager:
                 # Prevents race: two concurrent halts both reading count=1 and writing count=2
                 # Instead: use DynamoDB ADD operation which is atomic
                 try:
-                    # First, set up the halt with initial values if not exists
+                    # First, set up the halt with initial values if not exists.
+                    # force=True (manual kill switch only) uses an unconditional SET instead of
+                    # if_not_exists so a human halt always overwrites whatever automated halt
+                    # was already active - see this method's docstring.
+                    set_expr = (
+                        "SET halt_flag = :flag, "
+                        + ("triggered_at = :now, " if force else "triggered_at = if_not_exists(triggered_at, :now), ")
+                        + ("reason = :reason, " if force else "reason = if_not_exists(reason, :reason), ")
+                        + (
+                            "triggered_by = :triggered_by, "
+                            if force
+                            else "triggered_by = if_not_exists(triggered_by, :triggered_by), "
+                        )
+                        + "last_halt_at = :now "
+                        "ADD halt_count :inc"
+                    )
                     table.update_item(
                         Key={"key": self.HALT_FLAG_DYNAMODB_KEY},
-                        UpdateExpression=(
-                            "SET halt_flag = :flag, "
-                            "triggered_at = if_not_exists(triggered_at, :now), "
-                            "reason = if_not_exists(reason, :reason), "
-                            "triggered_by = if_not_exists(triggered_by, :triggered_by), "
-                            "last_halt_at = :now "
-                            "ADD halt_count :inc"
-                        ),
+                        UpdateExpression=set_expr,
                         ExpressionAttributeValues={
                             ":flag": True,
                             ":now": now_utc.isoformat(),
@@ -616,7 +751,7 @@ class HaltFlagManager:
                     f"[HALT_FLAG] DynamoDB set attempt {attempt + 1}/{max_retries} failed: {e}. Using RDS fallback."
                 )
                 try:
-                    rds_result = self._set_halt_flag_rds(reason, now_utc, now_et, triggered_by)
+                    rds_result = self._set_halt_flag_rds(reason, now_utc, now_et, triggered_by, force)
                     if not rds_result:
                         last_error = RuntimeError("RDS returned False (write failed)")
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt + 1})")
@@ -650,7 +785,12 @@ class HaltFlagManager:
         raise RuntimeError(error_msg)
 
     def _set_halt_flag_rds(
-        self, reason: str, now_utc: datetime, now_et: datetime, triggered_by: str = "orchestrator"
+        self,
+        reason: str,
+        now_utc: datetime,
+        now_et: datetime,
+        triggered_by: str = "orchestrator",
+        force: bool = False,
     ) -> bool:
         """Set halt flag in RDS. Returns True if successfully set.
 
@@ -665,6 +805,10 @@ class HaltFlagManager:
         DynamoDB path's if_not_exists semantics for triggered_at/reason) - a second
         set_halt_flag() call while already halted (e.g. Phase 9 halting later in a run
         Phase 2 already halted) must not overwrite and hide the original cause.
+
+        force=True (manual kill switch only, see set_halt_flag's docstring) breaks that
+        stickiness deliberately: a human operator's halt must always become the attributed
+        cause, never get silently absorbed into whatever automated halt was already active.
         """
         import json
 
@@ -677,18 +821,20 @@ class HaltFlagManager:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
 
                     state_value = json.dumps({"halt_triggered_by": triggered_by, "reason": reason or "Phase 1 degraded"})
+                    # force=True: unconditional overwrite (no CASE guard) - see docstring above.
+                    preserve_guard = "algo_runtime_state.halt_flag" if not force else "FALSE"
                     cur.execute(
-                        """
+                        f"""
                         INSERT INTO algo_runtime_state (
                             state_key, state_value, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (state_key) DO UPDATE SET
-                            state_value = CASE WHEN algo_runtime_state.halt_flag THEN algo_runtime_state.state_value
+                            state_value = CASE WHEN {preserve_guard} THEN algo_runtime_state.state_value
                                                ELSE EXCLUDED.state_value END,
                             halt_flag = EXCLUDED.halt_flag,
-                            halt_triggered_at = CASE WHEN algo_runtime_state.halt_flag THEN algo_runtime_state.halt_triggered_at
+                            halt_triggered_at = CASE WHEN {preserve_guard} THEN algo_runtime_state.halt_triggered_at
                                                      ELSE EXCLUDED.halt_triggered_at END,
-                            halt_reason = CASE WHEN algo_runtime_state.halt_flag THEN algo_runtime_state.halt_reason
+                            halt_reason = CASE WHEN {preserve_guard} THEN algo_runtime_state.halt_reason
                                                ELSE EXCLUDED.halt_reason END,
                             halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
                             last_updated_at = CURRENT_TIMESTAMP
@@ -700,7 +846,7 @@ class HaltFlagManager:
                             now_utc.isoformat(),
                             reason or "Phase 1 degraded: stale data detected",
                             1,
-                            "orchestrator",
+                            triggered_by,
                         ),
                     )
                     logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
@@ -771,6 +917,19 @@ class HaltFlagManager:
                 )
                 return False
 
+            # BUG FOUND 2026-08-10 (same bug class as check_halt_flag's companion fix, but
+            # more dangerous here: this runs at orchestrator STARTUP, before Phase 1 or any
+            # other phase gets a chance to reason about the halt at all. Unconditionally
+            # auto-clearing on pure calendar rollover would silently wipe a manual_operator
+            # kill-switch halt or a phase9_reconciliation_governance halt (unverified
+            # broker/DB state before real-money order submission) the very next trading day,
+            # defeating the exact protections added elsewhere in this file today.
+            triggered_by = item.get("triggered_by")
+            eligible_for_calendar_auto_expiry = triggered_by in (
+                "phase1_data_freshness",
+                "phase2_circuit_breaker",
+            )
+
             try:
                 trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
                 now_utc = datetime.now(timezone.utc)
@@ -789,6 +948,14 @@ class HaltFlagManager:
                         microsecond=0,
                     )
                     market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                    if now_et >= market_open_et and not eligible_for_calendar_auto_expiry:
+                        logger.warning(
+                            f"[PROACTIVE_CLEAR] Halt from {trigger_date} (triggered_by={triggered_by!r}) is past "
+                            "market open but NOT eligible for calendar auto-expiry - requires explicit clear via "
+                            "scripts/manage_halt_flag.py or that phase's own logic. Leaving halt active."
+                        )
+                        return False
 
                     if now_et >= market_open_et:
                         time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"
@@ -861,7 +1028,7 @@ class HaltFlagManager:
 
                     cur.execute(
                         """
-                        SELECT halt_flag, halt_triggered_at
+                        SELECT halt_flag, halt_triggered_at, state_value
                         FROM algo_runtime_state
                         WHERE state_key = %s
                         """,
@@ -875,6 +1042,23 @@ class HaltFlagManager:
                     triggered_at = result[1]
                     if not triggered_at:
                         return False
+
+                    # Same bug class as _check_halt_flag_rds's companion fix, more dangerous
+                    # here since this runs at orchestrator STARTUP before any phase reasoning -
+                    # see proactive_clear_stale_halt()'s (DynamoDB) identical comment.
+                    state_value = result[2]
+                    if isinstance(state_value, str):
+                        import json as _json
+
+                        try:
+                            state_value = _json.loads(state_value)
+                        except (ValueError, TypeError):
+                            state_value = None
+                    triggered_by = state_value.get("halt_triggered_by") if isinstance(state_value, dict) else None
+                    eligible_for_calendar_auto_expiry = triggered_by in (
+                        "phase1_data_freshness",
+                        "phase2_circuit_breaker",
+                    )
 
                     try:
                         trigger_dt = datetime.fromisoformat(
@@ -908,6 +1092,15 @@ class HaltFlagManager:
                                 microsecond=0,
                             )
                             market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                            if now_et >= market_open_et and not eligible_for_calendar_auto_expiry:
+                                logger.warning(
+                                    f"[PROACTIVE_CLEAR] Halt from {trigger_date} (triggered_by={triggered_by!r}) is "
+                                    "past market open but NOT eligible for calendar auto-expiry - requires "
+                                    "explicit clear via scripts/manage_halt_flag.py or that phase's own logic. "
+                                    "Leaving halt active (RDS)."
+                                )
+                                return False
 
                             if now_et >= market_open_et:
                                 time_str = f"{MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}"

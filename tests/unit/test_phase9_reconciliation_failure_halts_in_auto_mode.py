@@ -65,3 +65,15 @@ def test_orchestrator_sets_halt_flag_on_phase9_halt():
         "True, mirroring phase_2_circuit_breakers()'s identical pattern - otherwise a Phase 9 "
         "governance halt has no actual effect on subsequent runs' Phase 8 halt-flag check."
     )
+    assert 'triggered_by="phase9_reconciliation_governance"' in method_source, (
+        "phase_9_reconcile()'s set_halt_flag() call must tag itself as "
+        "'phase9_reconciliation_governance' (see halt_flag_cleared_by_unrelated_phase_fix_20260810) - "
+        "untagged, Phase 1's freshness check would silently clear this halt on the very next "
+        "run before Phase 8 (or anything else) ever got a chance to re-verify the underlying "
+        "reconciliation failure was actually resolved, exactly the bug this tag exists to prevent. "
+        "This halt deliberately has NO automatic clearing path of its own (unlike Phase 2's "
+        "self-clear) - a real broker/DB state-verification failure in execution_mode='auto' "
+        "requires a human to look, not an automatic re-check that could pass by coincidence on a "
+        "transient blip. Use `scripts/manage_halt_flag.py --clear` after manually confirming the "
+        "underlying reconciliation issue is actually resolved."
+    )

@@ -49,7 +49,7 @@ class TestOvernightPriorDayHaltStillCritical:
         naive_utc_triggered_at = datetime(2026, 7, 28, 2, 30, 0)  # 2026-07-27 22:30 EDT
 
         manager = _manager()
-        row = (True, "stale data detected", naive_utc_triggered_at)
+        row = (True, "stale data detected", naive_utc_triggered_at, {"halt_triggered_by": "phase1_data_freshness"})
 
         class _FrozenDatetime(datetime):
             @classmethod
