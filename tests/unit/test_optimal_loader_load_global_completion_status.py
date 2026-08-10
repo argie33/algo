@@ -122,3 +122,46 @@ class TestLoadGlobalCompletionStatus:
         call_kwargs = loader._status_manager.mark_completed.call_args.kwargs
         assert call_kwargs["current_run_symbols_loaded"] == 3
         assert call_kwargs["current_run_symbol_count"] == 3
+
+
+class TestEarlyReturnBranchesPassExplicitZeroCounts:
+    """BUG FOUND 2026-08-10 (same class as the 2026-08-03 fix above, and
+    derive_aggregate_prices' 2026-08-10 fix): the 3 early-return branches
+    (data_unavailable dict marker, list-wrapped marker, empty list) called
+    mark_completed() with no current_run_* overrides, so a genuinely-empty run today
+    would silently inherit symbol_count/symbols_loaded from whatever a PAST run last
+    wrote to this row - misrepresenting today's real "0 rows, nothing to do" outcome.
+    """
+
+    def test_empty_result_passes_explicit_zero_counts(self):
+        loader = _make_loader()
+
+        _run_load_global(loader, [])
+
+        loader._status_manager.mark_completed.assert_called_once()
+        call_kwargs = loader._status_manager.mark_completed.call_args.kwargs
+        assert call_kwargs["current_run_symbols_loaded"] == 0
+        assert call_kwargs["current_run_symbol_count"] == 0
+        assert call_kwargs["min_completion_pct"] == 0.0
+
+    def test_data_unavailable_marker_passes_explicit_zero_counts(self):
+        loader = _make_loader()
+
+        _run_load_global(loader, {"data_unavailable": True, "reason": "no_source_available"})
+
+        loader._status_manager.mark_completed.assert_called_once()
+        call_kwargs = loader._status_manager.mark_completed.call_args.kwargs
+        assert call_kwargs["current_run_symbols_loaded"] == 0
+        assert call_kwargs["current_run_symbol_count"] == 0
+        assert call_kwargs["min_completion_pct"] == 0.0
+
+    def test_list_wrapped_marker_passes_explicit_zero_counts(self):
+        loader = _make_loader()
+
+        _run_load_global(loader, [{"data_unavailable": True, "reason": "no_source_available"}])
+
+        loader._status_manager.mark_completed.assert_called_once()
+        call_kwargs = loader._status_manager.mark_completed.call_args.kwargs
+        assert call_kwargs["current_run_symbols_loaded"] == 0
+        assert call_kwargs["current_run_symbol_count"] == 0
+        assert call_kwargs["min_completion_pct"] == 0.0

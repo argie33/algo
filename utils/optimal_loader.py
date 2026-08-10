@@ -896,13 +896,29 @@ class OptimalLoader:
             except Exception as e:
                 raise RuntimeError(f"[{self.table_name}] fetch_global failed: {e}") from e
 
+            # BUG FOUND 2026-08-10 (same class as derive_aggregate_prices' fix - see
+            # [[derive_aggregate_prices_mark_completed_gap_corrects_prior_session_20260810]]):
+            # these 3 early-return branches called mark_completed() without current_run_*
+            # overrides, so the safety check re-read symbol_count/symbols_loaded from whatever
+            # a PAST run last wrote to this row - a genuinely-empty run today would silently
+            # inherit an old run's numbers (e.g. reporting 100% using a stale symbol_count/
+            # symbols_loaded pair that has nothing to do with today), masking whether today's
+            # emptiness is expected ("no new data") or a real problem (API outage) behind
+            # whatever the last unrelated writer left there. Pass explicit 0/0 with
+            # min_completion_pct=0.0 (same values/reasoning as the derive_aggregate_prices fix)
+            # so this run's own honest "0 rows, nothing to do" state is what gets recorded.
             # fetch_global returns marker dict if not implemented by subclass
             if isinstance(rows_result, dict) and rows_result.get("data_unavailable"):
                 logger.debug(
                     f"[{self.table_name}] fetch_global not implemented by subclass "
                     f"(data_unavailable: {rows_result.get('reason', 'unknown')}). Skipping global load step."
                 )
-                self._status_manager.mark_completed(execution_duration_sec=time.time() - start)
+                self._status_manager.mark_completed(
+                    execution_duration_sec=time.time() - start,
+                    current_run_symbols_loaded=0,
+                    current_run_symbol_count=0,
+                    min_completion_pct=0.0,
+                )
                 return 0
 
             # Some subclasses (e.g. load_naaim.py) list-wrap the marker dict instead of
@@ -918,7 +934,12 @@ class OptimalLoader:
                     f"[{self.table_name}] fetch_global returned list-wrapped data_unavailable marker "
                     f"(reason: {rows_result[0].get('reason', 'unknown')}). Skipping global load step."
                 )
-                self._status_manager.mark_completed(execution_duration_sec=time.time() - start)
+                self._status_manager.mark_completed(
+                    execution_duration_sec=time.time() - start,
+                    current_run_symbols_loaded=0,
+                    current_run_symbol_count=0,
+                    min_completion_pct=0.0,
+                )
                 return 0
 
             # rows_result is now guaranteed to be a list[dict] after marker dict check
@@ -926,7 +947,12 @@ class OptimalLoader:
 
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned empty list (no data available)")
-                self._status_manager.mark_completed(execution_duration_sec=time.time() - start)
+                self._status_manager.mark_completed(
+                    execution_duration_sec=time.time() - start,
+                    current_run_symbols_loaded=0,
+                    current_run_symbol_count=0,
+                    min_completion_pct=0.0,
+                )
                 return 0
 
             rows = self.transform(rows)
