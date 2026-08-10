@@ -1,6 +1,6 @@
 # Codebase Governance & Architecture
 
-Live trading system: Minervini trend-following + fundamental quality filters. Up to 15 concurrent positions, daily reconciliation with Alpaca.
+Live trading system: Minervini trend-following + fundamental quality filters. Up to 20 concurrent positions (`max_positions` in `algo_config` - was 12, then 15 per commit `2a8637fe2`, now 20; verified live 2026-08-10, this line had drifted stale after the second bump), daily reconciliation with Alpaca.
 
 ---
 
