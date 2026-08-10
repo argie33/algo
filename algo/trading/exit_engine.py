@@ -1226,6 +1226,18 @@ class ExitEngine:
         cur_price_dec = Decimal(str(cur_price)) if not isinstance(cur_price, Decimal) else cur_price
         active_stop_dec = Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop
         if cur_price_dec <= active_stop_dec:
+            # BUG FOUND 2026-08-10 (live-reproduced): missing exit_price_override, unlike this
+            # file's own sibling hard-stop check ~250 lines above (the init_stop-based one,
+            # "CRITICAL FIX: When stop is hit, use the stop price itself... Paper mode was
+            # using stale prices... creating 4-5% slippage"). Without it, this branch's caller
+            # (_evaluate_position's own caller two calls up) falls back to the live/current
+            # price for the paper-mode fill instead of the actual stop level - live-confirmed
+            # via ECPG (2026-08-07 entry $100.20, active_stop raised to $100.52 by a target-hit
+            # breakeven raise, exited 2026-08-08 recorded at exit_price=$100.20, matching
+            # entry/current price rather than the $100.52 stop that actually triggered it).
+            # Same slippage bug class as position_monitor.py's STOP_LOSS_HIT path
+            # (see exit_halt_stress_test_20260809) and this file's own init_stop branch -
+            # just never applied to this active_stop (trailing/raised-stop) branch.
             return {
                 "stage": "stop",
                 "fraction": 1.0,
@@ -1233,6 +1245,7 @@ class ExitEngine:
                     f"STOP hit: ${float(cur_price_dec):.2f} <= ${float(active_stop_dec):.2f} "
                     "(hard capital preservation - not subject to min_hold_days)"
                 ),
+                "exit_price_override": float(active_stop_dec),
             }
 
         # CRITICAL FIX SESSION 41: Remove blanket min_hold_days gate that blocks ALL exits on same-day entries.
