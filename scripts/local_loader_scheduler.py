@@ -20,8 +20,30 @@ if "LOADER_PARALLELISM" not in os.environ:
     os.environ["LOADER_PARALLELISM"] = "4"
 
 # Import registry mapping to convert shorthand names to filenames
-from loaders.loader_registry import normalize_loader_name
-from utils.loaders.status_manager import reap_stale_running_loaders
+from loaders.loader_registry import all_tables, normalize_loader_name
+from utils.loaders.status_manager import LoaderStatusManager, reap_stale_running_loaders
+
+
+def _mark_loader_failed_after_crash(loader_filename: str, error_message: str) -> None:
+    """Best-effort: mark every table a crashed/timed-out loader owns as FAILED.
+
+    Without this, subprocess.run() crashing or timing out left data_loader_status stuck
+    at RUNNING indefinitely (no owning process, no error_message, no terminal status) -
+    only reap_stale_running_loaders()'s 4-hour-later check on the *next* pipeline
+    invocation would ever correct it. Live-confirmed 2026-08-10: quality_metrics/
+    growth_metrics (via enhanced_quality_growth) died mid-run with no process alive and
+    no status transition. Deliberately swallows its own errors - a failure to record the
+    failure must never mask the original crash/timeout being reported by the caller.
+    """
+    try:
+        for table in all_tables(loader_filename):
+            LoaderStatusManager(table).mark_failed(error_message)
+    except Exception as mark_err:
+        print(
+            f"[LOCAL_SCHEDULER] WARNING: could not mark {loader_filename} tables FAILED "
+            f"after crash: {mark_err}",
+            file=sys.stderr,
+        )
 
 
 PIPELINES = {
@@ -374,6 +396,9 @@ def run_pipeline(pipeline_name: str) -> int:
                     f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {result.returncode})",
                     file=sys.stderr,
                 )
+                _mark_loader_failed_after_crash(
+                    loader_filename, f"local_loader_scheduler: subprocess exited with code {result.returncode}"
+                )
                 return 1
             # Mark loader as completed for dependency checking of subsequent loaders
             completed_loaders.add(loader)
@@ -382,6 +407,9 @@ def run_pipeline(pipeline_name: str) -> int:
                 f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
                 f"Likely blocked by stale lock. Run: rm -f /tmp/algo-locks/*.lock",
                 file=sys.stderr,
+            )
+            _mark_loader_failed_after_crash(
+                loader_filename, f"local_loader_scheduler: timed out after {timeout}s"
             )
             return 1
 
