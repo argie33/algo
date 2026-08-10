@@ -310,6 +310,29 @@ def run_pipeline(pipeline_name: str) -> int:
                 # without this fix. Invoke the module directly so local runs refresh the same
                 # essential-symbol set production does.
                 cmd = [sys.executable, f"loaders/{loader_filename}"]
+            elif loader == "trend_analysis":
+                # BUG FOUND 2026-08-10: not a "different logic" bypass like the 3 cases above -
+                # this one is a hard, currently-reproducing failure. load_trend_analysis.py is a
+                # plain function-based module (run()/main() functions, no OptimalLoader subclass
+                # or any class at all) - scripts/run_loader.py's generic path requires
+                # get_loader_class_for_file() to find a loader CLASS before it will call
+                # run_loader_generic() (whose own "trend_template_data" special-case branch is
+                # consequently dead code, unreachable). Confirmed live: `python scripts/
+                # run_loader.py load_trend_analysis.py` exits 1 immediately with "Could not find
+                # OptimalLoader subclass" / "Could not load class" - it has never worked via this
+                # path. Since "trend_analysis" was never special-cased for direct invocation
+                # (unlike financial_statements/buy_sell/prices), every local "morning" pipeline
+                # run's trend_analysis step has always failed outright, and since a failed loader
+                # aborts run_pipeline() here (see the returncode check below), this also blocked
+                # sector_industry (the next step in "morning") from ever running locally via
+                # --now morning. Root cause of trend_template_data sitting stuck in RUNNING for
+                # 6+ hours with no owning process alive (see status_manager.reap_stale_running_loaders) -
+                # whatever last set it RUNNING never reached a real run() to complete or fail it
+                # through this broken path. `python loaders/load_trend_analysis.py` directly
+                # (production's real entrypoint, terraform/modules/loaders/main.tf) works fine -
+                # live-verified 2026-08-10: completed in 6s (pure price_daily computation, no
+                # yfinance calls), stuck status flipped RUNNING -> COMPLETED.
+                cmd = [sys.executable, f"loaders/{loader_filename}"]
             else:
                 cmd = [sys.executable, "scripts/run_loader.py", loader_filename]
             result = subprocess.run(
