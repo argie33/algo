@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -308,7 +309,15 @@ class ExitHandler:
                 "message": f"Invalid exit_fraction {exit_fraction}",
             }
 
-        if exit_price is None or exit_price <= 0:
+        # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
+        # class - after fuzzing found it 7 other times this session): `exit_price <= 0`
+        # doesn't catch NaN (NaN comparisons are always False in Python), so a NaN
+        # exit_price would silently pass this validation gate - the front-line guard for
+        # the actual exit-execution path that closes real positions - as if it were valid.
+        # exit_fraction's `0 < exit_fraction <= 1.0` chained comparison is naturally safe
+        # (the first `0 < nan` comparison already evaluates False), but exit_price's
+        # single-sided check is not.
+        if exit_price is None or math.isnan(exit_price) or math.isinf(exit_price) or exit_price <= 0:
             return {
                 "success": False,
                 "trade_id": None,
@@ -318,7 +327,7 @@ class ExitHandler:
                 "r_multiple": None,
                 "full_exit": False,
                 "is_estimated_price": False,
-                "message": f"Invalid exit price: {exit_price} (must be > 0)",
+                "message": f"Invalid exit price: {exit_price} (must be a finite number > 0)",
             }
 
         logger.debug(f"[EXIT_HANDLER] Exit parameters valid (fraction={exit_fraction}, price={exit_price})")
