@@ -183,7 +183,7 @@ class FinancialDataValidator:
         except Exception as e:
             raise RuntimeError(
                 f"Unexpected error in P&L calculation: {e}. "
-                "Precondition checks failed; entry={entry}, exit={exit_price}, qty={qty}"
+                f"Precondition checks failed; entry={entry}, exit={exit_price}, qty={qty}"
             ) from e
 
         return True, pnl_dollars, pnl_pct, ""

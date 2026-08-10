@@ -221,7 +221,7 @@ class PositionSizer:
                 else:
                     logger.critical(
                         f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot too stale ({trading_age}d old, trading days). "
-                        "Phase 7 (reconciliation) must run daily. Last successful Phase 7 run: {snapshot_date}"
+                        f"Phase 7 (reconciliation) must run daily. Last successful Phase 7 run: {snapshot_date}"
                     )
                 error_msg = (
                     f"Portfolio snapshot too stale ({trading_age}d old trading days, threshold 1 day). "

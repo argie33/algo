@@ -873,7 +873,7 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
     if status_code is None:
         raise RuntimeError(
             "API response is missing required 'statusCode' field. "
-            "Cannot determine request success/failure. Response: {response}"
+            f"Cannot determine request success/failure. Response: {response}"
         )
 
     # Extract payload - support both formats

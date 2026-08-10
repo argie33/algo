@@ -47,7 +47,7 @@ class WatermarkManager:
         if not self.watermark_field:
             raise ValueError(
                 f"[CRITICAL] watermark_field not configured for {self.table_name}. "
-                "Cannot determine incremental load state for {symbol}. "
+                f"Cannot determine incremental load state for {symbol}. "
                 "Must configure watermark_field for incremental loading."
             )
 
