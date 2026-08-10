@@ -8,6 +8,7 @@ persisting to signal_trade_performance for Information Coefficient (IC) calculat
 """
 
 import logging
+import math
 from datetime import date as _date
 from datetime import timedelta
 from typing import Any
@@ -105,7 +106,15 @@ class SignalTradePerformancePopulator:
                             f"({exit_price - entry_price:.2f} * {entry_qty}) = {pnl_dollars:.2f}"
                         )
 
-                    if entry_price <= 0 or entry_qty <= 0:
+                    # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard
+                    # bug class): `<= 0` doesn't catch NaN. Lower severity than the trading
+                    # paths (this only corrupts analytics/IC-attribution rows), fixed for
+                    # consistency.
+                    if (
+                        math.isnan(entry_price) or math.isinf(entry_price)
+                        or math.isnan(entry_qty) or math.isinf(entry_qty)
+                        or entry_price <= 0 or entry_qty <= 0
+                    ):
                         logger.error(
                             f"CRITICAL: Trade {trade_id_int} ({symbol}) has invalid prices/quantity. "
                             f"Skipping: entry={entry_price}, qty={entry_qty}"

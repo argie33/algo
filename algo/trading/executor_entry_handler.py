@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 import uuid
 from dataclasses import dataclass
@@ -1135,7 +1136,18 @@ class EntryHandler:
                 )
             # CRITICAL: Stop price must be set before position creation
             # Null stop price blocks all stop-based exit strategies (stop-raise, stop-loss)
-            if stop_loss_price is None or stop_loss_price <= 0:
+            # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
+            # class - after fuzzing found it 8 other times this session): `stop_loss_price
+            # <= 0` doesn't catch NaN (NaN comparisons are always False in Python). This
+            # guard runs AFTER the order has already executed/filled - a NaN here would
+            # write stop_loss_price=NaN into algo_positions for a real, already-open
+            # position instead of being rejected, corrupting every downstream risk
+            # calculation, position sizing check, and exit decision for that position.
+            if (
+                stop_loss_price is None
+                or (isinstance(stop_loss_price, float) and (math.isnan(stop_loss_price) or math.isinf(stop_loss_price)))
+                or stop_loss_price <= 0
+            ):
                 raise ValueError(
                     f"[POSITION_CREATION CRITICAL] {symbol}: Cannot create position with NULL or invalid stop_loss. "
                     f"Stop loss must be > 0 and < entry price. Got: {stop_loss_price}. "

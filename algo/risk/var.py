@@ -17,6 +17,7 @@ Alerts:
 """
 
 import logging
+import math
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -471,7 +472,14 @@ class ValueAtRisk:
                         )
                     safe_price = float(cur_price)
                     safe_qty = float(qty)
-                    if safe_price <= 0 or safe_qty <= 0:
+                    # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard
+                    # bug class): `<= 0` doesn't catch NaN. A NaN price/qty here would
+                    # silently corrupt portfolio VaR/beta risk reporting.
+                    if (
+                        math.isnan(safe_price) or math.isinf(safe_price)
+                        or math.isnan(safe_qty) or math.isinf(safe_qty)
+                        or safe_price <= 0 or safe_qty <= 0
+                    ):
                         raise ValueError(
                             f"[VAR CALCULATION FAILED] {symbol}: invalid current_price ({cur_price}) or quantity ({qty}). "
                             f"Current price and quantity must be positive for portfolio VAR calculation."
@@ -514,7 +522,7 @@ class ValueAtRisk:
                                     f"Cannot calculate beta without complete price history."
                                 )
                             price = float(r[1])
-                            if price <= 0:
+                            if math.isnan(price) or math.isinf(price) or price <= 0:
                                 raise ValueError(
                                     f"[VAR CALCULATION FAILED] {symbol}: invalid historical price ({price}). "
                                     f"All prices must be positive for beta calculation."

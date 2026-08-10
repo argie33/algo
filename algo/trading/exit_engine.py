@@ -1883,7 +1883,10 @@ class ExitEngine:
 
         max_close_in_window = Decimal(str(row[0]))
 
-        if entry_price <= 0:
+        # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
+        # class): `entry_price <= 0` doesn't catch NaN. Same fix already applied to this
+        # file's _chandelier_or_ema_stop.
+        if math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
             raise ValueError(f"Invalid entry price for {symbol}: {entry_price}")
 
         gain_pct = float(

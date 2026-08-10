@@ -793,17 +793,22 @@ class ExitHandler:
             # fill price.
             final_exit_price = exit_price
 
+        # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
+        # class): `<= 0` doesn't catch NaN (NaN comparisons are always False in Python).
+        # These two checks are the last gate before `Decimal(str(entry_price)) -
+        # Decimal(str(stop_loss_price))` below - a NaN here would silently produce a NaN
+        # risk_per_share and propagate into the actual P&L recorded for a real exit.
         # Validate prices - fail-fast instead of returning error dict
-        if final_exit_price <= 0:
+        if math.isnan(final_exit_price) or math.isinf(final_exit_price) or final_exit_price <= 0:
             raise ValueError(
                 f"[INVALID_EXIT_PRICE] Exit price {final_exit_price} is invalid for {symbol}. "
-                f"Cannot execute trade with zero or negative price. Check broker response or market data validity."
+                f"Cannot execute trade with zero, negative, or non-finite price. Check broker response or market data validity."
             )
 
-        if entry_price <= 0:
+        if math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
             raise ValueError(
                 f"[INVALID_ENTRY_PRICE] Entry price {entry_price} is invalid for {symbol}. "
-                f"Cannot calculate P&L with zero or negative entry price. Check position data integrity."
+                f"Cannot calculate P&L with zero, negative, or non-finite entry price. Check position data integrity."
             )
 
         # Calculate P&L metrics
