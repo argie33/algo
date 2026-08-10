@@ -74,7 +74,11 @@ class TestSyncPreservesTradeIdsArrOnEmptyArrayAgg:
             c for c in cur.execute.call_args_list if "UPDATE algo_positions SET quantity" in c.args[0]
         ]
         assert update_calls, "expected the existing-position UPDATE to run"
-        written_trade_ids_arr = update_calls[0].args[1][5]  # positional param: trade_ids_arr
+        # Params: (total_qty, 'open', stop_loss_price, 'closed', stop_loss_price,
+        # trade_ids_text, trade_ids_arr, existing_id) - trade_ids_arr is index 6, shifted from 5
+        # by the 2026-08-10 CASE-guard fix (see position_sync_preserves_raised_stop_...) which
+        # added one more positional parameter ('closed', the CASE comparison value).
+        written_trade_ids_arr = update_calls[0].args[1][6]  # positional param: trade_ids_arr
         assert written_trade_ids_arr == ["old-trade-id"], (
             "existing trade_ids_arr must be preserved when ARRAY_AGG returns nothing, "
             f"got {written_trade_ids_arr!r}"

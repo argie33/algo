@@ -207,12 +207,33 @@ def sync_positions_from_trades() -> Tuple[int, int, int, list[dict[str, str]]]:
                         # Update existing position, reopen if needed, and sync stop_loss_price and trade_ids_arr
                         # CRITICAL: Use position_id to update ONLY this specific position (not all positions for the symbol)
                         # Using WHERE position_id ensures we only update the exact position we found, avoiding duplicate key violations
+                        # CRITICAL FIX 2026-08-10: this branch runs for ALREADY-OPEN positions too, not
+                        # just genuinely reopened (was-closed) ones - sync_positions_from_trades() is
+                        # called before Phase 1 on EVERY orchestrator invocation (see orchestrator.py's
+                        # _executor_phase_1, "Ensures algo_positions table stays in sync... throughout
+                        # the day"). Unconditionally setting current_stop_price = stop_loss_price (the
+                        # trade's ORIGINAL entry-time stop) here meant every legitimate stop-raise from
+                        # tighten_stop/RAISE_STOP/ExitEngine's breakeven-trail (see
+                        # stop_raise_writes_missing_db_level_monotonicity_guard_20260810,
+                        # exit_engine_active_stop_missing_exit_price_override_20260810) got silently
+                        # wiped back to the original stop at the start of the very next run - live-
+                        # confirmed via real open positions: current_stop_price exactly equaled
+                        # stop_loss_price on every single one, which looked like "no raises have
+                        # happened yet" but is exactly the signature of every raise being reset before
+                        # it could ever be observed. Only reset current_stop_price when genuinely
+                        # reopening a previously-CLOSED position (a fresh start, where resetting to the
+                        # original stop is correct) - preserve it for an already-open position via a
+                        # CASE referencing the pre-update `status` column (all SET expressions in one
+                        # UPDATE see the OLD row, so this correctly checks the status BEFORE this same
+                        # statement's own `status = %s` write takes effect).
                         trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
                         cur.execute(
                             'UPDATE algo_positions SET quantity = %s, status = %s, '
-                            '  stop_loss_price = %s, current_stop_price = %s, trade_ids = %s, trade_ids_arr = %s, updated_at = NOW() '
+                            '  stop_loss_price = %s, '
+                            '  current_stop_price = CASE WHEN status = %s THEN %s ELSE current_stop_price END, '
+                            '  trade_ids = %s, trade_ids_arr = %s, updated_at = NOW() '
                             'WHERE position_id = %s',
-                            (total_qty, 'open', stop_loss_price, stop_loss_price, trade_ids_text, trade_ids_arr, existing_id)
+                            (total_qty, 'open', stop_loss_price, 'closed', stop_loss_price, trade_ids_text, trade_ids_arr, existing_id)
                         )
                         updated += 1
                         action = "reopened" if existing_status == 'closed' else "updated"
