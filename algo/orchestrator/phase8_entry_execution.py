@@ -2810,9 +2810,11 @@ def run(
                 except (ValueError, TypeError) as e:
                     logger.warning(f"[PHASE 8] {symbol}: Could not parse max_risk_per_trade_pct ({max_risk_val}): {e}")
 
-            # Position sizer will handle actual dollar risk limits using max_risk_per_trade_pct
-            # The stop-loss width (risk_pct) is checked for min (1.5%) above. Position sizer
-            # receives stop_loss_price and enforces position_size so dollar loss <= portfolio * max_risk_per_trade_pct
+            # NOTE: max_risk_per_trade_pct above is a stop-WIDTH sanity ceiling only (rejects
+            # entries whose stop is unreasonably far from entry price) - it does not drive
+            # dollar risk sizing. The position sizer (algo/trading/position_sizer.py) computes
+            # actual dollar risk from `base_risk_pct` (target % of portfolio risked per trade),
+            # combined with this trade's stop_loss_price, independently of max_risk_per_trade_pct.
 
             # Regime-aware, drawdown-adjusted sizing
 
