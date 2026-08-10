@@ -1573,6 +1573,21 @@ class Orchestrator:
             halt_reason = result.error or "Circuit breaker check failed"
             logger.info(f"[PHASE 2] Setting halt flag due to circuit breaker: {halt_reason}")
             self.halt_manager.set_halt_flag(halt_reason, triggered_by="phase2_circuit_breaker")
+        else:
+            # FIX 2026-08-10 (companion to halt_flag_cleared_by_unrelated_phase_fix): Phase 1
+            # now refuses to auto-clear a halt it didn't set, so a phase2_circuit_breaker halt
+            # that later recovers would otherwise stay set forever (Phase 2 previously only
+            # ever SET this flag, never cleared it - the only thing that used to unstick it
+            # was Phase 1's blanket clear, which was itself the bug). Safe to self-clear here
+            # specifically: Phase 2 just freshly re-evaluated live drawdown/circuit-breaker
+            # data THIS run and found it healthy, and runs before Phase 8 in this same run -
+            # unlike Phase 9 (see that phase's own comment), there's no "next run" gap where
+            # trading could proceed on stale reassurance. Only clears a halt it recognizes as
+            # its own - never touches one set by Phase 1 or Phase 9.
+            current_trigger = self.halt_manager.get_halt_triggered_by()
+            if current_trigger == "phase2_circuit_breaker":
+                logger.info("[PHASE 2] Circuit breaker checks now clear - clearing the halt flag it previously set.")
+                self.halt_manager.clear_halt_flag("Phase 2 circuit breaker checks are clear")
         return not result.halted
 
     def phase_3_position_monitor(self) -> bool:
