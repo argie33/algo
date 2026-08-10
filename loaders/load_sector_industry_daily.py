@@ -411,6 +411,26 @@ class SectorIndustryDailyLoader(OptimalLoader):
         logger.info(
             f"[SECTOR_INDUSTRY] Total rows updated: {total_rows} (perf={row_counts['sector_performance']}, rank={row_counts['sector_ranking']}, ind={row_counts['industry_ranking']})"
         )
+        # BUG FOUND 2026-08-10: returning [] unconditionally regardless of total_rows meant a
+        # day where all 3 INSERT...SELECT statements matched 0 rows (e.g. stock_scores.
+        # composite_score entirely NULL that day, breaking both sector_ranking and
+        # industry_ranking's source CTEs) still reported success - no exception, no failed
+        # status. sector_ranking is one of only 15 tables in utils/loader_priority.py's
+        # critical-loader list gating Phase 1, so a silent 0-row day here would have looked
+        # identical to a healthy run to every downstream consumer. Fail fast here for the same
+        # reason the prev_trading_day check above does (Session 291) - only when ALL THREE
+        # tables got zero rows, since each has an independent, legitimately-partial source
+        # query and a single table being empty isn't necessarily this loader's fault.
+        if total_rows == 0:
+            raise RuntimeError(
+                f"[{self.table_name}] CRITICAL: All 3 INSERT statements matched 0 rows "
+                f"(sector_performance={row_counts['sector_performance']}, "
+                f"sector_ranking={row_counts['sector_ranking']}, "
+                f"industry_ranking={row_counts['industry_ranking']}) for {target_date}. "
+                f"This would otherwise silently report success. Check: (1) price_daily has "
+                f"rows for {target_date}/{prev_date}, (2) stock_scores.composite_score is "
+                f"populated, (3) company_info_sec/company_profile joins are matching."
+            )
         return []
 
 
