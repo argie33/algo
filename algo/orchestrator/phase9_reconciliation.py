@@ -737,8 +737,25 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
                 perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy} - {perf_report.get('warning', 'see logs')}"
                 # CRITICAL: Only halt if ACTUALLY in live trading (execution_mode="auto" AND alpaca_paper_trading=False)
                 # If alpaca_paper_trading=True, we're using Alpaca's PAPER endpoint, not real money
+                #
+                # BUG FOUND 2026-08-10: this used to silently default a missing config key to
+                # True (paper), which fails OPEN for this specific gate - if alpaca_paper_trading
+                # were ever missing while actually live, `is_live_trading` below would silently
+                # compute False, and the live-Sharpe circuit breaker just below (the check that
+                # halts real-money trading when performance craters) would never fire at all, not
+                # just apply a looser threshold. Every other consumer of this config key in the
+                # codebase (phase6/8, alpaca_broker_adapter.py, execution_config.py,
+                # alpaca_sync_manager.py, infrastructure/reconciliation.py, and now
+                # circuit_breaker.py's consecutive-losses check) already fails fast instead of
+                # guessing. Matching that here.
                 execution_mode = config.get("execution_mode")
-                alpaca_paper_trading = config.get("alpaca_paper_trading", True)
+                if "alpaca_paper_trading" not in config:
+                    raise ValueError(
+                        "[PHASE 9] Config missing 'alpaca_paper_trading'. "
+                        "Trading mode must be explicit (paper vs live) before the live-Sharpe "
+                        "circuit breaker can be evaluated. Check algo_config table has this key."
+                    )
+                alpaca_paper_trading = config["alpaca_paper_trading"]
                 min_sharpe_val = config.get("min_live_sharpe_ratio")
                 min_sharpe = float(min_sharpe_val) if min_sharpe_val is not None else 0.0
 

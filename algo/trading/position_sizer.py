@@ -925,7 +925,18 @@ class PositionSizer:
                 "reason": f"{symbol} in Stage-2 climax phase - skip entry",
             }
 
-        if entry_price <= 0 or stop_loss_price >= entry_price:
+        # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): this used to compare
+        # the raw entry_price/stop_loss_price parameters (type Any) directly against int 0,
+        # instead of the already-validated entry_dec/stop_dec Decimals computed above. Every
+        # real Phase 8 call site only ever passes float, so this was unreachable in current
+        # production paths - but this function's own Any signature and its Decimal(str(x))
+        # normalization pattern both imply string input is a supported contract, and a string
+        # entry_price/stop_loss_price crashed here with an uncaught
+        # "TypeError: '<=' not supported between instances of 'str' and 'int'" instead of the
+        # clean {"status": "invalid", ...} result this branch exists to return. Also genuinely
+        # redundant with the entry_dec/stop_dec ValueError checks above - kept as a second
+        # guard, just now type-safe.
+        if entry_dec <= 0 or stop_dec >= entry_dec:
             return {
                 "shares": 0,
                 "position_size_pct": 0,
@@ -1229,7 +1240,12 @@ class PositionSizer:
             "risk_dollars": risk_dollars,
             "position_value": position_value,
             "status": "ok",
-            "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
+            # entry_dec (already-normalized Decimal), not the raw entry_price parameter (type
+            # Any) - see the entry_dec/stop_dec fix above for why a string entry_price reaches
+            # this far without raising: "%.2f"-style formatting of a raw str crashes with
+            # "Unknown format code 'f' for object of type 'str'" instead of returning this
+            # success result.
+            "reason": f"{shares} shares @ ${entry_dec:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
         }
 
     def _record_sizing_audit(
