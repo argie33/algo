@@ -51,6 +51,10 @@ def handle(
             offset = safe_offset(extract_param(params, "offset") or "0")
             sort_by = extract_param(params, "sortBy") or "data_completeness"
             sort_order = (extract_param(params, "sortOrder") or "asc").lower()
+            if sort_by not in ("data_completeness", "symbol"):
+                sort_by = "data_completeness"
+            if sort_order not in ("asc", "desc"):
+                sort_order = "asc"
 
             return _get_incomplete_stocks(cur, limit, offset, sort_by, sort_order)
 
@@ -1464,8 +1468,8 @@ def _get_stock_scores(  # noqa: C901
         completeness_threshold_pct = None
         if items:
             completeness_values = [
-                d.get("data_completeness") for d in items
-                if d.get("data_completeness") is not None and d.get("data_completeness") > 0
+                dc for d in items
+                if (dc := d.get("data_completeness")) is not None and dc > 0
             ]
             if completeness_values:
                 avg_completeness = sum(completeness_values) / len(completeness_values)
@@ -1485,8 +1489,8 @@ def _get_stock_scores(  # noqa: C901
             "avg_composite": avg_composite,
             "grades": grades_summary if grades_summary else None,
             "data_health": {
-                "avg_completeness": round(avg_completeness, 2) if avg_completeness else None,
-                "meeting_trading_gate": f"{completeness_threshold_pct:.0f}%" if completeness_threshold_pct else None,
+                "avg_completeness": round(avg_completeness, 2) if avg_completeness is not None else None,
+                "meeting_trading_gate": f"{completeness_threshold_pct:.0f}%" if completeness_threshold_pct is not None else None,
                 "note": "Completeness >= 70% passes trading entry gate; < 70% filtered per GOVERNANCE"
             }
         }
@@ -1523,14 +1527,13 @@ def _get_incomplete_stocks(
         """)
         total_count = cur.fetchone()[0]
 
-        # Sort by appropriate field
-        sort_clause = ""
-        if sort_by == "data_completeness":
-            sort_clause = f"ORDER BY data_completeness {sort_order}, symbol ASC"
-        elif sort_by == "symbol":
-            sort_clause = f"ORDER BY symbol {sort_order}"
+        # Sort by appropriate field. sort_order is interpolated below, so it must never
+        # come from the raw query-param string - map it to a fixed SQL keyword first.
+        sort_direction = "DESC" if sort_order == "desc" else "ASC"
+        if sort_by == "symbol":
+            sort_clause = f"ORDER BY symbol {sort_direction}"
         else:
-            sort_clause = f"ORDER BY data_completeness {sort_order}, symbol ASC"
+            sort_clause = f"ORDER BY data_completeness {sort_direction}, symbol ASC"
 
         # Fetch incomplete stocks
         query = f"""
