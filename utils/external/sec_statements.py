@@ -110,6 +110,17 @@ _CASHFLOW_IFRS_ALIASES = [
         "PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
         "payments_to_acquire_property_plant_and_equipment",
     ),
+    # FIXED 2026-08-10: the concept above has never matched any real filer checked live -
+    # VALN (Valneva SE) and IMTX (Immatics N.V.), both IFRS 20-F filers with real capex
+    # data, report the shorter "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"
+    # instead (also confirmed for ASM/VIVO/EFXT/ALAR). Same target_key as the alias above
+    # so field_mapping needs no changes; this was the direct cause of free_cash_flow/
+    # fcf_to_net_income being stuck at "SEC data not available" for these symbols despite
+    # operating_cash_flow being populated.
+    (
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
     # FIXED 2026-08-03: no IFRS dividend concept was mapped at all, so every dividend-paying
     # IFRS filer (live-confirmed: WPM/Wheaton Precious Metals, real ifrs-full:DividendsPaid
     # data present back to FY2015, $296M for FY2025) got payout_ratio/dividend_yield
@@ -357,6 +368,12 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "NetCashProvidedByUsedInInvestingActivities",
         "NetCashProvidedByUsedInFinancingActivities",
         "PaymentsToAcquirePropertyPlantAndEquipment",
+        # FIXED 2026-08-10: real capex concept some filers use INSTEAD of the concept
+        # above - live-confirmed via AAON, KELYB, CPS, DTIL (all report ONLY this tag,
+        # AAON with 112 real entries back through FY2023, none report the standard tag
+        # at all). Target key "payments_to_acquire_productive_assets" maps to the same
+        # "capex" column - see load_financial_statements.py's field_mapping comment.
+        "PaymentsToAcquireProductiveAssets",
         # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
         # same reasoning as InterestExpense above - foreign filers get NULL instead of a
         # guessed value.

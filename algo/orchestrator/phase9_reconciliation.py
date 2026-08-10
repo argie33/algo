@@ -1351,8 +1351,17 @@ def _record_closed_positions_exits(
                                             "exit_price": filled_price,
                                             "filled_qty": filled_qty
                                         }
-                                except (ValueError, TypeError):
-                                    pass  # Skip malformed orders
+                                except (ValueError, TypeError) as parse_err:
+                                    # Narrow enrichment skip, not a correctness gap: this symbol
+                                    # just falls back to price_daily EOD close (the pre-existing
+                                    # default) instead of the exact broker fill price. Logged at
+                                    # debug (not silent) so a run of malformed broker records is
+                                    # still visible without being alert-worthy on its own.
+                                    logger.debug(
+                                        f"[PHASE 9] Skipping malformed broker order for {symbol}: "
+                                        f"filled_avg_price={filled_price_str!r}, filled_qty={filled_qty_str!r} "
+                                        f"({parse_err})"
+                                    )
         except Exception as broker_err:
             logger.warning(f"[PHASE 9] Could not fetch broker fills for exit reconciliation: {broker_err}. "
                           f"Will fall back to price_daily EOD closes.")

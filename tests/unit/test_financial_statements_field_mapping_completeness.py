@@ -66,6 +66,7 @@ _CASHFLOW_CONCEPTS = [
     "NetCashProvidedByUsedInInvestingActivities",
     "NetCashProvidedByUsedInFinancingActivities",
     "PaymentsToAcquirePropertyPlantAndEquipment",
+    "PaymentsToAcquireProductiveAssets",
     "PaymentsOfDividends",
 ]
 

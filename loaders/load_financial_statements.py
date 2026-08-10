@@ -281,6 +281,15 @@ _CASHFLOW_FIELD_MAPPING = {
     # 274). Renamed to match the real column so new/incremental writes actually land;
     # existing NULL rows need a backfill (re-run with BACKFILL_DAYS or per-symbol refetch).
     "payments_to_acquire_property_plant_and_equipment": "capex",
+    # FIXED 2026-08-10: real capex concept some filers use INSTEAD of plain
+    # "PaymentsToAcquirePropertyPlantAndEquipment" - live-confirmed via AAON, KELYB, CPS,
+    # DTIL (all report ONLY "PaymentsToAcquireProductiveAssets", with real recent values -
+    # AAON has 112 entries back through FY2023). This was the direct cause of
+    # free_cash_flow/fcf_to_net_income being stuck at "SEC data not available" for these
+    # symbols despite operating_cash_flow being populated - capex was never NULL because
+    # the filer didn't report capex, it was NULL because this loader only looked for one
+    # of two real capex tags. See sec_statements.py's get_cash_flow() concept list.
+    "payments_to_acquire_productive_assets": "capex",
     "payments_of_dividends": "dividends_paid",
     # FIXED 2026-08-03: real dividend-payment concepts some filers use INSTEAD of plain
     # "PaymentsOfDividends" - see sec_statements.py's comment above these concepts.
