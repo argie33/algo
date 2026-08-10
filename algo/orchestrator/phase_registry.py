@@ -107,23 +107,41 @@ class PhaseRegistry:
         # Input: Database positions from Phase 3, Alpaca position history
         # Output: result={'reconciliation_report': dict} with sync status
         # Contract: Verifies position state consistency between database and broker
+        # BUG FIX (2026-08-10): Was skip_if_halted=True, so broker-vs-DB drift went
+        # undetected for the entire duration of any circuit-breaker halt (which can
+        # persist a full trading day - see HaltFlagManager's ISSUE #8 note). Detecting
+        # position drift is exactly as important during a halt as any other time; made
+        # always_run to match Phase 3/Phase 6's established "risk-management phases run
+        # regardless of halt" precedent.
         PhaseRegistryEntry(
             phase_num=4,
             phase_name="RECONCILIATION",
             dependencies=[3],
             execute_fn=None,
-            skip_if_halted=True,
+            skip_if_halted=False,
+            always_run=True,
         ),
         # Phase 5: EXPOSURE POLICY ACTIONS
         # Input: Reconciliation results from Phase 4
         # Output: result={'exposure_actions': list} with exits to enforce limits
         # Contract: Generates forced exits if sector/stock exposure exceeds policy thresholds
+        # BUG FIX (2026-08-10): Was skip_if_halted=True, so this phase's actual job -
+        # generating tighten_stop/partial_exit/force_exit actions to trim over-concentrated
+        # existing positions - never ran during any circuit-breaker halt (win-rate floor,
+        # drawdown, daily loss, etc.), which is exactly when trimming risk matters most.
+        # Phase 6 was already tolerant of Phase 5 being unavailable (see its own comment),
+        # but that just papered over Phase 5 never running rather than fixing it. Made
+        # always_run to match Phase 3/Phase 6's "risk-management phases run regardless of
+        # halt" precedent; phase5_exposure_policy.py's own run() now forces
+        # halt_new_entries=True onto its output when the orchestrator halt flag is set,
+        # rather than skipping its position review entirely.
         PhaseRegistryEntry(
             phase_num=5,
             phase_name="EXPOSURE POLICY ACTIONS",
             dependencies=[4],
             execute_fn=None,
-            skip_if_halted=True,
+            skip_if_halted=False,
+            always_run=True,
         ),
         # Phase 6: EXIT EXECUTION
         # Input: Positions from Phase 3, exposure actions from Phase 5 (optional if Phase 5 skipped)
@@ -131,9 +149,10 @@ class PhaseRegistry:
         # Contract: CRITICAL - Always runs regardless of halt (risk reduction must execute)
         # This allows position closure during market emergencies even when entries are blocked
         # NOTE: Phase 6 depends only on Phase 3 (position monitor) to enable always_run behavior.
-        # Phase 5 (exposure policy) is optional - if halted/skipped due to circuit breaker,
-        # Phase 6 can still execute exits based on Phase 3 recommendations. The executor wrapper
-        # gracefully handles missing exposure_actions when Phase 5 is unavailable.
+        # Phase 5 (exposure policy) is now also always_run (fixed 2026-08-10 - see its own
+        # registry comment), so it no longer gets skipped by a circuit-breaker halt; Phase 6
+        # still tolerates Phase 5's exposure_actions being unavailable for the remaining case
+        # where Phase 5 itself errors (e.g. market regime data unavailable).
         # CRITICAL: Phase 5 itself has been fixed to return halted=True when market regime
         # data is unavailable, ensuring the orchestrator halts before Phase 6 executes without
         # proper market context.

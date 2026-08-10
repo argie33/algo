@@ -123,6 +123,18 @@ def _health_panel_fields(constraints: ExposureConstraints | dict[str, Any] | Any
     }
 
 
+def _apply_orchestrator_halt_override(constraints_dict: dict[str, Any], orchestrator_halted: bool) -> None:
+    """Force halt_new_entries=True when the orchestrator circuit-breaker halt flag is
+    set, without discarding the tier-computed constraints or the position-review
+    actions that were already generated alongside them. Mutates in place."""
+    if not orchestrator_halted:
+        return
+    constraints_dict["halt_new_entries"] = True
+    constraints_dict["max_new_positions_today"] = 0
+    if not constraints_dict.get("halt_reason"):
+        constraints_dict["halt_reason"] = "Orchestrator circuit-breaker halt active - no new entries allowed"
+
+
 def run(
     config: Any,
     run_date: _date,
@@ -152,32 +164,28 @@ def run(
     try:
         validate_phase_config(config, "phase_5_exposure_policy")
 
+        # BUG FIX (2026-08-10): This used to abort the whole phase - including
+        # policy.review_existing_positions(), the ONLY thing that generates
+        # tighten_stop/partial_exit/force_exit actions to trim over-concentrated
+        # existing positions - the moment the orchestrator's circuit-breaker halt flag
+        # (Phase 2: win-rate floor, drawdown, daily loss, etc.) was set. That flag means
+        # "stop opening new positions," not "stop managing existing risk" - Phase 3
+        # and Phase 6 are already always_run for exactly this reason ("essential risk
+        # management" / "risk reduction must execute"). Skipping Phase 5's own risk
+        # reduction here was the opposite of that principle: it disabled concentration
+        # trimming precisely during the periods risk was elevated enough to trigger a
+        # halt. Data-freshness safety is independently enforced below by
+        # read_market_regime()'s own MarketDataUnavailableError fail-closed path, so
+        # removing this early-abort does not weaken that guard. The orchestrator halt is
+        # still honored - it forces halt_new_entries=True onto the real computed
+        # constraints below instead of skipping the phase outright.
         halt_mgr = HaltFlagManager(alerts, log_phase_result_fn)
-        if halt_mgr.check_halt_flag():
-            error_msg = "[PHASE 5] Halt flag detected at phase start - aborting signal generation"
-            logger.critical(error_msg)
-            log_phase_result_fn(5, "exposure_policy", "halt", error_msg)
-            # CRITICAL: Must return safe halt constraints for Phase 8, not empty dict
-            fail_halt_constraints = {
-                "regime": "correction",
-                "tier_name": "CORRECTION",
-                "description": "Prior phase halted - no entries allowed",
-                "risk_multiplier": 0.0,
-                "max_new_positions_today": 0,
-                "halt_new_entries": True,
-                "max_concentration_pct": 0.0,
-                "halt_reason": error_msg,
-            }
-            # ISSUE 15 FIX: Validate halt constraints before returning
-            validate_constraint_dict(fail_halt_constraints)
-            validate_phase_5_constraints(fail_halt_constraints)
-            return PhaseResult(
-                5,
-                "exposure_policy",
-                "halted",
-                {"constraints": fail_halt_constraints, "actions": [], **_health_panel_fields(fail_halt_constraints)},
-                True,
-                error_msg,
+        orchestrator_halted = halt_mgr.check_halt_flag()
+        if orchestrator_halted:
+            logger.warning(
+                "[PHASE 5] Orchestrator halt flag is set - forcing halt_new_entries=True, "
+                "but still running exposure-policy position review so risk-reducing actions "
+                "(tighten_stop/partial_exit/force_exit) on existing positions are not skipped."
             )
 
         # Read market exposure from market_exposure_daily (4:05 PM EOD pipeline is sole source of truth)
@@ -240,10 +248,12 @@ def run(
                 5,
                 "exposure_policy",
                 "success",
-                f"tier={constraints.tier_name}, no actions",
+                f"tier={constraints.tier_name}, no actions"
+                + (", orchestrator halt forced no new entries" if orchestrator_halted else ""),
             )
             # ISSUE 15 FIX: Validate constraints before returning
             constraints_dict = constraints.to_dict()
+            _apply_orchestrator_halt_override(constraints_dict, orchestrator_halted)
             validate_constraint_dict(constraints_dict)
             # CRITICAL: Validate constraints have all fields required by Phase 7 and Phase 8
             validate_phase_5_constraints(constraints_dict)
@@ -251,7 +261,11 @@ def run(
                 5,
                 "exposure_policy",
                 "ok",
-                {"constraints": constraints_dict, "actions": [], **_health_panel_fields(constraints)},
+                {
+                    "constraints": constraints_dict,
+                    "actions": [],
+                    **_health_panel_fields(constraints_dict),
+                },
                 False,
                 None,
             )
@@ -298,16 +312,22 @@ def run(
             f"tier={tier_name}, "
             f"{counts['tighten_stop']} tighten, "
             f"{counts['partial_exit']} partial, "
-            f"{counts['force_exit']} force_exit",
+            f"{counts['force_exit']} force_exit"
+            + (", orchestrator halt forced no new entries" if orchestrator_halted else ""),
         )
 
         # CRITICAL FIX: Store constraints as dict, not dataclass
         # Phase 8 expects dict with .get() and 'in' operations
         # Dataclass doesn't support these operations, causing Phase 8 to crash
         constraints_dict = constraints.to_dict()
+        _apply_orchestrator_halt_override(constraints_dict, orchestrator_halted)
         validate_constraint_dict(constraints_dict)
         validate_phase_5_constraints(constraints_dict)
-        phase_data = {"constraints": constraints_dict, "actions": actions, **_health_panel_fields(constraints)}
+        phase_data = {
+            "constraints": constraints_dict,
+            "actions": actions,
+            **_health_panel_fields(constraints_dict),
+        }
         validate_phase_data(5, phase_data)
         return PhaseResult(
             5,

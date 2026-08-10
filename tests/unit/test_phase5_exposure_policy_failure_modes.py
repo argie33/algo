@@ -3,8 +3,13 @@ before this (no test file in tests/unit/ even imports the module) despite produc
 exposure_constraints (halt_new_entries, risk_multiplier, max_concentration_pct) that Phase 8
 directly gates real order submission on.
 
-Confirms, by actually executing run(), three fail-closed paths and one success path:
-1. A halt flag already active at phase start returns safe halt constraints immediately.
+Confirms, by actually executing run(), three fail-closed paths and one halt-override path:
+1. An orchestrator halt flag already active at phase start no longer short-circuits the
+   whole phase (BUG FIX 2026-08-10, see phase5_exposure_policy.py's own comment + memory
+   phase4_phase5_skipped_during_halt_risk_management_gap_fix_20260810): exposure computation
+   and policy.review_existing_positions() still run for real, so tighten_stop/partial_exit/
+   force_exit actions on existing positions are not skipped just because new entries are
+   halted. halt_new_entries=True is force-applied onto the real computed constraints instead.
 2. MarketDataUnavailableError from read_market_regime() (wrapped into a plain RuntimeError
    by the phase's own inner try/except - MarketDataUnavailableError is itself a RuntimeError
    subclass, defined in algo/risk/market_exposure.py) is caught by the generic outer
@@ -35,10 +40,38 @@ def _base_mocks(halted_at_start=False):
 
 
 class TestPhase5HaltFlagAtStart:
-    def test_active_halt_flag_returns_safe_halt_constraints_immediately(self):
+    def test_active_halt_flag_still_runs_position_review_but_forces_no_new_entries(self):
+        """Orchestrator halt flag must not skip risk-reducing position review."""
         mock_halt_mgr = _base_mocks(halted_at_start=True)
 
-        with patch("algo.orchestration.halt_flag_manager.HaltFlagManager", return_value=mock_halt_mgr):
+        mock_constraints = MagicMock()
+        mock_constraints.tier_name = "confirmed_uptrend"
+        mock_constraints.description = "Confirmed bull market - full deployment"
+        mock_constraints.risk_multiplier = 1.0
+        mock_constraints.max_new_positions_today = 4
+        mock_constraints.min_composite_score = 50.0
+        mock_constraints.halt_new_entries = False  # tier itself would NOT halt entries
+        mock_constraints.to_dict.return_value = {
+            "regime": "confirmed_uptrend",
+            "tier_name": "confirmed_uptrend",
+            "description": "Confirmed bull market - full deployment",
+            "risk_multiplier": 1.0,
+            "max_new_positions_today": 4,
+            "max_concentration_pct": 28.0,
+            "min_composite_score": 50.0,
+            "halt_new_entries": False,
+            "halt_reason": None,
+        }
+        real_action = {"action": "tighten_stop", "symbol": "TEST", "reason": "concentration", "r_multiple": 1.2}
+        mock_policy = MagicMock()
+        mock_policy.get_entry_constraints.return_value = mock_constraints
+        mock_policy.review_existing_positions.return_value = [real_action]
+
+        with (
+            patch("algo.orchestration.halt_flag_manager.HaltFlagManager", return_value=mock_halt_mgr),
+            patch("algo.risk.read_market_regime", return_value={"exposure_pct": 50, "regime": "confirmed_uptrend"}),
+            patch("algo.risk.ExposurePolicy", return_value=mock_policy),
+        ):
             result = run(
                 config={"execution_mode": "paper"},
                 run_date=date(2026, 8, 10),
@@ -48,11 +81,18 @@ class TestPhase5HaltFlagAtStart:
                 log_phase_result_fn=MagicMock(),
             )
 
-        assert result.halted is True
+        # Position review must still have run - the whole point of the fix.
+        mock_policy.review_existing_positions.assert_called_once()
+        assert result.status == "ok"
+        assert result.data["actions"] == [real_action]
         constraints = result.data["constraints"]
+        # Orchestrator-level halt is force-applied on top of the real (non-halting) tier data.
         assert constraints["halt_new_entries"] is True
-        assert constraints["risk_multiplier"] == 0.0
         assert constraints["max_new_positions_today"] == 0
+        assert constraints["halt_reason"] == "Orchestrator circuit-breaker halt active - no new entries allowed"
+        # Real tier data (risk_multiplier, max_concentration_pct) is preserved, not zeroed.
+        assert constraints["risk_multiplier"] == 1.0
+        assert constraints["max_concentration_pct"] == 28.0
 
 
 class TestPhase5MarketDataUnavailable:
