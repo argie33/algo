@@ -363,8 +363,14 @@ class CircuitBreaker:
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "No halt history"}
 
-        peak = float(row[0])
-        cur_val = float(row[1])
+        # BUG FOUND 2026-08-10: bare float() here missed the NaN/Inf guard that this file's
+        # own _float() helper exists for (and that the sibling _check_drawdown, same
+        # adjusted_equity source, already uses at line ~316) - `peak <= 0`/`cur_val <= 0`
+        # never catch NaN (always False in Python), so a NaN would sail through and NaN would
+        # then be silently written into `dd`. _float(default=0.0) coerces NaN/Inf to 0.0,
+        # which correctly falls into the existing "Invalid values" branch below.
+        peak = _float(row[0], default=0.0, context="drawdown re-engagement peak")
+        cur_val = _float(row[1], default=0.0, context="drawdown re-engagement current")
         if peak <= 0 or cur_val <= 0:
             return {"halted": False, "reason": "Invalid values"}
 
@@ -1186,6 +1192,19 @@ class CircuitBreaker:
         if row is None or len(row) < 2 or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
+        # BUG FOUND 2026-08-10: `week_ago_val <= 0` never catches NaN/Inf (always False in
+        # Python) - this function's own `threshold` check a few lines below already knows to
+        # guard NaN explicitly (`threshold != threshold`), but that treatment was never applied
+        # to cur_val/week_ago_val here. A NaN cur_val previously wasn't checked at all, and
+        # would have produced a NaN `weekly` whose final `weekly <= threshold` comparison
+        # silently evaluates to False - fail-open (not halted) for a genuinely invalid,
+        # non-comparable portfolio value. Both must be finite for this check to be meaningful.
+        if math.isnan(cur_val) or math.isinf(cur_val) or math.isnan(week_ago_val) or math.isinf(week_ago_val):
+            logger.critical(
+                f"CRITICAL: Portfolio value not finite (cur={cur_val}, week_ago={week_ago_val}) - "
+                "cannot calculate weekly return"
+            )
+            return {"halted": True, "reason": "CRITICAL: Portfolio history data invalid"}
         if week_ago_val <= 0:
             logger.critical(
                 f"CRITICAL: Week-ago portfolio value invalid ({week_ago_val}) - cannot calculate weekly return"
@@ -1338,6 +1357,26 @@ class CircuitBreaker:
             latest = float(rows[0][0]) if rows[0][0] is not None else None
             prior = float(rows[1][0]) if rows[1][0] is not None else None
 
+            # BUG FOUND 2026-08-10: `prior <= 0` never catches NaN/Inf (always False in
+            # Python), and `latest` had no finiteness check at all. A NaN/Inf `latest` or
+            # `prior` would have produced a NaN `prior_day_change` below, whose
+            # `prior_day_change <= -2.0` comparison silently evaluates to False - fail-open
+            # (not halted) for a genuinely unusable SPY price, contradicting this function's
+            # own documented "CRITICAL: Missing or invalid SPY prices must halt trading
+            # (fail-closed)" contract.
+            if (
+                latest is not None
+                and (math.isnan(latest) or math.isinf(latest))
+            ) or (prior is not None and (math.isnan(prior) or math.isinf(prior))):
+                logger.critical(
+                    f"CIRCUIT BREAKER: Non-finite SPY price data (latest={latest}, prior={prior}). "
+                    "Cannot calculate prior-day market change. Halting to prevent trading with invalid market data."
+                )
+                return {
+                    "halted": True,
+                    "reason": "Non-finite SPY price data - cannot assess market stability. Fail-closed halt.",
+                }
+
             if latest is None or prior is None or prior <= 0:
                 logger.critical(
                     f"CIRCUIT BREAKER: Invalid SPY price data (latest={latest}, prior={prior}). "
@@ -1482,15 +1521,26 @@ class CircuitBreaker:
                 continue
             try:
                 cost_basis = float(entry_price) * float(quantity)
-                if cost_basis <= 0:
-                    logger.warning(f"Sector drawdown check: skipping position with invalid cost basis (sector={sector}, basis={cost_basis})")
+                unrealized_pnl_f = float(unrealized_pnl)
+                # BUG FOUND 2026-08-10: `cost_basis <= 0` never catches NaN/Inf (always False
+                # in Python), and unrealized_pnl_f had no finiteness check at all - either one
+                # would silently corrupt this sector's summed cost basis/P&L with NaN, which
+                # then feeds a real portfolio-wide P&L halt decision below.
+                if (
+                    math.isnan(cost_basis)
+                    or math.isinf(cost_basis)
+                    or math.isnan(unrealized_pnl_f)
+                    or math.isinf(unrealized_pnl_f)
+                    or cost_basis <= 0
+                ):
+                    logger.warning(f"Sector drawdown check: skipping position with invalid cost basis/P&L (sector={sector}, basis={cost_basis}, pnl={unrealized_pnl_f})")
                     skipped_positions += 1
                     continue
             except (ValueError, TypeError) as e:
                 logger.warning(f"Sector drawdown check: skipping position - cost basis conversion error: {e}")
                 skipped_positions += 1
                 continue
-            sector_pnl[sector] = sector_pnl.get(sector, 0.0) + float(unrealized_pnl)
+            sector_pnl[sector] = sector_pnl.get(sector, 0.0) + unrealized_pnl_f
             sector_basis[sector] = sector_basis.get(sector, 0.0) + cost_basis
 
         # If we skipped all positions, insufficient data to calculate sector drawdown
@@ -1550,9 +1600,14 @@ class CircuitBreaker:
         if not prev_row or prev_row[0] is None:
             return {"halted": False, "reason": "Insufficient history"}
         prev_val = float(prev_row[0])
-        if prev_val <= 0:
+        today_val = float(today_row[0])
+        # BUG FOUND 2026-08-10: `prev_val <= 0` never catches NaN/Inf (always False in
+        # Python), and today_val had no finiteness check at all - either would silently
+        # produce a NaN `daily`, whose `daily >= threshold` comparison below always
+        # evaluates False, masking a real profit-cap breach (this check's whole purpose).
+        if math.isnan(prev_val) or math.isinf(prev_val) or math.isnan(today_val) or math.isinf(today_val) or prev_val <= 0:
             return {"halted": False, "reason": "Insufficient history"}
-        daily = (float(today_row[0]) - prev_val) / prev_val * 100.0
+        daily = (today_val - prev_val) / prev_val * 100.0
         daily_profit_val = self._get_required_config("daily_profit_cap_pct", "in daily profit cap check")
         threshold = float(daily_profit_val)
         # This check is a SOFT warning, not a halt - it's logged but doesn't block trading
