@@ -228,69 +228,88 @@ class PutCallRatioFetcher:
             import yfinance as yf
 
             spy = yf.Ticker("SPY")
-            # Get the nearest expiration (soonest options)
             expirations = spy.options
             if not expirations:
                 logger.warning("[PUT_CALL_RATIO] No SPY option expirations available")
                 self._last_none_reason = "No SPY option expirations available from yfinance"
                 return None
 
-            # Get options chain for nearest expiration
-            nearest_exp = expirations[0]
-            try:
-                options_chain = spy.option_chain(nearest_exp)
-                calls = options_chain.calls
-                puts = options_chain.puts
+            # SPY lists a same-day (0DTE) expiration on most trading days. Open interest is
+            # a lagging, prior-close-based figure - a contract that was only created this
+            # morning legitimately reads 0 OI until positions accumulate later in the
+            # session. Picking expirations[0] unconditionally therefore flags real data as
+            # "unavailable" on a predictable daily basis. Try today's expiration last,
+            # preferring the next few expirations first (capped so a network failure can't
+            # cause unbounded retries).
+            today_iso = date.today().isoformat()
+            candidate_expirations = [e for e in expirations if e != today_iso] + [
+                e for e in expirations if e == today_iso
+            ]
+            candidate_expirations = candidate_expirations[:5]
 
-                # Sum open interest
-                calls_oi = calls["openInterest"].sum() if "openInterest" in calls.columns else 0
-                puts_oi = puts["openInterest"].sum() if "openInterest" in puts.columns else 0
+            last_reason: str | None = None
+            for nearest_exp in candidate_expirations:
+                try:
+                    options_chain = spy.option_chain(nearest_exp)
+                    calls = options_chain.calls
+                    puts = options_chain.puts
 
-                if calls_oi == 0:
-                    logger.warning("[PUT_CALL_RATIO] No call open interest data available")
-                    self._last_none_reason = (
-                        f"No call open interest reported by yfinance for {nearest_exp} expiry "
-                        "(open interest often lags/reads 0 pre-market or for same-day expiries)"
+                    # Sum open interest
+                    calls_oi = calls["openInterest"].sum() if "openInterest" in calls.columns else 0
+                    puts_oi = puts["openInterest"].sum() if "openInterest" in puts.columns else 0
+
+                    if calls_oi == 0:
+                        logger.warning(
+                            f"[PUT_CALL_RATIO] No call open interest data available for {nearest_exp}"
+                        )
+                        last_reason = (
+                            f"No call open interest reported by yfinance for {nearest_exp} expiry "
+                            "(open interest often lags/reads 0 pre-market or for same-day expiries)"
+                        )
+                        continue
+
+                    ratio = float(puts_oi) / float(calls_oi)
+
+                    # Validate ratio is realistic (0.2-3.0 is normal range)
+                    # Outside this range indicates data quality issue or extreme market conditions
+                    if not (0.2 <= ratio <= 3.0):
+                        logger.warning(
+                            f"[PUT_CALL_RATIO] Ratio {ratio:.3f} outside realistic range (0.2-3.0). "
+                            f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}. Treating as unavailable."
+                        )
+                        last_reason = (
+                            f"Ratio {ratio:.3f} outside realistic range (0.2-3.0) for {nearest_exp} expiry "
+                            f"(puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}) - likely incomplete/stale open "
+                            "interest data from yfinance rather than an actual circuit breaker trip"
+                        )
+                        continue
+
+                    logger.info(
+                        f"[PUT_CALL_RATIO] Calculated from SPY {nearest_exp}: "
+                        f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}, ratio={ratio:.3f}"
                     )
-                    return None
+                    return ratio
+                except (TimeoutError, ConnectionError) as chain_err:
+                    # Network errors should fail-fast
+                    raise RuntimeError(
+                        f"[PUT_CALL_RATIO] Network error fetching options chain: {type(chain_err).__name__}: {chain_err}. "
+                        f"Do not mask network failures."
+                    ) from chain_err
+                except (KeyError, ValueError, TypeError) as data_err:
+                    # Data format issues - data genuinely unavailable
+                    logger.warning(f"[PUT_CALL_RATIO] Could not parse options chain format: {data_err}")
+                    last_reason = f"Could not parse options chain format: {data_err}"
+                    continue
+                except Exception as chain_err:
+                    # Other unexpected errors - fail-fast
+                    raise RuntimeError(
+                        f"[PUT_CALL_RATIO] Unexpected error parsing options chain: {type(chain_err).__name__}: {chain_err}"
+                    ) from chain_err
 
-                ratio = float(puts_oi) / float(calls_oi)
-
-                # Validate ratio is realistic (0.2-3.0 is normal range)
-                # Outside this range indicates data quality issue or extreme market conditions
-                if not (0.2 <= ratio <= 3.0):
-                    logger.warning(
-                        f"[PUT_CALL_RATIO] Ratio {ratio:.3f} outside realistic range (0.2-3.0). "
-                        f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}. Treating as unavailable."
-                    )
-                    self._last_none_reason = (
-                        f"Ratio {ratio:.3f} outside realistic range (0.2-3.0) for {nearest_exp} expiry "
-                        f"(puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}) - likely incomplete/stale open "
-                        "interest data from yfinance rather than an actual circuit breaker trip"
-                    )
-                    return None
-
-                logger.info(
-                    f"[PUT_CALL_RATIO] Calculated from SPY {nearest_exp}: "
-                    f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}, ratio={ratio:.3f}"
-                )
-                return ratio
-            except (TimeoutError, ConnectionError) as chain_err:
-                # Network errors should fail-fast
-                raise RuntimeError(
-                    f"[PUT_CALL_RATIO] Network error fetching options chain: {type(chain_err).__name__}: {chain_err}. "
-                    f"Do not mask network failures."
-                ) from chain_err
-            except (KeyError, ValueError, TypeError) as data_err:
-                # Data format issues - data genuinely unavailable
-                logger.warning(f"[PUT_CALL_RATIO] Could not parse options chain format: {data_err}")
-                self._last_none_reason = f"Could not parse options chain format: {data_err}"
-                return None
-            except Exception as chain_err:
-                # Other unexpected errors - fail-fast
-                raise RuntimeError(
-                    f"[PUT_CALL_RATIO] Unexpected error parsing options chain: {type(chain_err).__name__}: {chain_err}"
-                ) from chain_err
+            self._last_none_reason = last_reason or (
+                f"No usable SPY options expiration found among {candidate_expirations}"
+            )
+            return None
         except ImportError:
             logger.warning("[PUT_CALL_RATIO] yfinance not installed - put/call ratio unavailable")
             self._last_none_reason = "yfinance not installed"
