@@ -186,8 +186,26 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
         expected_data_date, freshness_context = _get_expected_data_date(run_date=run_date, pipeline_context=pipeline_context)
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
 
-        def _check_data_completeness(table_name: str) -> tuple[bool, str]:
+        def _check_data_completeness(table_name: str, check_date: _date) -> tuple[bool, str]:
             """Check if table has sufficient data completeness (95%+ non-NULL in critical column).
+
+            Args:
+                check_date: The date to check completeness for - the table's own actual latest
+                    date (table_max_date from the staleness check above), NOT necessarily
+                    expected_data_date. For stock_scores/earnings_calendar, which track
+                    freshness via updated_at (a loader-run timestamp, not a trading-day
+                    column), these are only the same value when the loader happens to run
+                    exactly on expected_data_date - which the staleness check above already
+                    established is NOT required (updated_at from a same-day-or-later refresh
+                    correctly reads as "not stale", since it's ahead of, not behind, the
+                    expected historical trading day). Bug found 2026-08-10 (live-reproduced
+                    on every MORNING/INTRADAY orchestrator run today): this used to always
+                    check against expected_data_date regardless, so a same-day stock_scores
+                    refresh's updated_at (today) could never match expected_data_date
+                    (yesterday) - COUNT(*) for that date was always 0, permanently reporting
+                    "No rows for {expected_data_date}" and re-triggering a full stock_scores
+                    reload on every single intraday run, even seconds after a fresh,
+                    successful, 100%-complete refresh.
 
             Returns: (is_complete, reason_if_incomplete)
             """
@@ -219,19 +237,19 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 # stock_scores doesn't have a date column, use updated_at instead
                 if table_name == "stock_scores":
                     date_filter = "updated_at::date = %s"
-                    params: tuple[Any, ...] = (expected_data_date,)
+                    params: tuple[Any, ...] = (check_date,)
                 # trend_template_data: check only today's data by date column, not by created_at
                 # (created_at fallback included old backfilled data, making completeness check too strict)
                 elif table_name == "trend_template_data":
                     date_filter = "date = %s"
-                    params = (expected_data_date,)
+                    params = (check_date,)
                 # earnings_calendar: uses updated_at to track loader freshness (not earnings_date, which is forward-looking)
                 elif table_name == "earnings_calendar":
                     date_filter = "updated_at::date = %s"
-                    params = (expected_data_date,)
+                    params = (check_date,)
                 else:
                     date_filter = "date = %s OR updated_at::date = %s"
-                    params = (expected_data_date, expected_data_date)
+                    params = (check_date, check_date)
 
                 # Technical_data_daily validation requires multiple indicators, not just one.
                 # Session 81: Partial loads were missed before when a loader crash wrote RSI-14
@@ -251,7 +269,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                     """, params)
                     row = cur.fetchone()
                     if not row or row[0] == 0:
-                        return False, f"No rows for {expected_data_date}"
+                        return False, f"No rows for {check_date}"
                     total, rsi_count, atr_count, sma_count, bb_count = row
                     # All 4 indicators should be present in >= 95% of rows
                     indicator_pcts = [
@@ -275,7 +293,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
 
                 row = cur.fetchone()
                 if not row or row[0] == 0:
-                    return False, f"No rows for {expected_data_date}"
+                    return False, f"No rows for {check_date}"
 
                 total, non_null = row[0], row[1]
                 completeness_pct = (non_null / total * 100) if total > 0 else 0
@@ -341,7 +359,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                         else:
                             # CRITICAL: Also check data completeness (not just date freshness)
                             # A table can have MAX(date)=today but be 95% NULL values
-                            is_complete, incomplete_reason = _check_data_completeness(table_name)
+                            is_complete, incomplete_reason = _check_data_completeness(table_name, table_max_date)
                             if not is_complete:
                                 stale_loaders.append((table_name, loader_key, 0))
                                 results["incomplete_loaders"].append(table_name)
