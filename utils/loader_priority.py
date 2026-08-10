@@ -35,14 +35,28 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     "market_health_daily": LoaderPriority.PHASE_1_CRITICAL,  # Market regime gating
     "market_exposure_daily": LoaderPriority.PHASE_1_CRITICAL,  # Position sizing
     "earnings_calendar": LoaderPriority.PHASE_1_OPTIONAL,  # DOWNGRADED 2026-08-05: Consistent yfinance timeout (exceeds 1h SLA). Move to optional to unblock Phase 1.
-    "growth_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
-    "quality_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
-    "value_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
-    "positioning_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
-    "stability_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
     # ===== PHASE 1 OPTIONAL (medium priority, nice-to-have enrichment) =====
     # These should finish by Phase 1 but won't block if slow
     "trend_template_data": LoaderPriority.PHASE_1_OPTIONAL,
+    # BUG FOUND 2026-08-10: growth/quality/value/positioning/stability_metrics were PHASE_1_CRITICAL
+    # here (comment: "FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)"), but
+    # algo/orchestrator/phase1_data_freshness.py's actual code moved all 5 to its warn_tables dict
+    # (Session 221: "they're website enrichments, not core to signals" - stale -> logged, trading
+    # continues) - Phase 1 does NOT halt on these, contradicting this stale PHASE_1_CRITICAL tag.
+    # Live-confirmed damage: orchestrator.py's _wait_for_critical_loaders_proactive() polls
+    # get_critical_loaders() and actively waits up to 300s for PHASE_1_CRITICAL loaders to reach
+    # 90%+ completion - live-reproduced growth_metrics/quality_metrics sitting at status=RUNNING,
+    # completion_pct=0.00% for 56+ minutes (a stuck/abandoned row, same class as
+    # [[loader_status_mark_running_stale_completion_pct_fix_20260810]]), which would burn the full
+    # 5-minute proactive wait on every orchestrator run for tables Phase 1 doesn't even require.
+    # Downgraded to PHASE_1_OPTIONAL to match phase1_data_freshness.py's actual, deliberate,
+    # documented behavior instead of a 2026-07-07 decision that was superseded by Session 221 but
+    # never reflected here.
+    "growth_metrics": LoaderPriority.PHASE_1_OPTIONAL,
+    "quality_metrics": LoaderPriority.PHASE_1_OPTIONAL,
+    "value_metrics": LoaderPriority.PHASE_1_OPTIONAL,
+    "positioning_metrics": LoaderPriority.PHASE_1_OPTIONAL,
+    "stability_metrics": LoaderPriority.PHASE_1_OPTIONAL,
     "sector_ranking": LoaderPriority.PHASE_1_CRITICAL,  # FIXED: Position Monitor (Phase 3) requires sector_ranking data
     "insider_transaction_velocity": LoaderPriority.PHASE_1_OPTIONAL,  # Session 444: Insider confidence scoring (enrichment for positioning_metrics)
     "sec_segment_info": LoaderPriority.PHASE_1_OPTIONAL,  # XBRL segment disclosure source for diversification metrics (enrichment for quality_metrics)
