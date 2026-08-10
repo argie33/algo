@@ -73,6 +73,7 @@ import time
 from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any, cast
 
@@ -1025,6 +1026,23 @@ def _batch_fetch_technical_data(
 
     except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(f"Batch fetch technical data failed: {e}") from e
+
+
+def _signal_age_trading_days(sig_date_obj: _date, run_date_obj: _date) -> int:
+    """Count TRADING days elapsed between a signal's date and the run date.
+
+    A signal generated Friday and entered the following Monday is 1 trading day old (the
+    normal EOD-to-next-session gap the staleness gate is meant to allow), not 3 calendar
+    days - counting calendar days would reject every Friday-generated signal on the next
+    Monday. Mirrors PositionSizer._calculate_trading_days_elapsed's Fri->Mon=1 convention.
+    """
+    trading_days = 0
+    cursor = sig_date_obj + timedelta(days=1)
+    while cursor <= run_date_obj:
+        if MarketCalendar.is_trading_day(cursor):
+            trading_days += 1
+        cursor += timedelta(days=1)
+    return trading_days
 
 
 def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
@@ -3045,10 +3063,14 @@ def run(
                 # Only check signal age if we have a valid date
                 if sig_date_obj:
                     run_date_obj = run_date if isinstance(run_date, _date) else run_date.date()
-                    signal_age_days = (run_date_obj - sig_date_obj).days
-                    signal_age_hours = signal_age_days * 24
+                    # BUG FIX 2026-08-10 (live-reproduced): must count TRADING days elapsed, not
+                    # raw calendar days - (run_date_obj - sig_date_obj).days counted intervening
+                    # weekends, so Fri->Mon = 3 calendar days = "72h" > the 24h max, rejecting
+                    # every signal generated on a Friday. See _signal_age_trading_days().
+                    signal_age_trading_days = _signal_age_trading_days(sig_date_obj, run_date_obj)
+                    signal_age_hours = signal_age_trading_days * 24
                     if signal_age_hours > max_signal_age_hours:
-                        rejection_reason = f"Signal too old: {signal_age_days}d {signal_age_hours}h (max {max_signal_age_hours}h). Generated {sig_date_obj}, entered {run_date_obj}."
+                        rejection_reason = f"Signal too old: {signal_age_trading_days} trading day(s) ({signal_age_hours}h, max {max_signal_age_hours}h). Generated {sig_date_obj}, entered {run_date_obj}."
                         logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
                         _log_signal_rejection(symbol, "stale_signal", rejection_reason, run_date, entry_price, risk_pct)
                         skipped_count += 1
