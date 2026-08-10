@@ -293,11 +293,26 @@ def run_pipeline(pipeline_name: str) -> int:
         "buy_sell": 15 * 60,                     # 15 min - buy/sell signal generation
     }
 
+    # BUG FOUND 2026-08-10 (live-reproduced): a single loader failure used to abort the
+    # ENTIRE remaining pipeline (`return 1` below), even for loaders with zero declared
+    # dependency on the one that failed - LOADER_DEPENDENCIES only lists 3 real dependency
+    # edges (value_quality_growth/enhanced_quality_growth/segment_metrics); "buy_sell" isn't
+    # in it at all. Live-reproduced: "scores" crashed on its own upstream-coverage data-
+    # quality gate (value_metrics only 61.6% complete, an unrelated concurrent reload still
+    # in progress), and "buy_sell" - positioned right after "scores" in the "signals"
+    # pipeline purely by list order, with no real dependency on it - never even got attempted.
+    # This is the root cause of buy_sell_daily's session-long staleness (see
+    # buy_sell_daily_stuck_running_74_hours_20260810 and related memory entries chasing this
+    # same symptom from the data side without finding this scheduler-side cause). Fixed to
+    # skip only the failed loader and any loader that genuinely depends on it (still enforced
+    # via _check_loader_dependencies below), not the whole rest of the pipeline.
+    any_failed = False
     for loader in loaders:
         # CRITICAL FIX (Session 81): Check loader dependencies before running
         # Prevents silent data degradation if a required upstream loader fails
         if not _check_loader_dependencies(loader, completed_loaders):
-            return 1
+            any_failed = True
+            continue
 
         timeout = LOADER_TIMEOUTS.get(loader, 30 * 60)  # 30 min default
         print(f"[LOCAL_SCHEDULER] Running {loader} loader (timeout: {timeout}s)...")
@@ -340,26 +355,33 @@ def run_pipeline(pipeline_name: str) -> int:
             )
             if result.returncode != 0:
                 print(
-                    f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {result.returncode})",
+                    f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {result.returncode}) - "
+                    f"continuing with remaining independent loaders",
                     file=sys.stderr,
                 )
                 _mark_loader_failed_after_crash(
                     loader_filename, f"local_loader_scheduler: subprocess exited with code {result.returncode}"
                 )
-                return 1
+                any_failed = True
+                continue
             # Mark loader as completed for dependency checking of subsequent loaders
             completed_loaders.add(loader)
         except subprocess.TimeoutExpired:
             print(
                 f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
-                f"Likely blocked by stale lock. Run: rm -f /tmp/algo-locks/*.lock",
+                f"Likely blocked by stale lock. Run: rm -f /tmp/algo-locks/*.lock - "
+                f"continuing with remaining independent loaders",
                 file=sys.stderr,
             )
             _mark_loader_failed_after_crash(
                 loader_filename, f"local_loader_scheduler: timed out after {timeout}s"
             )
-            return 1
+            any_failed = True
+            continue
 
+    if any_failed:
+        print(f"[LOCAL_SCHEDULER] {pipeline_name} pipeline completed with 1+ loader failure(s) - see warnings above")
+        return 1
     print(f"[LOCAL_SCHEDULER] {pipeline_name} pipeline completed successfully")
     return 0
 
