@@ -36,11 +36,17 @@ from datetime import date
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
 
-# LOCAL DEV OPTIMIZATION: Use higher parallelism for local development
-# Production ECS uses parallelism=1-2 to avoid rate limiting across shared NAT IPs
-# Local dev has no such constraint, so use parallelism=4 for reasonable speed
+# BUG FOUND 2026-08-10 (via [[analyst_loaders_reloaded_and_local_parallelism_ban_20260810]]):
+# this used to default to "4" under a "local dev has no shared-NAT-IP rate-limit constraint"
+# rationale. Live-reproduced: LOADER_PARALLELISM=4 self-triggered the yfinance shared-IP
+# circuit breaker from a single local machine (per-IP rate limiting doesn't care whether the
+# IP is shared across AWS tasks or not), causing 84%+ false-failure rates on analyst loaders
+# that were misdiagnosed as a real coverage-ceiling regression. Production's terraform config
+# never goes above LOADER_PARALLELISM=2 for any loader (most are 1). Default to 1 to match the
+# value that was actually verified safe; override explicitly per-run if a specific loader is
+# confirmed not to hit shared rate limits (e.g. SEC-sourced loaders).
 if "LOADER_PARALLELISM" not in os.environ:
-    os.environ["LOADER_PARALLELISM"] = "4"
+    os.environ["LOADER_PARALLELISM"] = "1"
 
 # FIX: Configure Redis for price cache (reduces yfinance API calls by 90%)
 if "REDIS_URL" not in os.environ:
@@ -360,27 +366,24 @@ def main():
         logger.info(f"[LOADER] Running {loader_filename} (outputs: {', '.join(table_names)})")
 
         # Mark loaders as RUNNING if force-refresh
+        # FIXED 2026-08-10: previously opened its own raw psycopg2 connection hardcoded to
+        # "dbname=stocks user=stocks host=localhost" (ignoring DB_HOST/DB_USER/DB_PASSWORD/
+        # DB_NAME entirely - silently wrong or unauthenticated outside this exact local setup)
+        # and hand-rolled the UPDATE without clearing execution_completed/symbols_loaded/
+        # completion_pct/error_message - reintroducing, via this second bypass path, the exact
+        # stale-progress bug that LoaderStatusManager.mark_running() was fixed for in a58ecc5b5.
+        # Live-confirmed 2026-08-10: market_health_daily/market_sentiment/earnings_calendar/
+        # market_exposure_daily/stock_scores all showed execution_started newer than a
+        # leftover execution_completed from a prior run after a --force-refresh pass. Reusing
+        # the canonical, tested LoaderStatusManager closes both gaps at once.
         if args.force_refresh:
-            import psycopg2
-            try:
-                conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-                cursor = conn.cursor()
-                for table_name in table_names:
-                    cursor.execute(
-                        "UPDATE data_loader_status SET status = %s, execution_started = NOW() WHERE table_name = %s",
-                        ("RUNNING", table_name)
-                    )
-                    if cursor.rowcount == 0:
-                        cursor.execute(
-                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
-                            (table_name, "RUNNING")
-                        )
-                conn.commit()
-                cursor.close()
-                conn.close()
-                logger.info(f"[FORCE_REFRESH] Marked {table_names} as RUNNING")
-            except Exception as e:
-                logger.warning(f"[FORCE_REFRESH] Could not update status to RUNNING: {e}")
+            from utils.loaders.status_manager import LoaderStatusManager
+            for table_name in table_names:
+                try:
+                    LoaderStatusManager(table_name).mark_running()
+                except Exception as e:
+                    logger.warning(f"[FORCE_REFRESH] Could not update status to RUNNING for {table_name}: {e}")
+            logger.info(f"[FORCE_REFRESH] Marked {table_names} as RUNNING")
 
         # Get loader class dynamically
         loader_class = get_loader_class_for_file(loader_filename)
