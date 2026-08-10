@@ -277,7 +277,23 @@ class EntryHandler:
                 else:
                     logger.debug(f"[POSITION DEDUP] {symbol}: No existing position found, will create new")
         except Exception as e:
+            # BUG FOUND 2026-08-10 (position-sizing/entry boundary-condition audit): this used
+            # to log and silently fall through, leaving `position_id` at its pre-check value
+            # (None) - the exact same path taken when no existing position genuinely exists -
+            # so a transient DB failure here was indistinguishable from "confirmed no
+            # duplicate" and proceeded to generate a brand-new position_id below. Unlike the
+            # two sibling duplicate checks immediately above (check_duplicate_position,
+            # check_idempotent_duplicate - both correctly `raise` DatabaseError, letting
+            # Phase 8's existing per-symbol exception handling block just this one entry), this
+            # was the one fail-open exception in an otherwise fail-closed duplicate-detection
+            # chain. algo_positions has no DB-level unique constraint on symbol (only on the
+            # randomly-generated position_id, which can never collide) - this in-code check is
+            # the ONLY thing preventing two separate open positions for the same symbol on the
+            # same day if this exact entry gets processed twice (e.g. a retried orchestrator
+            # run after a transient failure). Re-raise to match the sibling checks' fail-closed
+            # behavior instead of silently risking a duplicate position.
             logger.error(f"[POSITION DEDUP ERROR] {symbol}: {type(e).__name__}: {e}", exc_info=True)
+            raise
 
         # If no existing position found, generate new position_id
         if position_id is None:
