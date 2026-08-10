@@ -433,6 +433,7 @@ class StockScoresLoader(OptimalLoader):
                         "data_unavailable": True,
                         "reason": "Internal scoring failure - unexpected None return",
                         "reason_type": "loader_failed",
+                        "date": datetime.now(timezone.utc).date(),
                         "updated_at": datetime.now(timezone.utc),
                     }
                 ]
@@ -456,6 +457,7 @@ class StockScoresLoader(OptimalLoader):
                     "data_unavailable": True,
                     "reason": str(e),
                     "reason_type": "loader_failed",
+                    "date": datetime.now(timezone.utc).date(),
                     "updated_at": datetime.now(timezone.utc),
                 }
             ]
@@ -765,6 +767,7 @@ class StockScoresLoader(OptimalLoader):
                 "data_sources": json.dumps(data_sources),  # Data source attribution
                 "data_unavailable": not score_available,  # CRITICAL: Mark unavailable if completeness < 70%
                 "reason": reason_text,
+                "date": datetime.now(timezone.utc).date(),
                 "updated_at": datetime.now(timezone.utc),
             }
             if unavailable_metrics:
