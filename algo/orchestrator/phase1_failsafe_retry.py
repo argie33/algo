@@ -37,11 +37,49 @@ import psycopg2
 from botocore.exceptions import BotoCoreError, ClientError
 
 from loaders.config import get_loader_max_fail_rate
+from loaders.loader_registry import all_tables, normalize_loader_name
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.status_manager import LoaderStatusManager
 
 logger = logging.getLogger(__name__)
+
+
+def _mark_loader_failed_after_crash(loader_key: str, error_message: str) -> None:
+    """Best-effort: mark every table a crashed/timed-out force-refresh subprocess owns as
+    FAILED, matching scripts/local_loader_scheduler.py's identical fix for the same bug
+    class (see that module's own _mark_loader_failed_after_crash docstring).
+
+    run_loader.py --force-refresh marks its tables RUNNING before doing any real work
+    (main()'s own "Mark loaders as RUNNING if force-refresh" step). If the subprocess is
+    then killed by subprocess.run(timeout=300) or crashes with an uncaught exception before
+    reaching its own terminal-status logic, that RUNNING row is never corrected here either -
+    live-confirmed 2026-08-10: price_daily/etf_price_daily/price_monthly/price_weekly/
+    etf_price_monthly/etf_price_weekly (load_prices.py's full output set) all stuck RUNNING
+    from a failsafe-retry invocation whose subprocess died with no owning process left. Only
+    reap_stale_running_loaders()'s later, coarser check would have ever caught this
+    otherwise.
+
+    Only touches tables still showing RUNNING - a non-zero exit can also mean the child's
+    own run() already recorded a real terminal FAILED status (see run_loader.py's own
+    force-refresh fix), which must not be clobbered. Safe to call unconditionally from every
+    failure branch (non-zero exit, timeout, or a subprocess.run() call that couldn't even
+    start) for exactly that reason. Deliberately swallows its own errors - a failure to
+    record the failure must never mask the original timeout/crash already being logged by
+    the caller.
+    """
+    try:
+        loader_filename = normalize_loader_name(loader_key)
+        for table in all_tables(loader_filename):
+            status_mgr = LoaderStatusManager(table)
+            current = status_mgr.get_status()
+            if current and current.get("status") == "RUNNING":
+                status_mgr.mark_failed(error_message)
+    except Exception as mark_err:
+        logger.warning(
+            f"[PHASE 1 FAILSAFE LOCAL] Could not mark {loader_key} tables FAILED after crash: {mark_err}"
+        )
 
 # Critical vs. auxiliary classification for retry decisions below comes from
 # utils.data_tiers.is_critical() (backed by CRITICAL_DATA/AUXILIARY_DATA there) - this
@@ -433,22 +471,28 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                         f"STDERR: {stderr_msg}"
                     )
                     results["still_failing"].append(table_name)
+                    _mark_loader_failed_after_crash(
+                        loader_key, f"failsafe retry subprocess exited with code {result.returncode}"
+                    )
                     if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                         results["halt_required"] = True
 
             except subprocess.TimeoutExpired:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Timeout refreshing {table_name}")
                 results["still_failing"].append(table_name)
+                _mark_loader_failed_after_crash(loader_key, "failsafe retry subprocess timed out after 300s")
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
             except (OSError, IOError, RuntimeError) as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
                 results["still_failing"].append(table_name)
+                _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
             except Exception as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
                 results["still_failing"].append(table_name)
+                _mark_loader_failed_after_crash(loader_key, f"failsafe retry unexpected error: {type(e).__name__}: {e}")
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
 

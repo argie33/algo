@@ -470,6 +470,24 @@ def main():
 
     except Exception as e:
         logger.error(f"[LOADER] Fatal error: {e}", exc_info=args.debug)
+        # BUG FOUND 2026-08-10: a crash here (e.g. run_loader_generic() raising) happens
+        # AFTER --force-refresh already marked every output table RUNNING (see that block
+        # above) but BEFORE this function's own terminal-status logic ever runs - so nothing
+        # corrected the RUNNING row, identical in shape to the bug that block itself was
+        # fixed for. Only touches tables still showing RUNNING - never overwrites a real
+        # terminal status the loader's own run() managed to record before crashing.
+        if args.force_refresh:
+            try:
+                from utils.loaders.status_manager import LoaderStatusManager
+
+                loader_filename_for_cleanup = normalize_loader_name(args.loader)
+                for table_name in LOADER_TABLES.get(loader_filename_for_cleanup, []):
+                    status_mgr = LoaderStatusManager(table_name)
+                    current = status_mgr.get_status()
+                    if current and current.get("status") == "RUNNING":
+                        status_mgr.mark_failed(f"run_loader.py crashed: {type(e).__name__}: {str(e)[:200]}")
+            except Exception as cleanup_err:
+                logger.warning(f"[LOADER] Could not clean up status after crash: {cleanup_err}")
         return 1
 
 
