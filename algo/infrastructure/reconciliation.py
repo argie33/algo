@@ -2309,15 +2309,26 @@ class DailyReconciliation:
             json.JSONDecodeError,
             psycopg2.DatabaseError,
         ) as e:
-            # Handle Alpaca 401/auth errors gracefully in paper mode
+            # Handle Alpaca 401/auth errors: return a structured auth_unavailable=True result
+            # rather than raising, so the caller (phase4_reconciliation.py) can distinguish
+            # this from a generic reconciliation failure. NOTE (2026-08-10 audit): the
+            # `mismatches: 0` here does NOT mean "checked and clean" - phase4_reconciliation.py
+            # explicitly documents and enforces this ("The 0 mismatches means 'not checked',
+            # not 'checked and clean'") by fail-fasting on `auth_unavailable=True` regardless
+            # of the mismatches count (see its own FAIL-FAST block). Also NOTE: __init__ only
+            # ever constructs a real `self.broker` when execution_mode == "auto" - this branch
+            # can only be reached in that mode (paper/dry/review short-circuit earlier via the
+            # `if not self.broker` check above), so despite the "paper mode" wording below,
+            # this is exclusively a live-mode signal; the fail-fast caller behavior is what
+            # actually keeps this safe, not this comment's description of when it fires.
             error_str = str(e).lower()
             if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str:
                 logger.warning(
                     "[PARTIAL_FILL_CHECK] Alpaca broker authentication failed (401). "
-                    "Gracefully skipping partial fill validation in paper mode. "
-                    "In production, this requires valid Alpaca credentials."
+                    "Reporting auth_unavailable=True; caller must fail-fast on this in "
+                    "live/auto mode rather than treat it as a clean check."
                 )
-                return {"mismatches": 0, "message": "Broker auth unavailable (paper mode)", "auth_unavailable": True}
+                return {"mismatches": 0, "message": "Broker auth unavailable", "auth_unavailable": True}
             # CRITICAL: Partial fill detection failure - cannot reconcile fill status
             raise RuntimeError(
                 f"[PARTIAL_FILL_CHECK FAILED] {type(e).__name__}: {e}. "
