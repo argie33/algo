@@ -918,6 +918,17 @@ class PositionSizer:
         )
         risk_dollars = (pv_dec * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
+        # NOTE (confirmed 2026-08-10, checked git history back to this file's first commit):
+        # get_phase_size_multiplier() always returns 1.0 - "DB schema has no late/climax
+        # phase column" per its own docstring - so phase_mult == 0.0 can never be true and
+        # this branch (and the "phase_climax" status phase8_entry_execution.py's own comment
+        # lists as a real possible rejection reason) is currently unreachable dead code, not a
+        # silently-broken regression like _check_sector_drawdown was (that one had real
+        # config/intent behind it that was simply never wired up - this one has never had the
+        # underlying data to support it at all). Left in place as a real, deliberate
+        # extension point for a future Stage-2 climax detector, not because anything here is
+        # currently broken - do not "fix" it by inventing detection logic without a real data
+        # source and product/strategy sign-off on what should trigger it.
         if phase_mult == 0.0:
             logger.warning(
                 f"Position sizing halted for {symbol}: Stage-2 climax phase detected. "
