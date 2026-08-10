@@ -1053,6 +1053,42 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                     f"(most recent available; run_date={run_date})"
                 )
 
+            # CRITICAL #2.5: buy_sell_daily loader's OWN status must not be FAILED, nor
+            # RUNNING within a live window. The anomaly-floor check below (CRITICAL #3/#4)
+            # only catches large statistical drops in signal COUNT - it cannot detect a
+            # moderate partial write (e.g. a loader killed 60% through a run, still landing
+            # above the floor) nor a genuine read/write race where Phase 7 queries the table
+            # while the loader is still mid-insert. Checking the loader's own terminal status
+            # directly closes that gap. Live-reproduced 2026-08-10: buy_sell_daily's subprocess
+            # was killed (exit 143) mid-run, left status=FAILED with only 121/4623 signals
+            # written - the count-based anomaly floor (189) happened to catch that particular
+            # case, but a less severe partial write could slip through on count alone.
+            # RUNNING is only treated as a live race within a 2h window - an older RUNNING row
+            # is more likely an orphaned/stuck status from a past crash (see
+            # reap_stale_running_loaders()) than actual concurrent writing, so it falls through
+            # to the count-based checks below instead of halting forever until reaped.
+            cur.execute(
+                """
+                SELECT status, error_message, EXTRACT(EPOCH FROM (NOW() - execution_started))
+                FROM data_loader_status WHERE table_name = 'buy_sell_daily'
+                """
+            )
+            loader_status_row = cur.fetchone()
+            if loader_status_row:
+                loader_status, loader_error, loader_age_secs = loader_status_row
+                is_live_running = loader_status == "RUNNING" and loader_age_secs is not None and loader_age_secs < 7200
+                if loader_status == "FAILED" or is_live_running:
+                    msg = (
+                        f"[PHASE 7 CRITICAL HALT] buy_sell_daily loader's own status is "
+                        f"'{loader_status}' (error: {loader_error or 'none'}). Signal data may be "
+                        f"partial, stale, or mid-write - do not trust the raw signal count. "
+                        f"DO NOT proceed until the loader reaches COMPLETED status. "
+                        f"Check data_loader_status for buy_sell_daily."
+                    )
+                    logger.critical(msg)
+                    log_phase_result_fn(7, "signal_generation", "halt", msg)
+                    return False, msg
+
             # CRITICAL #3: buy_sell_daily DATA FRESHNESS check (not just existence check)
             # Halts if the most recent trading day has NO signals (indicates upstream failure like technical_data_daily crash)
             # First, find the most recent trading day
