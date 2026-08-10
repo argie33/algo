@@ -215,15 +215,29 @@ class PriceFetcher:
         # EOD pipeline (which runs after 4 PM) always fetches today's data.
         end_date = reference_date
         if not is_eod_pipeline:
-            # Morning/afternoon runs: only fetch through yesterday if market is open
-            market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
-            market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
-            if market_open_time <= now_et < market_close_time:
-                # Market is open - skip today's incomplete data, fetch only through yesterday
-                end_date = now_et.date() - timedelta(days=1)
+            # BUG FIX (2026-08-10): This only shifted end_date back when `market_open_time <=
+            # now_et < market_close_time` - i.e. only while the market is CURRENTLY open. A
+            # pre-market run (e.g. 8:21 AM ET) fell through untouched, leaving end_date=today
+            # even though today has no data at all yet (market hasn't opened). Live-reproduced:
+            # a Monday pre-market run computed a Sunday-to-Monday-premarket fetch window (no
+            # data possible on either day) and yfinance misreported the entire universe (1572
+            # symbols in one run) as "possibly delisted" - not because of a real API/data
+            # problem, just an impossible date range. Also used flat `timedelta(days=1)`, which
+            # lands on a weekend/holiday instead of the actual last trading day. Both fixed by
+            # reusing the same trading-day-anchored pattern already applied to Phase 1
+            # freshness / Phase 7 buy-signal lookback / Phase 8 stale-signal circuit breaker /
+            # sector_industry_daily (see MarketCalendar.get_previous_trading_day usages) -
+            # anything before market close must ask about the previous TRADING day, not a flat
+            # "yesterday" or "today only if we happen to be mid-session right now".
+            if now_et.hour < 16:
+                from algo.infrastructure import MarketCalendar
+
+                candidate = now_et.date() - timedelta(days=1)
+                end_date = MarketCalendar.get_previous_trading_day(candidate) or candidate
                 logger.info(
-                    f"[{symbol}] [MARKET_HOURS] Market open at {now_et.strftime('%H:%M %Z')}. "
-                    f"Skipping today's intraday data ({now_et.date()}), fetching through yesterday ({end_date})"
+                    f"[{symbol}] [PRE_CLOSE] Before market close at {now_et.strftime('%H:%M %Z')}. "
+                    f"Skipping today's incomplete/unavailable data ({now_et.date()}), "
+                    f"fetching through the last trading day ({end_date})"
                 )
 
         end = end_date
@@ -237,7 +251,14 @@ class PriceFetcher:
             if not is_eod_pipeline:
                 # MORNING RUN FIX: When watermark is already at today's date (from yesterday's EOD load),
                 # but market hasn't opened yet, fetch the previous trading day's data instead.
-                start = end - timedelta(days=1)
+                # BUG FIX (2026-08-10): flat timedelta(days=1) can itself land on a non-trading
+                # day (e.g. `end` already resolved to a Friday, so end-1 lands on a weekend day
+                # with no data either) - use the same trading-day-anchored helper as `end_date`
+                # above instead of assuming a fixed offset is always a real trading day.
+                from algo.infrastructure import MarketCalendar
+
+                candidate = end - timedelta(days=1)
+                start = MarketCalendar.get_previous_trading_day(candidate) or candidate
                 logger.info(
                     f"[{symbol}] [MORNING_CONTEXT] Watermark at {end}, fetching previous trading day ({start}) "
                     f"since market hasn't opened yet"
@@ -278,15 +299,20 @@ class PriceFetcher:
         # EOD pipeline (which runs after 4 PM) always fetches today's data.
         end_date = now_et.date()
         if not is_eod_pipeline:
-            # Morning/afternoon runs: only fetch through yesterday if market is open
-            market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
-            market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
-            if market_open_time <= now_et < market_close_time:
-                # Market is open - skip today's incomplete data, fetch only through yesterday
-                end_date = now_et.date() - timedelta(days=1)
+            # BUG FIX (2026-08-10): see fetch_incremental's identical fix above for the full
+            # explanation (live-reproduced 1572 false "possibly delisted" errors in one run).
+            # Same two bugs here: only shifted end_date back while market was CURRENTLY open
+            # (missed pre-market entirely), and used a flat timedelta instead of the actual
+            # previous trading day.
+            if now_et.hour < 16:
+                from algo.infrastructure import MarketCalendar
+
+                candidate = now_et.date() - timedelta(days=1)
+                end_date = MarketCalendar.get_previous_trading_day(candidate) or candidate
                 logger.info(
-                    f"[MARKET_HOURS] Market open at {now_et.strftime('%H:%M %Z')}. "
-                    f"Skipping today's intraday data ({now_et.date()}), fetching through yesterday ({end_date})"
+                    f"[PRE_CLOSE] Before market close at {now_et.strftime('%H:%M %Z')}. "
+                    f"Skipping today's incomplete/unavailable data ({now_et.date()}), "
+                    f"fetching through the last trading day ({end_date})"
                 )
 
         end = end_date
@@ -302,7 +328,12 @@ class PriceFetcher:
                 # MORNING RUN FIX: When watermark is already at today's date (from yesterday's EOD load),
                 # but market hasn't opened yet, fetch the previous trading day's data instead.
                 # This prevents start >= end errors when the watermark is current but today's data isn't available yet.
-                start = end - timedelta(days=1)
+                # BUG FIX (2026-08-10): see fetch_incremental's identical fix - flat timedelta(days=1)
+                # can itself land on a non-trading day; use the trading-day-anchored helper instead.
+                from algo.infrastructure import MarketCalendar
+
+                candidate = end - timedelta(days=1)
+                start = MarketCalendar.get_previous_trading_day(candidate) or candidate
                 logger.info(
                     f"[MORNING_CONTEXT] Watermark at {end}, fetching previous trading day ({start}) "
                     f"since market hasn't opened yet for today"
