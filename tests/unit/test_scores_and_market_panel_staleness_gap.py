@@ -23,6 +23,7 @@ def _base_mkt(**overrides: object) -> dict:
         "vix": 18.5,
         "spy": 550.0,
         "tier": "confirmed_uptrend",
+        "halts": [],
         "timestamp": overrides.pop("timestamp", None),
     }
     row.update(overrides)

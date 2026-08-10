@@ -118,8 +118,12 @@ class PreTradeChecks:
             raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
         max_position_value = Decimal(str(portfolio_value)) * max_position_pct
 
+        # Add 1% tolerance to account for rounding errors during position sizing calculations
+        # (share count * current price may round up due to shares needing whole numbers)
+        rounding_tolerance = max_position_value * Decimal("0.01")
+
         position_value_dec = Decimal(str(position_value))
-        if position_value_dec > max_position_value:
+        if position_value_dec > max_position_value + rounding_tolerance:
             max_value_str = f"{float(max_position_value):.2f}"
             return (
                 False,
