@@ -248,7 +248,10 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
         if limit is not None:
             symbols = symbols[:limit]
 
-        result = loader.run(symbols=symbols, parallelism=4)
+        # BUG FOUND 2026-08-10: hardcoded parallelism=4 here bypassed the LOADER_PARALLELISM
+        # env var entirely (see the fix at the top of this file) - this branch would still
+        # self-trigger the yfinance shared-IP circuit breaker regardless of the env default.
+        result = loader.run(symbols=symbols, parallelism=int(os.environ.get("LOADER_PARALLELISM", "1")))
     elif table_name in ["technical_data_daily"]:
         # VectorizedTechnicalLoader: custom run signature
         if not symbols:
