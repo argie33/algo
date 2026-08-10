@@ -76,6 +76,7 @@ Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradati
 """
 
 import logging
+import math
 import time
 import zlib
 from collections.abc import Callable
@@ -194,6 +195,23 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
         raise ValueError(
             f"Close price invalid or unavailable ({close!r}) for risk scoring. Cannot proceed with signal generation."
         )
+    # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): a NaN atr_14 or close
+    # silently produced risk_score=100.0 - the BEST possible score, not a neutral or failed
+    # one - because `max(0.0, min(100.0, 100.0 - (nan * 5)))` washes NaN out via Python's
+    # min()/max() short-circuit comparison behavior (`nan < 100.0` is False, so min() keeps
+    # 100.0). This directly violates this function's own stated contract two lines above
+    # ("never silent 50.0 default... Either data exists or scoring halts") - silently
+    # returning the MOST FAVORABLE score for corrupted volatility data is worse than the
+    # neutral-default failure mode the docstring explicitly warns against, since it actively
+    # misrepresents an unknown-risk stock as the lowest-risk one available, directly
+    # feeding Phase 7's signal ranking. Same bug class already found and fixed this session
+    # in position_sizer.py, financial.py, phase8_entry_execution.py, exit_engine.py, and
+    # order_manager.py. Also reject negative ATR here (physically invalid - technical
+    # indicators must never be negative) rather than silently scoring it as excellent too.
+    if math.isnan(atr_14) or math.isinf(atr_14) or atr_14 < 0:
+        raise ValueError(f"ATR(14)={atr_14!r} is invalid (must be a finite number >= 0) for risk scoring.")
+    if math.isnan(close) or math.isinf(close):
+        raise ValueError(f"Close price {close!r} is invalid (must be a finite number) for risk scoring.")
     atr_pct = (atr_14 / close) * 100
 
     # AUDIT FIX: Explicit extreme volatility gate (reject if ATR > 18% of close)
