@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from datetime import date as _date
@@ -699,11 +700,12 @@ class PositionMonitor:
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg) from e
 
-        if entry_price <= 0:
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches NaN.
+        if math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
             msg = f"Invalid entry price {entry_price} for {symbol} - cannot monitor"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
-        if init_stop <= 0:
+        if math.isnan(init_stop) or math.isinf(init_stop) or init_stop <= 0:
             msg = f"Invalid stop {init_stop} for {symbol} - cannot monitor"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
@@ -736,7 +738,7 @@ class PositionMonitor:
 
         # P&L (using Decimal for precision)
         risk_per_share = entry_price - init_stop
-        if risk_per_share <= 0:
+        if math.isnan(risk_per_share) or math.isinf(risk_per_share) or risk_per_share <= 0:
             raise PositionValidationError(
                 f"Invalid risk per share for {symbol}: entry {entry_price} - stop {init_stop} = {risk_per_share}. "
                 "Stop must be strictly below entry price."
@@ -1162,11 +1164,13 @@ class PositionMonitor:
         - After T2: stop = entry area, never target levels (targets are exits, not protection)
         """
         # Validate inputs
-        if cur_price is None or cur_price <= 0:
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches NaN - this
+        # gate controls the actual trailing-stop price written to the DB for a real position.
+        if cur_price is None or math.isnan(cur_price) or math.isinf(cur_price) or cur_price <= 0:
             raise PositionValidationError(f"Invalid current price for trailing stop: {cur_price}")
-        if active_stop is None or active_stop <= 0:
+        if active_stop is None or math.isnan(active_stop) or math.isinf(active_stop) or active_stop <= 0:
             raise PositionValidationError(f"Invalid active stop for trailing stop: {active_stop}")
-        if entry_price is None or entry_price <= 0:
+        if entry_price is None or math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
             raise PositionValidationError(f"Invalid entry price for trailing stop: {entry_price}")
 
         # Sanity check: if active_stop is already > cur_price (shouldn't happen), clamp it.

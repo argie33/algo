@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import math
 from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
@@ -357,13 +358,15 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         stop_loss = float(stop_loss)
 
                         # Validate converted values
-                        if avg_entry <= 0:
+                        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches
+                        # NaN - this feeds ladder_pct_stop/exit-engine inputs for real monitoring.
+                        if math.isnan(avg_entry) or math.isinf(avg_entry) or avg_entry <= 0:
                             logger.warning(
                                 f"[PHASE 3] {symbol}: Invalid avg_entry_price ({avg_entry}). "
                                 f"Entry price must be positive. Skip position update."
                             )
                             continue
-                        if stop_loss <= 0:
+                        if math.isnan(stop_loss) or math.isinf(stop_loss) or stop_loss <= 0:
                             logger.warning(
                                 f"[PHASE 3] {symbol}: Invalid stop_loss ({stop_loss}). "
                                 f"Stop loss must be positive. Skip position update."

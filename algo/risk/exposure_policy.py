@@ -351,7 +351,9 @@ class ExposurePolicy:
                 f"Price data missing for open position. Cannot calculate current R-multiple or exit levels."
             )
         cur_price_float = float(cur_price)
-        if cur_price_float <= 0:
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches NaN - gates
+        # force_exit_negative_r and other tier-based risk decisions for a real open position.
+        if math.isnan(cur_price_float) or math.isinf(cur_price_float) or cur_price_float <= 0:
             raise ValueError(
                 f"CRITICAL: {symbol} - current_price={cur_price_float} <= 0. "
                 f"Invalid price data in algo_positions. Cannot evaluate position risk. "
@@ -360,7 +362,7 @@ class ExposurePolicy:
 
         # R-multiple
         risk_per_share = entry_price - init_stop
-        if risk_per_share <= 0:
+        if math.isnan(risk_per_share) or math.isinf(risk_per_share) or risk_per_share <= 0:
             raise ValueError(
                 f"CRITICAL: {symbol} - invalid risk/reward setup: entry={entry_price}, stop={init_stop} "
                 f"(stop >= entry). Cannot evaluate exposure policy with corrupted stop loss data."

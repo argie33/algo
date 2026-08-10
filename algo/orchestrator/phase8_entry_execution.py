@@ -2366,7 +2366,16 @@ def run(
                     sma_50 = float(sma_50_val)
                     stop_loss = _calculate_dynamic_stop_loss(entry_price, atr, sma_50)
 
-                    if entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0:
+                    # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0`/`< 0` never
+                    # catch NaN - this gates which signals actually get entered (live
+                    # qualified_trades_that_fit concentration loop).
+                    if (
+                        math.isnan(entry_price) or math.isinf(entry_price)
+                        or math.isnan(atr) or math.isinf(atr)
+                        or math.isnan(sma_50) or math.isinf(sma_50)
+                        or math.isnan(stop_loss) or math.isinf(stop_loss)
+                        or entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0
+                    ):
                         skipped_reason_counts['invalid_price_data'] = skipped_reason_counts.get('invalid_price_data', 0) + 1
                         continue
 
@@ -2679,13 +2688,21 @@ def run(
             sma_50 = float(sma_50)
 
             # VALIDATION: Technical indicators must be positive (sanity check for data corruption)
-            if entry_price <= 0 or atr < 0 or sma_50 <= 0:
+            # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0`/`< 0` never catch NaN -
+            # this is the real order-submission path, feeding _calculate_dynamic_stop_loss()
+            # then sizer.calculate_position_size().
+            if (
+                math.isnan(entry_price) or math.isinf(entry_price)
+                or math.isnan(atr) or math.isinf(atr)
+                or math.isnan(sma_50) or math.isinf(sma_50)
+                or entry_price <= 0 or atr < 0 or sma_50 <= 0
+            ):
                 errors = []
-                if entry_price <= 0:
+                if math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
                     errors.append(f"entry_price={entry_price}")
-                if atr < 0:
+                if math.isnan(atr) or math.isinf(atr) or atr < 0:
                     errors.append(f"ATR={atr}")
-                if sma_50 <= 0:
+                if math.isnan(sma_50) or math.isinf(sma_50) or sma_50 <= 0:
                     errors.append(f"SMA_50={sma_50}")
                 raise RuntimeError(
                     f"[PHASE 8] {symbol}: Corrupted technical data ({', '.join(errors)}). "
@@ -2757,7 +2774,9 @@ def run(
 
             # EDGE CASE FIX: Stop loss can become negative when ATR is very large
             # (extreme volatility). This is invalid - cannot short at negative price.
-            if stop_loss <= 0:
+            # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches NaN -
+            # last gate before the trade proceeds to sizing/submission.
+            if math.isnan(stop_loss) or math.isinf(stop_loss) or stop_loss <= 0:
                 logger.info(
                     f"[PHASE 8] {symbol}: Stop loss negative (${stop_loss:.2f}) "
                     f"due to extreme volatility (ATR ${atr:.2f}). "

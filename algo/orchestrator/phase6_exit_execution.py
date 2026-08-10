@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import math
 import time
 from collections.abc import Callable
 from datetime import date as _date, time as _time
@@ -912,7 +913,10 @@ def run(
                                     "Cannot execute force exit without price."
                                 )
                             cur_price = float(row_tmp[0])
-                            if cur_price <= 0:
+                            # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never
+                            # catches NaN - this gates a real order submission on the force-exit
+                            # (risk-reducing) path.
+                            if math.isnan(cur_price) or math.isinf(cur_price) or cur_price <= 0:
                                 raise RuntimeError(
                                     f"[FORCE-EXIT] Invalid current price {cur_price} for position {action['position_id']}. "
                                     "Cannot execute exit with non-positive price."

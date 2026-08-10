@@ -627,7 +627,9 @@ class ExitHandler:
                 "duplicate": True,
             }
 
-        if current_qty <= 0 and not position_id:
+        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches NaN - a NaN
+        # current_qty would skip this guard entirely and reach _calculate_exit_shares() below.
+        if (math.isnan(current_qty) or math.isinf(current_qty) or current_qty <= 0) and not position_id:
             return {
                 "success": False,
                 "trade_id": trade_id,

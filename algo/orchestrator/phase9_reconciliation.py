@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import traceback
 from collections.abc import Callable
@@ -1198,7 +1199,9 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                     continue
 
                 recovered_exit_price = float(price_row[0])
-                if recovered_exit_price <= 0:
+                # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never catches NaN -
+                # this feeds real P&L/exit_price writes in the corrupted-trade repair routine.
+                if math.isnan(recovered_exit_price) or math.isinf(recovered_exit_price) or recovered_exit_price <= 0:
                     logger.warning(
                         f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
                         f"recovered exit_price {recovered_exit_price} is invalid (must be > 0)"
@@ -1428,14 +1431,19 @@ def _record_closed_positions_exits(
                                 f"Halting Phase 9 to prevent fake P&L records."
                             )
 
-                        if exit_price <= 0:
+                        # BUG FOUND 2026-08-10 (NaN-comparison-guard class): `<= 0` never
+                        # catches NaN. The price_daily-EOD-close fallback path above (line ~1410)
+                        # has no earlier `> 0` filter before assignment (unlike the broker-fill
+                        # priority, which happens to filter via an upstream check) - this is the
+                        # real gate before writing exit_price/P&L for a closed position.
+                        if math.isnan(exit_price) or math.isinf(exit_price) or exit_price <= 0:
                             raise ValueError(
                                 f"[PHASE 9 CRITICAL] Exit price {exit_price} for {symbol} is invalid (must be > 0). "
                                 f"Price source: {price_source}. Cannot record exit with invalid price."
                             )
                         # Calculate actual P&L using real exit_price (not estimated/NULL)
                         risk_per_share = float(entry_price) - float(stop_loss_price)
-                        if risk_per_share <= 0:
+                        if math.isnan(risk_per_share) or math.isinf(risk_per_share) or risk_per_share <= 0:
                             raise ValueError(
                                 f"[PHASE 9 CRITICAL] {symbol}: Invalid risk_per_share={risk_per_share}. "
                                 f"Stop loss ({stop_loss_price}) >= entry price ({entry_price}). "

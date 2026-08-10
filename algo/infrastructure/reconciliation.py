@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -1597,7 +1598,10 @@ class DailyReconciliation:
                     raise ValueError(
                         f"[RECONCILIATION CRITICAL] Filled price not numeric '{filled_price_str}' for {symbol}"
                     ) from e
-                if filled_price <= 0:
+                # BUG FOUND 2026-08-10 (NaN-comparison-guard class): float() accepts "nan"/"inf"
+                # strings without raising, so a malformed filled_avg_price from the broker JSON
+                # would silently pass this `<= 0` check and get written into algo_trades.exit_price.
+                if math.isnan(filled_price) or math.isinf(filled_price) or filled_price <= 0:
                     raise ValueError(
                         f"[RECONCILIATION CRITICAL] Filled price invalid {filled_price} for {symbol} - must be > 0"
                     )
@@ -1647,7 +1651,12 @@ class DailyReconciliation:
                             f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has non-numeric price/qty - cannot reconcile"
                         ) from e
 
-                    if entry_price <= 0 or stop_loss_price <= 0 or entry_qty <= 0:
+                    if (
+                        math.isnan(entry_price) or math.isinf(entry_price)
+                        or math.isnan(stop_loss_price) or math.isinf(stop_loss_price)
+                        or math.isnan(entry_qty) or math.isinf(entry_qty)
+                        or entry_price <= 0 or stop_loss_price <= 0 or entry_qty <= 0
+                    ):
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         raise ValueError(
                             f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has invalid prices/qty (entry={entry_price}, stop={stop_loss_price}, qty={entry_qty}) - must be > 0"
@@ -1677,7 +1686,7 @@ class DailyReconciliation:
                         raise ValueError(
                             f"[RECONCILIATION CRITICAL] filled_qty not numeric '{filled_qty_str}' for {symbol}"
                         ) from e
-                    if filled_qty <= 0:
+                    if math.isnan(filled_qty) or math.isinf(filled_qty) or filled_qty <= 0:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         raise ValueError(
                             f"[RECONCILIATION CRITICAL] filled_qty invalid {filled_qty} for {symbol} - must be > 0"
