@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
@@ -570,6 +571,22 @@ class SignalPatternsMixin:
                     raise ValueError(
                         f"HTF data invalid types for {symbol}: pivot_high={type(pivot_high).__name__}, consolidation_pct={type(consolidation_pct).__name__}"
                     )
+
+            # BUG FOUND 2026-08-10 (via systematic sweep for the NaN-comparison-guard bug
+            # class, after fuzzing found 6 other instances this session): both safety checks
+            # immediately below (`candidate < floor_stop` clamp, `candidate >= entry_price`
+            # corrupt-data check) are silently bypassed by a NaN candidate - NaN comparisons
+            # are always False in Python, so neither the floor-clamp nor the intended
+            # fail-fast "corrupt data" diagnostic ever fires. candidate can go NaN if any
+            # upstream price_daily.low/pivot_high/consolidation_pct feeding it was corrupted -
+            # the resulting stop_price=nan would propagate silently instead of surfacing the
+            # actual root cause this function already tries to diagnose.
+            if math.isnan(candidate) or math.isinf(candidate):
+                raise ValueError(
+                    f"[STOP_LOSS] Computed stop candidate is {candidate!r} (non-finite) for {symbol} "
+                    f"on {eval_date} (base_type={base_type}, method={method}). Indicates corrupted "
+                    f"upstream price/pivot data - cannot compute a valid stop loss."
+                )
 
             if candidate < floor_stop:
                 candidate = floor_stop
