@@ -231,7 +231,20 @@ def run_pipeline(pipeline_name: str) -> int:
         # Sector/industry
         "sector_industry": 15 * 60,              # 15 min - daily aggregation (3 output tables)
         # Company information (SEC API calls)
-        "company_info": 15 * 60,                 # 15 min - SEC EDGAR lookups
+        # BUG FOUND 2026-08-10 (systematic follow-up on
+        # local_scheduler_second_wave_orphaned_loaders_20260810's flagged-but-deferred item):
+        # 15 min was mathematically impossible to meet. SecEdgarClient's RateLimiter is fixed
+        # at 2 req/sec (utils/external/sec_edgar_client.py) and is a single instance shared
+        # across all symbols regardless of LOADER_PARALLELISM (parallelism doesn't help - the
+        # limiter throttles total throughput, not per-thread), and this loader makes exactly
+        # one rate-limited call per symbol (get_submissions(); symbol_to_cik() is a local cache
+        # lookup, no network). With ~4940 active symbols, the zero-retry floor alone is
+        # 4940/2 = 2470s (~41 min) - already 2.7x this budget. DB-confirmed a real production
+        # run on 2026-08-08 used a 3603s (60 min) budget and STILL timed out (realistic retry/
+        # backoff overhead from occasional 429/503 responses easily pushes a full run past an
+        # hour). Bumped to 120 min for real margin, matching how financial_statements
+        # (150 min) was already sized for its own well-diagnosed real-world runtime.
+        "company_info": 120 * 60,                # 120 min - SEC EDGAR lookups, ~4900 symbols @ 2 req/sec floor
         "profile": 10 * 60,                      # 10 min - uses cached company_info
         "dividends": 15 * 60,                    # 15 min - yfinance dividend data
         # Holdings & positioning

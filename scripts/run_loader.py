@@ -239,12 +239,18 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
                 symbols = get_active_symbols(timeout_secs=60)
                 logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols from fallback")
 
+        if limit is not None:
+            symbols = symbols[:limit]
+
         result = loader.run(symbols=symbols, parallelism=4)
     elif table_name in ["technical_data_daily"]:
         # VectorizedTechnicalLoader: custom run signature
         if not symbols:
             symbols = get_active_symbols(timeout_secs=60)
             logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols")
+
+        if limit is not None:
+            symbols = symbols[:limit]
 
         since_date = None
         if backfill_days > 0:
@@ -260,6 +266,18 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
             symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
             logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols")
 
+        # BUG FOUND 2026-08-10: this used to pass limit through as kwargs["limit"] straight
+        # into loader.run() - but no loader's run() (OptimalLoader's base signature, or any
+        # subclass's override, including StockScoresLoader - the loader this module's own
+        # docstring gives as the "--limit 100" usage example) actually accepts a `limit`
+        # keyword argument. Every --limit invocation crashed with "unexpected keyword
+        # argument 'limit'" for every single loader, including the documented example.
+        # Truncating the symbols list here (a testing/dev convenience: "only touch N
+        # symbols") is the correct, universal semantic and matches what every caller of
+        # --limit actually wants, without needing each loader class to special-case it.
+        if limit is not None:
+            symbols = symbols[:limit]
+
         # Build kwargs for loader.run()
         kwargs = {"symbols": symbols}
         if backfill_days > 0:
@@ -268,9 +286,6 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
         # Get parallelism from environment or loader config
         parallelism = int(os.environ.get("LOADER_PARALLELISM", "4"))
         kwargs["parallelism"] = parallelism
-
-        if limit is not None:
-            kwargs["limit"] = limit
 
         result = loader.run(**kwargs)
 
