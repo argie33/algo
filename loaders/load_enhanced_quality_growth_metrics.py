@@ -167,6 +167,23 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             )
 
                         quality_fields = [
+                            # CRITICAL FIX 2026-08-10: quality_metrics has the same
+                            # gross_margin_trend/operating_margin_trend/net_margin_trend/roe_trend
+                            # columns as growth_metrics (load_value_quality_growth_metrics.py's
+                            # own _SHARED_TREND_FIELDS convention mirrors these 4 fields to BOTH
+                            # tables from one computation), but this loader's quality_fields list
+                            # never included them while growth_fields above always has - so this
+                            # loader's per-symbol UPDATE (a partial/conditional SET - only columns
+                            # present in metric_dict are touched) could refresh growth_metrics'
+                            # trend columns but could NEVER refresh or clear quality_metrics'
+                            # corresponding columns, even when this same fetch_incremental() call
+                            # just computed a fresh, correctly-bounded value for both. Live-
+                            # confirmed: growth_metrics garbage rows (ABS(trend) > 2000) dropped
+                            # from 275 to 252 over a ~50-symbol-per-minute full-universe run while
+                            # quality_metrics' count sat unchanged at 281 the entire time - this
+                            # loader was structurally incapable of clearing them.
+                            "gross_margin_trend", "operating_margin_trend", "net_margin_trend",
+                            "roe_trend",
                             # roic_pct REMOVED 2026-08-03: found while fixing
                             # quality_metrics.roic_pct's real gap (was hardcoded unavailable in
                             # load_value_quality_growth_metrics.py, now computes real
@@ -311,19 +328,43 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 prior_ocf_f = safe_float(prior_ocf, 'ocf')
 
                 # YoY Growth metrics - only compute if both current and prior values exist and prior > 0
+                #
+                # CRITICAL FIX 2026-08-10: none of these 5 fields had the
+                # MAX_TREND_PERCENTAGE_POINTS bound this file already applies to
+                # estimate_momentum_60d/90d/revision_trend_score - a near-zero prior-year base
+                # (same class of bug as the margin-trend near-zero-denominator fix elsewhere in
+                # this file) produces a ratio that overflows the NUMERIC(10,4) column
+                # (max magnitude 999,999.9999). Live-confirmed: ALLT ocf_growth_yoy=1,113,500.0,
+                # CHAI ocf_growth_yoy=27,256,085.3 - both raised psycopg2.NumericValueOutOfRange
+                # on the UPDATE. Because growth_fields/quality_fields are written as ONE
+                # multi-column UPDATE per table, that exception aborted the ENTIRE statement -
+                # silently losing every other field for that symbol in the same UPDATE, including
+                # the correctly-bounded gross_margin_trend/operating_margin_trend/net_margin_trend/
+                # roe_trend values computed earlier in this same fetch_incremental() call. A single
+                # unbounded field was capable of erasing otherwise-good data for the whole symbol.
                 if prior_oi_f and prior_oi_f > 0 and curr_oi_f is not None:
-                    metrics["operating_income_growth_yoy"] = float(((curr_oi_f or 0) - (prior_oi_f or 0)) / prior_oi_f * 100)
+                    oi_growth = ((curr_oi_f or 0) - (prior_oi_f or 0)) / prior_oi_f * 100
+                    if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["operating_income_growth_yoy"] = float(oi_growth)
                 if prior_ni_f and prior_ni_f > 0 and curr_ni_f is not None:
-                    metrics["net_income_growth_yoy"] = float(((curr_ni_f or 0) - (prior_ni_f or 0)) / prior_ni_f * 100)
+                    ni_growth = ((curr_ni_f or 0) - (prior_ni_f or 0)) / prior_ni_f * 100
+                    if abs(ni_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["net_income_growth_yoy"] = float(ni_growth)
 
                 if prior_assets_f and prior_assets_f > 0 and curr_assets_f is not None:
-                    metrics["asset_growth_yoy"] = float(((curr_assets_f or 0) - (prior_assets_f or 0)) / prior_assets_f * 100)
+                    asset_growth = ((curr_assets_f or 0) - (prior_assets_f or 0)) / prior_assets_f * 100
+                    if abs(asset_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["asset_growth_yoy"] = float(asset_growth)
 
                 if prior_fcf_f and prior_fcf_f > 0 and curr_fcf_f is not None:
-                    metrics["fcf_growth_yoy"] = float(((curr_fcf_f or 0) - (prior_fcf_f or 0)) / prior_fcf_f * 100)
+                    fcf_growth = ((curr_fcf_f or 0) - (prior_fcf_f or 0)) / prior_fcf_f * 100
+                    if abs(fcf_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["fcf_growth_yoy"] = float(fcf_growth)
 
                 if prior_ocf_f and prior_ocf_f > 0 and curr_ocf_f is not None:
-                    metrics["ocf_growth_yoy"] = float(((curr_ocf_f or 0) - (prior_ocf_f or 0)) / prior_ocf_f * 100)
+                    ocf_growth = ((curr_ocf_f or 0) - (prior_ocf_f or 0)) / prior_ocf_f * 100
+                    if abs(ocf_growth) < MAX_TREND_PERCENTAGE_POINTS:
+                        metrics["ocf_growth_yoy"] = float(ocf_growth)
 
                 # Margin trends
                 if prior_rev_f and prior_rev_f > 0 and curr_rev_f and curr_rev_f > 0:
