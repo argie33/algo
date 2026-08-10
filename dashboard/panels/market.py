@@ -441,9 +441,26 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
 
     market_timestamp = mkt.get("timestamp")
     age_s = f"  [dim]{fmt_age(market_timestamp)}[/]" if market_timestamp is not None else ""
+    # Mirrors panel_market_full's staleness check - the compact view flags stale data in its
+    # title, but this expanded view (same underlying `mkt` dict) previously had no equivalent,
+    # so pressing 'm' to inspect data already flagged stale lost that warning entirely.
+    from datetime import datetime, timezone
+
+    stale_warning = ""
+    if market_timestamp:
+        try:
+            if isinstance(market_timestamp, str):
+                market_dt = datetime.fromisoformat(market_timestamp.replace("Z", "+00:00"))
+            else:
+                market_dt = market_timestamp
+            age_hours = (datetime.now(timezone.utc) - market_dt).total_seconds() / 3600
+            if age_hours > 24:
+                stale_warning = f" ⚠ STALE ({age_hours:.0f}h old)"
+        except Exception as e:
+            logger.debug(f"[MARKET_EXPANDED] Could not parse timestamp: {e}")
     return Panel(
         Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
-        title=rf"[bold blue]MARKET - EXPANDED[/]{age_s}  [dim]\[m] return[/]",
+        title=rf"[bold blue]MARKET - EXPANDED[/]{age_s}{stale_warning}  [dim]\[m] return[/]",
         border_style="blue",
         padding=(0, 1),
     )

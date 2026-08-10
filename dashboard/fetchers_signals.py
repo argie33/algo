@@ -418,12 +418,19 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "validation", "grades_invalid_type")
             return FetcherValidator.build_error_response(error_msg)
 
+        # BUG FOUND 2026-08-10: this "timestamp" was always datetime.now(ET) (client fetch
+        # time), which can never detect genuinely stale underlying score data - the same class
+        # already fixed for positions/portfolio (see dashboard/panels/positions.py's comment).
+        # The API's real server-computed data_freshness (from stock_scores.updated_at, see
+        # _get_dashboard_scores in lambda/api/routes/algo_handlers/dashboard.py) was available
+        # in the response the whole time but never read here.
         return {
             "top": top,
             "universe_total": universe_total,
             "avg_composite": avg_composite,
             "grades": grades,
             "timestamp": datetime.now(ET),
+            "data_freshness": top_data.get("data_freshness"),
         }
     except Exception as e:
         error_msg = format_fetcher_error("scores", e)

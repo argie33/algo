@@ -137,7 +137,7 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
   const startValue = equityCurve[0]?.total_portfolio_value;
   const endValue = equityCurve[equityCurve.length - 1]?.total_portfolio_value;
   const totalReturn =
-    startValue > 0
+    startValue > 0 && endValue != null && !Number.isNaN(endValue)
       ? (((endValue - startValue) / startValue) * 100).toFixed(1)
       : null;
 

@@ -257,6 +257,26 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
     return layout
 
 
+def _stale_warning(scores: Any) -> str:
+    """Server-computed staleness badge, matching positions.py's pattern.
+
+    BUG FOUND 2026-08-10: unlike positions/portfolio, this panel had no staleness indicator
+    at all - fmt_age() renders a passive "Xh ago" string but does no threshold check or
+    color-coding, so a trader could be looking at genuinely stale scores with zero visual
+    warning. Uses the server-computed data_freshness.is_stale (from stock_scores.updated_at
+    via check_data_freshness in _get_dashboard_scores), not a client fetch timestamp, which
+    is always "just now" and can never detect real staleness.
+    """
+    if not isinstance(scores, dict):
+        return ""
+    data_freshness = scores.get("data_freshness")
+    if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+        warning_text = data_freshness.get("warning") or "stale"
+        logger.warning(f"[SCORES] Score data stale: {warning_text}")
+        return " [yellow]⚠ STALE[/]"
+    return ""
+
+
 @register_panel(
     "scores",
     endpoint_deps=["scores"],
@@ -310,9 +330,10 @@ def panel_scores_compact(scores: Any) -> Panel:
 
     timestamp_val = safe_get_dict(scores).get("timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    stale_warning = _stale_warning(scores)
     return Panel(
         Group(*rows),
-        title=rf"[bold cyan]SCORES[/]{age_s}  [dim]\[c] expand[/]",
+        title=rf"[bold cyan]SCORES[/]{age_s}{stale_warning}  [dim]\[c] expand[/]",
         border_style="cyan",
         padding=(0, 1),
     )
@@ -342,11 +363,12 @@ def panel_scores_expanded(scores: Any) -> Panel:
 
     timestamp_val = safe_get_dict(scores).get("timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
+    stale_warning = _stale_warning(scores)
 
     if not top_scores:
         return Panel(
             Text.from_markup("[yellow]No score data - check Data Health[/]"),
-            title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}",
+            title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}{stale_warning}",
             border_style="cyan",
             padding=(0, 1),
         )
@@ -372,7 +394,7 @@ def panel_scores_expanded(scores: Any) -> Panel:
 
     return Panel(
         main_layout,
-        title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
+        title=f"[bold cyan]SCORES - EXPANDED[/]{age_s}{stale_warning}  [dim]press [/][bold cyan]c[/][dim] to return[/]",
         border_style="cyan",
         padding=(0, 0),
     )
