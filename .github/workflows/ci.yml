@@ -79,6 +79,16 @@ jobs:
           python scripts/validate_loader_systems_sync.py
         continue-on-error: false
 
+      # ADDED 2026-08-10: steering/GOVERNANCE.md's Trading Safety section has always mandated
+      # "Pre-deployment: Run python scripts/verify_safety_thresholds.py --strict before
+      # production" but nothing enforced it - it was a step a human had to remember. The
+      # script needs no DB/AWS access (verifies AlgoConfig.DEFAULTS + that the runtime safety
+      # gate fires on a mocked zero-threshold injection), so it's safe and fast to run in CI.
+      - name: Verify trading safety thresholds
+        run: |
+          python scripts/verify_safety_thresholds.py --strict
+        continue-on-error: false
+
       - name: Run unit tests
         run: |
           pytest tests/ -m unit -v --tb=short
