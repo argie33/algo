@@ -57,12 +57,25 @@ class EarningsBlackout:
 
                 from datetime import datetime, timezone
 
+                # BUG FIX (2026-08-10): was MAX(created_at), which for an upserted table only
+                # reflects a row's ORIGINAL insertion, never its subsequent refreshes -
+                # load_earnings_calendar.py explicitly sets updated_at=now() on every write
+                # (both INSERT and UPDATE branches) specifically so freshness consumers can
+                # tell "was this recently refreshed", with its own comment warning that an
+                # UPDATE branch not touching updated_at "would silently reintroduce the same
+                # bug" - phase1_data_freshness.py already correctly keys off MAX(updated_at)
+                # for this same table; this was the one consumer left checking the wrong
+                # column. Live-reproduced: MSA's created_at was 2026-08-05 (5 days old) while
+                # its updated_at was today (refreshed hours earlier) - genuinely fresh data
+                # was incorrectly reported as "123h stale" and used to BLOCK a real entry.
+                # In one live run this was directly responsible for 5 of 7 signal rejections
+                # (the majority) - a real, active over-blocking bug, not just log noise.
                 # Check when this symbol's earnings_calendar was last refreshed
                 cur.execute(
-                    """SELECT MAX(created_at) as last_load
+                    """SELECT MAX(updated_at) as last_load
                        FROM earnings_calendar
                        WHERE symbol = %s
-                       AND created_at >= (NOW() - interval '7 days')""",
+                       AND updated_at >= (NOW() - interval '7 days')""",
                     (symbol,),
                 )
                 last_load_row = cur.fetchone()

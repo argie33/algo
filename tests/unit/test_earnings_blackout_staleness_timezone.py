@@ -30,7 +30,7 @@ def _config():
 
 def _mock_db_returning(last_load_naive_utc):
     mock_cur = MagicMock()
-    # First execute() call: MAX(created_at) staleness check. Second (only reached if not
+    # First execute() call: MAX(updated_at) staleness check. Second (only reached if not
     # blocked on staleness): earnings_date lookup -> no row (no earnings on file).
     mock_cur.fetchone.side_effect = [(last_load_naive_utc,), None]
     mock_db_context = MagicMock()
@@ -75,3 +75,36 @@ class TestEarningsBlackoutStalenessUsesRealUtcElapsedTime:
             result = blackout.run("AAPL", datetime.now(timezone.utc).date())
 
         assert result["pass"] is True, f"10h-stale (fresh) earnings data should not be blocked - got {result}"
+
+
+class TestEarningsBlackoutStalenessChecksUpdatedAtNotCreatedAt:
+    """Regression test for the 2026-08-10 fix: the staleness query used MAX(created_at),
+    which for an upserted row only reflects its ORIGINAL insertion, never subsequent
+    refreshes. Live-reproduced: MSA's created_at was 5 days old while its updated_at was
+    hours old (genuinely fresh, actively-maintained data) - the old query incorrectly
+    reported it as 123h stale and blocked a real entry. load_earnings_calendar.py
+    explicitly maintains updated_at=now() on every write for exactly this purpose;
+    phase1_data_freshness.py already correctly keys off it for the same table."""
+
+    def test_staleness_query_uses_updated_at_not_created_at(self) -> None:
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = [
+            (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=10),),
+            None,
+        ]
+        mock_db_context = MagicMock()
+        mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
+        mock_db_context.__exit__ = MagicMock(return_value=False)
+
+        blackout = EarningsBlackout(config=_config())
+        with patch("algo.risk.earnings_blackout.DatabaseContext", return_value=mock_db_context):
+            blackout.run("MSA", datetime.now(timezone.utc).date())
+
+        staleness_sql = mock_cur.execute.call_args_list[0].args[0]
+        assert "MAX(updated_at)" in staleness_sql, (
+            f"Expected the staleness check to query MAX(updated_at), got: {staleness_sql}"
+        )
+        assert "created_at" not in staleness_sql, (
+            f"Found created_at again in the staleness query - it only reflects a row's "
+            f"original insertion, not refreshes: {staleness_sql}"
+        )
