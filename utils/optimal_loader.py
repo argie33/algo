@@ -1330,7 +1330,29 @@ class OptimalLoader:
                             raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                         total_rows = result[0]
                         latest_date = self._to_date(result[1])
-                        actual_symbols_loaded = total_rows
+                        # BUG FOUND 2026-08-10: actual_symbols_loaded used to be `total_rows` -
+                        # the table's entire ALL-TIME row count (e.g. 1314 = one row/day across
+                        # years of history for market_health_daily), compared below against
+                        # expected_symbols=1 (the single "market" pseudo-symbol this run
+                        # processes). Live-confirmed: produced completion_pct capped at 100%
+                        # with symbols_loaded=1314 - logged as "100.0% complete (1314/1
+                        # symbols)", which the orchestrator's proactive critical-loader wait
+                        # reads as a stalled/hung loader (a nonsensical ratio, not an honest
+                        # per-run signal) regardless of whether this run's fetch actually
+                        # succeeded. Scope the count to rows matching the latest watermark
+                        # value (this run's data), matching the is_symbol_based=True branch's
+                        # pattern of scoping to what THIS run actually touched rather than the
+                        # table's unscoped historical population. `total_rows` above is
+                        # unaffected - it still feeds `row_count`, where the all-time table
+                        # size is the correct, intended metric.
+                        cur.execute(
+                            f"SELECT COUNT(*) FROM {self.table_name} WHERE {self.watermark_field} = %s",
+                            (latest_date,),
+                        )
+                        scoped_result = cur.fetchone()
+                        actual_symbols_loaded = (
+                            scoped_result[0] if scoped_result and scoped_result[0] is not None else 0
+                        )
                 else:
                     # No watermark_field: just count rows (can't count distinct symbols for non-symbol tables)
                     cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
