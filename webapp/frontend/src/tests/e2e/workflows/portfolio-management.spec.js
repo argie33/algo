@@ -1,6 +1,6 @@
 /**
  * Portfolio Management Workflow E2E Test
- * Tests complete portfolio workflow: view â†’ add holdings â†’ track performance â†’ optimize
+ * Tests complete portfolio workflow: view → add holdings → track performance → optimize
  */
 
 import { test, expect } from "@playwright/test";

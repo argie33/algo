@@ -107,10 +107,10 @@ test.describe("Safari Routing Compatibility", () => {
     await page.waitForTimeout(2000);
 
     const transitions = [
-      { from: "/", to: "/portfolio", name: "Dashboard â†’ Portfolio" },
-      { from: "/portfolio", to: "/market", name: "Portfolio â†’ Market" },
-      { from: "/market", to: "/settings", name: "Market â†’ Settings" },
-      { from: "/settings", to: "/", name: "Settings â†’ Dashboard" },
+      { from: "/", to: "/portfolio", name: "Dashboard → Portfolio" },
+      { from: "/portfolio", to: "/market", name: "Portfolio → Market" },
+      { from: "/market", to: "/settings", name: "Market → Settings" },
+      { from: "/settings", to: "/", name: "Settings → Dashboard" },
     ];
 
     let successfulTransitions = 0;
