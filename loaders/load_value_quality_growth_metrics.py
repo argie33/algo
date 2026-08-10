@@ -467,7 +467,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            (SELECT total_assets FROM annual_balance_sheet
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_total_assets,
                            (SELECT stockholders_equity FROM annual_balance_sheet
-                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_stockholders_equity
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_stockholders_equity,
+                           (SELECT pretax_income FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_pretax_income,
+                           (SELECT interest_expense FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_interest_expense
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year AND ais.data_unavailable = FALSE
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year AND acf.data_unavailable = FALSE
@@ -483,7 +487,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                                     THEN 0 ELSE 1 END), abs.fiscal_year DESC
                     LIMIT 1
                     """,
-                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, MAX_FISCAL_YEAR_AGE_YEARS),
+                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, MAX_FISCAL_YEAR_AGE_YEARS),
                 )
                 quality_row_db = cur.fetchone()
 
@@ -1152,6 +1156,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             prior_year_stockholders_equity = self._nan_to_none(
                 safe_float(quality_row[30], f"{symbol}.prior_year_stockholders_equity", allow_none=True)
             )
+            prior_year_pretax_income = self._nan_to_none(
+                safe_float(quality_row[31], f"{symbol}.prior_year_pretax_income", allow_none=True)
+            )
+            prior_year_interest_expense = self._nan_to_none(
+                safe_float(quality_row[32], f"{symbol}.prior_year_interest_expense", allow_none=True)
+            )
+            # EBIT-approximation fallback for prior-year operating income, mirroring the
+            # current-year operating_income_for_margin fallback below - same root cause
+            # (AEM-style 40-F filers that tag pretax_income/interest_expense every year but
+            # never tag OperatingIncomeLoss at all) blocked operating_income_growth_yoy and
+            # operating_margin_trend even after that fallback was applied to operating_margin
+            # itself, since both compare CURRENT vs PRIOR year and only current year had the
+            # approximation. 686 symbols system-wide have both years' EBIT-approximation
+            # inputs present while lacking real operating_income for both years.
+            prior_year_operating_income_for_trend = prior_year_operating_income
+            if prior_year_operating_income_for_trend is None and prior_year_pretax_income is not None:
+                prior_year_operating_income_for_trend = prior_year_pretax_income + (prior_year_interest_expense or 0)
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -1723,10 +1744,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         f"Metric marked data_unavailable."
                     )
 
-            # Operating Income Growth YoY - only if actual prior data available
-            if operating_income is not None and prior_year_operating_income is not None and prior_year_operating_income != 0:
+            # Operating Income Growth YoY - uses the same EBIT-approximation fallback as
+            # operating_income_for_margin (current year) and prior_year_operating_income_for_trend
+            # (prior year) so filers that never tag OperatingIncomeLoss aren't blocked here too.
+            if (
+                operating_income_for_margin is not None
+                and prior_year_operating_income_for_trend is not None
+                and prior_year_operating_income_for_trend != 0
+            ):
                 try:
-                    oi_growth = ((operating_income - prior_year_operating_income) / abs(prior_year_operating_income)) * 100
+                    oi_growth = (
+                        (operating_income_for_margin - prior_year_operating_income_for_trend)
+                        / abs(prior_year_operating_income_for_trend)
+                    ) * 100
                     if abs(oi_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["operating_income_growth_yoy"] = float(round(oi_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
@@ -1763,10 +1793,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         except (ValueError, TypeError, ZeroDivisionError):
                             pass
 
-                # Operating Margin Trend - only if actual prior operating income available
-                if operating_income is not None and prior_year_operating_income is not None and prior_year_revenue > 0:
-                    curr_om = (operating_income / revenue) * 100
-                    prior_om = (prior_year_operating_income / prior_year_revenue) * 100
+                # Operating Margin Trend - uses the same EBIT-approximation fallback as
+                # operating_income_growth_yoy above (see prior_year_operating_income_for_trend).
+                if (
+                    operating_income_for_margin is not None
+                    and prior_year_operating_income_for_trend is not None
+                    and prior_year_revenue > 0
+                ):
+                    curr_om = (operating_income_for_margin / revenue) * 100
+                    prior_om = (prior_year_operating_income_for_trend / prior_year_revenue) * 100
                     if abs(curr_om) <= MAX_MARGIN_ABS_PCT and abs(prior_om) <= MAX_MARGIN_ABS_PCT:
                         try:
                             om_trend = round(curr_om - prior_om, 2)
