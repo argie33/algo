@@ -570,7 +570,7 @@ def main() -> int:
         if len(violations) > 10:
             print(f"\n  ... and {len(violations) - 10} more violations")
 
-        print("\n[GOVERNANCE] CLAUDE.md Rule:")
+        print("\n[GOVERNANCE] steering/GOVERNANCE.md Rule:")
         print("  'PRINCIPLE: Fail-fast on missing data. No silent fallbacks.'")
         print("\n  Code must EITHER:")
         print("    1. Raise exception (raise RuntimeError/ValueError) for CRITICAL data")
@@ -580,7 +580,13 @@ def main() -> int:
         print("    - return 0 for financial calculations")
         print("    - return None without explaining why")
         print("    - .get() without explicit key validation")
-        print("\n  See: steering/FAIL_FAST_VIOLATIONS_CATALOG_2026_06_29.md")
+        # BUG FOUND 2026-08-10: this pointed at steering/FAIL_FAST_VIOLATIONS_CATALOG_2026_06_29.md,
+        # a file that doesn't exist anywhere in this repo (same "referenced but never built/since
+        # removed" pattern as start_dashboard_dev.py - see CLAUDE.md). steering/GOVERNANCE.md's own
+        # "Data Quality" section already covers this exact rule in full (including a
+        # remediation-history pointer via `git log --all --oneline | grep -i "fail-fast\|fallback"`
+        # instead of a static catalog file), so redirect there rather than to a dead link.
+        print("\n  See: steering/GOVERNANCE.md (Data Quality section)")
 
         return 1
 

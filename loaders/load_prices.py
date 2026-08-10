@@ -364,10 +364,15 @@ class PriceLoader(OptimalLoader):
                 )
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
+                # BUG FOUND 2026-08-10: this message used to point at
+                # https://github.com/yourorg/algo/blob/main/steering/duplicate_rows_root_cause_analysis.md -
+                # "yourorg" was a never-replaced template placeholder, so the link could never
+                # have resolved to anything real for any operator who hit this in production.
+                # Removed rather than pointed elsewhere: the actionable fix (the ALTER TABLE
+                # below) is already fully inline in this same message.
                 error_msg = (
                     f"[CONSTRAINT] CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
                     f"This allows duplicate rows to be inserted, corrupting the dataset. "
-                    f"Root cause analysis: https://github.com/yourorg/algo/blob/main/steering/duplicate_rows_root_cause_analysis.md. "
                     f"Create constraint with: ALTER TABLE {self.table_name} ADD CONSTRAINT "
                     f"{self.table_name}_{'_'.join(self.primary_key)}_unique UNIQUE ({pk_cols})"
                 )
