@@ -263,11 +263,36 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     actual_latest_date = result[0] if result and result[0] else None
 
             execution_duration = time.time() - start_time
+            # FIXED 2026-08-10: this used to unconditionally write symbols_loaded=len(symbols)/
+            # completion_pct=100.0 to data_loader_status for all 3 tables, completely discarding
+            # the symbols_succeeded/symbols_failed counters this same run just computed above -
+            # every run of this loader claimed perfect 100% completion regardless of real outcome,
+            # whether that was a full-universe run with a genuine 15% SEC-data failure rate or a
+            # tiny scoped --symbols diagnostic run that failed every symbol it touched. Since
+            # mark_completed() re-reads exactly these two columns to decide COMPLETED vs FAILED,
+            # this made that safety check a no-op for value_metrics/quality_metrics/growth_metrics
+            # specifically - no run of this loader could ever be caught by it. Also meant any
+            # consumer reading data_loader_status.completion_pct for these 3 tables (dashboards,
+            # freshness checks) saw "100% complete" even when large-scale extraction failures were
+            # actually happening upstream. Now reports the real success ratio, and passes this
+            # loader's own already-declared max_fail_rate tolerance (20%) as the mark_completed()
+            # threshold instead of falling back to its generic 98% default - that default doesn't
+            # apply here per runner.py's own comment: "value/growth/quality metrics may have higher
+            # expected failure rates for symbols without financial data" (foreign filers, ADRs,
+            # non-SEC-reporting issuers, etc. are legitimately unavailable, not a loader failure).
+            actual_completion_pct = (symbols_succeeded / len(symbols) * 100.0) if symbols else 100.0
             for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                 manager = managers.get(table) or LoaderStatusManager(table)
-                # Update progress to mark all symbols as loaded (this loader loads all at once, not per-symbol)
-                manager.update_progress(symbols_loaded=len(symbols), symbol_count=len(symbols), completion_pct=100.0)
-                manager.mark_completed(execution_duration_sec=execution_duration)
+                manager.update_progress(
+                    symbols_loaded=symbols_succeeded,
+                    symbol_count=len(symbols),
+                    completion_pct=actual_completion_pct,
+                )
+                manager.mark_completed(
+                    execution_duration_sec=execution_duration,
+                    symbols_failed=symbols_failed,
+                    min_completion_pct=max(0.0, 100.0 - self.max_fail_rate),
+                )
 
             logger.info(
                 f"[VALUE_QUALITY_GROWTH] Consolidated load complete: "
@@ -349,6 +374,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # symbols universe-wide hit this. Bounding the FCF preference to MAX_FISCAL_YEAR_AGE_YEARS
                 # keeps the original intent (prefer audited-FCF years among the recent ones) without ever
                 # trading a fresh balance sheet for an ancient FCF value.
+                # FIXED 2026-08-10: the FCF-recency CASE was the ONLY tiebreaker, so absent that,
+                # the query fell straight to bare `abs.fiscal_year DESC` - picking whichever
+                # fiscal year has the newest BALANCE SHEET row, with zero regard for whether that
+                # same year's income statement is actually usable. Live-confirmed on BFS: FY2026's
+                # annual_balance_sheet row is real (data_unavailable=FALSE) but FY2026's
+                # annual_income_statement row is data_unavailable=TRUE ('incomplete_sec_filing_income'),
+                # so the LEFT JOIN's `ais.data_unavailable = FALSE` ON-condition silently nulled out
+                # net_income/operating_income/revenue for the picked row - even though FY2023-FY2025
+                # all have complete, real income statements sitting right there. roe/roa/
+                # operating_margin/net_margin/revenue_growth_yoy/earnings_growth_yoy all came back
+                # "missing_sec_data" as a result, despite the data existing. Universe-wide query
+                # confirmed 347 symbols hit this exact pattern (latest balance-sheet fiscal year has
+                # no matching usable income statement, but an earlier year does). Fixed by adding a
+                # higher-priority CASE that prefers fiscal years where the ais join actually matched
+                # (ais.symbol IS NOT NULL) before falling back to the FCF/recency tiebreaker - this
+                # also keeps balance-sheet and income-statement fields from the SAME fiscal year
+                # (picking an older year for both is strictly better than pairing a fresh balance
+                # sheet with a stale/absent income statement).
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
@@ -386,7 +429,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         ORDER BY symbol, updated_at DESC
                     ) sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s AND abs.data_unavailable = FALSE
-                    ORDER BY (CASE WHEN acf.free_cash_flow IS NOT NULL
+                    ORDER BY (CASE WHEN ais.symbol IS NOT NULL THEN 0 ELSE 1 END),
+                             (CASE WHEN acf.free_cash_flow IS NOT NULL
                                     AND abs.fiscal_year > EXTRACT(YEAR FROM CURRENT_DATE)::int - %s
                                     THEN 0 ELSE 1 END), abs.fiscal_year DESC
                     LIMIT 1
