@@ -142,7 +142,17 @@ def run_pipeline(pipeline_name: str) -> int:
         "sec_valuations": 30 * 60,               # 30 min - valuation computation from SEC data
         # Fundamental metrics (API-heavy)
         "value_quality_growth": 40 * 60,         # 40 min - multi-source aggregation
-        "enhanced_quality_growth": 25 * 60,      # 25 min - earnings surprise calculations
+        # BUG FOUND 2026-08-10: 25 min was calibrated before a same-day fix
+        # (loader_audit_and_fixes_20260810 memory) added a 0.3s inter-symbol pacing delay
+        # plus longer yfinance retry/backoff (max_retries=4, backoff=3.0s) to survive
+        # sustained per-IP throttling - live-reproduced same day: 904 symbols processed in
+        # the full 1500s before subprocess.run's timeout killed it (~1.66 symbols/sec),
+        # extrapolating to ~135 min for the full ~4900-symbol universe. This also clobbers
+        # quality_metrics/growth_metrics' status: this loader shares those 2 output tables
+        # with value_quality_growth (which runs first and completes cleanly), calls its own
+        # mark_running() on them at its own start, and a timeout here left them stuck
+        # RUNNING despite value_quality_growth's real, fresh, healthy data underneath.
+        "enhanced_quality_growth": 150 * 60,     # 150 min - earnings surprise calcs w/ yfinance throttle pacing
         "analyst_earnings_estimates": 20 * 60,   # 20 min - yfinance per-symbol calls
         "analyst_sentiment": 20 * 60,            # 20 min - yfinance analyst data
         "analyst_upgrades": 20 * 60,             # 20 min - yfinance recommendation data
