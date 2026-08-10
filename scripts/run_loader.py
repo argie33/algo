@@ -390,15 +390,50 @@ def main():
         logger.info(f"[LOADER] {loader_filename} completed: {result}")
 
         # Mark loaders as COMPLETED if force-refresh
+        any_table_failed = False
         if args.force_refresh:
             from utils.loaders.status_manager import LoaderStatusManager
+
             for table_name in table_names:
                 try:
                     status_mgr = LoaderStatusManager(table_name)
-                    status_mgr.mark_completed()
-                    logger.info(f"[FORCE_REFRESH] Updated {table_name} status via LoaderStatusManager")
+                    # BUG FOUND 2026-08-10: this used to call mark_completed() unconditionally
+                    # here, with no inspection of `result` at all. Most loaders (OptimalLoader
+                    # subclasses - see utils/optimal_loader.py's run()) already call their own
+                    # mark_completed()/mark_failed() internally based on real completion_pct,
+                    # BEFORE this code runs. Calling mark_completed() again unconditionally
+                    # afterward didn't just fail to add a check - it actively CLOBBERED a
+                    # legitimate mark_failed() the loader itself had already recorded moments
+                    # earlier, back to COMPLETED. Phase 1's failsafe retry (the only caller
+                    # that passes --force-refresh) decides "recovered" from this subprocess's
+                    # exit code, which main() always returns 0 for as long as no exception
+                    # propagated - so a loader that correctly detected and reported a real
+                    # partial/full failure was reported as both COMPLETED in the DB and
+                    # "recovered" to the caller, exactly the fail-open "fabricate success"
+                    # shape this codebase's governance comments explicitly forbid elsewhere.
+                    # Fix: only apply this fallback when the table is still RUNNING (i.e. the
+                    # loader doesn't self-manage terminal status at all, e.g. legacy loaders
+                    # without OptimalLoader's status hooks) - respect whatever terminal status
+                    # a self-managing loader already recorded.
+                    current = status_mgr.get_status()
+                    if current and current.get("status") == "RUNNING":
+                        status_mgr.mark_completed()
+                        logger.info(f"[FORCE_REFRESH] Updated {table_name} status via LoaderStatusManager")
+                    else:
+                        status_value = current.get("status") if current else "unknown"
+                        logger.info(
+                            f"[FORCE_REFRESH] {table_name} already has a terminal status "
+                            f"({status_value}) from the loader's own run() - not overwriting it."
+                        )
+                        if status_value not in ("COMPLETED", "HEALTHY"):
+                            # The loader itself decided this run did not succeed - propagate
+                            # that as a real failure instead of returning exit code 0
+                            # regardless, which is what let phase1_failsafe_retry.py mark this
+                            # "recovered" for a run that had actually failed (see fix comment
+                            # above this block).
+                            any_table_failed = True
                 except Exception as e:
-                    logger.warning(f"[FORCE_REFRESH] Could not mark {table_name} as COMPLETED: {e}")
+                    logger.warning(f"[FORCE_REFRESH] Could not check/mark {table_name} status: {e}")
 
             # CRITICAL FIX (Session 211): Update watermarks after --force-refresh
             # Ensures next orchestrator run sees fresh data (prevents 1-2 day staleness in LOCAL_MODE)
@@ -406,6 +441,14 @@ def main():
                 update_watermarks_to_today(loader_filename, table_names)
             except Exception as e:
                 logger.error(f"[WATERMARK] Failed to update watermarks after force-refresh: {e}", exc_info=True)
+
+        if any_table_failed:
+            logger.error(
+                "[LOADER] Execution completed but at least one output table's own run() "
+                "recorded a non-success terminal status - returning exit code 1 so callers "
+                "(e.g. Phase 1 failsafe retry) don't treat this as recovered."
+            )
+            return 1
 
         logger.info("[LOADER] Execution completed successfully")
         return 0
