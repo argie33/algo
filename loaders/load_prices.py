@@ -2536,6 +2536,26 @@ class PriceLoader(OptimalLoader):
                 # EOD MUST fetch today. Morning can tolerate yesterday if needed.
                 stale_threshold = 1 if self._is_eod_pipeline else 2
 
+                # FIX 2026-08-10: watermark_age_days == 0 means the watermark is already at
+                # today's date - price_fetcher.py's own watermark check (start >= end) short-
+                # circuits BEFORE calling yfinance and returns empty for every symbol in the
+                # batch (see loaders/price_fetcher.py "No new rows to fetch for batch"). That's
+                # correct, expected behavior, not a fetch gap. But this used to fall through
+                # into the BATCH_NAN_RECOVERY block below, which was built for a genuinely
+                # different scenario (1-3 day watermark lag on a thin-volume symbol dropped
+                # mid-batch). The "single-symbol re-fetch" there calls the exact same
+                # watermark-gated fetch path, so it is *guaranteed* to also return empty - it
+                # can never actually recover anything at 0 days stale. Live-reproduced: all 5
+                # ETFs (SPY/QQQ/IWM/GLD/TLT) with fully current watermarks were marked
+                # symbols_failed=5/5 (100%) on every run after the first one each day, purely
+                # because their data was already loaded - a permanent false "Too many failures"
+                # alarm on every afternoon/preclose/evening pass. Treat this as the legitimate
+                # no-op it is.
+                if current_watermark and watermark_age_days == 0:
+                    self._stats["symbols_skipped_by_watermark"] += 1
+                    self._stats["symbols_processed"] += 1
+                    continue
+
                 if current_watermark and watermark_age_days >= stale_threshold:
                     # CRITICAL: Watermark is stale but we got 0 rows - this is an error
                     # Don't skip, mark as failed and force retry next run - UNLESS a wider

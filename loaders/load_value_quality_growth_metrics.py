@@ -2112,22 +2112,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             ):
                 metrics["quarterly_growth_momentum_unavailable_reason"] = "insufficient_quarterly_data"
 
-            # Analyst metrics - not yet implemented. Same already-set guard: _compute_quarterly_metrics()
-            # sets "insufficient_quarterly_history" here when last_eps itself was unavailable
-            # (a different cause than no_analyst_estimates), which this must not clobber.
+            # Analyst metrics - not yet implemented. Guard all fields to avoid clobbering prior reasons.
+            # _compute_quarterly_metrics() sets "insufficient_quarterly_history" for quarterly fields;
+            # we must not override with "no_analyst_estimates" if that was already set.
             if metrics.get("earnings_surprise_avg") is None and not metrics.get("earnings_surprise_avg_unavailable_reason"):
                 metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
             if metrics.get("earnings_beat_rate") is None and not metrics.get("earnings_beat_rate_unavailable_reason"):
                 metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("estimate_revision_direction") is None:
+            if metrics.get("estimate_revision_direction") is None and not metrics.get("estimate_revision_direction_unavailable_reason"):
                 metrics["estimate_revision_direction_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("revision_activity_30d") is None:
+            if metrics.get("revision_activity_30d") is None and not metrics.get("revision_activity_30d_unavailable_reason"):
                 metrics["revision_activity_30d_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("estimate_momentum_60d") is None:
+            if metrics.get("estimate_momentum_60d") is None and not metrics.get("estimate_momentum_60d_unavailable_reason"):
                 metrics["estimate_momentum_60d_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("estimate_momentum_90d") is None:
+            if metrics.get("estimate_momentum_90d") is None and not metrics.get("estimate_momentum_90d_unavailable_reason"):
                 metrics["estimate_momentum_90d_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("revision_trend_score") is None:
+            if metrics.get("revision_trend_score") is None and not metrics.get("revision_trend_score_unavailable_reason"):
                 metrics["revision_trend_score_unavailable_reason"] = "no_analyst_estimates"
 
             metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed

@@ -153,6 +153,40 @@ class TestBatchNanRecovery:
         inserted_rows = loader._bulk_insert_mgr.bulk_insert.call_args[0][0]
         assert {r["symbol"] for r in inserted_rows} == {"AAPL"}
 
+    def test_symbol_with_fully_current_watermark_is_skipped_not_failed(self):
+        """FIX 2026-08-10: watermark_age_days == 0 (today's data already loaded) is not a
+        BATCH_NAN_RECOVERY scenario - price_fetcher.py's own watermark check short-circuits
+        before calling yfinance at all, so a "single-symbol re-fetch" here is guaranteed to
+        also return empty and can never recover anything. Live-reproduced: all 5 core ETFs
+        (SPY/QQQ/IWM/GLD/TLT) with fully current watermarks were marked symbols_failed=5/5
+        on every run after the first each day, purely because there was nothing new to
+        fetch - a permanent false "Too many failures" alarm."""
+        loader = _make_loader()
+        loader._is_eod_pipeline = True
+        today = datetime.now(EASTERN_TZ).date()
+        loader._watermark.get_watermarks_bulk.return_value = {
+            "SPY": today,
+            "QQQ": today,
+        }
+
+        def fake_fetch(symbols, since):
+            # Mirrors price_fetcher.py's own watermark short-circuit: current-watermark
+            # batches never reach yfinance, always returning empty for every symbol.
+            return {s: [] for s in symbols}
+
+        loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)
+
+        with _patch_watermarks_in_sync({"SPY": today, "QQQ": today}):
+            loader._load_batch(["SPY", "QQQ"])
+
+        assert loader._stats["symbols_failed"] == 0
+        assert loader._stats["symbols_skipped_by_watermark"] == 2
+        assert loader._stats["symbols_processed"] == 2
+
+        # Only the initial batch fetch happens - no pointless individual re-fetch is
+        # attempted per-symbol for a watermark that's already current.
+        loader.fetch_batch_incremental.assert_called_once_with(["SPY", "QQQ"], today)
+
     def test_singleton_batch_does_not_retry_itself(self):
         """When _load_batch is already called with a single symbol (e.g. the
         SYMBOL_FALLBACK per-symbol retry path), an empty result must not trigger a

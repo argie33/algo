@@ -189,9 +189,28 @@ class SecEdgarStatementLoader(SecLoaderBase):
         derives its incremental cutoff as since.year. Marker-only batches (fiscal_year
         0) map to Dec 31 2000 - identical to the no-watermark default (since_year
         2000), so unavailable symbols keep refetching their full window.
+
+        FIXED 2026-08-10: a real fiscal_year row that transform() marked
+        data_unavailable=True (e.g. 'incomplete_sec_filing_income' for a recent
+        spinoff still mid-filing) was still advancing the watermark to that year,
+        because this function only ever looked at fiscal_year, never at
+        data_unavailable. fetch_incremental's `fiscal_year > since_year` filter
+        (below) then permanently excluded that year from every future incremental
+        fetch - even after the company finished filing and SEC EDGAR had real
+        revenue/net_income for it - since only strictly-newer fiscal years would
+        ever be re-requested. Live-confirmed on HONA: the exact spinoff this
+        marker logic was built for (see class docstring) later filed real
+        FY2026 financials (revenue=$8.87B, net_income=$880M), but the stale
+        watermark meant fetch_incremental never asked SEC EDGAR for FY2026 again,
+        so the DB row stayed marked unavailable indefinitely. 112 rows (101
+        income, 11 cashflow) found stuck this way system-wide and corrected by a
+        one-time backfill; excluding unavailable rows from the watermark
+        calculation stops the backlog from re-accumulating.
         """
         max_year = 0
         for r in rows:
+            if r.get("data_unavailable"):
+                continue
             fiscal_year = r.get("fiscal_year")
             if isinstance(fiscal_year, int) and fiscal_year > max_year:
                 max_year = fiscal_year
