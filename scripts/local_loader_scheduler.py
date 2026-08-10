@@ -180,6 +180,24 @@ def run_pipeline(pipeline_name: str) -> int:
                 # load_all_statements(). Must invoke the module directly instead.
                 env["LOADER_STATEMENT_TYPE"] = "all"
                 cmd = [sys.executable, f"loaders/{loader_filename}"]
+            elif loader == "buy_sell":
+                # BUG FOUND 2026-08-10: load_buy_sell_daily.py's own main() (the real
+                # production entrypoint - terraform/modules/loaders/main.tf runs
+                # `loaders/load_buy_sell_daily.py` directly) contains custom completion
+                # logic (effective_universe bounded by the stock_scores/price-filtered
+                # symbol count, a threshold of 90-95% instead of the generic 98% default,
+                # proper mark_completed() min_completion_pct). scripts/run_loader.py never
+                # calls that main() - it imports the loader CLASS and calls the generic
+                # OptimalLoader.run()/_update_final_status() path instead, which knows
+                # nothing about buy_sell_daily's legitimate ~94% cap (stock_scores only
+                # covers ~4885 of the full active-symbol universe by design). Confirmed
+                # live: routing through run_loader.py left buy_sell_daily stuck FAILED at
+                # 94.25% completion in data_loader_status for days, even on a run whose own
+                # loader.run() summary showed only 1/4885 real per-symbol failures - a false
+                # signal that only exists in local dev because it never exercises the same
+                # code path as production. Invoke the module directly so local runs
+                # validate the same logic that actually gates production.
+                cmd = [sys.executable, f"loaders/{loader_filename}"]
             else:
                 cmd = [sys.executable, "scripts/run_loader.py", loader_filename]
             result = subprocess.run(

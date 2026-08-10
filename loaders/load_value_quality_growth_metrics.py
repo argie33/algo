@@ -1715,12 +1715,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     pass
 
             # Margin Trends (current - prior year) - only compute when actual prior data available
+            #
+            # CRITICAL FIX 2026-08-10: the trend-level MAX_TREND_PERCENTAGE_POINTS check below
+            # only bounds the DELTA, not the two margins that produce it - a near-zero-revenue
+            # year (the same root cause already bounded for the base gross_margin/operating_margin/
+            # net_margin fields above at |ratio| > 1000) can put curr_gm or prior_gm individually
+            # in the tens of thousands of percent while their difference still lands under the
+            # 100,000 trend threshold, so it was never caught. Live-confirmed: quality_metrics/
+            # growth_metrics operating_margin_trend up to 96,215pp / 191,646pp in the DB. Apply the
+            # same |ratio| <= 1000 bound used for the base margin fields to each side of the
+            # subtraction first - a trend computed from two implausible margins is itself
+            # meaningless, not just its difference.
+            MAX_MARGIN_ABS_PCT = 1000.0
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
                 # Gross Margin Trend - now can compute with prior-year cost_of_revenue
                 if cost_of_revenue is not None and prior_year_cost_of_revenue is not None:
                     curr_gm = ((revenue - cost_of_revenue) / revenue) * 100 if revenue > 0 else None
                     prior_gm = ((prior_year_revenue - prior_year_cost_of_revenue) / prior_year_revenue) * 100 if prior_year_revenue > 0 else None
-                    if curr_gm is not None and prior_gm is not None:
+                    if (
+                        curr_gm is not None
+                        and prior_gm is not None
+                        and abs(curr_gm) <= MAX_MARGIN_ABS_PCT
+                        and abs(prior_gm) <= MAX_MARGIN_ABS_PCT
+                    ):
                         try:
                             gm_trend = round(curr_gm - prior_gm, 2)
                             if abs(gm_trend) < MAX_TREND_PERCENTAGE_POINTS:
@@ -1732,23 +1749,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if operating_income is not None and prior_year_operating_income is not None and prior_year_revenue > 0:
                     curr_om = (operating_income / revenue) * 100
                     prior_om = (prior_year_operating_income / prior_year_revenue) * 100
-                    try:
-                        om_trend = round(curr_om - prior_om, 2)
-                        if abs(om_trend) < MAX_TREND_PERCENTAGE_POINTS:
-                            metrics["operating_margin_trend"] = float(om_trend)
-                    except (ValueError, TypeError, ZeroDivisionError):
-                        pass
+                    if abs(curr_om) <= MAX_MARGIN_ABS_PCT and abs(prior_om) <= MAX_MARGIN_ABS_PCT:
+                        try:
+                            om_trend = round(curr_om - prior_om, 2)
+                            if abs(om_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                                metrics["operating_margin_trend"] = float(om_trend)
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
 
                 # Net Margin Trend - only if actual prior net income available
                 if net_income is not None and prior_year_net_income is not None and prior_year_revenue > 0:
                     curr_nm = (net_income / revenue) * 100
                     prior_nm = (prior_year_net_income / prior_year_revenue) * 100
-                    try:
-                        nm_trend = round(curr_nm - prior_nm, 2)
-                        if abs(nm_trend) < MAX_TREND_PERCENTAGE_POINTS:
-                            metrics["net_margin_trend"] = float(nm_trend)
-                    except (ValueError, TypeError, ZeroDivisionError):
-                        pass
+                    if abs(curr_nm) <= MAX_MARGIN_ABS_PCT and abs(prior_nm) <= MAX_MARGIN_ABS_PCT:
+                        try:
+                            nm_trend = round(curr_nm - prior_nm, 2)
+                            if abs(nm_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                                metrics["net_margin_trend"] = float(nm_trend)
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
 
             # Sustainable Growth Rate = ROE * Retention Ratio - only with real data
             # FIXED 2026-08-04: dividends_paid is None (not 0) for genuine non-dividend-payers,
@@ -1796,16 +1815,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 sgr_reason = "missing_sec_data"
 
             # ROE Trend = Current ROE - Prior ROE (now can compute with prior-year equity)
+            # Same per-side MAX_MARGIN_ABS_PCT bound as the margin trends above - a near-zero
+            # prior-year equity base (the ORKA 8.3M% case this function's docstring already
+            # describes) must be caught before the subtraction, not just via the looser
+            # trend-level MAX_TREND_PERCENTAGE_POINTS check on the delta.
             if (stockholders_equity is not None and net_income is not None and stockholders_equity > 0 and
                 prior_year_stockholders_equity is not None and prior_year_net_income is not None and prior_year_stockholders_equity > 0):
                 curr_roe = (net_income / stockholders_equity) * 100
                 prior_roe = (prior_year_net_income / prior_year_stockholders_equity) * 100
-                try:
-                    roe_trend = round(curr_roe - prior_roe, 2)
-                    if abs(roe_trend) < MAX_TREND_PERCENTAGE_POINTS:
-                        metrics["roe_trend"] = float(roe_trend)
-                except (ValueError, TypeError, ZeroDivisionError):
-                    pass
+                if abs(curr_roe) <= MAX_MARGIN_ABS_PCT and abs(prior_roe) <= MAX_MARGIN_ABS_PCT:
+                    try:
+                        roe_trend = round(curr_roe - prior_roe, 2)
+                        if abs(roe_trend) < MAX_TREND_PERCENTAGE_POINTS:
+                            metrics["roe_trend"] = float(roe_trend)
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
 
             # FCF Growth YoY - only if actual prior FCF available
             # Same MAX_TREND_PERCENTAGE_POINTS overflow guard as net_income_growth_yoy above -

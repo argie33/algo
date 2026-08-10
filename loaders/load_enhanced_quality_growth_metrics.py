@@ -33,6 +33,7 @@ by adding these new columns as UPDATE operations.
 
 import logging
 import sys
+import time
 from datetime import date
 from typing import Any, Iterable
 
@@ -403,6 +404,19 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             if computed_surprise:
                 logger.info(f"[ENHANCED_METRICS] {symbol}: Computed surprise metrics: {computed_surprise}")
 
+            # PACING FIX 2026-08-10: estimate_revision_direction/revision_activity_30d/
+            # estimate_momentum_60d/90d/revision_trend_score were only ~8-9% populated
+            # (498-551/5701 in quality_metrics) vs. earnings_surprise_avg/earnings_beat_rate
+            # computed by this SAME loader run at ~59-60% - despite live spot-checks showing
+            # real yfinance eps_trend/eps_revisions data available for the large majority of
+            # sampled symbols. A full-universe run makes 3 yfinance calls/symbol back-to-back
+            # for ~25 minutes with zero pacing; this small delay spreads the request rate out,
+            # same trade-off (slower, more complete) already applied to stock_prices_daily/
+            # positioning_metrics/value_metrics for the identical yfinance-throttling failure
+            # mode (see utils/loaders/config.py LOADER_CONSTRAINTS comments). Needs a fresh
+            # full run to confirm coverage actually improves.
+            time.sleep(0.3)
+
             # Compute estimate revision trend metrics from yfinance eps_trend/eps_revisions
             self._compute_estimate_revision_metrics(symbol, metrics)
 
@@ -507,11 +521,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             from utils.loaders.retry_helper import retry_with_backoff
             ticker = yf.Ticker(symbol)
 
+            # PACING FIX 2026-08-10: bumped from max_retries=2/backoff=1.0s (~3s total wait) to
+            # max_retries=4/backoff=3.0s (~45s total wait, capped by RetryHelper's 32s/attempt
+            # ceiling) - the shorter window wasn't enough to survive sustained per-IP throttling
+            # over this loader's ~25min full-universe run (measured coverage stayed ~8-9% even
+            # after the original retry fix landed and ran live - see this method's docstring).
             eps_trend = retry_with_backoff(
-                lambda: ticker.eps_trend, context=f"{symbol} eps_trend", max_retries=2, backoff_seconds=1.0
+                lambda: ticker.eps_trend, context=f"{symbol} eps_trend", max_retries=4, backoff_seconds=3.0
             )
             eps_revisions = retry_with_backoff(
-                lambda: ticker.eps_revisions, context=f"{symbol} eps_revisions", max_retries=2, backoff_seconds=1.0
+                lambda: ticker.eps_revisions, context=f"{symbol} eps_revisions", max_retries=4, backoff_seconds=3.0
             )
 
             if eps_trend is not None and not eps_trend.empty and "0q" in eps_trend.index:
