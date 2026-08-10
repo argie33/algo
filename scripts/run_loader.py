@@ -103,8 +103,8 @@ def get_loader_class_for_file(loader_filename: str):
         return None
 
 
-def update_watermarks_to_today(loader_filename: str, table_names: list[str]) -> None:
-    """Update loader_watermarks for all active symbols to today's date.
+def update_watermarks_to_today(loader_filename: str, table_names: list[str], symbols: list[str] | None = None) -> None:
+    """Update loader_watermarks for the processed symbols to today's date.
 
     CRITICAL FIX for LOCAL_MODE data freshness (Session 211):
     When --force-refresh completes, update watermarks so next run doesn't skip data.
@@ -113,41 +113,51 @@ def update_watermarks_to_today(loader_filename: str, table_names: list[str]) -> 
     CONSOLIDATED (Session 48): Use loader_filename to look up canonical loader name,
     eliminating the hardcoded table_to_loader dict that kept diverging from registry.
 
+    BUG FIX 2026-08-10: this used to (a) always blast ALL active symbols regardless of
+    whether --symbols/--limit restricted the actual run to a subset, and (b) re-derive the
+    loader identity per table via a table->loader dict rebuilt from the FULL LOADER_TABLES
+    registry - which silently resolves to the WRONG loader whenever two loaders share an
+    output table (e.g. quality_metrics/growth_metrics are written by both
+    load_value_quality_growth_metrics.py and load_enhanced_quality_growth_metrics.py; the
+    dict-overwrite always picked whichever loader appears later in LOADER_TABLES, not the
+    one actually invoked). Live-confirmed: `run_loader.py load_value_quality_growth_metrics.py
+    --symbols AAT --force-refresh` (a single-symbol test) blasted the ENTIRE ~4917-symbol
+    universe's watermark to "today" under the load_enhanced_quality_growth_metrics identity -
+    falsely marking 4916 symbols that were never touched as already fresh, which would make
+    every subsequent incremental (non-force) run of that loader silently skip them. Fixed by
+    (a) using the loader_filename argument directly - the caller already knows definitively
+    which loader this is, no re-derivation needed - and (b) only touching the caller-supplied
+    `symbols` list when one was given, instead of always pulling the full active universe.
+
     Args:
-        loader_filename: Loader file (e.g., 'load_prices.py')
-        table_names: Output table names
+        loader_filename: Loader file (e.g., 'load_prices.py') - the loader actually invoked.
+        table_names: Output table names.
+        symbols: Symbols actually processed this run. None means a genuine full-universe run
+            (no --symbols/--limit restriction), so all active symbols are updated.
     """
     import psycopg2
     today_str = date.today().isoformat()
+    map_loader_name = loader_filename.replace(".py", "")
 
     try:
-        # Build table → loader filename mapping dynamically from LOADER_TABLES
-        table_to_loader = {}
-        for fname, tables in LOADER_TABLES.items():
-            loader_name = fname.replace(".py", "")
-            for table in tables:
-                table_to_loader[table] = loader_name
-
-        # Get all active symbols from stock_symbols table
-        symbols = get_active_symbols(timeout_secs=60)
+        if symbols is None:
+            symbols = get_active_symbols(timeout_secs=60)
 
         if not symbols:
-            logger.warning("[WATERMARK] No active symbols found - skipping watermark update")
+            logger.warning("[WATERMARK] No symbols to update - skipping watermark update")
             return
 
-        logger.info(f"[WATERMARK] Updating watermarks for {len(symbols)} symbols to {today_str}")
+        logger.info(f"[WATERMARK] Updating {map_loader_name} watermarks for {len(symbols)} symbols to {today_str}")
 
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
 
-        # Update watermarks for each table's loader
+        # Update watermarks for each of this loader's own output tables
         for table_name in table_names:
-            map_loader_name = table_to_loader.get(table_name)
-            if not map_loader_name:
-                logger.warning(f"[WATERMARK] Unknown table {table_name}, skipping watermark update")
+            if table_name not in LOADER_TABLES.get(loader_filename, []):
+                logger.warning(f"[WATERMARK] {table_name} not owned by {loader_filename}, skipping")
                 continue
 
-            # Update all symbols' watermarks to today (use upsert pattern)
             for symbol in symbols:
                 cursor.execute(
                     """
@@ -165,7 +175,7 @@ def update_watermarks_to_today(loader_filename: str, table_names: list[str]) -> 
                 )
 
             conn.commit()
-            logger.info(f"[WATERMARK] ✓ Updated {map_loader_name} watermarks ({len(symbols)} symbols)")
+            logger.info(f"[WATERMARK] ✓ Updated {map_loader_name} watermarks ({len(symbols)} symbols) for {table_name}")
 
         cursor.close()
         conn.close()
@@ -458,10 +468,24 @@ def main():
 
             # CRITICAL FIX (Session 211): Update watermarks after --force-refresh
             # Ensures next orchestrator run sees fresh data (prevents 1-2 day staleness in LOCAL_MODE)
-            try:
-                update_watermarks_to_today(loader_filename, table_names)
-            except Exception as e:
-                logger.error(f"[WATERMARK] Failed to update watermarks after force-refresh: {e}", exc_info=True)
+            #
+            # BUG FIX 2026-08-10: only pass an explicit `symbols` list (from --symbols) through -
+            # previously this always updated the FULL active universe regardless of --symbols/
+            # --limit, falsely marking untouched symbols as fresh (see
+            # update_watermarks_to_today's docstring). A --limit-restricted run's actual symbol
+            # subset isn't surfaced back to this scope, so skip the watermark update entirely
+            # rather than guess/blast the whole universe.
+            if args.limit and not symbols:
+                logger.warning(
+                    f"[WATERMARK] Skipping watermark update: --force-refresh --limit {args.limit} "
+                    f"only processed a subset of symbols not known at this scope - blasting the "
+                    f"full active universe would falsely mark unprocessed symbols as fresh."
+                )
+            else:
+                try:
+                    update_watermarks_to_today(loader_filename, table_names, symbols=symbols)
+                except Exception as e:
+                    logger.error(f"[WATERMARK] Failed to update watermarks after force-refresh: {e}", exc_info=True)
 
         if any_table_failed:
             logger.error(

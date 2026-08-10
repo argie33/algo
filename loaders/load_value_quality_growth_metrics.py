@@ -664,7 +664,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         )
                         yf_div_row = cur.fetchone()
                         if yf_div_row:
-                            dividend_yield = yf_div_row[0]
+                            # yfinance_snapshot.dividend_yield is stored in percent scale
+                            # (e.g. 1.23 for 1.23%), same as dividend_data.dividend_yield_pct
+                            # above - must convert to decimal fraction to match the SEC-tier
+                            # convention this field uses everywhere else (downstream *100 for
+                            # display). Without this, a real 1.23% yield rendered as 123.00%.
+                            dividend_yield = yf_div_row[0] / 100.0
                             data_source_dividend = "yfinance"
                 except Exception as e:
                     logger.debug(f"[VALUE_METRICS] {symbol}: yfinance dividend fallback failed: {e}")
@@ -1860,6 +1865,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
 
+            # FIX 2026-08-10: the 9 trend/growth fields just above (net_income_growth_yoy,
+            # operating_income_growth_yoy, gross_margin_trend, operating_margin_trend,
+            # net_margin_trend, roe_trend, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy) had
+            # no "else" branch recording WHY the value stayed None - every genuine per-stock gap
+            # (missing prior-year fiscal data, zero denominator, MAX_TREND_PERCENTAGE_POINTS
+            # bound rejecting an implausible ratio) showed up as an unexplained NULL with no
+            # _unavailable_reason, unlike sustainable_growth_rate/quarterly_growth_momentum below
+            # which already do this. Live-confirmed: growth_metrics.operating_margin_trend alone
+            # had 324 NULL rows with no reason set (of 2395 total NULLs). These reasons also
+            # mirror into growth_metrics via the _SHARED_TREND_FIELDS copy below. Uses the same
+            # "insufficient_prior_year_data" reason already wired into the frontend's
+            # reasonMap/tooltips for exactly this situation.
+            for _trend_field in (
+                "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
+                "operating_margin_trend", "net_margin_trend", "roe_trend",
+                "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+            ):
+                if metrics.get(_trend_field) is None:
+                    metrics[f"{_trend_field}_unavailable_reason"] = "insufficient_prior_year_data"
+
             # Quarterly Metrics (Session 74+)
             quarterly_metrics = self._compute_quarterly_metrics(symbol)
             metrics.update(quarterly_metrics)
@@ -2330,8 +2355,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              revenue_growth_yoy_unavailable_reason, net_income_growth_yoy_unavailable_reason, operating_income_growth_yoy_unavailable_reason,
              gross_margin_trend_unavailable_reason, operating_margin_trend_unavailable_reason, net_margin_trend_unavailable_reason,
              roe_trend_unavailable_reason, sustainable_growth_rate_unavailable_reason, quarterly_growth_momentum_unavailable_reason,
-             fcf_growth_yoy_unavailable_reason, ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             fcf_growth_yoy_unavailable_reason, ocf_growth_yoy_unavailable_reason, asset_growth_yoy_unavailable_reason,
+             estimate_revision_direction_unavailable_reason, revision_activity_30d_unavailable_reason,
+             estimate_momentum_60d_unavailable_reason, estimate_momentum_90d_unavailable_reason,
+             revision_trend_score_unavailable_reason, earnings_growth_4q_avg_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -2413,6 +2441,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fcf_growth_yoy_unavailable_reason = EXCLUDED.fcf_growth_yoy_unavailable_reason,
                 ocf_growth_yoy_unavailable_reason = EXCLUDED.ocf_growth_yoy_unavailable_reason,
                 asset_growth_yoy_unavailable_reason = EXCLUDED.asset_growth_yoy_unavailable_reason,
+                estimate_revision_direction_unavailable_reason = EXCLUDED.estimate_revision_direction_unavailable_reason,
+                revision_activity_30d_unavailable_reason = EXCLUDED.revision_activity_30d_unavailable_reason,
+                estimate_momentum_60d_unavailable_reason = EXCLUDED.estimate_momentum_60d_unavailable_reason,
+                estimate_momentum_90d_unavailable_reason = EXCLUDED.estimate_momentum_90d_unavailable_reason,
+                revision_trend_score_unavailable_reason = EXCLUDED.revision_trend_score_unavailable_reason,
+                earnings_growth_4q_avg_unavailable_reason = EXCLUDED.earnings_growth_4q_avg_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -2504,6 +2538,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("fcf_growth_yoy_unavailable_reason"),
                 row.get("ocf_growth_yoy_unavailable_reason"),
                 row.get("asset_growth_yoy_unavailable_reason"),
+                row.get("estimate_revision_direction_unavailable_reason"),
+                row.get("revision_activity_30d_unavailable_reason"),
+                row.get("estimate_momentum_60d_unavailable_reason"),
+                row.get("estimate_momentum_90d_unavailable_reason"),
+                row.get("revision_trend_score_unavailable_reason"),
+                row.get("earnings_growth_4q_avg_unavailable_reason"),
             ),
         )
 

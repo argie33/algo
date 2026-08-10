@@ -19,6 +19,7 @@ from routes.utils import (
     list_response,
     safe_json_serialize,
     safe_limit,
+    success_response,
 )
 
 from shared_contracts.response_validator import ResponseValidator
@@ -109,6 +110,39 @@ def handle(  # noqa: C901
                         500, "response_validation_error", "Key metrics validation failed (internal error: no message)"
                     )
             return result
+
+        if endpoint == "ownership":
+            # BUG FOUND 2026-08-10 (frontend/dashboard audit pass): StockDetail.jsx's
+            # StatsTab has called this exact path since it was written, but this handler
+            # never existed - every stock detail page load 404'd on it, permanently leaving
+            # Insider Ownership/Insiders/Recent Buys/Segment Count/Concentration HHI/
+            # Diversified blank ("--") site-wide, even though both source tables
+            # (insider_holdings_sec, sec_segment_metrics) are populated and fresh.
+            rows = execute_with_timeout(
+                cur,
+                """
+                SELECT
+                    ih.insider_ownership_pct,
+                    ih.number_of_insiders,
+                    ih.recent_buys,
+                    ih.recent_sells,
+                    ih.net_insider_transactions,
+                    ih.latest_insider_filing_date,
+                    sm.segment_count,
+                    sm.largest_segment_revenue_pct,
+                    sm.revenue_concentration_hhi,
+                    sm.is_diversified
+                FROM (SELECT %s::text AS symbol) req
+                LEFT JOIN insider_holdings_sec ih ON ih.symbol = req.symbol AND ih.data_unavailable = false
+                LEFT JOIN sec_segment_metrics sm ON sm.symbol = req.symbol AND sm.data_unavailable = false
+                """,
+                params=(sym,),
+                timeout_sec=5,
+            )
+            # The constant-subquery LEFT JOIN always returns exactly 1 row (all-NULL fields
+            # if neither source table has this symbol) - the frontend already renders "--"
+            # for each null field individually, so there is no "no data" error case here.
+            return success_response(safe_json_serialize(dict(rows[0])))
 
         if endpoint == "income-statement":
             if period == "quarterly":

@@ -542,11 +542,14 @@ const QUALITY_SCHEMA = [
   { key: 'eps_growth_stability',           label: 'EPS Growth Stability',     fmt: v => num(v, 2) },
   { key: 'earnings_beat_rate',             label: 'Earnings Beat Rate',       fmt: v => pct(v, 1) },
   { key: 'consecutive_positive_quarters',  label: 'Consecutive +Q',           fmt: v => num(v, 0) },
-  { key: 'estimate_revision_direction',    label: 'Revision Direction',       fmt: v => num(v, 1) },
-  { key: 'revision_activity_30d',          label: 'Revision Activity 30d',    fmt: v => num(v, 1) },
-  { key: 'estimate_momentum_60d',          label: 'Estimate Momentum 60d',    fmt: v => pct(v, 2) },
-  { key: 'estimate_momentum_90d',          label: 'Estimate Momentum 90d',    fmt: v => pct(v, 2) },
-  { key: 'revision_trend_score',           label: 'Revision Trend',           fmt: v => num(v, 1) },
+  // collected:false 2026-08-10: live-DB audit found only 3/5701 rows populated system-wide
+  // (estimate_revision_direction/revision_activity_30d/estimate_momentum_60d/revision_trend_score:
+  // 3, estimate_momentum_90d: 3) - genuinely unbuilt analyst-estimates pipeline, not a per-stock gap.
+  { key: 'estimate_revision_direction',    label: 'Revision Direction',       fmt: v => num(v, 1), collected: false },
+  { key: 'revision_activity_30d',          label: 'Revision Activity 30d',    fmt: v => num(v, 1), collected: false },
+  { key: 'estimate_momentum_60d',          label: 'Estimate Momentum 60d',    fmt: v => pct(v, 2), collected: false },
+  { key: 'estimate_momentum_90d',          label: 'Estimate Momentum 90d',    fmt: v => pct(v, 2), collected: false },
+  { key: 'revision_trend_score',           label: 'Revision Trend',           fmt: v => num(v, 1), collected: false },
   { key: 'payout_ratio',                   label: 'Payout Ratio',             fmt: v => pct(v, 1) },
   { key: 'free_cashflow',                  label: 'Free Cash Flow',           fmt: money },
   { key: 'operating_cashflow',             label: 'Operating Cash Flow',      fmt: money },
