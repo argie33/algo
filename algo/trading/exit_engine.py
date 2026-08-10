@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 import uuid
 from datetime import date as _date
@@ -1934,6 +1935,17 @@ class ExitEngine:
             if len(rows) < 21:
                 raise ValueError(f"Insufficient price data for {symbol} to calculate 21-EMA stop")
 
+            # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): a NaN close price
+            # from price_daily silently propagates through Decimal EMA arithmetic (Decimal
+            # NaN doesn't raise on arithmetic or quantize()) to produce stop_price=nan with
+            # zero exception raised anywhere in this path - the same bug class already found
+            # and fixed this session in position_sizer.py, utils/validation/financial.py, and
+            # phase8_entry_execution.py's _calculate_dynamic_stop_loss. This is a trailing
+            # STOP price for a real open position - a silent NaN here is worse than a crash.
+            for r in rows:
+                if r[0] is None or math.isnan(float(r[0])) or math.isinf(float(r[0])):
+                    raise ValueError(f"Invalid close price {r[0]!r} in price_daily for {symbol} - cannot calculate 21-EMA stop")
+
             closes = [Decimal(str(r[0])) for r in rows]
 
             k = Decimal(2) / Decimal(22)
@@ -1985,6 +1997,14 @@ class ExitEngine:
             hh = float(row[0])
 
             atr = float(row[1])
+
+            # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): same as the 21-EMA
+            # branch above - a NaN highest-high or ATR silently propagates through Decimal
+            # arithmetic to produce stop_value=nan with zero exception raised.
+            if math.isnan(hh) or math.isinf(hh):
+                raise ValueError(f"Invalid highest-high {hh!r} for {symbol} - cannot calculate chandelier stop")
+            if math.isnan(atr) or math.isinf(atr):
+                raise ValueError(f"Invalid ATR {atr!r} for {symbol} - cannot calculate chandelier stop")
 
             mult_val = self.config.get("chandelier_atr_mult")
 
