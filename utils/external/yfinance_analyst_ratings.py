@@ -305,13 +305,32 @@ def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict
     if df is None or df.empty:
         return None
 
-    def _num(row: Any, col: str) -> float | None:
+    # BUG FOUND 2026-08-10 (live-reproduced): yfinance returned an "EPS Estimate" of
+    # 2,180,000,000,000.0 ($2.18 trillion/share) for symbol ASTI - clearly corrupt source
+    # data (no real per-share EPS figure is anywhere near this), but with no magnitude
+    # bound this sailed straight into the DB write, exceeding earnings_calendar.eps_estimate's
+    # numeric(12,4) column precision (~$99.9M max) and raising a raw Postgres "numeric field
+    # overflow" that failed that symbol's entire COPY batch instead of being caught and
+    # marked data_unavailable like every other real-fetch-failure path in this loader.
+    # $1M/share is still absurdly generous - no real company's EPS estimate is within many
+    # orders of magnitude of this - while staying safely under the DB's own overflow ceiling.
+    MAX_ABS_EPS_VALUE = 1_000_000.0
+
+    def _num(row: Any, col: str, max_abs: float | None = None) -> float | None:
         val = row.get(col)
         try:
             val = float(val)
         except (TypeError, ValueError):
             return None
-        return None if val != val else val  # NaN check
+        if val != val:  # NaN check
+            return None
+        if max_abs is not None and abs(val) > max_abs:
+            logger.warning(
+                f"[EARNINGS_CALENDAR] {col} magnitude {val} exceeds sane bound "
+                f"({max_abs}) for a per-share value - treating as corrupt/unavailable"
+            )
+            return None
+        return val
 
     # CRITICAL FIX (Session 45): Deduplicate earnings dates within a single symbol
     # yfinance may return the same earnings_date multiple times (index duplicates or
@@ -329,8 +348,8 @@ def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict
         data = {
             "symbol": symbol,
             "earnings_date": earnings_date,
-            "eps_estimate": _num(row, "EPS Estimate"),
-            "actual_eps": _num(row, "Reported EPS"),
+            "eps_estimate": _num(row, "EPS Estimate", max_abs=MAX_ABS_EPS_VALUE),
+            "actual_eps": _num(row, "Reported EPS", max_abs=MAX_ABS_EPS_VALUE),
             "surprise_pct": _num(row, "Surprise(%)"),
         }
 
