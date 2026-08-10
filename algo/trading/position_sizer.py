@@ -788,7 +788,13 @@ class PositionSizer:
             )
         except (DataUnavailableError, ConfigurationError, ValueError) as e:
             raise RuntimeError(f"Position sizing calculation failed: {type(e).__name__}: {e}") from e
-        except (ZeroDivisionError, TypeError) as e:
+        except (ZeroDivisionError, TypeError, InvalidOperation) as e:
+            # BUG FOUND 2026-08-10 (via fuzzing with pathological inputs): decimal.InvalidOperation
+            # (raised by e.g. a NaN Decimal used in an ordering comparison - `Decimal("nan") > 0`
+            # raises, unlike float NaN which just returns False) is an ArithmeticError, not a
+            # ValueError/ZeroDivisionError/TypeError - it fell through both except clauses above
+            # uncaught, breaking this function's own documented contract ("Raises RuntimeError/
+            # ValueError for all error conditions") for any NaN/Infinity-tainted price input.
             raise RuntimeError(f"Unexpected error in position sizing: {type(e).__name__}: {e}") from e
 
     def _calculate_with_external_cursor(

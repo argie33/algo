@@ -19,13 +19,14 @@ but actually disables the gate for live runs).
 """
 
 from datetime import date
-from unittest.mock import MagicMock, patch
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from algo.orchestrator.phase9_reconciliation import _compute_performance_metrics
 
-LOW_SHARPE_WARNING_REPORT = {
+LOW_SHARPE_WARNING_REPORT: dict[str, Any] = {
     "status": "warning",
     "rolling_sharpe_252d": 0.1,
     "win_rate_50t": 40.0,
@@ -34,10 +35,10 @@ LOW_SHARPE_WARNING_REPORT = {
 }
 
 
-def _run(config):
-    log_calls = []
+def _run(config: dict[str, Any]) -> list[Any]:
+    log_calls: list[Any] = []
 
-    def fake_log(*args, **kwargs):
+    def fake_log(*args: Any, **kwargs: Any) -> None:
         log_calls.append((args, kwargs))
 
     with patch("algo.reporting.LivePerformance") as mock_perf_cls:
@@ -47,7 +48,7 @@ def _run(config):
 
 
 class TestSharpeHaltRequiresExplicitPaperFlag:
-    def test_missing_alpaca_paper_trading_key_fails_fast_not_silently_skips_gate(self):
+    def test_missing_alpaca_paper_trading_key_fails_fast_not_silently_skips_gate(self) -> None:
         config = {
             "execution_mode": "auto",
             "min_live_sharpe_ratio": "1.0",
@@ -60,7 +61,7 @@ class TestSharpeHaltRequiresExplicitPaperFlag:
         with pytest.raises(RuntimeError, match="alpaca_paper_trading"):
             _run(config)
 
-    def test_explicit_live_mode_with_bad_sharpe_still_halts(self):
+    def test_explicit_live_mode_with_bad_sharpe_still_halts(self) -> None:
         """Existing behavior preserved: execution_mode=auto + alpaca_paper_trading=False +
         Sharpe below threshold must still raise the CRITICAL RuntimeError."""
         config = {
@@ -71,7 +72,7 @@ class TestSharpeHaltRequiresExplicitPaperFlag:
         with pytest.raises(RuntimeError, match="LIVE TRADING MODE"):
             _run(config)
 
-    def test_explicit_paper_mode_with_bad_sharpe_does_not_halt(self):
+    def test_explicit_paper_mode_with_bad_sharpe_does_not_halt(self) -> None:
         """Existing behavior preserved: paper mode never triggers the live-money halt,
         even with a bad Sharpe ratio."""
         config = {
