@@ -4,6 +4,13 @@
 Each factor is an independent strategy that computes one component of the
 overall market exposure score. Factors implement a common interface enabling
 composition and independent testing.
+
+DEAD CODE - CONFIRMED UNUSED (2026-08-10): this base class and every subclass under
+algo/risk/factors/ are never imported outside that package - see
+algo/risk/factors/__init__.py for the full explanation. Production market exposure
+scoring runs through algo/risk/market_factor_calculator.py's MarketFactorCalculator
+instead, a separate class with the same responsibilities that has drifted from this
+one. Do not assume fixing a bug here changes real trading behavior.
 """
 
 from abc import ABC, abstractmethod

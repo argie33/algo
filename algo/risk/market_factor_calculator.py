@@ -11,6 +11,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date as _date
 from typing import Any
 
@@ -49,6 +50,19 @@ class MarketFactorCalculator:
                 f"[MARKET_FACTOR] Invalid score for factor '{factor_name}': {score!r}. "
                 f"Cannot compute exposure with non-numeric factor scores."
             ) from e
+
+        # BUG CLASS FOUND 2026-08-10 (same as phase7/phase8/exit_engine/order_manager/
+        # position_sizer fixes this session): a NaN or Infinity score here would silently
+        # wash through the caller's max(0.0, min(100.0, score)) clamp into a confident but
+        # fabricated 0.0 or 100.0 - the single choke point every market exposure factor
+        # funnels through, so this one check protects all of them from a laundered score
+        # that already made it this far as a "valid" float.
+        if math.isnan(score) or math.isinf(score):
+            factor_name = factor["name"]
+            raise ValueError(
+                f"[MARKET_FACTOR] Non-finite score for factor '{factor_name}': {score!r}. "
+                f"Cannot compute exposure with NaN/Infinity factor scores."
+            )
 
         return score * weight / 100.0, weight
 
@@ -191,6 +205,11 @@ class MarketFactorCalculator:
             if row and row[0] is not None and row[1] is not None:
                 spy = float(row[0])
                 sma = float(row[1])
+                if math.isnan(spy) or math.isinf(spy) or math.isnan(sma) or math.isinf(sma):
+                    raise RuntimeError(
+                        f"[TREND CRITICAL] Non-finite SPY trend data: close={spy!r}, sma30={sma!r}. "
+                        f"Cannot compute trend score from NaN/Infinity prices."
+                    )
                 # Calculate price vs MA percentage for dashboard display
                 price_vs_ma_pct = ((spy - sma) / sma) * 100 if sma > 0 else 0
                 # Score: 100 if above MA (bullish), 0 if below (bearish)
@@ -239,6 +258,11 @@ class MarketFactorCalculator:
             if row and row[0] is not None and row[1] is not None:
                 current = float(row[0])
                 year_ago = float(row[1])
+                # NaN fails every ordinary comparison (including `<= 0` below), so a NaN
+                # year_ago would otherwise skip that guard entirely and silently launder
+                # through score = min(100, max(0, ret * 200)) into a fabricated value.
+                if math.isnan(current) or math.isinf(current) or math.isnan(year_ago) or math.isinf(year_ago):
+                    raise ValueError(f"Non-finite SPY momentum prices: current={current!r}, year_ago={year_ago!r}")
                 if year_ago <= 0:
                     raise ValueError(f"Year-ago price must be positive for momentum calculation: {year_ago}")
                 ret = (current - year_ago) / year_ago
@@ -381,6 +405,11 @@ class MarketFactorCalculator:
 
             # VIX level available: compute score
             vix = float(vix)
+            if math.isnan(vix) or math.isinf(vix):
+                raise RuntimeError(
+                    f"[VIX CRITICAL] Non-finite VIX level for {data_date}: {vix!r}. "
+                    f"Data quality issue in market_health_daily."
+                )
             score, detail = self._vix_score(vix, vix > 20)
             return {"value": round(vix, 1), "score": score, **detail}
 
@@ -545,6 +574,11 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             if row is not None and row[0] is not None:
                 oas = float(row[0])
+                if math.isnan(oas) or math.isinf(oas):
+                    raise RuntimeError(
+                        f"[CREDIT_SPREAD CRITICAL] Non-finite HY OAS value: {oas!r}. "
+                        f"Data quality issue in credit_spreads."
+                    )
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"value": round(oas, 0), "score": score}
             raise RuntimeError(
@@ -579,6 +613,11 @@ class MarketFactorCalculator:
             if row and row[0] is not None and row[1] is not None:
                 bull = float(row[0])
                 bear = float(row[1])
+                if math.isnan(bull) or math.isinf(bull) or math.isnan(bear) or math.isinf(bear):
+                    raise RuntimeError(
+                        f"[AAII CRITICAL] Non-finite AAII sentiment data: bullish={bull!r}, bearish={bear!r}. "
+                        f"Data quality issue in aaii_sentiment."
+                    )
                 spread = bull - bear
 
                 # Contrarian scoring: opposite of consensus
@@ -631,6 +670,11 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             if row is not None and row[0] is not None:
                 exp = float(row[0])
+                if math.isnan(exp) or math.isinf(exp):
+                    raise RuntimeError(
+                        f"[NAAIM CRITICAL] Non-finite NAAIM exposure value: {exp!r}. "
+                        f"Data quality issue in naaim table."
+                    )
                 score = min(100, max(0, 100 - exp / 2))
                 return {"value": round(exp, 1), "score": score}
             raise RuntimeError(

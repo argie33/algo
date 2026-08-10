@@ -510,6 +510,13 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0, run_date:
                 raise RuntimeError("Portfolio value unavailable - cannot calculate risk")
 
             portfolio_value = float(pf_row[0])
+            if math.isnan(total_risk_dollars) or math.isinf(total_risk_dollars):
+                raise RuntimeError(
+                    f"[RISK CHECK CRITICAL] total_risk_dollars is non-finite: {total_risk_dollars!r}. "
+                    f"Cannot calculate open risk - a NaN/Infinity value here would silently bypass "
+                    f"the out-of-range check below (NaN fails every comparison), letting a corrupted "
+                    f"risk figure reach real-money entry decisions unclamped and undetected."
+                )
             current_risk_pct = (total_risk_dollars / portfolio_value * 100.0) if portfolio_value > 0 else 0.0
             available_risk_pct = max_risk_limit_pct - current_risk_pct
 
