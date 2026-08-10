@@ -143,6 +143,42 @@ class SectorIndustryDailyLoader(OptimalLoader):
         row_counts = {"sector_performance": 0, "sector_ranking": 0, "industry_ranking": 0}
         try:
             target_date = date.today()
+            # BUG FOUND 2026-08-10 (live-reproduced, 11-day real gap): this loader is
+            # scheduled in the "morning" PIPELINES list (scripts/local_loader_scheduler.py) -
+            # i.e. it's meant to run BEFORE market close, same as trend_analysis/technical -
+            # but target_date=today() only has real EOD price_daily coverage AFTER today's
+            # close has loaded. Confirmed live: price_daily had exactly 1 row for today vs
+            # ~4900 for a normal trading day, so the sector_performance INNER JOIN below
+            # (pd_today.date = target_date) matched almost nothing - "Inserted 1 sector
+            # performance row" instead of ~11 (one per sector), with no exception (the
+            # Session 290/291 zero-rows fail-fast a few lines below only fires when ALL
+            # THREE tables are empty; sector_ranking/industry_ranking are computed from
+            # stock_scores, not today's price_daily, so they kept succeeding normally and
+            # masked this). sector_performance sat frozen at MAX(date)=2026-07-30 (11 real
+            # days stale) while sector_ranking correctly showed 2026-08-08. Falls back to the
+            # latest date price_daily actually has adequate coverage for, same behavior every
+            # other "morning" loader in this codebase already has (report on the last
+            # completed trading day, not literal today) - instead of silently computing a
+            # near-empty "success" for a date that hasn't closed yet.
+            MIN_EXPECTED_SYMBOLS = 500
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT COUNT(*) FROM price_daily WHERE date = %s", (target_date,))
+                today_count = (cur.fetchone() or [0])[0]
+            if today_count < MIN_EXPECTED_SYMBOLS:
+                fallback_date = MarketCalendar.get_previous_trading_day(target_date - timedelta(days=1))
+                if fallback_date is None:
+                    raise RuntimeError(
+                        f"[{self.table_name}] CRITICAL: price_daily has only {today_count} rows "
+                        f"for {target_date} (today's EOD close not loaded yet) and "
+                        f"MarketCalendar.get_previous_trading_day() returned None for a fallback. "
+                        f"Cannot compute sector performance without a usable target date."
+                    )
+                logger.warning(
+                    f"[SECTOR_INDUSTRY] price_daily only has {today_count} rows for "
+                    f"{target_date} (today's close not loaded yet) - using latest completed "
+                    f"trading day {fallback_date} instead."
+                )
+                target_date = fallback_date
             # Previous TRADING day, not literal calendar day-1: a naive timedelta(days=1)
             # resolves to a weekend/holiday whenever target_date is a Monday (or the day
             # after a market holiday), and price_daily has zero rows for a day the market

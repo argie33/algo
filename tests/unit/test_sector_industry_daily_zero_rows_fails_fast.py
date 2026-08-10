@@ -29,6 +29,9 @@ def test_fetch_incremental_raises_when_all_three_inserts_write_zero_rows():
     loader = _make_loader()
     mock_cur = MagicMock()
     mock_cur.rowcount = 0
+    # target_date coverage check (2026-08-10 fix): well above MIN_EXPECTED_SYMBOLS so the
+    # today->fallback-date logic doesn't interfere with this test's own zero-rows scenario.
+    mock_cur.fetchone.return_value = (9999,)
 
     with (
         patch(
@@ -47,6 +50,9 @@ def test_fetch_incremental_raises_when_all_three_inserts_write_zero_rows():
 def test_fetch_incremental_succeeds_when_at_least_one_insert_writes_rows():
     loader = _make_loader()
     mock_cur = MagicMock()
+    # target_date coverage check (2026-08-10 fix): well above MIN_EXPECTED_SYMBOLS so the
+    # today->fallback-date logic doesn't interfere with this test's own zero-rows scenario.
+    mock_cur.fetchone.return_value = (9999,)
     # First INSERT (sector_performance) writes rows, the other two don't - should NOT raise,
     # since a single empty table isn't necessarily this loader's fault (each has an
     # independent, legitimately-partial source query).
@@ -55,8 +61,12 @@ def test_fetch_incremental_succeeds_when_at_least_one_insert_writes_rows():
 
     def _execute(*args, **kwargs):
         call_count["n"] += 1
-        # 1st execute = sector_performance INSERT, give it rows
-        mock_cur.rowcount = 5 if call_count["n"] == 1 else 0
+        # Call #1 is the new target_date coverage SELECT (2026-08-10 fix) - leave rowcount
+        # alone for it. Call #2 is the sector_performance INSERT, give it rows.
+        if call_count["n"] == 2:
+            mock_cur.rowcount = 5
+        elif call_count["n"] > 2:
+            mock_cur.rowcount = 0
 
     mock_cur.execute.side_effect = _execute
 
