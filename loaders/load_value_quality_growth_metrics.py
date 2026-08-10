@@ -1201,12 +1201,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Operating Margin = Operating Income / Revenue
             # Fallback for banks (NULL revenue): use Operating Income / Total Assets instead
-            if operating_income is not None and operating_income != 0:
+            # FIXED 2026-08-10: apply the same EBIT-approximation fallback (pretax_income +
+            # interest_expense) already used for interest_coverage_operating_income/
+            # roic_operating_income above when the anchor fiscal year's operating_income
+            # wasn't tagged - live-confirmed AEM (Canadian 40-F filer, real pretax_income/
+            # interest_expense every year but never tags OperatingIncomeLoss at all per SEC
+            # XBRL companyfacts) and 850 other symbols system-wide have this same gap: the
+            # EBIT-approximation data is present but was never applied to operating_margin,
+            # only to its two sibling metrics. Uses the anchor row's own pretax_income/
+            # interest_expense (not the cross-year-searched interest_coverage_operating_income)
+            # so the numerator and denominator (revenue) stay from the same fiscal year.
+            operating_income_for_margin = operating_income
+            if operating_income_for_margin is None and pretax_income is not None:
+                operating_income_for_margin = pretax_income + (interest_expense or 0)
+            if operating_income_for_margin is not None and operating_income_for_margin != 0:
                 if revenue is not None and revenue != 0:
-                    computed_operating_margin = (operating_income / revenue) * 100
+                    computed_operating_margin = (operating_income_for_margin / revenue) * 100
                 elif total_assets is not None and total_assets != 0:
                     # Fallback: ROA of operating income (useful for banks with NULL revenue)
-                    computed_operating_margin = (operating_income / total_assets) * 100
+                    computed_operating_margin = (operating_income_for_margin / total_assets) * 100
                 else:
                     computed_operating_margin = None
                 if computed_operating_margin is None:
