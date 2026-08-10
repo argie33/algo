@@ -298,6 +298,32 @@ class TestQualityAndCoverageSQLBugs:
         source = inspect.getsource(freshness_enhancements)
         assert "ORDER BY market_cap" not in source
 
+    def test_tables_without_created_at_are_mapped_to_real_columns(self) -> None:
+        """critical_columns_map.get(table_name, ["created_at"]) silently defaults to a
+        `created_at` NULL check for any table not explicitly listed. Confirmed live
+        2026-08-10 (psycopg2.errors.UndefinedColumn, 36 occurrences in one dev-server
+        session) that algo_performance_metrics, circuit_breaker_status, and
+        sec_cash_flow_metrics all fall through to that default despite none of them having
+        a created_at column - the check silently no-op'd every single call, exactly the bug
+        class this file's own map comments already describe fixing for 10 other tables."""
+        for table_name, real_column in [
+            ("algo_performance_metrics", "metric_date"),
+            ("circuit_breaker_status", "check_date"),
+            ("sec_cash_flow_metrics", "symbol"),
+        ]:
+            cur = MagicMock()
+            cur.fetchone.return_value = (0, 0)
+            freshness_enhancements._run_data_quality_checks(table_name, cur)
+
+            executed_sql = [call.args[0] for call in cur.execute.call_args_list]
+            assert not any('"created_at"' in sql for sql in executed_sql), (
+                f"{table_name} has no created_at column but was checked against it anyway "
+                f"(silently swallowed by the except - confirmed live via psycopg2.errors.UndefinedColumn)."
+            )
+            assert any(f'"{real_column}"' in sql for sql in executed_sql), (
+                f"Expected {table_name} to be checked against its real column {real_column}."
+            )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

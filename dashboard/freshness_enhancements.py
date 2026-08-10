@@ -123,6 +123,17 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
         # These mappings define critical data columns to check for NULLs, not timestamps.
         "algo_reconciliation_log": ["reconciliation_date", "match_percentage"],
         "algo_runtime_state": ["state_key", "state_value"],
+        # BUG FIX (2026-08-10): these 3 hit the ["created_at"] default below, but none of
+        # them has a created_at column - live-reproduced: 36 UndefinedColumn errors in one
+        # dev-server session (each poll of the dashboard health endpoint), silently no-op'd
+        # by this function's own try/except at debug level. Same bug class already found and
+        # fixed for the tables above; verified against live information_schema.columns
+        # 2026-08-10 across all 77 tables tracked in data_loader_status (only these 3 of the
+        # 60 not explicitly listed actually lacked created_at - the rest have it, so the
+        # default works fine for them).
+        "algo_performance_metrics": ["metric_date", "total_trades"],
+        "circuit_breaker_status": ["check_date", "any_triggered"],
+        "sec_cash_flow_metrics": ["symbol", "free_cash_flow"],
     }
 
     critical_cols = critical_columns_map.get(table_name, ["created_at"])
