@@ -17,7 +17,7 @@ refetch_also_empty for the 2026-08-04 fix to a second gap in this same recovery 
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from loaders.load_prices import PriceLoader
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -61,6 +61,20 @@ def _row(symbol: str, d) -> dict:
     }
 
 
+def _patch_watermarks_in_sync(watermarks: dict):
+    """_load_batch's new 2026-08-10 desync self-heal check (see
+    test_load_prices_watermark_desync_selfheal.py) queries real MAX(date) per symbol
+    before trusting the watermark store. Report each symbol's own watermark back as its
+    real MAX(date) so that check is a no-op here - these tests are about NaN-batch
+    recovery, not watermark desync."""
+    mock_cur = MagicMock()
+    mock_cur.fetchall.return_value = list(watermarks.items())
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__.return_value = mock_cur
+    mock_ctx.__exit__.return_value = False
+    return patch("loaders.load_prices.DatabaseContext", return_value=mock_ctx)
+
+
 class TestBatchNanRecovery:
     def test_symbol_recovered_via_individual_refetch_when_batch_returns_empty(self):
         loader = _make_loader()
@@ -85,7 +99,8 @@ class TestBatchNanRecovery:
 
         loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)
 
-        loader._load_batch(["AAPL", "THINVOL"])
+        with _patch_watermarks_in_sync({"AAPL": recent_watermark, "THINVOL": recent_watermark}):
+            loader._load_batch(["AAPL", "THINVOL"])
 
         # Recovery path taken: THINVOL must NOT be counted as skipped-by-watermark or failed.
         assert loader._stats["symbols_skipped_by_watermark"] == 0
@@ -128,7 +143,8 @@ class TestBatchNanRecovery:
 
         loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)
 
-        loader._load_batch(["AAPL", "QUIET"])
+        with _patch_watermarks_in_sync({"AAPL": recent_watermark, "QUIET": recent_watermark}):
+            loader._load_batch(["AAPL", "QUIET"])
 
         assert loader._stats["symbols_skipped_by_watermark"] == 0
         assert loader._stats["symbols_failed"] == 1
@@ -149,7 +165,8 @@ class TestBatchNanRecovery:
 
         loader.fetch_batch_incremental = MagicMock(return_value={"SOLO": []})
 
-        loader._load_batch(["SOLO"])
+        with _patch_watermarks_in_sync({"SOLO": recent_watermark}):
+            loader._load_batch(["SOLO"])
 
         loader.fetch_batch_incremental.assert_called_once_with(["SOLO"], recent_watermark)
         assert loader._stats["symbols_skipped_by_watermark"] == 0

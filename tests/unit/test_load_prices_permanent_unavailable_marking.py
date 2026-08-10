@@ -77,11 +77,17 @@ class TestPermanentUnavailableMarking:
         with patch("loaders.load_prices.DatabaseContext") as mock_db_ctx:
             mock_cur = MagicMock()
             mock_cur.fetchone.return_value = (0,)  # No recent rows found
+            # _load_batch's 2026-08-10 watermark desync self-heal check (see
+            # test_load_prices_watermark_desync_selfheal.py) runs first and queries real
+            # MAX(date) via fetchall() - report DEAD's own watermark back as in sync so
+            # this test's own scenario (downstream of that check) is unaffected.
+            mock_cur.fetchall.return_value = [("DEAD", dead_watermark)]
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
 
             loader._load_batch(["DEAD"])
 
-            assert mock_cur.execute.call_count == 2  # SELECT count + UPDATE unavailable
+            # 1 (desync self-heal) + 2 (SELECT count + UPDATE unavailable) = 3
+            assert mock_cur.execute.call_count == 3
             sql, params = mock_cur.execute.call_args[0]  # Last call (UPDATE)
             assert "data_unavailable = TRUE" in sql
             assert params[1] == "DEAD"
@@ -125,8 +131,22 @@ class TestPermanentUnavailableMarking:
         loader.fetch_batch_incremental = MagicMock(side_effect=fake_fetch)
 
         with patch("loaders.load_prices.DatabaseContext") as mock_db_ctx:
+            mock_cur = MagicMock()
+            # _load_batch's 2026-08-10 watermark desync self-heal check runs unconditionally
+            # first (see test_load_prices_watermark_desync_selfheal.py) - report GAPPY's own
+            # watermark back as in sync so it's a no-op here; this test is about the
+            # mark-unavailable decision downstream, not the desync check itself.
+            mock_cur.fetchall.return_value = [("GAPPY", stale_watermark)]
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+
             loader._load_batch(["GAPPY"])
-            mock_db_ctx.assert_not_called()
+
+            # The desync self-heal check makes exactly one DB call; the mark-unavailable
+            # path (a second, distinct DB call) must NOT be reached since real newer data
+            # was found.
+            assert mock_cur.execute.call_count == 1
+            executed_sql = mock_cur.execute.call_args[0][0]
+            assert "data_unavailable" not in executed_sql
 
         assert loader._stats["symbols_failed"] == 1
         assert loader._stats["symbols_skipped_by_watermark"] == 0

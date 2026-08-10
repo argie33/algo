@@ -2406,6 +2406,52 @@ class PriceLoader(OptimalLoader):
                 )
             # N+1 FIX: one query for the whole batch instead of one round trip per symbol
             symbol_watermarks = wm_store.get_watermarks_bulk(symbols)
+
+            # BUG FIX (2026-08-10): loader_watermarks advances independently of the data
+            # INSERT (see this file's own WRITE-PATH BATCHING note above and
+            # tests/unit/test_sec_base_watermark_table_desync_selfheal.py, which fixed the
+            # identical bug for the SEC loader family) - if a watermark write ever landed
+            # without its data actually persisting, the watermark can claim dates the real
+            # table doesn't have, and nothing before this would ever notice: the per-symbol
+            # write-trim below (`sym_wm`) discards every freshly-fetched row that isn't
+            # STRICTLY newer than the (wrong, too-advanced) watermark, so the symbol is
+            # silently skipped forever. Live-reproduced: SPY/QQQ/IWM's `load_prices`
+            # watermark in `etf_price_daily` was '2026-08-10' (today) but last written
+            # 2026-07-10 - a full month stale - while the real table's MAX(date) for those
+            # symbols was stuck at 2026-08-05. GLD/TLT's watermark, by contrast, correctly
+            # matched their own real data. One bulk query caps any symbol's watermark at its
+            # own real MAX(date), self-healing the desync instead of trusting the watermark
+            # store blindly.
+            if symbol_watermarks:
+                table_safe = assert_safe_table(self.table_name)
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        psycopg2.sql.SQL(
+                            "SELECT symbol, MAX(date) FROM {} WHERE symbol = ANY(%s) GROUP BY symbol"
+                        ).format(psycopg2.sql.Identifier(table_safe)),
+                        (list(symbol_watermarks.keys()),),
+                    )
+                    real_max_dates = dict(cur.fetchall())
+                corrected = 0
+                for sym, wm in list(symbol_watermarks.items()):
+                    real_max = real_max_dates.get(sym)
+                    if real_max is None or real_max < wm:
+                        capped = real_max if real_max is not None else (wm - timedelta(days=101))
+                        logger.warning(
+                            f"[{self.table_name}] {sym}: watermark {wm} exceeds real data "
+                            f"(MAX(date)={real_max}) - watermark store is desynced from the "
+                            f"actual table. Capping to {capped} so this symbol is re-fetched "
+                            f"instead of silently skipped forever."
+                        )
+                        symbol_watermarks[sym] = capped
+                        corrected += 1
+                if corrected:
+                    logger.critical(
+                        f"[{self.table_name}] Corrected {corrected} desynced watermark(s) this batch "
+                        f"(watermark ahead of real data) - investigate why loader_watermarks advanced "
+                        f"without the corresponding data actually being committed."
+                    )
+
             if symbol_watermarks:
                 previous_date = min(symbol_watermarks.values())
 
