@@ -300,9 +300,19 @@ class LoaderStatusManager:
                     loaded_symbols = status_row[1]
                     current_completion_pct = status_row[2]
 
-                    # Calculate actual completion percentage from loader stats
+                    # Calculate actual completion percentage from loader stats.
+                    # BUG FOUND 2026-08-10: uncapped, this can exceed 100% when a caller's
+                    # loaded_symbols count (e.g. a universe-wide "symbols successfully
+                    # processed" counter) and total_symbols count (e.g. a same-date-scoped
+                    # upstream-availability count) are drawn from different, not-strictly-
+                    # nested populations - live-confirmed on buy_sell_daily: symbols_loaded=4884
+                    # vs symbol_count=4768 produced completion_pct=102.43%, a nonsensical value
+                    # that undermines confidence in this metric wherever it's displayed
+                    # (dashboards, the orchestrator's proactive critical-loader-wait check).
+                    # A completion percentage is bounded at 100% by definition; clamp it rather
+                    # than let mismatched numerator/denominator sources produce garbage.
                     if total_symbols and total_symbols > 0:
-                        actual_completion_pct = (loaded_symbols / total_symbols) * 100.0
+                        actual_completion_pct = min(100.0, (loaded_symbols / total_symbols) * 100.0)
                     else:
                         actual_completion_pct = 0.0
 

@@ -144,7 +144,7 @@ class EntryHandler:
             'message': str,
         }
         """
-        logger.critical(f"[ENTRY_HANDLER] execute_entry() called for {context.symbol}")
+        logger.info(f"[ENTRY_HANDLER] execute_entry() called for {context.symbol}")
         entry_price = context.prices.entry_price
         shares = context.shares
         stop_loss_price = context.prices.stop_loss_price
@@ -272,7 +272,7 @@ class EntryHandler:
                 existing_pos = read_cursor.fetchone()
                 if existing_pos:
                     position_id, existing_status = existing_pos
-                    logger.critical(f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})")
+                    logger.info(f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})")
                 else:
                     logger.debug(f"[POSITION DEDUP] {symbol}: No existing position found, will create new")
         except Exception as e:
@@ -744,7 +744,7 @@ class EntryHandler:
                         f"(non-blocking): {e}"
                     )
         except Exception as e:
-            logger.critical(
+            logger.error(
                 f"[TCA] Failed to record execution-quality data for {symbol} trade {trade_id} "
                 f"(non-blocking, trade already committed): {type(e).__name__}: {e}"
             )
@@ -1099,9 +1099,9 @@ class EntryHandler:
             f"base_type={trade_request.base_type} base_quality={trade_request.base_quality}"
         )
 
-        logger.critical(f"[TRADE INSERT] About to insert trade {trade_request.trade_id} for {symbol}")
+        logger.debug(f"[TRADE INSERT] About to insert trade {trade_request.trade_id} for {symbol}")
         self._insert_trade_record(cur, trade_request)
-        logger.critical(f"[TRADE INSERT] Successfully inserted trade {trade_request.trade_id} for {symbol}")
+        logger.debug(f"[TRADE INSERT] Successfully inserted trade {trade_request.trade_id} for {symbol}")
 
         # Insert position record if order was filled or paper_pending (paper mode tracking)
         # PAPER MODE: Create positions for paper_pending trades to maintain portfolio state
@@ -1220,13 +1220,13 @@ class EntryHandler:
 
                     is_reopening_closed_position = existing_status == 'closed'
                     if is_reopening_closed_position:
-                        logger.critical(
+                        logger.warning(
                             f"[POSITION REOPEN] {symbol}: Reopening CLOSED position "
                             f"(position_id={position_id}, trade_id={trade_id}). "
                             f"Will reset current_stop_price to new stop_loss_price."
                         )
                     else:
-                        logger.critical(
+                        logger.info(
                             f"[POSITION UPDATE] {symbol}: Adding to OPEN position "
                             f"(position_id={position_id}, trade_id={trade_id}). "
                             f"Will preserve existing current_stop_price."
@@ -1298,13 +1298,13 @@ class EntryHandler:
                                 position_id
                             ),
                         )
-                    logger.critical(
+                    logger.info(
                         f"[POSITION UPDATE] Successfully reopened position for {symbol} "
                         f"(position_id={position_id}, trade_id={trade_id})"
                     )
                 else:
                     # Position doesn't exist - INSERT new position
-                    logger.critical(
+                    logger.debug(
                         f"[POSITION INSERT] About to insert position for {symbol} "
                         f"(position_id={position_id}, trade_id={trade_id})"
                     )
@@ -1364,7 +1364,7 @@ class EntryHandler:
                             get_algo_owner_cognito_sub(),
                         ),
                     )
-                    logger.critical(
+                    logger.info(
                         f"[POSITION INSERT] Successfully inserted position for {symbol} "
                         f"(position_id={position_id}, trade_id={trade_id})"
                     )
@@ -1451,7 +1451,7 @@ class EntryHandler:
                 },
             )
         except Exception as e:
-            logger.critical(
+            logger.error(
                 f"[ENTRY_HANDLER] Failed to send entry notification for {symbol} trade {trade_id} "
                 f"(non-blocking, trade already committed): {type(e).__name__}: {e}"
             )
