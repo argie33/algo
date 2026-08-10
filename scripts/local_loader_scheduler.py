@@ -333,6 +333,21 @@ def run_pipeline(pipeline_name: str) -> int:
                 # live-verified 2026-08-10: completed in 6s (pure price_daily computation, no
                 # yfinance calls), stuck status flipped RUNNING -> COMPLETED.
                 cmd = [sys.executable, f"loaders/{loader_filename}"]
+            elif loader == "economic":
+                # BUG FOUND 2026-08-10, same class as the trend_analysis case above (and
+                # caught via the systematic sweep that fix's own memory note recommended -
+                # every LOADER_TABLES entry checked against get_loader_class_for_file()).
+                # load_economic_data.py is a plain function-based module (load()/_load_impl(),
+                # no class at all) - confirmed live: get_loader_class_for_file(
+                # "load_economic_data.py") returns None, so scripts/run_loader.py's generic
+                # path would exit 1 immediately. "economic" sits before naaim/aaii/dividends
+                # in the "reference" pipeline (added this same session), and run_pipeline()
+                # aborts on any loader failure - left as-is, this would have silently blocked
+                # naaim/aaii/dividends from ever backfilling locally too, not just economic_data
+                # itself. Direct invocation matches production's real entrypoint
+                # (terraform/modules/loaders/main.tf runs loaders/load_economic_data.py
+                # directly).
+                cmd = [sys.executable, f"loaders/{loader_filename}"]
             else:
                 cmd = [sys.executable, "scripts/run_loader.py", loader_filename]
             result = subprocess.run(
