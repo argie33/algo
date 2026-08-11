@@ -64,17 +64,28 @@ class SpecializedChecker(BaseCheck):
 
     def check_earnings_data(self, cur: Any) -> None:
         today = _date.today()
-        # BUG FOUND 2026-08-11: "earnings_estimates" and "earnings_estimate_revisions" were
-        # never real table names - confirmed against information_schema.tables. The actual
-        # forward-EPS table (real writer: load_analyst_earnings_estimates.py, 38k+ rows) is
-        # "analyst_earnings_estimates"; no "revisions" table has ever existed (no loader, no
-        # migration). "earnings_history" does exist but is a permanently-empty legacy table
-        # (0 rows, no writer anywhere - see loaders/loader_registry.py's own comment calling
-        # it out as legacy/dead) - already monitored at INFO severity in staleness.py, so
-        # dropping the WARN-severity duplicate here doesn't lose coverage, it removes a
-        # guaranteed-every-run false alarm on a table nothing has ever written to.
+        # BUG FOUND 2026-08-11 (independently found+fixed by two concurrent sessions, merged
+        # here): "earnings_estimates" and "earnings_estimate_revisions" were never real table
+        # names - confirmed against information_schema.tables. The actual forward-EPS table
+        # (real writer: load_analyst_earnings_estimates.py, 38k+ rows) is
+        # "analyst_earnings_estimates"; no "revisions" table has ever existed anywhere in this
+        # codebase (no loader, no migration - revision data is computed inline from
+        # analyst_earnings_estimates by load_enhanced_quality_growth_metrics.py, never
+        # persisted to its own table).
+        #
+        # "earnings_history" does exist but is a permanently-empty legacy table (0 rows, no
+        # writer anywhere - see loaders/loader_registry.py's own comment calling it out as
+        # legacy/dead) and is already monitored at INFO severity in staleness.py, so dropping
+        # the WARN-severity duplicate here doesn't lose coverage. In its place: the real,
+        # actively-updated table this data actually lives in - earnings_calendar_sec (353k+
+        # rows, updated daily per loader_registry.py's comment) - which nothing else in
+        # data_patrol was monitoring at all. Live-verified via `python -m algo.algo_data_patrol
+        # --quick --json`: patrol readiness went from ready=False (guaranteed earnings_estimates
+        # ERROR every run) to ready=True with real data (analyst_earnings_estimates: 38,617
+        # rows/99.8% coverage; earnings_calendar_sec: fresh same-day).
         sources = [
             ("analyst_earnings_estimates", ["created_at"], 7, WARN),
+            ("earnings_calendar_sec", ["created_at"], 3, WARN),
         ]
 
         for tbl, col_options, max_days, sev in sources:
