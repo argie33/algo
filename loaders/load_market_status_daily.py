@@ -278,16 +278,22 @@ class MarketStatusDailyLoader(OptimalLoader):
             fed_rate = latest_record["value"]
             rate_date = latest_record["date"]
 
-            # Validate rate is recent (within 5 trading days)
+            # Validate rate is recent (within 5 trading days) - trading-day-aware per
+            # this project's standing rule (raw calendar-day subtraction over/undercounts
+            # staleness across weekends/holidays, see MEMORY.md's "Date math must be
+            # trading-day-aware" rule). `last_trading_day` was computed but never actually
+            # used here previously - the check below silently fell back to naive calendar
+            # days instead.
             from algo.infrastructure import MarketCalendar
 
-            last_trading_day = MarketCalendar.get_previous_trading_day(eval_date)
             rate_date_obj = datetime.fromisoformat(rate_date).date() if isinstance(rate_date, str) else rate_date
-            days_old = (eval_date - rate_date_obj).days
+            last_trading_day = MarketCalendar.get_previous_trading_day(eval_date)
+            trading_days_old = max(0, len(MarketCalendar.get_trading_days(rate_date_obj, eval_date)) - 1)
 
-            if days_old > 7:  # More than a week old
+            if trading_days_old > 5:
                 logger.warning(
-                    f"[MARKET_STATUS] SOFR data is {days_old} days old (from {rate_date}). "
+                    f"[MARKET_STATUS] SOFR data is {trading_days_old} trading days old "
+                    f"(from {rate_date}, last trading day {last_trading_day}). "
                     f"Using stale rate={fed_rate:.2f}% for regime classification."
                 )
 
@@ -798,7 +804,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             with DatabaseContext("write") as cur:
                 logger.info("[PERSIST_EXPOSURE] Executing INSERT for market_exposure_daily")
                 cur.execute(
-                """
+                    """
                 INSERT INTO market_exposure_daily
                     (date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors, data_unavailable, reason)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -813,18 +819,18 @@ class MarketStatusDailyLoader(OptimalLoader):
                     reason = EXCLUDED.reason,
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                (
-                    eval_date,
-                    exposure.get("regime"),
-                    exposure.get("exposure_pct"),
-                    exposure.get("raw_score"),
-                    halt_reasons_json,
-                    exposure.get("distribution_days"),
-                    factors_json,
-                    bool(exposure.get("data_unavailable", False)),
-                    exposure.get("reason"),
-                ),
-            )
+                    (
+                        eval_date,
+                        exposure.get("regime"),
+                        exposure.get("exposure_pct"),
+                        exposure.get("raw_score"),
+                        halt_reasons_json,
+                        exposure.get("distribution_days"),
+                        factors_json,
+                        bool(exposure.get("data_unavailable", False)),
+                        exposure.get("reason"),
+                    ),
+                )
                 logger.info(f"[PERSIST_EXPOSURE] INSERT completed successfully for date={eval_date}")
         except Exception as persist_err:
             logger.error(f"[PERSIST_EXPOSURE] FAILED to persist: {persist_err}", exc_info=True)
