@@ -437,7 +437,7 @@ module "monitoring" {
   # Loader monitoring (F-04: CloudWatch alarms for 28+ supporting loaders)
   ecs_log_group_name  = module.pipeline.ecs_log_group_name
   ecs_cluster_arn     = module.compute.ecs_cluster_arn
-  cluster_name        = "algo-cluster"  # Session 199: Used by auto-kill Lambda
+  cluster_name        = "algo-cluster" # Session 199: Used by auto-kill Lambda
   alert_email_to      = var.alert_email_to
   alert_email_address = var.alert_email_address
 
@@ -456,13 +456,16 @@ module "monitoring" {
 module "orchestration" {
   source = "./modules/orchestration"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  aws_region            = var.aws_region
-  ecs_cluster_arn       = module.compute.ecs_cluster_arn
-  private_subnet_ids    = module.vpc.private_subnet_ids
-  ecs_security_group_id = module.vpc.ecs_tasks_security_group_id
-  common_tags           = local.common_tags
+  project_name            = var.project_name
+  environment             = var.environment
+  aws_region              = var.aws_region
+  ecs_cluster_arn         = module.compute.ecs_cluster_arn
+  private_subnet_ids      = module.vpc.private_subnet_ids
+  ecs_security_group_id   = module.vpc.ecs_tasks_security_group_id
+  task_execution_role_arn = module.iam.ecs_task_execution_role_arn
+  task_role_arn           = module.iam.ecs_task_role_arn
+  aws_account_id          = local.aws_account_id
+  common_tags             = local.common_tags
 
   depends_on = [module.compute]
 }

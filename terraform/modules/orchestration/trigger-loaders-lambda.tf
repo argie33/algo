@@ -70,9 +70,17 @@ resource "aws_iam_role_policy" "trigger_loaders_ecs_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        # RunTask scoped to this project's own task definitions - list/describe actions
+        # left on "*" since ECS doesn't support resource-level ARN targeting for them.
+        Sid      = "RunLoaderTasks"
+        Effect   = "Allow"
+        Action   = ["ecs:RunTask"]
+        Resource = "arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:task-definition/${var.project_name}-*:*"
+      },
+      {
+        Sid    = "DescribeAndListTasks"
         Effect = "Allow"
         Action = [
-          "ecs:RunTask",
           "ecs:DescribeTasks",
           "ecs:ListTasks",
           "ecs:DescribeTaskDefinition",
@@ -81,11 +89,20 @@ resource "aws_iam_role_policy" "trigger_loaders_ecs_policy" {
         Resource = "*"
       },
       {
+        # SECURITY FIX 2026-08-10: was Resource="*" (Lambda could pass ANY IAM role in the
+        # account to ecs:RunTask, including admin-capable ones - the codebase's other 3
+        # PassRole grants for RunTask were already correctly scoped to just these 2 ARNs,
+        # this one was the outlier). Scoped to only the 2 roles this Lambda's ECS tasks
+        # actually need.
+        Sid    = "AllowPassRole"
         Effect = "Allow"
         Action = [
           "iam:PassRole"
         ]
-        Resource = "*"
+        Resource = [
+          var.task_execution_role_arn,
+          var.task_role_arn
+        ]
       }
     ]
   })

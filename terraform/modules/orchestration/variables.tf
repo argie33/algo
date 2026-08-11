@@ -28,6 +28,21 @@ variable "ecs_security_group_id" {
   type        = string
 }
 
+variable "task_execution_role_arn" {
+  description = "IAM role ARN for ECS task execution (ECR pull, CloudWatch logs) - scopes trigger_loaders' iam:PassRole instead of Resource=\"*\""
+  type        = string
+}
+
+variable "task_role_arn" {
+  description = "IAM role ARN for ECS task (S3, Secrets Manager access for loaders) - scopes trigger_loaders' iam:PassRole instead of Resource=\"*\""
+  type        = string
+}
+
+variable "aws_account_id" {
+  description = "AWS account ID, used to scope ecs:RunTask to this project's task definitions instead of Resource=\"*\""
+  type        = string
+}
+
 variable "common_tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
