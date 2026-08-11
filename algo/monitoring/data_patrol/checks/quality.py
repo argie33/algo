@@ -174,25 +174,6 @@ class QualityChecker(BaseCheck):
             ident_symbols = [row.get("symbol") if hasattr(row, "keys") else row[0] for row in cur.fetchall()]
             ident_count = len(ident_symbols)
 
-            # Mark suspicious OHLC in database
-            if ident_count > 0:
-                try:
-                    cur.execute("SAVEPOINT mark_suspicious_ohlc")
-                    cur.execute(
-                        """
-                        UPDATE price_daily
-                        SET data_quality_flags = COALESCE(data_quality_flags, '{}')::jsonb || '{"is_suspicious_ohlc": true}'::jsonb
-                        WHERE symbol = ANY(%s) AND date = (SELECT MAX(date) FROM price_daily)
-                    """,
-                        (ident_symbols,),
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    try:
-                        cur.execute("ROLLBACK TO SAVEPOINT mark_suspicious_ohlc")
-                    except psycopg2.Error as rollback_err:
-                        logger.error(f"Savepoint rollback failed: {rollback_err}")
-                    logger.warning(f"Could not mark suspicious OHLC: {e}")
-
             if ident_count > ident_threshold:
                 self.log(
                     "identical_ohlc",

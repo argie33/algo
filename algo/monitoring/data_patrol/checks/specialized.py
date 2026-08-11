@@ -64,13 +64,22 @@ class SpecializedChecker(BaseCheck):
 
     def check_earnings_data(self, cur: Any) -> None:
         today = _date.today()
+        # BUG FOUND 2026-08-11: "earnings_estimates" and "earnings_estimate_revisions" were
+        # never real table names - confirmed against information_schema.tables. The actual
+        # forward-EPS table (real writer: load_analyst_earnings_estimates.py, 38k+ rows) is
+        # "analyst_earnings_estimates"; no "revisions" table has ever existed (no loader, no
+        # migration). "earnings_history" does exist but is a permanently-empty legacy table
+        # (0 rows, no writer anywhere - see loaders/loader_registry.py's own comment calling
+        # it out as legacy/dead) - already monitored at INFO severity in staleness.py, so
+        # dropping the WARN-severity duplicate here doesn't lose coverage, it removes a
+        # guaranteed-every-run false alarm on a table nothing has ever written to.
         sources = [
-            ("earnings_estimates", ["created_at", "quarter"], 7, WARN),
-            ("earnings_estimate_revisions", ["revision_date", "created_at"], 14, WARN),
-            ("earnings_history", ["earnings_date", "quarter"], 120, WARN),
+            ("analyst_earnings_estimates", ["created_at"], 7, WARN),
         ]
 
         for tbl, col_options, max_days, sev in sources:
+            sp = f"sp_earnings_staleness_{tbl}"
+            cur.execute(f"SAVEPOINT {sp}")
             try:
                 col = col_options[0]
                 tbl_safe = assert_safe_table(tbl)
@@ -113,6 +122,14 @@ class SpecializedChecker(BaseCheck):
                             {"latest": str(latest), "count": count},
                         )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                # BUG FOUND 2026-08-11: without a per-source SAVEPOINT, a failure on one
+                # table (e.g. relation does not exist) aborted the whole transaction, so
+                # every subsequent source in this loop failed with the misleading
+                # "current transaction is aborted" instead of its own real error - and the
+                # coverage check below inherited the same aborted state. Roll back to this
+                # source's own savepoint so later sources/checks run against a clean
+                # transaction regardless of what this one hit.
+                cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                 logger.critical(f"Earnings data check for {tbl} FAILED: {e} - assuming critical data missing")
                 self.log(
                     "earnings_staleness",
@@ -121,8 +138,12 @@ class SpecializedChecker(BaseCheck):
                     f"Check FAILED (table access error): {e}",
                     None,
                 )
+            else:
+                cur.execute(f"RELEASE SAVEPOINT {sp}")
 
         # Check earnings coverage
+        sp_cov = "sp_earnings_coverage"
+        cur.execute(f"SAVEPOINT {sp_cov}")
         try:
             interval_7d = get_interval_sql("7d")
             cur.execute(f"""
@@ -130,7 +151,7 @@ class SpecializedChecker(BaseCheck):
                     COUNT(DISTINCT e.symbol) AS est_syms,
                     COUNT(DISTINCT p.symbol) AS price_syms
                 FROM price_daily p
-                LEFT JOIN earnings_estimates e
+                LEFT JOIN analyst_earnings_estimates e
                     ON e.symbol = p.symbol
                    AND e.created_at >= CURRENT_DATE - {interval_7d}
                 WHERE p.date >= CURRENT_DATE - {interval_7d}
@@ -151,7 +172,7 @@ class SpecializedChecker(BaseCheck):
             self.log(
                 "earnings_coverage",
                 sev,
-                "earnings_estimates",
+                "analyst_earnings_estimates",
                 f"{pct:.1f}% symbol coverage ({est_syms}/{price_syms})",
                 {"coverage_pct": round(pct, 1)},
             )
@@ -162,14 +183,17 @@ class SpecializedChecker(BaseCheck):
             ZeroDivisionError,
             TypeError,
         ) as e:
+            cur.execute(f"ROLLBACK TO SAVEPOINT {sp_cov}")
             logger.critical(f"Earnings coverage check FAILED: {e} - cannot validate data completeness")
             self.log(
                 "earnings_coverage",
                 ERROR,
-                "earnings_estimates",
+                "analyst_earnings_estimates",
                 f"Check FAILED: {e}",
                 None,
             )
+        else:
+            cur.execute(f"RELEASE SAVEPOINT {sp_cov}")
 
     def check_fundamental_data(self, cur: Any) -> None:
         today = _date.today()
@@ -349,17 +373,28 @@ class SpecializedChecker(BaseCheck):
             )
 
     def check_sentiment_aggregate(self, cur: Any) -> None:
-        """Verify sentiment_aggregate table and freshness."""
+        """Verify market_sentiment table and freshness.
+
+        BUG FOUND 2026-08-11: this checked a table called "sentiment_aggregate" with columns
+        "aggregate_sentiment"/"aaii_bullish"/"naaim_bullish" that have never existed anywhere
+        in this schema (confirmed against information_schema.tables - zero rows returned, not
+        an error, so this silently reported "Missing columns" as an ERROR on every single run
+        since whenever this check was written, never once validating real data). The real,
+        live table for this concept is `market_sentiment` (VIX, put/call, fear/greed,
+        bullish/bearish/neutral %, sentiment_score - 21 rows and actively written) - it was not
+        monitored by any other check (aaii_sentiment, a separate real table, already has its
+        own dedicated staleness check in staleness.py). Repointed at the real table/columns
+        instead of guessing a rename for columns that were never real.
+        """
         try:
             # Check table structure
             cur.execute("""
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'sentiment_aggregate'
+                WHERE table_name = 'market_sentiment'
                 ORDER BY column_name
             """)
             columns = []
             for row in cur.fetchall():
-                # BUG FOUND 2026-08-11: DictRow is dict-LIKE but not a `dict` subclass.
                 if isinstance(row, dict) or hasattr(row, "keys"):
                     col = row.get("column_name")
                 else:
@@ -372,9 +407,9 @@ class SpecializedChecker(BaseCheck):
 
             required_cols = {
                 "date",
-                "aggregate_sentiment",
-                "aaii_bullish",
-                "naaim_bullish",
+                "sentiment_score",
+                "bullish_pct",
+                "bearish_pct",
                 "updated_at",
             }
             present_cols = set(columns)
@@ -383,7 +418,7 @@ class SpecializedChecker(BaseCheck):
                 self.log(
                     "sentiment_aggregate",
                     INFO,
-                    "sentiment_aggregate",
+                    "market_sentiment",
                     f"Table structure valid ({len(columns)} columns)",
                     {"columns": columns},
                 )
@@ -392,14 +427,14 @@ class SpecializedChecker(BaseCheck):
                 self.log(
                     "sentiment_aggregate",
                     ERROR,
-                    "sentiment_aggregate",
+                    "market_sentiment",
                     f"Missing columns: {', '.join(missing)}",
                     {"missing": list(missing)},
                 )
                 return
 
             # Check data freshness
-            cur.execute("SELECT MAX(date) AS max_date, MAX(updated_at) AS max_updated FROM sentiment_aggregate")
+            cur.execute("SELECT MAX(date) AS max_date, MAX(updated_at) AS max_updated FROM market_sentiment")
             row = cur.fetchone()
             if row:
                 max_date = row.get("max_date") if hasattr(row, "get") else row[0]
@@ -411,8 +446,8 @@ class SpecializedChecker(BaseCheck):
                 self.log(
                     "sentiment_aggregate",
                     WARN,
-                    "sentiment_aggregate",
-                    "No data in sentiment_aggregate table",
+                    "market_sentiment",
+                    "No data in market_sentiment table",
                     {},
                 )
             else:
@@ -426,7 +461,7 @@ class SpecializedChecker(BaseCheck):
                 self.log(
                     "sentiment_aggregate",
                     sev,
-                    "sentiment_aggregate",
+                    "market_sentiment",
                     f"Latest data: {max_date} ({age}d old), updated {updated_age:.1f}h ago",
                     {
                         "data_date": str(max_date),
@@ -438,7 +473,7 @@ class SpecializedChecker(BaseCheck):
             self.log(
                 "sentiment_aggregate",
                 WARN,
-                "sentiment_aggregate",
+                "market_sentiment",
                 f"Check skipped: {e}",
                 None,
             )

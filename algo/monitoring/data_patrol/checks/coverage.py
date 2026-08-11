@@ -141,16 +141,13 @@ class CoverageChecker(BaseCheck):
                 # sparse-by-design table) - removing the duplicate, wrong-methodology check
                 # here doesn't reduce coverage, it removes a redundant false alarm.
                 "trend_template_data",
-                # NOTE: signal_quality_scores (~520/4945 = ~10.5% coverage, also sparse by
-                # design, same root cause as buy_sell_daily above) was NOT removed here -
-                # unlike buy_sell_daily it has no dedicated loader_contract replacement
-                # (checked get_loader_contracts(): covers price_daily/technical_data_daily/
-                # buy_sell_daily/trend_template_data/market_exposure_daily, not this one).
-                # Removing it without a properly-considered replacement threshold would
-                # eliminate its coverage validation entirely - flagged for a dedicated
-                # follow-up pass (needs its own appropriate min_rows contract, not a rushed
-                # guess), left in this list as-is for now.
-                "signal_quality_scores",
+                # signal_quality_scores REMOVED 2026-08-11 (follow-up to buy_sell_daily fix
+                # above): it's sparse by design (~520/4945 = ~10.5% coverage on a typical
+                # day, live range 512-2510 symbols/day over the last 14 days), so the
+                # universal 96%/98%-of-universe threshold was an unconditional false ERROR
+                # every day. Now validated via its own dedicated absolute-row-count contract
+                # (patrol_signal_quality_scores_14d_min=300) in check_loader_contracts(),
+                # same pattern as buy_sell_daily.
             ]
 
             try:

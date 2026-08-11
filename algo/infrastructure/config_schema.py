@@ -224,6 +224,8 @@ VALIDATION_SCHEMA = {
     "patrol_new_low_volume_alert": ("int", 0, 10000000, False, None),
     "patrol_price_daily_14d_min": ("int", 0, 10000, False, None),
     "patrol_buy_sell_daily_14d_min": ("int", 0, 10000, False, None),
+    "patrol_signal_quality_scores_14d_min": ("int", 0, 10000, False, None),
+    "patrol_coverage_warning_threshold_pct": ("float", 0.0, 100.0, False, None),
     "patrol_coverage_ratio_min": ("float", 0.0, 1.0, False, None),
     "patrol_max_null_pct_threshold": ("float", 0.0, 100.0, False, None),
     # Loader Rate Limiting Configuration
@@ -329,7 +331,7 @@ VALIDATION_SCHEMA = {
     "patrol_identical_ohlc_threshold": ("int", 0, 100000, False, 100),  # Max identical OHLC bars
     "patrol_price_xval_mismatch_pct": ("float", 0.0, 100.0, False, 5.0),  # Cross-validation mismatch tolerance
     "patrol_xval_top_n_symbols": ("int", 1, 10000, False, 100),  # Symbols to validate
-    "patrol_market_exposure_daily_min": ("float", 0.0, 100.0, False, 10.0),  # Min market exposure for daily check
+    "patrol_market_exposure_daily_min": ("int", 0, 10, False, 1),  # Min rows in market_exposure_daily (1 row/day table)
     "patrol_technical_daily_14d_min": ("int", 0, 100, False, 90),  # Min technical data coverage 14d
     "patrol_trend_14d_min": ("int", 0, 100, False, 90),  # Min trend data coverage 14d
     "technical_daily_coverage_threshold_pct": ("int", 0, 100, False, 95),  # Min % daily technical coverage
@@ -366,5 +368,11 @@ VALIDATION_SCHEMA = {
     "retry_count_db_migration": ("int", 0, 10, False, 3),  # Retries for DB migration
     # Market Open Entry Exclusion (prevent entries in the first N minutes after market open)
     "market_open_exclusion_enabled": ("bool", None, None, False, False),  # Enable market open exclusion
-    "market_open_exclusion_minutes": ("int", 0, 120, False, 30),  # Minutes after market open to exclude entries (0=disabled, 30=default)
+    "market_open_exclusion_minutes": (
+        "int",
+        0,
+        120,
+        False,
+        30,
+    ),  # Minutes after market open to exclude entries (0=disabled, 30=default)
 }

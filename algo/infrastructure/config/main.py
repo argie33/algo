@@ -553,7 +553,12 @@ class AlgoConfig:
         "max_consecutive_losses": ("3", "int", "Max consecutive losing trades (live)", "Risk Limits"),
         "paper_mode_max_consecutive_losses": ("5", "int", "Max consecutive losing trades (paper mode)", "Risk Limits"),
         "min_win_rate_pct": ("40.0", "float", "Min win rate % to trade", "Risk Limits"),
-        "min_live_sharpe_ratio": ("0.0", "float", "Min acceptable live Sharpe ratio (halt if lower in auto mode)", "Risk Limits"),
+        "min_live_sharpe_ratio": (
+            "0.0",
+            "float",
+            "Min acceptable live Sharpe ratio (halt if lower in auto mode)",
+            "Risk Limits",
+        ),
         "max_total_risk_pct": ("4.0", "float", "Max total open risk %", "Risk Limits"),
         "min_risk_pct_floor": (
             "0.10",
@@ -975,6 +980,14 @@ class AlgoConfig:
             "Min rows in buy_sell_daily over last 14 days",
             "Data Patrol Configuration",
         ),
+        "patrol_signal_quality_scores_14d_min": (
+            "300",
+            "int",
+            "Min rows in signal_quality_scores over last 14 days (sparse by design: live daily "
+            "counts range ~510-2510 symbols/day; 300 is a catastrophic-failure floor, not a "
+            "target)",
+            "Data Patrol Configuration",
+        ),
         "patrol_coverage_ratio_min": (
             "0.8",
             "float",
@@ -1046,11 +1059,21 @@ class AlgoConfig:
             "Max staleness days for analyst_upgrades",
             "Data Patrol Configuration",
         ),
-        # Data Patrol Coverage Error Threshold
+        # Data Patrol Coverage Error/Warning Thresholds (% of active universe a critical
+        # table must cover; below error_pct -> ERROR, below warn_pct -> WARN). Defaults match
+        # the live DB-configured values (96/98) so a missing config row fails toward the real
+        # operating threshold instead of silently disabling the check (a stale "5.0" fallback
+        # here previously meant coverage had to collapse below 5% before anything fired).
         "patrol_coverage_error_threshold_pct": (
-            "5.0",
+            "96",
             "float",
-            "Max coverage error % before alert",
+            "Min symbol coverage % for critical tables before ERROR",
+            "Data Patrol Configuration",
+        ),
+        "patrol_coverage_warning_threshold_pct": (
+            "98",
+            "float",
+            "Min symbol coverage % for critical tables before WARN",
             "Data Patrol Configuration",
         ),
         # SQL Query INTERVAL Configuration (replaces 80+ hardcoded INTERVAL values in SQL queries)
@@ -1137,10 +1160,18 @@ class AlgoConfig:
             "Data Quality",
         ),
         "patrol_identical_ohlc_threshold": ("100", "int", "Identical OHLC threshold (cents)", "Data Quality"),
+        # BUG FOUND 2026-08-11: this key's only real consumer (data_patrol_config.py's
+        # get_loader_contracts()) uses it as a `min_rows` threshold for market_exposure_daily,
+        # a table with exactly 1 row/day by design. The "10.0"/float/"% " description here
+        # described an unrelated percent-exposure concept that was never actually wired to
+        # this key anywhere in the codebase (grepped clean) - meanwhile the live DB had it
+        # set to 80, so the loader_contract demanded 80+ rows from a table that structurally
+        # never has more than ~2 (its 1-day lookback window), an unconditional permanent
+        # ERROR every day. Corrected to match the key's one real usage.
         "patrol_market_exposure_daily_min": (
-            "10.0",
-            "float",
-            "Market exposure minimum daily %",
+            "1",
+            "int",
+            "Min rows in market_exposure_daily within the loader contract's 1-day lookback (table is 1 row/day by design)",
             "Data Quality",
         ),
         "patrol_new_zero_symbols_error": ("100", "int", "New zero symbols error threshold", "Data Quality"),

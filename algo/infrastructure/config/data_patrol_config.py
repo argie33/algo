@@ -385,6 +385,7 @@ class DataPatrolConfig:
         buysell_14d = self.get("patrol_buy_sell_daily_14d_min")
         trend_14d = self.get("patrol_trend_14d_min")
         mkt_exp = self.get("patrol_market_exposure_daily_min")
+        sqs_14d = self.get("patrol_signal_quality_scores_14d_min")
 
         if price_14d is None:
             raise RuntimeError(
@@ -410,6 +411,11 @@ class DataPatrolConfig:
             raise RuntimeError(
                 "[CONFIG CRITICAL] patrol_market_exposure_daily_min is missing. "
                 "Market exposure loader contract must be explicitly configured."
+            )
+        if sqs_14d is None:
+            raise RuntimeError(
+                "[CONFIG CRITICAL] patrol_signal_quality_scores_14d_min is missing. "
+                "Signal quality scores loader contract must be explicitly configured."
             )
 
         # Compute intervals in Python before building SQL conditions
@@ -446,6 +452,12 @@ class DataPatrolConfig:
                 "min_rows": mkt_exp,
                 "severity": severity_error,
                 "description": "Market regime must match latest trading day (within 1 day)",
+            },
+            "signal_quality_scores": {
+                "condition": f"date >= CURRENT_DATE - {interval_14d}",
+                "min_rows": sqs_14d,
+                "severity": severity_error,
+                "description": "Signal quality scores are sparse by design (only qualifying symbols get a row)",
             },
         }
 

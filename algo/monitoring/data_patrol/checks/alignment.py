@@ -386,12 +386,12 @@ class AlignmentChecker(BaseCheck):
                 0.95,
                 WARN,
             ),
-            (
-                "signal_quality_scores",
-                "date = (SELECT MAX(date) FROM signal_quality_scores)",
-                0.95,
-                WARN,
-            ),
+            # signal_quality_scores REMOVED 2026-08-11: same bug class as buy_sell_daily
+            # above - it's sparse BY DESIGN (~10.5% of universe on a typical day, live range
+            # 512-2510 symbols/day), so this 95%-of-universe ratio was an unconditional false
+            # WARN every single day. Now validated via its own dedicated absolute-row-count
+            # contract (patrol_signal_quality_scores_14d_min) in coverage.py's
+            # check_loader_contracts(), same pattern as buy_sell_daily.
             ("stock_scores", "1=1", 0.90, WARN),
         ]
 
