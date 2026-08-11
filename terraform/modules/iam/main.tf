@@ -1758,6 +1758,15 @@ data "aws_iam_policy_document" "developer" {
   # the same "${var.project_name}*" pattern already used by the "S3" statement above.
   # ListAllMyBuckets has no resource-level ARN support in IAM and must stay "*" - kept in
   # its own statement so the scoped grant isn't diluted back to account-wide.
+  #
+  # FIX 2026-08-10 (later same day): "${var.project_name}*" (-> "algo*") does NOT match
+  # "stocks-terraform-state" - the remote state bucket the "S3" statement above explicitly
+  # lists by name for the other service role. This developer policy has no other statement
+  # granting state-bucket access, so the original resources=["*"] was implicitly relied on
+  # for local `terraform plan`/`state show` (this repo's own CLAUDE.md/MEMORY.md instructs
+  # the algo-developer profile to run terraform plan locally). Narrowing to project buckets
+  # only would have silently broken that on next use. Added the same explicit
+  # stocks-terraform-state grant the "S3" statement already uses.
   statement {
     sid    = "S3ReadOnly"
     effect = "Allow"
@@ -1770,7 +1779,9 @@ data "aws_iam_policy_document" "developer" {
 
     resources = [
       "arn:aws:s3:::${var.project_name}*",
-      "arn:aws:s3:::${var.project_name}*/*"
+      "arn:aws:s3:::${var.project_name}*/*",
+      "arn:aws:s3:::stocks-terraform-state",
+      "arn:aws:s3:::stocks-terraform-state/*"
     ]
   }
 
