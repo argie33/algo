@@ -1176,11 +1176,23 @@ class EntryHandler:
             # write stop_loss_price=NaN into algo_positions for a real, already-open
             # position instead of being rejected, corrupting every downstream risk
             # calculation, position sizing check, and exit decision for that position.
-            if (
-                stop_loss_price is None
-                or (isinstance(stop_loss_price, float) and (math.isnan(stop_loss_price) or math.isinf(stop_loss_price)))
-                or stop_loss_price <= 0
-            ):
+            #
+            # BUG FOUND 2026-08-11 (via fuzzing pathological inputs against the same-shaped
+            # guard in exposure_policy.py's tier_for_exposure): the isinstance() check above
+            # only covered float, but stop_loss_price is typed (and, throughout this
+            # Decimal-only file, actually is) a Decimal - so the isinstance(float) branch was
+            # dead code for the real type in use here, and a Decimal("NaN") would fall
+            # through to `stop_loss_price <= 0` below, which raises decimal.InvalidOperation
+            # for Decimal NaN (unlike float NaN, which just evaluates False) instead of this
+            # guard's own clean, diagnostic ValueError. The enclosing except Exception in
+            # _upsert_position_record still catches it either way (same fail-safe outcome -
+            # transaction rolls back, trade doesn't persist) but with a far less useful log
+            # message for whoever has to diagnose it. Widened to also check Decimal.is_nan()/
+            # is_infinite().
+            is_nan_or_inf = (
+                isinstance(stop_loss_price, float) and (math.isnan(stop_loss_price) or math.isinf(stop_loss_price))
+            ) or (isinstance(stop_loss_price, Decimal) and (stop_loss_price.is_nan() or stop_loss_price.is_infinite()))
+            if stop_loss_price is None or is_nan_or_inf or stop_loss_price <= 0:
                 raise ValueError(
                     f"[POSITION_CREATION CRITICAL] {symbol}: Cannot create position with NULL or invalid stop_loss. "
                     f"Stop loss must be > 0 and < entry price. Got: {stop_loss_price}. "
