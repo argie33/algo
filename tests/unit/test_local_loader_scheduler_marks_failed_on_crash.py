@@ -99,3 +99,41 @@ class TestRunPipelineMarksFailedOnCrash:
 
         assert rc == 0
         mock_mark.assert_not_called()
+
+
+class TestChildLoaderTimeoutMatchesScheduler:
+    """FIX 2026-08-10: loaders/runner.py enforces its own process-level watchdog
+    (LOADER_TIMEOUT_MINUTES env var, default 120 min) completely independent of this
+    scheduler's own per-loader subprocess.run(timeout=...) budget. A same-day fix bumped
+    LOADER_TIMEOUTS["enhanced_quality_growth"] to 150 min, but that never mattered - live-
+    reproduced: the loader's own inner watchdog fired first at the stale 120 min default,
+    silently making the outer-timeout fix a no-op. The scheduler must propagate its own
+    per-loader budget into the child's LOADER_TIMEOUT_MINUTES env var so the two can never
+    drift apart again."""
+
+    def test_env_carries_matching_timeout_minutes(self):
+        module = _load_scheduler_module()
+        mock_result = MagicMock(returncode=0)
+        # "trend_analysis" -> 15 * 60 = 900s in LOADER_TIMEOUTS
+        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}), \
+             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
+             patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
+            module.run_pipeline("test_pipeline")
+
+        assert mock_run.call_args.kwargs["timeout"] == 900
+        assert mock_run.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "15"
+
+    def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self):
+        """Direct regression for the live-reproduced case: enhanced_quality_growth's
+        scheduler budget is 150 min, but its child process used to always get the runner's
+        stale 120 min default because nothing propagated the real budget through."""
+        module = _load_scheduler_module()
+        mock_result = MagicMock(returncode=0)
+        with patch.object(module, "PIPELINES", {"test_pipeline": ["enhanced_quality_growth"]}), \
+             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
+             patch.object(module, "_check_loader_dependencies", return_value=True), \
+             patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
+            module.run_pipeline("test_pipeline")
+
+        assert mock_run.call_args.kwargs["timeout"] == 150 * 60
+        assert mock_run.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "150"

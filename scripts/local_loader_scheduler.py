@@ -320,6 +320,18 @@ def run_pipeline(pipeline_name: str) -> int:
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
             loader_filename = normalize_loader_name(loader)
             env = os.environ.copy()
+            # BUG FOUND 2026-08-10: loaders/runner.py enforces its OWN process-level watchdog
+            # (LOADER_TIMEOUT_MINUTES, default 120 min, SIGALRM/os._exit(1)) completely
+            # independent of this scheduler's own per-loader `timeout` above. A same-day fix
+            # bumped LOADER_TIMEOUTS["enhanced_quality_growth"] to 150 min here, but that outer
+            # subprocess.run() timeout never mattered - live-reproduced: the loader's own inner
+            # watchdog fired first at exactly 120 min ("[TIMEOUT] Loader exceeded 120 minute
+            # timeout. Exiting forcefully."), silently making the outer-timeout fix a no-op for
+            # any loader whose real runtime falls between 120 min and its scheduler budget.
+            # Propagate this loader's actual budget into the child so the two can never drift
+            # apart again - the scheduler's LOADER_TIMEOUTS dict becomes the single source of
+            # truth instead of two independently-maintained numbers.
+            env["LOADER_TIMEOUT_MINUTES"] = str(max(1, (timeout + 59) // 60))
             # ROOT-CAUSE FIX 2026-08-10: always invoke the loader module directly
             # (`python loaders/{file}.py`, exactly what terraform/modules/loaders/main.tf
             # runs in production), never scripts/run_loader.py's generic path.
