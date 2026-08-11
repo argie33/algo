@@ -3238,7 +3238,20 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
         if ps_raw is None:
             ps_raw = ""
         ps = ps_raw
-        sc, si = _format_phase_badge(ps)
+        # BUG FOUND 2026-08-10: same benign-stub exemption already applied at
+        # _build_phase_execution_panel/_build_results_panel/panel_status (see any of
+        # those for the full writeup) was missing here - a 4th, live, reachable call
+        # site (panel_algo_health -> _build_phase_badges_and_metrics, wired into
+        # dashboard/renderers/pipeline.py) that _format_phase_badge() alone can never
+        # exempt, since it only receives the raw status string with no summary text.
+        # Phase 6's dry_run branch reports status="degraded" unconditionally before any
+        # real exit logic runs, so this exact literal "DRY-RUN" summary can never
+        # coexist with a genuine exit error.
+        is_dry_run_stub = ps.lower() == "degraded" and "DRY-RUN" in (p.get("summary") or "")
+        if is_dry_run_stub:
+            sc, si = (DIM, "⊘")
+        else:
+            sc, si = _format_phase_badge(ps)
         phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
         # Extract metrics from phase data

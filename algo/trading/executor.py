@@ -434,7 +434,13 @@ class TradeExecutor:
                 # intent (e.g. Phase 8 reprocessing today's signal after a crash/restart)
                 # reuses the same value so Alpaca can reject it as a duplicate; a random
                 # trade_id would be different on every attempt and defeat that protection.
-                client_order_id=idempotency_key[:48],
+                # Full 64-char SHA256 hexdigest, not an arbitrary [:48] truncation - verified
+                # against Alpaca's official API reference (docs.alpaca.markets/reference/
+                # postorder): client_order_id's real limit is 128 characters, not 48. The old
+                # truncation wasn't a live collision risk (192 bits is still astronomically
+                # safe) but had no basis in the actual constraint - using the full hash is
+                # strictly safer and removes an unexplained magic number.
+                client_order_id=idempotency_key,
             )
 
             # FAIL-FAST: Validate response schema before using (contract enforcement)
@@ -680,7 +686,9 @@ class TradeExecutor:
                             # Raising here would cause DatabaseContext to rollback the already-succeeded transaction
                             # Resulting in: trade inserted to DB successfully, but then rolled back due to lock error
                             # Database ends up with nothing committed, despite operation succeeding
-                            logger.warning(f"Failed to release locks after successful operation (non-fatal): {lock_exc}")
+                            logger.warning(
+                                f"Failed to release locks after successful operation (non-fatal): {lock_exc}"
+                            )
                 else:
                     logger.debug("[_with_cursor] No locks requested, executing operation")
                     return operation(cur)
@@ -922,8 +930,15 @@ class TradeExecutor:
         already-fixed one; it just was never wired in.
         """
         return self.position_tracker.update_position_with_retry(
-            cur, position_id, new_qty, new_stop_price, full_exit, exit_stage,
-            pnl_dollars=pnl_dollars, pnl_pct=pnl_pct, exit_reason=exit_reason
+            cur,
+            position_id,
+            new_qty,
+            new_stop_price,
+            full_exit,
+            exit_stage,
+            pnl_dollars=pnl_dollars,
+            pnl_pct=pnl_pct,
+            exit_reason=exit_reason,
         )
 
     def exit_trade(
