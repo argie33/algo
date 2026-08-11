@@ -1783,7 +1783,10 @@ def run(
     )
 
     # Log paper trading mode info (execution_mode and alpaca_paper_trading already validated above)
-    if execution_mode == "paper" or alpaca_paper_trading:
+    # BUG FOUND 2026-08-11: purely a diagnostic log message (not a behavioral gate), but
+    # "dry" mode is equally a no-real-trade local mode and was silently missing this
+    # informational log line - included for consistency with the rest of tonight's sweep.
+    if execution_mode in ("paper", "dry") or alpaca_paper_trading:
         logger.info(
             f"[PHASE 8] Paper trading mode active (execution_mode={execution_mode}, "
             f"alpaca_paper_trading={alpaca_paper_trading}). Trades will execute against paper account."
