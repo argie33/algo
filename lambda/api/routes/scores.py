@@ -860,12 +860,27 @@ def _get_stock_scores(  # noqa: C901
         # TRUST VI") - live-checked and found it collides with real closed-end funds (VLT
         # "Invesco High Income Trust II"), the same false-positive trap already documented for
         # CEF name-matching above.
+        # PHYSICAL COMMODITY TRUST FILTERING (2026-08-10): grantor trusts that hold physical
+        # bullion (GraniteShares Gold Trust "BAR" the live example - 279 more like it exist
+        # for silver/platinum/palladium under other issuers) file real 10-Ks (so they pass
+        # has_annual_report_filing) and aren't ETF-registered '40 Act funds (so etf_symbols
+        # doesn't have them either) - they slipped through every filter above and ranked #1
+        # in the entire universe on last live check. SIC 6221 ("Commodity Contracts Brokers &
+        # Dealers") alone isn't a safe filter - live-verified it also covers real operating
+        # companies (AIB "Data Centers Inc", ANTA "Antalpha Platform Holding", UROY "Uranium
+        # Royalty Corp"), none of which have "Trust" in their name. Requiring both SIC 6221
+        # AND a commodity-Trust name pattern together matched only BAR across the entire
+        # scored universe, zero false positives against the SIC-6221 operating companies above.
         where_clause = """
             WHERE sc.composite_score > 0
             AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
             AND ss.symbol NOT IN (SELECT symbol FROM company_info_sec WHERE sic_code IN (6770, 6792, 6189))
             AND ss.symbol NOT IN (
                 SELECT symbol FROM company_info_sec WHERE has_annual_report_filing = FALSE
+            )
+            AND NOT (
+                ss.symbol IN (SELECT symbol FROM company_info_sec WHERE sic_code = 6221)
+                AND ss.security_name ~* '(Gold|Silver|Platinum|Palladium|Bullion) Trust'
             )
             AND (ss.security_name IS NULL OR (
                 ss.security_name !~* '(Rights?|Warrants?)$'
