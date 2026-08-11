@@ -32,6 +32,11 @@ variable "github_repo" {
   type        = string
 }
 
+variable "github_ref_path" {
+  description = "GitHub ref path for OIDC trust (e.g., refs/heads/main). Root module's var.github_ref_path was declared but never wired to this module - the OIDC trust condition hardcoded 'refs/heads/main' instead, so changing the root variable silently had no effect. See main.tf's github_actions_assume trust condition."
+  type        = string
+}
+
 variable "common_tags" {
   description = "Common tags applied to all resources"
   type        = map(string)

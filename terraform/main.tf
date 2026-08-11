@@ -11,6 +11,7 @@ module "iam" {
   aws_account_id              = local.aws_account_id
   github_org                  = local.github_org
   github_repo                 = local.github_repo
+  github_ref_path             = var.github_ref_path
   bastion_enabled             = var.bastion_enabled
   data_bucket_name            = module.storage.data_loading_bucket_name
   developer_key_rotation_date = var.developer_key_rotation_date
