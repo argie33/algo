@@ -15,6 +15,17 @@ since it's the actual broker submission call, not an internal calculation upstre
 
 The critical assertion in every test below is that the network call is NEVER attempted
 for invalid input - garbage data must be rejected before it reaches the broker, not after.
+
+BUG FOUND 2026-08-11 (a broader fuzz pass, same class): the isnan/isinf checks above catch
+NaN/Infinity but not merely-huge finite values (e.g. 1e300). `_q2()`'s
+`Decimal.quantize(Decimal("0.01"))` raises decimal.InvalidOperation (uncaught by this
+function) once a value needs more significant digits than Decimal's default context
+precision (28) allows - live-reproduced via fuzzing 28,561 combinations, 745 uncaught
+crashes, all at magnitude >= 1e300. Added an explicit magnitude ceiling, and also closed a
+separate gap in the same sweep: take_profit_price had zero validation at all - a NaN value
+didn't crash (silently discarded by the `> entry_price` comparison instead, replaced with
+the 1.5R fallback with no indication to the caller that their explicit value was invalid),
+and a too-large finite value hit the same InvalidOperation crash.
 """
 
 from unittest.mock import patch
@@ -40,6 +51,14 @@ def _make_manager():
         {"shares": float("nan")},
         {"shares": 0},
         {"shares": -10},
+        {"entry_price": 1e300},
+        {"stop_loss_price": 1e300},
+        {"shares": 1e300},
+        {"take_profit_price": float("nan")},
+        {"take_profit_price": float("inf")},
+        {"take_profit_price": 1e300},
+        {"take_profit_price": -50.0},
+        {"take_profit_price": 0.0},
     ],
 )
 def test_pathological_input_rejected_before_any_network_call(kwargs):

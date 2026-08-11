@@ -171,11 +171,34 @@ class OrderManager:
         # position_sizer.py, financial.py, phase8_entry_execution.py, and exit_engine.py -
         # this is the most consequential instance since it's the actual broker submission
         # call, not an internal calculation upstream of it.
-        for label, value in (("entry_price", entry_price), ("shares", shares)):
-            if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))) or value <= 0:
+        #
+        # BUG FOUND 2026-08-11 (via a broader fuzz pass, same class): the isnan/isinf checks
+        # above catch NaN/Infinity but not merely-huge finite values (e.g. 1e300, the kind of
+        # number a unit-conversion or corrupted-upstream-data bug could plausibly produce).
+        # `_q2()`'s `Decimal.quantize(Decimal("0.01"))` raises decimal.InvalidOperation (an
+        # ArithmeticError, uncaught by this function's own try/except below) once the value
+        # needs more significant digits than Decimal's default context precision (28) allows -
+        # live-reproduced via fuzzing (28,561 combinations, 745 uncaught crashes, all at
+        # magnitude >= 1e300). Added an explicit magnitude ceiling alongside the existing
+        # finite check - no real equity price or share count is within many orders of
+        # magnitude of $1M/share or 10M shares, so this only ever catches corrupted data,
+        # never a real trade.
+        max_abs_price = 1_000_000.0
+        max_abs_shares = 10_000_000.0
+        for label, value, ceiling in (
+            ("entry_price", entry_price, max_abs_price),
+            ("shares", shares, max_abs_shares),
+        ):
+            if (
+                value is None
+                or (isinstance(value, float) and (math.isnan(value) or math.isinf(value)))
+                or value <= 0
+                or abs(value) > ceiling
+            ):
                 error_msg = (
                     f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order with invalid {label}={value!r}. "
-                    f"Must be a finite positive number. Refusing to submit a real order with corrupted data."
+                    f"Must be a finite positive number no larger than {ceiling:,.0f}. "
+                    f"Refusing to submit a real order with corrupted data."
                 )
                 logger.critical(error_msg)
                 return {"success": False, "message": error_msg}
@@ -185,6 +208,7 @@ class OrderManager:
             stop_loss_price is None
             or (isinstance(stop_loss_price, float) and (math.isnan(stop_loss_price) or math.isinf(stop_loss_price)))
             or stop_loss_price <= 0
+            or abs(stop_loss_price) > max_abs_price
         ):
             error_msg = (
                 f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order without valid stop_loss_price. "
@@ -192,6 +216,26 @@ class OrderManager:
                 f"Received: {stop_loss_price}. Entry price: {entry_price}. "
                 f"Fail-fast to prevent naked positions (no stop-loss protection). "
                 f"Check Phase 8 entry validation - stop price calculation must succeed before order submission."
+            )
+            logger.critical(error_msg)
+            return {"success": False, "message": error_msg}
+
+        # BUG FOUND 2026-08-11: take_profit_price was never validated at all. A NaN
+        # take_profit_price doesn't crash (float NaN comparisons are always False, so
+        # `take_profit_price > entry_price` below silently evaluates False) - but it's
+        # silently DISCARDED and replaced with an internally-computed 1.5R fallback instead
+        # of either using the caller's real intent or telling the caller their explicit
+        # take_profit_price was invalid. A too-large finite value hits the same
+        # decimal.InvalidOperation crash in `_q2()` as entry_price/stop_loss_price above.
+        if take_profit_price is not None and (
+            (isinstance(take_profit_price, float) and (math.isnan(take_profit_price) or math.isinf(take_profit_price)))
+            or take_profit_price <= 0
+            or abs(take_profit_price) > max_abs_price
+        ):
+            error_msg = (
+                f"[SEND_ORDER CRITICAL] {symbol}: Cannot send bracket order with invalid "
+                f"take_profit_price={take_profit_price!r}. Must be a finite positive number no larger "
+                f"than {max_abs_price:,.0f}, or None to auto-calculate from the 1.5R fallback."
             )
             logger.critical(error_msg)
             return {"success": False, "message": error_msg}
