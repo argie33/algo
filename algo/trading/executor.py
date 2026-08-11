@@ -935,6 +935,7 @@ class TradeExecutor:
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
         cur: PsycopgCursor[Any] | None = None,
+        price_is_estimated: bool = False,
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 
@@ -948,6 +949,9 @@ class TradeExecutor:
             exit_stage: optional 'target_1' | 'target_2' | 'target_3' | 'stop' | 'time' | 'distribution'
             new_stop_price: if provided, raise the stop on the residual shares (trailing stop)
             cur: Optional existing cursor (for transactional batching). If None, opens own context.
+            price_is_estimated: True when exit_price is not a live quote (e.g. exit_engine.py's
+                archive-price fallback when current price data was unavailable) - defers P&L to
+                reconciliation instead of trusting the stale price, same as an unconfirmed auto-mode fill.
 
         Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
         """
@@ -959,4 +963,5 @@ class TradeExecutor:
             exit_stage=exit_stage,
             new_stop_price=new_stop_price,
             cur=cur,
+            price_is_estimated=price_is_estimated,
         )

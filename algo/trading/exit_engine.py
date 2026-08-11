@@ -1084,6 +1084,7 @@ class ExitEngine:
                             exit_stage=stage,
                             new_stop_price=new_stop,
                             cur=cur,
+                            price_is_estimated=is_estimated_price_exit,
                         )
 
                         if "success" not in result:

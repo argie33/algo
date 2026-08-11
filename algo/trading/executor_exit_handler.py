@@ -54,6 +54,7 @@ class ExitHandler:
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
         cur: PsycopgCursor[Any] | None = None,
+        price_is_estimated: bool = False,
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 
@@ -108,6 +109,7 @@ class ExitHandler:
                     exit_fraction,
                     exit_stage,
                     new_stop_price,
+                    price_is_estimated,
                 )
             else:
                 result = self.context._with_cursor(
@@ -119,6 +121,7 @@ class ExitHandler:
                         exit_fraction,
                         exit_stage,
                         new_stop_price,
+                        price_is_estimated,
                     ),
                     acquire_locks=True,
                 )
@@ -585,6 +588,7 @@ class ExitHandler:
         exit_fraction: float,
         exit_stage: str | None,
         new_stop_price: float | None,
+        price_is_estimated: bool = False,
     ) -> dict[str, Any]:
         """Execute the core exit transaction with all safety guards.
 
@@ -680,7 +684,19 @@ class ExitHandler:
         # query found closed_count=9 but SUM(profit_loss_dollars) NULL and raised
         # "data corruption detected", permanently halting all further trading the moment
         # any paper position closed.
-        is_estimated_price = execution_mode == "auto"
+        #
+        # BUG FOUND 2026-08-10: that "paper mode's exit_price IS deterministic" assumption
+        # breaks when exit_engine.py had to fall back to a stale archived price because no
+        # live quote was available (_get_last_valid_archive_price) - exit_price here is then
+        # NOT a live evaluation-time quote, it's a guess. exit_engine.py already computed this
+        # (is_estimated_price_exit) but never passed it through, so P&L got computed and
+        # permanently stored from a stale price with no reconciliation. price_is_estimated
+        # lets that signal reach here and reuses the exact same PENDING_FILL_RECONCILIATION /
+        # resolve_local_pending_exits() machinery already built for auto-mode pending fills -
+        # that resolver is mode-agnostic (keys off profit_loss_dollars IS NULL AND
+        # estimated_exit_price IS NOT NULL) and will settle it from price_daily's real close
+        # once fresh data lands.
+        is_estimated_price = execution_mode == "auto" or price_is_estimated
 
         if execution_mode == "auto":
             exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit, trade_id)
