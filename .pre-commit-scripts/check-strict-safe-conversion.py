@@ -9,10 +9,42 @@ Pattern violations to catch:
   - safe_float(...) without strict=True in finance paths
   - safe_int(...) without strict=True in finance paths
   - safe_bool(...) without strict=True in finance paths
+
+IMPORTANT: this repo has two unrelated families of safe_float/safe_int/safe_bool:
+  - utils.validation.framework (also re-exported as dashboard.data_validation) has a
+    real opt-in `strict` kwarg (default False = silently returns a default on parse
+    failure) - THIS is what this check is for.
+  - utils.type_conversion has NO `strict` kwarg at all - it always raises on parse
+    errors; its `allow_none` kwarg only controls whether a genuinely-missing (None)
+    value is tolerated. Every loaders/*.py file uses this variant. Demanding
+    `strict=True` there doesn't make anything safer (it's already fail-fast) and
+    actually breaks the call with `TypeError: unexpected keyword argument 'strict'`
+    if anyone "fixes" it per this hook's own suggested remedy. Discovered 2026-08-10
+    when restoring this hook to the actually-running pre-commit framework, before
+    that happened it had silently never enforced anything on any loader.
+  - algo/trading/helpers.py defines its own local safe_float/safe_int with neither
+    kwarg - same reasoning, skip.
+So: only enforce when the file's own import line pulls safe_float/safe_int/safe_bool
+from utils.validation.framework or dashboard.data_validation.
 """
 
 import re
 import sys
+
+STRICT_CAPABLE_SOURCES = ("utils.validation.framework", "dashboard.data_validation")
+
+
+def _imports_strict_capable_variant(lines: list[str]) -> bool:
+    """True if the file imports safe_float/safe_int/safe_bool from a module that
+    actually supports a `strict` kwarg. See module docstring."""
+    for line in lines:
+        if "safe_float" not in line and "safe_int" not in line and "safe_bool" not in line:
+            continue
+        if "import" not in line:
+            continue
+        if any(src in line for src in STRICT_CAPABLE_SOURCES):
+            return True
+    return False
 
 
 def check_strict_conversion(filepath: str) -> list[str]:
@@ -38,6 +70,9 @@ def check_strict_conversion(filepath: str) -> list[str]:
             lines = f.readlines()
     except Exception as e:
         return [f"Could not read file: {e}"]
+
+    if not _imports_strict_capable_variant(lines):
+        return violations
 
     # Pattern: safe_float/safe_int/safe_bool call WITHOUT strict=True
     # Allowed patterns:
@@ -94,7 +129,7 @@ if __name__ == "__main__":
         print(
             "\nFix: Add strict=True to all safe_float/safe_int/safe_bool calls in "
             "loaders/, algo/risk/, algo/signals/, algo/trading/, and dashboard/fetchers. "
-            "See utils/safe_data_conversion.py for details."
+            "See utils/validation/framework.py for details."
         )
         sys.exit(1)
 

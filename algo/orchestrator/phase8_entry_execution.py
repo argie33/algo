@@ -150,7 +150,9 @@ def _validate_constraints_for_phase8(exposure_constraints: ExposureConstraints |
     elif isinstance(exposure_constraints, dict):
         constraints_dict = cast(dict[str, Any], exposure_constraints)
     else:
-        raise TypeError(f"exposure_constraints must be dict or ExposurePolicyConstraints, got {type(exposure_constraints).__name__}")
+        raise TypeError(
+            f"exposure_constraints must be dict or ExposurePolicyConstraints, got {type(exposure_constraints).__name__}"
+        )
 
     errors = []
     tier_name = constraints_dict.get("tier_name", "UNKNOWN_TIER")
@@ -342,7 +344,8 @@ def _calculate_pre_entry_concentration_impact(
 
         try:
             # Get technical data needed for position sizing
-            tech_data = merged_technical_data.get(str(symbol), {})
+            symbol_key = str(symbol)
+            tech_data = merged_technical_data[symbol_key] if symbol_key in merged_technical_data else {}
             atr_val = tech_data.get("atr_14") or tech_data.get("atr")
             sma_50_val = tech_data.get("sma_50")
             close_val = tech_data.get("close")
@@ -355,7 +358,9 @@ def _calculate_pre_entry_concentration_impact(
 
             entry_price = float(close_val)
             if entry_price <= 0:
-                logger.warning(f"[CONCENTRATION CHECK] {symbol}: Invalid entry_price={entry_price} (must be > 0). Skipping.")
+                logger.warning(
+                    f"[CONCENTRATION CHECK] {symbol}: Invalid entry_price={entry_price} (must be > 0). Skipping."
+                )
                 continue
             atr = float(atr_val)
             sma_50 = float(sma_50_val)
@@ -390,12 +395,12 @@ def _calculate_pre_entry_concentration_impact(
             shares = position_result.get("shares", 0)
             if shares > 0:
                 position_value = Decimal(shares) * Decimal(str(entry_price))
-                portfolio_value_dec = Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+                portfolio_value_dec = (
+                    Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+                )
                 concentration_pct = float((position_value / portfolio_value_dec) * Decimal(100))
                 total_concentration += concentration_pct
-                signal_positions.append(
-                    {"symbol": symbol, "shares": shares, "concentration_pct": concentration_pct}
-                )
+                signal_positions.append({"symbol": symbol, "shares": shares, "concentration_pct": concentration_pct})
 
                 logger.info(
                     f"[CONCENTRATION CHECK] {symbol}: {shares} shares @ ${entry_price:.2f} = "
@@ -420,7 +425,9 @@ def _calculate_pre_entry_concentration_impact(
     return total_concentration, blocked_symbols
 
 
-def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0, run_date: _date | None = None) -> tuple[float, float]:
+def _calculate_current_total_risk_pct(
+    max_risk_limit_pct: float = 4.0, run_date: _date | None = None
+) -> tuple[float, float]:
     """Calculate total open risk as percentage of portfolio.
 
     PROACTIVE RISK CHECK: Used by Phase 8 to verify entry won't exceed risk limit BEFORE executing.
@@ -699,7 +706,9 @@ def _log_signal_rejection(
                     f"May not have been persisted yet. Audit trail recorded in algo_signal_rejections."
                 )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol} (DB error): {e}. Audit trail incomplete.")
+        logger.error(
+            f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol} (DB error): {e}. Audit trail incomplete."
+        )
         raise RuntimeError(f"Signal rejection audit logging failed for {symbol} (DB): {e}") from e
     except Exception as e:
         logger.error(f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol}: {e}. Audit trail incomplete.")
@@ -973,10 +982,10 @@ def _batch_fetch_technical_data(
                 try:
                     # DictCursor returns dict-like row objects; unpack safely
                     if isinstance(row, dict):
-                        row_symbol = row.get('symbol')
-                        atr = row.get('atr')
-                        sma_50 = row.get('sma_50')
-                        close = row.get('close')
+                        row_symbol = row.get("symbol")
+                        atr = row.get("atr")
+                        sma_50 = row.get("sma_50")
+                        close = row.get("close")
                     else:
                         # Fallback for tuple-based cursor (shouldn't happen with DictCursor, but be defensive)
                         if len(row) < 4:
@@ -1081,6 +1090,7 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
             # INTRADAY context: expect previous trading day's close
             prev_date = run_date - td(days=1)
             from algo.infrastructure.market_calendar import MarketCalendar
+
             if MarketCalendar.is_trading_day(prev_date):
                 expected_price_date = prev_date
             else:
@@ -1094,6 +1104,7 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
             # MORNING context (before 9:30 AM): expect previous trading day's close
             prev_date = run_date - td(days=1)
             from algo.infrastructure.market_calendar import MarketCalendar
+
             if MarketCalendar.is_trading_day(prev_date):
                 expected_price_date = prev_date
             else:
@@ -1124,7 +1135,9 @@ def _check_price_data_freshness(run_date: _date) -> tuple[bool, str]:
                     f"Cannot execute entries on stale prices."
                 )
 
-            logger.info(f"[PHASE 8 PRICE CHECK] price_daily is current: max(date)={latest_price_date} >= expected={expected_price_date} (context: {'EOD' if is_after_market_close else 'INTRADAY' if is_market_open else 'MORNING'})")
+            logger.info(
+                f"[PHASE 8 PRICE CHECK] price_daily is current: max(date)={latest_price_date} >= expected={expected_price_date} (context: {'EOD' if is_after_market_close else 'INTRADAY' if is_market_open else 'MORNING'})"
+            )
             return True, f"Price data is fresh (max_date={latest_price_date})"
 
     except Exception as e:
@@ -1195,8 +1208,8 @@ def run(
     # the guard works correctly on early-close days and outside market hours.
 
     # TEST MODE: Allow override for testing outside market hours (PHASE_8_TEST_MODE=true or ALLOW_OUTSIDE_MARKET_HOURS=true)
-    test_mode = os.environ.get('PHASE_8_TEST_MODE', 'false').lower() == 'true'
-    allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
+    test_mode = os.environ.get("PHASE_8_TEST_MODE", "false").lower() == "true"
+    allow_outside_hours = os.environ.get("ALLOW_OUTSIDE_MARKET_HOURS", "false").lower() == "true"
 
     # CRITICAL FIX (Session 30): Import EASTERN_TZ at function level to ensure availability
     # Previous: UnboundLocalError "cannot access local variable 'EASTERN_TZ'" due to scope shadowing
@@ -1423,7 +1436,9 @@ def run(
                 if qualified_trades_from_executor:
                     logger.info("[PHASE 8 DEBUG] Top 5 received signals signal_quality_score values:")
                     for i, sig in enumerate(qualified_trades_from_executor[:5]):
-                        logger.info(f"  {i+1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}")
+                        logger.info(
+                            f"  {i + 1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}"
+                        )
             elif phase7_result and phase7_result.halted:
                 logger.warning(
                     f"[PHASE 8] Phase 7 halted: {phase7_result.error or 'unknown'}. "
@@ -1439,7 +1454,9 @@ def run(
                 # When Phase 5 halts due to missing market data or policy error, it returns
                 # halt_constraints with safe defaults (max_concentration_pct=0, halt_new_entries=True).
                 # Phase 8 MUST use these halt constraints, not ignore them.
-                exposure_constraints_from_executor = cast(ExposureConstraints | None, phase5_result.data.get("constraints"))
+                exposure_constraints_from_executor = cast(
+                    ExposureConstraints | None, phase5_result.data.get("constraints")
+                )
 
                 # CHECKPOINT 1: Validate Phase 5 constraints have ALL required fields (around line 685-710)
                 # If any required field is missing, use safe defaults instead
@@ -1677,7 +1694,9 @@ def run(
                     )
                     latest_price_date = run_date  # Assume data is fresh for testing purposes
                 else:
-                    raise ValueError("Price data freshness query returned NULL - price_daily table may have no valid dates")
+                    raise ValueError(
+                        "Price data freshness query returned NULL - price_daily table may have no valid dates"
+                    )
 
             # Determine expected last trading day - allow previous trading day's data
             # Phase 8 may run intraday (9 AM, 1 PM, 3 PM) before EOD data is available,
@@ -1846,7 +1865,9 @@ def run(
             if result and len(result) > 0 and result[0] is not None:
                 portfolio_value = Decimal(str(result[0]))
                 portfolio_value_source = f"latest_snapshot ({result[1]})"
-                logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from latest snapshot, date={result[1]})")
+                logger.info(
+                    f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from latest snapshot, date={result[1]})"
+                )
             else:
                 raise ValueError("No portfolio snapshot available")
     except Exception as db_err:
@@ -2225,6 +2246,7 @@ def run(
         # Analysis: Pre-market signals are stale (from yesterday's EOD), market open 9:30-10:30 AM is high-volatility
         # Solution: Enforce absolute 10:30 AM ET minimum - no entries anytime before then
         from datetime import time as dt_time
+
         current_time_et = datetime.now(_EASTERN_TZ).time()
         earliest_entry_time = dt_time(10, 30)  # 10:30 AM ET - MINIMUM entry time
 
@@ -2250,7 +2272,9 @@ def run(
         # WHY: ATR < minimum indicates frozen/stale data or penny stock with zero recent movement
         # RATIONALE: Prevents position sizing errors on stocks with no volatility
         if atr is not None and float(atr) < PHASE8_ATR_MIN_VALID:
-            logger.error(f"[PHASE 8 DATA QUALITY] {symbol}: Invalid ATR {atr} (must be >= {PHASE8_ATR_MIN_VALID}) - skipping trade")
+            logger.error(
+                f"[PHASE 8 DATA QUALITY] {symbol}: Invalid ATR {atr} (must be >= {PHASE8_ATR_MIN_VALID}) - skipping trade"
+            )
             data_quality_failures[symbol] = f"invalid_atr_{atr}"
             continue
 
@@ -2328,31 +2352,42 @@ def run(
     #   - Drawdown reductions
     #   - Max position size caps
     #   - Tier-specific concentration limits
-    if qualified_trades and exposure_constraints.get("max_concentration_pct", 0) > 0:
+    # max_concentration_pct is a required_constraint_keys field, guaranteed present here by
+    # the fail-fast checkpoints above (CHECKPOINT 1/3 at extraction, CHECKPOINT 2 at line
+    # ~2192 right before this block) - direct key access, not .get() with a default.
+    if qualified_trades and exposure_constraints["max_concentration_pct"] > 0:
         try:
-            tier_max_conc_val = float(exposure_constraints.get("max_concentration_pct", 100.0))
+            tier_max_conc_val = float(exposure_constraints["max_concentration_pct"])
 
             # Instead of all-or-nothing rejection, intelligently rank signals by quality
             # and enter as many as fit within concentration limit
             # This prevents wasting high-quality signals when some would fit
 
             # Sort signals by composite_score descending (best first)
-            sorted_signals = sorted(
-                qualified_trades,
-                key=lambda s: float(s.get("composite_score", 0)),
-                reverse=True
-            )
+            sorted_signals = sorted(qualified_trades, key=lambda s: float(s.get("composite_score", 0)), reverse=True)
 
             # Calculate cumulative concentration to find how many fit
             qualified_trades_that_fit = []
             cumulative_conc = 0.0
             skipped_reason_counts: dict[str, int] = {}
 
-            for signal in sorted_signals:
+            # AUDIT GAP FIX 2026-08-10: every skip path below used to only increment the
+            # in-memory skipped_reason_counts dict (a log line only) - unlike every other
+            # rejection path in this function (health_validation, liquidity, sizer_blocked -
+            # see the two comments on those about closing this exact gap), nothing here ever
+            # called _log_signal_rejection() or touched algo_signals.execution_status. Live-
+            # confirmed: a 2026-08-10 run qualified 19 signals, 8 got real rejection rows from
+            # the checks below, and the other 11 - filtered out right here by this
+            # concentration/sizer pre-check - sat in algo_signals as 'pending' forever with zero
+            # record of why, indistinguishable from "hasn't been evaluated yet". Also fixes the
+            # `break` on exceeds_limit: everything after the breaking signal in sorted_signals
+            # was never even visited, so the counts themselves silently undercounted these too.
+            for idx, signal in enumerate(sorted_signals):
                 symbol = signal.get("symbol")
                 if not symbol:
-                    skipped_reason_counts['missing_symbol'] = skipped_reason_counts.get('missing_symbol', 0) + 1
+                    skipped_reason_counts["missing_symbol"] = skipped_reason_counts.get("missing_symbol", 0) + 1
                     continue
+                signal_entry_price_hint = float(signal.get("entry_price", 0) or 0)
 
                 # CRITICAL FIX SESSION 53: Prevent duplicate signal execution across multiple orchestrator runs
                 # Root cause: Orchestrator runs multiple times per day (hundreds of times on 2026-08-07)
@@ -2361,30 +2396,56 @@ def run(
                 # to prevent re-execution of the same signal in subsequent runs
                 try:
                     with DatabaseContext("read") as cur:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT COUNT(*) FROM algo_trades
                             WHERE symbol = %s AND DATE(entry_time) = %s
                             AND status NOT IN ('cancelled', 'rejected')
-                        """, (symbol, run_date))
+                        """,
+                            (symbol, run_date),
+                        )
                         existing_trade_count = cur.fetchone()[0]
                         if existing_trade_count > 0:
                             logger.info(
                                 f"[PHASE 8 DEDUP_PREVIOUS_RUN] {symbol}: Already entered today "
                                 f"({existing_trade_count} existing trade). Skipping re-execution to prevent duplicate."
                             )
-                            skipped_reason_counts['already_entered_today'] = skipped_reason_counts.get('already_entered_today', 0) + 1
+                            skipped_reason_counts["already_entered_today"] = (
+                                skipped_reason_counts.get("already_entered_today", 0) + 1
+                            )
+                            _log_signal_rejection(
+                                symbol,
+                                "concentration_prefilter",
+                                f"already_entered_today: {existing_trade_count} existing trade(s)",
+                                run_date,
+                                signal_entry_price_hint,
+                                None,
+                            )
                             continue
                 except Exception as e:
-                    logger.warning(f"[PHASE 8] {symbol}: Error checking for duplicate entry: {type(e).__name__}: {e}. Proceeding with caution.")
+                    logger.warning(
+                        f"[PHASE 8] {symbol}: Error checking for duplicate entry: {type(e).__name__}: {e}. Proceeding with caution."
+                    )
 
                 try:
-                    tech_data = merged_technical_data.get(str(symbol), {})
+                    symbol_key = str(symbol)
+                    tech_data = merged_technical_data[symbol_key] if symbol_key in merged_technical_data else {}
                     atr_val = tech_data.get("atr_14") or tech_data.get("atr")
                     sma_50_val = tech_data.get("sma_50")
                     close_val = tech_data.get("close")
 
                     if not (atr_val and sma_50_val and close_val):
-                        skipped_reason_counts['missing_tech_data'] = skipped_reason_counts.get('missing_tech_data', 0) + 1
+                        skipped_reason_counts["missing_tech_data"] = (
+                            skipped_reason_counts.get("missing_tech_data", 0) + 1
+                        )
+                        _log_signal_rejection(
+                            symbol,
+                            "concentration_prefilter",
+                            "missing_tech_data",
+                            run_date,
+                            signal_entry_price_hint,
+                            None,
+                        )
                         continue
 
                     entry_price = float(close_val)
@@ -2396,18 +2457,39 @@ def run(
                     # catch NaN - this gates which signals actually get entered (live
                     # qualified_trades_that_fit concentration loop).
                     if (
-                        math.isnan(entry_price) or math.isinf(entry_price)
-                        or math.isnan(atr) or math.isinf(atr)
-                        or math.isnan(sma_50) or math.isinf(sma_50)
-                        or math.isnan(stop_loss) or math.isinf(stop_loss)
-                        or entry_price <= 0 or atr < 0 or sma_50 <= 0 or stop_loss <= 0
+                        math.isnan(entry_price)
+                        or math.isinf(entry_price)
+                        or math.isnan(atr)
+                        or math.isinf(atr)
+                        or math.isnan(sma_50)
+                        or math.isinf(sma_50)
+                        or math.isnan(stop_loss)
+                        or math.isinf(stop_loss)
+                        or entry_price <= 0
+                        or atr < 0
+                        or sma_50 <= 0
+                        or stop_loss <= 0
                     ):
-                        skipped_reason_counts['invalid_price_data'] = skipped_reason_counts.get('invalid_price_data', 0) + 1
+                        skipped_reason_counts["invalid_price_data"] = (
+                            skipped_reason_counts.get("invalid_price_data", 0) + 1
+                        )
+                        # entry_price/atr/sma_50/stop_loss may themselves be NaN/inf here - don't
+                        # pass them to the DB, use the pre-technical-lookup hint field instead.
+                        _log_signal_rejection(
+                            symbol,
+                            "concentration_prefilter",
+                            "invalid_price_data",
+                            run_date,
+                            signal_entry_price_hint,
+                            None,
+                        )
                         continue
 
                     # Get position size from sizer
                     # CRITICAL FIX: Ensure portfolio_value is Decimal - sizer does Decimal arithmetic
-                    pv_for_sizer = portfolio_value if isinstance(portfolio_value, Decimal) else Decimal(str(portfolio_value))
+                    pv_for_sizer = (
+                        portfolio_value if isinstance(portfolio_value, Decimal) else Decimal(str(portfolio_value))
+                    )
                     position_result = sizer.calculate_position_size(
                         symbol=symbol,
                         entry_price=entry_price,
@@ -2422,16 +2504,26 @@ def run(
                         # Sizer can reject for: no_room, drawdown_halt, phase_climax, invalid, concentration, etc.
                         sizer_status = position_result.get("status", "unknown")
                         sizer_reason = position_result.get("reason", "no reason provided")
-                        skip_key = f'sizer_{sizer_status}' if sizer_status != "unknown" else 'sizer_zero_shares'
+                        skip_key = f"sizer_{sizer_status}" if sizer_status != "unknown" else "sizer_zero_shares"
                         skipped_reason_counts[skip_key] = skipped_reason_counts.get(skip_key, 0) + 1
                         logger.debug(
                             f"[PHASE 8 SIZER] {symbol}: Rejected with shares=0. "
                             f"Status={sizer_status}, Reason={sizer_reason}"
                         )
+                        _log_signal_rejection(
+                            symbol,
+                            "concentration_prefilter",
+                            f"{skip_key}: {sizer_reason}",
+                            run_date,
+                            entry_price,
+                            None,
+                        )
                         continue
 
                     position_value = Decimal(shares) * Decimal(str(entry_price))
-                    portfolio_value_dec = Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+                    portfolio_value_dec = (
+                        Decimal(str(portfolio_value)) if not isinstance(portfolio_value, Decimal) else portfolio_value
+                    )
                     conc_pct = float((position_value / portfolio_value_dec) * Decimal(100))
 
                     # Check if adding this signal would exceed the limit
@@ -2439,27 +2531,79 @@ def run(
                         cumulative_conc += conc_pct
                         qualified_trades_that_fit.append(signal)
                     else:
-                        # This and all remaining signals don't fit
-                        skipped_reason_counts['exceeds_limit'] = skipped_reason_counts.get('exceeds_limit', 0) + 1
+                        # This and all remaining lower-ranked signals don't fit either (sorted
+                        # descending by score, cumulative_conc only grows) - log all of them,
+                        # not just this one, since the `break` below means none of them will be
+                        # individually visited by this loop.
+                        cascade_reason = (
+                            f"exceeds_limit: cumulative {cumulative_conc + conc_pct:.1f}% > "
+                            f"{tier_max_conc_val:.0f}% cap"
+                        )
+                        skipped_reason_counts["exceeds_limit"] = skipped_reason_counts.get("exceeds_limit", 0) + 1
+                        _log_signal_rejection(
+                            symbol,
+                            "concentration_prefilter",
+                            cascade_reason,
+                            run_date,
+                            entry_price,
+                            None,
+                        )
+                        for remaining_signal in sorted_signals[idx + 1 :]:
+                            remaining_symbol = remaining_signal.get("symbol")
+                            if not remaining_symbol:
+                                continue
+                            skipped_reason_counts["exceeds_limit"] = skipped_reason_counts.get("exceeds_limit", 0) + 1
+                            _log_signal_rejection(
+                                remaining_symbol,
+                                "concentration_prefilter",
+                                cascade_reason,
+                                run_date,
+                                float(remaining_signal.get("entry_price", 0) or 0),
+                                None,
+                            )
                         break
 
                 except (ValueError, TypeError, KeyError, AttributeError) as e:
-                    error_type = f'error_{type(e).__name__}'
+                    error_type = f"error_{type(e).__name__}"
                     skipped_reason_counts[error_type] = skipped_reason_counts.get(error_type, 0) + 1
                     logger.debug(f"[PHASE 8 CONCENTRATION] {symbol}: Skipping due to {type(e).__name__}: {e}")
+                    _log_signal_rejection(
+                        symbol,
+                        "concentration_prefilter",
+                        f"{error_type}: {e}",
+                        run_date,
+                        signal_entry_price_hint,
+                        None,
+                    )
                     continue
                 except Exception as e:
-                    error_type = f'error_{type(e).__name__}'
+                    error_type = f"error_{type(e).__name__}"
                     skipped_reason_counts[error_type] = skipped_reason_counts.get(error_type, 0) + 1
-                    logger.warning(f"[PHASE 8 CONCENTRATION] {symbol}: Unexpected {type(e).__name__} in concentration calc: {e}. Skipping.")
+                    logger.warning(
+                        f"[PHASE 8 CONCENTRATION] {symbol}: Unexpected {type(e).__name__} in concentration calc: {e}. Skipping."
+                    )
+                    _log_signal_rejection(
+                        symbol,
+                        "concentration_prefilter",
+                        f"{error_type}: {e}",
+                        run_date,
+                        signal_entry_price_hint,
+                        None,
+                    )
                     continue
 
             # If some but not all signals fit, update the list and log
             if len(qualified_trades_that_fit) < len(qualified_trades):
-                skip_summary = ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items())) if skipped_reason_counts else "none"
+                skip_summary = (
+                    ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items()))
+                    if skipped_reason_counts
+                    else "none"
+                )
                 # CRITICAL FIX (Session 41): Log is misleading if sizer rejected for "no_room" (position limit)
                 # Check if the main rejection reason is position limit, and adjust label accordingly
-                is_position_limit_issue = 'sizer_no_room' in skipped_reason_counts and skipped_reason_counts.get('sizer_no_room', 0) == len(qualified_trades)
+                is_position_limit_issue = "sizer_no_room" in skipped_reason_counts and skipped_reason_counts.get(
+                    "sizer_no_room", 0
+                ) == len(qualified_trades)
                 label = "[PHASE 8 POSITION_LIMIT]" if is_position_limit_issue else "[PHASE 8 CONCENTRATION]"
                 logger.info(
                     f"{label} {len(qualified_trades_that_fit)} of {len(qualified_trades)} "
@@ -2470,9 +2614,15 @@ def run(
                 )
                 qualified_trades = qualified_trades_that_fit
             elif len(qualified_trades_that_fit) == 0:
-                skip_summary = ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items())) if skipped_reason_counts else "unknown"
+                skip_summary = (
+                    ", ".join(f"{k}:{v}" for k, v in sorted(skipped_reason_counts.items()))
+                    if skipped_reason_counts
+                    else "unknown"
+                )
                 # CRITICAL FIX (Session 41): Distinguish position limit issues from concentration issues
-                is_position_limit_issue = 'sizer_no_room' in skipped_reason_counts and skipped_reason_counts.get('sizer_no_room', 0) == len(qualified_trades)
+                is_position_limit_issue = "sizer_no_room" in skipped_reason_counts and skipped_reason_counts.get(
+                    "sizer_no_room", 0
+                ) == len(qualified_trades)
                 if is_position_limit_issue:
                     msg = (
                         f"[PHASE 8 POSITION_LIMIT] Cannot enter new trades: position limit reached. "
@@ -2553,8 +2703,8 @@ def run(
             error_msg = (
                 f"[PHASE 8 CRITICAL] All-or-nothing validation failed for {len(validation_failures)} trades. "
                 f"Rejecting all trades to prevent partial execution. "
-                f"Issues: {validation_failures[:3]}" +
-                (f"... and {len(validation_failures)-3} more" if len(validation_failures) > 3 else "")
+                f"Issues: {validation_failures[:3]}"
+                + (f"... and {len(validation_failures) - 3} more" if len(validation_failures) > 3 else "")
             )
             logger.critical(error_msg)
             log_phase_result_fn(8, "entry_execution", "halt", error_msg)
@@ -2622,8 +2772,7 @@ def run(
                 health_reason = f"health_checks_failed: {','.join(failed_checks)}"
                 logger.info(f"[PHASE 8] {symbol}: Pre-entry health validation failed: {health_reason}")
                 _log_signal_rejection(
-                    symbol, "health_validation", health_reason, run_date,
-                    float(signal.get("entry_price", 0) or 0), None
+                    symbol, "health_validation", health_reason, run_date, float(signal.get("entry_price", 0) or 0), None
                 )
                 skipped_count += 1
                 continue
@@ -2644,8 +2793,12 @@ def run(
                         af_reason = f"advanced_filters: {af_result['reason']}"
                         logger.info(f"[PHASE 8] {symbol}: AdvancedFilters gate rejected: {af_reason}")
                         _log_signal_rejection(
-                            symbol, "advanced_filters", af_reason, run_date,
-                            float(signal.get("entry_price", 0) or 0), None
+                            symbol,
+                            "advanced_filters",
+                            af_reason,
+                            run_date,
+                            float(signal.get("entry_price", 0) or 0),
+                            None,
                         )
                         skipped_count += 1
                         continue
@@ -2676,9 +2829,7 @@ def run(
                 # path in the loop logging at debug (invisible by default) instead of info, and the
                 # only one never writing to algo_signal_rejections.
                 logger.info(f"[PHASE 8] {symbol}: liquidity - {liq_reason}")
-                _log_signal_rejection(
-                    symbol, "liquidity", liq_reason, run_date, float(entry_price_hint), None
-                )
+                _log_signal_rejection(symbol, "liquidity", liq_reason, run_date, float(entry_price_hint), None)
 
                 skipped_count += 1
 
@@ -2718,10 +2869,15 @@ def run(
             # this is the real order-submission path, feeding _calculate_dynamic_stop_loss()
             # then sizer.calculate_position_size().
             if (
-                math.isnan(entry_price) or math.isinf(entry_price)
-                or math.isnan(atr) or math.isinf(atr)
-                or math.isnan(sma_50) or math.isinf(sma_50)
-                or entry_price <= 0 or atr < 0 or sma_50 <= 0
+                math.isnan(entry_price)
+                or math.isinf(entry_price)
+                or math.isnan(atr)
+                or math.isinf(atr)
+                or math.isnan(sma_50)
+                or math.isinf(sma_50)
+                or entry_price <= 0
+                or atr < 0
+                or sma_50 <= 0
             ):
                 errors = []
                 if math.isnan(entry_price) or math.isinf(entry_price) or entry_price <= 0:
@@ -2769,7 +2925,7 @@ def run(
                                 adjusted_stop = entry_price * (1 - MAX_RISK_ALLOWED)
                                 logger.warning(
                                     f"[PHASE 8] {symbol}: Support-adjusted stop ${min_stop_above_support:.2f} "
-                                    f"would risk {adjusted_risk*100:.1f}%, exceeds {MAX_RISK_ALLOWED*100:.0f}% limit. "
+                                    f"would risk {adjusted_risk * 100:.1f}%, exceeds {MAX_RISK_ALLOWED * 100:.0f}% limit. "
                                     f"Capping at ${adjusted_stop:.2f}."
                                 )
                             else:
@@ -2943,7 +3099,9 @@ def run(
             # Final hard-stop validation (includes earnings blackout check)
 
             try:
-                pt_ok, pt_reason = pretrade.run_all(symbol, position_value_float, portfolio_value_float, eval_date=run_date)
+                pt_ok, pt_reason = pretrade.run_all(
+                    symbol, position_value_float, portfolio_value_float, eval_date=run_date
+                )
 
             except ValueError as e:
                 raise RuntimeError(
@@ -2976,8 +3134,7 @@ def run(
                     # Set SERIALIZABLE isolation for this check to detect concurrent writes
                     cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
                     cur.execute(
-                        "SELECT id FROM algo_trades WHERE symbol = %s "
-                        "AND status = ANY(%s) LIMIT 1",
+                        "SELECT id FROM algo_trades WHERE symbol = %s AND status = ANY(%s) LIMIT 1",
                         (symbol, list(open_statuses)),
                     )
                     if cur.fetchone():
@@ -2988,13 +3145,22 @@ def run(
                         continue
             except psycopg2.extensions.TransactionRollbackError as ser_err:
                 # SERIALIZABLE isolation level detected conflict - retry this symbol later
-                logger.warning(f"[PHASE 8] {symbol}: Serialization conflict (concurrent write detected), skipping this run")
+                logger.warning(
+                    f"[PHASE 8] {symbol}: Serialization conflict (concurrent write detected), skipping this run"
+                )
                 _log_signal_rejection(symbol, "serialization_conflict", str(ser_err), run_date, entry_price, risk_pct)
                 skipped_count += 1
                 continue
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
                 logger.error(f"[PHASE 8] Failed to check for duplicate positions: {type(db_err).__name__}: {db_err}")
-                _log_signal_rejection(symbol, "duplicate_check_failed", f"Database error checking positions: {type(db_err).__name__}", run_date, entry_price, risk_pct)
+                _log_signal_rejection(
+                    symbol,
+                    "duplicate_check_failed",
+                    f"Database error checking positions: {type(db_err).__name__}",
+                    run_date,
+                    entry_price,
+                    risk_pct,
+                )
                 skipped_count += 1
                 continue
 
@@ -3050,7 +3216,9 @@ def run(
                 if max_signal_age_hours <= 0:
                     raise ValueError(f"max_signal_age_hours must be positive, got {max_signal_age_hours}")
             except (ValueError, TypeError) as e:
-                raise ValueError(f"[PHASE 8 CRITICAL] max_signal_age_hours is invalid ({signal_age_hours_val}): {e}") from e
+                raise ValueError(
+                    f"[PHASE 8 CRITICAL] max_signal_age_hours is invalid ({signal_age_hours_val}): {e}"
+                ) from e
 
             sig_date_obj_raw = signal.get("signal_date")
             sig_date_obj: _date | None = None
@@ -3060,12 +3228,16 @@ def run(
                     try:
                         sig_date_obj = datetime.fromisoformat(sig_date_obj_raw).date()
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_obj_raw}': {e}. Skipping age check.")
+                        logger.warning(
+                            f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_obj_raw}': {e}. Skipping age check."
+                        )
                         sig_date_obj = None
                 elif isinstance(sig_date_obj_raw, _date):
                     sig_date_obj = sig_date_obj_raw
                 else:
-                    logger.warning(f"[PHASE 8] {symbol}: signal_date has unexpected type {type(sig_date_obj_raw).__name__}. Skipping age check.")
+                    logger.warning(
+                        f"[PHASE 8] {symbol}: signal_date has unexpected type {type(sig_date_obj_raw).__name__}. Skipping age check."
+                    )
                     sig_date_obj = None
 
                 # Only check signal age if we have a valid date
@@ -3114,9 +3286,13 @@ def run(
                     if max_sqs < 0 or max_sqs > 100:
                         raise ValueError(f"max_signal_quality_score must be 0-100, got {max_sqs}")
                 except (ValueError, TypeError) as e:
-                    raise ValueError(f"[PHASE 8 CRITICAL] max_signal_quality_score is invalid ({max_sqs_val}): {e}") from e
+                    raise ValueError(
+                        f"[PHASE 8 CRITICAL] max_signal_quality_score is invalid ({max_sqs_val}): {e}"
+                    ) from e
                 if sqs > max_sqs:
-                    rejection_reason = f"Signal quality score {int(sqs)} exceeds maximum {max_sqs} (potential risk indicator)"
+                    rejection_reason = (
+                        f"Signal quality score {int(sqs)} exceeds maximum {max_sqs} (potential risk indicator)"
+                    )
                     logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
                     _log_signal_rejection(symbol, "quality_gate_max", rejection_reason, run_date, entry_price, risk_pct)
                     skipped_count += 1
@@ -3124,11 +3300,13 @@ def run(
 
             logger.info(
                 f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
-                f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
+                f"risk={risk_pct:.1f}% shares={shares} value=${position_value_float:,.0f} "
                 f"composite={sig_composite_score} rs_pct={sig_rs_pct} sqs={sqs} trend={trend_score}"
             )
             # DEBUG: Log signal dict for this trade before execution
-            logger.debug(f"[PHASE 8 DEBUG] {symbol}: Full signal dict - sqs={signal.get('signal_quality_score')}, trend={signal.get('trend_template_score')}, base_q={signal.get('base_quality')}, composite={signal.get('composite_score')}")
+            logger.debug(
+                f"[PHASE 8 DEBUG] {symbol}: Full signal dict - sqs={signal.get('signal_quality_score')}, trend={signal.get('trend_template_score')}, base_q={signal.get('base_quality')}, composite={signal.get('composite_score')}"
+            )
 
             if not dry_run:
                 # ISSUE 14 FIX: Execute each trade with fresh database context to prevent connection corruption
@@ -3151,7 +3329,9 @@ def run(
                             try:
                                 sig_date = datetime.strptime(sig_date_raw, "%Y-%m-%d").date()
                             except (ValueError, TypeError) as e:
-                                logger.warning(f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_raw}': {e}. Using run_date instead.")
+                                logger.warning(
+                                    f"[PHASE 8] {symbol}: Failed to parse signal_date '{sig_date_raw}': {e}. Using run_date instead."
+                                )
                                 sig_date = run_date
                         elif isinstance(sig_date_raw, _date):
                             sig_date = sig_date_raw
@@ -3230,7 +3410,9 @@ def run(
                                 _log_signal_rejection(symbol, status, message, run_date, entry_price, risk_pct)
                                 skipped_count += 1
                             else:
-                                logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
+                                logger.error(
+                                    f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})"
+                                )
                                 # Persist the failure reason - previously this only went to logger.error(),
                                 # which is lost once the process exits. Skipped/rejected signals were already
                                 # audited via _log_signal_rejection() below in this same function; actual
@@ -3266,9 +3448,12 @@ def run(
                             f"Orchestrator already executed this signal - skipping reexecution."
                         )
                         _log_signal_rejection(
-                            symbol, "duplicate_trade_exists",
+                            symbol,
+                            "duplicate_trade_exists",
                             f"Trade already executed in prior orchestrator run: {db_err_str[:150]}",
-                            run_date, entry_price, risk_pct
+                            run_date,
+                            entry_price,
+                            risk_pct,
                         )
                         executed_count += 1  # Count as successful (trade exists and is valid)
                         successfully_entered += 1  # CRITICAL FIX: Also update successfully_entered for consistency
@@ -3329,9 +3514,7 @@ def run(
                     entry_price_val = float(signal["entry_price"])
                 except (TypeError, ValueError):
                     entry_price_val = None
-            _log_signal_rejection(
-                symbol, "processing_error", str(e), run_date, entry_price_val
-            )
+            _log_signal_rejection(symbol, "processing_error", str(e), run_date, entry_price_val)
 
             failed_entries.append((symbol, str(e)))
             failed_count += 1

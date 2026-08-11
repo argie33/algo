@@ -221,6 +221,7 @@ class DividendDataLoader(SecLoaderBase):
         Raises:
             RuntimeError: If timeout exceeded or API call fails
         """
+
         def _fetch() -> dict[str, Any]:
             cik_time = time.time()
             cik = self.sec_client.symbol_to_cik(symbol)
@@ -267,14 +268,16 @@ class DividendDataLoader(SecLoaderBase):
         try:
             # Fetch with hard timeout to prevent hangs (socket timeout alone insufficient)
             sec_data = self._fetch_sec_data_with_timeout(symbol, timeout_sec=20.0)
-            cik = sec_data["cik"]
             facts_response = sec_data["facts_response"]
 
             if not facts_response or "facts" not in facts_response:
                 return [self._unavailable_record(symbol, now_et, "no_companyfacts")]
 
-            us_gaap = facts_response.get("facts", {}).get("us-gaap", {})
-            if not us_gaap:
+            facts = facts_response["facts"]
+            if not isinstance(facts, dict) or "us-gaap" not in facts:
+                return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
+            us_gaap = facts["us-gaap"]
+            if not isinstance(us_gaap, dict) or not us_gaap:
                 return [self._unavailable_record(symbol, now_et, "no_us_gaap_facts")]
 
             results = []
@@ -283,9 +286,7 @@ class DividendDataLoader(SecLoaderBase):
             declared = self._extract_dividends_from_xbrl_concept(
                 symbol, us_gaap, "CommonStockDividendsPerShareDeclared"
             )
-            paid = self._extract_dividends_from_xbrl_concept(
-                symbol, us_gaap, "CommonStockDividendsPerShareCashPaid"
-            )
+            paid = self._extract_dividends_from_xbrl_concept(symbol, us_gaap, "CommonStockDividendsPerShareCashPaid")
 
             results.extend(declared)
             results.extend(paid)
@@ -325,7 +326,6 @@ class DividendDataLoader(SecLoaderBase):
                 f"Marking as data unavailable."
             )
             return [self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")]
-
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> dict[str, Any]:
         """Return a data_unavailable marker for this symbol."""

@@ -36,9 +36,10 @@ from typing import Any
 # under pytest - reassigning sys.stdout at import time permanently corrupts
 # pytest's own capture streams (same bug class fixed in
 # monitor_data_staleness.py/check_system_health.py/verify_eventbridge_scheduler.py).
-if sys.stdout.encoding != 'utf-8' and "pytest" not in sys.modules:
+if sys.stdout.encoding != "utf-8" and "pytest" not in sys.modules:
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 # Files/paths to CHECK (ALL Python files except skip list)
 # This is enforced EVERYWHERE in the codebase
@@ -136,7 +137,12 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
 
         # ========== PATTERN 1: return [] without marker ==========
         if stripped == "return []":
-            context = "\n".join(lines[max(0, line_num - 5) : line_num])
+            # Window widened from 5 to 15 lines: a preceding `raise RuntimeError(...)` guard
+            # commonly spans a multi-line f-string (error messages here routinely run 5-8
+            # lines), which pushed the literal "raise" keyword itself outside a 5-line lookback
+            # even though the return[] is the guarded fallthrough success path right after it.
+            # Same bug class as PATTERN 5's func-def window widening below.
+            context = "\n".join(lines[max(0, line_num - 15) : line_num])
             if "data_unavailable" not in context and "raise" not in context:
                 # Skip legitimate "nothing to do" empty returns (same logic as PATTERN 2)
                 is_legitimate_empty_result = any(
@@ -166,7 +172,8 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
 
         # ========== PATTERN 2: return {} without marker ==========
         if stripped == "return {}":
-            context = "\n".join(lines[max(0, line_num - 5) : line_num])
+            # Window widened to 15 lines - see PATTERN 1's identical rationale above.
+            context = "\n".join(lines[max(0, line_num - 15) : line_num])
             if "data_unavailable" not in context and "raise" not in context:
                 # Skip legitimate "nothing to do" empty results: an empty dict returned
                 # because the *input* was empty (no candidates/not-yet-initialized) is not
@@ -562,7 +569,7 @@ def main() -> int:
         for pattern in sorted(by_pattern.keys()):
             print(f"\n{pattern.upper()} ({len(by_pattern[pattern])} violations):")
             for v in sorted(by_pattern[pattern], key=lambda x: (str(x["file"]), x["line"]))[:10]:  # Show first 10
-                file_path = str(v['file']).replace("\\", "/")
+                file_path = str(v["file"]).replace("\\", "/")
                 print(f"  {file_path}:{v['line']}")
                 print(f"    {v['message']}")
                 print(f"    Fix: {v['fix']}")
