@@ -371,12 +371,15 @@ class AlignmentChecker(BaseCheck):
                 0.95,
                 ERROR,
             ),
-            (
-                "buy_sell_daily",
-                "date = (SELECT MAX(date) FROM buy_sell_daily)",
-                0.90,
-                ERROR,
-            ),
+            # BUG FOUND 2026-08-11: buy_sell_daily is sparse BY DESIGN (only symbols with an
+            # actual buy/sell classification get a row - stable 895-1008/4945 symbols,
+            # ~18-20%, across 6 consecutive trading days, confirmed not an anomaly). Applying
+            # a 90%-of-universe-baseline ratio here made this an unconditional, permanent
+            # false ERROR every single day. Same root cause + same fix already applied to
+            # coverage.py's critical_tables list - removing the duplicate wrong-methodology
+            # check, not the coverage validation itself (coverage.py's
+            # check_loader_contracts() already validates this table correctly via its own
+            # dedicated absolute-row-count contract, patrol_buy_sell_daily_14d_min=800).
             (
                 "trend_template_data",
                 "date = (SELECT MAX(date) FROM trend_template_data)",

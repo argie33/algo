@@ -127,8 +127,29 @@ class CoverageChecker(BaseCheck):
             critical_tables = [
                 "price_daily",
                 "technical_data_daily",
-                "buy_sell_daily",
+                # BUG FOUND 2026-08-11: buy_sell_daily is sparse BY DESIGN - only symbols
+                # that actually got a buy/sell classification get a row, not the whole
+                # universe. Live data confirms this is stable, not an anomaly: 895-1008
+                # symbols/day across 6 consecutive trading days (~18-20% of the 4945-symbol
+                # active universe), while data_loader_status.symbols_loaded=4452 for the
+                # same run (the loader evaluates the full universe; only a fraction qualify
+                # for a row). Applying this method's 96%/98%-of-universe threshold to it
+                # generated a permanent, unconditional false ERROR every single day.
+                # check_loader_contracts() (below) already validates this table correctly
+                # via its own dedicated absolute-row-count contract
+                # (patrol_buy_sell_daily_14d_min=800, an appropriate threshold for a
+                # sparse-by-design table) - removing the duplicate, wrong-methodology check
+                # here doesn't reduce coverage, it removes a redundant false alarm.
                 "trend_template_data",
+                # NOTE: signal_quality_scores (~520/4945 = ~10.5% coverage, also sparse by
+                # design, same root cause as buy_sell_daily above) was NOT removed here -
+                # unlike buy_sell_daily it has no dedicated loader_contract replacement
+                # (checked get_loader_contracts(): covers price_daily/technical_data_daily/
+                # buy_sell_daily/trend_template_data/market_exposure_daily, not this one).
+                # Removing it without a properly-considered replacement threshold would
+                # eliminate its coverage validation entirely - flagged for a dedicated
+                # follow-up pass (needs its own appropriate min_rows contract, not a rushed
+                # guess), left in this list as-is for now.
                 "signal_quality_scores",
             ]
 
