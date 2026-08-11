@@ -813,6 +813,21 @@ class DailyReconciliation:
                     "Set explicit execution_mode in algo_config table."
                 )
 
+            # NOTE (added 2026-08-11, after two separate sessions independently "fixed" bugs in
+            # this section that turned out to be unreachable): everything from here to the end
+            # of this try block only ever executes when execution_mode == "auto". __init__ sets
+            # self.broker = None for any other execution_mode (paper/dry/review/anything else),
+            # and the `if self.broker is None:` branch near the top of this method always
+            # returns before reaching this point - grep this file for "self.broker =" to confirm
+            # there is no other assignment site. So execution_mode is provably "auto" for the
+            # rest of this try block; any "paper mode" / "dry mode" branching below describes
+            # what WOULD happen if this were reached from those modes, which structurally cannot
+            # occur. Verified empirically: constructing DailyReconciliation(execution_mode="dry")
+            # and mocking _fetch_account shows it is never called. Don't "fix" a dry/paper-mode
+            # bug here without first checking this invariant still holds - it's very easy to
+            # spend real effort correctly following this codebase's execution_mode allowlist
+            # convention on a branch that can never run.
+            #
             # 1. Fetch broker account (required - no fallback to stale DB data)
             account_data = self._fetch_account()
             if not account_data:
