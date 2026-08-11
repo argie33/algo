@@ -114,6 +114,11 @@ class LoaderConfigManager:
         if self._rds_connection_cache is not None and (now - self._rds_connection_cache_time) < self._rds_cache_ttl:
             return self._rds_connection_cache
 
+        # Skip CloudWatch in local mode (no AWS credentials expected)
+        if os.getenv("LOCAL_MODE") in ("true", "1"):
+            logger.debug("[CONFIG_LOADER] LOCAL_MODE enabled - skipping CloudWatch RDS metrics")
+            return None
+
         try:
             from datetime import datetime, timedelta, timezone
 
@@ -137,8 +142,11 @@ class LoaderConfigManager:
                 return self._rds_connection_cache
             logger.debug("[CONFIG_LOADER] No CloudWatch datapoints available for RDS connection count")
             return None
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        except Exception as e:
+            logger.debug(
+                f"[CONFIG_LOADER] Could not fetch CloudWatch metrics: {e}. Proceeding without RDS-aware adjustment."
+            )
+            return None
 
     def _compute_adaptive_parallelism(self, loader_name: str, base_parallelism: int) -> int:
         """Compute adaptive parallelism based on RDS load and per-loader constraints.
@@ -209,10 +217,17 @@ class LoaderConfigManager:
     def _check_dynamodb_available(self) -> bool:
         """Check if DynamoDB is available (cache result for efficiency).
 
-        Fails fast if unavailable - returns False rather than silently falling back.
+        Returns False if unavailable - falls back to environment variables/defaults.
+        In LOCAL_MODE, DynamoDB is skipped entirely.
         """
         if self._dynamodb_available is not None:
             return self._dynamodb_available
+
+        # Skip DynamoDB check entirely in local mode
+        if os.getenv("LOCAL_MODE") in ("true", "1"):
+            logger.info("[CONFIG] LOCAL_MODE enabled - skipping DynamoDB, using environment variables/defaults")
+            self._dynamodb_available = False
+            return False
 
         try:
             import boto3
@@ -223,16 +238,16 @@ class LoaderConfigManager:
             if self._dynamodb_available:
                 logger.info(f"[CONFIG] DynamoDB table {self.config_table} is ACTIVE")
             else:
-                logger.critical(
-                    f"[CONFIG_FAILURE] DynamoDB table {self.config_table} is not ACTIVE (status: {response['Table']['TableStatus']}). "
-                    "Loader configuration is unavailable."
+                logger.warning(
+                    f"[CONFIG] DynamoDB table {self.config_table} is not ACTIVE (status: {response['Table']['TableStatus']}). "
+                    "Falling back to environment variables and defaults."
                 )
             return self._dynamodb_available
         except Exception as e:
-            logger.critical(
-                f"[CONFIG_FAILURE] DynamoDB check failed: {e}. "
-                f"Cannot load {self.config_table}. Loader configuration is unavailable. "
-                f"Check AWS credentials, region, and table existence."
+            logger.warning(
+                f"[CONFIG] DynamoDB unavailable ({e}). "
+                f"Falling back to LOADER_PARALLELISM env var and per-loader constraints. "
+                f"This is normal in local development."
             )
             self._dynamodb_available = False
             return False
