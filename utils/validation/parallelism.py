@@ -107,7 +107,12 @@ class ParallelismValidator:
             }
         """
         try:
-            from loaders.load_technical_data_daily import (
+            # BUG FOUND 2026-08-11: module was renamed to load_technical_indicators.py at
+            # some point; this import was never updated, so validate_technical_data_loader()
+            # unconditionally failed with ModuleNotFoundError on every call - found by
+            # actually running ProductionReadinessCheck (previously never invoked anywhere
+            # outside its own test file, per grep).
+            from loaders.load_technical_indicators import (
                 VectorizedTechnicalLoader,
             )
 
