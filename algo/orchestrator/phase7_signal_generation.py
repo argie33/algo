@@ -1005,6 +1005,42 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
+            # CRITICAL #1.5: stock_scores loader's OWN status must not be FAILED, nor RUNNING
+            # within a live window. stock_scores is rebuilt from scratch each day (delete + re-insert,
+            # not an upsert - confirmed live 2026-08-10: table holds exactly one date's worth of rows,
+            # count == distinct symbol count). The CRITICAL #1 check above only verifies the table is
+            # non-empty, which is trivially true even seconds into a rebuild once the first few rows
+            # land - it cannot detect a PARTIAL rebuild in progress. Live-reproduced 2026-08-10:
+            # stock_scores execution_started 20:26:30, execution_completed 21:52:10; at 21:37:45 and
+            # 21:42:53 only 13/4917 symbols had composite_score populated. Two Phase 7 runs during that
+            # window found too few qualifying candidates and logged "[PHASE 7] No BUY signals found in
+            # lookback window" - a misleading message (520 real BUY signals existed in buy_sell_daily
+            # that run) that reads as a market/signal-quality problem when the actual cause was
+            # stock_scores mid-rebuild. Mirrors the buy_sell_daily loader-status gate above (#2.5).
+            cur.execute(
+                """
+                SELECT status, error_message, EXTRACT(EPOCH FROM (NOW() - execution_started))
+                FROM data_loader_status WHERE table_name = 'stock_scores'
+                """
+            )
+            scores_loader_status_row = cur.fetchone()
+            if scores_loader_status_row:
+                scores_status, scores_error, scores_age_secs = scores_loader_status_row
+                scores_is_live_running = (
+                    scores_status == "RUNNING" and scores_age_secs is not None and scores_age_secs < 7200
+                )
+                if scores_status == "FAILED" or scores_is_live_running:
+                    msg = (
+                        f"[PHASE 7 CRITICAL HALT] stock_scores loader's own status is "
+                        f"'{scores_status}' (error: {scores_error or 'none'}). stock_scores is rebuilt "
+                        f"from scratch daily - composite_score coverage may be partial or mid-write. "
+                        f"DO NOT proceed until the loader reaches COMPLETED status. "
+                        f"Check data_loader_status for stock_scores."
+                    )
+                    logger.critical(msg)
+                    log_phase_result_fn(7, "signal_generation", "halt", msg)
+                    return False, msg
+
             # CRITICAL #2: market_exposure_daily must have valid data on or before run_date
             # Uses same query pattern as read_market_regime() so guard is consistent with actual read.
             # On weekends/holidays, the most recent trading day's data is sufficient.
