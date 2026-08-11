@@ -70,7 +70,7 @@ class TestCancelOnAlpacaRetriesTransientErrors:
         ):
             try:
                 monitor._cancel_on_alpaca("trade-1")
-                assert False, "expected RuntimeError"
+                raise AssertionError("expected RuntimeError")
             except RuntimeError as e:
                 assert "503" in str(e)
 
@@ -105,7 +105,7 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
         ) as mock_get:
             try:
                 monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
-                assert False, "expected RuntimeError"
+                raise AssertionError("expected RuntimeError")
             except RuntimeError:
                 pass
 
@@ -146,7 +146,7 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
         ):
             try:
                 monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
-                assert False, "expected RuntimeError"
+                raise AssertionError("expected RuntimeError")
             except RuntimeError:
                 pass
 

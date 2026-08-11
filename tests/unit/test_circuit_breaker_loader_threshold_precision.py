@@ -117,6 +117,6 @@ def test_missing_config_key_raises():
     )
     try:
         module._build_circuit_breakers(cur)
-        assert False, "expected ValueError for missing config keys"
+        raise AssertionError("expected ValueError for missing config keys")
     except ValueError as e:
         assert "missing required circuit breaker keys" in str(e)

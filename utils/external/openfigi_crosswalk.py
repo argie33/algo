@@ -142,9 +142,19 @@ def fetch_cusip_tickers(
         batch_results = _post_mapping_batch(batch)
 
         batch_resolved: dict[str, dict[str, Any] | None] = dict.fromkeys(batch)
-        if batch_results is not None:
+        if batch_results is not None and len(batch_results) != len(batch):
+            # OpenFIGI's contract is positional (result[i] answers job[i]) - a length
+            # mismatch means that guarantee broke (API contract change, truncated
+            # response) and zip() would silently pair each cusip with the WRONG
+            # result. Discard the whole batch rather than risk fabricating a mapping.
+            logger.warning(
+                f"[OpenFIGI] Batch of {len(batch)} CUSIPs returned {len(batch_results)} "
+                f"results - response length mismatch, discarding batch to avoid "
+                f"misaligned cusip->data pairing."
+            )
+        elif batch_results is not None:
             batches_succeeded += 1
-            for cusip, result in zip(batch, batch_results):
+            for cusip, result in zip(batch, batch_results, strict=True):
                 data = result.get("data")
                 if not data:
                     continue  # OpenFIGI couldn't resolve this CUSIP - honest gap, not fabricated

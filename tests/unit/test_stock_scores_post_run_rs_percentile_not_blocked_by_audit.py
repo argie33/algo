@@ -32,7 +32,7 @@ class TestPostRunOrdering:
 
         try:
             loader.post_run()
-            assert False, "expected the audit's RuntimeError to still propagate"
+            raise AssertionError("expected the audit's RuntimeError to still propagate")
         except RuntimeError:
             pass
 

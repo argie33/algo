@@ -52,7 +52,7 @@ class TestCancelRetriesTransientErrors:
         ):
             try:
                 manager.cancel_bracket_orders("order-123")
-                assert False, "Expected RuntimeError on all-retries-exhausted"
+                raise AssertionError("Expected RuntimeError on all-retries-exhausted")
             except RuntimeError as e:
                 assert "Failed to cancel order" in str(e)
                 assert mock_delete.call_count == 3
@@ -69,7 +69,7 @@ class TestCancelRetriesTransientErrors:
         ):
             try:
                 manager.cancel_bracket_orders("order-123")
-                assert False, "Expected RuntimeError on non-transient error"
+                raise AssertionError("Expected RuntimeError on non-transient error")
             except RuntimeError as e:
                 assert "Failed to cancel order" in str(e)
                 assert mock_delete.call_count == 1

@@ -45,7 +45,7 @@ def _aggregator_multi_quarter(zips_newest_first: list) -> Form345BulkAggregator:
     zip contents (index 0 = newest quarter)."""
     today = date.today()
     tags = _recent_quarters(len(zips_newest_first), today)
-    zip_by_quarter = dict(zip(tags, zips_newest_first))
+    zip_by_quarter = dict(zip(tags, zips_newest_first, strict=True))
     agg = Form345BulkAggregator(lookback_quarters=len(zips_newest_first))
     agg._download_quarter = lambda quarter: zip_by_quarter.get(quarter)  # type: ignore[method-assign]
     return agg

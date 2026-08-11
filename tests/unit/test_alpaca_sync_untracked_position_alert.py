@@ -77,6 +77,6 @@ def test_notification_failure_fails_fast():
                 orphan_symbols=["AAPL"],
                 alpaca_positions=[{"symbol": "AAPL", "qty": "10", "current_price": "200.00"}],
             )
-            assert False, "Should have raised RuntimeError on notification failure"
+            raise AssertionError("Should have raised RuntimeError on notification failure")
         except RuntimeError as e:
             assert "untracked-position alert" in str(e).lower() or "notify" in str(e).lower()

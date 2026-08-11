@@ -145,6 +145,27 @@ def test_fetch_cusip_tickers_deadline_hit_does_not_raise_even_if_zero_succeeded(
     assert result == {}
 
 
+def test_fetch_cusip_tickers_discards_batch_on_response_length_mismatch(monkeypatch):
+    """OpenFIGI's contract is positional (result[i] answers job[i] in the same
+    order) - fetch_cusip_tickers relies on that to zip cusips to results. If a
+    response ever comes back a different length than the request (truncated
+    response, API contract change), zip() would silently pair each cusip with
+    the WRONG result. The whole batch must be discarded instead of risking a
+    fabricated/misaligned mapping - and with only one batch ever succeeding
+    (zero here), the overall call must still raise as fully unreachable."""
+
+    def _fake_urlopen(req, timeout=30):
+        jobs = json.loads(req.data.decode("utf-8"))
+        # Request 2 CUSIPs, respond with only 1 result.
+        return _FakeResponse([{"data": [{"ticker": f"T{jobs[0]['idValue']}", "name": "X"}]}])
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+    with pytest.raises(RuntimeError, match="unreachable"):
+        fetch_cusip_tickers(["037833100", "594918104"])
+
+
 def test_names_plausibly_match_positive_case():
     assert names_plausibly_match("APPLE INC", "Apple Inc.") is True
 

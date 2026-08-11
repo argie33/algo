@@ -56,7 +56,7 @@ class TestAuditSkipsNonRepresentativeScopedRuns:
         ]
         try:
             _run_audit(rows)
-            assert False, "expected RuntimeError for real universe-wide low coverage"
+            raise AssertionError("expected RuntimeError for real universe-wide low coverage")
         except RuntimeError as e:
             assert "value_metrics" in str(e)
 
