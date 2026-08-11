@@ -991,9 +991,7 @@ class EntryHandler:
 
         return True, "", order_status, alpaca_order_id, executed_price, rejection_reason, order_send_time
 
-    def _record_entry_phase(  # noqa: C901 -- pre-existing complexity (position dedup/reopen/
-        # append-trade branching); revisit as a follow-up refactor rather than folding into
-        # this fill-failure-alert fix.
+    def _record_entry_phase(
         self,
         cur: PsycopgCursor[Any],
         trade_id: str,
@@ -1249,177 +1247,115 @@ class EntryHandler:
                 sl = float(stop_loss_price)
                 risk_pct = float(((ep - sl) / ep) * 100.0)
 
-            try:
-                # Check if position already exists (from reuse logic above)
-                check_exists_sql = "SELECT position_id FROM algo_positions WHERE position_id = %s"
-                cur.execute(check_exists_sql, (position_id,))
-                existing_position = cur.fetchone()
+            self._upsert_position_record(
+                cur=cur,
+                position_id=position_id,
+                symbol=symbol,
+                trade_id=trade_id,
+                actual_shares=actual_shares,
+                executed_price=executed_price,
+                position_value=position_value,
+                position_status=position_status,
+                entry_date=entry_date,
+                stop_loss_price=stop_loss_price,
+                target_1_price=target_1_price,
+                target_2_price=target_2_price,
+                target_3_price=target_3_price,
+                r_multiple=r_multiple,
+                risk_pct=risk_pct,
+            )
 
-                if existing_position:
-                    # Position exists - fetch current status to determine if reopening or adding
-                    cur.execute(
-                        "SELECT trade_ids_arr, status FROM algo_positions WHERE position_id = %s", (position_id,)
-                    )
-                    fetch_result = cur.fetchone()
-                    existing_trades_result = fetch_result
-                    existing_status = fetch_result[1] if fetch_result and len(fetch_result) > 1 else None
+        # Record TCA (execution quality) for fills in auto mode
+        if self.context.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
+            self._record_tca(
+                trade_id, symbol, entry_price, executed_price, order_status, shares, actual_shares, order_send_time
+            )
 
-                    is_reopening_closed_position = existing_status == "closed"
-                    if is_reopening_closed_position:
-                        logger.warning(
-                            f"[POSITION REOPEN] {symbol}: Reopening CLOSED position "
-                            f"(position_id={position_id}, trade_id={trade_id}). "
-                            f"Will reset current_stop_price to new stop_loss_price."
-                        )
-                    else:
-                        logger.info(
-                            f"[POSITION UPDATE] {symbol}: Adding to OPEN position "
-                            f"(position_id={position_id}, trade_id={trade_id}). "
-                            f"Will preserve existing current_stop_price."
-                        )
+        return order_status
 
-                    # Fetch existing trade_ids_arr to append new trade_id
-                    existing_trades_arr = (
-                        existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
-                    )
-                    # Append new trade_id if not already present
-                    updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
-                    if trade_id not in updated_trades_arr:
-                        updated_trades_arr.append(trade_id)
-                    trade_ids_text = ",".join(updated_trades_arr) if updated_trades_arr else None
+    def _upsert_position_record(
+        self,
+        cur: PsycopgCursor[Any],
+        position_id: str,
+        symbol: str,
+        trade_id: str,
+        actual_shares: Decimal,
+        executed_price: Decimal,
+        position_value: Decimal,
+        position_status: str,
+        entry_date: Any,
+        stop_loss_price: Decimal,
+        target_1_price: Decimal | None,
+        target_2_price: Decimal | None,
+        target_3_price: Decimal | None,
+        r_multiple: float | None,
+        risk_pct: float | None,
+    ) -> None:
+        """Insert a new algo_positions row, or update/reopen an existing one, for _record_entry_phase."""
+        try:
+            # Check if position already exists (from reuse logic above)
+            check_exists_sql = "SELECT position_id FROM algo_positions WHERE position_id = %s"
+            cur.execute(check_exists_sql, (position_id,))
+            existing_position = cur.fetchone()
 
-                    if is_reopening_closed_position:
-                        # Reopening closed position: reset current_stop_price to new stop_loss_price
-                        cur.execute(
-                            """
-                            UPDATE algo_positions
-                            SET quantity = %s, avg_entry_price = %s, entry_price = %s,
-                                current_price = %s, position_value = %s,
-                                unrealized_pnl = %s, unrealized_pnl_pct = %s,
-                                status = %s, entry_date = %s, trade_ids = %s,
-                                trade_ids_arr = %s, current_stop_price = %s, stop_loss_price = %s,
-                                target_1_price = %s, target_2_price = %s, target_3_price = %s,
-                                target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
-                                r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
-                            WHERE position_id = %s
-                            """,
-                            (
-                                actual_shares,
-                                executed_price,
-                                executed_price,
-                                executed_price,
-                                position_value,
-                                0,
-                                0,
-                                position_status,
-                                entry_date,
-                                trade_ids_text,
-                                updated_trades_arr,
-                                stop_loss_price,
-                                stop_loss_price,
-                                target_1_price,
-                                target_2_price,
-                                target_3_price,
-                                self.t1_target_r_multiple if target_1_price else None,
-                                self.t2_target_r_multiple if target_2_price else None,
-                                self.t3_target_r_multiple if target_3_price else None,
-                                r_multiple,
-                                risk_pct,
-                                position_id,
-                            ),
-                        )
-                    else:
-                        # Adding to open position: preserve current_stop_price
-                        cur.execute(
-                            """
-                            UPDATE algo_positions
-                            SET quantity = %s, avg_entry_price = %s, entry_price = %s,
-                                current_price = %s, position_value = %s,
-                                unrealized_pnl = %s, unrealized_pnl_pct = %s,
-                                status = %s, entry_date = %s, trade_ids = %s,
-                                trade_ids_arr = %s, stop_loss_price = %s,
-                                target_1_price = %s, target_2_price = %s, target_3_price = %s,
-                                target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
-                                r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
-                            WHERE position_id = %s
-                            """,
-                            (
-                                actual_shares,
-                                executed_price,
-                                executed_price,
-                                executed_price,
-                                position_value,
-                                0,
-                                0,
-                                position_status,
-                                entry_date,
-                                trade_ids_text,
-                                updated_trades_arr,
-                                stop_loss_price,
-                                target_1_price,
-                                target_2_price,
-                                target_3_price,
-                                self.t1_target_r_multiple if target_1_price else None,
-                                self.t2_target_r_multiple if target_2_price else None,
-                                self.t3_target_r_multiple if target_3_price else None,
-                                r_multiple,
-                                risk_pct,
-                                position_id,
-                            ),
-                        )
-                    logger.info(
-                        f"[POSITION UPDATE] Successfully reopened position for {symbol} "
-                        f"(position_id={position_id}, trade_id={trade_id})"
+            if existing_position:
+                # Position exists - fetch current status to determine if reopening or adding
+                cur.execute("SELECT trade_ids_arr, status FROM algo_positions WHERE position_id = %s", (position_id,))
+                fetch_result = cur.fetchone()
+                existing_trades_result = fetch_result
+                existing_status = fetch_result[1] if fetch_result and len(fetch_result) > 1 else None
+
+                is_reopening_closed_position = existing_status == "closed"
+                if is_reopening_closed_position:
+                    logger.warning(
+                        f"[POSITION REOPEN] {symbol}: Reopening CLOSED position "
+                        f"(position_id={position_id}, trade_id={trade_id}). "
+                        f"Will reset current_stop_price to new stop_loss_price."
                     )
                 else:
-                    # Position doesn't exist - INSERT new position
-                    logger.debug(
-                        f"[POSITION INSERT] About to insert position for {symbol} "
-                        f"(position_id={position_id}, trade_id={trade_id})"
+                    logger.info(
+                        f"[POSITION UPDATE] {symbol}: Adding to OPEN position "
+                        f"(position_id={position_id}, trade_id={trade_id}). "
+                        f"Will preserve existing current_stop_price."
                     )
+
+                # Fetch existing trade_ids_arr to append new trade_id
+                existing_trades_arr = (
+                    existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
+                )
+                # Append new trade_id if not already present
+                updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
+                if trade_id not in updated_trades_arr:
+                    updated_trades_arr.append(trade_id)
+                trade_ids_text = ",".join(updated_trades_arr) if updated_trades_arr else None
+
+                if is_reopening_closed_position:
+                    # Reopening closed position: reset current_stop_price to new stop_loss_price
                     cur.execute(
                         """
-                        INSERT INTO algo_positions (
-                            position_id, symbol, quantity, avg_entry_price, entry_price,
-                            current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
-                            status, entry_date, trade_ids,
-                            trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
-                            target_1_price, target_2_price, target_3_price,
-                            target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                            r_multiple, risk_pct, cognito_sub, metrics_updated_at, created_at
-                        ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
+                        UPDATE algo_positions
+                        SET quantity = %s, avg_entry_price = %s, entry_price = %s,
+                            current_price = %s, position_value = %s,
+                            unrealized_pnl = %s, unrealized_pnl_pct = %s,
+                            status = %s, entry_date = %s, trade_ids = %s,
+                            trade_ids_arr = %s, current_stop_price = %s, stop_loss_price = %s,
+                            target_1_price = %s, target_2_price = %s, target_3_price = %s,
+                            target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
+                            r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE position_id = %s
                         """,
                         (
-                            position_id,
-                            symbol,
                             actual_shares,
                             executed_price,
                             executed_price,
                             executed_price,
                             position_value,
-                            # unrealized_pnl/pct at the instant of entry are trivially 0 (current_price
-                            # == executed_price, no movement yet) - same reasoning as r_multiple below.
-                            # Leaving these NULL (the prior behavior - neither column has a DB default)
-                            # meant a freshly-entered position had NULL unrealized_pnl until the next
-                            # Phase 3 (position_monitor) run updated it. Phase 2 (circuit breakers) runs
-                            # BEFORE Phase 3 on every run, so the sector-drawdown circuit breaker's
-                            # fail-closed NULL check - correct for genuinely missing data - crashed and
-                            # halted the entire orchestrator on every run immediately following any
-                            # entry. Live-reproduced 2026-07-27: NBBK entered in one run, the very next
-                            # run's Phase 2 halted on "Sector drawdown check: position missing P&L/
-                            # cost-basis data (sector=Financial Services)", cascading into exit_engine
-                            # running in Phase-5-halted degraded mode and Phase 9 reconciliation halting
-                            # trading entirely.
                             0,
                             0,
                             position_status,
                             entry_date,
-                            trade_id,
-                            [trade_id],
+                            trade_ids_text,
+                            updated_trades_arr,
                             stop_loss_price,
                             stop_loss_price,
                             target_1_price,
@@ -1430,30 +1366,127 @@ class EntryHandler:
                             self.t3_target_r_multiple if target_3_price else None,
                             r_multiple,
                             risk_pct,
-                            get_algo_owner_cognito_sub(),
+                            position_id,
                         ),
                     )
-                    logger.info(
-                        f"[POSITION INSERT] Successfully inserted position for {symbol} "
-                        f"(position_id={position_id}, trade_id={trade_id})"
+                else:
+                    # Adding to open position: preserve current_stop_price
+                    cur.execute(
+                        """
+                        UPDATE algo_positions
+                        SET quantity = %s, avg_entry_price = %s, entry_price = %s,
+                            current_price = %s, position_value = %s,
+                            unrealized_pnl = %s, unrealized_pnl_pct = %s,
+                            status = %s, entry_date = %s, trade_ids = %s,
+                            trade_ids_arr = %s, stop_loss_price = %s,
+                            target_1_price = %s, target_2_price = %s, target_3_price = %s,
+                            target_1_r_multiple = %s, target_2_r_multiple = %s, target_3_r_multiple = %s,
+                            r_multiple = %s, risk_pct = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE position_id = %s
+                        """,
+                        (
+                            actual_shares,
+                            executed_price,
+                            executed_price,
+                            executed_price,
+                            position_value,
+                            0,
+                            0,
+                            position_status,
+                            entry_date,
+                            trade_ids_text,
+                            updated_trades_arr,
+                            stop_loss_price,
+                            target_1_price,
+                            target_2_price,
+                            target_3_price,
+                            self.t1_target_r_multiple if target_1_price else None,
+                            self.t2_target_r_multiple if target_2_price else None,
+                            self.t3_target_r_multiple if target_3_price else None,
+                            r_multiple,
+                            risk_pct,
+                            position_id,
+                        ),
                     )
-            except Exception as pos_err:
-                logger.critical(
-                    f"[POSITION INSERT CRITICAL] FAILED to insert/update position for {symbol}: "
-                    f"{type(pos_err).__name__}: {pos_err} "
-                    f"(position_id={position_id}, trade_id={trade_id}). "
-                    f"Transaction will rollback - trade {trade_id} WILL NOT PERSIST",
-                    exc_info=True,
+                logger.info(
+                    f"[POSITION UPDATE] Successfully reopened position for {symbol} "
+                    f"(position_id={position_id}, trade_id={trade_id})"
                 )
-                raise
-
-        # Record TCA (execution quality) for fills in auto mode
-        if self.context.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
-            self._record_tca(
-                trade_id, symbol, entry_price, executed_price, order_status, shares, actual_shares, order_send_time
+            else:
+                # Position doesn't exist - INSERT new position
+                logger.debug(
+                    f"[POSITION INSERT] About to insert position for {symbol} "
+                    f"(position_id={position_id}, trade_id={trade_id})"
+                )
+                cur.execute(
+                    """
+                    INSERT INTO algo_positions (
+                        position_id, symbol, quantity, avg_entry_price, entry_price,
+                        current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
+                        status, entry_date, trade_ids,
+                        trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
+                        target_1_price, target_2_price, target_3_price,
+                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                        r_multiple, risk_pct, cognito_sub, metrics_updated_at, created_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    """,
+                    (
+                        position_id,
+                        symbol,
+                        actual_shares,
+                        executed_price,
+                        executed_price,
+                        executed_price,
+                        position_value,
+                        # unrealized_pnl/pct at the instant of entry are trivially 0 (current_price
+                        # == executed_price, no movement yet) - same reasoning as r_multiple below.
+                        # Leaving these NULL (the prior behavior - neither column has a DB default)
+                        # meant a freshly-entered position had NULL unrealized_pnl until the next
+                        # Phase 3 (position_monitor) run updated it. Phase 2 (circuit breakers) runs
+                        # BEFORE Phase 3 on every run, so the sector-drawdown circuit breaker's
+                        # fail-closed NULL check - correct for genuinely missing data - crashed and
+                        # halted the entire orchestrator on every run immediately following any
+                        # entry. Live-reproduced 2026-07-27: NBBK entered in one run, the very next
+                        # run's Phase 2 halted on "Sector drawdown check: position missing P&L/
+                        # cost-basis data (sector=Financial Services)", cascading into exit_engine
+                        # running in Phase-5-halted degraded mode and Phase 9 reconciliation halting
+                        # trading entirely.
+                        0,
+                        0,
+                        position_status,
+                        entry_date,
+                        trade_id,
+                        [trade_id],
+                        stop_loss_price,
+                        stop_loss_price,
+                        target_1_price,
+                        target_2_price,
+                        target_3_price,
+                        self.t1_target_r_multiple if target_1_price else None,
+                        self.t2_target_r_multiple if target_2_price else None,
+                        self.t3_target_r_multiple if target_3_price else None,
+                        r_multiple,
+                        risk_pct,
+                        get_algo_owner_cognito_sub(),
+                    ),
+                )
+                logger.info(
+                    f"[POSITION INSERT] Successfully inserted position for {symbol} "
+                    f"(position_id={position_id}, trade_id={trade_id})"
+                )
+        except Exception as pos_err:
+            logger.critical(
+                f"[POSITION INSERT CRITICAL] FAILED to insert/update position for {symbol}: "
+                f"{type(pos_err).__name__}: {pos_err} "
+                f"(position_id={position_id}, trade_id={trade_id}). "
+                f"Transaction will rollback - trade {trade_id} WILL NOT PERSIST",
+                exc_info=True,
             )
-
-        return order_status
+            raise
 
     def _notify_entry_phase(
         self,
