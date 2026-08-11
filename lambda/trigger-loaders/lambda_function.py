@@ -66,15 +66,17 @@ class TriggerLoadersHandler(LambdaHandler):
                 with conn.cursor() as cur:
                     for dep in dependencies:
                         cur.execute(
-                            "SELECT status, completion_pct FROM data_loader_status WHERE table_name = %s",
-                            (dep,)
+                            "SELECT status, completion_pct FROM data_loader_status WHERE table_name = %s", (dep,)
                         )
                         result = cur.fetchone()
                         if not result:
                             return False, f"Dependency {dep} has no loader status record"
                         status, completion_pct = result
                         if status != "COMPLETED" or (completion_pct or 0) < 95:
-                            return False, f"Dependency {dep} not completed: status={status}, completion_pct={completion_pct}%"
+                            return (
+                                False,
+                                f"Dependency {dep} not completed: status={status}, completion_pct={completion_pct}%",
+                            )
             return True, None
         except Exception as e:
             # On DB error, log and allow the loader to run (fail-open: prioritize running over blocking)
@@ -98,7 +100,7 @@ class TriggerLoadersHandler(LambdaHandler):
         return task_count
 
     @staticmethod
-    def _parse_backfill_days(backfill_days_raw: Any) -> int | None | LambdaResponse:
+    def _parse_backfill_days(backfill_days_raw: Any) -> int | LambdaResponse | None:
         """Parse and validate backfill_days, returning the int, None, or a validation-error response."""
         if backfill_days_raw is None:
             return None
