@@ -482,26 +482,41 @@ class TradeExecutor:
                     f"Cannot track order without status. OrderManager contract violated."
                 )
 
+            # BUG FOUND 2026-08-11: executed_price is None here for any order that hasn't
+            # filled by the time this immediate POST /v2/orders response is parsed - the
+            # NORMAL, common case for this system's bracket orders, which order_manager.py's
+            # send_bracket_order() always submits as a LIMIT order (type="limit"). Alpaca does
+            # not set filled_avg_price until the order actually fills; a limit order accepted
+            # but not yet matched comes back status="new"/"accepted"/"pending_new" with
+            # filled_avg_price=null - this is not a failure, it's every non-instantly-filled
+            # live order. This used to raise OrderExecutionError here, which the caller
+            # (executor_entry_handler.py's _submit_entry_phase) treats identically to a real
+            # rejection: order_ok=False short-circuits BEFORE ever reaching its own
+            # wait_for_order_fill() polling loop (which correctly waits for status="filled" and
+            # only then resolves the real fill price - see order_manager.py's
+            # wait_for_order_fill, which explicitly treats "new"/"accepted"/"pending"/
+            # "pending_new" as "still waiting", not a failure). Net effect in execution_mode=
+            # "auto": Alpaca accepts a real bracket order (live at the broker, stop-loss/take-
+            # profit legs attached, real money at risk) and this system reports the submission
+            # as FAILED and never creates a trade/position record - the identical "invisible
+            # live position" danger class as the 2026-07-27 AttributeError incident (see this
+            # method's own docstring), reached via a different path. executed_price is now
+            # allowed to be None here (matches this method's own declared return type,
+            # `Decimal | None`) - the caller's wait_for_order_fill() step is what's actually
+            # supposed to resolve it.
             executed_price = order_result["executed_price"] if "executed_price" in order_result else None
-            if executed_price is None:
-                raise OrderExecutionError(
-                    f"[ENTRY] {symbol}: OrderManager returned success=True but no executed_price. "
-                    f"Cannot record trade without execution price. OrderManager contract violated."
-                )
 
             logger.info(
                 f"[ENTRY] {symbol}: Order {alpaca_order_id} submitted successfully - "
-                f"status={order_status}, executed_price=${executed_price}"
+                f"status={order_status}, executed_price={f'${executed_price}' if executed_price is not None else 'not yet filled'}"
             )
 
-            # FAIL-FAST: executed_price is guaranteed by validation above (line 423)
-            # No fallback to entry_price - use captured execution price directly
             return (
                 True,
                 alpaca_order_id,
                 order_status,
                 "",
-                Decimal(str(executed_price)),
+                Decimal(str(executed_price)) if executed_price is not None else None,
                 None,
                 order_result,
             )
