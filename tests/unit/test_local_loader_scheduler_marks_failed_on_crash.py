@@ -38,8 +38,10 @@ class TestMarkLoaderFailedAfterCrash:
     def test_marks_every_table_the_loader_owns(self):
         module = _load_scheduler_module()
         mock_manager = MagicMock()
-        with patch.object(module, "all_tables", return_value=["table_a", "table_b"]) as mock_all_tables, \
-             patch.object(module, "LoaderStatusManager", return_value=mock_manager) as mock_ctor:
+        with (
+            patch.object(module, "all_tables", return_value=["table_a", "table_b"]) as mock_all_tables,
+            patch.object(module, "LoaderStatusManager", return_value=mock_manager) as mock_ctor,
+        ):
             module._mark_loader_failed_after_crash("load_fake.py", "boom")
 
         mock_all_tables.assert_called_once_with("load_fake.py")
@@ -61,10 +63,12 @@ class TestRunPipelineMarksFailedOnCrash:
     def test_nonzero_exit_marks_loader_failed(self):
         module = _load_scheduler_module()
         mock_result = MagicMock(returncode=1)
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module.subprocess, "run", return_value=mock_result), \
-             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark:
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "run", return_value=mock_result),
+            patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
+        ):
             rc = module.run_pipeline("test_pipeline")
 
         assert rc == 1
@@ -74,13 +78,16 @@ class TestRunPipelineMarksFailedOnCrash:
 
     def test_timeout_marks_loader_failed(self):
         module = _load_scheduler_module()
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(
-                 module.subprocess, "run",
-                 side_effect=subprocess.TimeoutExpired(cmd="x", timeout=1),
-             ), \
-             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark:
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(
+                module.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(cmd="x", timeout=1),
+            ),
+            patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
+        ):
             rc = module.run_pipeline("test_pipeline")
 
         assert rc == 1
@@ -91,10 +98,12 @@ class TestRunPipelineMarksFailedOnCrash:
     def test_success_does_not_mark_failed(self):
         module = _load_scheduler_module()
         mock_result = MagicMock(returncode=0)
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module.subprocess, "run", return_value=mock_result), \
-             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark:
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "run", return_value=mock_result),
+            patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
+        ):
             rc = module.run_pipeline("test_pipeline")
 
         assert rc == 0
@@ -115,9 +124,11 @@ class TestChildLoaderTimeoutMatchesScheduler:
         module = _load_scheduler_module()
         mock_result = MagicMock(returncode=0)
         # "trend_analysis" -> 15 * 60 = 900s in LOADER_TIMEOUTS
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "run", return_value=mock_result) as mock_run,
+        ):
             module.run_pipeline("test_pipeline")
 
         assert mock_run.call_args.kwargs["timeout"] == 900
@@ -125,15 +136,20 @@ class TestChildLoaderTimeoutMatchesScheduler:
 
     def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self):
         """Direct regression for the live-reproduced case: enhanced_quality_growth's
-        scheduler budget is 150 min, but its child process used to always get the runner's
-        stale 120 min default because nothing propagated the real budget through."""
+        scheduler budget (200 min as of 2026-08-10's margin bump over the original 150 min -
+        LOADER_TIMEOUTS is local to run_pipeline(), not importable, so this value must be
+        kept in sync with that dict by hand) must reach its child process instead of the
+        runner's stale 120 min default, because nothing used to propagate the real budget
+        through."""
         module = _load_scheduler_module()
         mock_result = MagicMock(returncode=0)
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["enhanced_quality_growth"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module, "_check_loader_dependencies", return_value=True), \
-             patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["enhanced_quality_growth"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module, "_check_loader_dependencies", return_value=True),
+            patch.object(module.subprocess, "run", return_value=mock_result) as mock_run,
+        ):
             module.run_pipeline("test_pipeline")
 
-        assert mock_run.call_args.kwargs["timeout"] == 150 * 60
-        assert mock_run.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "150"
+        assert mock_run.call_args.kwargs["timeout"] == 200 * 60
+        assert mock_run.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "200"
