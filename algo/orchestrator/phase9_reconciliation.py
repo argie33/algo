@@ -1408,7 +1408,9 @@ def _record_closed_positions_exits(
                             ) = row
                         except (ValueError, TypeError) as unpack_err:
                             logger.error(f"[PHASE 9] Failed to unpack row: {row}. Error: {unpack_err}")
-                            raise RuntimeError(f"[PHASE 9 CRITICAL] Failed to unpack database row: {unpack_err}. Row: {row}")
+                            raise RuntimeError(
+                                f"[PHASE 9 CRITICAL] Failed to unpack database row: {unpack_err}. Row: {row}"
+                            ) from unpack_err
 
                         if entry_price is None or entry_price <= 0:
                             error_msg = (

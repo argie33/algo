@@ -348,7 +348,7 @@ def run(
                             raise RuntimeError(
                                 f"[PHASE 6 CRITICAL] Failed to convert sector count for {sector}: {count} ({type(count).__name__}) to int: {e}. "
                                 f"Database returned non-integer count. Data integrity issue."
-                            )
+                            ) from e
                         # CRITICAL: Use _ensure_int for ALL arithmetic operands
                         # This ensures native Python int, not psycopg2 Decimal or numpy types
                         try:
@@ -358,7 +358,7 @@ def run(
                             raise RuntimeError(
                                 f"[PHASE 6 CRITICAL] Failed to convert ints for arithmetic on sector {sector}: {conv_err}. "
                                 f"Type conversion failed before concentration arithmetic."
-                            )
+                            ) from conv_err
                         # Verify types before arithmetic - triple-check both operands
                         if not isinstance(count_int_native, int) or not isinstance(max_sector_native, int):
                             raise TypeError(
@@ -496,7 +496,7 @@ def run(
                     raise RuntimeError(
                         f"[PHASE 6 CRITICAL] Failed to read/convert concentration limit: {e}. "
                         f"Cannot enforce position size limits. Cannot continue without this safety check."
-                    )
+                    ) from e
 
                 with DatabaseContext("read") as cur:
                     # CRITICAL: Check for NULL position_value entries which would corrupt SUM()
@@ -615,7 +615,7 @@ def run(
                         raise RuntimeError(
                             f"[PHASE 6 CRITICAL] Failed to convert total portfolio value: {e}. "
                             f"Cannot calculate position concentration without portfolio value. Cannot continue."
-                        )
+                        ) from e
 
                     if total_value_float <= 0:
                         logger.error(
@@ -689,7 +689,7 @@ def run(
                                 raise RuntimeError(
                                     f"[PHASE 6 CRITICAL] {symbol}: Failed to compute position percentage {value} / {total_value_float}: {te}. "
                                     f"Cannot enforce concentration check without position percentages."
-                                )
+                                ) from te
 
                             # CRITICAL: Use _ensure_float for ALL arithmetic operands
                             # _ensure_float handles psycopg2 Decimal, numpy types, and validates native float
@@ -721,7 +721,7 @@ def run(
                                 raise RuntimeError(
                                     f"[PHASE 6 CRITICAL] Failed to convert {symbol} for comparison: {conv_err}. "
                                     f"Cannot perform concentration check without safe float values."
-                                )
+                                ) from conv_err
 
                             # CRITICAL FIX: Add 0.5% tolerance to prevent rounding/market movement from forcing exits
                             # If max is 6%, allow up to 6.5% before force-exit

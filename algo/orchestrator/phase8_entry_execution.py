@@ -407,7 +407,7 @@ def _calculate_pre_entry_concentration_impact(
                 f"[PHASE 8 CRITICAL] {symbol}: Could not calculate concentration - {e}. "
                 f"Cannot enforce position sizing without concentration calculation. "
                 f"Cannot enter position without this safety check."
-            )
+            ) from e
 
     if signal_positions:
         breakdown = ", ".join(f"{p['symbol']}:{p['concentration_pct']:.1f}%" for p in signal_positions[:5])

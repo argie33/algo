@@ -359,7 +359,7 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
 
     except Exception as e:
         logger.error(f"[POSITION_SYNC] CRITICAL: Failed to sync positions: {e}")
-        raise RuntimeError(f"Position sync failed: {e}")
+        raise RuntimeError(f"Position sync failed: {e}") from e
 
     if error_details:
         error_summary = ", ".join(

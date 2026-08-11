@@ -836,7 +836,7 @@ class ExitEngine:
                                     raise RuntimeError(
                                         "[EXIT_ENGINE CRITICAL] execution_mode config missing. Cannot "
                                         "safely determine live vs. paper mode for exit error handling."
-                                    )
+                                    ) from fetch_err
                                 error_context = (
                                     "live trading (symbol delisted or permission lost)"
                                     if execution_mode == "auto"
