@@ -24,6 +24,7 @@ class ExposurePolicyConstraints:
     All constraints required and validated before trading.
     Static type checking catches missing/wrong fields at commit time, not runtime.
     """
+
     halt_new_entries: bool
     max_new_positions_today: int
     max_concentration_pct: float
@@ -69,6 +70,7 @@ class ExposurePolicyConstraints:
             exposure_pct=data["exposure_pct"],
             halt_reason=data.get("halt_reason"),
         )
+
 
 # Four tiers aligned with RegimeManager vocabulary so both systems speak the same language.
 # Ranges mirror the regime thresholds in algo_market_exposure.py:
@@ -150,7 +152,20 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
     CRITICAL: Fails fast (raises) if exposure_pct is None or NaN - never silently defaults.
     Missing market exposure indicates Phase 4 failure; trading must halt to prevent stale data usage.
     """
-    if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
+    # BUG FOUND 2026-08-11 (via fuzzing with pathological inputs): this NaN guard only
+    # checked isinstance(exposure_pct, float) - a Decimal("NaN") (real column type is
+    # `double precision`/float today, per market_exposure_daily's schema, so not currently
+    # reachable from either live call site, but exposure_pct's own type hint is `float |
+    # None` with nothing enforcing that at runtime) would skip this guard entirely and then
+    # blow up with a raw, undiagnosed decimal.InvalidOperation deep in the tier-matching
+    # comparisons below - Decimal NaN comparisons raise, unlike float NaN which just
+    # returns False (same distinction already documented in position_sizer.py's
+    # calculate_position_size). Widened to catch both, so a future caller that passes a
+    # Decimal still gets this function's own clean, diagnostic RuntimeError.
+    is_nan = (isinstance(exposure_pct, float) and math.isnan(exposure_pct)) or (
+        isinstance(exposure_pct, Decimal) and exposure_pct.is_nan()
+    )
+    if exposure_pct is None or is_nan:
         msg = (
             f"[EXPOSURE POLICY CRITICAL] Market exposure percentage is missing or invalid ({exposure_pct}). "
             f"Phase 4 market exposure calculation must succeed for position sizing. "
