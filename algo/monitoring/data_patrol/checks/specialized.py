@@ -217,7 +217,15 @@ class SpecializedChecker(BaseCheck):
             # ("annual_income_statement", "created_at", 120, WARN),
             # ("annual_balance_sheet", "created_at", 120, WARN),
             # ("annual_cash_flow", "created_at", 120, WARN),
-            ("key_metrics", "created_at", 14, WARN),
+            # BUG FOUND 2026-08-11: key_metrics has had no active writer since 2026-05-21
+            # (confirmed: not in loaders/loader_registry.py, not scheduled anywhere) - this
+            # check was correctly flagging it as stale every day, but that masked the real
+            # gap: its one live consumer (lambda/api/routes/market.py's cap-distribution
+            # endpoint) was silently serving ~3-month-stale data the whole time. Migrated the
+            # API route to sec_valuations (actively written daily by the scheduled
+            # load_sec_valuations.py loader) - monitor that table instead, since it's the one
+            # actually feeding production now.
+            ("sec_valuations", "created_at", 3, WARN),
         ]
 
         try:

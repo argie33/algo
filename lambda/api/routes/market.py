@@ -365,13 +365,13 @@ def _handle_top_movers(cur: cursor) -> Any:
         raise_api_error(
             503,
             "data_quality",
-            f"Top movers data quality degraded: {invalid_count}/{total_items} items ({invalid_rate*100:.1f}%) "
-            f"missing price change data. Fail-fast: cannot show incomplete market view."
+            f"Top movers data quality degraded: {invalid_count}/{total_items} items ({invalid_rate * 100:.1f}%) "
+            f"missing price change data. Fail-fast: cannot show incomplete market view.",
         )
 
     if invalid_count > 0:
         logger.warning(
-            f"[TOP_MOVERS] Filtered {invalid_count} items with missing pct_change ({invalid_rate*100:.1f}%); "
+            f"[TOP_MOVERS] Filtered {invalid_count} items with missing pct_change ({invalid_rate * 100:.1f}%); "
             f"showing {len(valid_items)} valid items"
         )
 
@@ -1091,9 +1091,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     # CRITICAL: If ANY symbol has invalid price data, fail the entire calculation
     # Silently skipping breaks time series alignment and produces meaningless correlations
     if price_data_errors:
-        error_detail = "; ".join(
-            f"{e['symbol']} {e['date']}: {e['close']}" for e in price_data_errors[:5]
-        )
+        error_detail = "; ".join(f"{e['symbol']} {e['date']}: {e['close']}" for e in price_data_errors[:5])
         if len(price_data_errors) > 5:
             error_detail += f"; ... and {len(price_data_errors) - 5} more"
         raise ValueError(
@@ -1306,28 +1304,35 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
 
 @db_route_handler("get cap distribution")
 def _get_cap_distribution(cur: cursor) -> Any:
-    # market_cap is in key_metrics, sector is in company_profile - stock_symbols has neither
+    # BUG FOUND 2026-08-11: this queried key_metrics for market_cap, but key_metrics has had
+    # no active writer since 2026-05-21 (confirmed: not in loaders/loader_registry.py, not
+    # scheduled anywhere) - this endpoint was silently serving ~3-month-stale market cap
+    # categorization the whole time, with no error since the (frozen) table still had rows.
+    # sec_valuations (written daily by load_sec_valuations.py, an actively-scheduled loader -
+    # confirmed fresh, 5130 symbols with market_cap > 0) has the same symbol/market_cap shape
+    # and is the real, current source of this data.
+    # sector is in company_profile - stock_symbols has neither
     cur.execute("""
-        SELECT ss.symbol, cp.sector, km.market_cap,
+        SELECT ss.symbol, cp.sector, sv.market_cap,
             CASE
-                WHEN km.market_cap >= 200000000000 THEN 'mega_cap'
-                WHEN km.market_cap >= 10000000000 THEN 'large_cap'
-                WHEN km.market_cap >= 2000000000 THEN 'mid_cap'
-                WHEN km.market_cap >= 300000000 THEN 'small_cap'
+                WHEN sv.market_cap >= 200000000000 THEN 'mega_cap'
+                WHEN sv.market_cap >= 10000000000 THEN 'large_cap'
+                WHEN sv.market_cap >= 2000000000 THEN 'mid_cap'
+                WHEN sv.market_cap >= 300000000 THEN 'small_cap'
                 ELSE 'micro_cap'
             END AS market_cap_category
         FROM stock_symbols ss
         JOIN company_profile cp ON ss.symbol = cp.symbol AND cp.sector IS NOT NULL
-        JOIN key_metrics km ON ss.symbol = km.symbol AND km.market_cap > 0
+        JOIN sec_valuations sv ON ss.symbol = sv.symbol AND sv.market_cap > 0
         WHERE ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
-        ORDER BY km.market_cap DESC
+        ORDER BY sv.market_cap DESC
         LIMIT 10000
     """)
     rows = cur.fetchall()
 
     if not rows:
         # Distinguish between "no stocks loaded" vs "data quality issue"
-        # Check if company_profile or key_metrics tables are empty
+        # Check if company_profile or sec_valuations tables are empty
         cur.execute("SELECT COUNT(*) as cnt FROM company_profile WHERE sector IS NOT NULL")
         profile_row = safe_dict_convert(cur.fetchone())
         if not profile_row or "cnt" not in profile_row or profile_row["cnt"] is None:
@@ -1335,7 +1340,7 @@ def _get_cap_distribution(cur: cursor) -> Any:
         else:
             profile_count = int(profile_row["cnt"])
 
-        cur.execute("SELECT COUNT(*) as cnt FROM key_metrics WHERE market_cap > 0")
+        cur.execute("SELECT COUNT(*) as cnt FROM sec_valuations WHERE market_cap > 0")
         metrics_row = safe_dict_convert(cur.fetchone())
         if not metrics_row or "cnt" not in metrics_row or metrics_row["cnt"] is None:
             metrics_count = None
@@ -1347,7 +1352,7 @@ def _get_cap_distribution(cur: cursor) -> Any:
                 503,
                 "incomplete_data",
                 f"Market cap data not fully loaded. company_profile: {profile_count} records, "
-                f"key_metrics: {metrics_count} records. Data loaders may not have completed.",
+                f"sec_valuations: {metrics_count} records. Data loaders may not have completed.",
             )
 
         return json_response(
