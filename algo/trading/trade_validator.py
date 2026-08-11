@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import date as _date
 from datetime import datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 from utils.infrastructure import EASTERN_TZ
@@ -80,7 +80,7 @@ class TradeValidator:
             raise ValueError("CRITICAL: min_days_before_reentry_same_symbol config missing or None.")
         self.min_days_before_reentry_same_symbol = int(config["min_days_before_reentry_same_symbol"])
 
-    def validate_entry_preconditions(  # noqa: C901 - validation of all trade parameters requires multiple checks
+    def validate_entry_preconditions(
         self,
         symbol: str,
         entry_price: Decimal | float,
@@ -98,9 +98,61 @@ class TradeValidator:
         Returns:
             (valid: bool, error_message: str|None, result_dict: dict with targets if auto-calculated)
         """
+        try:
+            return self._validate_entry_preconditions_impl(
+                symbol,
+                entry_price,
+                stop_loss_price,
+                shares,
+                portfolio_value,
+                signal_date,
+                entry_date,
+                target_1_price,
+                target_2_price,
+                target_3_price,
+            )
+        except InvalidOperation as e:
+            # BUG FOUND 2026-08-11: a NaN/Infinity-tainted entry_price/stop_loss_price/shares
+            # (e.g. from a bad ATR/price calculation upstream) survives `Decimal(str(x))`
+            # construction, but a NaN Decimal RAISES on ordering comparisons like `<= 0`
+            # instead of silently returning False the way float NaN does - see
+            # position_sizer.py's calculate_position_size() for the same bug class, already
+            # fixed there. This function's own per-signal caller in phase8_entry_execution.py
+            # only catches (RuntimeError, ValueError, TypeError, AttributeError, IndexError,
+            # psycopg2.Error, DatabaseError) around each signal - decimal.InvalidOperation
+            # (an ArithmeticError) isn't in that list, so one symbol with a NaN price would
+            # propagate out of the per-signal loop entirely and abort entry execution for
+            # every OTHER qualified signal that day, not just the bad one. Converting to this
+            # function's own documented (bool, str, dict) contract instead.
+            return False, f"Invalid entry parameters (NaN/Infinity): {type(e).__name__}: {e}", {}
+
+    def _validate_entry_preconditions_impl(  # noqa: C901 - validation of all trade parameters requires multiple checks
+        self,
+        symbol: str,
+        entry_price: Decimal | float,
+        stop_loss_price: Decimal | float,
+        shares: Decimal | float,
+        portfolio_value: Decimal | float | None,
+        signal_date: _date | None = None,
+        entry_date: _date | None = None,
+        target_1_price: Decimal | float | None = None,
+        target_2_price: Decimal | float | None = None,
+        target_3_price: Decimal | float | None = None,
+    ) -> tuple[bool, str | None, dict[str, Any]]:
         entry_price = Decimal(str(entry_price))
         shares = Decimal(str(shares))
         stop_loss_price = Decimal(str(stop_loss_price))
+
+        # Infinity (unlike NaN) doesn't raise on Decimal ordering comparisons - `Decimal(
+        # "Infinity") <= 0` is a well-defined False, so the `<= 0` checks below don't catch
+        # it. Left unchecked, infinite shares/prices would pass validation here and only
+        # surface later as a much-less-obvious InvalidOperation out of a downstream
+        # `.quantize()` call (target price calculation), or worse, propagate into real
+        # position-value/risk math. Reject explicitly, at the same point NaN is implicitly
+        # rejected by the caller's try/except.
+        for label, value in (("entry_price", entry_price), ("stop_loss_price", stop_loss_price), ("shares", shares)):
+            if not value.is_finite():
+                return False, f"Invalid {label}: {value} (must be a finite number)", {}
 
         # Dates MUST be provided or explicitly None for default to current date
         # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
@@ -241,7 +293,9 @@ class TradeValidator:
 
         return True, None, result_dict
 
-    def check_duplicate_position(self, cur: Any, symbol: str, entry_date: _date | None = None) -> tuple[bool, str | None]:
+    def check_duplicate_position(
+        self, cur: Any, symbol: str, entry_date: _date | None = None
+    ) -> tuple[bool, str | None]:
         # CRITICAL FIX (2026-08-06): Check for same-day duplicate entries by looking at algo_positions,
         # not just open trades in algo_trades. When a position is closed and immediately re-entered
         # on the same trading day, the algo_trades status becomes 'closed', allowing the duplicate check
@@ -318,7 +372,9 @@ class TradeValidator:
         result = cur.fetchone()
         if result:
             trade_id = result[0]
-            logger.warning(f"DUPLICATE EXECUTION BLOCKED: Open trade exists for {symbol} on {signal_date} (id: {trade_id})")
+            logger.warning(
+                f"DUPLICATE EXECUTION BLOCKED: Open trade exists for {symbol} on {signal_date} (id: {trade_id})"
+            )
             return (
                 True,
                 f"Trade already exists for {symbol} on {signal_date} (idempotent duplicate)",
@@ -367,8 +423,7 @@ class TradeValidator:
         # literally, so a status='open'-only check here would miss it entirely.
         open_statuses = TradeStatus.all_open()
         cur.execute(
-            "SELECT trade_id FROM algo_trades WHERE symbol = %s "
-            "AND status = ANY(%s) LIMIT 1",
+            "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status = ANY(%s) LIMIT 1",
             (symbol, list(open_statuses)),
         )
         if cur.fetchone():
