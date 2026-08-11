@@ -693,23 +693,54 @@ class OrderManager:
                     data = resp.json()
                     status = data.get("status")
 
-                    if status == "filled":
-                        # CRITICAL: filled status MUST include filled_avg_price - this is the fill price
+                    if status in ("filled", "partially_filled"):
+                        # BUG FOUND 2026-08-11 (via adversarial fuzzing of order state
+                        # transitions): "partially_filled" used to fall through to the
+                        # `else: "Unknown order status"` branch below, returning
+                        # (False, None, ...) - the exact same "order did not fill, do NOT
+                        # write to DB" contract as a genuine rejection. But a partial fill
+                        # means REAL shares were already bought at the broker - the caller
+                        # (executor_entry_handler.py's _submit_entry_phase) would then cancel
+                        # the remaining bracket and never write a trade/position record for
+                        # the shares that DID fill, the same "invisible live position" bug
+                        # class as the accepted-but-unfilled bug fixed earlier today
+                        # (9ab154003) and the dead notify() bug (263137d81) - just reached via
+                        # a different order state. _record_entry_phase downstream already
+                        # correctly handles order_status="partially_filled" via
+                        # _get_order_filled_quantity() to get the real filled qty - treating
+                        # it as a success here (like "filled") lets that existing, correct
+                        # downstream reconciliation actually run instead of never being
+                        # reached.
+                        #
+                        # CRITICAL: filled/partially_filled status MUST include filled_avg_price
                         if "filled_avg_price" not in data or data["filled_avg_price"] is None:
                             error_msg = (
-                                f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: Order status=filled but "
+                                f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: Order status={status} but "
                                 f"filled_avg_price missing or NULL in Alpaca response. Cannot record fill price. "
                                 f"Response keys: {list(data.keys())}"
                             )
                             logger.error(error_msg)
                             raise RuntimeError(error_msg)
-                        filled_price = data["filled_avg_price"]
+                        # BUG FOUND 2026-08-11 (via the same fuzzing pass): Alpaca's real API
+                        # returns filled_avg_price as a JSON string (confirmed by
+                        # utils/validation/alpaca.py's AlpacaResponseValidator, which already
+                        # explicitly float()-converts this exact field with its own
+                        # try/except) - but this f-string used the raw, still-string value
+                        # directly with `:.2f` formatting, which raises an unhandled
+                        # `ValueError: Unknown format code 'f' for object of type 'str'`
+                        # immediately on every real fill confirmation. Not caught by this
+                        # loop's own except clause (only catches requests exceptions), so it
+                        # would propagate all the way out of wait_for_order_fill() uncaught -
+                        # a successful order fill would crash the entry pipeline instead of
+                        # being recorded. Cast to float BEFORE first use, not just in the
+                        # return statement below.
+                        filled_price = float(data["filled_avg_price"])
                         elapsed = time.time() - start_time
                         logger.info(
-                            f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: FILLED @ ${filled_price:.2f} "
+                            f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {status.upper()} @ ${filled_price:.2f} "
                             f"after {elapsed:.1f}s ({attempt} polls)"
                         )
-                        return (True, float(filled_price), "")
+                        return (True, filled_price, "")
 
                     elif status in ("cancelled", "rejected", "expired"):
                         # Alpaca doesn't guarantee 'cancel_reason' is present for every terminal
