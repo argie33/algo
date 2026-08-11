@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 
 from algo.config.orchestrator_config import OrchestratorConfig
-from ..utilities import R, G, Y, DIM
+
+from ..utilities import DIM, G, R, Y
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ from dashboard.data_validation import safe_float, safe_int
 
 from ..error_boundary import has_error
 from ..formatters import fmt_age, next_run_str
-from ..utilities import CY, DIM, PHASE_NAMES, G, R, Y
+from ..utilities import CY, PHASE_NAMES
 from ._helpers import _best_halt_reason, _error_panel, _fmt_phases_halted
 from .data_extractors import (
     extract_config_params,
@@ -315,7 +316,9 @@ def _calc_loader_queue_depth(hlth_items: list[Any]) -> tuple[int, int]:
 
     Returns: (loading_count, queued_count)
     """
-    loading = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed"))
+    loading = sum(
+        1 for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed")
+    )
     # Queued = those with execution_started but for which it's taking long (this is an estimate)
     queued = 0
     return loading, queued
@@ -408,7 +411,9 @@ def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[
 
     if never_started:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[bold {R}]Never run:[/]  " + "  ".join(f"[white]{n}[/]" for n in never_started[:6])))
+        rows.append(
+            Text.from_markup(f"[bold {R}]Never run:[/]  " + "  ".join(f"[white]{n}[/]" for n in never_started[:6]))
+        )
         if len(never_started) > 6:
             rows.append(Text.from_markup(f"  [dim]...and {len(never_started) - 6} more[/]"))
 
@@ -591,13 +596,33 @@ def _build_phase_execution_panel(
                 target_rows.append(Text.from_markup(f"      [dim]Status:[/] [{triggered_color}]{triggered_status}[/]"))
 
                 if dd is not None:
-                    dd_color = R if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT else Y if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT else G
+                    dd_color = (
+                        R
+                        if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT
+                        else Y
+                        if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT
+                        else G
+                    )
                     target_rows.append(Text.from_markup(f"      [dim]Drawdown:[/] [{dd_color}]{dd:.1f}%[/]"))
                 if dl is not None:
-                    dl_color = R if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT else Y if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT else G
+                    dl_color = (
+                        R
+                        if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT
+                        else Y
+                        if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT
+                        else G
+                    )
                     target_rows.append(Text.from_markup(f"      [dim]Daily Loss:[/] [{dl_color}]{dl:.1f}%[/]"))
                 if vix is not None:
-                    vix_color = R if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else Y if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else CY if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_ELEVATED else G
+                    vix_color = (
+                        R
+                        if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME
+                        else Y
+                        if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH
+                        else CY
+                        if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_ELEVATED
+                        else G
+                    )
                     target_rows.append(Text.from_markup(f"      [dim]VIX:[/] [{vix_color}]{vix:.1f}[/]"))
                 if var95 is not None:
                     var_color = R if var95 >= 4 else Y if var95 >= 2 else G
@@ -619,7 +644,9 @@ def _build_phase_execution_panel(
                 target_rows.append(Text.from_markup(f"      [dim]Max loss:[/] [{loss_color}]{max_loss_pct:.1f}%[/]"))
             if total_unrealized is not None:
                 pnl_color = G if total_unrealized >= 0 else R
-                target_rows.append(Text.from_markup(f"      [dim]Total P&L:[/] [{pnl_color}]${total_unrealized:,.0f}[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Total P&L:[/] [{pnl_color}]${total_unrealized:,.0f}[/]")
+                )
 
         elif phase_num == 4:  # Broker Reconciliation
             sync_count = safe_int(phase_data.get("sync_count"), default=None)
@@ -630,15 +657,27 @@ def _build_phase_execution_panel(
                 target_rows.append(Text.from_markup(f"      [dim]Syncs attempted:[/] {sync_count}"))
             if avg_match_pct is not None:
                 match_color = G if avg_match_pct >= 95 else Y if avg_match_pct >= 80 else R
-                target_rows.append(Text.from_markup(f"      [dim]Match rate:[/] [{match_color}]{avg_match_pct:.0f}%[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Match rate:[/] [{match_color}]{avg_match_pct:.0f}%[/]")
+                )
             if errors_found is not None and errors_found > 0:
                 target_rows.append(Text.from_markup(f"      [dim]Errors found:[/] [{R}]{errors_found}[/]"))
 
         elif phase_num == 5:  # Exposure Policy
-            required_keys: set[str] = {"market_regime", "entry_allowed", "halt_active", "max_new_entries", "halt_reason"}
+            required_keys: set[str] = {
+                "market_regime",
+                "entry_allowed",
+                "halt_active",
+                "max_new_entries",
+                "halt_reason",
+            }
             missing = required_keys - set(phase_data.keys() if phase_data else [])
             if missing:
-                target_rows.append(Text.from_markup(f"      [dim]ERROR:[/] [{R}]Incomplete data - missing {', '.join(sorted(missing))}[/]"))
+                target_rows.append(
+                    Text.from_markup(
+                        f"      [dim]ERROR:[/] [{R}]Incomplete data - missing {', '.join(sorted(missing))}[/]"
+                    )
+                )
             else:
                 market_regime = phase_data["market_regime"]
                 entry_allowed = phase_data["entry_allowed"]
@@ -673,7 +712,9 @@ def _build_phase_execution_panel(
                 target_rows.append(Text.from_markup(f"      [dim]Success rate:[/] [{sr_color}]{success_rate:.0f}%[/]"))
             if avg_profit is not None:
                 profit_color = G if avg_profit > 0 else R
-                target_rows.append(Text.from_markup(f"      [dim]Avg profit/exit:[/] [{profit_color}]${avg_profit:,.0f}[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Avg profit/exit:[/] [{profit_color}]${avg_profit:,.0f}[/]")
+                )
             if symbols_exited and isinstance(symbols_exited, (list, str)):
                 if isinstance(symbols_exited, str):
                     target_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {symbols_exited[:50]}"))
@@ -692,15 +733,21 @@ def _build_phase_execution_panel(
             if buy_signals is not None or sell_signals is not None:
                 bs = buy_signals if buy_signals is not None else 0
                 ss = sell_signals if sell_signals is not None else 0
-                target_rows.append(Text.from_markup(f"      [dim]Buy signals:[/] [{G}]{bs}[/] [dim]Sell signals:[/] [{Y}]{ss}[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Buy signals:[/] [{G}]{bs}[/] [dim]Sell signals:[/] [{Y}]{ss}[/]")
+                )
             if avg_strength is not None:
                 strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
-                target_rows.append(Text.from_markup(f"      [dim]Avg strength:[/] [{strength_color}]{avg_strength:.1f}[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Avg strength:[/] [{strength_color}]{avg_strength:.1f}[/]")
+                )
             if symbols_with_signals and isinstance(symbols_with_signals, (list, str)):
                 if isinstance(symbols_with_signals, str):
                     target_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {symbols_with_signals[:50]}"))
                 elif isinstance(symbols_with_signals, list):
-                    target_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_with_signals[:5])}"))
+                    target_rows.append(
+                        Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_with_signals[:5])}")
+                    )
 
         elif phase_num == 8:  # Entry Execution
             entries_executed = safe_int(phase_data.get("entries_executed"), default=None)
@@ -731,10 +778,14 @@ def _build_phase_execution_panel(
                 target_rows.append(Text.from_markup(f"      [dim]Portfolio value:[/] ${portfolio_value:,.0f}"))
             if cash_available is not None:
                 cash_color = G if cash_available > 0 else R
-                target_rows.append(Text.from_markup(f"      [dim]Cash available:[/] [{cash_color}]${cash_available:,.0f}[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Cash available:[/] [{cash_color}]${cash_available:,.0f}[/]")
+                )
             if total_return_pct is not None:
                 ret_color = G if total_return_pct > 0 else R
-                target_rows.append(Text.from_markup(f"      [dim]Total return:[/] [{ret_color}]{total_return_pct:.2f}%[/]"))
+                target_rows.append(
+                    Text.from_markup(f"      [dim]Total return:[/] [{ret_color}]{total_return_pct:.2f}%[/]")
+                )
             if latest_snapshot:
                 target_rows.append(Text.from_markup(f"      [dim]Last snapshot:[/] {latest_snapshot[:19]}"))
 
@@ -840,7 +891,9 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
             recon_color = DIM
             recon_metrics = ["data unavailable"]
         else:
-            recon_color = G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
+            recon_color = (
+                G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
+            )
             recon_metrics = [f"{sync_count} syncs"]
             if match_pct is not None:
                 recon_metrics.append(f"{match_pct:.0f}% match")
@@ -937,12 +990,9 @@ def _build_coverage_section(hlth_items: list[Any]) -> list[Text | Rule]:
         if isinstance(r, dict):
             coverage_pct = r.get("symbol_coverage_pct")
             if coverage_pct is not None and coverage_pct < 100:
-                coverage_gaps.append((
-                    r.get("tbl") or "unknown",
-                    coverage_pct,
-                    r.get("missing_symbols", []),
-                    r.get("coverage_status")
-                ))
+                coverage_gaps.append(
+                    (r.get("tbl") or "unknown", coverage_pct, r.get("missing_symbols", []), r.get("coverage_status"))
+                )
 
     if not coverage_gaps:
         return rows
@@ -954,11 +1004,7 @@ def _build_coverage_section(hlth_items: list[Any]) -> list[Text | Rule]:
         status_color = R if status == "sparse" else Y if status == "partial" else G
         coverage_str = f"{coverage_pct:.1f}% coverage"
         missing_str = f" (missing: {', '.join(missing_syms)})" if missing_syms else ""
-        rows.append(
-            Text.from_markup(
-                f"  [{status_color}]{tbl_name}:[/] [dim]{coverage_str}{missing_str}[/]"
-            )
-        )
+        rows.append(Text.from_markup(f"  [{status_color}]{tbl_name}:[/] [dim]{coverage_str}{missing_str}[/]"))
 
     if len(coverage_gaps) > 8:
         rows.append(Text.from_markup(f"  [dim]...and {len(coverage_gaps) - 8} more tables[/]"))
@@ -978,14 +1024,16 @@ def _build_failure_pattern_section(hlth_items: list[Any]) -> list[Text | Rule]:
         if isinstance(r, dict):
             failure_rate = r.get("failure_rate_30d")
             if failure_rate is not None and failure_rate > 0:
-                failure_data.append((
-                    r.get("tbl") or "unknown",
-                    failure_rate,
-                    r.get("failure_pattern"),
-                    r.get("mttr_hours"),
-                    r.get("recovery_trend"),
-                    r.get("last_5_runs")
-                ))
+                failure_data.append(
+                    (
+                        r.get("tbl") or "unknown",
+                        failure_rate,
+                        r.get("failure_pattern"),
+                        r.get("mttr_hours"),
+                        r.get("recovery_trend"),
+                        r.get("last_5_runs"),
+                    )
+                )
 
     if not failure_data:
         return rows
@@ -1028,12 +1076,9 @@ def _build_api_diagnostics_section(hlth_items: list[Any]) -> list[Text | Rule]:
         if isinstance(r, dict):
             api_status = r.get("api_status")
             if api_status and api_status != "ok":
-                api_issues.append((
-                    r.get("tbl") or "unknown",
-                    api_status,
-                    r.get("rate_limit_quota"),
-                    r.get("retry_strategy")
-                ))
+                api_issues.append(
+                    (r.get("tbl") or "unknown", api_status, r.get("rate_limit_quota"), r.get("retry_strategy"))
+                )
 
     if not api_issues:
         return rows
@@ -1151,13 +1196,9 @@ def _build_system_status_section(
         freshness_status = resolved_freshness.get("status")
         signal_age_hours = resolved_freshness.get("signal_age_hours")
         if freshness_status == "STALE":
-            system_issues.append(
-                f"[bold {R}]Signal Freshness:[/] [dim]STALE ({signal_age_hours}h old)[/]"
-            )
+            system_issues.append(f"[bold {R}]Signal Freshness:[/] [dim]STALE ({signal_age_hours}h old)[/]")
         elif freshness_status == "OK" and signal_age_hours and signal_age_hours > 12:
-            system_issues.append(
-                f"[bold {Y}]Signal Freshness:[/] [dim]OK but aging ({signal_age_hours}h old)[/]"
-            )
+            system_issues.append(f"[bold {Y}]Signal Freshness:[/] [dim]OK but aging ({signal_age_hours}h old)[/]")
 
     # A "degraded mode" (0.5x position-size multiplier) branch used to live here, reading
     # hlth_dict.get("degraded_mode_active"). Removed 2026-08-03: git-archaeology confirmed
@@ -1289,15 +1330,16 @@ def _build_freshness_panel(
             rtt_part = f"  [bold {R}]✗ NOT READY (data stale)[/]"
 
     status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
-    freshness_line = (
-        f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
-        + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
+    freshness_line = f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]" + (
+        f"  [{R}]{stale_count} stale[/]" if stale_count else ""
     )
 
     # Add loader error info if there are any
     if loader_errors_count > 0:
         error_color = R if loader_errors_count >= 3 else Y
-        freshness_line += f"  [{error_color}]{loader_errors_count} loader(s) with errors ({total_loader_failures} total)[/]"
+        freshness_line += (
+            f"  [{error_color}]{loader_errors_count} loader(s) with errors ({total_loader_failures} total)[/]"
+        )
 
     freshness_line += rtt_part
     left_rows.append(Text.from_markup(freshness_line))
@@ -1517,7 +1559,9 @@ def _build_freshness_panel(
             except (TypeError, ValueError):
                 pass
             left_rows.append(
-                Text.from_markup(f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s} [dim]running {elapsed_label}[/]{risk_s}")
+                Text.from_markup(
+                    f"  [{Y}]⟳ {r.get('tbl') or 'unknown'}:[/] {pct_s}{cnt_s} [dim]running {elapsed_label}[/]{risk_s}"
+                )
             )
 
     # Stale-table detail: each table's own configured cadence (stale_threshold_days), so
@@ -1570,7 +1614,9 @@ def _build_freshness_panel(
         left_rows.append(Text.from_markup(f"[bold {Y}]Row count stalled (reports OK, data unchanged):[/]"))
         for tbl_name, since in stalled[:8]:
             since_s = f" since {fmt_age(since)}" if since else ""
-            left_rows.append(Text.from_markup(f"  [{Y}]{tbl_name}:[/] [dim]same row count across last 3+ runs{since_s}[/]"))
+            left_rows.append(
+                Text.from_markup(f"  [{Y}]{tbl_name}:[/] [dim]same row count across last 3+ runs{since_s}[/]")
+            )
         if len(stalled) > 8:
             left_rows.append(Text.from_markup(f"  [dim]...and {len(stalled) - 8} more[/]"))
 
@@ -1643,7 +1689,6 @@ def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rul
         if not isinstance(run, dict):
             continue
 
-        run_id = run.get("run_id", "unknown")
         status = run.get("status", "unknown").lower()
         started_at = run.get("started_at")
         completed_at = run.get("completed_at")
@@ -1670,9 +1715,9 @@ def _build_run_history_section(run_history: list[Any] | None) -> list[Text | Rul
         # Phase summary
         phase_summary = run.get("phase_summary", {})
         phases_str = f"[{status_color}]{phase_summary.get('completed', 0)}✓[/]"
-        if phase_summary.get("halted", 0) > 0:
+        if (safe_int(phase_summary.get("halted"), default=0) or 0) > 0:
             phases_str += f" [{Y}]{phase_summary.get('halted')}~[/]"
-        if phase_summary.get("errored", 0) > 0:
+        if (safe_int(phase_summary.get("errored"), default=0) or 0) > 0:
             phases_str += f" [{R}]{phase_summary.get('errored')}✗[/]"
 
         # Format time info
@@ -1761,8 +1806,7 @@ def _build_phase_health_section(phase_health: dict[str, Any] | None) -> list[Tex
 
         phase_name = phase_names.get(phase_num, f"Phase {phase_num}")
         line = (
-            f"  {rate_icon} P{phase_num} [{rate_color}]{success_rate:.0f}%[/] "
-            f"[dim]({total_runs} runs)[/] {phase_name}"
+            f"  {rate_icon} P{phase_num} [{rate_color}]{success_rate:.0f}%[/] [dim]({total_runs} runs)[/] {phase_name}"
         )
         rows.append(Text.from_markup(line))
 
@@ -1786,7 +1830,7 @@ def _build_halt_reason_pattern_section(failure_patterns: list[Any] | None) -> li
     rows.append(Rule(style="dim"))
     rows.append(Text.from_markup(f"[bold {Y}]Failure Patterns (30-Day Top Reasons):[/]"))
 
-    for i, pattern in enumerate(failure_patterns_list[:8], 1):
+    for pattern in failure_patterns_list[:8]:
         reason = pattern.get("reason", "unknown")
         occurrences = pattern.get("occurrences", 0)
 
@@ -1830,7 +1874,11 @@ def _build_loader_health_section(
     """
     rows: list[Text | Rule] = []
 
-    unhealthy = [lh for lh in loader_health if isinstance(lh, dict) and lh.get("is_unhealthy")] if isinstance(loader_health, list) else []
+    unhealthy = (
+        [lh for lh in loader_health if isinstance(lh, dict) and lh.get("is_unhealthy")]
+        if isinstance(loader_health, list)
+        else []
+    )
     # total_unhealthy is the authoritative count (computed backend-side before any
     # capping) - fall back to len(unhealthy) only when the backend didn't send it, e.g.
     # against an older cached response.
@@ -1981,7 +2029,9 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
             logger.debug("[HEALTH] Risk: has_positions missing, defaulting to False for display")
             has_positions = False
         beta_display = f"{beta_val:.2f}" if has_positions else "--"
-        beta_c = "dim" if (not has_positions or beta_val <= 0) else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
+        beta_c = (
+            "dim" if (not has_positions or beta_val <= 0) else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
+        )
         var_c = _var_color(var95_val)
         svar_s = (
             f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
@@ -2647,9 +2697,7 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     return rows
 
 
-def _format_comprehensive_table_loader_health(
-    hlth_items: list[Any] | None, loader: list[Any] | None
-) -> list[Text]:
+def _format_comprehensive_table_loader_health(hlth_items: list[Any] | None, loader: list[Any] | None) -> list[Text]:
     """Format comprehensive table and loader health showing ALL tables with loader status.
 
     Groups tables by health status (HEALTHY, STALE, CRITICAL, EMPTY) and shows:
@@ -2778,7 +2826,9 @@ def _format_comprehensive_table_loader_health(
     # Show STALE tables (aged but not critical yet)
     if categories["stale"]:
         display_count = min(4, len(categories["stale"]))
-        truncation = f" [dim](showing {display_count}/{len(categories['stale'])})[/]" if len(categories["stale"]) > 4 else ""
+        truncation = (
+            f" [dim](showing {display_count}/{len(categories['stale'])})[/]" if len(categories["stale"]) > 4 else ""
+        )
         rows.append(Text.from_markup(f"[{Y}]STALE{truncation}:[/]"))
         for tbl, hlth, load in categories["stale"][:4]:
             rows.append(_format_table_with_loader(tbl, hlth, load, Y))
@@ -2786,7 +2836,9 @@ def _format_comprehensive_table_loader_health(
     # Show EMPTY tables (no data yet)
     if categories["empty"]:
         display_count = min(3, len(categories["empty"]))
-        truncation = f" [dim](showing {display_count}/{len(categories['empty'])})[/]" if len(categories["empty"]) > 3 else ""
+        truncation = (
+            f" [dim](showing {display_count}/{len(categories['empty'])})[/]" if len(categories["empty"]) > 3 else ""
+        )
         rows.append(Text.from_markup(f"[dim]EMPTY{truncation}:[/]"))
         for tbl, hlth, load in categories["empty"][:3]:
             rows.append(_format_table_with_loader(tbl, hlth, load, DIM))
@@ -2817,7 +2869,7 @@ def _format_table_with_loader(
         badge = f"[{Y}]⏱[/]"
         status_text = ""
     elif loader_status == "not_started":
-        badge = f"[dim]∘[/]"
+        badge = "[dim]∘[/]"
         status_text = ""
     elif loader_status == "completed":
         badge = f"[{G}]✓[/]"
@@ -3851,7 +3903,6 @@ def panel_status(
                 )
             )
 
-
     # Audit log - most recent notable actions
     valid_audit_raw = safe_get_list(audit)
     if isinstance(valid_audit_raw, list) and valid_audit_raw:
@@ -3997,7 +4048,6 @@ def panel_algo_health(
         rows.append(Text.from_markup("[dim]No run data - algo has not run yet[/]"))
 
     # ── A.2: Data readiness summary (NEW) ─────────────────────────────────────
-    hlth_dict = hlth if isinstance(hlth, dict) else {}
     hlth_items_raw, _ = extract_health_items(hlth if hlth is not None else {})
     hlth_items = hlth_items_raw if isinstance(hlth_items_raw, list) else []
 
@@ -4020,9 +4070,13 @@ def panel_algo_health(
         failed_loaders = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") in ("error", "stale"))
         succeeded_loaders = total_loaders - failed_loaders
         if loading_count > 0:
-            rows.append(Text.from_markup(f"  [dim]Loaders:[/] [{G}]{succeeded_loaders} ok[/] [{Y}]{loading_count} loading[/]"))
+            rows.append(
+                Text.from_markup(f"  [dim]Loaders:[/] [{G}]{succeeded_loaders} ok[/] [{Y}]{loading_count} loading[/]")
+            )
         elif failed_loaders > 0:
-            rows.append(Text.from_markup(f"  [dim]Loaders:[/] [{G}]{succeeded_loaders} ok[/] [{R}]{failed_loaders} failed[/]"))
+            rows.append(
+                Text.from_markup(f"  [dim]Loaders:[/] [{G}]{succeeded_loaders} ok[/] [{R}]{failed_loaders} failed[/]")
+            )
 
     # ── A.5: Execution stats (last 24h failures) ──────────────────────────────
     stats_line = _format_execution_stats(exec_stats)
@@ -4224,7 +4278,9 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
 
     ready_color = G if ready_to_trade else R
     ready_text = "✓ READY" if ready_to_trade else "✗ NOT READY"
-    rows.append(Text.from_markup(f"[{ready_color}]{ready_text}[/]  [dim]{total_count - stale_count}/{total_count} fresh[/]"))
+    rows.append(
+        Text.from_markup(f"[{ready_color}]{ready_text}[/]  [dim]{total_count - stale_count}/{total_count} fresh[/]")
+    )
 
     # Trading halted status (if applicable)
     trading_halted = hlth_dict.get("trading_halted")
@@ -4237,7 +4293,11 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         succeeded, total, success_rate = _calc_loader_success_rate(hlth_items)
         if success_rate is not None and total > 0:
             rate_color = G if success_rate >= 90 else Y if success_rate >= 70 else R
-            rows.append(Text.from_markup(f"  [dim]Loader health:[/] [{rate_color}]{success_rate:.0f}% success ({succeeded}/{total})[/]"))
+            rows.append(
+                Text.from_markup(
+                    f"  [dim]Loader health:[/] [{rate_color}]{success_rate:.0f}% success ({succeeded}/{total})[/]"
+                )
+            )
 
     # Summary counts by status
     summary = hlth_dict.get("summary")
@@ -4321,7 +4381,10 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
     stale_detail = [
         (r.get("tbl") or "unknown", r.get("age"), r.get("stale_threshold_days"))
         for r in hlth_items
-        if isinstance(r, dict) and r.get("st") == "stale" and r.get("age") is not None and r.get("stale_threshold_days") is not None
+        if isinstance(r, dict)
+        and r.get("st") == "stale"
+        and r.get("age") is not None
+        and r.get("stale_threshold_days") is not None
     ]
     if stale_detail:
         rows.append(Rule(style="dim"))
@@ -4355,12 +4418,17 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         loading_count, queued = _calc_loader_queue_depth(hlth_items)
         if loading_count > 0:
             rows.append(Rule(style="dim"))
-            eta_s = f"{queued + loading_count} more loaders to complete"
-            rows.append(Text.from_markup(f"[dim]Loader queue:[/] [{Y}]{loading_count} active[/]  {queued + loading_count} items pending"))
+            rows.append(
+                Text.from_markup(
+                    f"[dim]Loader queue:[/] [{Y}]{loading_count} active[/]  {queued + loading_count} items pending"
+                )
+            )
 
     # ── CURRENTLY LOADING ──────────────────────────────────────
     # Show what's in progress
-    in_progress = [r for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed")]
+    in_progress = [
+        r for r in hlth_items if isinstance(r, dict) and r.get("execution_started") and not r.get("execution_completed")
+    ]
     if in_progress:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup(f"[bold {Y}]Loading now:[/]"))
@@ -4375,7 +4443,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
 
     # Link to expanded view for complete table details
     rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup(f"[dim]→ Press [l] to view full table details and coverage analysis[/]"))
+    rows.append(Text.from_markup("[dim]→ Press [l] to view full table details and coverage analysis[/]"))
 
     return Panel(
         Group(*rows),
@@ -4568,7 +4636,7 @@ def _build_past_runs_section(exec_hist: list[Any]) -> list[Text | Rule]:
 
     if rows:
         rows.insert(0, Rule(style="dim"))
-        rows.insert(0, Text.from_markup(f"[bold dim]Past runs:[/]"))
+        rows.insert(0, Text.from_markup("[bold dim]Past runs:[/]"))
 
     return rows
 
@@ -4815,7 +4883,9 @@ def _build_results_panel(
                     color = DIM
 
                 # Phase header with status
-                phase_header = Text.from_markup(f"{status_icon} [bold {color}]{phase_name}[/] [{color}]{status_label}[/]")
+                phase_header = Text.from_markup(
+                    f"{status_icon} [bold {color}]{phase_name}[/] [{color}]{status_label}[/]"
+                )
 
                 target_rows = left_phase_rows if phase_num <= 5 else right_phase_rows
 
@@ -4834,13 +4904,19 @@ def _build_results_panel(
                     target_rows.append(Text.from_markup("  [dim]No data available[/]"))
                 elif phase_num == 1:  # Data Freshness
                     if phase_data.get("tables_validated") is not None:
-                        target_rows.append(Text.from_markup(f"  Tables: {phase_data.get('tables_validated')} validated"))
+                        target_rows.append(
+                            Text.from_markup(f"  Tables: {phase_data.get('tables_validated')} validated")
+                        )
                     if phase_data.get("tables_fresh") is not None:
                         fresh_color = G if phase_data.get("tables_fresh") == phase_data.get("tables_validated") else Y
-                        target_rows.append(Text.from_markup(f"  [{fresh_color}]Fresh: {phase_data.get('tables_fresh')}[/]"))
+                        target_rows.append(
+                            Text.from_markup(f"  [{fresh_color}]Fresh: {phase_data.get('tables_fresh')}[/]")
+                        )
                     if phase_data.get("tables_stale") is not None:
-                        stale_color = R if phase_data.get("tables_stale", 0) > 0 else G
-                        target_rows.append(Text.from_markup(f"  [{stale_color}]Stale: {phase_data.get('tables_stale')}[/]"))
+                        stale_color = R if (safe_int(phase_data.get("tables_stale"), default=0) or 0) > 0 else G
+                        target_rows.append(
+                            Text.from_markup(f"  [{stale_color}]Stale: {phase_data.get('tables_stale')}[/]")
+                        )
                     if phase_data.get("stale_tables") and isinstance(phase_data.get("stale_tables"), list):
                         for tbl in phase_data.get("stale_tables", [])[:3]:
                             if isinstance(tbl, dict):
@@ -4858,18 +4934,54 @@ def _build_results_panel(
                         target_rows.append(Text.from_markup(f"  Status: [{triggered_color}]{triggered_text}[/]"))
                     if "drawdown_pct" in phase_data and phase_data["drawdown_pct"] is not None:
                         dd = phase_data["drawdown_pct"]
-                        dd_color = R if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT else Y if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT else G
-                        dd_status = "TRIGGERED" if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT else "CAUTION" if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT else "OK"
+                        dd_color = (
+                            R
+                            if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT
+                            else Y
+                            if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT
+                            else G
+                        )
+                        dd_status = (
+                            "TRIGGERED"
+                            if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT
+                            else "CAUTION"
+                            if dd >= OrchestratorConfig.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT
+                            else "OK"
+                        )
                         target_rows.append(Text.from_markup(f"  Drawdown: [{dd_color}]{dd:.1f}% ({dd_status})[/]"))
                     if "daily_loss_pct" in phase_data and phase_data["daily_loss_pct"] is not None:
                         dl = phase_data["daily_loss_pct"]
-                        dl_color = R if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT else Y if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT else G
-                        dl_status = "TRIGGERED" if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT else "CAUTION" if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT else "OK"
+                        dl_color = (
+                            R
+                            if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT
+                            else Y
+                            if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT
+                            else G
+                        )
+                        dl_status = (
+                            "TRIGGERED"
+                            if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT
+                            else "CAUTION"
+                            if dl >= OrchestratorConfig.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT
+                            else "OK"
+                        )
                         target_rows.append(Text.from_markup(f"  Daily Loss: [{dl_color}]{dl:.1f}% ({dl_status})[/]"))
                     if "vix_level" in phase_data and phase_data["vix_level"] is not None:
                         vix = phase_data["vix_level"]
-                        vix_color = R if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else Y if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else G
-                        vix_status = "EXTREME" if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME else "HIGH" if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH else "NORMAL"
+                        vix_color = (
+                            R
+                            if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME
+                            else Y
+                            if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH
+                            else G
+                        )
+                        vix_status = (
+                            "EXTREME"
+                            if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_EXTREME
+                            else "HIGH"
+                            if vix >= OrchestratorConfig.CIRCUIT_BREAKER_VIX_HIGH
+                            else "NORMAL"
+                        )
                         target_rows.append(Text.from_markup(f"  VIX: [{vix_color}]{vix:.1f} ({vix_status})[/]"))
                     var = phase_data.get("var95")
                     if var is not None:
@@ -4933,14 +5045,15 @@ def _build_results_panel(
                     exits_count = phase_data.get("exits_executed")
                     if sr is not None and exits_count is not None and exits_count > 0:
                         sr_color = G if sr >= 80 else Y if sr >= 50 else R
-                        failed_count = int(exits_count * (100 - sr) / 100) if sr < 100 else 0
-                        fail_text = f" ({int(100-sr)}% failed)" if sr < 100 else ""
+                        fail_text = f" ({int(100 - sr)}% failed)" if sr < 100 else ""
                         target_rows.append(Text.from_markup(f"  Success: [{sr_color}]{sr:.0f}%{fail_text}[/]"))
                     profit = phase_data.get("avg_profit")
                     if profit is not None:
                         profit_color = G if profit > 0 else R if profit < 0 else Y
                         profit_text = "LOSS" if profit < 0 else "PROFIT"
-                        target_rows.append(Text.from_markup(f"  Avg Profit: [{profit_color}]${profit:,.0f} ({profit_text})[/]"))
+                        target_rows.append(
+                            Text.from_markup(f"  Avg Profit: [{profit_color}]${profit:,.0f} ({profit_text})[/]")
+                        )
                     syms = phase_data.get("symbols_exited")
                     if syms:
                         if isinstance(syms, list):
@@ -4978,8 +5091,7 @@ def _build_results_panel(
                     entries_count = phase_data.get("entries_executed")
                     if sr is not None and entries_count is not None and entries_count > 0:
                         sr_color = G if sr >= 80 else Y if sr >= 50 else R
-                        failed_count = int(entries_count * (100 - sr) / 100) if sr < 100 else 0
-                        fail_text = f" ({int(100-sr)}% failed)" if sr < 100 else ""
+                        fail_text = f" ({int(100 - sr)}% failed)" if sr < 100 else ""
                         target_rows.append(Text.from_markup(f"  Success: [{sr_color}]{sr:.0f}%{fail_text}[/]"))
                     avg_price = phase_data.get("avg_entry_price")
                     if avg_price is not None:

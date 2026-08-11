@@ -274,7 +274,10 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             req = urllib.request.Request(
                 SEC_13F_DATASETS_PAGE, headers={"User-Agent": "algo-trading argeropolos@gmail.com"}
             )
-            with urllib.request.urlopen(req, timeout=30) as response:
+            # nosec B310 - SEC_13F_DATASETS_PAGE is a hardcoded module-level https:// constant,
+            # never attacker-influenced; see the matching justification at the other urlopen()
+            # call below for the derived-URL case.
+            with urllib.request.urlopen(req, timeout=30) as response:  # nosec B310
                 html = response.read().decode("utf-8", errors="replace")
         except Exception as e:
             logger.error(f"[13F] Failed to fetch dataset listing page: {type(e).__name__}: {e}")
@@ -321,7 +324,10 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
           market's - see _get_known_tracked_cusips).
         """
         req = urllib.request.Request(url, headers={"User-Agent": "algo-trading argeropolos@gmail.com"})
-        with urllib.request.urlopen(req, timeout=120) as response:
+        # nosec B310 - url is always "https://www.sec.gov" + a path regex-extracted from SEC's
+        # own dataset page (see _discover_latest_13f_bulk_dataset); scheme/host are hardcoded,
+        # never attacker-influenced, so the file:// / custom-scheme risk bandit flags doesn't apply.
+        with urllib.request.urlopen(req, timeout=120) as response:  # nosec B310
             zip_data = response.read()
 
         tracked_cusips = tracked_cusips or set()
@@ -343,13 +349,17 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         if "CUSIP" not in row or not row["CUSIP"]:
                             raise ValueError(f"[13F] CSV row missing required 'CUSIP' field: {row.keys()}")
                         if "SSHPRNAMT" not in row or row["SSHPRNAMT"] is None:
-                            raise ValueError(f"[13F] CSV row missing required 'SSHPRNAMT' field for CUSIP {row.get('CUSIP')}")
+                            raise ValueError(
+                                f"[13F] CSV row missing required 'SSHPRNAMT' field for CUSIP {row.get('CUSIP')}"
+                            )
 
                         cusip = row["CUSIP"].strip().upper()
                         shares_str = row["SSHPRNAMT"]
                         if cusip and shares_str:
                             if not shares_str.isdigit():
-                                raise ValueError(f"[13F] Invalid SSHPRNAMT '{shares_str}' for CUSIP {cusip} (expected integer)")
+                                raise ValueError(
+                                    f"[13F] Invalid SSHPRNAMT '{shares_str}' for CUSIP {cusip} (expected integer)"
+                                )
                             shares = int(shares_str)
                             if shares > 0:
                                 holdings_by_cusip[cusip] += shares
@@ -436,7 +446,9 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             for accession, mgr_shares in manager_holdings_by_cusip.get(cusip, {}).items():
                 manager_holdings_by_ticker[ticker][accession] += mgr_shares
 
-        logger.info(f"[13F] Crosswalk resolved {len(holdings_by_ticker)}/{len(symbols)} tracked symbols to real holdings")
+        logger.info(
+            f"[13F] Crosswalk resolved {len(holdings_by_ticker)}/{len(symbols)} tracked symbols to real holdings"
+        )
         return dict(holdings_by_ticker), {k: dict(v) for k, v in manager_holdings_by_ticker.items()}
 
     def _fetch_local_entity_names(self, symbols: set[str]) -> dict[str, str]:
@@ -565,7 +577,9 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         top_10_pct = None
                         if manager_shares:
                             top_10_shares = sum(sorted(manager_shares.values(), reverse=True)[:10])
-                            top_10_pct = round(min((top_10_shares / inst_shares) * 100, 100.0), 2) if inst_shares else None
+                            top_10_pct = (
+                                round(min((top_10_shares / inst_shares) * 100, 100.0), 2) if inst_shares else None
+                            )
 
                         records.append(
                             {
@@ -585,9 +599,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         resolved_tickers.add(ticker)
                         logger.debug(f"[13F] {ticker}: {inst_shares:,.0f} / {shares_os:,.0f} = {pct:.1f}%")
                     else:
-                        records.append(
-                            self._unavailable_record(ticker, now_et, "shares_outstanding_unavailable")
-                        )
+                        records.append(self._unavailable_record(ticker, now_et, "shares_outstanding_unavailable"))
                         resolved_tickers.add(ticker)
                         logger.debug(f"[13F] {ticker}: shares_outstanding unavailable")
                 except Exception as e:
@@ -595,9 +607,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
             active_symbols = set(get_active_symbols(exclude_etfs=True))
             for symbol in active_symbols - resolved_tickers:
-                records.append(
-                    self._unavailable_record(symbol, now_et, "no_resolved_13f_holdings")
-                )
+                records.append(self._unavailable_record(symbol, now_et, "no_resolved_13f_holdings"))
 
         logger.info(
             f"[13F] Calculated ownership % for {len(resolved_tickers)} tickers; "

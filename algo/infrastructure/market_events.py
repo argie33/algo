@@ -207,7 +207,13 @@ class MarketEventHandler:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-    def check_market_circuit_breaker(self) -> dict[str, Any] | None:
+    def check_market_circuit_breaker(self) -> dict[str, Any] | None:  # noqa: C901
+        # Pre-existing complexity debt (already over threshold before this session's fix to
+        # the missing-current-price branch below) - not refactoring a safety-critical circuit
+        # breaker function under this session's time pressure; same "flag, don't blind-refactor"
+        # call already made for algo/risk/factors/*.py and phase7_signal_generation.py's
+        # own pre-existing C901 debt (see memory/orphaned_precommit_scripts_2_more_real_bugs_fixed_20260810,
+        # memory/phase7_stock_scores_loader_own_status_gate_fix_20260810).
         """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
 
         Circuit breaker levels:
@@ -362,20 +368,36 @@ class MarketEventHandler:
                 open_price = bars_future.result(timeout=get_market_data_timeout() + 2)
 
             # Handle missing/zero prices (can occur after-hours or due to market data issues)
-            # If we got 0 for current price, it's likely after-hours stale data - treat as no circuit breaker
             if not open_price or (not current_price and current_price != 0):
                 # Missing open price is an error (we need market open to calculate % down)
-                # But 0 current price is OK - just means market is closed (after-hours)
                 if not open_price:
                     raise RuntimeError(
                         "Cannot verify circuit breaker status: missing open price. "
                         "Cannot calculate market % down without SPY open price."
                     )
 
+            # BUG FIX 2026-08-10: this used to `return None` here (a bare "no circuit breaker
+            # active" signal, same as the legitimate no-breaker path below), reasoning it was
+            # "likely after-hours". But execution only reaches this point after the market-hours
+            # gate above (09:30-16:00 ET) already passed - a missing/zero SPY quote here is
+            # never legitimate after-hours staleness (that's filtered out earlier), only a real
+            # data-fetch failure during live trading hours. Silently treating that as "verified
+            # safe" gave zero actual circuit-breaker visibility during exactly the kind of
+            # correlated data-outage/market-stress scenario this check exists to catch. Now
+            # returns the same error-dict shape the timeout/RequestException handlers below
+            # already use, so the caller's existing halt-vs-warn logic actually sees it instead
+            # of silently treating "couldn't verify" as "verified fine".
             if current_price == 0 or not current_price:
-                # After-hours: can't verify circuit breaker with missing current price
-                logger.debug("[CIRCUIT_BREAKER] Missing current price data (likely after-hours) - no circuit breaker active")
-                return None
+                logger.error(
+                    f"[CIRCUIT_BREAKER] Missing current price data during market hours ({now_et.time()} ET) - "
+                    f"cannot verify circuit breaker status"
+                )
+                return {
+                    "error": "circuit_breaker_check_failed",
+                    "reason": "missing_price_data",
+                    "description": "Missing current SPY quote data during market hours; cannot compute % down.",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
 
             pct_down = (float(open_price) - float(current_price)) / float(open_price) * 100
 

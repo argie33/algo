@@ -84,9 +84,9 @@ def fetch_table_inventory(c: None) -> dict[str, Any]:
     - missing_tables: tables tracked in data_loader_status but that no longer exist in
       the DB (schema drift / a dropped table nobody removed from tracking).
     """
-    from dashboard.fetcher_validator import FetcherValidator
-
     import time as time_module
+
+    from dashboard.fetcher_validator import FetcherValidator
 
     now = time_module.time()
     with _inventory_lock:
@@ -259,8 +259,12 @@ def fetch_execution_stats(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         # Extract stats: total_runs, by_status dict, success_rate, error_rate, halt_rate
-        total_runs = data.get("total_runs", 0)
-        by_status = data.get("by_status", {})
+        # BUG FIX 2026-08-10: .get(..., 0)/.get(..., {}) defaults silently masked a missing
+        # key as "present with value 0/{}", which defeated the very "missing required fields"
+        # check right below (it can only ever see None for an ABSENT key, never for one masked
+        # by a default) - a malformed/incomplete API response would pass through undetected.
+        total_runs = data.get("total_runs")
+        by_status = data.get("by_status")
         success_rate = data.get("success_rate")
         error_rate = data.get("error_rate")
         halt_rate = data.get("halt_rate")
@@ -356,9 +360,7 @@ def fetch_orch_extended(c: None) -> dict[str, Any]:
         return {
             "run_history": data.get("run_history") if isinstance(data.get("run_history"), list) else [],
             "phase_health": data.get("phase_health") if isinstance(data.get("phase_health"), dict) else {},
-            "failure_patterns": data.get("failure_patterns")
-            if isinstance(data.get("failure_patterns"), list)
-            else [],
+            "failure_patterns": data.get("failure_patterns") if isinstance(data.get("failure_patterns"), list) else [],
             "loader_health": data.get("loader_health") if isinstance(data.get("loader_health"), list) else [],
             "trend_summary": data.get("trend_summary") if isinstance(data.get("trend_summary"), dict) else {},
             "generated_at": data.get("generated_at"),
@@ -649,7 +651,9 @@ def fetch_health(c: None) -> dict[str, Any]:
             # Explicit validation: age_hours required for freshness display
             age_hours = s.get("age_hours")
             if age_hours is None:
-                logger.debug(f"Data freshness missing age_hours for {name} - freshness cannot be displayed (expected for derived/local sources)")
+                logger.debug(
+                    f"Data freshness missing age_hours for {name} - freshness cannot be displayed (expected for derived/local sources)"
+                )
                 age_days = None
             else:
                 try:

@@ -228,7 +228,8 @@ class DynamoDBLockManager:
                 response = self.table.get_item(Key={"lock_key": lock_key})
                 if "Item" in response:
                     item = response["Item"]
-                    if item.get("expires_at", "") < cutoff_time:
+                    item_expires_at = item.get("expires_at", "")
+                    if isinstance(item_expires_at, str) and item_expires_at < cutoff_time:
                         self.table.delete_item(Key={"lock_key": lock_key})
                         logger.info(f"[LOCK_CLEANUP] Deleted expired lock {lock_key}")
                         cleaned += 1
@@ -244,7 +245,8 @@ class DynamoDBLockManager:
                     logger.error(f"[LOCK_CLEANUP] DynamoDB Items field is not a list: {type(items)} - skipping cleanup")
                     items = []
                 for item in items:
-                    if item.get("expires_at", "") < cutoff_time:
+                    item_expires_at = item.get("expires_at", "")
+                    if isinstance(item_expires_at, str) and item_expires_at < cutoff_time:
                         self.table.delete_item(Key={"lock_key": item["lock_key"]})
                         logger.info(f"[LOCK_CLEANUP] Deleted expired lock {item['lock_key']}")
                         cleaned += 1
