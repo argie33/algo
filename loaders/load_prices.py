@@ -84,6 +84,7 @@ class PriceLoader(OptimalLoader):
         if hasattr(self, "_override_max_fail_rate"):
             return self._override_max_fail_rate
         from loaders.config import get_loader_max_fail_rate
+
         return get_loader_max_fail_rate("price")
 
     @max_fail_rate.setter
@@ -1625,7 +1626,7 @@ class PriceLoader(OptimalLoader):
             symbols_recovered = 0
             symbols_skipped_delisted = 0
 
-            for batch, first_err in failed_batches:
+            for batch, _first_err in failed_batches:
                 for symbol in batch:
                     try:
                         # Attempt per-symbol load for each symbol in the failed batch
@@ -1645,7 +1646,9 @@ class PriceLoader(OptimalLoader):
                         # (2) _confirm_no_data_in_30_days returns true (explicit verification).
                         # This prevents single false positives from permanent blacklisting.
                         err_str = str(symbol_err).lower()
-                        looks_like_delisted = any(x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"])
+                        looks_like_delisted = any(
+                            x in err_str for x in ["delisted", "not found", "no price data", "possibly delisted"]
+                        )
 
                         if looks_like_delisted:
                             logger.warning(
@@ -2024,6 +2027,7 @@ class PriceLoader(OptimalLoader):
                 # yfinance returns incomplete intraday OHLC for the current trading day. This is expected
                 # behavior - not a sign of fetch failures or data corruption.
                 from utils.infrastructure.timezone import EASTERN_TZ
+
                 now_et = datetime.now(EASTERN_TZ)
                 market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
                 market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
@@ -2074,6 +2078,7 @@ class PriceLoader(OptimalLoader):
             # fewer symbols (normal variation in data availability). Only enforce strict threshold
             # during off-hours when we should have TODAY'S complete data.
             from utils.infrastructure.timezone import EASTERN_TZ
+
             now_et = datetime.now(EASTERN_TZ)
             market_open_time = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
             market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
@@ -2138,6 +2143,7 @@ class PriceLoader(OptimalLoader):
             exec_duration_sec = None
             if start_time:
                 from datetime import timezone as dt_timezone
+
                 now_utc = datetime.now(dt_timezone.utc)
                 if isinstance(start_time, datetime):
                     exec_duration_sec = (now_utc - start_time).total_seconds()
@@ -2175,7 +2181,7 @@ class PriceLoader(OptimalLoader):
                 # never calls mark_running()/update_progress() to keep the DB row in sync
                 # during a run) symbol_count/symbols_loaded straight from the DB row.
                 status_mgr.mark_completed(
-                    execution_duration_sec=(time.time() - start_time) if hasattr(self, '_start_time') else None,
+                    execution_duration_sec=(time.time() - start_time) if hasattr(self, "_start_time") else None,
                     latest_date=latest_date,
                     current_run_symbols_loaded=symbols_successfully_loaded,
                     current_run_symbol_count=symbols_expected,
@@ -2188,13 +2194,10 @@ class PriceLoader(OptimalLoader):
                     symbols_loaded=symbols_successfully_loaded,
                     symbol_count=symbols_expected,
                     latest_date=latest_date,
-                    execution_duration_sec=exec_duration_sec
+                    execution_duration_sec=exec_duration_sec,
                 )
             elif loader_status == "error":
-                status_mgr.mark_failed(
-                    error_message=error_msg or "Unknown error",
-                    completion_pct=completion_pct
-                )
+                status_mgr.mark_failed(error_message=error_msg or "Unknown error", completion_pct=completion_pct)
             else:
                 # For failed/timeout states
                 status_mgr.update_final_status(
@@ -2204,7 +2207,7 @@ class PriceLoader(OptimalLoader):
                     symbol_count=symbols_expected,
                     error_message=error_msg,
                     latest_date=latest_date,
-                    execution_duration_sec=exec_duration_sec
+                    execution_duration_sec=exec_duration_sec,
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(
@@ -2249,7 +2252,9 @@ class PriceLoader(OptimalLoader):
                 run_date = date.fromisoformat(orchestrator_run_date_str)
                 logger.info(f"[{self.table_name}] Using orchestrator run_date: {run_date}")
             except ValueError:
-                logger.warning(f"[{self.table_name}] Invalid ORCHESTRATOR_RUN_DATE format: {orchestrator_run_date_str}, using system date")
+                logger.warning(
+                    f"[{self.table_name}] Invalid ORCHESTRATOR_RUN_DATE format: {orchestrator_run_date_str}, using system date"
+                )
                 now_et = datetime.now(EASTERN_TZ)
                 run_date = now_et.date()
         else:
@@ -2364,10 +2369,11 @@ class PriceLoader(OptimalLoader):
         )
 
         # Cancel timeout alarm before returning (Unix/Linux only)
-        if old_handler is not None and sys.platform != 'win32':
+        if old_handler is not None and sys.platform != "win32":
             try:
                 import signal
-                if hasattr(signal, 'alarm'):
+
+                if hasattr(signal, "alarm"):
                     signal.alarm(0)
                     signal.signal(signal.SIGALRM, old_handler)
             except (ValueError, AttributeError, OSError):
@@ -2463,13 +2469,34 @@ class PriceLoader(OptimalLoader):
                 # SESSION 297 FIX: Check if watermarks are stale (>2 days old)
                 # If so, force a fresh fetch from 7 days ago to break deadlock
                 # CRITICAL FIX (Session 55): Use orchestrator's run_date, not system date
-                today = getattr(self, '_run_date_context', datetime.now(EASTERN_TZ).date())
+                today = getattr(self, "_run_date_context", datetime.now(EASTERN_TZ).date())
+                # BUG FOUND 2026-08-11: raw calendar-day math over `min()` of potentially
+                # thousands of symbols' watermarks - same bug class as
+                # phase8_signal_age_calendar_vs_trading_day_fix and 6 other same-day
+                # instances (this project's date math must be trading-day-aware, not
+                # calendar-day-aware, per MEMORY.md's LOAD-BEARING rule). A perfectly
+                # healthy Friday watermark on a Monday run is 3 CALENDAR days old but only
+                # 1 TRADING day old - with `> 2` calendar days as the threshold, this
+                # "deadlock breaker" (meant for genuine multi-day stuck watermarks) fired on
+                # every single Monday/post-holiday run, forcing an unnecessary 7-day re-fetch
+                # for prices (the heaviest-workload loader: 5000+ symbols) even when nothing
+                # was actually stuck. Switched to a trading-day count, same pattern already
+                # used in position_sizer.py's VIX-staleness check.
+                from algo.infrastructure import MarketCalendar
+
                 days_stale = (today - previous_date).days
-                if days_stale > 2:
+                trading_days_stale = 0
+                if days_stale > 0:
+                    check_date = previous_date
+                    while check_date < today:
+                        check_date += timedelta(days=1)
+                        if MarketCalendar.is_trading_day(check_date):
+                            trading_days_stale += 1
+                if trading_days_stale > 2:
                     logger.warning(
-                        f"[{self.table_name}] CRITICAL: Watermarks are {days_stale} days stale "
-                        f"(min={previous_date}, today={today}). Forcing fresh fetch from 7 days ago "
-                        f"to break staleness deadlock."
+                        f"[{self.table_name}] CRITICAL: Watermarks are {trading_days_stale} trading "
+                        f"days stale ({days_stale} calendar days; min={previous_date}, today={today}). "
+                        f"Forcing fresh fetch from 7 days ago to break staleness deadlock."
                     )
                     # Force fresh fetch from 7 days ago - ensures we get all recent data
                     previous_date = today - timedelta(days=7)
@@ -2575,10 +2602,10 @@ class PriceLoader(OptimalLoader):
                         with DatabaseContext("read") as cur:
                             table_safe = assert_safe_table(self.table_name)
                             cur.execute(
-                                psycopg2.sql.SQL("SELECT COUNT(*) FROM {} WHERE symbol = %s AND date > NOW() - INTERVAL '7 days'").format(
-                                    psycopg2.sql.Identifier(table_safe)
-                                ),
-                                (symbol,)
+                                psycopg2.sql.SQL(
+                                    "SELECT COUNT(*) FROM {} WHERE symbol = %s AND date > NOW() - INTERVAL '7 days'"
+                                ).format(psycopg2.sql.Identifier(table_safe)),
+                                (symbol,),
                             )
                             recent_rows = cur.fetchone()[0]
 
