@@ -35,6 +35,21 @@ class TestFetchIncremental:
         assert result[0]["data_unavailable"] is True
         assert result[0]["data_unavailable_reason"] == "no_analyst_coverage"
 
+    def test_no_coverage_marker_sets_every_primary_key_field(self):
+        """FIX 2026-08-10: primary_key = ("symbol", "action_date", "firm") but the marker
+        used to only set "symbol", omitting both other PK fields entirely.
+        OptimalLoader._validate_row() requires every declared primary_key field present and
+        non-None (same bug class as migration 1168's dividend_data fix) - live-reproduced:
+        every no-coverage symbol crashed with "Row missing required primary key field
+        'action_date'" the moment migration 1201 stopped a separate missing-governance-
+        column bug from masking it first."""
+        loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
+        with patch("loaders.load_analyst_upgrade_downgrade.fetch_analyst_actions", return_value=None):
+            result = loader.fetch_incremental("ZZZZ", since=None)
+        for key in AnalystUpgradeDowngradeLoader.primary_key:
+            assert key in result[0], f"marker missing primary_key field '{key}'"
+            assert result[0][key] is not None, f"marker has None for primary_key field '{key}'"
+
     def test_since_none_returns_all_rows(self):
         loader = AnalystUpgradeDowngradeLoader.__new__(AnalystUpgradeDowngradeLoader)
         rows = [_row(date(2026, 1, 1)), _row(date(2026, 6, 1))]

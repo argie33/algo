@@ -74,9 +74,21 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
         if not rows:
             # No analyst coverage for this symbol (legitimate case, not a fetch failure)
             # None return from fetch_analyst_actions indicates no coverage
+            #
+            # FIX 2026-08-10: primary_key = ("symbol", "action_date", "firm") - OptimalLoader.
+            # _validate_row() requires every declared primary_key field present and non-None
+            # (same bug class as migration 1168's dividend_data fix). This marker used to omit
+            # both non-symbol PK fields entirely, crashing every no-coverage symbol with "Row
+            # missing required primary key field 'action_date'" the moment the governance-
+            # marker-columns bug (migration 1201) stopped masking it. Placeholder action_date
+            # follows load_dividend_data.py's _unavailable_record() convention (today's date,
+            # not a fabricated historical one); "firm" has no natural non-NULL placeholder
+            # since it identifies a real analyst firm, so a literal marker string is used.
             return [
                 {
                     "symbol": symbol,
+                    "action_date": date.today(),
+                    "firm": "N/A",
                     "data_unavailable": True,
                     "data_unavailable_reason": "no_analyst_coverage",
                 }
