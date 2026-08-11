@@ -231,6 +231,19 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
 
         Raises:
             RuntimeError: If database save fails (notification logging is critical for operator awareness)
+
+        BUG FOUND 2026-08-11: json.dumps(details) with no default=str raises TypeError for
+        any non-JSON-serializable value (Decimal, datetime - this codebase's own established
+        Decimal-handling footgun, see feedback_psycopg2_decimal_arithmetic). That TypeError
+        isn't a psycopg2 exception, so the except clause below didn't catch it and it
+        propagated as a raw, undocumented exception type instead of this method's promised
+        RuntimeError. Worse: notify()'s own outer except Exception (this module, further
+        down) DOES catch it - in the default strict=False mode, that reduces a Decimal in a
+        trade entry/exit alert's details dict to a silently swallowed, log-only failure with
+        NOT EVEN A DB ROW recorded (unlike algo/reporting/alerts.py's AlertManager, which
+        always persists to algo_notifications regardless of email/SNS outcome) - a
+        governance-critical notification could vanish with zero trace. Same fix as that
+        file's equivalent bug: default=str degrades gracefully instead of raising.
         """
         with DatabaseContext("write") as cur:
             try:
@@ -246,7 +259,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
                         title,
                         message,
                         symbol,
-                        json.dumps(details) if details else None,
+                        json.dumps(details, default=str) if details else None,
                     ),
                 )
                 logger.info(f"[NOTIF] Saved to DB: {title}")
