@@ -64,6 +64,59 @@ class OrderManager:
             "rejection_reason": validation.get("rejection_reason"),
         }
 
+    def _build_bracket_order_payload(
+        self,
+        symbol: str,
+        shares: float,
+        entry_price: float,
+        stop_loss_price: float,
+        take_profit_price: float | None,
+        client_order_id: str | None,
+    ) -> dict[str, Any]:
+        """Build the Alpaca bracket-order request body for send_bracket_order."""
+
+        # CRITICAL: use Decimal.quantize(ROUND_HALF_UP), not Python's built-in round(), for every
+        # price submitted to the broker. round() operates on binary float representation and uses
+        # round-half-to-even - the classic round(2.675, 2) == 2.67 trap (2.675 isn't exactly
+        # representable in binary float) can silently submit an order 1 cent off the intended
+        # price. The take_profit fallback below already used Decimal correctly; the entry
+        # limit_price/stop_price literally two lines above it did not. Fixed 2026-07-21 for
+        # consistency with position_sizer.py/executor_entry_handler.py, which are Decimal-only.
+        def _q2(v: float) -> str:
+            return str(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+        # CRITICAL: Always build a bracket order - stop loss protection is mandatory
+        order_data: dict[str, Any] = {
+            "symbol": symbol,
+            "qty": shares,
+            "side": "buy",
+            "type": "limit",
+            "time_in_force": "day",
+            "limit_price": _q2(entry_price),
+            "extended_hours": False,
+            "order_class": "bracket",
+            "stop_loss": {
+                "stop_price": _q2(stop_loss_price),
+            },
+        }
+        if client_order_id:
+            order_data["client_order_id"] = client_order_id
+
+        # Add take-profit target (either explicit or computed from 1.5R)
+        if take_profit_price is not None and take_profit_price > entry_price:
+            order_data["take_profit"] = {
+                "limit_price": _q2(take_profit_price),
+            }
+        else:
+            risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
+            if risk_dec > 0:
+                tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
+                order_data["take_profit"] = {
+                    "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                }
+
+        return order_data
+
     def send_bracket_order(
         self,
         symbol: str,
@@ -148,46 +201,9 @@ class OrderManager:
             f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop {stop_desc} to {self.alpaca_base_url}"
         )
 
-        # CRITICAL: use Decimal.quantize(ROUND_HALF_UP), not Python's built-in round(), for every
-        # price submitted to the broker. round() operates on binary float representation and uses
-        # round-half-to-even - the classic round(2.675, 2) == 2.67 trap (2.675 isn't exactly
-        # representable in binary float) can silently submit an order 1 cent off the intended
-        # price. The take_profit fallback two blocks below already used Decimal correctly; the
-        # entry limit_price/stop_price literally two lines above it did not. Fixed 2026-07-21 for
-        # consistency with position_sizer.py/executor_entry_handler.py, which are Decimal-only.
-        def _q2(v: float) -> str:
-            return str(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-        # CRITICAL: Always build a bracket order - stop loss protection is mandatory
-        order_data = {
-            "symbol": symbol,
-            "qty": shares,
-            "side": "buy",
-            "type": "limit",
-            "time_in_force": "day",
-            "limit_price": _q2(entry_price),
-            "extended_hours": False,
-            "order_class": "bracket",
-            "stop_loss": {
-                "stop_price": _q2(stop_loss_price),
-            },
-        }
-        if client_order_id:
-            order_data["client_order_id"] = client_order_id
-
-        # Add take-profit target (either explicit or computed from 1.5R)
-        if take_profit_price is not None and take_profit_price > entry_price:
-            order_data["take_profit"] = {
-                "limit_price": _q2(take_profit_price),
-            }
-        else:
-            risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-            if risk_dec > 0:
-                tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
-                order_data["take_profit"] = {
-                    "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                }
-
+        order_data = self._build_bracket_order_payload(
+            symbol, shares, entry_price, stop_loss_price, take_profit_price, client_order_id
+        )
         logger.debug(f"[SEND_ORDER] {symbol}: Payload = {order_data}")
 
         # RETRY (found 2026-07-28): this used to make exactly one attempt, unlike
@@ -348,7 +364,9 @@ class OrderManager:
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 
-        raise RuntimeError(f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id} after {max_attempts} attempts: {last_error}")
+        raise RuntimeError(
+            f"[CANCEL_BRACKET] Failed to cancel order {alpaca_order_id} after {max_attempts} attempts: {last_error}"
+        )
 
     def get_order_fill_price(self, alpaca_order_id: str) -> float | None:
         """Query Alpaca for actual fill price of an order.
@@ -622,9 +640,7 @@ class OrderManager:
             return None
         except (requests.Timeout, requests.ConnectionError) as e:
             # Network problems - could be transient, let caller fall back
-            logger.debug(
-                f"[ORDER_LOOKUP] client_order_id={client_order_id}: network error during lookup: {e}"
-            )
+            logger.debug(f"[ORDER_LOOKUP] client_order_id={client_order_id}: network error during lookup: {e}")
             return None
         except ValueError as e:
             # JSON parsing error - inconclusive
@@ -702,7 +718,12 @@ class OrderManager:
                         # A bare data["cancel_reason"] subscript would raise an uncaught KeyError
                         # here instead of returning the documented (False, None, error_message)
                         # tuple, turning a normal order rejection into an unhandled crash.
-                        reason = data.get("cancel_reason") or data.get("failed_reason") or data.get("reason") or "no reason provided"
+                        reason = (
+                            data.get("cancel_reason")
+                            or data.get("failed_reason")
+                            or data.get("reason")
+                            or "no reason provided"
+                        )
                         error_msg = f"Order {status}: {reason}"
                         logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
                         return (False, None, error_msg)
@@ -793,6 +814,137 @@ class OrderManager:
             "filled_price": filled_price,
             "message": f"Order filled: {order_id}",
         }
+
+    def _try_close_position_fallback(self, symbol: str) -> dict[str, Any] | None:
+        """Close a position via Alpaca's /v2/positions/{symbol} DELETE endpoint.
+
+        Used by send_market_exit's 403 "insufficient qty" handling when all shares are held
+        by open orders (e.g. an existing bracket) - the close-position endpoint bypasses that
+        hold. Returns a result dict on any definitive outcome (filled, pending-fill, or a
+        response missing a required field), or None if the endpoint itself returned a non-2xx
+        status - the caller falls through to its normal retry/last_error handling in that case.
+        """
+        close_resp = requests.delete(
+            f"{self.alpaca_base_url}/v2/positions/{symbol}",
+            headers={
+                "APCA-API-KEY-ID": self.alpaca_key,
+                "APCA-API-SECRET-KEY": self.alpaca_secret,
+            },
+            timeout=get_api_timeout(),
+        )
+        if close_resp.status_code not in (200, 201):
+            logger.warning(
+                f"[SEND_EXIT] {symbol}: Close-position endpoint returned "
+                f"{close_resp.status_code}: {close_resp.text[:500]}"
+            )
+            return None
+
+        close_data = close_resp.json()
+        # CRITICAL: close-position response MUST include 'filled_avg_price' field
+        if "filled_avg_price" not in close_data:
+            logger.error(
+                f"[SEND_EXIT] {symbol}: Alpaca close-position response missing 'filled_avg_price' field. "
+                f"Cannot determine if position was filled. "
+                f"Response keys: {list(close_data.keys())}"
+            )
+            raise ValueError("Close-position response missing filled_avg_price field")
+        filled_price_raw = close_data["filled_avg_price"]
+        if filled_price_raw is not None:
+            try:
+                filled_price = float(filled_price_raw)
+                order_id = close_data.get("id")
+                if not order_id:
+                    logger.error(
+                        f"[SEND_EXIT] {symbol}: Alpaca close-position response missing required 'id' field. "
+                        f"Cannot track order without ID. Response: {close_data}"
+                    )
+                    return {
+                        "success": False,
+                        "order_id": None,
+                        "filled_price": None,
+                        "message": "Alpaca close-position missing order id",
+                    }
+                logger.info(f"[SEND_EXIT] {symbol}: Close-position succeeded, fill=${filled_price} (order {order_id})")
+                return {
+                    "success": True,
+                    "order_id": order_id,
+                    "filled_price": filled_price,
+                    "message": f"Closed via position endpoint: {order_id}",
+                }
+            except (ValueError, TypeError) as e:
+                logger.error(
+                    f"[SEND_EXIT] {symbol}: Failed to parse filled_price ({filled_price_raw}). "
+                    f"Error: {type(e).__name__}: {e}. Retrying..."
+                )
+        # Order placed but price not yet filled (market order in flight)
+        order_id = close_data.get("id")
+        if not order_id:
+            logger.error(
+                f"[SEND_EXIT] {symbol}: Alpaca close-position response missing required 'id' field. "
+                f"Cannot track order without ID. Response: {close_data}"
+            )
+            return {
+                "success": False,
+                "order_id": None,
+                "filled_price": None,
+                "message": "Alpaca close-position missing order id",
+            }
+        logger.info(
+            f"[SEND_EXIT] {symbol}: Close-position order {order_id} submitted, fill price pending (market order)"
+        )
+        return {
+            "success": True,
+            "order_id": order_id,
+            "filled_price": None,
+            "message": f"Close-position order submitted: {order_id}",
+        }
+
+    def _handle_insufficient_qty(
+        self, symbol: str, resp: requests.Response, shares: float, attempt: int, max_attempts: int
+    ) -> tuple[str, Any]:
+        """Handle Alpaca's 403 "insufficient qty available" response for send_market_exit.
+
+        Two cases:
+          1. DB qty != Alpaca qty (e.g. fractional fill not reconciled): retry with actual qty
+          2. Shares locked by open bracket order: use close-position endpoint to bypass
+
+        Returns ("retry", new_shares) to retry the same attempt with a corrected share count,
+        ("return", result_dict) to return that dict immediately from send_market_exit, or
+        ("fallthrough", None) when neither case applies - the caller falls through to its
+        normal last_error/retry handling.
+        """
+        try:
+            err_data = resp.json()
+            available_str = err_data.get("available")
+            if available_str is not None and attempt == 0:
+                available_qty = float(available_str)
+                if 0 < available_qty < shares:
+                    # Case 1: partial availability - retry with actual qty
+                    logger.warning(
+                        f"[SEND_EXIT] {symbol}: DB qty={shares} but Alpaca available={available_qty}. "
+                        f"Retrying with actual available qty (position out-of-sync)."
+                    )
+                    return ("retry", available_qty)
+                if "held_for_orders" not in err_data:
+                    raise RuntimeError(
+                        f"[SEND_EXIT] {symbol}: Alpaca reported insufficient shares "
+                        f"but error response missing 'held_for_orders' field. "
+                        f"Cannot determine how many shares are held by open orders. "
+                        f"Response: {err_data}"
+                    )
+                held = float(err_data["held_for_orders"])
+                if available_qty == 0 and held > 0 and attempt < max_attempts - 1:
+                    # Case 2: all shares locked by open orders - use close-position endpoint
+                    logger.warning(
+                        f"[SEND_EXIT] {symbol}: All {held} shares locked by open orders. "
+                        f"Using close-position endpoint to override existing bracket."
+                    )
+                    fallback_result = self._try_close_position_fallback(symbol)
+                    if fallback_result is not None:
+                        return ("return", fallback_result)
+        except (ValueError, TypeError, json.JSONDecodeError) as e:
+            logger.error(f"[SEND_EXIT] {symbol}: Failed to parse response. Error: {type(e).__name__}: {e}. Retrying...")
+        return ("fallthrough", None)
 
     def send_market_exit(
         self, symbol: str, shares: float, execution_mode: str, client_order_id: str | None = None
@@ -887,118 +1039,12 @@ class OrderManager:
                         "message": f"Alpaca 422 unprocessable: {resp.text[:200]}",
                     }
                 elif resp.status_code == 403:
-                    # Alpaca 403 "insufficient qty available" - two cases:
-                    # 1. DB qty != Alpaca qty (e.g. fractional fill not reconciled): retry with actual qty
-                    # 2. Shares locked by open bracket order: use close-position endpoint to bypass
-                    try:
-                        err_data = resp.json()
-                        available_str = err_data.get("available")
-                        if available_str is not None and attempt == 0:
-                            available_qty = float(available_str)
-                            if 0 < available_qty < shares:
-                                # Case 1: partial availability - retry with actual qty
-                                logger.warning(
-                                    f"[SEND_EXIT] {symbol}: DB qty={shares} but Alpaca available={available_qty}. "
-                                    f"Retrying with actual available qty (position out-of-sync)."
-                                )
-                                shares = available_qty
-                                continue
-                            if "held_for_orders" not in err_data:
-                                raise RuntimeError(
-                                    f"[SEND_EXIT] {symbol}: Alpaca reported insufficient shares "
-                                    f"but error response missing 'held_for_orders' field. "
-                                    f"Cannot determine how many shares are held by open orders. "
-                                    f"Response: {err_data}"
-                                )
-                            held = float(err_data["held_for_orders"])
-                            if available_qty == 0 and held > 0 and attempt < max_attempts - 1:
-                                # Case 2: all shares locked by open orders - use close-position endpoint
-                                logger.warning(
-                                    f"[SEND_EXIT] {symbol}: All {held} shares locked by open orders. "
-                                    f"Using close-position endpoint to override existing bracket."
-                                )
-                                close_resp = requests.delete(
-                                    f"{self.alpaca_base_url}/v2/positions/{symbol}",
-                                    headers={
-                                        "APCA-API-KEY-ID": self.alpaca_key,
-                                        "APCA-API-SECRET-KEY": self.alpaca_secret,
-                                    },
-                                    timeout=get_api_timeout(),
-                                )
-                                if close_resp.status_code in (200, 201):
-                                    close_data = close_resp.json()
-                                    # CRITICAL: close-position response MUST include 'filled_avg_price' field
-                                    if "filled_avg_price" not in close_data:
-                                        logger.error(
-                                            f"[SEND_EXIT] {symbol}: Alpaca close-position response missing 'filled_avg_price' field. "
-                                            f"Cannot determine if position was filled. "
-                                            f"Response keys: {list(close_data.keys())}"
-                                        )
-                                        raise ValueError("Close-position response missing filled_avg_price field")
-                                    filled_price_raw = close_data["filled_avg_price"]
-                                    if filled_price_raw is not None:
-                                        try:
-                                            filled_price = float(filled_price_raw)
-                                            order_id = close_data.get("id")
-                                            if not order_id:
-                                                logger.error(
-                                                    f"[SEND_EXIT] {symbol}: Alpaca close-position response missing required 'id' field. "
-                                                    f"Cannot track order without ID. Response: {close_data}"
-                                                )
-                                                return {
-                                                    "success": False,
-                                                    "order_id": None,
-                                                    "filled_price": None,
-                                                    "message": "Alpaca close-position missing order id",
-                                                }
-                                            logger.info(
-                                                f"[SEND_EXIT] {symbol}: Close-position succeeded, "
-                                                f"fill=${filled_price} (order {order_id})"
-                                            )
-                                            return {
-                                                "success": True,
-                                                "order_id": order_id,
-                                                "filled_price": filled_price,
-                                                "message": f"Closed via position endpoint: {order_id}",
-                                            }
-                                        except (ValueError, TypeError) as e:
-                                            logger.error(
-                                                f"[SEND_EXIT] {symbol}: Failed to parse filled_price ({filled_price_raw}). "
-                                                f"Error: {type(e).__name__}: {e}. Retrying..."
-                                            )
-                                    # Order placed but price not yet filled (market order in flight)
-                                    order_id = close_data.get("id")
-                                    if not order_id:
-                                        logger.error(
-                                            f"[SEND_EXIT] {symbol}: Alpaca close-position response missing required 'id' field. "
-                                            f"Cannot track order without ID. Response: {close_data}"
-                                        )
-                                        return {
-                                            "success": False,
-                                            "order_id": None,
-                                            "filled_price": None,
-                                            "message": "Alpaca close-position missing order id",
-                                        }
-                                    logger.info(
-                                        f"[SEND_EXIT] {symbol}: Close-position order {order_id} submitted, "
-                                        f"fill price pending (market order)"
-                                    )
-                                    return {
-                                        "success": True,
-                                        "order_id": order_id,
-                                        "filled_price": None,
-                                        "message": f"Close-position order submitted: {order_id}",
-                                    }
-                                else:
-                                    logger.warning(
-                                        f"[SEND_EXIT] {symbol}: Close-position endpoint returned "
-                                        f"{close_resp.status_code}: {close_resp.text[:500]}"
-                                    )
-                    except (ValueError, TypeError, json.JSONDecodeError) as e:
-                        logger.error(
-                            f"[SEND_EXIT] {symbol}: Failed to parse response. "
-                            f"Error: {type(e).__name__}: {e}. Retrying..."
-                        )
+                    action, payload = self._handle_insufficient_qty(symbol, resp, shares, attempt, max_attempts)
+                    if action == "retry":
+                        shares = cast(float, payload)
+                        continue
+                    if action == "return":
+                        return cast(dict[str, Any], payload)
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
                     logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
                 else:
