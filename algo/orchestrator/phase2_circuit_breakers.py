@@ -164,7 +164,9 @@ def run(  # noqa: C901
                 error_msg = error_reason
                 is_credential_error = "credential" in error_reason.lower() or "401" in error_msg.lower()
                 is_transient_error = "timeout" in error_reason.lower() or "connection" in error_reason.lower()
-                is_data_validation_error = "data_validation" in error_reason.lower() or "validation" in error_reason.lower()
+                is_data_validation_error = (
+                    "data_validation" in error_reason.lower() or "validation" in error_reason.lower()
+                )
                 execution_mode = config.get("execution_mode")
                 if execution_mode is None:
                     raise ValueError(
@@ -173,17 +175,27 @@ def run(  # noqa: C901
                         "Set explicit execution_mode in algo_config table."
                     )
 
-                if (is_credential_error or is_data_validation_error) and execution_mode == "paper":
+                # "paper" and "dry" are both LOCAL-only modes that never touch Alpaca (see the
+                # execution_mode-in-("paper","dry") allowlist convention used elsewhere, e.g.
+                # executor.py's credential-fetch handling) - a bare `== "paper"` / `!= "paper"`
+                # pair here missed "dry", so a credential/data-validation error hit during this
+                # system's default outside-market-hours dry-run mode escalated to a full
+                # RuntimeError halt instead of the lenient skip-with-warning dry mode (like
+                # paper) is supposed to get.
+                if (is_credential_error or is_data_validation_error) and execution_mode in ("paper", "dry"):
                     logger.warning(
-                        f"[PHASE 2] Market circuit breaker check skipped in paper mode (API error or incomplete data). "
+                        f"[PHASE 2] Market circuit breaker check skipped in {execution_mode} mode (API error or incomplete data). "
                         f"Production trading requires valid market data access. Error: {error_msg}"
                     )
                     log_phase_result_fn(
-                        2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)"
+                        2,
+                        "circuit_breakers",
+                        "ok_with_warning",
+                        f"market check skipped ({execution_mode} mode, creds unavailable)",
                     )
-                    # Continue without circuit breaker check in paper mode - explicitly skip market check
+                    # Continue without circuit breaker check in paper/dry mode - explicitly skip market check
                     cb_result = None  # Skip market circuit breaker processing below
-                elif is_credential_error and execution_mode != "paper":
+                elif is_credential_error and execution_mode not in ("paper", "dry"):
                     # Live/review mode requires working circuit breaker check
                     msg = (
                         f"[PHASE 2 CRITICAL] Credential error checking market circuit breaker in {execution_mode} mode: {error_msg}. "
