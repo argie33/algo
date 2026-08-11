@@ -90,16 +90,15 @@ import psycopg2
 from algo.orchestrator.config_validator import get_config_float, validate_phase_config
 from algo.orchestrator.phase_data_contract import ExposureConstraints, validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
-from algo.risk import LiquidityChecks
-from utils.db.context import DatabaseContext
-
-logger = logging.getLogger(__name__)
-
 from algo.orchestrator.validation_thresholds import (
     BUY_SELL_DAILY_ANOMALY_THRESHOLD,
     LIQUIDITY_CHECK_LIMIT,
     PHASE7_LIQUIDITY_CHECK_WORKERS,
 )
+from algo.risk import LiquidityChecks
+from utils.db.context import DatabaseContext
+
+logger = logging.getLogger(__name__)
 
 _BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
 
@@ -327,9 +326,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
 
     try:
         with DatabaseContext("read") as cur:
-            lookback_date = (
-                _buysell_lookback_start_date(run_date) if signal_source == "buysell_breakout" else None
-            )
+            lookback_date = _buysell_lookback_start_date(run_date) if signal_source == "buysell_breakout" else None
 
             # Check stock_scores coverage (not swing_trader_scores)
             if signal_source == "buysell_breakout":
@@ -427,7 +424,7 @@ def _check_liquidity_parallel(
         raise RuntimeError(error_msg) from e
 
 
-def _get_candidates_from_buysell(
+def _get_candidates_from_buysell(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
 ) -> list[dict[str, Any]]:
     """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores (composite) ranking.
@@ -446,6 +443,7 @@ def _get_candidates_from_buysell(
     Hardcoded threshold was blocking signals for 65%+ of universe when config specified 35.
     """
     from algo.infrastructure.config import AlgoConfig
+
     config_obj = AlgoConfig()
     min_completeness_threshold = config_obj.get("min_completeness_score", default=70)
 
@@ -597,7 +595,7 @@ def _get_candidates_from_buysell(
             if missing_scores > 2:
                 error_msg = (
                     f"[PHASE 7 CRITICAL] {symbol}: Signal generated with severely incomplete scoring data. "
-                    f"Missing {missing_scores}/4 component scores (only {4-missing_scores} available): "
+                    f"Missing {missing_scores}/4 component scores (only {4 - missing_scores} available): "
                     f"quality={quality_score}, growth={growth_score}, momentum={momentum_score}, rs={rs_percentile}. "
                     f"Fail-fast: cannot trade on signals with <50% scoring quality assessment. "
                     f"Indicates stock_scores loader is incomplete for this symbol. "
@@ -851,7 +849,7 @@ def _get_candidates_from_buysell(
                         # DIFFERENT lock_id, silently defeating the race-condition protection.
                         # zlib.crc32 is not seed-randomized, matching the fixed-constant pattern
                         # used elsewhere for the same reason (see PORTFOLIO_SNAPSHOT_LOCK_ID).
-                        lock_id = zlib.crc32(b'phase7_signal_scores') % (2 ** 31)
+                        lock_id = zlib.crc32(b"phase7_signal_scores") % (2**31)
                         lock_acquired = False
 
                         try:
@@ -860,11 +858,17 @@ def _get_candidates_from_buysell(
                             lock_acquired = result[0] if result and result[0] is not None else False
 
                             if lock_acquired:
-                                logger.debug("[PHASE 7] Acquired non-blocking advisory lock for signal quality score updates")
+                                logger.debug(
+                                    "[PHASE 7] Acquired non-blocking advisory lock for signal quality score updates"
+                                )
                             else:
-                                logger.info("[PHASE 7] Lock held by concurrent Phase 7 instance, skipping score updates (next run will handle)")
+                                logger.info(
+                                    "[PHASE 7] Lock held by concurrent Phase 7 instance, skipping score updates (next run will handle)"
+                                )
                         except Exception as lock_err:
-                            logger.warning(f"[PHASE 7] Could not acquire advisory lock: {lock_err}. Continuing without lock.")
+                            logger.warning(
+                                f"[PHASE 7] Could not acquire advisory lock: {lock_err}. Continuing without lock."
+                            )
 
                         try:
                             # Only proceed with updates if lock was acquired
@@ -887,17 +891,25 @@ def _get_candidates_from_buysell(
                                         f"[PHASE 7 CRITICAL] Signal quality score persistence failed for {len(failed_writes)} symbols: {', '.join(failed_writes)}. "
                                         f"Expected rows were not found in buy_sell_daily table. This indicates a data integrity issue that must be investigated."
                                     )
-                                logger.info(f"[PHASE 7] Wrote {len(scores_to_write)} signal_quality_scores to buy_sell_daily")
+                                logger.info(
+                                    f"[PHASE 7] Wrote {len(scores_to_write)} signal_quality_scores to buy_sell_daily"
+                                )
                             else:
-                                logger.info(f"[PHASE 7] Skipping {len(scores_to_write)} score updates (lock held by concurrent run)")
+                                logger.info(
+                                    f"[PHASE 7] Skipping {len(scores_to_write)} score updates (lock held by concurrent run)"
+                                )
                         finally:
                             # Release advisory lock if acquired
                             if lock_acquired:
                                 try:
                                     cur_write.execute(f"SELECT pg_advisory_unlock({lock_id})")
-                                    logger.debug("[PHASE 7] Released non-blocking advisory lock after signal quality score updates")
+                                    logger.debug(
+                                        "[PHASE 7] Released non-blocking advisory lock after signal quality score updates"
+                                    )
                                 except Exception as unlock_err:
-                                    logger.warning(f"[PHASE 7] Could not release advisory lock: {unlock_err}. Lock will auto-release on connection close.")
+                                    logger.warning(
+                                        f"[PHASE 7] Could not release advisory lock: {unlock_err}. Lock will auto-release on connection close."
+                                    )
                 except Exception as write_e:
                     raise RuntimeError(
                         f"[PHASE 7] Failed to write signal quality scores to buy_sell_daily: {write_e}. "
@@ -969,7 +981,7 @@ def _check_per_day_signal_counts(run_date: _date, log_phase_result_fn: Callable[
         return False, msg
 
 
-def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> tuple[bool, str | None]:
+def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> tuple[bool, str | None]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     """Check all critical dependencies for Phase 7 BEFORE attempting signal generation.
 
     ISSUE #8 FIX: Explicit dependency guard rails before phase execution.
@@ -1403,16 +1415,17 @@ def run(  # noqa: C901
         )
     except Exception as e:
         # Fallback to config value if regime lookup fails
-        logger.warning(
-            f"[PHASE 7] Could not get regime-based min score: {e}. "
-            f"Falling back to config value."
+        logger.warning(f"[PHASE 7] Could not get regime-based min score: {e}. Falling back to config value.")
+        min_composite_score = get_config_float(
+            config, "phase7_min_composite_score", "phase_7_signal_generation", default=50.0
         )
-        min_composite_score = get_config_float(config, "phase7_min_composite_score", "phase_7_signal_generation", default=50.0)
 
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
 
-    min_close_quality = get_config_float(config, "min_close_quality_pct", "phase_7_signal_generation", default=40.0) / 100.0
+    min_close_quality = (
+        get_config_float(config, "min_close_quality_pct", "phase_7_signal_generation", default=40.0) / 100.0
+    )
 
     # ISSUE #8 FIX: Guard rails - check critical dependencies BEFORE signal generation
     # Fails fast if ANY dependency is unavailable, preventing silent degradation
@@ -1463,9 +1476,7 @@ def run(  # noqa: C901
                 if today_scores_exist:
                     logger.info(f"[PHASE 7] Today's signal_quality_scores already computed ({count} rows exist)")
         except Exception as check_err:
-            logger.warning(
-                f"[PHASE 7] Could not check if today's scores exist (will proceed with loader): {check_err}"
-            )
+            logger.warning(f"[PHASE 7] Could not check if today's scores exist (will proceed with loader): {check_err}")
 
         try:
             from concurrent.futures import TimeoutError as FutureTimeoutError
@@ -1483,16 +1494,21 @@ def run(  # noqa: C901
                 # This cuts execution time by ~80% (600-900 symbols vs 4896 total).
                 # Query buy_sell_daily for recent BUY signals to get the target symbol list.
                 with DatabaseContext("read") as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT DISTINCT symbol FROM buy_sell_daily
                         WHERE signal = 'BUY' AND date >= CURRENT_DATE - %s
                         ORDER BY symbol
-                    """, (_BUYSELL_LOOKBACK_DAYS,))
+                    """,
+                        (_BUYSELL_LOOKBACK_DAYS,),
+                    )
                     signal_symbols = [row[0] for row in cur.fetchall()]
 
                 if not signal_symbols:
                     # No BUY signals at all - fall back to empty result (Phase 8 handles gracefully)
-                    logger.warning("[PHASE 7] No BUY signals found in buy_sell_daily. Skipping quality score computation.")
+                    logger.warning(
+                        "[PHASE 7] No BUY signals found in buy_sell_daily. Skipping quality score computation."
+                    )
                     score_result = {"symbols_processed": 0, "symbols_failed": 0, "no_signals_found": True}
                 else:
                     logger.info(
@@ -1510,7 +1526,9 @@ def run(  # noqa: C901
                     )
                     loader_elapsed = time.time() - loader_start
                     if loader_elapsed > loader_timeout_secs:
-                        logger.warning(f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)")
+                        logger.warning(
+                            f"[PHASE 7] Signal quality score loader took {loader_elapsed:.0f}s (exceeded {loader_timeout_secs}s timeout)"
+                        )
                         msg = (
                             f"[PHASE 7 CRITICAL] Signal quality score computation exceeded timeout ({loader_elapsed:.0f}s > {loader_timeout_secs}s). "
                             f"This indicates the loader is stalled or locked. Cannot proceed without valid signal scores."
@@ -1536,9 +1554,9 @@ def run(  # noqa: C901
             error_type_name = type(e).__name__
             is_lock_error = (
                 isinstance(e, LockAcquisitionError)
-                or error_type_name == 'LockAcquisitionError'
-                or 'LockAcquisitionError' in error_type_name
-                or 'lock' in error_str.lower()
+                or error_type_name == "LockAcquisitionError"
+                or "LockAcquisitionError" in error_type_name
+                or "lock" in error_str.lower()
             )
             if is_lock_error:
                 # Temporary lock issue - log warning but don't halt
@@ -1704,10 +1722,14 @@ def run(  # noqa: C901
                         try:
                             base_score = scorer.calculate_base_quality_score()
                             if base_score is None or base_score < 0:
-                                raise ValueError(f"Base score calculation failed: got {base_score} (expected 0-100 range)")
+                                raise ValueError(
+                                    f"Base score calculation failed: got {base_score} (expected 0-100 range)"
+                                )
                             volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
                             if volume_score is None:
-                                raise ValueError(f"Volume score calculation failed: got None for {symbol} {signal_date}")
+                                raise ValueError(
+                                    f"Volume score calculation failed: got None for {symbol} {signal_date}"
+                                )
                             trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
                             if trend_score is None:
                                 raise ValueError(f"Trend score calculation failed: got None for {symbol} {signal_date}")
@@ -1791,9 +1813,7 @@ def run(  # noqa: C901
         except Exception as diagnostic_err:
             logger.debug(f"[PHASE 7] Could not fetch halt reason for diagnostics: {diagnostic_err}")
 
-        logger.critical(
-            f"[PHASE 7] Halt flag detected (reason: {halt_reason[:100]}). Halting signal generation."
-        )
+        logger.critical(f"[PHASE 7] Halt flag detected (reason: {halt_reason[:100]}). Halting signal generation.")
         log_phase_result_fn(7, "signal_generation", "halt", f"Halt flag set: {halt_reason[:150]}")
         return PhaseResult(
             7,
@@ -2070,7 +2090,9 @@ def run(  # noqa: C901
 
             try:
                 # Submit all tasks
-                future_to_symbol = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
+                future_to_symbol = {
+                    executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check
+                }
 
                 # ISSUE 13 FIX: Wait with timeout per completed future
                 executor_timeout = 60  # seconds - overall limit for all futures
@@ -2087,7 +2109,9 @@ def run(  # noqa: C901
                         if passed:
                             liq_passed.append(candidate_result)
                     except FutureTimeoutError:
-                        logger.warning(f"[PHASE 7] Liquidity check timed out for {symbol} (exceeds 2s per-future limit)")
+                        logger.warning(
+                            f"[PHASE 7] Liquidity check timed out for {symbol} (exceeds 2s per-future limit)"
+                        )
                         pending_symbols.append(symbol)
                     except Exception as e:
                         logger.error(f"[PHASE 7] Liquidity check failed for {symbol}: {e}")
@@ -2213,7 +2237,9 @@ def run(  # noqa: C901
     if liq_passed:
         logger.info("[PHASE 7 DEBUG] Top 5 qualified trades signal_quality_score values:")
         for i, sig in enumerate(liq_passed[:5]):
-            logger.info(f"  {i+1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}")
+            logger.info(
+                f"  {i + 1}. {sig.get('symbol')}: sqs={sig.get('signal_quality_score')}, trend={sig.get('trend_template_score')}, base_q={sig.get('base_quality')}"
+            )
 
     phase_data = {
         "qualified_trades": liq_passed,

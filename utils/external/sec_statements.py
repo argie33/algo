@@ -400,7 +400,7 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_CASHFLOW_IFRS_ALIASES)
 
 
-def _aggregate_concepts(
+def _aggregate_concepts(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     client: Any,
     symbol: str,
     concepts: list[str],
@@ -584,8 +584,7 @@ def _aggregate_concepts(
                 if period == "annual" and start_date and entry.get("end"):
                     try:
                         span_days = (
-                            datetime.date.fromisoformat(entry["end"])
-                            - datetime.date.fromisoformat(start_date)
+                            datetime.date.fromisoformat(entry["end"]) - datetime.date.fromisoformat(start_date)
                         ).days
                     except ValueError:
                         span_days = None

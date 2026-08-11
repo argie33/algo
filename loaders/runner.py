@@ -76,7 +76,7 @@ def _setup_timeout() -> None:
         timer.start()
 
 
-def run_loader(
+def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     loader_class: type[OptimalLoader],
     description: str | None = None,
     global_mode: bool = False,
@@ -136,6 +136,7 @@ def run_loader(
     try:
         if global_mode:
             import time
+
             start_time = time.time()
             result = loader.load_global()
             execution_duration: float | None = time.time() - start_time
@@ -144,6 +145,7 @@ def run_loader(
                 logger.info(f"SUCCESS: {result} records loaded in {execution_duration:.2f}s")
                 # Mark completion for global-mode loaders (same as per-symbol mode)
                 from utils.loaders.status_manager import LoaderStatusManager
+
                 status_mgr = LoaderStatusManager(loader.table_name)
                 # For global loaders, pass row count as both symbol_count and symbols_loaded
                 # to indicate 100% completion (1 "symbol" = "market", fully processed)
@@ -154,7 +156,7 @@ def run_loader(
                 )
 
                 # Mark secondary tables as completed too
-                if hasattr(loader, 'output_tables') and loader.output_tables:
+                if hasattr(loader, "output_tables") and loader.output_tables:
                     for secondary_table in loader.output_tables:
                         if secondary_table != loader.table_name:
                             secondary_mgr = LoaderStatusManager(secondary_table)
@@ -168,13 +170,14 @@ def run_loader(
                 logger.error(f"FAILED: No records loaded in {execution_duration:.2f}s")
                 # Mark as failed in status
                 from utils.loaders.status_manager import LoaderStatusManager
+
                 status_mgr = LoaderStatusManager(loader.table_name)
                 status_mgr.mark_failed(
                     error_message="Global loader returned 0 rows - no data produced",
                     completion_pct=0.0,
                 )
                 # Mark secondary tables as failed too
-                if hasattr(loader, 'output_tables') and loader.output_tables:
+                if hasattr(loader, "output_tables") and loader.output_tables:
                     for secondary_table in loader.output_tables:
                         if secondary_table != loader.table_name:
                             secondary_mgr = LoaderStatusManager(secondary_table)
@@ -238,7 +241,7 @@ def run_loader(
 
             # ERROR COUNT PROPAGATION FIX: Surface error counts to loader status for dashboard visibility
             # Allows operators to distinguish "100% success" from "95% success, 5% failed"
-            symbols_loaded = stats.get("symbols_loaded", 0)
+            symbols_loaded = stats.get("symbols_loaded") or 0
             # LoaderStats (utils/loader_stats.py) tracks this as "duration_sec" - "execution_duration_sec"
             # is the data_loader_status DB column name, not a stats dict key. Reading the DB column name
             # here always returned None, so every runner.py-driven loader (all but load_prices.py, which
@@ -251,8 +254,8 @@ def run_loader(
             loader_name = loader.table_name if hasattr(loader, "table_name") else loader_class.__name__
             logger.info(
                 f"[LOADER {loader_name}] Completion assessment: "
-                f"loaded={symbols_loaded}/{len(symbols)} ({fail_rate*100:.2f}% failed), "
-                f"max_fail_rate={max_fail_rate*100:.2f}%, "
+                f"loaded={symbols_loaded}/{len(symbols)} ({fail_rate * 100:.2f}% failed), "
+                f"max_fail_rate={max_fail_rate * 100:.2f}%, "
                 f"result={'FAIL' if fail_rate > max_fail_rate else 'PASS'}"
             )
 
@@ -260,6 +263,7 @@ def run_loader(
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 # Still mark in status so operators see partial failures
                 from utils.loaders.status_manager import LoaderStatusManager
+
                 status_mgr = LoaderStatusManager(loader.table_name)
                 status_mgr.mark_failed(
                     error_message=f"{symbols_failed} symbols failed to load (fail rate {fail_rate * 100:.1f}% exceeds limit {max_fail_rate * 100:.0f}%)",
@@ -272,7 +276,7 @@ def run_loader(
                 # below. On failure they kept whatever status they had from their last
                 # successful run - a stale "completed" row that staleness monitors and Phase 1
                 # freshness checks read as fine, hiding that this run never refreshed them.
-                if hasattr(loader, 'output_tables') and loader.output_tables:
+                if hasattr(loader, "output_tables") and loader.output_tables:
                     for secondary_table in loader.output_tables:
                         if secondary_table != loader.table_name:
                             LoaderStatusManager(secondary_table).mark_failed(
@@ -302,6 +306,7 @@ def run_loader(
             # threshold keeps this call consistent with the gate above instead of second-guessing it.
             min_completion_pct = max(0.0, 100.0 - max_fail_rate_pct)
             from utils.loaders.status_manager import LoaderStatusManager
+
             status_mgr = LoaderStatusManager(loader.table_name)
             status_mgr.mark_completed(
                 execution_duration_sec=execution_duration,
@@ -314,7 +319,7 @@ def run_loader(
             # Same min_completion_pct fix as above - these secondary tables share the primary's fail-rate
             # verdict (output_tables means "rises and falls with the primary loader run"), so they must be
             # judged against the same threshold that verdict was computed with, not the 98% default.
-            if hasattr(loader, 'output_tables') and loader.output_tables:
+            if hasattr(loader, "output_tables") and loader.output_tables:
                 for secondary_table in loader.output_tables:
                     if secondary_table != loader.table_name:
                         secondary_mgr = LoaderStatusManager(secondary_table)
@@ -332,8 +337,9 @@ def run_loader(
         # load_sector_industry_daily) are never touched on a crash - only on success below.
         # Without this they keep a stale prior "completed" status that hides the fact this
         # run never refreshed them.
-        if hasattr(loader, 'output_tables') and loader.output_tables:
+        if hasattr(loader, "output_tables") and loader.output_tables:
             from utils.loaders.status_manager import LoaderStatusManager
+
             for secondary_table in loader.output_tables:
                 if secondary_table != loader.table_name:
                     try:
@@ -341,7 +347,9 @@ def run_loader(
                             error_message=f"Primary loader {loader_name} crashed: {type(e).__name__}: {str(e)[:200]}",
                         )
                     except Exception as mark_err:
-                        logger.error(f"[LOADER FATAL] Failed to mark secondary table {secondary_table} as failed: {mark_err}")
+                        logger.error(
+                            f"[LOADER FATAL] Failed to mark secondary table {secondary_table} as failed: {mark_err}"
+                        )
         return 1
     finally:
         loader.close()

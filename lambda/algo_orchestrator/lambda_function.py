@@ -159,11 +159,11 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
         event_execution_mode = event.get("execution_mode", "").strip().lower()
         if event_execution_mode:
-            VALID_MODES = ("paper", "dry", "review", "auto")
-            if event_execution_mode not in VALID_MODES:
+            valid_modes = ("paper", "dry", "review", "auto")
+            if event_execution_mode not in valid_modes:
                 error_msg = (
                     f"[LAMBDA CRITICAL] Invalid execution_mode in event payload: '{event_execution_mode}'. "
-                    f"Must be one of: {', '.join(VALID_MODES)}. "
+                    f"Must be one of: {', '.join(valid_modes)}. "
                     f"Note: 'live' is not supported; use 'auto' with alpaca_paper_trading=false for real-money trading."
                 )
                 logger.error(error_msg)

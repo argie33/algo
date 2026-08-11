@@ -18,22 +18,22 @@ from algo.risk.exposure_policy import ExposurePolicy
 
 
 def _row(**overrides):
-    base = dict(
-        trade_id="TRD-1",
-        symbol="AAPL",
-        entry_price=100.0,
-        init_stop=90.0,
-        t1_price=None,
-        t2_price=None,
-        t3_price=None,
-        trade_date=date(2026, 1, 1),
-        position_id=1,
-        qty=10,
-        target_hits=0,
-        cur_stop=90.0,
-        cur_price=110.0,
-        pnl_pct=0.0,
-    )
+    base = {
+        "trade_id": "TRD-1",
+        "symbol": "AAPL",
+        "entry_price": 100.0,
+        "init_stop": 90.0,
+        "t1_price": None,
+        "t2_price": None,
+        "t3_price": None,
+        "trade_date": date(2026, 1, 1),
+        "position_id": 1,
+        "qty": 10,
+        "target_hits": 0,
+        "cur_stop": 90.0,
+        "cur_price": 110.0,
+        "pnl_pct": 0.0,
+    }
     base.update(overrides)
     return tuple(base.values())
 

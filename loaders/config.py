@@ -35,8 +35,7 @@ def get_loader_max_fail_rate(loader_type: str = "default") -> float:
             return float(env_value)
         except ValueError as e:
             raise ValueError(
-                f"CRITICAL: {env_key} value is invalid: {env_value!r}. "
-                f"Must be a valid float between 0-100. {e}"
+                f"CRITICAL: {env_key} value is invalid: {env_value!r}. Must be a valid float between 0-100. {e}"
             ) from e
 
     return defaults.get(loader_type, defaults["default"])
@@ -54,8 +53,7 @@ def get_loader_backfill_days() -> int:
             return int(env_value)
         except ValueError as e:
             raise ValueError(
-                f"CRITICAL: LOADER_BACKFILL_DAYS value is invalid: {env_value!r}. "
-                f"Must be a valid integer >= 0. {e}"
+                f"CRITICAL: LOADER_BACKFILL_DAYS value is invalid: {env_value!r}. Must be a valid integer >= 0. {e}"
             ) from e
 
     return 0
@@ -73,8 +71,7 @@ def get_phase_event_history_max() -> int:
             return int(env_value)
         except ValueError as e:
             raise ValueError(
-                f"CRITICAL: PHASE_EVENT_HISTORY_MAX value is invalid: {env_value!r}. "
-                f"Must be a valid integer > 0. {e}"
+                f"CRITICAL: PHASE_EVENT_HISTORY_MAX value is invalid: {env_value!r}. Must be a valid integer > 0. {e}"
             ) from e
 
     return 1000  # Default: keep last 1000 events per phase
@@ -92,8 +89,7 @@ def get_loader_batch_size() -> int:
             return int(env_value)
         except ValueError as e:
             raise ValueError(
-                f"CRITICAL: LOADER_BATCH_SIZE value is invalid: {env_value!r}. "
-                f"Must be a valid integer > 0. {e}"
+                f"CRITICAL: LOADER_BATCH_SIZE value is invalid: {env_value!r}. Must be a valid integer > 0. {e}"
             ) from e
 
     return 10000  # Default: 10k items per batch
@@ -111,15 +107,14 @@ def get_loader_max_backfill_days() -> int:
             return int(env_value)
         except ValueError as e:
             raise ValueError(
-                f"CRITICAL: LOADER_MAX_BACKFILL_DAYS value is invalid: {env_value!r}. "
-                f"Must be a valid integer > 0. {e}"
+                f"CRITICAL: LOADER_MAX_BACKFILL_DAYS value is invalid: {env_value!r}. Must be a valid integer > 0. {e}"
             ) from e
 
     # Default: read from algo/config which supports environment override
     try:
         # Use absolute import to avoid namespace collision with root config/
         import importlib
-        import sys
+
         algo_config = importlib.import_module("algo.config")
         return getattr(algo_config, "MAX_BACKFILL_DAYS_LIMIT", 1825)
     except (ImportError, AttributeError):
@@ -157,8 +152,7 @@ def get_loader_sla_timeout(loader_type: str = "default") -> int:
             return int(env_value)
         except ValueError as e:
             raise ValueError(
-                f"CRITICAL: {env_key} value is invalid: {env_value!r}. "
-                f"Must be a valid integer > 0. {e}"
+                f"CRITICAL: {env_key} value is invalid: {env_value!r}. Must be a valid integer > 0. {e}"
             ) from e
 
     # Fallback to old global env var for backwards compatibility

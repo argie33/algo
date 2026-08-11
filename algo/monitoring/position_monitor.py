@@ -198,6 +198,7 @@ class PositionMonitor:
                         # session timezone dynamically instead of assuming UTC.
                         if not getattr(created_at, "tzinfo", None):
                             from utils.db.timezone_utils import get_db_timezone
+
                             naive_tz = get_db_timezone()
                             created_at = created_at.replace(tzinfo=naive_tz)
                         age_minutes = int((datetime.now(timezone.utc) - created_at).total_seconds() / 60)
@@ -266,8 +267,14 @@ class PositionMonitor:
                         ) as audit_e:
                             try:
                                 cur.execute(f"ROLLBACK TO {sp_name}")
-                            except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
-                                logger.error(f"[AUDIT_FAILURE] Savepoint rollback failed: {rb_err} (transaction may be aborted)")
+                            except (
+                                psycopg2.DatabaseError,
+                                psycopg2.OperationalError,
+                                psycopg2.ProgrammingError,
+                            ) as rb_err:
+                                logger.error(
+                                    f"[AUDIT_FAILURE] Savepoint rollback failed: {rb_err} (transaction may be aborted)"
+                                )
                             logger.critical(
                                 f"[AUDIT_FAILURE] Stale order batch transaction failed (rolled back): {audit_e}"
                             )
@@ -289,7 +296,9 @@ class PositionMonitor:
                     }
             return {"status": "OK", "count": 0}
 
-    def check_sector_concentration(self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None) -> dict[str, Any]:
+    def check_sector_concentration(
+        self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None
+    ) -> dict[str, Any]:
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
@@ -359,7 +368,9 @@ class PositionMonitor:
                         f"Cannot proceed with position monitoring without valid concentration metrics."
                     ) from e
 
-    def review_positions(self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None) -> list[dict[str, Any]]:
+    def review_positions(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+        self, current_date: _date | None = None, cur: PsycopgCursor[Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Review every open position. Returns list of recommendations.
 
         Args:
@@ -369,7 +380,7 @@ class PositionMonitor:
         if current_date is None:
             current_date = _date.today()
 
-        def _review_with_cursor(cursor: PsycopgCursor[Any]) -> list[dict[str, Any]]:
+        def _review_with_cursor(cursor: PsycopgCursor[Any]) -> list[dict[str, Any]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
             recs = []
             logger.info("[POSITION_MONITOR] review_positions: cursor acquired")
             try:
@@ -453,7 +464,9 @@ class PositionMonitor:
                 ) from margin_e
 
             try:
-                logger.info("[POSITION_MONITOR] Calling check_sector_concentration with shared cursor (cursor lifecycle fix)")
+                logger.info(
+                    "[POSITION_MONITOR] Calling check_sector_concentration with shared cursor (cursor lifecycle fix)"
+                )
                 # CRITICAL FIX: Pass cursor to avoid nested DatabaseContext closing our cursor
                 conc = self.check_sector_concentration(current_date, cur=cursor)
 
@@ -593,7 +606,9 @@ class PositionMonitor:
                     try:
                         cursor.execute(f"ROLLBACK TO {sp_name}")
                     except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as rb_err:
-                        logger.warning(f"[POSITION_MONITOR] Could not rollback savepoint {sp_name}: {rb_err} - continuing")
+                        logger.warning(
+                            f"[POSITION_MONITOR] Could not rollback savepoint {sp_name}: {rb_err} - continuing"
+                        )
                     continue
 
             # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
@@ -615,6 +630,7 @@ class PositionMonitor:
             # Cannot safely evaluate positions without proper aggregation.
             # Orchestrator is designed to halt on this exception.
             import traceback
+
             full_trace = traceback.format_exc()
             safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
             error_msg = (
@@ -628,6 +644,7 @@ class PositionMonitor:
             # Cannot generate recommendations without position data.
             # Orchestrator is designed to halt on this exception.
             import traceback
+
             full_trace = traceback.format_exc()
             safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
             error_msg = (
@@ -637,7 +654,9 @@ class PositionMonitor:
             logger.critical(error_msg)
             raise RuntimeError(error_msg) from db_err
 
-    def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> dict[str, Any]:  # noqa: C901
+    def _evaluate_position(  # noqa: C901
+        self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None
+    ) -> dict[str, Any]:
         try:
             (
                 position_id,
@@ -776,7 +795,9 @@ class PositionMonitor:
         # CRITICAL: Stop loss check MUST come first, before any other logic
         # If price <= active stop, this is a HARD EXIT condition, not optional
         if cur_price <= active_stop:
-            logger.critical(f"[PHASE 3 CRITICAL] {symbol}: Current price ${cur_price:.2f} <= active stop ${active_stop:.2f} - IMMEDIATE EXIT REQUIRED")
+            logger.critical(
+                f"[PHASE 3 CRITICAL] {symbol}: Current price ${cur_price:.2f} <= active stop ${active_stop:.2f} - IMMEDIATE EXIT REQUIRED"
+            )
             return {
                 "symbol": symbol,
                 "position_id": position_id,
@@ -845,7 +866,9 @@ class PositionMonitor:
             # Graceful degradation on earnings data unavailability
             # This is expected for new IPOs and listings without scheduled earnings
             error_msg = str(e).replace("{", "{{").replace("}", "}}")
-            logger.debug(f"[POSITION_MONITOR] Earnings data unavailable for {symbol}: {error_msg} - continuing without earnings check")
+            logger.debug(
+                f"[POSITION_MONITOR] Earnings data unavailable for {symbol}: {error_msg} - continuing without earnings check"
+            )
 
         # 3f. Distribution-day stress (graceful degradation on early-day NULL data)
         market_dist_days: int | None = None
@@ -855,7 +878,9 @@ class PositionMonitor:
             # Graceful degradation: distribution data may be NULL early in the trading day
             # before market_exposure_daily loader has run. Continue without this check.
             error_msg = str(e).replace("{", "{{").replace("}", "}}")
-            logger.debug(f"[POSITION_MONITOR] Market distribution data unavailable: {error_msg} - continuing without distribution check")
+            logger.debug(
+                f"[POSITION_MONITOR] Market distribution data unavailable: {error_msg} - continuing without distribution check"
+            )
 
         try:
             max_dist_days = int(self.config["max_distribution_days"])
@@ -871,10 +896,14 @@ class PositionMonitor:
             logger.info(
                 "[POSITION_MONITOR] %s: days_held=%d, flags=%s (need %d for exit), "
                 "stop=%.2f->%.2f, unrealized=%.1f%%, r_multiple=%.2f",
-                symbol, days_held, flags if flags else "[]",
+                symbol,
+                days_held,
+                flags if flags else "[]",
                 halt_flag_count,
-                active_stop, proposed_stop,
-                unrealized_pct, r_multiple
+                active_stop,
+                proposed_stop,
+                unrealized_pct,
+                r_multiple,
             )
 
         # Decision logic
@@ -1035,7 +1064,9 @@ class PositionMonitor:
                     logger.warning(f"[POSITION_MONITOR] {symbol}: ATR missing (live quote), using fallback: ${atr:.2f}")
                 if sma_50 is None:
                     sma_50 = live_price if live_price else 100.0
-                    logger.warning(f"[POSITION_MONITOR] {symbol}: SMA_50 missing (live quote), using fallback: ${sma_50:.2f}")
+                    logger.warning(
+                        f"[POSITION_MONITOR] {symbol}: SMA_50 missing (live quote), using fallback: ${sma_50:.2f}"
+                    )
             return (live_price, atr, sma_50, sma_200)
 
         if cur is not None:
@@ -1221,7 +1252,9 @@ class PositionMonitor:
         final_stop = max(new_stop, active_stop)
         return float(Decimal(str(final_stop)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-    def _check_relative_strength(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> str:
+    def _check_relative_strength(
+        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None
+    ) -> str:
         """20-day relative return vs SPY: weakening / neutral / strong.
 
         Args:
@@ -1253,7 +1286,9 @@ class PositionMonitor:
             return "strong"
         return "neutral"
 
-    def _check_sector_health(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> str:
+    def _check_sector_health(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None
+    ) -> str:
         """Is the symbol's sector currently weakening?
 
         Args:
@@ -1523,7 +1558,9 @@ class PositionMonitor:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
 
-    def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None) -> int:
+    def _days_to_earnings(
+        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any] | None = None
+    ) -> int:
         """Get days until next earnings from earnings_calendar.
 
         Args:
@@ -1641,7 +1678,9 @@ class PositionMonitor:
 
         return int(row[0])
 
-    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: PsycopgCursor[Any] | None = None) -> float:
+    def _period_return(
+        self, symbol: str, end_date: _date, lookback_days: int, cur: PsycopgCursor[Any] | None = None
+    ) -> float:
         """Compute simple return over a lookback period.
 
         Args:
@@ -1838,9 +1877,7 @@ class PositionMonitor:
             for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
                 try:
                     alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
-                    self._handle_qty_variance(
-                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, None, adjustments
-                    )
+                    self._handle_qty_variance(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, None, adjustments)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
                         f"Corporate action detection failed for {symbol}: Database error during qty variance handling. "

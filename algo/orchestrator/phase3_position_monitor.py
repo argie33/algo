@@ -98,6 +98,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # When pool has ~20 connections and Phase 3 opens nested contexts in a loop,
             # pool gets exhausted causing "cursor already closed" errors
             from utils.db.connection_pool import get_pool_health
+
             pool_health = get_pool_health()
             available_conns_raw = pool_health.get("available_conns", 0)
             available_conns = int(available_conns_raw) if isinstance(available_conns_raw, (int, str)) else 0
@@ -115,7 +116,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
 
-            def _update_position_prices(cur: Any) -> int:
+            def _update_position_prices(cur: Any) -> int:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
                 """Update position prices using passed cursor. Must never open nested DatabaseContext.
 
                 Args:
@@ -166,6 +167,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 # Move check here (before loop) to establish baseline. If pool can't
                 # handle position update loop, fail fast before wasting time on updates.
                 from utils.db.connection_pool import get_pool_health
+
                 pre_loop_health = get_pool_health()
                 avail = pre_loop_health.get("available_conns", 0)
                 pre_loop_available = int(avail) if isinstance(avail, (int, str)) and avail else 0
@@ -183,7 +185,15 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                 # Get latest prices from price_daily table for all open symbols
                 # Use RowAccessor for type-safe column access instead of magic indices
-                position_columns = ["id", "symbol", "quantity", "current_price", "entry_date", "stop_loss_price", "avg_entry_price"]
+                position_columns = [
+                    "id",
+                    "symbol",
+                    "quantity",
+                    "current_price",
+                    "entry_date",
+                    "stop_loss_price",
+                    "avg_entry_price",
+                ]
                 try:
                     open_symbols_raw = [
                         RowAccessor(row, position_columns, "position_fetch").get_str(1)  # symbol at index 1
@@ -219,10 +229,12 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     if len(price_rows) != len(open_symbols):
                         price_columns = ["symbol", "close", "data_unavailable", "data_unavailable_reason"]
                         price_symbols = {
-                            sym for sym in [
+                            sym
+                            for sym in [
                                 RowAccessor(row, price_columns, "price_fetch").get_str(0)  # symbol at index 0
                                 for row in price_rows
-                            ] if sym is not None
+                            ]
+                            if sym is not None
                         }
                         missing_symbols = set(open_symbols) - price_symbols
                         raise RuntimeError(
@@ -428,7 +440,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         logger.error("[PHASE 3 CRITICAL] Failed to update %s (data error): %s", symbol, str(e)[:200])
                         update_errors.append((symbol, str(e)[:500]))
                     except ArithmeticError as e:
-                        logger.error("[PHASE 3 CRITICAL] Failed to update %s (arithmetic error): %s", symbol, str(e)[:200])
+                        logger.error(
+                            "[PHASE 3 CRITICAL] Failed to update %s (arithmetic error): %s", symbol, str(e)[:200]
+                        )
                         update_errors.append((symbol, str(e)[:500]))
 
                 # GOVERNANCE: Fail-fast on ALL update errors. The code above explicitly fails on:
@@ -466,6 +480,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # FAIL-FAST FIX: PositionMonitor failure is CRITICAL - cannot generate fake fallback
             # recommendations. Position monitoring is too fundamental to work around.
             from algo.monitoring import PositionMonitor
+
             recommendations = []
 
             # CRITICAL FIX 2026-07-30: Retry on "cursor already closed" errors
@@ -490,8 +505,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     recommendations = monitor.review_positions(monitoring_date, cur=None)
                     n_early_exit = sum(1 for r in recommendations if r["action"] == "EARLY_EXIT")
                     n_raise_stop = sum(1 for r in recommendations if r["action"] == "RAISE_STOP")
-                    logger.info("[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises" %
-                               (len(recommendations), n_early_exit, n_raise_stop))
+                    logger.info(
+                        "[PHASE 3] Paper mode generated %d recommendations: %d early exits, %d stop raises"
+                        % (len(recommendations), n_early_exit, n_raise_stop)
+                    )
                     # CRITICAL DIAGNOSTIC: Log each recommendation to understand exit decisions
                     for rec in recommendations:
                         if rec["action"] == "EARLY_EXIT":
@@ -499,7 +516,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 "[PHASE 3 EARLY_EXIT] %s: days_held=%d, reason=%s",
                                 rec["symbol"],
                                 rec.get("days_held", "N/A"),
-                                rec.get("action_reason", "no reason")
+                                rec.get("action_reason", "no reason"),
                             )
                         elif rec["action"] == "RAISE_STOP":
                             new_stop_val = rec.get("new_stop_recommended")
@@ -507,7 +524,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 "[PHASE 3 RAISE_STOP] %s: new_stop=%s, reason=%s",
                                 rec["symbol"],
                                 f"${new_stop_val:.2f}" if new_stop_val is not None else "None",
-                                rec.get("action_reason", "no reason")
+                                rec.get("action_reason", "no reason"),
                             )
                     break  # Success - exit retry loop
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as review_err:
@@ -521,17 +538,21 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     error_str = str(review_err)
 
                     # Check if this is a cursor lifecycle error that might be transient
-                    if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
+                    if (
+                        "cursor already closed" in error_str.lower()
+                        or "current transaction is aborted" in error_str.lower()
+                    ):
                         if attempt < max_retries - 1:
                             logger.warning(
-                                f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying with fresh cursor: {error_str[:500]}"
+                                f"[PHASE 3] Cursor/transaction error (attempt {attempt + 1}/{max_retries}), retrying with fresh cursor: {error_str[:500]}"
                             )
                             # CRITICAL FIX: Don't try to ROLLBACK the poisoned cursor - it won't work.
                             # Instead, next iteration will use a fresh cursor via DatabaseContext.
                             # The old cursor is left for DatabaseContext.__exit__ to clean up properly.
 
                             import time
-                            time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+
+                            time.sleep(0.5 * (2**attempt))  # Exponential backoff
                             continue
 
                     # For cursor errors after retries exhausted, enter degraded mode
@@ -545,15 +566,14 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                     # For non-transient errors, log and halt
                     import traceback
+
                     full_trace = traceback.format_exc()
 
                     # Log full stack trace for GROUP BY errors to aid diagnosis
-                    if 'GROUP BY' in full_trace.upper():
+                    if "GROUP BY" in full_trace.upper():
                         # Escape braces in traceback for safe f-string formatting
                         safe_trace = full_trace.replace("{", "{{").replace("}", "}}")
-                        logger.critical(
-                            f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{safe_trace}"
-                        )
+                        logger.critical(f"[PHASE 3 DIAGNOSTIC] GROUP BY error detected - full stack:\n{safe_trace}")
 
                     error_str = str(review_err)[:200]
                     # Escape % characters in error message to prevent format string issues later
@@ -587,8 +607,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 3,
                 "position_monitor",
                 paper_log_status,
-                f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated" +
-                (" (degraded mode)" if paper_mode_degraded else ""),
+                f"{updated_count} positions updated with current prices, {len(recommendations)} recommendations generated"
+                + (" (degraded mode)" if paper_mode_degraded else ""),
             )
             return PhaseResult(
                 3,
@@ -679,7 +699,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     # Use % formatting to avoid f-string format errors when exception contains braces
                     logger.error(
                         "[PHASE 3 CRITICAL] Failed to check halt status for %s: %s: %s",
-                        symbol, type(halt_exc).__name__, str(halt_exc)[:200]
+                        symbol,
+                        type(halt_exc).__name__,
+                        str(halt_exc)[:200],
                     )
                     halt_check_errors.append((symbol, f"exception: {type(halt_exc).__name__}"))
 
@@ -759,20 +781,22 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 error_str = str(review_err)
 
                 # Check if this is a cursor lifecycle error that might be transient
-                if "cursor already closed" in error_str.lower() or "current transaction is aborted" in error_str.lower():
+                if (
+                    "cursor already closed" in error_str.lower()
+                    or "current transaction is aborted" in error_str.lower()
+                ):
                     if attempt < max_retries - 1:
                         logger.warning(
-                            f"[PHASE 3] Cursor/transaction error (attempt {attempt+1}/{max_retries}), retrying: {error_str[:500]}"
+                            f"[PHASE 3] Cursor/transaction error (attempt {attempt + 1}/{max_retries}), retrying: {error_str[:500]}"
                         )
                         import time
-                        time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+
+                        time.sleep(0.5 * (2**attempt))  # Exponential backoff
                         continue
 
                 # For non-transient errors or after retries exhausted, enter degraded mode
                 if attempt >= max_retries - 1:
-                    logger.warning(
-                        f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode."
-                    )
+                    logger.warning(f"[PHASE 3] Cursor retries exhausted: {error_str[:150]}. Entering degraded mode.")
                     # Return partial result: just price updates, skip analysis
                     # Return early with PhaseResult(status='completed_degraded', recommendations=[])
                     recommendations = []

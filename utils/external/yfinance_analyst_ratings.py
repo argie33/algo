@@ -315,7 +315,7 @@ def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict
     # marked data_unavailable like every other real-fetch-failure path in this loader.
     # $1M/share is still absurdly generous - no real company's EPS estimate is within many
     # orders of magnitude of this - while staying safely under the DB's own overflow ceiling.
-    MAX_ABS_EPS_VALUE = 1_000_000.0
+    max_abs_eps_value = 1_000_000.0
 
     def _num(row: Any, col: str, max_abs: float | None = None) -> float | None:
         val = row.get(col)
@@ -349,8 +349,8 @@ def fetch_earnings_calendar(symbol: str, timeout_sec: float = 10.0) -> list[dict
         data = {
             "symbol": symbol,
             "earnings_date": earnings_date,
-            "eps_estimate": _num(row, "EPS Estimate", max_abs=MAX_ABS_EPS_VALUE),
-            "actual_eps": _num(row, "Reported EPS", max_abs=MAX_ABS_EPS_VALUE),
+            "eps_estimate": _num(row, "EPS Estimate", max_abs=max_abs_eps_value),
+            "actual_eps": _num(row, "Reported EPS", max_abs=max_abs_eps_value),
             "surprise_pct": _num(row, "Surprise(%)"),
         }
 

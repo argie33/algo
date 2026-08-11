@@ -252,15 +252,11 @@ class TestDataQualityValidation:
         from utils.validation.financial import FinancialDataValidator
 
         # Test NaN
-        is_valid, price, error = FinancialDataValidator.validate_price(
-            float('nan'), "test"
-        )
+        is_valid, price, error = FinancialDataValidator.validate_price(float("nan"), "test")
         assert not is_valid
 
         # Test Infinity
-        is_valid, price, error = FinancialDataValidator.validate_price(
-            float('inf'), "test"
-        )
+        is_valid, price, error = FinancialDataValidator.validate_price(float("inf"), "test")
         assert not is_valid
 
         # Test valid price
@@ -316,13 +312,12 @@ class TestValidationLogging:
             "regime": "confirmed_uptrend",
         }
 
-        with patch('algo.orchestrator.phase8_entry_execution.logger') as mock_logger:
-            # This should validate without error
+        with patch("algo.orchestrator.phase8_entry_execution.logger") as mock_logger:
             try:
                 _validate_constraints_for_phase8(valid_constraints)
-                # If validation passes, no error logging should occur
             except ValueError:
                 pytest.fail("Validation should not raise for valid constraints")
+            mock_logger.error.assert_not_called()
 
     def test_constraint_validation_failure_logs_error(self):
         """Constraint validation failure should log at ERROR level."""
@@ -333,7 +328,7 @@ class TestValidationLogging:
             "max_concentration_pct": 20.0,
         }
 
-        with patch('algo.orchestrator.phase8_entry_execution.logger') as mock_logger:
+        with patch("algo.orchestrator.phase8_entry_execution.logger") as mock_logger:
             with pytest.raises(ValueError):
                 _validate_constraints_for_phase8(bad_constraints)
 
@@ -346,14 +341,7 @@ class TestPhaseResultDataContract:
 
     def test_phase7_result_has_required_qualified_trades_key(self):
         """Phase 7 result must have 'qualified_trades' key in data."""
-        phase7_result = {
-            "status": "ok",
-            "data": {
-                "qualified_trades": [
-                    {"symbol": "AAPL", "entry_price": 150.0}
-                ]
-            }
-        }
+        phase7_result = {"status": "ok", "data": {"qualified_trades": [{"symbol": "AAPL", "entry_price": 150.0}]}}
 
         assert "qualified_trades" in phase7_result["data"]
         assert isinstance(phase7_result["data"]["qualified_trades"], list)
@@ -364,7 +352,7 @@ class TestPhaseResultDataContract:
             "status": "ok",
             "data": {
                 "signals": []  # Wrong key name
-            }
+            },
         }
 
         assert "qualified_trades" not in phase7_result["data"]

@@ -20,7 +20,7 @@ class CredentialValidationError(Exception):
     """Raised when required credentials are missing."""
 
 
-def validate_credentials() -> tuple[bool, list[str]]:
+def validate_credentials() -> tuple[bool, list[str]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     """Validate that all required credentials are present and complete.
 
     CRITICAL ISSUE 4 FIX: Ensures credentials are complete (not partial),

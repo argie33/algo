@@ -124,9 +124,7 @@ class SecLoaderBase(OptimalLoader):
             logger.error(f"[{self.table_name}] Schema healing failed: {e}")
             raise RuntimeError(f"[{self.table_name}] Cannot verify schema is ready: {e}") from e
 
-    def _wrap_exception_handler(
-        self, symbol: str, exc: Exception, context: str
-    ) -> list[dict[str, Any]]:
+    def _wrap_exception_handler(self, symbol: str, exc: Exception, context: str) -> list[dict[str, Any]]:
         """Unified exception handler for SEC data fetching failures.
 
         When handle_exception() itself fails (programming error), wraps it safely
@@ -273,9 +271,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
         # silently clobber a real revenue figure for any company that happens to ALSO
         # report a genuine interest/dividend income line item (ORLY live-confirmed: real
         # ~$4B/quarter retail revenue overwritten by a $1.75M interest-income fact).
-        self._fallback_only_fields: frozenset[str] = cast(
-            frozenset[str], cfg.get("fallback_only_fields", frozenset())
-        )
+        self._fallback_only_fields: frozenset[str] = cast(frozenset[str], cfg.get("fallback_only_fields", frozenset()))
         # FIXED 2026-08-09: REIT-specific fallback fields - same "don't overwrite
         # something already found" mechanism as _fallback_only_fields above, but
         # scoped to REIT filers only (SIC 6798). Most post-2018 filers legitimately
@@ -459,7 +455,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
         return filtered
 
-    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Transform SEC EDGAR data to schema format."""
         if self._field_mapping is None:
             raise RuntimeError(f"[{self.table_name}] Field mapping not initialized.")

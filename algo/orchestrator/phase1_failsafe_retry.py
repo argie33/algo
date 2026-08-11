@@ -77,9 +77,8 @@ def _mark_loader_failed_after_crash(loader_key: str, error_message: str) -> None
             if current and current.get("status") == "RUNNING":
                 status_mgr.mark_failed(error_message)
     except Exception as mark_err:
-        logger.warning(
-            f"[PHASE 1 FAILSAFE LOCAL] Could not mark {loader_key} tables FAILED after crash: {mark_err}"
-        )
+        logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not mark {loader_key} tables FAILED after crash: {mark_err}")
+
 
 # Critical vs. auxiliary classification for retry decisions below comes from
 # utils.data_tiers.is_critical() (backed by CRITICAL_DATA/AUXILIARY_DATA there) - this
@@ -172,7 +171,9 @@ def _get_expected_data_date(run_date: _date | None = None, pipeline_context: str
     return expected_data_date, context
 
 
-def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False) -> dict[str, Any]:
+def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
+    run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False
+) -> dict[str, Any]:
     """In LOCAL_MODE, check for stale DATA and refresh loaders locally.
 
     Runs loaders directly using Python imports instead of AWS Lambda/ECS.
@@ -239,7 +240,9 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
         # Market-aware freshness check: determine expected data date based on pipeline context + run_date
         # CRITICAL FIX (Session 54 PATCH 2): Pass pipeline_context to avoid recalculating from system time
         # When system date != run_date (LOCAL testing), using system time would give wrong expectations
-        expected_data_date, freshness_context = _get_expected_data_date(run_date=run_date, pipeline_context=pipeline_context)
+        expected_data_date, freshness_context = _get_expected_data_date(
+            run_date=run_date, pipeline_context=pipeline_context
+        )
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
 
         def _check_data_completeness(table_name: str, check_date: _date) -> tuple[bool, str]:
@@ -313,7 +316,8 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 # so sparse technical_data causes entry failures later. Validate all 4 required
                 # indicators are present for 95%+ of symbols.
                 if table_name == "technical_data_daily":
-                    cur.execute(f"""
+                    cur.execute(
+                        f"""
                         SELECT
                             COUNT(*) as total_rows,
                             COUNT(rsi_14) as rsi_count,
@@ -322,7 +326,9 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                             COUNT(bb_upper) as bb_count
                         FROM {table_name}
                         WHERE {date_filter}
-                    """, params)
+                    """,
+                        params,
+                    )
                     row = cur.fetchone()
                     if not row or row[0] == 0:
                         return False, f"No rows for {check_date}"
@@ -336,16 +342,22 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                     ]
                     min_indicator_pct = min(indicator_pcts)
                     if min_indicator_pct < 95.0:
-                        return False, f"Technical indicators incomplete: RSI {indicator_pcts[0]:.0f}%, ATR {indicator_pcts[1]:.0f}%, SMA {indicator_pcts[2]:.0f}%, BB {indicator_pcts[3]:.0f}% (need 95%+)"
+                        return (
+                            False,
+                            f"Technical indicators incomplete: RSI {indicator_pcts[0]:.0f}%, ATR {indicator_pcts[1]:.0f}%, SMA {indicator_pcts[2]:.0f}%, BB {indicator_pcts[3]:.0f}% (need 95%+)",
+                        )
                     return True, ""
 
-                cur.execute(f"""
+                cur.execute(
+                    f"""
                     SELECT
                         COUNT(*) as total_rows,
                         COUNT({critical_col}) as non_null_rows
                     FROM {table_name}
                     WHERE {date_filter}
-                """, params)
+                """,
+                    params,
+                )
 
                 row = cur.fetchone()
                 if not row or row[0] == 0:
@@ -356,7 +368,10 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
 
                 min_completeness = 92.0 if table_name == "trend_template_data" else 95.0
                 if completeness_pct < min_completeness:
-                    return False, f"Completeness {completeness_pct:.1f}% (need {min_completeness}%+ of {critical_col} non-NULL)"
+                    return (
+                        False,
+                        f"Completeness {completeness_pct:.1f}% (need {min_completeness}%+ of {critical_col} non-NULL)",
+                    )
                 return True, ""
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 # This is a failsafe retry helper: its whole job is deciding whether a table
@@ -365,10 +380,14 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 # shape this codebase's governance rules forbid elsewhere. Fail closed instead:
                 # an unverifiable table is treated as incomplete, so it gets refreshed (cheap)
                 # rather than possibly staying silently sparse (expensive/invisible).
-                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}. Treating as incomplete.")
+                logger.warning(
+                    f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (DB error): {e}. Treating as incomplete."
+                )
                 return False, f"Completeness check failed (DB error): {e}"
             except (KeyError, ValueError, TypeError) as e:
-                logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}. Treating as incomplete.")
+                logger.warning(
+                    f"[PHASE 1 FAILSAFE LOCAL] Could not check completeness for {table_name} (data error): {e}. Treating as incomplete."
+                )
                 return False, f"Completeness check failed (data error): {e}"
 
         with DatabaseContext("read") as cur:
@@ -424,7 +443,9 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                                     f"Loader may have completed with insufficient data quality. Triggering refresh."
                                 )
                             else:
-                                logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh and complete: {table_max_date}")
+                                logger.info(
+                                    f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh and complete: {table_max_date}"
+                                )
                     else:
                         # No data at all
                         stale_loaders.append((table_name, loader_key, 999))
@@ -464,6 +485,7 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
                 # When orchestrator runs for 2026-08-12 but system date is 2026-08-08 (Saturday),
                 # loader needs run_date to know which trading day data to expect
                 from datetime import date as _date_class
+
                 run_date_str = run_date.isoformat() if run_date else _date_class.today().isoformat()
                 env["ORCHESTRATOR_RUN_DATE"] = run_date_str
 
@@ -578,7 +600,9 @@ def _check_and_refresh_local(run_date: _date | None = None, pipeline_context: st
     return results
 
 
-def check_and_retry_incomplete_loaders(run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
+def check_and_retry_incomplete_loaders(  # noqa: C901
+    run_date: _date | None = None, pipeline_context: str | None = None, dry_run: bool = False
+) -> dict[str, Any]:
     """Check for incomplete loaders and retry them.
 
     Args:
@@ -606,7 +630,9 @@ def check_and_retry_incomplete_loaders(run_date: _date | None = None, pipeline_c
     }
 
     # DEBUG: Log the parameters received
-    logger.info(f"[PHASE 1 FAILSAFE DEBUG] check_and_retry_incomplete_loaders called with run_date={run_date}, pipeline_context={pipeline_context}")
+    logger.info(
+        f"[PHASE 1 FAILSAFE DEBUG] check_and_retry_incomplete_loaders called with run_date={run_date}, pipeline_context={pipeline_context}"
+    )
 
     # In LOCAL_MODE: run loaders locally instead of via AWS Lambda/ECS
     if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
@@ -707,7 +733,12 @@ def check_and_retry_incomplete_loaders(run_date: _date | None = None, pipeline_c
                     max_fail_rate = get_loader_max_fail_rate(table_name)
                     min_completion_pct = 100.0 - max_fail_rate
                     is_below_configured_threshold = completion_pct < min_completion_pct
-                    if not is_below_configured_threshold and _status and "FAILED" not in _status.upper() and "ERROR" not in _status.upper():
+                    if (
+                        not is_below_configured_threshold
+                        and _status
+                        and "FAILED" not in _status.upper()
+                        and "ERROR" not in _status.upper()
+                    ):
                         # Loader is above its configured threshold and has no error status - skip retry
                         logger.debug(
                             f"[PHASE 1 FAILSAFE] {table_name} {completion_pct:.1f}% is above configured minimum ({min_completion_pct:.0f}%) - no retry needed"
@@ -1040,7 +1071,9 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
                         )
                     elif completion_pct >= min_completion_pct:
                         # Loader reached its configured minimum completion threshold
-                        logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}% (need >={min_completion_pct:.0f}%)")
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}% (need >={min_completion_pct:.0f}%)"
+                        )
                         return True, completion_pct, "success"
 
                     elif status == "COMPLETED":

@@ -56,10 +56,13 @@ def _patched(sizer):
 
 
 def _call(sizer, **kwargs):
-    defaults = dict(
-        symbol="AAPL", entry_price=Decimal("100"), stop_loss_price=Decimal("90"),
-        portfolio_value=Decimal("100000"), enforce_total_risk_limit=False,
-    )
+    defaults = {
+        "symbol": "AAPL",
+        "entry_price": Decimal("100"),
+        "stop_loss_price": Decimal("90"),
+        "portfolio_value": Decimal("100000"),
+        "enforce_total_risk_limit": False,
+    }
     defaults.update(kwargs)
     patches = _patched(sizer)
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:

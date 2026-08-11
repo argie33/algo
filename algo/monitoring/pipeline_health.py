@@ -287,7 +287,7 @@ class PipelineHealth:
         gap_days = self._trading_day_gap_days(today)
         return base_sla_days + max(0, gap_days - 1)
 
-    def check_table_health(self, cur: Any, table_name: str, date_column: str | None, sla_days: int) -> TableHealth:
+    def check_table_health(self, cur: Any, table_name: str, date_column: str | None, sla_days: int) -> TableHealth:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         effective_sla_days = self._gap_adjusted_sla(table_name, sla_days, datetime.now(EASTERN_TZ).date())
         health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=effective_sla_days)
 
@@ -361,7 +361,9 @@ class PipelineHealth:
                 # KNOWN_DEPRECATED_TABLES exists to prevent (see is_healthy above).
                 if table_name in self.KNOWN_DEPRECATED_TABLES:
                     health.status = HealthStatus.DEPRECATED
-                    health.error_message = "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+                    health.error_message = (
+                        "Table intentionally frozen (deprecated loader) - see KNOWN_DEPRECATED_TABLES"
+                    )
                 else:
                     health.status = HealthStatus.MISSING
                     health.error_message = "Table is empty"
@@ -717,9 +719,7 @@ class PipelineHealth:
                     existing_db_rows = cur.fetchall()
                     existing_errors = {row[0]: row[1] for row in existing_db_rows}
                     existing_failures = {
-                        row[0]: (row[1], row[2])
-                        for row in existing_db_rows
-                        if (row[3] or 0) > 0 or row[2] == "RUNNING"
+                        row[0]: (row[1], row[2]) for row in existing_db_rows if (row[3] or 0) > 0 or row[2] == "RUNNING"
                     }
 
                     insert_values = []

@@ -339,7 +339,7 @@ class XBRLSegmentParser:
 
     @staticmethod
     def _prettify_segment_name(member_local_name: str) -> str:
-        """"AmericasSegmentMember" / "IntelligentCloudMember" -> "Americas Segment" / "Intelligent Cloud"."""
+        """ "AmericasSegmentMember" / "IntelligentCloudMember" -> "Americas Segment" / "Intelligent Cloud"."""
         name = member_local_name
         if name.endswith("Member"):
             name = name[: -len("Member")]
@@ -655,7 +655,9 @@ class XBRLSegmentParser:
                 break
 
         if anchor is None or anchor == 0:
-            logger.info(f"[{symbol}] Cross-tab segment revenue found candidates but no consolidated anchor to reconcile against - not trusting any candidate.")
+            logger.info(
+                f"[{symbol}] Cross-tab segment revenue found candidates but no consolidated anchor to reconcile against - not trusting any candidate."
+            )
             return None
 
         best_combo: frozenset[str] | None = None
@@ -679,7 +681,7 @@ class XBRLSegmentParser:
         return best_segments, max_end, max_duration
 
     @staticmethod
-    def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str, float, str, int] | None:
+    def _extract_single_segment_revenue(root: ET.Element, symbol: str) -> tuple[str, float, str, int] | None:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Fallback for filers that disclose exactly one reportable segment.
 
         A single-segment filer's segment revenue is trivially its consolidated
@@ -913,8 +915,12 @@ class XBRLSegmentParser:
                     operating_income = assets = None
                     if member_key:
                         operating_income = XBRLSegmentParser._extract_segment_member_values(
-                            root, context_segment, axis_to_use, _OPERATING_INCOME_CONCEPT_LOCAL_NAMES,
-                            single_end, single_duration,
+                            root,
+                            context_segment,
+                            axis_to_use,
+                            _OPERATING_INCOME_CONCEPT_LOCAL_NAMES,
+                            single_end,
+                            single_duration,
                         ).get(member_key)
                         assets = XBRLSegmentParser._extract_segment_member_values(
                             root, context_segment, axis_to_use, _ASSETS_CONCEPT_LOCAL_NAMES, single_end, None

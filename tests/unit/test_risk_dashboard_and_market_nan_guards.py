@@ -24,25 +24,28 @@ class TestDrawdownInfoRejectsNaN:
     def test_nan_peak_raises(self):
         cur = MagicMock()
         with patch.object(
-            risk_dashboard_module, "execute_with_timeout",
+            risk_dashboard_module,
+            "execute_with_timeout",
             return_value=[{"peak": float("nan"), "current": 90_000.0}],
         ):
-            with pytest.raises(ValueError, match="finite|invalid"):
+            with pytest.raises(ValueError, match=r"finite|invalid"):
                 risk_dashboard_module._fetch_drawdown_info(cur)
 
     def test_nan_current_raises(self):
         cur = MagicMock()
         with patch.object(
-            risk_dashboard_module, "execute_with_timeout",
+            risk_dashboard_module,
+            "execute_with_timeout",
             return_value=[{"peak": 100_000.0, "current": float("nan")}],
         ):
-            with pytest.raises(ValueError, match="finite|invalid"):
+            with pytest.raises(ValueError, match=r"finite|invalid"):
                 risk_dashboard_module._fetch_drawdown_info(cur)
 
     def test_normal_values_still_compute(self):
         cur = MagicMock()
         with patch.object(
-            risk_dashboard_module, "execute_with_timeout",
+            risk_dashboard_module,
+            "execute_with_timeout",
             return_value=[{"peak": 100_000.0, "current": 90_000.0}],
         ):
             result = risk_dashboard_module._fetch_drawdown_info(cur)

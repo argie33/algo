@@ -271,7 +271,6 @@ class MarketConstituentsLoader(OptimalLoader):
             # STEP 3: Fetch and index Russell 2000 constituents (optional enrichment)
             logger.info("STEP 3/3: Fetching Russell 2000 constituents")
             russell_set = set()
-            russell_fetch_failed = False
             try:
                 russell_symbols = self._fetch_russell2000_symbols()
                 if russell_symbols:
@@ -282,13 +281,11 @@ class MarketConstituentsLoader(OptimalLoader):
                         "[MARKET_CONSTITUENTS] Russell 2000 fetch returned 0 symbols. "
                         "This is optional enrichment data - continuing without it."
                     )
-                    russell_fetch_failed = True
             except Exception as e:
                 logger.warning(
                     f"[MARKET_CONSTITUENTS] Failed to fetch Russell 2000 ({type(e).__name__}: {e}). "
                     f"This is optional enrichment - continuing without it."
                 )
-                russell_fetch_failed = True
 
             # CRITICAL: Fail if S&P 500 fetch failed - this is essential enrichment
             if sp500_fetch_failed:

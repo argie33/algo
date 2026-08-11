@@ -164,11 +164,11 @@ class SectorIndustryDailyLoader(OptimalLoader):
             # other "morning" loader in this codebase already has (report on the last
             # completed trading day, not literal today) - instead of silently computing a
             # near-empty "success" for a date that hasn't closed yet.
-            MIN_EXPECTED_SYMBOLS = 500
+            min_expected_symbols = 500
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT COUNT(*) FROM price_daily WHERE date = %s", (target_date,))
                 today_count = (cur.fetchone() or [0])[0]
-            if today_count < MIN_EXPECTED_SYMBOLS:
+            if today_count < min_expected_symbols:
                 fallback_date = MarketCalendar.get_previous_trading_day(target_date - timedelta(days=1))
                 if fallback_date is None:
                     raise RuntimeError(

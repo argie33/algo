@@ -20,17 +20,16 @@ class FileAlertLogger:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    def log_alert(self, kind: str, severity: str, title: str,
-                  message: str, symbol: str | None = None) -> str:
+    def log_alert(self, kind: str, severity: str, title: str, message: str, symbol: str | None = None) -> str:
         """Write alert to daily log file.
-        
+
         Args:
             kind: alert kind (trade_entry, trade_exit, position, alert, etc)
             severity: critical, warning, info
             title: alert title
             message: alert details
             symbol: optional symbol
-            
+
         Returns:
             Path to log file
         """

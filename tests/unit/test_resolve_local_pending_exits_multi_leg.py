@@ -45,9 +45,7 @@ class TestResolveLocalPendingExitsMultiLeg:
 
         recon.resolve_local_pending_exits(cur)
 
-        audit_query = [
-            c.args[0] for c in cur.execute.call_args_list if "algo_audit_log" in c.args[0]
-        ][0]
+        audit_query = [c.args[0] for c in cur.execute.call_args_list if "algo_audit_log" in c.args[0]][0]
         assert "details->>" in audit_query
         assert "trade_id" not in audit_query.split("WHERE")[0]  # not a top-level SELECT column
         for bad_column in ("event_type", " amount", " quantity"):
@@ -113,7 +111,7 @@ class TestResolveLocalPendingExitsMultiLeg:
             (Decimal("300.0"), Decimal("40")),
         ]
 
-        result = recon.resolve_local_pending_exits(cur)
+        recon.resolve_local_pending_exits(cur)
 
         update_call = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]][0]
         params = update_call.args[1]

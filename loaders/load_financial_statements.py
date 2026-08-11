@@ -909,7 +909,9 @@ def _finalize_combo(
 
     symbols_failed = stats["symbols_failed"]
     fail_rate = (symbols_failed / symbol_count * 100) if symbol_count else 0.0
-    max_fail_rate = getattr(loader, "max_fail_rate", 15.0)  # CRITICAL: Default 15% fail tolerance (was dangerously 60%). Fail-fast on data source issues.
+    max_fail_rate = getattr(
+        loader, "max_fail_rate", 15.0
+    )  # CRITICAL: Default 15% fail tolerance (was dangerously 60%). Fail-fast on data source issues.
     if fail_rate > max_fail_rate:
         msg = (
             f"[{loader.table_name}] {symbols_failed}/{symbol_count} symbols failed "
@@ -975,7 +977,9 @@ def main() -> int:
     try:
         statement_type = os.environ["LOADER_STATEMENT_TYPE"].lower()
     except KeyError as e:
-        raise ValueError("CRITICAL: LOADER_STATEMENT_TYPE environment variable not set. Must be 'income', 'balance', 'cashflow', or 'all'.") from e
+        raise ValueError(
+            "CRITICAL: LOADER_STATEMENT_TYPE environment variable not set. Must be 'income', 'balance', 'cashflow', or 'all'."
+        ) from e
 
     # Handle 'all' mode (load all statement types and periods sequentially)
     if statement_type == "all":
@@ -1095,18 +1099,6 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
             "balance": {"total_assets", "stockholders_equity"},  # Must have assets/equity
             "cashflow": {"operating_cash_flow"},  # Must have operating cash flow
         }
-
-        # Optional fields - NULL is expected for many companies (used for EBITDA/quality scores but not validation)
-        _OPTIONAL_INCOME_FIELDS = {
-            "depreciation_expense", "amortization_expense",  # Only companies with D&A report these separately
-            "interest_expense",  # Finance/banks report this, others don't
-            "cost_of_revenue", "gross_profit", "operating_income",  # Variations in revenue reporting
-        }
-        _OPTIONAL_BALANCE_FIELDS = {
-            "goodwill", "inventory",  # Only acquire/retail firms report these
-            "cash_and_equivalents", "accounts_receivable", "ppe_net", "long_term_debt",  # Varies by industry
-        }
-        _OPTIONAL_CASHFLOW_FIELDS = {"capex", "investing_cash_flow", "financing_cash_flow"}  # Not always reported
 
         # Get REQUIRED metrics for current statement type
         required_by_type = required_metrics.get(self.statement_type, set())

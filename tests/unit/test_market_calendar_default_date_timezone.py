@@ -46,7 +46,6 @@ class TestIsTradingDayDefaultsToEasternTime:
         )
 
     def test_uses_eastern_date_for_early_close_lookup(self):
-        fake_system_today = date(2026, 1, 1)  # New Year's Day - not in EARLY_CLOSES
         real_eastern_now = datetime(2026, 7, 2, 10, 0, tzinfo=ET)  # a documented early-close day
 
         mock_datetime = MagicMock()

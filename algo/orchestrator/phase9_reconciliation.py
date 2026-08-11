@@ -74,8 +74,7 @@ def _run_reconciliation_step(
             # try/except; the raised message itself was never updated to match.
             execution_mode = config.get("execution_mode", "unknown")
             raise RuntimeError(
-                f"[PHASE 9] Reconciliation failed (execution_mode={execution_mode}): "
-                f"{type(e).__name__}: {str(e)[:200]}"
+                f"[PHASE 9] Reconciliation failed (execution_mode={execution_mode}): {type(e).__name__}: {str(e)[:200]}"
             ) from e
 
     if "success" not in result:
@@ -365,10 +364,7 @@ def _sync_position_quantities_step(log_phase_result_fn: Callable[..., Any]) -> N
                     tuple(open_statuses),
                 )
                 verification_rows = cur.fetchall()
-                mismatches = [
-                    (row[0], row[1], row[2]) for row in verification_rows
-                    if row[1] != row[2]
-                ]
+                mismatches = [(row[0], row[1], row[2]) for row in verification_rows if row[1] != row[2]]
 
                 if mismatches:
                     logger.critical(
@@ -1196,9 +1192,12 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                 stop_price_f = float(stop_price)
                 entry_qty_f = float(entry_qty)
                 if (
-                    math.isnan(entry_price_f) or math.isinf(entry_price_f)
-                    or math.isnan(stop_price_f) or math.isinf(stop_price_f)
-                    or math.isnan(entry_qty_f) or math.isinf(entry_qty_f)
+                    math.isnan(entry_price_f)
+                    or math.isinf(entry_price_f)
+                    or math.isnan(stop_price_f)
+                    or math.isinf(stop_price_f)
+                    or math.isnan(entry_qty_f)
+                    or math.isinf(entry_qty_f)
                 ):
                     logger.warning(
                         f"[PHASE 9] Cannot repair {symbol} (trade_id={trade_id}): "
@@ -1208,11 +1207,14 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                     continue
 
                 # Try to recover exit_price from price_daily
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT close FROM price_daily
                     WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
                     LIMIT 1
-                """, (symbol, exit_date))
+                """,
+                    (symbol, exit_date),
+                )
                 price_row = cursor.fetchone()
 
                 if price_row is None or price_row[0] is None:
@@ -1244,7 +1246,8 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                     r_multiple = 0.0
 
                 # Update the trade with recovered exit_price
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE algo_trades
                     SET exit_price = %s::numeric,
                         profit_loss_dollars = %s,
@@ -1253,15 +1256,17 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
                         reconciliation_note = %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE trade_id = %s
-                """, (
-                    Decimal(str(recovered_exit_price)),
-                    pnl_dollars_corrected,
-                    pnl_pct_corrected,
-                    r_multiple,
-                    f"REPAIRED: exit_price recovered from price_daily EOD close {exit_date} "
-                    f"(original was NULL despite exit_date being set)",
-                    trade_id,
-                ))
+                """,
+                    (
+                        Decimal(str(recovered_exit_price)),
+                        pnl_dollars_corrected,
+                        pnl_pct_corrected,
+                        r_multiple,
+                        f"REPAIRED: exit_price recovered from price_daily EOD close {exit_date} "
+                        f"(original was NULL despite exit_date being set)",
+                        trade_id,
+                    ),
+                )
 
                 if cursor.rowcount > 0:
                     logger.info(
@@ -1274,8 +1279,7 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
         if fixed_count > 0:
             logger.info(f"[PHASE 9] Repaired {fixed_count} corrupted trades with missing exit_price")
             log_phase_result_fn(
-                9, "repair_missing_exit_prices", "success",
-                f"repaired {fixed_count} trades with recovered exit prices"
+                9, "repair_missing_exit_prices", "success", f"repaired {fixed_count} trades with recovered exit prices"
             )
         else:
             logger.info("[PHASE 9] No trades could be repaired (missing price_daily data)")
@@ -1285,7 +1289,7 @@ def _repair_missing_exit_prices(log_phase_result_fn: Callable[..., Any]) -> None
         log_phase_result_fn(9, "repair_missing_exit_prices", "warn", f"repair failed: {str(e)[:100]}")
 
 
-def _record_closed_positions_exits(
+def _record_closed_positions_exits(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     config: Any,
     run_date: _date,
     log_phase_result_fn: Callable[..., Any],
@@ -1349,7 +1353,7 @@ def _record_closed_positions_exits(
                                     if filled_price > 0 and filled_qty > 0:
                                         broker_exit_prices[symbol] = {
                                             "exit_price": filled_price,
-                                            "filled_qty": filled_qty
+                                            "filled_qty": filled_qty,
                                         }
                                 except (ValueError, TypeError) as parse_err:
                                     # Narrow enrichment skip, not a correctness gap: this symbol
@@ -1363,11 +1367,14 @@ def _record_closed_positions_exits(
                                         f"({parse_err})"
                                     )
         except Exception as broker_err:
-            logger.warning(f"[PHASE 9] Could not fetch broker fills for exit reconciliation: {broker_err}. "
-                          f"Will fall back to price_daily EOD closes.")
+            logger.warning(
+                f"[PHASE 9] Could not fetch broker fills for exit reconciliation: {broker_err}. "
+                f"Will fall back to price_daily EOD closes."
+            )
 
         with DatabaseContext("read") as cursor:
             from utils.trading.status import TradeStatus
+
             open_trade_statuses = TradeStatus.all_open()
             cursor.execute(
                 """
@@ -1394,8 +1401,12 @@ def _record_closed_positions_exits(
                 try:
                     for row in closed_positions:
                         if not isinstance(row, (tuple, list)) or len(row) < 7:
-                            logger.error(f"[PHASE 9] Malformed row from closed_positions query: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})")
-                            raise RuntimeError(f"[PHASE 9 CRITICAL] Malformed closed position row returned from database. Expected 7 columns, got {len(row) if isinstance(row, (tuple, list)) else '?'}")
+                            logger.error(
+                                f"[PHASE 9] Malformed row from closed_positions query: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})"
+                            )
+                            raise RuntimeError(
+                                f"[PHASE 9 CRITICAL] Malformed closed position row returned from database. Expected 7 columns, got {len(row) if isinstance(row, (tuple, list)) else '?'}"
+                            )
                         try:
                             (
                                 symbol,
@@ -1516,12 +1527,29 @@ def _record_closed_positions_exits(
                             prior_partial_pnl = Decimal(0)
 
                         # Cumulative P&L across all legs
-                        cumulative_pnl_dollars = float((prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
-                        cumulative_pnl_pct = float(pnl_pct_dec) if prior_partial_pnl == 0 else float(
-                            (Decimal(str(cumulative_pnl_dollars)) / (Decimal(str(entry_price)) * Decimal(str(entry_qty))) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                        cumulative_pnl_dollars = float(
+                            (prior_partial_pnl + pnl_dollars_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
                         )
-                        cumulative_r_multiple = float(r_multiple_dec) if prior_partial_pnl == 0 else float(
-                            (Decimal(str(cumulative_pnl_dollars)) / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                        cumulative_pnl_pct = (
+                            float(pnl_pct_dec)
+                            if prior_partial_pnl == 0
+                            else float(
+                                (
+                                    Decimal(str(cumulative_pnl_dollars))
+                                    / (Decimal(str(entry_price)) * Decimal(str(entry_qty)))
+                                    * Decimal(100)
+                                ).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                            )
+                        )
+                        cumulative_r_multiple = (
+                            float(r_multiple_dec)
+                            if prior_partial_pnl == 0
+                            else float(
+                                (
+                                    Decimal(str(cumulative_pnl_dollars))
+                                    / (Decimal(str(risk_per_share)) * Decimal(str(entry_qty)))
+                                ).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                            )
                         )
 
                         # CRITICAL FIX 2026-07-30: Validate P&L calculations before update
@@ -1539,6 +1567,7 @@ def _record_closed_positions_exits(
                         sp = f"sp_exit_{symbol.replace('-', '_').replace('.', '_')}"
                         try:
                             from utils.trading.status import TradeStatus
+
                             open_trade_statuses_2 = TradeStatus.all_open()
                             trade_status_ph_2 = ", ".join(["%s"] * len(open_trade_statuses_2))
                             write_cursor.execute(f"SAVEPOINT {sp}")
@@ -1642,7 +1671,9 @@ def _record_closed_positions_exits(
                             try:
                                 write_cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                             except psycopg2.Error as rollback_err:
-                                logger.error(f"[PHASE 9] Savepoint rollback failed: {rollback_err}. Original error: {e}")
+                                logger.error(
+                                    f"[PHASE 9] Savepoint rollback failed: {rollback_err}. Original error: {e}"
+                                )
                             # CRITICAL: This SELECT is scoped to `closed_at::date = run_date` (see
                             # query above). If this write fails today, the symbol will never be
                             # re-selected by this function on a future run - algo_positions stays
@@ -1775,7 +1806,7 @@ def _cleanup_orphaned_positions(log_phase_result_fn: Callable[..., Any]) -> None
             logger.warning(f"[PHASE 9] Failed to log orphan cleanup warning: {log_err}")
 
 
-def run(
+def run(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
     config: Any,
     run_date: _date,
     log_phase_result_fn: Callable[..., Any],
@@ -2091,14 +2122,18 @@ def run(
                     );
                 """)
                 if sync_cursor.rowcount > 0:
-                    logger.info(f"[PHASE 9 FINAL SYNC] Closed {sync_cursor.rowcount} positions where all trades completed")
+                    logger.info(
+                        f"[PHASE 9 FINAL SYNC] Closed {sync_cursor.rowcount} positions where all trades completed"
+                    )
                     orphans_fixed = True
         except Exception as sync_err:
             logger.warning(f"[PHASE 9 FINAL SYNC] Could not close positions: {sync_err}")
 
         # If we fixed orphaned positions, mark it in the log so next run clears halt flag
         if orphans_fixed:
-            logger.warning("[PHASE 9] Fixed orphaned positions - halt flag will auto-clear on next Phase 1 data freshness check")
+            logger.warning(
+                "[PHASE 9] Fixed orphaned positions - halt flag will auto-clear on next Phase 1 data freshness check"
+            )
 
         # CRITICAL: Log final consolidated phase result (not a sub-step)
         # Phase 9 logs multiple sub-steps (reconciliation, portfolio_snapshot, weight_optimization, etc.)

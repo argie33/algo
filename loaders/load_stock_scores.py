@@ -180,6 +180,7 @@ class StockScoresLoader(OptimalLoader):
                                 # algo/risk/market_exposure.py's cache-age check: resolve the
                                 # real session timezone dynamically instead of assuming UTC.
                                 from utils.db.timezone_utils import get_db_timezone
+
                                 naive_tz = get_db_timezone()
                                 max_update_ts = max_update_ts.replace(tzinfo=naive_tz)
                             stale_days = (now_utc - max_update_ts).days
@@ -384,9 +385,7 @@ class StockScoresLoader(OptimalLoader):
             # stability scoring as a minor sub-weight (same pattern as the debt_to_assets fix
             # above), not a new top-level factor, since it's a slower-moving structural signal
             # of the same "business risk" character as the existing financial-stability slot.
-            cur.execute(
-                "SELECT symbol, revenue_concentration_hhi, data_unavailable FROM sec_segment_metrics"
-            )
+            cur.execute("SELECT symbol, revenue_concentration_hhi, data_unavailable FROM sec_segment_metrics")
             self._segment_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
@@ -616,7 +615,7 @@ class StockScoresLoader(OptimalLoader):
                 # Degraded mode: score with 1 metric only (for SPACs/new listings)
                 logger.info(
                     f"[STOCK_SCORES] {symbol}: DEGRADED MODE - {real_metric_count}/6 metrics available. "
-                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count/6*100)}%)"
+                    f"Computing partial score (dashboard will show data_completeness={int(real_metric_count / 6 * 100)}%)"
                 )
 
             # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
@@ -736,11 +735,21 @@ class StockScoresLoader(OptimalLoader):
             # Build data sources attribution for transparency
             data_sources = {
                 "quality": ["financial_statements", "sec_valuations"] if extract_score_value(clamped_quality) else [],
-                "growth": ["financial_statements", "analyst_earnings_estimates", "enhanced_quality_growth_metrics"] if extract_score_value(clamped_growth) else [],
-                "value": ["financial_statements", "sec_valuations", "dividend_data"] if extract_score_value(clamped_value) else [],
-                "positioning": ["institutional_holdings_13f", "insider_holdings_sec", "short_interest_finra"] if extract_score_value(clamped_positioning) else [],
-                "stability": ["risk_metrics_daily", "technical_data_daily", "financial_statements"] if extract_score_value(clamped_stability) else [],
-                "momentum": ["technical_data_daily", "market_status_daily", "insider_transaction_velocity"] if extract_score_value(clamped_momentum) else [],
+                "growth": ["financial_statements", "analyst_earnings_estimates", "enhanced_quality_growth_metrics"]
+                if extract_score_value(clamped_growth)
+                else [],
+                "value": ["financial_statements", "sec_valuations", "dividend_data"]
+                if extract_score_value(clamped_value)
+                else [],
+                "positioning": ["institutional_holdings_13f", "insider_holdings_sec", "short_interest_finra"]
+                if extract_score_value(clamped_positioning)
+                else [],
+                "stability": ["risk_metrics_daily", "technical_data_daily", "financial_statements"]
+                if extract_score_value(clamped_stability)
+                else [],
+                "momentum": ["technical_data_daily", "market_status_daily", "insider_transaction_velocity"]
+                if extract_score_value(clamped_momentum)
+                else [],
             }
 
             result = {
@@ -1063,9 +1072,7 @@ class StockScoresLoader(OptimalLoader):
                 "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
                 "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
                 "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
-                "shares_short_prior_month": safe_float(
-                    row[3], f"{symbol}.shares_short_prior_month", allow_none=True
-                ),
+                "shares_short_prior_month": safe_float(row[3], f"{symbol}.shares_short_prior_month", allow_none=True),
                 "short_interest_trend": row[4],  # text enum ('increasing'/'decreasing'/'stable'), not numeric
                 "ad_rating": safe_float(row[5], f"{symbol}.ad_rating", allow_none=True),
             }
@@ -1127,9 +1134,7 @@ class StockScoresLoader(OptimalLoader):
                 "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
                 "beta": safe_float(row[3], f"{symbol}.beta"),
                 "debt_to_assets": safe_float(row[4], f"{symbol}.debt_to_assets", allow_none=True),
-                "downside_volatility_252d": safe_float(
-                    row[5], f"{symbol}.downside_volatility_252d", allow_none=True
-                ),
+                "downside_volatility_252d": safe_float(row[5], f"{symbol}.downside_volatility_252d", allow_none=True),
                 "max_drawdown_1y": safe_float(row[6], f"{symbol}.max_drawdown_1y", allow_none=True),
             }
             segment_row = self._segment_cache.get(symbol)
@@ -1326,7 +1331,8 @@ class StockScoresLoader(OptimalLoader):
         enhanced = base_score + adjustment
 
         return float(max(0, min(100, enhanced)))
-    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
+
+    def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted blend: EPS 1Y (33%) + Revenue 1Y (24%) + EPS 3Y (19%) + Revenue 3Y (14%)
@@ -1499,7 +1505,7 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "all_growth_fields_null"}
 
-    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
+    def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
         Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + PEG (15%) + FCF yield (12%)
@@ -1759,7 +1765,7 @@ class StockScoresLoader(OptimalLoader):
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_scores_computed"}
 
-    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
+    def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Score stability metrics on 0-100 scale using price volatility + financial stability (Phase 8).
 
         Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)

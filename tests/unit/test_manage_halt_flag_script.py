@@ -18,7 +18,7 @@ import scripts.manage_halt_flag as manage_halt_flag
 def _run(argv):
     import sys
 
-    with patch.object(sys, "argv", ["manage_halt_flag.py"] + argv):
+    with patch.object(sys, "argv", ["manage_halt_flag.py", *argv]):
         return manage_halt_flag.main()
 
 

@@ -29,7 +29,7 @@ class TestAdLineRejectsNaN:
         closes = [float("nan"), 450.0, 451.0, 452.0, 453.0, 455.0]
         cur.fetchall.return_value = _ad_line_rows(closes)
         me = MarketExposure()
-        with pytest.raises(RuntimeError, match="Non-finite|Invalid"):
+        with pytest.raises(RuntimeError, match=r"Non-finite|Invalid"):
             me._ad_line(date(2026, 7, 10), cur)
 
     def test_nan_last_spy_close_raises(self):
@@ -37,7 +37,7 @@ class TestAdLineRejectsNaN:
         closes = [450.0, 451.0, 452.0, 453.0, 455.0, float("nan")]
         cur.fetchall.return_value = _ad_line_rows(closes)
         me = MarketExposure()
-        with pytest.raises(RuntimeError, match="Non-finite|Invalid"):
+        with pytest.raises(RuntimeError, match=r"Non-finite|Invalid"):
             me._ad_line(date(2026, 7, 10), cur)
 
     def test_normal_closes_still_compute(self):

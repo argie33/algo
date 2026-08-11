@@ -265,7 +265,7 @@ def compute_accumulation_distribution_line(
 
     Formula:
     1. Money Flow Multiplier = ((Close - Low) - (High - Close)) / (High - Low)
-    2. Money Flow Volume = Money Flow Multiplier × Volume
+    2. Money Flow Volume = Money Flow Multiplier x Volume
     3. A/D Line = Previous A/D + Money Flow Volume (cumulative sum)
 
     Args:
@@ -284,7 +284,7 @@ def compute_accumulation_distribution_line(
     # Calculate Money Flow Multiplier: ((Close - Low) - (High - Close)) / (High - Low)
     mfm = ((close - low) - (high - close)) / high_low_diff
 
-    # Calculate Money Flow Volume: Money Flow Multiplier × Volume
+    # Calculate Money Flow Volume: Money Flow Multiplier x Volume
     mfv = mfm * volume
 
     # Calculate A/D Line as cumulative sum (handles NaN appropriately)
@@ -339,5 +339,3 @@ def compute_ad_rating(high: pd.Series, low: pd.Series, close: pd.Series, volume:
     else:
         # A/D falling, or both falling - bearish signal
         return 30.0
-
-

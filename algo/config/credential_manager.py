@@ -250,7 +250,7 @@ class CredentialManager:
         except Exception as e:
             raise RuntimeError(_sanitize_error(e)) from e
 
-    def get_db_credentials(self) -> dict[str, Any]:
+    def get_db_credentials(self) -> dict[str, Any]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Get database connection credentials as a dict.
 
         In AWS Lambda the RDS secret is a JSON blob stored under the ARN given by
@@ -402,7 +402,7 @@ class CredentialManager:
         self._cache[_db_creds_cache_key] = (result, time.time())
         return result
 
-    def get_alpaca_credentials(self, user_id: str | None = None) -> dict[str, str]:
+    def get_alpaca_credentials(self, user_id: str | None = None) -> dict[str, str]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Get Alpaca API credentials as a dict.
 
         Always fetches fresh credentials from Secrets Manager. Never returns cached/stale credentials.

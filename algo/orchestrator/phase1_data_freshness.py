@@ -370,6 +370,7 @@ def run(  # noqa: C901
     # This prevents orphaned positions from blocking Phase 2/7 risk calculations
     try:
         from utils.db import DatabaseContext
+
         with DatabaseContext("write") as cleanup_cursor:
             cleanup_cursor.execute("""
                 WITH closed_trades AS (
@@ -386,9 +387,11 @@ def run(  # noqa: C901
                 );
             """)
             if cleanup_cursor.rowcount > 0:
-                logging.info(f"[PHASE 1 STARTUP] Auto-closed {cleanup_cursor.rowcount} orphaned positions from previous runs")
+                logger.info(
+                    f"[PHASE 1 STARTUP] Auto-closed {cleanup_cursor.rowcount} orphaned positions from previous runs"
+                )
     except Exception as cleanup_err:
-        logging.warning(f"[PHASE 1 STARTUP] Could not cleanup orphaned positions: {cleanup_err}")
+        logger.warning(f"[PHASE 1 STARTUP] Could not cleanup orphaned positions: {cleanup_err}")
 
     from datetime import timedelta as td
 
@@ -416,7 +419,9 @@ def run(  # noqa: C901
 
     # PHASE 1 FAILSAFE: Check for and retry incomplete loaders before freshness check
     # CRITICAL FIX (Session 54): Pass run_date so loaders know which trading day to expect
-    failsafe_result = check_and_retry_incomplete_loaders(run_date=run_date, pipeline_context=pipeline_context, dry_run=dry_run)
+    failsafe_result = check_and_retry_incomplete_loaders(
+        run_date=run_date, pipeline_context=pipeline_context, dry_run=dry_run
+    )
     failsafe_halt = _check_failsafe_retry_result(failsafe_result, log_phase_result_fn)
     if failsafe_halt:
         return failsafe_halt
@@ -454,7 +459,9 @@ def run(  # noqa: C901
                 )
                 logger.critical(error_msg)
                 log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-                return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "no active symbols"}, True, error_msg)
+                return PhaseResult(
+                    1, "data_freshness", "halted", {"status": "halted", "reason": "no active symbols"}, True, error_msg
+                )
             logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
         error_msg = (
@@ -464,7 +471,14 @@ def run(  # noqa: C901
         )
         logger.critical(error_msg)
         log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "database error during pre-flight"}, True, error_msg)
+        return PhaseResult(
+            1,
+            "data_freshness",
+            "halted",
+            {"status": "halted", "reason": "database error during pre-flight"},
+            True,
+            error_msg,
+        )
     except (ValueError, TypeError, AttributeError) as code_err:
         error_msg = (
             f"[PHASE 1 CRITICAL] Pre-flight validation failed - code error: {type(code_err).__name__}: {code_err}. "
@@ -472,7 +486,9 @@ def run(  # noqa: C901
         )
         logger.critical(error_msg)
         log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "code error in pre-flight"}, True, error_msg)
+        return PhaseResult(
+            1, "data_freshness", "halted", {"status": "halted", "reason": "code error in pre-flight"}, True, error_msg
+        )
     except Exception as unknown_err:
         error_msg = (
             f"[PHASE 1 CRITICAL] Pre-flight validation failed - unexpected error: {type(unknown_err).__name__}: {unknown_err}. "
@@ -481,11 +497,20 @@ def run(  # noqa: C901
         )
         logger.critical(error_msg)
         log_phase_result_fn(1, "data_freshness", "halt", error_msg)
-        return PhaseResult(1, "data_freshness", "halted", {"status": "halted", "reason": "unknown error in pre-flight"}, True, error_msg)
+        return PhaseResult(
+            1,
+            "data_freshness",
+            "halted",
+            {"status": "halted", "reason": "unknown error in pre-flight"},
+            True,
+            error_msg,
+        )
 
     try:
         with DatabaseContext("read") as cur:
-            cur.execute(f"SET statement_timeout = {PHASE1_DB_QUERY_TIMEOUT_MS}")  # Database timeout for multi-table checks
+            cur.execute(
+                f"SET statement_timeout = {PHASE1_DB_QUERY_TIMEOUT_MS}"
+            )  # Database timeout for multi-table checks
 
             # Find reference date from price_daily (most reliable source)
             # NOTE: stock_scores is NOT validated here; it's an orchestrator OUTPUT (Phase 5),
@@ -680,9 +705,9 @@ def run(  # noqa: C901
             # accept them gracefully instead of halting. EOD prices may take 1-2 hours to load after market close.
             # This allows afternoon/evening orchestrator runs to proceed with position monitoring and exit execution
             # while waiting for same-day price_daily to load. Legitimate halts (circuit breakers) are still enforced.
-            if (pipeline_context == "EOD" and
-                max_date == acceptable_min_date - td(days=1) and
-                now_et.hour < 18):  # Before 6 PM ET
+            if (
+                pipeline_context == "EOD" and max_date == acceptable_min_date - td(days=1) and now_et.hour < 18
+            ):  # Before 6 PM ET
                 logger.info(
                     f"[PHASE 1] EOD context grace: Using {max_date} (yesterday) instead of {last_trading_day} "
                     f"(today). EOD prices may still be loading. Will accept for up to 2h after market close."
@@ -761,7 +786,9 @@ def run(  # noqa: C901
                     (last_trading_day,),
                 )
                 today_coverage_row = cur.fetchone()
-                today_coverage = today_coverage_row[0] if today_coverage_row and today_coverage_row[0] is not None else 0
+                today_coverage = (
+                    today_coverage_row[0] if today_coverage_row and today_coverage_row[0] is not None else 0
+                )
 
                 if today_coverage == 0:
                     # Today's prices not loaded - check yesterday
@@ -867,7 +894,9 @@ def run(  # noqa: C901
                                 error_msg,
                             )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_check_err:
-                logger.warning(f"[PHASE 1] Could not validate loader status accuracy (database error): {status_check_err}")
+                logger.warning(
+                    f"[PHASE 1] Could not validate loader status accuracy (database error): {status_check_err}"
+                )
 
             # For coverage baseline: use CURRENT ACTIVE SYMBOL COUNT from stock_symbols
             # (not prior day's count, which can be lower/higher due to symbol list changes)
@@ -1064,7 +1093,9 @@ def run(  # noqa: C901
 
                 pcr_distinct, vix_distinct = _fetch_health_distinctness_window(cur, health_max_date)
 
-                _check_health_column_coverage(total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct, health_max_date)
+                _check_health_column_coverage(
+                    total_rows, pcr_rows, pcr_distinct, vix_rows, vix_distinct, health_max_date
+                )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
                 raise RuntimeError(f"[PHASE 1] Cannot fetch market reference dates from database: {e}") from e
@@ -1315,7 +1346,9 @@ def run(  # noqa: C901
                     cur.execute("SELECT MAX(date) FROM price_daily")
                     price_row = cur.fetchone()
                     if not price_row or price_row[0] is None:
-                        raise RuntimeError("[PHASE 1] price_daily table is empty - cannot verify stock_scores freshness")
+                        raise RuntimeError(
+                            "[PHASE 1] price_daily table is empty - cannot verify stock_scores freshness"
+                        )
                     latest_price_date = price_row[0]
 
                     # Stock scores should have been updated AFTER the latest price date (they're computed
@@ -1323,13 +1356,19 @@ def run(  # noqa: C901
                     scores_age_hours = None
                     if completeness_row and completeness_row[4] and latest_price_date:
                         from datetime import datetime, timezone
+
                         now_utc = datetime.now(timezone.utc)
                         max_updated = completeness_row[4]
                         if max_updated.tzinfo is None:
                             max_updated = max_updated.replace(tzinfo=timezone.utc)
                         scores_age_hours = (now_utc - max_updated).total_seconds() / 3600
 
-                    if completeness_row and completeness_row[0] is not None and scores_age_hours is not None and scores_age_hours < 48:
+                    if (
+                        completeness_row
+                        and completeness_row[0] is not None
+                        and scores_age_hours is not None
+                        and scores_age_hours < 48
+                    ):
                         avg_completeness = float(completeness_row[0])
                         total_available = completeness_row[1]
                         complete_scores = completeness_row[2]
@@ -1354,7 +1393,12 @@ def run(  # noqa: C901
                             )
                     else:
                         # Stale, missing, or incompute able scores
-                        if completeness_row and completeness_row[4] is not None and scores_age_hours is not None and scores_age_hours >= 48:
+                        if (
+                            completeness_row
+                            and completeness_row[4] is not None
+                            and scores_age_hours is not None
+                            and scores_age_hours >= 48
+                        ):
                             logger.warning(
                                 f"[PHASE 1] stock_scores stale: computed {scores_age_hours:.1f}h ago "
                                 f"(max_updated={completeness_row[4]}). "
@@ -1429,9 +1473,7 @@ def run(  # noqa: C901
                     # critical metric-validation failure as a clean pass - the DB error ate the
                     # halt, rather than the halt surviving the DB error.
                     halt_reason = f"Could not verify metric availability (DB error): {str(check_err)[:500]}"
-                    logger.critical(
-                        f"[PHASE 1] {halt_reason}. Original metric validation failure: {metric_error}"
-                    )
+                    logger.critical(f"[PHASE 1] {halt_reason}. Original metric validation failure: {metric_error}")
                     log_phase_result_fn(1, "metric_verification_error", "halt", halt_reason)
                     return PhaseResult(
                         1,
@@ -1515,12 +1557,15 @@ def run(  # noqa: C901
                 portfolio_symbols = [row[0] for row in cur.fetchall()]
 
                 if portfolio_symbols:
-                    logger.info(f"[PHASE 1] Validating prices for {len(portfolio_symbols)} portfolio symbols (using latest available)")
+                    logger.info(
+                        f"[PHASE 1] Validating prices for {len(portfolio_symbols)} portfolio symbols (using latest available)"
+                    )
                     # CRITICAL FIX: Use latest available price for each symbol, consistent with Phase 3
                     # Phase 3 position_monitor.py uses ROW_NUMBER() OVER ORDER BY date DESC to get
                     # the most recent price regardless of exact date. Phase 1 must validate the same way
                     # to avoid false halts on mid-trading-day runs before EOD prices load.
-                    cur.execute("""
+                    cur.execute(
+                        """
                         WITH latest_prices AS (
                             SELECT symbol, close,
                                    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
@@ -1528,7 +1573,9 @@ def run(  # noqa: C901
                             WHERE symbol = ANY(%s) AND close IS NOT NULL
                         )
                         SELECT symbol, close FROM latest_prices WHERE rn = 1
-                    """, (portfolio_symbols,))
+                    """,
+                        (portfolio_symbols,),
+                    )
                     price_rows = cur.fetchall()
                     price_symbols = {row[0]: row[1] for row in price_rows}
                     missing_symbols = [s for s in portfolio_symbols if s not in price_symbols]
@@ -1555,15 +1602,21 @@ def run(  # noqa: C901
                             f"Portfolio symbols missing prices: {missing_symbols}",
                         )
                     else:
-                        logger.info(f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices (latest available)")
+                        logger.info(
+                            f"[PHASE 1] All {len(portfolio_symbols)} portfolio symbols have prices (latest available)"
+                        )
                         phase_data["portfolio_symbols"] = len(portfolio_symbols)
                         phase_data["portfolio_price_coverage"] = "complete"
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as portfolio_check_err:
                 # If portfolio symbol check fails, log but don't halt (it's supplementary)
-                logger.warning(f"[PHASE 1] Portfolio symbol price validation failed (DB error): {portfolio_check_err}. Continuing.")
+                logger.warning(
+                    f"[PHASE 1] Portfolio symbol price validation failed (DB error): {portfolio_check_err}. Continuing."
+                )
             except (KeyError, ValueError, TypeError) as portfolio_check_err:
                 # Data structure error - log but don't halt
-                logger.warning(f"[PHASE 1] Portfolio symbol price validation failed (data error): {portfolio_check_err}. Continuing.")
+                logger.warning(
+                    f"[PHASE 1] Portfolio symbol price validation failed (data error): {portfolio_check_err}. Continuing."
+                )
 
             return PhaseResult(
                 1,

@@ -56,17 +56,24 @@ def _patched(sizer):
 
 
 def _call_with_broken_risk_query(sizer, **kwargs):
-    defaults = dict(
-        symbol="AAPL",
-        entry_price=Decimal("100"),
-        stop_loss_price=Decimal("90"),
-        portfolio_value=Decimal("100000"),
-        enforce_total_risk_limit=True,
-    )
+    defaults = {
+        "symbol": "AAPL",
+        "entry_price": Decimal("100"),
+        "stop_loss_price": Decimal("90"),
+        "portfolio_value": Decimal("100000"),
+        "enforce_total_risk_limit": True,
+    }
     defaults.update(kwargs)
     patches = _patched(sizer)
-    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patch(
-        "algo.trading.position_sizer.DatabaseContext", side_effect=RuntimeError("DB unavailable")
+    with (
+        patches[0],
+        patches[1],
+        patches[2],
+        patches[3],
+        patches[4],
+        patches[5],
+        patches[6],
+        patch("algo.trading.position_sizer.DatabaseContext", side_effect=RuntimeError("DB unavailable")),
     ):
         return sizer._calculate_with_external_cursor(**defaults)
 
@@ -85,13 +92,13 @@ class TestPositionSizerRiskLimitFailsClosed:
     def test_healthy_risk_query_still_returns_normal_sizing(self):
         """Sanity check: the fix must not break the normal (query succeeds) path."""
         sizer = _make_sizer()
-        defaults = dict(
-            symbol="AAPL",
-            entry_price=Decimal("100"),
-            stop_loss_price=Decimal("90"),
-            portfolio_value=Decimal("100000"),
-            enforce_total_risk_limit=True,
-        )
+        defaults = {
+            "symbol": "AAPL",
+            "entry_price": Decimal("100"),
+            "stop_loss_price": Decimal("90"),
+            "portfolio_value": Decimal("100000"),
+            "enforce_total_risk_limit": True,
+        }
         patches = _patched(sizer)
         mock_cur = patch("algo.trading.position_sizer.DatabaseContext")
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], mock_cur as MockDB:
@@ -119,13 +126,13 @@ class TestPositionSizerRiskLimitScaleDownRounding:
         # 3500 = $500. risk_per_share = 100 - 91 = 9 -> 500/9 = 55.555... - the exact
         # boundary where ROUND_HALF_UP (56 shares, $504 risk) would breach the $500
         # cap and ROUND_DOWN (55 shares, $495 risk) stays within it.
-        defaults = dict(
-            symbol="AAPL",
-            entry_price=Decimal("100"),
-            stop_loss_price=Decimal("91"),
-            portfolio_value=Decimal("100000"),
-            enforce_total_risk_limit=True,
-        )
+        defaults = {
+            "symbol": "AAPL",
+            "entry_price": Decimal("100"),
+            "stop_loss_price": Decimal("91"),
+            "portfolio_value": Decimal("100000"),
+            "enforce_total_risk_limit": True,
+        }
         patches = _patched(sizer)
         mock_cur = patch("algo.trading.position_sizer.DatabaseContext")
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], mock_cur as MockDB:

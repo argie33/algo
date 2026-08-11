@@ -216,14 +216,17 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
 
     try:
         # 1. Get recent run history (last N runs)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT r.run_id, r.run_date, r.overall_status, r.halt_reason, r.started_at, r.completed_at,
                    l.phase_results, l.phases_completed, l.phases_halted, l.phases_errored
             FROM algo_orchestrator_runs r
             LEFT JOIN orchestrator_execution_log l ON l.run_id = r.run_id
             ORDER BY r.started_at DESC
             LIMIT %s
-        """, (limit,))
+        """,
+            (limit,),
+        )
 
         run_rows = cur.fetchall()
         run_history = []
@@ -256,21 +259,25 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
                 # Build phase badge summary
                 phase_summary = {
                     "completed": len([p for p in phases_list if p.get("status") in ("ok", "success")]),
-                    "halted": len([p for p in phases_list if p.get("status") in ("halt", "halted", "warn", "degraded")]),
+                    "halted": len(
+                        [p for p in phases_list if p.get("status") in ("halt", "halted", "warn", "degraded")]
+                    ),
                     "skipped": len([p for p in phases_list if p.get("status") == "skipped"]),
                     "errored": len([p for p in phases_list if p.get("status") in ("error", "failed")]),
                 }
 
-                run_history.append({
-                    "run_id": row_data.get("run_id"),
-                    "run_date": row_data.get("run_date"),
-                    "status": row_data.get("overall_status"),
-                    "started_at": row_data.get("started_at"),
-                    "completed_at": row_data.get("completed_at"),
-                    "halt_reason": row_data.get("halt_reason"),
-                    "phase_summary": phase_summary,
-                    "phases": phases_list[:9],  # All 9 phases
-                })
+                run_history.append(
+                    {
+                        "run_id": row_data.get("run_id"),
+                        "run_date": row_data.get("run_date"),
+                        "status": row_data.get("overall_status"),
+                        "started_at": row_data.get("started_at"),
+                        "completed_at": row_data.get("completed_at"),
+                        "halt_reason": row_data.get("halt_reason"),
+                        "phase_summary": phase_summary,
+                        "phases": phases_list[:9],  # All 9 phases
+                    }
+                )
             except Exception as row_err:
                 bad_run_id = row[0] if row else "unknown"
                 logger.warning(
@@ -314,7 +321,9 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
                     "success_rate": round(success_rate, 1),
                 }
             except Exception as row_err:
-                logger.warning(f"[FRESHNESS_EXTENDED] Skipping malformed phase_health row: {type(row_err).__name__}: {row_err}")
+                logger.warning(
+                    f"[FRESHNESS_EXTENDED] Skipping malformed phase_health row: {type(row_err).__name__}: {row_err}"
+                )
                 continue
 
         # 3. Get failure patterns (most common halt reasons)
@@ -331,10 +340,12 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         failure_patterns = []
         for row in cur.fetchall():
             row_dict = safe_dict_convert(row)
-            failure_patterns.append({
-                "reason": row_dict.get("halt_reason"),
-                "occurrences": row_dict.get("occurrences"),
-            })
+            failure_patterns.append(
+                {
+                    "reason": row_dict.get("halt_reason"),
+                    "occurrences": row_dict.get("occurrences"),
+                }
+            )
 
         # 4. Get loader health (failure streaks and success rates)
         #
@@ -384,7 +395,7 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         # the table below shows nothing wrong. Only flag it once it's been running long
         # enough to plausibly be stuck - same 90-minute threshold health.py's own
         # "TIMEOUT RISK" flag on that same "Loading now:" section already uses.
-        LOADER_STUCK_RUNNING_MINUTES = 90
+        loader_stuck_running_minutes = 90
 
         loader_health_total_tracked = 0
         loader_health = []
@@ -413,21 +424,25 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
                     started_utc = normalize_to_utc_datetime(exec_started, naive_tz)
                     if isinstance(started_utc, datetime):
                         elapsed_min = (datetime.now(timezone.utc) - started_utc).total_seconds() / 60
-                        is_actively_running = elapsed_min <= LOADER_STUCK_RUNNING_MINUTES
+                        is_actively_running = elapsed_min <= loader_stuck_running_minutes
 
                 is_unhealthy = cons_failures > 0 or (status not in healthy_loader_statuses and not is_actively_running)
 
                 if is_unhealthy:
-                    loader_health.append({
-                        "table_name": table_name,
-                        "status": status,
-                        "consecutive_failures": cons_failures,
-                        "retry_count": retry_count,
-                        "last_success_at": last_success,
-                        "is_unhealthy": is_unhealthy,
-                    })
+                    loader_health.append(
+                        {
+                            "table_name": table_name,
+                            "status": status,
+                            "consecutive_failures": cons_failures,
+                            "retry_count": retry_count,
+                            "last_success_at": last_success,
+                            "is_unhealthy": is_unhealthy,
+                        }
+                    )
             except Exception as row_err:
-                logger.warning(f"[FRESHNESS_EXTENDED] Skipping malformed loader_health row: {type(row_err).__name__}: {row_err}")
+                logger.warning(
+                    f"[FRESHNESS_EXTENDED] Skipping malformed loader_health row: {type(row_err).__name__}: {row_err}"
+                )
                 continue
 
         loader_health_total_unhealthy = len(loader_health)
@@ -467,7 +482,11 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
         else:
             success_rate_30d = 0
 
-        trend = "improving" if success_rate_7d > success_rate_30d else ("degrading" if success_rate_7d < success_rate_30d else "stable")
+        trend = (
+            "improving"
+            if success_rate_7d > success_rate_30d
+            else ("degrading" if success_rate_7d < success_rate_30d else "stable")
+        )
 
         trend_summary = {
             "trend": trend,
@@ -490,7 +509,13 @@ def _get_orchestrator_history_extended(cur: cursor, params: dict[str, Any] | Non
 
         return json_response(200, response_data)
 
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn, psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
         code, error_type, message = handle_db_error(e, "get orchestrator history extended")
         return error_response(code, error_type, message)
 

@@ -57,7 +57,7 @@ class SecValuationsLoader(OptimalLoader):
     # micro-caps.
     MIN_PLAUSIBLE_SHARES_OUTSTANDING = 100_000
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
         """Compute SEC-derived valuations for one symbol.
 
         Returns:
@@ -122,7 +122,9 @@ class SecValuationsLoader(OptimalLoader):
                 # fallback to compute EBITDA for EV/EBITDA ratio.
                 if operating_income is None and pretax_income is not None:
                     operating_income = pretax_income
-                    logger.debug(f"[{symbol}] Using pretax_income as operating_income fallback (financial services company)")
+                    logger.debug(
+                        f"[{symbol}] Using pretax_income as operating_income fallback (financial services company)"
+                    )
                 elif operating_income is None and income_tax_expense is not None and _ttm_net_income is not None:
                     # Fallback #2: Compute operating_income from net_income + taxes if available
                     # Some insurance/financial companies report net_income and taxes but not pretax_income
@@ -130,7 +132,9 @@ class SecValuationsLoader(OptimalLoader):
                         computed_oi = _ttm_net_income + income_tax_expense
                         if computed_oi > 0:
                             operating_income = computed_oi
-                            logger.debug(f"[{symbol}] Computed operating_income from net_income + taxes (insurance company fallback)")
+                            logger.debug(
+                                f"[{symbol}] Computed operating_income from net_income + taxes (insurance company fallback)"
+                            )
                     except (TypeError, ValueError):
                         pass  # If computation fails, leave operating_income=None
                 # PEG's growth-rate leg needs a genuinely prior-year EPS, not the same TTM
@@ -171,10 +175,7 @@ class SecValuationsLoader(OptimalLoader):
                 # fallback tiers already guard against this class of bad data; the primary
                 # reported value needs the same guard.
                 shares_out = None
-                if (
-                    reported_shares_outstanding
-                    and reported_shares_outstanding > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING
-                ):
+                if reported_shares_outstanding and reported_shares_outstanding > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING:
                     shares_out = float(reported_shares_outstanding)
                     logger.debug(f"[{symbol}] Using reported shares_outstanding_basic: {shares_out:,.0f}")
 
@@ -190,7 +191,9 @@ class SecValuationsLoader(OptimalLoader):
                         derived_shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
                         if derived_shares_out > self.MIN_PLAUSIBLE_SHARES_OUTSTANDING:
                             shares_out = derived_shares_out
-                            logger.debug(f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}")
+                            logger.debug(
+                                f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}"
+                            )
                     except (ValueError, ZeroDivisionError):
                         pass  # If computation fails, shares_out stays None and we fail below
 
@@ -213,7 +216,9 @@ class SecValuationsLoader(OptimalLoader):
                     prior_shares_row = cur.fetchone()
                     if prior_shares_row and prior_shares_row[0]:
                         shares_out = float(prior_shares_row[0])
-                        logger.debug(f"[{symbol}] Using shares_outstanding_basic from an older fiscal year: {shares_out:,.0f}")
+                        logger.debug(
+                            f"[{symbol}] Using shares_outstanding_basic from an older fiscal year: {shares_out:,.0f}"
+                        )
 
                 # If computation didn't work, try fetching from company_info_sec as fallback
                 if not shares_out:
@@ -249,7 +254,9 @@ class SecValuationsLoader(OptimalLoader):
                     diluted_shares_row = cur.fetchone()
                     if diluted_shares_row and diluted_shares_row[0]:
                         shares_out = float(diluted_shares_row[0])
-                        logger.debug(f"[{symbol}] Using shares_outstanding_diluted (no basic count reported): {shares_out:,.0f}")
+                        logger.debug(
+                            f"[{symbol}] Using shares_outstanding_diluted (no basic count reported): {shares_out:,.0f}"
+                        )
 
                 # Final fallback: the SEC cover-page share count (migration 1195). Some real
                 # operating companies (live-confirmed: GEF/Greif 19yrs, DGICA/Donegal Group
@@ -273,7 +280,9 @@ class SecValuationsLoader(OptimalLoader):
                     dei_shares_row = cur.fetchone()
                     if dei_shares_row and dei_shares_row[0]:
                         shares_out = float(dei_shares_row[0])
-                        logger.debug(f"[{symbol}] Using shares_outstanding_dei cover-page count (no us-gaap share concept reported): {shares_out:,.0f}")
+                        logger.debug(
+                            f"[{symbol}] Using shares_outstanding_dei cover-page count (no us-gaap share concept reported): {shares_out:,.0f}"
+                        )
 
                 # Fail if still no shares outstanding available
                 if not shares_out or shares_out <= 0:
