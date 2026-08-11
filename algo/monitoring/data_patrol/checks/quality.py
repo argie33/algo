@@ -102,6 +102,12 @@ class QualityChecker(BaseCheck):
 
             # Symbols with zero OHLC today
             cur.execute("""
+                SELECT MAX(date) FROM price_daily
+            """)
+            max_date_row = cur.fetchone()
+            max_date = max_date_row.get("max") if hasattr(max_date_row, "get") else max_date_row[0]
+
+            cur.execute("""
                 SELECT DISTINCT symbol FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
                   AND (volume = 0 OR open = 0 OR close = 0)
@@ -110,15 +116,35 @@ class QualityChecker(BaseCheck):
             today_zero_symbols = {row.get("symbol") if hasattr(row, "keys") else row[0] for row in cur.fetchall()}
             today_zero_count = len(today_zero_symbols)
 
-            # Symbols with zero OHLC yesterday
-            interval_1d = get_interval_sql("1d")
-            cur.execute(f"""
-                SELECT DISTINCT symbol FROM price_daily
-                WHERE date = (SELECT MAX(date) FROM price_daily) - {interval_1d}
-                  AND (volume = 0 OR open = 0 OR close = 0)
-                ORDER BY symbol
-            """)
-            yesterday_zero_symbols = {row.get("symbol") if hasattr(row, "keys") else row[0] for row in cur.fetchall()}
+            # BUG FOUND 2026-08-11: "yesterday" was `MAX(date) - 1 calendar day`, not the
+            # previous TRADING day. On a Monday (or the day after any holiday), that lands on
+            # a weekend/holiday date with zero rows in price_daily at all - so
+            # yesterday_zero_symbols came back empty every single time, and every symbol that
+            # is persistently zero-volume by nature (SPACs at NAV, thinly-traded shells) got
+            # misclassified as "new" instead of "recurring", inflating new_zeros and risking a
+            # false ERROR on the first trading day after every weekend/holiday. Same bug class
+            # already fixed for signal-age checks in phase8 - use the market calendar, not raw
+            # date arithmetic.
+            from datetime import timedelta
+
+            from algo.infrastructure.market_calendar import MarketCalendar
+
+            prev_trading_day = MarketCalendar.get_previous_trading_day(from_date=max_date - timedelta(days=1))
+
+            yesterday_zero_symbols: set[Any] = set()
+            if prev_trading_day is not None:
+                cur.execute(
+                    """
+                    SELECT DISTINCT symbol FROM price_daily
+                    WHERE date = %s
+                      AND (volume = 0 OR open = 0 OR close = 0)
+                    ORDER BY symbol
+                """,
+                    (prev_trading_day,),
+                )
+                yesterday_zero_symbols = {
+                    row.get("symbol") if hasattr(row, "keys") else row[0] for row in cur.fetchall()
+                }
 
             new_zeros = today_zero_symbols - yesterday_zero_symbols
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
@@ -249,14 +275,29 @@ class QualityChecker(BaseCheck):
             low_vol_threshold = vol_cfg["low_threshold"]
             high_vol_threshold = vol_cfg["high_threshold"]
             new_low_alert = vol_cfg["new_low_alert"]
-            interval_1d = get_interval_sql("1d")
+
+            # BUG FOUND 2026-08-11: same bug class as check_zero_or_identical's "yesterday" -
+            # this "NOT IN (... date = MAX(date) - 1 calendar day ...)" exclusion landed on a
+            # weekend/holiday date with zero rows on the first trading day after any gap, so
+            # the exclusion subquery was always empty and EVERY low-volume symbol (not just
+            # newly-low ones) counted toward low_volume_new - inflating it to ~all low-volume
+            # symbols in the universe (confirmed live: 3171 vs a threshold of 50) instead of
+            # genuinely new ones. Use the previous TRADING day, not raw calendar arithmetic.
+            from datetime import timedelta
+
+            from algo.infrastructure.market_calendar import MarketCalendar
+
+            cur.execute("SELECT MAX(date) FROM price_daily")
+            max_date_row = cur.fetchone()
+            max_date = max_date_row.get("max") if hasattr(max_date_row, "get") else max_date_row[0]
+            prev_trading_day = MarketCalendar.get_previous_trading_day(from_date=max_date - timedelta(days=1))
 
             cur.execute(
-                f"""
+                """
                 SELECT
                     SUM(CASE WHEN volume < %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
-                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = (SELECT MAX(date) FROM price_daily) - {interval_1d} AND volume < %s)
+                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = %s AND volume < %s)
                     ) AS low_volume_new,
                     SUM(CASE WHEN volume > %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
@@ -264,7 +305,7 @@ class QualityChecker(BaseCheck):
                     COUNT(*) FILTER (WHERE date = (SELECT MAX(date) FROM price_daily)) AS total
                 FROM price_daily
             """,
-                (low_vol_threshold, low_vol_threshold, high_vol_threshold),
+                (low_vol_threshold, prev_trading_day, low_vol_threshold, high_vol_threshold),
             )
             row = cur.fetchone()
             if row is None:

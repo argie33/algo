@@ -111,8 +111,17 @@ class PriceSanityChecker(BaseCheck):
             corp_cfg = self.config.get_corporate_actions_config()
             lookback_days = corp_cfg["lookback_days"]
             drop_ratio = corp_cfg["drop_ratio"]
-            interval_1d = get_interval_sql("1d")
 
+            # BUG FOUND 2026-08-11: `date = prev_date + 1 calendar day` required the LAG'd
+            # previous row to be exactly one calendar day earlier. LAG(...) OVER (PARTITION BY
+            # symbol ORDER BY date) already correctly returns each symbol's immediately
+            # preceding row regardless of weekends/holidays/per-symbol data gaps - this extra
+            # filter then silently discarded every comparison that crossed a weekend/holiday
+            # (Friday->Monday, 3 calendar days apart) or a per-symbol gap day. Live-verified:
+            # on this Monday's data, 7 symbols had a genuine >30% Friday-close-to-Monday-close
+            # drop that this filter was excluding entirely - the check was blind to the most
+            # recent trading day's movers on every Monday/post-holiday run, the opposite
+            # failure mode of a false alarm (a real signal silently never surfacing).
             cur.execute(f"""
                 WITH d AS (
                     SELECT pd.symbol, pd.date, pd.close,
@@ -125,7 +134,6 @@ class PriceSanityChecker(BaseCheck):
                        (close - prev) / NULLIF(prev, 0) * 100 AS pct_change
                 FROM d
                 WHERE prev IS NOT NULL
-                  AND date = prev_date + {interval_1d}
                   AND (close - prev) / NULLIF(prev, 0) < {drop_ratio}
                 ORDER BY pct_change ASC
                 LIMIT 50
