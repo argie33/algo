@@ -37,9 +37,20 @@ class TestEvaluatePositionIncludesTradeId:
         # (position_id, symbol, entry_price, stop_loss_price, t1, t2, t3, entry_date,
         #  created_at, quantity, target_levels_hit, trade_ids_arr, current_stop, current_price)
         return (
-            1, "AAPL", 320.0, 315.0, None, None, None,
-            date(2026, 7, 27), date(2026, 7, 27), 1, 0, trade_ids_arr,
-            315.0, 308.91,
+            1,
+            "AAPL",
+            320.0,
+            315.0,
+            None,
+            None,
+            None,
+            date(2026, 7, 27),
+            date(2026, 7, 27),
+            1,
+            0,
+            trade_ids_arr,
+            315.0,
+            308.91,
         )
 
     def test_stop_loss_hit_path_includes_trade_id(self):

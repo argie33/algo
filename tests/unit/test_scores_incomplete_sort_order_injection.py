@@ -56,8 +56,9 @@ class TestIncompleteStocksSortOrderInjection:
 
         cursor = _mock_cursor([])
         # Simulate a caller that skips handle()'s whitelist (defense in depth).
-        _get_incomplete_stocks(cursor, limit=10, offset=0, sort_by="data_completeness",
-                                sort_order="asc; DROP TABLE stock_scores;--")
+        _get_incomplete_stocks(
+            cursor, limit=10, offset=0, sort_by="data_completeness", sort_order="asc; DROP TABLE stock_scores;--"
+        )
 
         executed_queries = [c.args[0] for c in cursor.execute.call_args_list]
         assert any("ORDER BY data_completeness ASC" in sql for sql in executed_queries)

@@ -200,7 +200,9 @@ class PriceFetcher:
             try:
                 run_date_obj = date.fromisoformat(orchestrator_run_date_str)
                 reference_date = run_date_obj
-                logger.info(f"[{symbol}] Using ORCHESTRATOR_RUN_DATE ({reference_date}) instead of system date ({now_et.date()})")
+                logger.info(
+                    f"[{symbol}] Using ORCHESTRATOR_RUN_DATE ({reference_date}) instead of system date ({now_et.date()})"
+                )
             except ValueError:
                 logger.warning(f"[{symbol}] Invalid ORCHESTRATOR_RUN_DATE format, using system date")
                 reference_date = now_et.date()

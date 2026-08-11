@@ -34,7 +34,15 @@ def test_mark_completed_resets_streak_and_stamps_success():
         # Previously 95.75% would trigger safety check and mark as FAILED instead
         mock_cur.fetchone.side_effect = [
             (5486, 5380, 99.0),  # symbol_count, symbols_loaded, completion_pct from safety check (>= 98%)
-            (None, None, None, None, None, None, None),  # archive SELECT: (exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count)
+            (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),  # archive SELECT: (exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count)
         ]
         mock_cur.rowcount = 1  # Verify rowcount check passes
 

@@ -61,8 +61,7 @@ def validate_phase_config(config: Any, phase_name: str) -> None:
     valid_modes = {"paper", "dry", "review", "auto"}
     if execution_mode not in valid_modes:
         raise ConfigValidationError(
-            f"[{phase_name}] execution_mode='{execution_mode}' is invalid. "
-            f"Must be one of: {valid_modes}"
+            f"[{phase_name}] execution_mode='{execution_mode}' is invalid. Must be one of: {valid_modes}"
         )
 
 
@@ -82,13 +81,9 @@ def get_config_str(config: Any, key: str, phase_name: str = "phase") -> str:
     """
     value = config.get(key)
     if value is None:
-        raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is None - required string config missing"
-        )
+        raise ConfigValidationError(f"[{phase_name}] config['{key}'] is None - required string config missing")
     if not isinstance(value, str):
-        raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected str"
-        )
+        raise ConfigValidationError(f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected str")
     return value
 
 
@@ -114,9 +109,7 @@ def get_config_int(config: Any, key: str, phase_name: str = "phase", default: in
     if value is None:
         if default is not None:
             return default
-        raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is None - required integer config missing"
-        )
+        raise ConfigValidationError(f"[{phase_name}] config['{key}'] is None - required integer config missing")
     # Accept int, float, and Decimal (from psycopg2 database values)
     if not isinstance(value, (int, float, Decimal)):
         raise ConfigValidationError(
@@ -152,9 +145,7 @@ def get_config_float(config: Any, key: str, phase_name: str = "phase", default: 
     if value is None:
         if default is not None:
             return default
-        raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is None - required float config missing"
-        )
+        raise ConfigValidationError(f"[{phase_name}] config['{key}'] is None - required float config missing")
     # Accept int, float, and Decimal (from psycopg2 database values)
     if not isinstance(value, (int, float, Decimal)):
         raise ConfigValidationError(
@@ -187,11 +178,7 @@ def get_config_bool(config: Any, key: str, phase_name: str = "phase", default: b
     if value is None:
         if default is not None:
             return default
-        raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is None - required boolean config missing"
-        )
+        raise ConfigValidationError(f"[{phase_name}] config['{key}'] is None - required boolean config missing")
     if not isinstance(value, bool):
-        raise ConfigValidationError(
-            f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected bool"
-        )
+        raise ConfigValidationError(f"[{phase_name}] config['{key}'] is {type(value).__name__}, expected bool")
     return value

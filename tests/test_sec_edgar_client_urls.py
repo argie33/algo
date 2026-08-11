@@ -73,9 +73,7 @@ def test_get_filing_xml_prefers_standalone_instance_document(monkeypatch) -> Non
     result = client.get_filing_xml(CIK_PADDED, "0000950170-25-100235", "10-K")
 
     assert result == "<xbrl></xbrl>"
-    assert requested_urls == [
-        "https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630_htm.xml"
-    ]
+    assert requested_urls == ["https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630_htm.xml"]
 
 
 def test_get_filing_xml_falls_back_to_primary_document_when_instance_missing(monkeypatch) -> None:

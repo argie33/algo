@@ -162,6 +162,8 @@ def test_check_and_execute_exits_does_not_crash_on_a_holding_position():
             # strategy chain's own config dependencies, already covered separately above.
             patch.object(engine, "_evaluate_position", return_value=None),
         ):
-            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = engine.check_and_execute_exits(date(2026, 7, 27))
+            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = (
+                engine.check_and_execute_exits(date(2026, 7, 27))
+            )
 
     assert (exits_executed, stop_raises_executed, trade_errors) == (0, 0, 0)

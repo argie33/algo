@@ -78,6 +78,7 @@ class OrchestratorDiagnostics:
         # Check live circuit breaker status (not stale DB table)
         try:
             from algo.risk import CircuitBreaker
+
             config = AlgoConfig()
             cb = CircuitBreaker(config)
             cb_result = cb.check_all(run_date)

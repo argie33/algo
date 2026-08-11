@@ -85,7 +85,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
             segment_data = None
             latest_10k = None
-            if facts_response and facts_response.get('facts'):
+            if facts_response and facts_response.get("facts"):
                 # Try companyfacts API first
                 segment_data = XBRLSegmentParser.parse_companyfacts(facts_response, symbol)
                 # CRITICAL: Validate type before chaining .get() - parse_companyfacts might return non-dict
@@ -95,11 +95,11 @@ class SecSegmentInfoLoader(SecLoaderBase):
                         f"Falling back to raw XBRL."
                     )
                     segment_data = None
-                elif segment_data and segment_data.get('data_available'):
+                elif segment_data and segment_data.get("data_available"):
                     logger.info(f"[{symbol}] Segment data found via companyfacts API")
 
             # If companyfacts didn't have segment data, try raw XBRL XML (more aggressive)
-            if not segment_data or not segment_data.get('data_available'):
+            if not segment_data or not segment_data.get("data_available"):
                 logger.info(f"[{symbol}] No segment data in companyfacts, trying raw XBRL XML")
                 try:
                     # Get latest 10-K filing
@@ -112,13 +112,11 @@ class SecSegmentInfoLoader(SecLoaderBase):
                         # never matches, silently falling through to the except below
                         # on every call. Confirmed live: get_filing_xml requires the
                         # dashed form.
-                        accession = latest_10k['accession_formatted']
+                        accession = latest_10k["accession_formatted"]
                         try:
-                            xml_content = self.sec_client.get_filing_xml(cik, accession, '10-K')
+                            xml_content = self.sec_client.get_filing_xml(cik, accession, "10-K")
                             logger.debug(f"[{symbol}] Fetched raw XBRL XML for {accession}")
-                            segment_data = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(
-                                xml_content, symbol
-                            )
+                            segment_data = XBRLSegmentParser.extract_segment_revenue_from_xbrl_xml(xml_content, symbol)
                             # CRITICAL: Validate type before chaining .get() - extract might return non-dict
                             if segment_data is not None and not isinstance(segment_data, dict):
                                 logger.warning(
@@ -126,7 +124,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
                                     f"expected dict. Marking as unavailable."
                                 )
                                 segment_data = None
-                            elif segment_data and segment_data.get('data_available'):
+                            elif segment_data and segment_data.get("data_available"):
                                 logger.info(f"[{symbol}] Segment data found in raw XBRL XML")
                         except (FileNotFoundError, RuntimeError) as e:
                             logger.debug(f"[{symbol}] Failed to fetch/parse raw XBRL: {e}")
@@ -134,14 +132,15 @@ class SecSegmentInfoLoader(SecLoaderBase):
                     logger.debug(f"[{symbol}] Error trying raw XBRL approach: {e}")
 
             # Use whatever segment data we found, or mark unavailable
-            if not segment_data or not segment_data.get('data_available'):
-                return [self._unavailable_marker(
-                    symbol,
-                    segment_data.get('reason', 'no_segment_data') if segment_data else 'no_segment_data'
-                )]
+            if not segment_data or not segment_data.get("data_available"):
+                return [
+                    self._unavailable_marker(
+                        symbol, segment_data.get("reason", "no_segment_data") if segment_data else "no_segment_data"
+                    )
+                ]
 
             # Extract individual segments
-            segments = segment_data.get('segments') if 'segments' in segment_data else []
+            segments = segment_data.get("segments") if "segments" in segment_data else []
             if not segments:
                 return [self._unavailable_marker(symbol, "no_segments_found")]
 
@@ -154,7 +153,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
             # 10-K whose XBRL XML we actually parsed for segment revenue above.
             filing_date = None
             if latest_10k:
-                filing_date = latest_10k.get('report_date') or latest_10k.get('filing_date')
+                filing_date = latest_10k.get("report_date") or latest_10k.get("filing_date")
             if filing_date is None:
                 filing_date = self._extract_filing_date(facts_response) if facts_response else None
             if filing_date is None:
@@ -169,50 +168,54 @@ class SecSegmentInfoLoader(SecLoaderBase):
             # segments) - sec_segment_info.segment_type has an index and downstream
             # queries (load_sec_segment_metrics.py) branch on its exact value, so
             # hardcoding "operating" here would mislabel real geographic segment data.
-            segment_type = segment_data.get('segment_type') or "operating"
+            segment_type = segment_data.get("segment_type") or "operating"
 
             # Write aggregate segment metrics
-            records.append({
-                "symbol": symbol,
-                "fiscal_year": fiscal_year,
-                "fiscal_period": fiscal_period,
-                "filing_date": filing_date,
-                "segment_count": segment_data['segment_count'],
-                "segment_type": segment_type,
-                "segment_name": "AGGREGATE",
-                "segment_revenue": None,
-                "segment_operating_income": None,
-                "segment_assets": None,
-                "largest_segment_revenue_pct": segment_data['largest_segment_revenue_pct'],
-                "revenue_concentration_hhi": segment_data['revenue_concentration_hhi'],
-                "segment_data_available": segment_data['data_available'],
-                "data_unavailable": False,
-                "reason": None,
-                "fetched_at": date.today(),
-                "parsed_at": date.today(),
-            })
-
-            # Write individual segment data
-            for i, seg in enumerate(segments, 1):
-                records.append({
+            records.append(
+                {
                     "symbol": symbol,
                     "fiscal_year": fiscal_year,
                     "fiscal_period": fiscal_period,
                     "filing_date": filing_date,
-                    "segment_count": segment_data['segment_count'],
+                    "segment_count": segment_data["segment_count"],
                     "segment_type": segment_type,
-                    "segment_name": seg.get('name', f"Segment_{i}"),
-                    "segment_revenue": seg.get('revenue'),
-                    "segment_operating_income": seg.get('operating_income'),
-                    "segment_assets": seg.get('assets'),
-                    "largest_segment_revenue_pct": segment_data['largest_segment_revenue_pct'],
-                    "revenue_concentration_hhi": segment_data['revenue_concentration_hhi'],
-                    "segment_data_available": segment_data['data_available'],
+                    "segment_name": "AGGREGATE",
+                    "segment_revenue": None,
+                    "segment_operating_income": None,
+                    "segment_assets": None,
+                    "largest_segment_revenue_pct": segment_data["largest_segment_revenue_pct"],
+                    "revenue_concentration_hhi": segment_data["revenue_concentration_hhi"],
+                    "segment_data_available": segment_data["data_available"],
                     "data_unavailable": False,
                     "reason": None,
                     "fetched_at": date.today(),
                     "parsed_at": date.today(),
-                })
+                }
+            )
+
+            # Write individual segment data
+            for i, seg in enumerate(segments, 1):
+                records.append(
+                    {
+                        "symbol": symbol,
+                        "fiscal_year": fiscal_year,
+                        "fiscal_period": fiscal_period,
+                        "filing_date": filing_date,
+                        "segment_count": segment_data["segment_count"],
+                        "segment_type": segment_type,
+                        "segment_name": seg.get("name", f"Segment_{i}"),
+                        "segment_revenue": seg.get("revenue"),
+                        "segment_operating_income": seg.get("operating_income"),
+                        "segment_assets": seg.get("assets"),
+                        "largest_segment_revenue_pct": segment_data["largest_segment_revenue_pct"],
+                        "revenue_concentration_hhi": segment_data["revenue_concentration_hhi"],
+                        "segment_data_available": segment_data["data_available"],
+                        "data_unavailable": False,
+                        "reason": None,
+                        "fetched_at": date.today(),
+                        "parsed_at": date.today(),
+                    }
+                )
 
             return records
 
@@ -235,35 +238,36 @@ class SecSegmentInfoLoader(SecLoaderBase):
             either may be None if SEC omitted or malformed that column. Returns None
             if no 10-K found.
         """
-        # CRITICAL FIX 2026-08-02: Validate intermediate results before chaining .get()
-        # If submissions structure is corrupted, .get('filings', {}) might return non-dict
-        filings_container = submissions.get('filings')
+        # CRITICAL FIX 2026-08-02: Validate intermediate results before chaining .get() calls
+        # together - a corrupted submissions structure could make an unguarded lookup chain
+        # silently return a non-dict fallback instead of surfacing the malformed data.
+        filings_container = submissions.get("filings")
         if not isinstance(filings_container, dict):
             return None
 
-        filings = filings_container.get('recent', {})
+        filings = filings_container.get("recent")
         if not isinstance(filings, dict):
             return None
 
-        forms = filings.get('form', [])
+        forms = filings.get("form", [])
         if not isinstance(forms, list):
             return None
-        accessions = filings.get('accessionNumber', [])
+        accessions = filings.get("accessionNumber", [])
         if not isinstance(accessions, list):
             return None
-        report_dates = filings.get('reportDate', [])
+        report_dates = filings.get("reportDate", [])
         if not isinstance(report_dates, list):
             return None
-        filing_dates = filings.get('filingDate', [])
+        filing_dates = filings.get("filingDate", [])
         if not isinstance(filing_dates, list):
             return None
 
         for i, form in enumerate(forms):
-            if form == '10-K' and i < len(accessions):
+            if form == "10-K" and i < len(accessions):
                 return {
-                    'accession_formatted': accessions[i],
-                    'report_date': self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
-                    'filing_date': self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
+                    "accession_formatted": accessions[i],
+                    "report_date": self._parse_sec_date(report_dates[i]) if i < len(report_dates) else None,
+                    "filing_date": self._parse_sec_date(filing_dates[i]) if i < len(filing_dates) else None,
                 }
         return None
 
@@ -273,7 +277,7 @@ class SecSegmentInfoLoader(SecLoaderBase):
         if not date_str:
             return None
         try:
-            return datetime.strptime(date_str, '%Y-%m-%d').date()
+            return datetime.strptime(date_str, "%Y-%m-%d").date()
         except (ValueError, TypeError):
             return None
 
@@ -296,13 +300,13 @@ class SecSegmentInfoLoader(SecLoaderBase):
         try:
             # Try to extract filing dates from the facts structure
             # CRITICAL FIX 2026-08-02: Validate intermediate results before chaining .get()
-            facts_container = facts_response.get('facts')
+            facts_container = facts_response.get("facts")
             if not isinstance(facts_container, dict):
                 raise ValueError(
                     "[SEC_SEGMENT_INFO] SEC API 'facts' key is missing or not a dict. "
                     "API response structure may have changed or response is malformed."
                 )
-            us_gaap = facts_container.get('us-gaap', {})
+            us_gaap = facts_container.get("us-gaap", {})
             if not isinstance(us_gaap, dict):
                 raise ValueError(
                     "[SEC_SEGMENT_INFO] SEC API facts.us-gaap is not a dict. "
@@ -311,17 +315,17 @@ class SecSegmentInfoLoader(SecLoaderBase):
 
             latest_date = None
             for _concept_name, concept_data in us_gaap.items():
-                if isinstance(concept_data, dict) and 'units' in concept_data:
-                    units = concept_data['units']
+                if isinstance(concept_data, dict) and "units" in concept_data:
+                    units = concept_data["units"]
                     for _unit, facts_list in units.items():
                         if isinstance(facts_list, list):
                             for fact in facts_list:
                                 if isinstance(fact, dict):
                                     # Facts have 'filed' and 'end' dates
-                                    filed_str = fact.get('filed')
+                                    filed_str = fact.get("filed")
                                     if filed_str:
                                         try:
-                                            filed = datetime.strptime(filed_str, '%Y-%m-%d').date()
+                                            filed = datetime.strptime(filed_str, "%Y-%m-%d").date()
                                             if latest_date is None or filed > latest_date:
                                                 latest_date = filed
                                         except (ValueError, TypeError) as e:

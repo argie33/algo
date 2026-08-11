@@ -189,7 +189,9 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 # with a warning if a real response is ever missing them, rather than raising -
                 # this endpoint has been relied on for cash/equity/buying_power since before
                 # these fields were read, and a missing optional field here shouldn't break that.
-                missing_flags = [f for f in ("trading_blocked", "account_blocked", "pattern_day_trader") if f not in data]
+                missing_flags = [
+                    f for f in ("trading_blocked", "account_blocked", "pattern_day_trader") if f not in data
+                ]
                 if missing_flags:
                     logger.critical(
                         f"[FETCH_ACCOUNT CRITICAL] Alpaca /v2/account response missing critical flags: {missing_flags}. "

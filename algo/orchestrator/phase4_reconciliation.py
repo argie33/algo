@@ -173,7 +173,9 @@ def run(  # noqa: C901
                 check_was_skipped = partial_fill_result.get("auth_unavailable") or partial_fill_result.get("no_broker")
                 if check_was_skipped:
                     match_pct = None  # NULL to indicate check was not performed
-                    reason = "auth unavailable" if partial_fill_result.get("auth_unavailable") else "no broker (paper mode)"
+                    reason = (
+                        "auth unavailable" if partial_fill_result.get("auth_unavailable") else "no broker (paper mode)"
+                    )
                     logger.info(f"[PHASE 4] Recording NULL match_pct in audit (check skipped - {reason})")
                 elif positions_count > 0:
                     match_pct = max(0.0, 100.0 * (1 - (mismatches_count / positions_count)))

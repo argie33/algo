@@ -82,9 +82,7 @@ class VIXFetcher:
                 # GOVERNANCE: CRITICAL data with no fallbacks - fail immediately if unavailable.
                 if not rows or len(rows) == 0:
                     # Determine how stale the most recent VIX data is (for diagnostic info)
-                    cur.execute(
-                        "SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'"
-                    )
+                    cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'")
                     max_date_row = cur.fetchone()
                     max_date = max_date_row[0] if max_date_row and max_date_row[0] else None
 
@@ -109,8 +107,7 @@ class VIXFetcher:
                     # CRITICAL: VIX fields must all be present for valid market data
                     if row[1] is None or row[2] is None or row[3] is None:
                         logger.warning(
-                            f"[MARKET_HEALTH] VIX data incomplete for {d}: "
-                            f"close={row[1]}, low={row[2]}, high={row[3]}."
+                            f"[MARKET_HEALTH] VIX data incomplete for {d}: close={row[1]}, low={row[2]}, high={row[3]}."
                         )
                         invalid_dates.append(d)
                         continue
@@ -259,9 +256,7 @@ class PutCallRatioFetcher:
                     puts_oi = puts["openInterest"].sum() if "openInterest" in puts.columns else 0
 
                     if calls_oi == 0:
-                        logger.warning(
-                            f"[PUT_CALL_RATIO] No call open interest data available for {nearest_exp}"
-                        )
+                        logger.warning(f"[PUT_CALL_RATIO] No call open interest data available for {nearest_exp}")
                         last_reason = (
                             f"No call open interest reported by yfinance for {nearest_exp} expiry "
                             "(open interest often lags/reads 0 pre-market or for same-day expiries)"
@@ -320,8 +315,7 @@ class PutCallRatioFetcher:
         except Exception as e:
             # Unexpected yfinance errors - fail-fast
             raise RuntimeError(
-                f"[PUT_CALL_RATIO] yfinance API failed: {type(e).__name__}: {e}. "
-                f"Network/API errors must not be masked."
+                f"[PUT_CALL_RATIO] yfinance API failed: {type(e).__name__}: {e}. Network/API errors must not be masked."
             ) from e
 
 

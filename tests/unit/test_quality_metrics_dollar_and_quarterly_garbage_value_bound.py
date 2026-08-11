@@ -133,9 +133,7 @@ class TestQuarterlyGrowthMomentumGarbageBound:
     def _quarters(self, revenues, net_incomes=None, epss=None):
         net_incomes = net_incomes or [1_000_000.0] * len(revenues)
         epss = epss or [0.5] * len(revenues)
-        return [
-            (2025, 4 - i, net_incomes[i], revenues[i], epss[i]) for i in range(len(revenues))
-        ]
+        return [(2025, 4 - i, net_incomes[i], revenues[i], epss[i]) for i in range(len(revenues))]
 
     def test_near_zero_prior_quarter_revenue_marked_unavailable(self, monkeypatch):
         # A near-zero (but nonzero) prior-quarter revenue makes the QoQ growth rate - and

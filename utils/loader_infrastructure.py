@@ -220,6 +220,7 @@ class LoaderInfrastructure:
                             # FIX 2026-07-31: Don't try to SELECT non-existent columns
                             # Just insert what we have for history
                             from datetime import datetime, timezone
+
                             now_utc = datetime.now(timezone.utc)
                             cur.execute(
                                 "INSERT INTO data_loader_status_history "
@@ -246,7 +247,9 @@ class LoaderInfrastructure:
             finally:
                 set_pooled_connection(saved_conn)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"[{self.table_name}] CRITICAL: Failed to update loader status to {db_status}: {e}") from e
+            raise RuntimeError(
+                f"[{self.table_name}] CRITICAL: Failed to update loader status to {db_status}: {e}"
+            ) from e
 
     def check_shutdown_requested(self) -> bool:
         with self._shutdown_lock:

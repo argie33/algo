@@ -83,8 +83,8 @@ def test_phase6_paper_trading_executes_and_reports_exits():
     log_phase_result_fn = MagicMock()
 
     # Mock the TradeExecutor to simulate successful paper trading execution
-    with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext') as mock_db:
-        with patch('algo.trading.TradeExecutor') as mock_executor_class:
+    with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext") as mock_db:
+        with patch("algo.trading.TradeExecutor") as mock_executor_class:
             # Set up database mock for position price fetches and sector concentration checks
             mock_cursor = MagicMock()
             # For sector concentration check: no concentrated sectors
@@ -159,8 +159,9 @@ def test_phase6_paper_trading_executes_and_reports_exits():
             mock_executor_class.assert_called_once()
 
             # Verify exit_trade was called for the exits (not just counted)
-            assert mock_executor_instance.exit_trade.call_count >= 2, \
+            assert mock_executor_instance.exit_trade.call_count >= 2, (
                 "TradeExecutor.exit_trade should have been called for position exits"
+            )
 
             print("\n✓ PAPER TRADING TEST PASSED")
             print(f"  Status: {result.status}")

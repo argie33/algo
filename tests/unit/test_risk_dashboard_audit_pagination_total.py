@@ -98,7 +98,5 @@ def test_stop_loss_audit_reports_true_total_not_page_size():
     response = _get_stop_loss_audit(cursor, days=30)
 
     assert len(response["data"]["items"]) == 100
-    assert response["data"]["total"] == 250, (
-        "total must reflect the true window count (250), not len(items) (100)"
-    )
+    assert response["data"]["total"] == 250, "total must reflect the true window count (250), not len(items) (100)"
     assert response["data"]["limit"] == 100

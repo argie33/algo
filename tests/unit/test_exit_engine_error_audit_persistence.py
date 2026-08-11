@@ -85,7 +85,9 @@ def test_trade_error_is_persisted_to_audit_table(mock_config):
                 side_effect=RuntimeError("simulated unexpected evaluation failure"),
             ),
         ):
-            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = engine.check_and_execute_exits(current_date)
+            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = (
+                engine.check_and_execute_exits(current_date)
+            )
 
     assert trade_errors == 1
 
@@ -133,7 +135,9 @@ def test_audit_insert_failure_does_not_crash_the_run(mock_config):
             ),
         ):
             # Must not raise despite the audit insert itself failing.
-            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = engine.check_and_execute_exits(current_date)
+            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = (
+                engine.check_and_execute_exits(current_date)
+            )
 
     assert trade_errors == 1
     rollback_calls = [c for c in mock_cur.execute.call_args_list if "ROLLBACK TO SAVEPOINT" in str(c)]

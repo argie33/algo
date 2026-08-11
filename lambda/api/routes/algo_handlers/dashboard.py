@@ -81,7 +81,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             # CRITICAL: Add cache freshness metadata to cached response
             # Frontend needs to know response was cached, not just when underlying data was fetched
             cached_response = (
-                _positions_cache["data"].copy() if isinstance(_positions_cache["data"], dict) else _positions_cache["data"]
+                _positions_cache["data"].copy()
+                if isinstance(_positions_cache["data"], dict)
+                else _positions_cache["data"]
             )
             if isinstance(cached_response, dict) and "body" in cached_response:
                 # json_response format: {"statusCode": 200, "body": {...}}
@@ -110,12 +112,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # CRITICAL: Filter by user_id (cognito_sub) to prevent user A from seeing user B's positions
     if not user_id:
         raise ValueError("[AUTH CRITICAL] user_id (cognito_sub) required for positions query - authentication missing")
-    cur.execute("""
+    cur.execute(
+        """
         SELECT * FROM algo_positions
         WHERE status = 'open' AND cognito_sub = %s
         ORDER BY position_value DESC NULLS LAST
         LIMIT 1000
-    """, (user_id,))
+    """,
+        (user_id,),
+    )
     positions = cur.fetchall()
     logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
 
@@ -540,13 +545,16 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     untracked_items: list[dict[str, Any]] = []
     try:
         # CRITICAL: Filter by user_id to prevent user A from seeing user B's untracked positions
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, symbol, quantity, current_price, position_value, detected_at, last_seen_at
             FROM algo_untracked_positions
             WHERE cognito_sub = %s
             ORDER BY position_value DESC NULLS LAST
             LIMIT 1000
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         untracked_positions = cur.fetchall()
         logger.info(f"[UNTRACKED POSITIONS] Found {len(untracked_positions)} untracked positions")
 

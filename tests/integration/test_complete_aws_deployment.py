@@ -108,9 +108,7 @@ class TestCompleteAWSDeployment:
         # Check that growth_metrics is validated (coverage threshold may vary)
         assert "growth_metrics" in source, "growth_metrics must be validated"
         # Coverage can be 0.10 (SEC-filing-dependent) or higher for other metrics
-        assert "0.10" in source or "0.15" in source or "0.20" in source, (
-            "growth_metrics must have coverage requirement"
-        )
+        assert "0.10" in source or "0.15" in source or "0.20" in source, "growth_metrics must have coverage requirement"
 
     def test_data_freshness_includes_growth_metrics(self):
         """Verify Phase 1 freshness check includes growth_metrics staleness detection."""

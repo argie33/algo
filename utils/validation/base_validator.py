@@ -42,9 +42,7 @@ class BaseResponseValidator:
         return False
 
     @staticmethod
-    def check_required_fields(
-        data: dict[str, Any], required_fields: list[str], source: str = "response"
-    ) -> None:
+    def check_required_fields(data: dict[str, Any], required_fields: list[str], source: str = "response") -> None:
         """Validate required fields are present and non-None.
 
         Raises ResponseValidationError if any required field is missing/None.

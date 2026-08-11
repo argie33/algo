@@ -102,7 +102,7 @@ class ShortInterestFinraLoader(OptimalLoader):
             try:
                 finra_data, settlement_date = fetcher.fetch_latest()
                 logger.info(
-                    f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols " f"for settlement date {settlement_date}"
+                    f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols for settlement date {settlement_date}"
                 )
             except Exception as e_finra:
                 logger.warning(

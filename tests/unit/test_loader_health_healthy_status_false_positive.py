@@ -52,14 +52,37 @@ def test_healthy_and_deprecated_statuses_are_not_flagged_unhealthy():
     # test_loader_health_pipeline_removed_tables_excluded.py, and mixing the two concerns
     # into one table made this test's total_tracked assertion break whenever the shared
     # exclusion list changed for reasons unrelated to the HEALTHY/DEPRECATED status check.
-    data = _run([
-        {"table_name": "technical_data_daily", "status": "HEALTHY", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100},
-        {"table_name": "algo_metrics_daily", "status": "DEPRECATED", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": None},
-        {"table_name": "price_daily", "status": "COMPLETED", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100},
-    ])
+    data = _run(
+        [
+            {
+                "table_name": "technical_data_daily",
+                "status": "HEALTHY",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_completed": None,
+                "completion_pct": 100,
+            },
+            {
+                "table_name": "algo_metrics_daily",
+                "status": "DEPRECATED",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_completed": None,
+                "completion_pct": None,
+            },
+            {
+                "table_name": "price_daily",
+                "status": "COMPLETED",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_completed": None,
+                "completion_pct": 100,
+            },
+        ]
+    )
 
     assert data["loader_health"] == []
     assert data["loader_health_total_unhealthy"] == 0
@@ -67,12 +90,28 @@ def test_healthy_and_deprecated_statuses_are_not_flagged_unhealthy():
 
 
 def test_genuine_failures_are_still_flagged_unhealthy():
-    data = _run([
-        {"table_name": "company_info_sec", "status": "RUNNING", "consecutive_failures": 1,
-         "retry_count": 1, "last_success_at": None, "execution_completed": None, "completion_pct": 50},
-        {"table_name": "technical_data_daily", "status": "HEALTHY", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100},
-    ])
+    data = _run(
+        [
+            {
+                "table_name": "company_info_sec",
+                "status": "RUNNING",
+                "consecutive_failures": 1,
+                "retry_count": 1,
+                "last_success_at": None,
+                "execution_completed": None,
+                "completion_pct": 50,
+            },
+            {
+                "table_name": "technical_data_daily",
+                "status": "HEALTHY",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_completed": None,
+                "completion_pct": 100,
+            },
+        ]
+    )
 
     table_names = {lh["table_name"] for lh in data["loader_health"]}
     assert table_names == {"company_info_sec"}

@@ -34,7 +34,7 @@ PHASE9_SOURCE = (Path(__file__).parent.parent.parent / "algo" / "orchestrator" /
 
 
 def _reconciliation_failure_branch(source: str) -> str:
-    start = source.index('else:\n            # Reconciliation failed - fail-fast')
+    start = source.index("else:\n            # Reconciliation failed - fail-fast")
     end = source.index("# Validate schema contract before returning", start)
     return source[start:end]
 
@@ -49,7 +49,9 @@ def test_reconciliation_failure_escalates_to_halt_only_in_auto_mode():
 
 
 def test_phase_result_halted_field_is_not_hardcoded_false():
-    assert 'return PhaseResult(9, "reconciliation", phase_status, data, is_governance_halt, phase_error)' in PHASE9_SOURCE, (
+    assert (
+        'return PhaseResult(9, "reconciliation", phase_status, data, is_governance_halt, phase_error)' in PHASE9_SOURCE
+    ), (
         "PhaseResult's halted field must be driven by is_governance_halt, not hardcoded False - "
         "a hardcoded False silently defeats set_halt_flag() for every Phase 9 failure, "
         "including genuine execution_mode='auto' governance violations."

@@ -552,8 +552,7 @@ def execute_with_timeout(
                     return [dict(zip(col_names, row, strict=True)) for row in rows]
                 else:
                     raise RuntimeError(
-                        "Failed to extract column names from cursor description. "
-                        "Cannot convert tuple results to dicts."
+                        "Failed to extract column names from cursor description. Cannot convert tuple results to dicts."
                     )
 
             return list(rows)

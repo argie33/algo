@@ -35,8 +35,7 @@ class TestRevenueExtraction2020Fix:
             year = stmt.get("fiscal_year")
             if year and year >= 2020:
                 # RevenuesNetOfInterestExpense should be extracted as snake_case key
-                revenue = (stmt.get("revenues_net_of_interest_expense") or
-                          stmt.get("revenues"))
+                revenue = stmt.get("revenues_net_of_interest_expense") or stmt.get("revenues")
                 if revenue is not None:
                     revenues_2020_plus[year] = revenue
 
@@ -63,8 +62,7 @@ class TestRevenueExtraction2020Fix:
             year = stmt.get("fiscal_year")
             if year and year >= 2020:
                 # Should have either key (Revenues for 2020, RevenuesNetOfInterestExpense for 2021+)
-                revenue = (stmt.get("revenues_net_of_interest_expense") or
-                          stmt.get("revenues"))
+                revenue = stmt.get("revenues_net_of_interest_expense") or stmt.get("revenues")
                 if revenue is not None:
                     revenues_2020_plus[year] = revenue
 
@@ -92,8 +90,7 @@ class TestRevenueExtraction2020Fix:
         for stmt in statements:
             year = stmt.get("fiscal_year")
             if year:
-                revenue = (stmt.get("revenues_net_of_interest_expense") or
-                          stmt.get("revenues"))
+                revenue = stmt.get("revenues_net_of_interest_expense") or stmt.get("revenues")
                 if revenue is not None:
                     revenues_by_year[year] = revenue
 
@@ -103,9 +100,7 @@ class TestRevenueExtraction2020Fix:
 
         # Spot-check: should have at least some 2010s-2020s data
         recent_years = [y for y in revenues_by_year.keys() if y >= 2015]
-        assert len(recent_years) > 0, (
-            f"XEL should have revenue for recent years (2015+), got {recent_years}"
-        )
+        assert len(recent_years) > 0, f"XEL should have revenue for recent years (2015+), got {recent_years}"
 
     def test_revenue_extraction_key_names(self, client):
         """Verify that RevenuesNetOfInterestExpense is extracted with correct snake_case key."""
@@ -118,8 +113,7 @@ class TestRevenueExtraction2020Fix:
                 # Should have revenues_net_of_interest_expense key
                 # (snake_case version of RevenuesNetOfInterestExpense)
                 assert "revenues_net_of_interest_expense" in stmt, (
-                    f"MS FY{year} should have 'revenues_net_of_interest_expense' key, "
-                    f"got keys: {list(stmt.keys())}"
+                    f"MS FY{year} should have 'revenues_net_of_interest_expense' key, got keys: {list(stmt.keys())}"
                 )
                 assert stmt["revenues_net_of_interest_expense"] is not None, (
                     f"MS FY{year} revenues_net_of_interest_expense should have a value"

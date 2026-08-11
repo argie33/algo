@@ -69,14 +69,30 @@ def _run(loader_rows):
 
 
 def test_pipeline_removed_table_never_counted_as_unhealthy():
-    data = _run([
-        {"table_name": "algo_untracked_positions", "status": "MISSING", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_started": None,
-         "execution_completed": None, "completion_pct": 100},
-        {"table_name": "price_daily", "status": "COMPLETED", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_started": None,
-         "execution_completed": None, "completion_pct": 100},
-    ])
+    data = _run(
+        [
+            {
+                "table_name": "algo_untracked_positions",
+                "status": "MISSING",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_started": None,
+                "execution_completed": None,
+                "completion_pct": 100,
+            },
+            {
+                "table_name": "price_daily",
+                "status": "COMPLETED",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_started": None,
+                "execution_completed": None,
+                "completion_pct": 100,
+            },
+        ]
+    )
 
     table_names = {lh["table_name"] for lh in data["loader_health"]}
     assert "algo_untracked_positions" not in table_names
@@ -90,11 +106,20 @@ def test_recently_started_running_loader_not_flagged_unhealthy():
     # A real DB cursor returns datetime objects (not ISO strings) for timestamp columns -
     # normalize_to_utc_datetime only accepts date/datetime/None, so the mock must match.
     started_10_min_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
-    data = _run([
-        {"table_name": "dividend_data", "status": "RUNNING", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_started": started_10_min_ago,
-         "execution_completed": None, "completion_pct": 91},
-    ])
+    data = _run(
+        [
+            {
+                "table_name": "dividend_data",
+                "status": "RUNNING",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_started": started_10_min_ago,
+                "execution_completed": None,
+                "completion_pct": 91,
+            },
+        ]
+    )
 
     assert data["loader_health"] == []
     assert data["loader_health_total_unhealthy"] == 0
@@ -102,11 +127,20 @@ def test_recently_started_running_loader_not_flagged_unhealthy():
 
 def test_stuck_running_loader_past_90_minutes_is_flagged_unhealthy():
     started_2_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2)
-    data = _run([
-        {"table_name": "dividend_data", "status": "RUNNING", "consecutive_failures": 0,
-         "retry_count": 0, "last_success_at": None, "execution_started": started_2_hours_ago,
-         "execution_completed": None, "completion_pct": 12},
-    ])
+    data = _run(
+        [
+            {
+                "table_name": "dividend_data",
+                "status": "RUNNING",
+                "consecutive_failures": 0,
+                "retry_count": 0,
+                "last_success_at": None,
+                "execution_started": started_2_hours_ago,
+                "execution_completed": None,
+                "completion_pct": 12,
+            },
+        ]
+    )
 
     table_names = {lh["table_name"] for lh in data["loader_health"]}
     assert table_names == {"dividend_data"}

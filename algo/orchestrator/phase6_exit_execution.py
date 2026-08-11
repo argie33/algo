@@ -52,7 +52,7 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
         except (TimeoutError, ConnectionError, OSError) as e:
             last_error = e
             if attempt < max_retries:
-                wait_sec = 0.5 * (2 ** attempt)  # Exponential backoff: 0.5s, 1s, 2s
+                wait_sec = 0.5 * (2**attempt)  # Exponential backoff: 0.5s, 1s, 2s
                 logger.warning(
                     f"Exit trade attempt {attempt + 1}/{max_retries + 1} failed with transient error ({type(e).__name__}). "
                     f"Retrying in {wait_sec:.1f}s... Trade ID: {kwargs.get('trade_id')}"
@@ -63,19 +63,29 @@ def _retry_exit_trade(executor: Any, max_retries: int = 3, **kwargs: Any) -> dic
                     f"Exit trade failed after {max_retries + 1} attempts with transient error: {type(e).__name__}: {e}. "
                     f"Trade ID: {kwargs.get('trade_id')}"
                 )
-                raise RuntimeError(
-                    f"Exit trade failed after retries: {type(e).__name__}: {e}"
-                ) from e
+                raise RuntimeError(f"Exit trade failed after retries: {type(e).__name__}: {e}") from e
         except (ValueError, KeyError, AttributeError) as e:
-            logger.error(f"Exit trade failed with validation error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}")
+            logger.error(
+                f"Exit trade failed with validation error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}"
+            )
             result = {"success": False, "message": str(e)[:200]}
             return result
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Exit trade failed with database error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}", exc_info=True)
-            raise RuntimeError(f"Exit trade database error (trade may be partially executed): {type(e).__name__}: {e}") from e
+            logger.error(
+                f"Exit trade failed with database error: {type(e).__name__}: {e}. Trade ID: {kwargs.get('trade_id')}",
+                exc_info=True,
+            )
+            raise RuntimeError(
+                f"Exit trade database error (trade may be partially executed): {type(e).__name__}: {e}"
+            ) from e
         except Exception as e:
-            logger.critical(f"Exit trade failed with unexpected error: {type(e).__name__}: {e}. This may indicate broker state divergence.", exc_info=True)
-            raise RuntimeError(f"Exit trade failed unexpectedly (halting to prevent divergence): {type(e).__name__}: {e}") from e
+            logger.critical(
+                f"Exit trade failed with unexpected error: {type(e).__name__}: {e}. This may indicate broker state divergence.",
+                exc_info=True,
+            )
+            raise RuntimeError(
+                f"Exit trade failed unexpectedly (halting to prevent divergence): {type(e).__name__}: {e}"
+            ) from e
 
     # Should not reach here, but handle just in case
     raise RuntimeError(f"Exit trade exhausted retries: {last_error}")
@@ -99,8 +109,7 @@ def _validate_exit_trade_response(result: dict[str, Any], trade_id: int | str) -
     """
     if not isinstance(result, dict):
         raise RuntimeError(
-            f"[PHASE 6] Exit response invalid type {type(result).__name__}, expected dict. "
-            f"Trade ID: {trade_id}"
+            f"[PHASE 6] Exit response invalid type {type(result).__name__}, expected dict. Trade ID: {trade_id}"
         )
 
     required_keys = ["success", "trade_id", "message"]
@@ -299,7 +308,9 @@ def run(
             # treat empty recommendations as Phase 3 failure - Phase 3 might legitimately have
             # no recommendations if all positions are healthy. Concentration checks are where
             # structural violations are detected.
-            logger.info("[PHASE 6] No Phase 3 position recommendations - proceeding to concentration checks for structural violations")
+            logger.info(
+                "[PHASE 6] No Phase 3 position recommendations - proceeding to concentration checks for structural violations"
+            )
 
         # Check for sector concentration and add force-exit recommendations for over-concentrated sectors
         # Sector concentration limit: configured via max_positions_per_sector (default 10)
@@ -371,26 +382,39 @@ def run(
                         count_int_final = int(count_int_native)
                         max_sector_final = int(max_sector_native)
                         if not isinstance(count_int_final, int) or isinstance(count_int_final, bool):
-                            raise TypeError(f"[PHASE 6] count_int_final conversion failed: {type(count_int_final).__name__}")
+                            raise TypeError(
+                                f"[PHASE 6] count_int_final conversion failed: {type(count_int_final).__name__}"
+                            )
                         if not isinstance(max_sector_final, int) or isinstance(max_sector_final, bool):
-                            raise TypeError(f"[PHASE 6] max_sector_final conversion failed: {type(max_sector_final).__name__}")
+                            raise TypeError(
+                                f"[PHASE 6] max_sector_final conversion failed: {type(max_sector_final).__name__}"
+                            )
                         # CRITICAL: Subtraction with guaranteed native Python ints
                         # Convert one final time immediately before arithmetic to handle any Decimal leakage
-                        count_final = int(count_int_final) if isinstance(count_int_final, int) else int(str(count_int_final))
-                        max_final = int(max_sector_final) if isinstance(max_sector_final, int) else int(str(max_sector_final))
+                        count_final = (
+                            int(count_int_final) if isinstance(count_int_final, int) else int(str(count_int_final))
+                        )
+                        max_final = (
+                            int(max_sector_final) if isinstance(max_sector_final, int) else int(str(max_sector_final))
+                        )
                         over_limit = count_final - max_final
-                        logger.warning(f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int_native} positions (limit {max_sector_native}, need to exit {over_limit})")
+                        logger.warning(
+                            f"[PHASE 6 CONCENTRATION] Sector {sector}: {count_int_native} positions (limit {max_sector_native}, need to exit {over_limit})"
+                        )
 
                         # Get the weakest positions in this sector (lowest unrealized P&L first to cut losses)
                         # Ensure over_limit is an int for the LIMIT clause
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT ap.id, ap.symbol
                             FROM algo_positions ap
                             JOIN company_profile cs ON ap.symbol = cs.symbol
                             WHERE ap.status = 'open' AND cs.sector = %s
                             ORDER BY ap.unrealized_pnl ASC
                             LIMIT %s
-                        """, (sector, int(over_limit)))
+                        """,
+                            (sector, int(over_limit)),
+                        )
 
                         weak_positions = cur.fetchall()
                         for row in weak_positions:
@@ -412,8 +436,7 @@ def run(
                             # below and skipped the position, silently defeating sector
                             # concentration limit enforcement for every position, always.
                             cur.execute(
-                                "SELECT trade_ids_arr FROM algo_positions WHERE id = %s AND status = 'open'",
-                                (pos_id,)
+                                "SELECT trade_ids_arr FROM algo_positions WHERE id = %s AND status = 'open'", (pos_id,)
                             )
                             trade_row = cur.fetchone()
                             if trade_row is None or not trade_row[0]:
@@ -487,7 +510,9 @@ def run(
                         "CRITICAL: max_position_size_pct config missing. "
                         "Cannot enforce individual position size limits. Check algo_config table."
                     )
-                logger.info(f"[PHASE 6 POSITION_SIZE] Using config max_position_size_pct={max_size_pct_val}% (individual position limit)")
+                logger.info(
+                    f"[PHASE 6 POSITION_SIZE] Using config max_position_size_pct={max_size_pct_val}% (individual position limit)"
+                )
 
                 # Explicitly convert to float to handle Decimal types from config (psycopg2 returns Decimal)
                 try:
@@ -640,13 +665,19 @@ def run(
                         all_positions = cur.fetchall()
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as fetch_err:
                         logger.error(f"[PHASE 6] Failed to fetch positions (DB error): {fetch_err}")
-                        raise RuntimeError(f"[PHASE 6] Cannot fetch positions for concentration check (DB): {fetch_err}") from fetch_err
+                        raise RuntimeError(
+                            f"[PHASE 6] Cannot fetch positions for concentration check (DB): {fetch_err}"
+                        ) from fetch_err
                     except Exception as fetch_err:
                         logger.error(f"[PHASE 6] Failed to fetch positions (unexpected): {fetch_err}")
-                        raise RuntimeError(f"[PHASE 6] Cannot fetch positions for concentration check: {fetch_err}") from fetch_err
+                        raise RuntimeError(
+                            f"[PHASE 6] Cannot fetch positions for concentration check: {fetch_err}"
+                        ) from fetch_err
 
                     if all_positions is None or len(all_positions) == 0:
-                        logger.info("[PHASE 6] No open positions returned from query - skipping size concentration check")
+                        logger.info(
+                            "[PHASE 6] No open positions returned from query - skipping size concentration check"
+                        )
                         return []
 
                     oversized_positions = []
@@ -654,7 +685,9 @@ def run(
                         try:
                             # Guard against malformed rows (e.g., in test mocks)
                             if not isinstance(row, (tuple, list)) or len(row) < 3:
-                                logger.debug(f"[PHASE 6] Skipping malformed position row: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})")
+                                logger.debug(
+                                    f"[PHASE 6] Skipping malformed position row: {row} (type={type(row).__name__}, len={len(row) if isinstance(row, (tuple, list)) else 'N/A'})"
+                                )
                                 continue
 
                             pos_id, symbol, value = row[0], row[1], row[2]
@@ -670,20 +703,32 @@ def run(
                             try:
                                 # CRITICAL: Convert to float BEFORE any arithmetic to handle psycopg2 Decimal types
                                 # Division of float by Decimal returns Decimal, so we must ensure total_value_float is native float
-                                logger.debug(f"[PHASE 6] Processing {symbol}: value={value!r} (type={type(value).__name__}), total_value_float={total_value_float!r} (type={type(total_value_float).__name__})")
+                                logger.debug(
+                                    f"[PHASE 6] Processing {symbol}: value={value!r} (type={type(value).__name__}), total_value_float={total_value_float!r} (type={type(total_value_float).__name__})"
+                                )
                                 value_float = _ensure_float(value, f"{symbol}:position_value")
                                 # Ensure division uses native floats, not Decimals
                                 total_value_for_division = float(total_value_float)
-                                logger.debug(f"[PHASE 6] After conversion: value_float={value_float!r} (type={type(value_float).__name__}), total_value_for_division={total_value_for_division!r} (type={type(total_value_for_division).__name__})")
+                                logger.debug(
+                                    f"[PHASE 6] After conversion: value_float={value_float!r} (type={type(value_float).__name__}), total_value_for_division={total_value_for_division!r} (type={type(total_value_for_division).__name__})"
+                                )
                                 # Perform division with native floats
-                                pct_value = value_float / total_value_for_division * 100 if total_value_for_division > 0 else 0.0
+                                pct_value = (
+                                    value_float / total_value_for_division * 100
+                                    if total_value_for_division > 0
+                                    else 0.0
+                                )
                                 # CRITICAL: Force to native float via string conversion to eliminate any Decimal remnants
                                 # float(float(...)) is not sufficient if division returns Decimal
                                 pct_float = float(str(pct_value))
-                                logger.debug(f"[PHASE 6] Percentage calculated: pct_float={pct_float!r} (type={type(pct_float).__name__})")
+                                logger.debug(
+                                    f"[PHASE 6] Percentage calculated: pct_float={pct_float!r} (type={type(pct_float).__name__})"
+                                )
                                 # Verify type after conversion
                                 if not isinstance(pct_float, float):
-                                    logger.warning(f"[PHASE 6] pct_float is {type(pct_float).__name__} instead of float, converting: {pct_float}")
+                                    logger.warning(
+                                        f"[PHASE 6] pct_float is {type(pct_float).__name__} instead of float, converting: {pct_float}"
+                                    )
                                     pct_float = float(pct_float)
                             except (TypeError, ValueError, ZeroDivisionError) as te:
                                 raise RuntimeError(
@@ -695,7 +740,9 @@ def run(
                             # _ensure_float handles psycopg2 Decimal, numpy types, and validates native float
                             # Do NOT use raw float() - it doesn't guarantee native Python float with psycopg2 types
                             try:
-                                max_size_pct_float_safe = _ensure_float(max_size_pct_float, "max_position_size_pct (pre-arithmetic)")
+                                max_size_pct_float_safe = _ensure_float(
+                                    max_size_pct_float, "max_position_size_pct (pre-arithmetic)"
+                                )
                                 pct_float_safe = _ensure_float(pct_float, f"{symbol}:pct_value (pre-arithmetic)")
                             except (TypeError, ValueError) as conv_err:
                                 logger.error(f"[PHASE 6] Failed to convert floats for arithmetic: {conv_err}")
@@ -737,7 +784,9 @@ def run(
                                 max_native = float(max_for_comparison)
                                 exceed_amount = pct_native - max_native
                                 oversized_positions.append((pos_id, symbol, pct_float_safe, max_size_pct_float_safe))
-                                logger.warning(f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_native:.1f}% (limit {max_native:.0f}% + {tolerance_pct}% tolerance, exceeds by {exceed_amount:.1f}%)")
+                                logger.warning(
+                                    f"[PHASE 6 SIZE_CONCENTRATION] {symbol}: {pct_native:.1f}% (limit {max_native:.0f}% + {tolerance_pct}% tolerance, exceeds by {exceed_amount:.1f}%)"
+                                )
                         except (IndexError, TypeError) as row_err:
                             logger.critical(
                                 f"[PHASE 6 CRITICAL] Error processing position row {row}: {row_err}. "
@@ -758,8 +807,7 @@ def run(
                         # `trade_ids` here always skipped the position, silently defeating
                         # position-size concentration limit enforcement for every position.
                         cur.execute(
-                            "SELECT trade_ids_arr FROM algo_positions WHERE id = %s AND status = 'open'",
-                            (pos_id,)
+                            "SELECT trade_ids_arr FROM algo_positions WHERE id = %s AND status = 'open'", (pos_id,)
                         )
                         trade_row = cur.fetchone()
                         if trade_row is None or not trade_row[0]:
@@ -794,7 +842,9 @@ def run(
                             "trade_id": trade_id,  # Now properly fetched from database
                         }
                         rebalance_actions.append(action)
-                        logger.warning(f"[PHASE 6 REBALANCE] Force-exit {symbol} (position size {pct:.1f}% exceeds {limit:.0f}% limit)")
+                        logger.warning(
+                            f"[PHASE 6 REBALANCE] Force-exit {symbol} (position size {pct:.1f}% exceeds {limit:.0f}% limit)"
+                        )
 
                     return rebalance_actions
             except (ValueError, RuntimeError) as e:
@@ -818,8 +868,11 @@ def run(
         except RuntimeError as e:
             # Critical failures must halt
             error_msg = str(e)
-            if ("CRITICAL" in error_msg or "Data integrity" in error_msg or
-                "concentration check failed unexpectedly" in error_msg):
+            if (
+                "CRITICAL" in error_msg
+                or "Data integrity" in error_msg
+                or "concentration check failed unexpectedly" in error_msg
+            ):
                 raise  # Let it propagate - this must halt Phase 6
             # Other RuntimeErrors can be logged and skipped
             logger.warning(f"[PHASE 6] Sector concentration check failed: {e}")
@@ -833,8 +886,11 @@ def run(
             # - "Data integrity" in message (data validation failures)
             # - "concentration check failed unexpectedly" (programming errors)
             error_msg = str(e)
-            if ("CRITICAL" in error_msg or "Data integrity" in error_msg or
-                "concentration check failed unexpectedly" in error_msg):
+            if (
+                "CRITICAL" in error_msg
+                or "Data integrity" in error_msg
+                or "concentration check failed unexpectedly" in error_msg
+            ):
                 raise  # Let it propagate - this must halt Phase 6
             # Other RuntimeErrors can be logged and skipped
             logger.warning(f"[PHASE 6] Position size concentration check failed: {e}")
@@ -949,9 +1005,7 @@ def run(
                         # HIGH ISSUE #4 FIX: Validate response structure before proceeding
                         _validate_exit_trade_response(result, action["trade_id"])
                         if result["success"] is None:
-                            raise RuntimeError(
-                                f"Force exit result has success=None. Response: {result}"
-                            )
+                            raise RuntimeError(f"Force exit result has success=None. Response: {result}")
                         if result["success"]:
                             exit_count += 1
                             logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
@@ -986,9 +1040,7 @@ def run(
                         logger.critical(
                             f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}"
                         )
-                        raise RuntimeError(
-                            f"[PHASE 6] Cannot fetch current price for exit execution: {e}"
-                        ) from e
+                        raise RuntimeError(f"[PHASE 6] Cannot fetch current price for exit execution: {e}") from e
                     if cur_price is not None and cur_price > 0:
                         if "exit_fraction" not in action:
                             raise ValidationError(
@@ -1018,9 +1070,7 @@ def run(
                             # HIGH ISSUE #4 FIX: Validate response structure before proceeding
                             _validate_exit_trade_response(result, action["trade_id"])
                             if result["success"] is None:
-                                raise RuntimeError(
-                                    f"Partial exit result has success=None. Response: {result}"
-                                )
+                                raise RuntimeError(f"Partial exit result has success=None. Response: {result}")
                             if result["success"]:
                                 exit_count += 1
                                 logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
@@ -1143,7 +1193,9 @@ def run(
                 # this file's exposure/stop-raise no-op checks elsewhere already guard against.
                 if rec["action"] == "FAILED_VALIDATION":
                     errors += 1
-                    logger.error(f"  [PHASE 6] {rec['symbol']}: validation failed, no exit/stop coverage this run - {rec.get('error')}")
+                    logger.error(
+                        f"  [PHASE 6] {rec['symbol']}: validation failed, no exit/stop coverage this run - {rec.get('error')}"
+                    )
                     continue
 
                 if rec["action"] == "EARLY_EXIT":
@@ -1262,7 +1314,9 @@ def run(
             # When market is closed: falls back to price_daily close prices
             # This allows exits to run all day, not just during market hours
             engine = ExitEngine(config)
-            engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = engine.check_and_execute_exits(run_date)
+            engine_exits, engine_stop_raises, engine_errors, engine_forced_closes_no_price = (
+                engine.check_and_execute_exits(run_date)
+            )
             exit_count += engine_exits
             # CRITICAL FIX: engine_exits used to also include the engine's own internal
             # stop-raise-only outcomes (fraction=0, no shares sold), which got summed into
@@ -1292,7 +1346,12 @@ def run(
                     cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open' AND quantity > 0")
                     open_count = cur.fetchone()[0]
                     config_max = config.get("max_positions")
-                    if config_max and open_count >= int(config_max) and engine_exits == 0 and (engine_stop_raises > 0 or stop_raises > 0):
+                    if (
+                        config_max
+                        and open_count >= int(config_max)
+                        and engine_exits == 0
+                        and (engine_stop_raises > 0 or stop_raises > 0)
+                    ):
                         logger.warning(
                             f"[PHASE 6 PORTFOLIO_ROTATION] Portfolio full ({open_count}/{int(config_max)}) but exit engine only raised stops (0 exits). "
                             f"Forcing rotation by closing oldest position..."
@@ -1317,8 +1376,12 @@ def run(
                                     "UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP, "
                                     "exit_reason = %s, profit_loss_dollars = %s, unrealized_pnl = NULL, "
                                     "current_price = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                                    ("portfolio_rotation_safety_check", pnl_dollars,
-                                     float(current_price) if current_price is not None else None, pos_id)
+                                    (
+                                        "portfolio_rotation_safety_check",
+                                        pnl_dollars,
+                                        float(current_price) if current_price is not None else None,
+                                        pos_id,
+                                    ),
                                 )
                                 # Also update algo_trades for audit trail (if they exist)
                                 cur_w.execute(
@@ -1329,8 +1392,8 @@ def run(
                                         float(current_price) if current_price is not None else None,
                                         pnl_dollars,
                                         "portfolio_rotation_safety_check",
-                                        pos_uuid
-                                    )
+                                        pos_uuid,
+                                    ),
                                 )
                                 exit_count += 1
                                 logger.warning(
@@ -1384,7 +1447,12 @@ def run(
                     "EXIT_CHECK_FAILURES",
                     f"{errors} position(s) failed exit/stop evaluation this run - "
                     f"see algo_exit_check_errors for detail",
-                    {"errors": errors, "exits": exit_count, "stop_raises": stop_raises, "forced_closes_no_price": engine_forced_closes_no_price},
+                    {
+                        "errors": errors,
+                        "exits": exit_count,
+                        "stop_raises": stop_raises,
+                        "forced_closes_no_price": engine_forced_closes_no_price,
+                    },
                 )
 
         log_phase_result_fn(

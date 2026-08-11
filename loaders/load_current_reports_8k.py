@@ -154,7 +154,8 @@ class CurrentReports8KLoader(SecLoaderBase):
                 return self._unavailable_record(symbol, now_et, "no_submissions")
 
             # Extract columnar data from SEC API
-            recent = submissions.get("filings", {}).get("recent", {})
+            filings = submissions.get("filings")
+            recent = filings.get("recent") if isinstance(filings, dict) else None
             if not isinstance(recent, dict) or "form" not in recent:
                 return self._unavailable_record(symbol, now_et, "invalid_submissions_format")
 
@@ -188,9 +189,7 @@ class CurrentReports8KLoader(SecLoaderBase):
                     # filing (confirmed live against SEC EDGAR), which silently broke
                     # item extraction for the entire life of this loader. Must pass
                     # the raw dashed value the SEC submissions API actually returned.
-                    filing_text = self.sec_client.get_filing_plaintext(
-                        cik, accession_number_raw
-                    )
+                    filing_text = self.sec_client.get_filing_plaintext(cik, accession_number_raw)
                     items = self._extract_8k_items(filing_text)
 
                     # Extract summary from first 500 chars of filing
@@ -239,9 +238,7 @@ class CurrentReports8KLoader(SecLoaderBase):
         except Exception as e:
             logger.error(f"[{symbol}] 8-K fetch error: {type(e).__name__}: {e}")
             now_et = datetime.now(EASTERN_TZ).date()
-            return self._unavailable_record(
-                symbol, now_et, f"fetch_error:{type(e).__name__}"
-            )
+            return self._unavailable_record(symbol, now_et, f"fetch_error:{type(e).__name__}")
 
     def _parse_date(self, date_str: str) -> date:
         """Parse SEC date string (YYYY-MM-DD format). Fail-fast on parse errors."""
@@ -275,9 +272,7 @@ class CurrentReports8KLoader(SecLoaderBase):
             ) from e
         except Exception as e:
             # Unexpected errors - also fail-fast to alert operators
-            raise RuntimeError(
-                f"[8K] Unexpected error fetching CIK for {symbol}: {type(e).__name__}: {e}"
-            ) from e
+            raise RuntimeError(f"[8K] Unexpected error fetching CIK for {symbol}: {type(e).__name__}: {e}") from e
 
     def _unavailable_record(self, symbol: str, measurement_date: date, reason: str) -> list[dict[str, Any]]:
         """Return a data_unavailable marker for this symbol."""

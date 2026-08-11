@@ -139,9 +139,7 @@ class TestPhase2AccountBlockCheck:
                 log_phase_result_fn=MagicMock(),
             )
 
-        assert result.halted is True, (
-            "execution_mode=auto must halt if account status can't be verified before trading"
-        )
+        assert result.halted is True, "execution_mode=auto must halt if account status can't be verified before trading"
 
     def test_paper_mode_never_calls_broker_at_all(self):
         """Sanity check: the account check must be a complete no-op outside execution_mode=auto -

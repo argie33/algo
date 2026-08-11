@@ -109,7 +109,9 @@ def main() -> int:
     try:
         return run_loader(AnalystUpgradeDowngradeLoader)
     except Exception as e:
-        logger.error(f"[ANALYST_UPGRADE_DOWNGRADE FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
+        logger.error(
+            f"[ANALYST_UPGRADE_DOWNGRADE FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True
+        )
         return 1
 
 

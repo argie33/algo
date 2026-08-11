@@ -34,7 +34,6 @@ if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
     # monkeypatch.setenv() which automatically clears after the test.
 
 
-
 def _create_mock_cursor():
     from datetime import date
 
@@ -74,7 +73,12 @@ def _create_mock_cursor():
         # Fundamental data checks (union query returns tbl_name, latest, total, unique_syms)
         if "UNION ALL" in query and "quarterly_income_statement" in query:
             return [
-                {"tbl_name": "quarterly_income_statement", "latest": date(2026, 7, 10), "total": 1500, "unique_syms": 480},
+                {
+                    "tbl_name": "quarterly_income_statement",
+                    "latest": date(2026, 7, 10),
+                    "total": 1500,
+                    "unique_syms": 480,
+                },
                 {"tbl_name": "quarterly_balance_sheet", "latest": date(2026, 7, 10), "total": 1500, "unique_syms": 480},
                 {"tbl_name": "quarterly_cash_flow", "latest": date(2026, 7, 10), "total": 1500, "unique_syms": 480},
                 {"tbl_name": "annual_income_statement", "latest": date(2026, 7, 10), "total": 480, "unique_syms": 480},
@@ -90,7 +94,13 @@ def _create_mock_cursor():
         # Sentiment aggregate columns check & other information_schema.columns queries
         if "information_schema.columns" in query:
             if "sentiment_aggregate" in query:
-                return [{"column_name": "date"}, {"column_name": "aggregate_sentiment"}, {"column_name": "aaii_bullish"}, {"column_name": "naaim_bullish"}, {"column_name": "updated_at"}]
+                return [
+                    {"column_name": "date"},
+                    {"column_name": "aggregate_sentiment"},
+                    {"column_name": "aaii_bullish"},
+                    {"column_name": "naaim_bullish"},
+                    {"column_name": "updated_at"},
+                ]
             else:
                 return [{"column_name": "symbol"}, {"column_name": "entry_date"}, {"column_name": "entry_price"}]
 
@@ -145,6 +155,7 @@ def _create_mock_cursor():
         if "ORDER BY" in query and "DESC" in query and "LIMIT 1" in query:
             # Extract column name from "SELECT {column}::DATE" pattern
             import re
+
             match = re.search(r"SELECT\s+(\w+)(?:::|\s|,|FROM|$)", query, re.IGNORECASE)
             if match:
                 col_name = match.group(1)

@@ -50,9 +50,11 @@ def _run_with_fetch_results(fetch_results: dict, symbols: list[str]):
         status_managers[table_name] = mgr
         return mgr
 
-    with patch.object(loader, "fetch_incremental", side_effect=fake_fetch_incremental), \
-         patch("loaders.load_enhanced_quality_growth_metrics.DatabaseContext", side_effect=fake_db_context), \
-         patch("loaders.load_enhanced_quality_growth_metrics.LoaderStatusManager", side_effect=fake_status_manager):
+    with (
+        patch.object(loader, "fetch_incremental", side_effect=fake_fetch_incremental),
+        patch("loaders.load_enhanced_quality_growth_metrics.DatabaseContext", side_effect=fake_db_context),
+        patch("loaders.load_enhanced_quality_growth_metrics.LoaderStatusManager", side_effect=fake_status_manager),
+    ):
         stats = loader.run(symbols, parallelism=1)
 
     return stats, write_cur, status_managers

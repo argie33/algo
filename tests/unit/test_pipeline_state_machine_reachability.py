@@ -38,7 +38,7 @@ _NEXT_RE = re.compile(r'Next\s*=\s*"([A-Za-z0-9]+)"')
 _STARTAT_RE = re.compile(r'StartAt\s*=\s*"([A-Za-z0-9]+)"')
 
 
-_TOP_LEVEL_STATES_RE = re.compile(r'^\s{4}States\s*=\s*\{', re.MULTILINE)
+_TOP_LEVEL_STATES_RE = re.compile(r"^\s{4}States\s*=\s*\{", re.MULTILINE)
 
 
 def _matching_brace(content: str, open_brace_idx: int) -> int:
@@ -122,11 +122,8 @@ class TestPipelineStateMachineReachability:
         PositioningMetrics, bypassing InsiderTransactionVelocity - only its OWN failure
         handler pointed at it, so it only ran when InsiderHoldingsSec itself failed."""
         content = PIPELINE_TF.read_text()
-        match = re.search(
-            r"InsiderHoldingsSec\s*=\s*\{.*?\n\s{6}\}", content, re.DOTALL
-        )
+        match = re.search(r"InsiderHoldingsSec\s*=\s*\{.*?\n\s{6}\}", content, re.DOTALL)
         assert match, "could not locate the InsiderHoldingsSec state block"
         assert 'Next = "InsiderTransactionVelocity"' in match.group(0), (
-            "InsiderHoldingsSec's success path must chain to InsiderTransactionVelocity, "
-            "not skip past it"
+            "InsiderHoldingsSec's success path must chain to InsiderTransactionVelocity, not skip past it"
         )

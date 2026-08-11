@@ -30,7 +30,9 @@ from algo.trading.exceptions import ExchangeAPIError
 logger = logging.getLogger(__name__)
 
 
-def fetch_live_quote(symbol: str, execution_mode: str, log_prefix: str = "QUOTE_FETCHER") -> float | dict[str, str | bool]:
+def fetch_live_quote(
+    symbol: str, execution_mode: str, log_prefix: str = "QUOTE_FETCHER"
+) -> float | dict[str, str | bool]:
     """Fetch real-time quote from Alpaca Data API.
 
     Returns:
@@ -102,8 +104,7 @@ def fetch_live_quote(symbol: str, execution_mode: str, log_prefix: str = "QUOTE_
             quotes = data["quotes"]
             if symbol not in quotes:
                 raise RuntimeError(
-                    f"Alpaca quote API returned 200 but no data for {symbol}. "
-                    f"Available symbols: {list(quotes.keys())}"
+                    f"Alpaca quote API returned 200 but no data for {symbol}. Available symbols: {list(quotes.keys())}"
                 )
 
             quote = quotes[symbol]

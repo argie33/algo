@@ -83,9 +83,7 @@ def test_paper_pending_trade_creates_position_with_open_status_not_paper_open():
         order_send_time=None,
     )
 
-    position_insert_calls = [
-        c for c in cur.execute.call_args_list if "INSERT INTO algo_positions" in str(c.args[0])
-    ]
+    position_insert_calls = [c for c in cur.execute.call_args_list if "INSERT INTO algo_positions" in str(c.args[0])]
     assert position_insert_calls, "expected a position to be created for a paper_pending trade"
     params = position_insert_calls[0].args[1]
     # position_status is the 8th positional value in the INSERT's VALUES tuple

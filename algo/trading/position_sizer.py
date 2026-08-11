@@ -840,7 +840,9 @@ class PositionSizer:
                 try:
                     portfolio_value = Decimal(str(portfolio_value))
                 except (ValueError, TypeError, InvalidOperation) as e:
-                    raise ValueError(f"Invalid portfolio_value: cannot convert {portfolio_value!r} to Decimal: {e}") from e
+                    raise ValueError(
+                        f"Invalid portfolio_value: cannot convert {portfolio_value!r} to Decimal: {e}"
+                    ) from e
         else:
             portfolio_value = self.get_portfolio_value()
         entry_dec = Decimal(str(entry_price))
@@ -1079,7 +1081,9 @@ class PositionSizer:
             # Scale down the position instead of rejecting it
             # Calculate maximum allowed position value at effective limit
             max_position_value_at_limit = pv_dec * (effective_limit / Decimal(100))
-            scaled_shares = int((max_position_value_at_limit / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
+            scaled_shares = int(
+                (max_position_value_at_limit / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN)
+            )
 
             if scaled_shares < 1:
                 # Can't scale down further - truly no room
@@ -1158,11 +1162,7 @@ class PositionSizer:
 
                     # Calculate aggregate risk after this position would be added
                     total_risk_after_entry = current_risk_dollars + risk_dollars
-                    total_risk_pct = (
-                        (total_risk_after_entry / pv_dec) * Decimal(100)
-                        if pv_dec > 0
-                        else Decimal(0)
-                    )
+                    total_risk_pct = (total_risk_after_entry / pv_dec) * Decimal(100) if pv_dec > 0 else Decimal(0)
 
                     # Hard limit: read from config (was hardcoded to 4% but config sets 8%)
                     # CRITICAL FIX 2026-08-06: Use config value to stay in sync with Phase 8 and circuit breaker
@@ -1170,9 +1170,7 @@ class PositionSizer:
 
                     if total_risk_pct > max_risk_pct:
                         # Risk limit would be exceeded - scale down position or block
-                        available_capacity_dollars = (
-                            max_risk_pct / Decimal(100) * pv_dec
-                        ) - current_risk_dollars
+                        available_capacity_dollars = (max_risk_pct / Decimal(100) * pv_dec) - current_risk_dollars
 
                         if available_capacity_dollars <= 0:
                             # No room left - block entry entirely

@@ -50,7 +50,9 @@ def test_smtp_secret_missing_field_raises():
     mgr = CredentialManager()
     mgr._is_aws = True
 
-    mock_response = {"SecretString": json.dumps({"host": "smtp.example.com", "port": "587"})}  # missing username/password
+    mock_response = {
+        "SecretString": json.dumps({"host": "smtp.example.com", "port": "587"})
+    }  # missing username/password
 
     with patch.dict(
         os.environ,

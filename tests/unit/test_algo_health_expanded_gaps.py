@@ -46,15 +46,13 @@ DUMMY_HLTH = {
         "phase_7_signal_generation": {},
         "phase_8_entry_execution": {},
         "phase_9_portfolio_snapshot": {},
-    }
+    },
 }
 DUMMY_NOTIFS = [{"severity": "info", "title": "placeholder", "created_at": "2026-07-27T00:00:00+00:00", "seen": True}]
 
 
 def test_risk_metrics_rendered_in_expanded_panel():
-    panel = panel_algo_health_expanded(
-        RUN, None, DUMMY_HLTH, DUMMY_NOTIFS, algo_metrics=[], exec_hist=[], risk=RISK
-    )
+    panel = panel_algo_health_expanded(RUN, None, DUMMY_HLTH, DUMMY_NOTIFS, algo_metrics=[], exec_hist=[], risk=RISK)
     text = render_panel_to_text(panel)
 
     assert "VaR 95%" in text
@@ -65,9 +63,7 @@ def test_risk_metrics_rendered_in_expanded_panel():
 def test_risk_metrics_error_marker_shown_when_risk_missing():
     """Matches the compact panel's established behavior (session_dashboard_health_panel_gaps):
     missing risk data surfaces an explicit error marker, not silent omission."""
-    panel = panel_algo_health_expanded(
-        RUN, None, DUMMY_HLTH, DUMMY_NOTIFS, algo_metrics=[], exec_hist=[], risk=None
-    )
+    panel = panel_algo_health_expanded(RUN, None, DUMMY_HLTH, DUMMY_NOTIFS, algo_metrics=[], exec_hist=[], risk=None)
     text = render_panel_to_text(panel)
 
     assert "Risk data unavailable" in text

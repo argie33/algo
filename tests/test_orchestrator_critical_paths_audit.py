@@ -22,7 +22,7 @@ class TestPhase5HaltBehavior:
         from algo.orchestration.halt_flag_manager import HaltFlagManager
         from algo.orchestrator.phase5_exposure_policy import run as run_phase5
 
-        with patch.object(HaltFlagManager, 'check_halt_flag', return_value=True):
+        with patch.object(HaltFlagManager, "check_halt_flag", return_value=True):
             result = run_phase5(
                 config={},
                 run_date=date.today(),

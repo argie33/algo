@@ -148,8 +148,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 # on every later run, permanently hiding a since-fixed upstream bug behind an
                 # empty-but-successful result instead of ever retrying those dates.
                 cur.execute(
-                    "SELECT symbol, MAX(date) FROM signal_quality_scores "
-                    "WHERE data_unavailable = false GROUP BY symbol"
+                    "SELECT symbol, MAX(date) FROM signal_quality_scores WHERE data_unavailable = false GROUP BY symbol"
                 )
                 watermarks = {row[0]: row[1] for row in cur.fetchall()}
 
@@ -167,7 +166,6 @@ class SignalQualityScoresLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
-
 
         # ISSUE #27 FIX: Fail if buy_sell_daily is blocked
         if self._batch_context and self._batch_context.get("_blocked"):

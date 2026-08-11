@@ -70,9 +70,7 @@ class TestSyncPreservesTradeIdsArrOnEmptyArrayAgg:
         with patch("algo.orchestration.position_sync.DatabaseContext", return_value=mock_db_context):
             sync_positions_from_trades()
 
-        update_calls = [
-            c for c in cur.execute.call_args_list if "UPDATE algo_positions SET quantity" in c.args[0]
-        ]
+        update_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_positions SET quantity" in c.args[0]]
         assert update_calls, "expected the existing-position UPDATE to run"
         # Params: (total_qty, 'open', stop_loss_price, 'closed', stop_loss_price,
         # trade_ids_text, trade_ids_arr, existing_id) - trade_ids_arr is index 6, shifted from 5
@@ -80,6 +78,5 @@ class TestSyncPreservesTradeIdsArrOnEmptyArrayAgg:
         # added one more positional parameter ('closed', the CASE comparison value).
         written_trade_ids_arr = update_calls[0].args[1][6]  # positional param: trade_ids_arr
         assert written_trade_ids_arr == ["old-trade-id"], (
-            "existing trade_ids_arr must be preserved when ARRAY_AGG returns nothing, "
-            f"got {written_trade_ids_arr!r}"
+            f"existing trade_ids_arr must be preserved when ARRAY_AGG returns nothing, got {written_trade_ids_arr!r}"
         )

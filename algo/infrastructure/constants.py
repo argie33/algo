@@ -188,7 +188,9 @@ PERCENT_MULTIPLIER = 100
 PHASE1_SYMBOL_COVERAGE_MIN_PCT = 75  # Minimum required symbol coverage for price_daily
 PHASE1_METRIC_COVERAGE_MIN_PCT = 70  # Minimum symbol coverage for enrichment metrics
 PHASE1_LOADER_COMPLETION_HIGH_PCT = 90  # Threshold for loader data integrity check (reported >= 90% but actual << 50%)
-PHASE1_LOADER_INTEGRITY_ACTUAL_COVERAGE_MIN_PCT = 50  # If loader reports HIGH_PCT but actual < this, it's data corruption
+PHASE1_LOADER_INTEGRITY_ACTUAL_COVERAGE_MIN_PCT = (
+    50  # If loader reports HIGH_PCT but actual < this, it's data corruption
+)
 PHASE1_DB_QUERY_TIMEOUT_MS = 15000  # 15s timeout for multi-table freshness checks
 
 # Phase 8: Entry Execution - Stop Loss Calculation

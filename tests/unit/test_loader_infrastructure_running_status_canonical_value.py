@@ -37,7 +37,8 @@ class TestRunningStatusCanonicalValue:
             infra.update_loader_status("RUNNING")
 
         update_call = next(
-            call for call in cur.execute.call_args_list
+            call
+            for call in cur.execute.call_args_list
             if len(call.args) > 1 and "UPDATE data_loader_status SET status" in call.args[0]
         )
         assert update_call.args[1] == ("RUNNING", "market_health_daily")
@@ -54,7 +55,8 @@ class TestRunningStatusCanonicalValue:
             infra.update_loader_status("RUNNING")
 
         insert_call = next(
-            call for call in cur.execute.call_args_list
+            call
+            for call in cur.execute.call_args_list
             if len(call.args) > 1 and "INSERT INTO data_loader_status" in call.args[0]
         )
         assert insert_call.args[1] == ("market_health_daily", "RUNNING")

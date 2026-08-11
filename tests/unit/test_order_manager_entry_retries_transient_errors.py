@@ -71,9 +71,7 @@ class TestEntryRetriesTransientErrors:
         rate_limited = MagicMock(status_code=429, text="rate limited")
 
         with (
-            patch(
-                "algo.trading.order_manager.requests.post", return_value=rate_limited
-            ) as mock_post,
+            patch("algo.trading.order_manager.requests.post", return_value=rate_limited) as mock_post,
             patch("algo.trading.order_manager.time.sleep"),
         ):
             manager.send_bracket_order("MSFT", 10, 50.0, stop_loss_price=48.0)
@@ -87,9 +85,7 @@ class TestEntryRetriesTransientErrors:
         lookup_resp = MagicMock(status_code=404)
 
         with (
-            patch(
-                "algo.trading.order_manager.requests.post", return_value=unprocessable
-            ) as mock_post,
+            patch("algo.trading.order_manager.requests.post", return_value=unprocessable) as mock_post,
             patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
         ):
             result = manager.send_bracket_order("MSFT", 10, 50.0, stop_loss_price=48.0)
@@ -116,9 +112,7 @@ class TestEntryRetriesTransientErrors:
         manager = _make_manager()
 
         with (
-            patch(
-                "algo.trading.order_manager.requests.post", return_value=_filled_response()
-            ) as mock_post,
+            patch("algo.trading.order_manager.requests.post", return_value=_filled_response()) as mock_post,
             patch("algo.trading.order_manager.time.sleep") as mock_sleep,
         ):
             result = manager.send_bracket_order("MSFT", 10, 50.0, stop_loss_price=48.0)

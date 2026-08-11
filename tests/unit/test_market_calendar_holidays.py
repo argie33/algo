@@ -50,7 +50,9 @@ def test_good_friday_matches_computed_easter() -> None:
 
 def test_good_friday_is_not_a_trading_day() -> None:
     for holiday_date in (d for d, name in US_HOLIDAYS.items() if "Good Friday" in name):
-        assert not MarketCalendar.is_trading_day(holiday_date), f"{holiday_date} (Good Friday) must not be a trading day"
+        assert not MarketCalendar.is_trading_day(holiday_date), (
+            f"{holiday_date} (Good Friday) must not be a trading day"
+        )
 
 
 def test_previously_wrong_good_friday_dates_are_real_trading_days() -> None:

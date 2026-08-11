@@ -200,7 +200,9 @@ class TestLoaderHealthMarketHoursFlatWindow:
             )
 
         stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
-        assert not stale_warnings, f"Friday's close must not be flagged stale during Monday market hours: {stale_warnings}"
+        assert not stale_warnings, (
+            f"Friday's close must not be flagged stale during Monday market hours: {stale_warnings}"
+        )
 
     def test_yesterdays_close_not_stale_normal_tuesday_market_hours(self):
         """The broader bug: even a completely normal (non-weekend) trading morning breaches
@@ -216,7 +218,9 @@ class TestLoaderHealthMarketHoursFlatWindow:
             )
 
         stale_warnings = [c for c in mock_warn.call_args_list if "is STALE" in str(c)]
-        assert not stale_warnings, f"yesterday's close must not be flagged stale on a normal trading morning: {stale_warnings}"
+        assert not stale_warnings, (
+            f"yesterday's close must not be flagged stale on a normal trading morning: {stale_warnings}"
+        )
 
     def test_genuinely_stale_data_still_flagged_during_market_hours(self):
         """Sanity check: the fix must not silently disable the check during market hours."""

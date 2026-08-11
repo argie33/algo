@@ -40,8 +40,9 @@ class TestRunAllUsesEasternDateByDefault:
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
-        with patch("algo.trading.pretrade_checks.EarningsBlackout", return_value=mock_earnings), patch(
-            "algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context
+        with (
+            patch("algo.trading.pretrade_checks.EarningsBlackout", return_value=mock_earnings),
+            patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context),
         ):
             checks.run_all(
                 symbol="AAPL",
@@ -74,8 +75,9 @@ class TestRunAllUsesEasternDateByDefault:
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
-        with patch("algo.trading.pretrade_checks.EarningsBlackout", return_value=mock_earnings), patch(
-            "algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context
+        with (
+            patch("algo.trading.pretrade_checks.EarningsBlackout", return_value=mock_earnings),
+            patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context),
         ):
             checks.run_all(
                 symbol="AAPL",
@@ -139,8 +141,10 @@ class TestReentryCooldownUsesRealSessionTimezone:
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
         # Mock get_db_timezone to return the session timezone directly without consuming a DB query
-        with patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context), \
-             patch("utils.db.timezone_utils.get_db_timezone", return_value=ZoneInfo(session_tz_name)):
+        with (
+            patch("algo.trading.pretrade_checks.DatabaseContext", return_value=mock_db_context),
+            patch("utils.db.timezone_utils.get_db_timezone", return_value=ZoneInfo(session_tz_name)),
+        ):
             return checks.run_all(
                 symbol="AAPL",
                 position_value=1000.0,

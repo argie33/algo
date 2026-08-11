@@ -147,8 +147,7 @@ class PreTradeChecks:
                 # prevent validation passing when algo_positions and algo_trades are out of sync.
                 open_statuses = TradeStatus.all_open()
                 cur.execute(
-                    "SELECT trade_id FROM algo_trades WHERE symbol = %s "
-                    "AND status = ANY(%s) LIMIT 1",
+                    "SELECT trade_id FROM algo_trades WHERE symbol = %s AND status = ANY(%s) LIMIT 1",
                     (symbol, list(open_statuses)),
                 )
                 if cur.fetchone():
@@ -221,6 +220,7 @@ class PreTradeChecks:
                     # the real session timezone dynamically instead of assuming UTC.
                     if closed_at.tzinfo is None:
                         from utils.db.timezone_utils import get_db_timezone
+
                         naive_tz = get_db_timezone()
                         closed_at = closed_at.replace(tzinfo=naive_tz)
 

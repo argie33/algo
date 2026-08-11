@@ -52,6 +52,7 @@ class OptimalLoader:
                         "Use 0 for incremental load, or positive value for backfill."
                     )
                 from loaders.config import get_loader_max_backfill_days
+
                 max_backfill = get_loader_max_backfill_days()
                 if self._backfill_days > max_backfill:
                     raise ValueError(
@@ -74,6 +75,7 @@ class OptimalLoader:
         self._infrastructure = LoaderInfrastructure(self.table_name)
         self._stats = LoaderStats()
         from utils.loaders.status_manager import LoaderStatusManager
+
         self._status_manager = LoaderStatusManager(self.table_name)
         # CRITICAL FIX: Derive loader_name from the class's source file, not self.__class__.__module__.
         # __module__ depends on *how* Python was invoked: every loader here is normally launched as
@@ -229,6 +231,7 @@ class OptimalLoader:
         if hasattr(self, "_override_max_fail_rate"):
             return self._override_max_fail_rate
         from loaders.config import get_loader_max_fail_rate
+
         return get_loader_max_fail_rate("default")
 
     @max_fail_rate.setter
@@ -457,6 +460,7 @@ class OptimalLoader:
         # get_lock_manager() returns: FileLockManager (LOCAL_MODE), DynamoDBLockManager, or RDS fallback.
         from utils.db.local_file_lock import FileLockManager, get_lock_manager
         from utils.db.rds_lock import RDSLockManager
+
         lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         if is_local_mode:
             logger.info(f"[{self.table_name}] LOCAL_MODE enabled - using file-based locks")
@@ -494,6 +498,7 @@ class OptimalLoader:
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
             # CRITICAL FIX: Use loader-specific SLA timeout (can be 90+ min for price_loader)
             from loaders.config import get_loader_sla_timeout
+
             sla_timeout = get_loader_sla_timeout(self.table_name)
             # Lock TTL should be at least as long as SLA timeout (add 10% margin for safety)
             lock_ttl = int(sla_timeout * 1.1)
@@ -503,11 +508,13 @@ class OptimalLoader:
                 # Previously, if a loader crashed without releasing its lock, subsequent
                 # loaders would be blocked for 2 hours (lock TTL). Now cleanup expired
                 # locks automatically so we can recover from stuck loader scenarios.
-                if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                if lock_manager and hasattr(lock_manager, "cleanup_expired_locks"):
                     try:
                         cleaned = lock_manager.cleanup_expired_locks(lock_key=self.table_name, max_age_seconds=1800)
                         if cleaned > 0:
-                            logger.warning(f"[{self.table_name}] Cleaned {cleaned} expired lock(s) from previous crashed loader")
+                            logger.warning(
+                                f"[{self.table_name}] Cleaned {cleaned} expired lock(s) from previous crashed loader"
+                            )
                     except Exception as cleanup_err:
                         logger.warning(f"[{self.table_name}] Failed to cleanup expired locks: {cleanup_err}")
             except RuntimeError as ddb_err:
@@ -524,7 +531,7 @@ class OptimalLoader:
                 raise LockAcquisitionError(
                     lock_key=lock_table,
                     reason=f"DynamoDB lock manager unavailable: {ddb_err}",
-                    context={"table_name": self.table_name}
+                    context={"table_name": self.table_name},
                 ) from ddb_err
 
             # LOCAL_MODE: Use shorter lock timeout to fail fast on stale locks
@@ -534,7 +541,7 @@ class OptimalLoader:
 
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=lock_timeout_seconds):
                 # Lock acquisition failed. Check if it's a permission issue or actual contention.
-                if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
+                if hasattr(lock_manager, "is_available") and not lock_manager.is_available:
                     # CRITICAL (Session 282): permission error on whichever backend get_lock_manager()
                     # returned - fail fast, never fall back to FileLockManager. Reason: FileLockManager
                     # has a Windows race condition (non-atomic file creation) - falling back to it
@@ -546,7 +553,7 @@ class OptimalLoader:
                     raise LockAcquisitionError(
                         lock_key=self.table_name,
                         reason="DynamoDB lock manager unavailable (permission/access error)",
-                        context={"table_name": self.table_name}
+                        context={"table_name": self.table_name},
                     )
                 else:
                     # Lock timeout - another instance running, RETRY with exponential backoff
@@ -576,20 +583,22 @@ class OptimalLoader:
                     # rather than waited out for 5-50 minutes. Reduce to 2 min max to encourage cleanup.
                     if is_file_lock:
                         # LOCAL_MODE file locks: short budget to encourage cleanup of stale locks
-                        max_retries = 4   # ~1 min total (exponential: 5+10+20+40 = 75s ≈ 1 min)
+                        max_retries = 4  # ~1 min total (exponential: 5+10+20+40 = 75s ≈ 1 min)
                         retry_timeout_label = "1 minute"
-                    elif self.table_name == 'signal_quality_scores':
+                    elif self.table_name == "signal_quality_scores":
                         max_retries = 35  # ~50 min total (exponential backoff: 5+10+20+40+80+90*30 = 2885s ≈ 48 min, safely covers observed 5-45+ min range)
                         retry_timeout_label = "50 minutes"
                     else:
-                        max_retries = 8   # ~5 min total
+                        max_retries = 8  # ~5 min total
                         retry_timeout_label = "5 minutes"
 
                     for retry_attempt in range(1, max_retries + 1):
                         base_wait = min(90, 2 ** (retry_attempt - 1) * 5)
                         jitter = random.uniform(0.9, 1.1)
                         wait_time = base_wait * jitter
-                        logger.info(f"[{self.table_name}] Retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s before next lock attempt")
+                        logger.info(
+                            f"[{self.table_name}] Retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s before next lock attempt"
+                        )
                         time.sleep(wait_time)
                         if lock_manager.acquire(lock_key=self.table_name, timeout_seconds=lock_timeout_seconds):
                             logger.info(f"[{self.table_name}] Lock acquired on retry {retry_attempt}")
@@ -607,7 +616,11 @@ class OptimalLoader:
                         raise LockAcquisitionError(
                             lock_key=self.table_name,
                             reason="Lock acquisition timeout after retries",
-                            context={"table_name": self.table_name, "max_retries": max_retries, "total_wait_minutes": 50 if self.table_name == 'signal_quality_scores' else 5}
+                            context={
+                                "table_name": self.table_name,
+                                "max_retries": max_retries,
+                                "total_wait_minutes": 50 if self.table_name == "signal_quality_scores" else 5,
+                            },
                         )
         except LockAcquisitionError:
             # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
@@ -670,6 +683,7 @@ class OptimalLoader:
             # CRITICAL FIX: Use loader-specific SLA timeout instead of hardcoded 2h
             # price_daily needs 90+ min (5000+ symbols), signal_quality_scores needs 60+ min
             from loaders.config import get_loader_sla_timeout
+
             sla_timeout_seconds = get_loader_sla_timeout(self.table_name)
 
             try:
@@ -761,6 +775,7 @@ class OptimalLoader:
         # get_lock_manager() returns: FileLockManager (LOCAL_MODE), DynamoDBLockManager, or RDS fallback.
         from utils.db.local_file_lock import FileLockManager, get_lock_manager
         from utils.db.rds_lock import RDSLockManager
+
         lock_manager: FileLockManager | DynamoDBLockManager | RDSLockManager | None = None
         from algo.exceptions import LockAcquisitionError
 
@@ -794,6 +809,7 @@ class OptimalLoader:
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
             # CRITICAL FIX: Use loader-specific SLA timeout (can be 90+ min for price_loader)
             from loaders.config import get_loader_sla_timeout
+
             sla_timeout = get_loader_sla_timeout(self.table_name)
             # Lock TTL should be at least as long as SLA timeout (add 10% margin for safety)
             lock_ttl = int(sla_timeout * 1.1)
@@ -801,11 +817,13 @@ class OptimalLoader:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
                 # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
                 # Same as in run() method - prevents stale locks from blocking subsequent loaders
-                if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                if lock_manager and hasattr(lock_manager, "cleanup_expired_locks"):
                     try:
                         cleaned = lock_manager.cleanup_expired_locks(lock_key=self.table_name, max_age_seconds=1800)
                         if cleaned > 0:
-                            logger.warning(f"[{self.table_name}] Cleaned {cleaned} expired lock(s) from previous crashed loader")
+                            logger.warning(
+                                f"[{self.table_name}] Cleaned {cleaned} expired lock(s) from previous crashed loader"
+                            )
                     except Exception as cleanup_err:
                         logger.warning(f"[{self.table_name}] Failed to cleanup expired locks: {cleanup_err}")
             except RuntimeError as ddb_err:
@@ -822,12 +840,12 @@ class OptimalLoader:
                 raise LockAcquisitionError(
                     lock_key=lock_table,
                     reason=f"DynamoDB lock manager unavailable: {ddb_err}",
-                    context={"table_name": self.table_name}
+                    context={"table_name": self.table_name},
                 ) from ddb_err
 
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 # Lock acquisition failed. Check if it's a permission issue or actual contention.
-                if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
+                if hasattr(lock_manager, "is_available") and not lock_manager.is_available:
                     # CRITICAL (Session 282): permission error on whichever backend get_lock_manager()
                     # returned - fail fast, never fall back to FileLockManager. Reason: FileLockManager
                     # has a Windows race condition (non-atomic file creation) - falling back to it
@@ -839,28 +857,35 @@ class OptimalLoader:
                     raise LockAcquisitionError(
                         lock_key=self.table_name,
                         reason="DynamoDB lock manager unavailable (permission/access error)",
-                        context={"table_name": self.table_name}
+                        context={"table_name": self.table_name},
                     )
                 else:
                     # Lock timeout - another instance running, RETRY with exponential backoff
                     # CRITICAL FIX (Session 351): Same retry logic as run() method
                     # WIDENED (2026-07-27): same reasoning as run()'s retry block above - keep the
                     # two budgets in sync so global-load callers get the same ~3.5 min tolerance.
-                    logger.warning(f"[{self.table_name}] Another instance already running (global load), retrying with backoff...")
+                    logger.warning(
+                        f"[{self.table_name}] Another instance already running (global load), retrying with backoff..."
+                    )
                     import random
+
                     max_retries = 6
                     for retry_attempt in range(1, max_retries + 1):
                         base_wait = min(60, 2 ** (retry_attempt - 1) * 5)
                         jitter = random.uniform(0.9, 1.1)
                         wait_time = base_wait * jitter
-                        logger.info(f"[{self.table_name}] Global load retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s")
+                        logger.info(
+                            f"[{self.table_name}] Global load retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s"
+                        )
                         time.sleep(wait_time)
                         if lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                             logger.info(f"[{self.table_name}] Lock acquired on retry {retry_attempt}")
                             break
                     else:
                         # Final failure after retries
-                        logger.error(f"[{self.table_name}] Failed to acquire lock (global load) after {max_retries} retries. Skipping.")
+                        logger.error(
+                            f"[{self.table_name}] Failed to acquire lock (global load) after {max_retries} retries. Skipping."
+                        )
                         return 0
         except LockAcquisitionError:
             # Already a well-formed LockAcquisitionError (raised above) - propagate as-is.
@@ -998,6 +1023,7 @@ class OptimalLoader:
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
         # CRITICAL FIX: Use loader-specific SLA timeout
         from loaders.config import get_loader_sla_timeout
+
         max_batch_time = get_loader_sla_timeout(self.table_name)
         batch_start = time.time()
 
@@ -1064,6 +1090,7 @@ class OptimalLoader:
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
         # CRITICAL FIX: Use loader-specific SLA timeout instead of hardcoded value
         from loaders.config import get_loader_sla_timeout
+
         max_batch_time = get_loader_sla_timeout(self.table_name)
         batch_start = time.time()
 

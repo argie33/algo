@@ -36,8 +36,7 @@ class TestNetIncomeCoverageFix:
         assert len(statements) > 0, "GLD should have annual income statements"
 
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert any(v is not None for v in net_incomes), \
-            "GLD should have net_income_loss in at least one statement"
+        assert any(v is not None for v in net_incomes), "GLD should have net_income_loss in at least one statement"
 
     def test_ee_ishares_etf_has_net_income(self, client):
         """EE (iShares ETF) - quarterly-only reporter, now accepts quarterly data."""
@@ -47,8 +46,7 @@ class TestNetIncomeCoverageFix:
         # At least some statements should have net_income (mixing Q1 quarterly data
         # and proxy statement annual data)
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert any(v is not None for v in net_incomes), \
-            "EE should have net_income in at least some statements"
+        assert any(v is not None for v in net_incomes), "EE should have net_income in at least some statements"
 
     def test_onon_on_holding_ifrs_filer_has_net_income(self, client):
         """ONON (On Holding) - IFRS-only filer, uses fallback net income concepts."""
@@ -58,8 +56,9 @@ class TestNetIncomeCoverageFix:
         # ONON reports ProfitLossAttributableToOwnersOfParent in IFRS, which is now
         # mapped to net_income_loss via fallback aliases
         latest = statements[-1]
-        assert latest.get("net_income_loss") is not None, \
+        assert latest.get("net_income_loss") is not None, (
             "ONON should have net_income_loss (from IFRS ProfitLossAttributableToOwnersOfParent)"
+        )
 
     def test_athe_athena_ifrs_filer_has_net_income(self, client):
         """ATHE (Athena) - IFRS-only filer, uses ComprehensiveIncome fallback."""
@@ -69,8 +68,7 @@ class TestNetIncomeCoverageFix:
         # ATHE reports ComprehensiveIncome in IFRS, which is now mapped to
         # net_income_loss via fallback aliases
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert any(v is not None for v in net_incomes), \
-            "ATHE should have net_income in at least some statements"
+        assert any(v is not None for v in net_incomes), "ATHE should have net_income in at least some statements"
 
     def test_rani_aytu_has_net_income(self, client):
         """RANI (Aytu BioPharma) - us-gaap filer, should still work."""
@@ -78,8 +76,7 @@ class TestNetIncomeCoverageFix:
         assert len(statements) > 0, "RANI should have annual income statements"
 
         latest = statements[-1]
-        assert latest.get("net_income_loss") is not None, \
-            "RANI should have net_income_loss"
+        assert latest.get("net_income_loss") is not None, "RANI should have net_income_loss"
 
     def test_sngx_has_net_income(self, client):
         """SNGX - us-gaap filer with quarterly data, now accepts quarterly.
@@ -94,8 +91,7 @@ class TestNetIncomeCoverageFix:
         assert len(statements) > 0, "SNGX should have annual income statements"
 
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert any(v is not None for v in net_incomes), \
-            "SNGX should have net_income_loss in at least one statement"
+        assert any(v is not None for v in net_incomes), "SNGX should have net_income_loss in at least one statement"
 
     def test_aifc_has_net_income(self, client):
         """AIFC - us-gaap filer with mixed FY and quarterly data.
@@ -109,5 +105,4 @@ class TestNetIncomeCoverageFix:
         assert len(statements) > 0, "AIFC should have annual income statements"
 
         net_incomes = [s.get("net_income_loss") for s in statements]
-        assert any(v is not None for v in net_incomes), \
-            "AIFC should have net_income_loss in at least one statement"
+        assert any(v is not None for v in net_incomes), "AIFC should have net_income_loss in at least one statement"

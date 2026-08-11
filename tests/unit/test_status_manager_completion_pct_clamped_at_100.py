@@ -51,6 +51,4 @@ def test_mark_completed_clamps_completion_pct_when_loaded_exceeds_total():
         assert update_call is not None, "UPDATE query not found in execute calls"
         params = update_call[0][1]
         completion_pct_value = params[1]
-        assert completion_pct_value == 100.0, (
-            f"completion_pct must be clamped at 100.0, got {completion_pct_value}"
-        )
+        assert completion_pct_value == 100.0, f"completion_pct must be clamped at 100.0, got {completion_pct_value}"

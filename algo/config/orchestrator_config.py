@@ -102,23 +102,36 @@ class OrchestratorConfig:
 
         # Validate circuit breaker thresholds (must be reasonable percentages/levels)
         if not (0 < cls.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT <= 100):
-            errors.append(f"CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT must be 0-100%, got {cls.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT}")
+            errors.append(
+                f"CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT must be 0-100%, got {cls.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT}"
+            )
 
         if not (0 < cls.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT <= 100):
-            errors.append(f"CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT must be 0-100%, got {cls.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT}")
+            errors.append(
+                f"CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT must be 0-100%, got {cls.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT}"
+            )
 
         if cls.CIRCUIT_BREAKER_VIX_EXTREME <= 0 or cls.CIRCUIT_BREAKER_VIX_EXTREME > 200:
             errors.append(f"CIRCUIT_BREAKER_VIX_EXTREME must be 0-200, got {cls.CIRCUIT_BREAKER_VIX_EXTREME}")
 
         # Validate caution thresholds are lower than halt thresholds
         if cls.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT >= cls.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT:
-            errors.append(f"CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT ({cls.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT}) must be < HALT ({cls.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT})")
+            errors.append(
+                f"CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT ({cls.CIRCUIT_BREAKER_DRAWDOWN_CAUTION_PCT}) must be < HALT ({cls.CIRCUIT_BREAKER_DRAWDOWN_HALT_PCT})"
+            )
 
         if cls.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT >= cls.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT:
-            errors.append(f"CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT ({cls.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT}) must be < HALT ({cls.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT})")
+            errors.append(
+                f"CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT ({cls.CIRCUIT_BREAKER_DAILY_LOSS_CAUTION_PCT}) must be < HALT ({cls.CIRCUIT_BREAKER_DAILY_LOSS_HALT_PCT})"
+            )
 
-        if cls.CIRCUIT_BREAKER_VIX_ELEVATED >= cls.CIRCUIT_BREAKER_VIX_HIGH or cls.CIRCUIT_BREAKER_VIX_HIGH >= cls.CIRCUIT_BREAKER_VIX_EXTREME:
-            errors.append(f"VIX thresholds must be ordered: ELEVATED ({cls.CIRCUIT_BREAKER_VIX_ELEVATED}) < HIGH ({cls.CIRCUIT_BREAKER_VIX_HIGH}) < EXTREME ({cls.CIRCUIT_BREAKER_VIX_EXTREME})")
+        if (
+            cls.CIRCUIT_BREAKER_VIX_ELEVATED >= cls.CIRCUIT_BREAKER_VIX_HIGH
+            or cls.CIRCUIT_BREAKER_VIX_HIGH >= cls.CIRCUIT_BREAKER_VIX_EXTREME
+        ):
+            errors.append(
+                f"VIX thresholds must be ordered: ELEVATED ({cls.CIRCUIT_BREAKER_VIX_ELEVATED}) < HIGH ({cls.CIRCUIT_BREAKER_VIX_HIGH}) < EXTREME ({cls.CIRCUIT_BREAKER_VIX_EXTREME})"
+            )
 
         return len(errors) == 0, errors
 

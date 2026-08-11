@@ -55,9 +55,7 @@ def _run_sync_for_existing_position(existing_status):
     with patch("algo.orchestration.position_sync.DatabaseContext", return_value=mock_db_context):
         sync_positions_from_trades()
 
-    update_calls = [
-        c for c in cur.execute.call_args_list if "UPDATE algo_positions SET quantity" in c.args[0]
-    ]
+    update_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_positions SET quantity" in c.args[0]]
     assert update_calls, "expected the existing-position UPDATE to run"
     return update_calls[0]
 
@@ -88,9 +86,9 @@ class TestPositionSyncPreservesRaisedStop:
         bare `current_stop_price = %s` assignment anywhere."""
         from pathlib import Path
 
-        source = (
-            Path(__file__).resolve().parents[2] / "algo" / "orchestration" / "position_sync.py"
-        ).read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[2] / "algo" / "orchestration" / "position_sync.py").read_text(
+            encoding="utf-8"
+        )
         assert "current_stop_price = %s" not in source, (
             "found a bare `current_stop_price = %s` assignment - it must be CASE-guarded so "
             "an already-open position's stop-raise history is never reset by a routine sync"

@@ -71,6 +71,7 @@ class TestValueUnavailableStillWritesQualityAndGrowth:
             patch("utils.loaders.config.get_default_parallelism", return_value=1),
         ):
             mock_cur = MagicMock()
+
             # Mock fetchone to return appropriate values based on query pattern
             def mock_fetchone_fn():
                 last_sql = mock_cur.execute.call_args[0][0] if mock_cur.execute.called else ""

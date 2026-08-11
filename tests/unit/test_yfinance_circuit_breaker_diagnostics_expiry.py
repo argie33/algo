@@ -28,9 +28,7 @@ def test_get_diagnostics_clears_an_expired_ban_without_a_prior_is_banned_call():
     # triggers _clear_ban()); the second happens in get_diagnostics()'s own read afterward and
     # must see the now-cleared state - real _clear_ban() would make this true against a real DB,
     # this side_effect stands in for that write taking effect.
-    with patch.object(
-        YFinanceIPCircuitBreaker, "_get_ban_state", side_effect=[expired_state, cleared_state]
-    ):
+    with patch.object(YFinanceIPCircuitBreaker, "_get_ban_state", side_effect=[expired_state, cleared_state]):
         with patch.object(YFinanceIPCircuitBreaker, "_clear_ban") as mock_clear:
             diagnostics = cb.get_diagnostics()
 

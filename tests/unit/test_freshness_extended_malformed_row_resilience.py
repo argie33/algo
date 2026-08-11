@@ -84,15 +84,25 @@ def test_malformed_run_history_row_is_skipped_not_fatal():
 
 def test_malformed_loader_health_row_does_not_fail_whole_endpoint():
     good_row = {
-        "table_name": "price_daily", "status": "COMPLETED", "consecutive_failures": 0,
-        "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100,
+        "table_name": "price_daily",
+        "status": "COMPLETED",
+        "consecutive_failures": 0,
+        "retry_count": 0,
+        "last_success_at": None,
+        "execution_completed": None,
+        "completion_pct": 100,
     }
     # Malformed: consecutive_failures as a non-numeric type (defensive case - the real
     # historical trigger was never pinned down, but this exercises the same failure shape:
     # a comparison/arithmetic op on a field that's normally always an int).
     bad_row = {
-        "table_name": "corrupted_table", "status": "COMPLETED", "consecutive_failures": ["bad"],
-        "retry_count": 0, "last_success_at": None, "execution_completed": None, "completion_pct": 100,
+        "table_name": "corrupted_table",
+        "status": "COMPLETED",
+        "consecutive_failures": ["bad"],
+        "retry_count": 0,
+        "last_success_at": None,
+        "execution_completed": None,
+        "completion_pct": 100,
     }
 
     response = _run(loader_rows=[good_row, bad_row])

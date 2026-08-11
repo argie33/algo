@@ -212,7 +212,9 @@ class AdvancedFilters:
                 if not hard_fail:
                     hard_fail = f"Earnings data unavailable (cannot validate blackout): {str(e)[:60]}"
                 else:
-                    logger.warning(f"  {symbol}: Additional failure (earnings proximity) but already failed: {hard_fail}")
+                    logger.warning(
+                        f"  {symbol}: Additional failure (earnings proximity) but already failed: {hard_fail}"
+                    )
 
             components["days_to_earnings"] = days_to_earnings
             if days_to_earnings is not None and 0 <= days_to_earnings <= self.block_days_before_earnings:
@@ -320,7 +322,9 @@ class AdvancedFilters:
                 if not hard_fail:
                     hard_fail = f"Industry momentum score unavailable: {str(e)[:60]}"
                 else:
-                    logger.warning(f"  {symbol}: Additional failure (industry momentum) but already failed: {hard_fail}")
+                    logger.warning(
+                        f"  {symbol}: Additional failure (industry momentum) but already failed: {hard_fail}"
+                    )
 
             try:
                 vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date, cur)
@@ -330,7 +334,9 @@ class AdvancedFilters:
                 if not hard_fail:
                     hard_fail = f"Volume confirmation score unavailable: {str(e)[:60]}"
                 else:
-                    logger.warning(f"  {symbol}: Additional failure (volume confirmation) but already failed: {hard_fail}")
+                    logger.warning(
+                        f"  {symbol}: Additional failure (volume confirmation) but already failed: {hard_fail}"
+                    )
 
             try:
                 trend_pts = self._price_trend_score(symbol, signal_date, cur)
@@ -380,7 +386,9 @@ class AdvancedFilters:
                 if not hard_fail:
                     hard_fail = f"Financial quality unavailable: {str(e)[:60]}"
                 else:
-                    logger.warning(f"  {symbol}: Additional failure (financial quality) but already failed: {hard_fail}")
+                    logger.warning(
+                        f"  {symbol}: Additional failure (financial quality) but already failed: {hard_fail}"
+                    )
                 components["financial_quality"] = None
 
             try:

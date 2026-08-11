@@ -16,10 +16,7 @@ class TestClassifyExitRule:
         assert ExitHandler._classify_exit_rule("STOP hit: $95.00 <= $95.00") == "stop_loss"
 
     def test_trend_break(self):
-        assert (
-            ExitHandler._classify_exit_rule("Minervini trend break: closed below key MA on volume")
-            == "trend_break"
-        )
+        assert ExitHandler._classify_exit_rule("Minervini trend break: closed below key MA on volume") == "trend_break"
 
     def test_relative_strength_break(self):
         assert (
@@ -34,27 +31,18 @@ class TestClassifyExitRule:
         assert ExitHandler._classify_exit_rule("T1 exit: $150.00 >= $150.00 (1.5R)") == "profit_target_t1"
         assert ExitHandler._classify_exit_rule("T2 exit: $160.00 >= $160.00 (3R)") == "profit_target_t2"
         assert (
-            ExitHandler._classify_exit_rule("T3 target hit: $170.00 >= $170.00 (4R) - FINAL EXIT")
-            == "profit_target_t3"
+            ExitHandler._classify_exit_rule("T3 target hit: $170.00 >= $170.00 (4R) - FINAL EXIT") == "profit_target_t3"
         )
 
     def test_trailing_stop(self):
-        assert (
-            ExitHandler._classify_exit_rule("Chandelier/EMA trail tightens stop to $140.00") == "trailing_stop"
-        )
+        assert ExitHandler._classify_exit_rule("Chandelier/EMA trail tightens stop to $140.00") == "trailing_stop"
 
     def test_td_exhaustion_matches_both_combo_and_sequential(self):
-        assert (
-            ExitHandler._classify_exit_rule("TD Combo 13-count exhaustion (FULL EXIT, R=2.10)")
-            == "td_exhaustion"
-        )
+        assert ExitHandler._classify_exit_rule("TD Combo 13-count exhaustion (FULL EXIT, R=2.10)") == "td_exhaustion"
         assert ExitHandler._classify_exit_rule("TD Sequential 9-count exhaustion (R=1.80)") == "td_exhaustion"
 
     def test_first_red_day(self):
-        assert (
-            ExitHandler._classify_exit_rule("First Red Day: down 4.20% on heavy volume (R=1.50)")
-            == "first_red_day"
-        )
+        assert ExitHandler._classify_exit_rule("First Red Day: down 4.20% on heavy volume (R=1.50)") == "first_red_day"
 
     def test_climax_exhaustion(self):
         assert (

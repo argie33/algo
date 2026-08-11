@@ -61,12 +61,9 @@ def _is_stdio_textiowrapper_assign(node):
     ):
         return False
     value = node.value
-    return (
-        isinstance(value, ast.Call)
-        and (
-            (isinstance(value.func, ast.Name) and value.func.id == "TextIOWrapper")
-            or (isinstance(value.func, ast.Attribute) and value.func.attr == "TextIOWrapper")
-        )
+    return isinstance(value, ast.Call) and (
+        (isinstance(value.func, ast.Name) and value.func.id == "TextIOWrapper")
+        or (isinstance(value.func, ast.Attribute) and value.func.attr == "TextIOWrapper")
     )
 
 
@@ -165,7 +162,6 @@ def test_no_unguarded_module_level_stdio_textiowrapper_reassignment():
         "import time, unguarded. This corrupts pytest's own capture streams the "
         "first time anything imports the module (crashes capture teardown with "
         "'ValueError: I/O operation on closed file'). Fix by either adding "
-        '\'and "pytest" not in sys.modules\' to the guarding if-statement, or moving '
-        "the reassignment inside main()/a function:\n"
-        + "\n".join(f"  {p}:{line}" for p, line in all_bugs)
+        "'and \"pytest\" not in sys.modules' to the guarding if-statement, or moving "
+        "the reassignment inside main()/a function:\n" + "\n".join(f"  {p}:{line}" for p, line in all_bugs)
     )

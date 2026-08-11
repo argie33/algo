@@ -76,7 +76,9 @@ def test_success_path_mark_completed_uses_loaders_own_threshold(monkeypatch):
         f"got kwargs: {completed_calls['quality_metrics']} - without this it silently falls back to "
         f"mark_completed()'s own 98% default and would flip this legitimately-passing run to FAILED"
     )
-    assert "growth_metrics" in completed_calls, f"expected secondary table also marked, got: {_RecordingStatusManager.calls}"
+    assert "growth_metrics" in completed_calls, (
+        f"expected secondary table also marked, got: {_RecordingStatusManager.calls}"
+    )
     assert completed_calls["growth_metrics"].get("min_completion_pct") == 80.0, (
         f"secondary (output_tables) mark_completed() must also pass the loader's real threshold, "
         f"got kwargs: {completed_calls['growth_metrics']}"

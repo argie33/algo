@@ -71,7 +71,8 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
     # CRITICAL: Also check 3-day rolling median to catch slow degradation
     # A single bad day might be legitimate (holiday, market event), but 3-day drift indicates
     # upstream loader failure (technical_data_daily partial failure, etc.)
-    cur.execute("""
+    cur.execute(
+        """
         WITH recent_days AS (
             SELECT date, COUNT(*) as signal_count
             FROM buy_sell_daily
@@ -82,7 +83,9 @@ def _check_signal_degradation(cur: Any, min_signals_per_day_threshold: int = 150
         )
         SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY signal_count) as median_signals
         FROM recent_days
-    """, (latest_signal_date,))
+    """,
+        (latest_signal_date,),
+    )
 
     result = cur.fetchone()
     if result and result[0] is not None:
@@ -109,7 +112,12 @@ class SignalsDailyLoader(OptimalLoader):
     watermark_field = "date"
     exclude_etfs_from_symbols = True  # Trading signals for stocks only, not ETFs
 
-    def run(self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None) -> dict[str, Any]:  # type: ignore[override]
+    def run(
+        self,
+        symbols: list[str],  # type: ignore[override]
+        parallelism: int | None = None,
+        backfill_days: int | None = None,
+    ) -> dict[str, Any]:
         """Override run() to filter symbols to only those with stock_scores AND price_daily.
 
         CRITICAL FIX (Session 248): buy_sell_daily was generating signals for all active symbols (~10k),
@@ -248,7 +256,9 @@ class SignalsDailyLoader(OptimalLoader):
 
                 symbols_before_price_filter = len(symbols)
                 symbols = [s for s in symbols if s in price_symbols]
-                pct_retained_price = (len(symbols) / symbols_before_price_filter * 100) if symbols_before_price_filter > 0 else 0.0
+                pct_retained_price = (
+                    (len(symbols) / symbols_before_price_filter * 100) if symbols_before_price_filter > 0 else 0.0
+                )
                 logger.info(
                     f"[PRICE_FILTER] Filtered to symbols with price_daily data on {price_data_date}: "
                     f"{symbols_before_price_filter} → {len(symbols)} symbols "
@@ -281,7 +291,7 @@ class SignalsDailyLoader(OptimalLoader):
 
         # FAIL-FAST: Validate that signal generation actually produced results
         # In a finance app, silent success with zero data is a critical failure
-        rows_inserted = result.get("rows_inserted", 0)
+        rows_inserted = result.get("rows_inserted") or 0
         if rows_inserted == 0:
             # Check if this is due to upstream data being empty (legitimate) vs. a generation failure
             with DatabaseContext("read") as cur:
@@ -379,6 +389,7 @@ class SignalsDailyLoader(OptimalLoader):
 
                     # CRITICAL: Enforce max staleness - if price data is > 1 trading day old, FAIL
                     from algo.infrastructure import MarketCalendar
+
                     days_since_price = 0
                     check_date = end
                     while check_date > complete_date and check_date > date(2020, 1, 1):
@@ -541,7 +552,7 @@ class SignalsDailyLoader(OptimalLoader):
             # First run (no watermark) - load full lookback from 120 days ago
             start = lookback_start
             logger.info(
-                f"[BUY_SELL_DAILY] {symbol}: since=None (no watermark), loading full lookback " f"from {start} to {end}"
+                f"[BUY_SELL_DAILY] {symbol}: since=None (no watermark), loading full lookback from {start} to {end}"
             )
         elif since >= end:
             # Watermark is at or after end_date (shouldn't happen after load_symbol reset, but guard it)
@@ -1147,7 +1158,7 @@ def main() -> int:  # noqa: C901
     loader = SignalsDailyLoader()
     try:
         result = loader.run(symbols, parallelism=args.parallelism)
-        rows_inserted = result.get("rows_inserted", 0)
+        rows_inserted = result.get("rows_inserted") or 0
         logger.info(f"[LOADER] Daily signals load completed: {rows_inserted} rows inserted. Exit code 0 (SUCCESS).")
 
         # CLARIFICATION (Session 438): Technical data enrichment is TRULY OPTIONAL.
@@ -1169,10 +1180,14 @@ def main() -> int:  # noqa: C901
                 )
             except RuntimeError as e:
                 # Enrichment module exists but failed to meet quality threshold - log and continue
-                logger.warning(f"[LOADER] Technical data enrichment failed quality check: {e}. Continuing without enrichment.")
+                logger.warning(
+                    f"[LOADER] Technical data enrichment failed quality check: {e}. Continuing without enrichment."
+                )
         except ImportError:
             # Enrichment module not available - this is expected, it's optional infrastructure
-            logger.debug("[LOADER] Optional enrichment module not found. Signals generated from technical_data_daily only.")
+            logger.debug(
+                "[LOADER] Optional enrichment module not found. Signals generated from technical_data_daily only."
+            )
 
         # SANITY CHECK (Session 267 FIX, hardened 2026-07-26): Detect signal count degradation
         # BEFORE marking loader COMPLETED. See _check_signal_degradation() docstring for the
@@ -1205,22 +1220,28 @@ def main() -> int:  # noqa: C901
                     # buy_sell_daily depends on technical_data_daily having data for symbols
                     # If technical_data_daily is incomplete, buy_sell_daily will naturally be incomplete too
                     # Check the effective coverage (actual symbols on the date vs target universe)
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             COUNT(DISTINCT symbol) as actual_symbols_available
                         FROM price_daily
                         WHERE date = %s
-                    """, (actual_max_date,))
+                    """,
+                        (actual_max_date,),
+                    )
 
                     price_result = cur.fetchone()
                     price_symbols_available = price_result[0] if price_result else 0
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             COUNT(DISTINCT symbol) as actual_symbols_available
                         FROM technical_data_daily
                         WHERE date = %s
-                    """, (actual_max_date,))
+                    """,
+                        (actual_max_date,),
+                    )
 
                     tech_result = cur.fetchone()
                     tech_symbols_available = tech_result[0] if tech_result else 0
@@ -1228,11 +1249,14 @@ def main() -> int:  # noqa: C901
                     # Count actual buy_sell_daily signals generated for this date. This is
                     # informational only - see the completion-check note below for why it
                     # must NOT be used as the completion numerator.
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT COUNT(DISTINCT symbol)
                         FROM buy_sell_daily
                         WHERE date = %s
-                    """, (actual_max_date,))
+                    """,
+                        (actual_max_date,),
+                    )
 
                     signals_result = cur.fetchone()
                     signals_symbols_generated = signals_result[0] if signals_result else 0
@@ -1260,7 +1284,7 @@ def main() -> int:  # noqa: C901
                     # Session 56 comment above actually intended: "did upstream data quality let
                     # us attempt signal generation for ~everyone", not "did everyone breakout
                     # today".
-                    symbols_successfully_processed = result.get("symbols_processed", 0)
+                    symbols_successfully_processed = result.get("symbols_processed") or 0
                     # BUG FOUND 2026-08-10 (this session, real DB evidence): effective_universe
                     # was min(price_symbols_available, tech_symbols_available) - counts of the
                     # RAW price_daily/technical_data_daily population for the date, ignoring that

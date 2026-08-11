@@ -46,7 +46,7 @@ def test_alert_sent_when_exit_errors_occur():
             # Configure fetchone for concentration checks
             mock_cur.fetchone.side_effect = [
                 (0, 0),  # Concentration check - count query
-                (0,),    # Concentration check - SUM query
+                (0,),  # Concentration check - SUM query
             ]
             mock_cur.fetchall.return_value = []  # No positions for concentration checks
             # CRITICAL: rowcount must be a real int, not the default auto-generated MagicMock -
@@ -103,7 +103,7 @@ def test_no_alert_when_no_exit_errors():
             # Configure fetchone for concentration checks
             mock_cur.fetchone.side_effect = [
                 (0, 0),  # Concentration check - count query
-                (0,),    # Concentration check - SUM query
+                (0,),  # Concentration check - SUM query
             ]
             mock_cur.fetchall.return_value = []  # No positions for concentration checks
             # CRITICAL: rowcount must be a real int, not the default auto-generated MagicMock -

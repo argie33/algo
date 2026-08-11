@@ -141,7 +141,6 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
                         if key in result[0]:
                             self.assertIsNotNone(result[0][key])
 
-
     def test_institutional_loader_writes_fresh_marker_for_unresolved_active_symbols(self):
         """FIXED 2026-07-28: _calculate_and_cache_ownership() used to only return records
         for tickers that resolved via the OpenFIGI crosswalk AND had a usable
@@ -154,16 +153,17 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         """
         loader = InstitutionalHoldings13FLoader()
 
-        with patch(
-            "loaders.load_institutional_holdings_13f.get_active_symbols",
-            return_value=["AAPL", "ZZZZ", "NOSHARES"],
-        ), patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx:
+        with (
+            patch(
+                "loaders.load_institutional_holdings_13f.get_active_symbols",
+                return_value=["AAPL", "ZZZZ", "NOSHARES"],
+            ),
+            patch("loaders.load_institutional_holdings_13f.DatabaseContext") as mock_db_ctx,
+        ):
             mock_cursor = MagicMock()
 
             def fetchone_side_effect():
-                return {"AAPL": (1_000_000,), "NOSHARES": (None,)}.get(
-                    mock_cursor.execute.call_args[0][1][0], None
-                )
+                return {"AAPL": (1_000_000,), "NOSHARES": (None,)}.get(mock_cursor.execute.call_args[0][1][0], None)
 
             mock_cursor.fetchone.side_effect = fetchone_side_effect
             mock_db_ctx.return_value.__enter__.return_value = mock_cursor

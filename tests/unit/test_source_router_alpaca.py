@@ -66,7 +66,9 @@ def test_alpaca_primary_merges_residual_from_yfinance(
 
     # Verify yfinance fallback data has source tracking
     assert all(row.get("_source_name") == "yfinance" for row in result["BK"]), "BK rows should be marked as yfinance"
-    assert all(row.get("_source_name") == "yfinance" for row in result["^GSPC"]), "^GSPC rows should be marked as yfinance"
+    assert all(row.get("_source_name") == "yfinance" for row in result["^GSPC"]), (
+        "^GSPC rows should be marked as yfinance"
+    )
     assert all(row.get("_primary_source_failed") == "alpaca" for row in result["BK"]), "BK should track Alpaca failure"
 
     assert router.last_source == "alpaca"

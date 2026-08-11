@@ -26,20 +26,33 @@ from algo.monitoring.position_monitor import PositionMonitor
 def _row(stop_loss_price, current_stop_price):
     # Matches the SELECT shape in review_positions()/_review_with_cursor().
     return (
-        1, "WPM", 120.0, stop_loss_price, None, None, None,
-        date(2026, 7, 20), date(2026, 7, 20), 10, 0, ["TRD-1"],
-        current_stop_price, 108.53,
+        1,
+        "WPM",
+        120.0,
+        stop_loss_price,
+        None,
+        None,
+        None,
+        date(2026, 7, 20),
+        date(2026, 7, 20),
+        10,
+        0,
+        ["TRD-1"],
+        current_stop_price,
+        108.53,
     )
 
 
 class TestStopLossHitExitPriceOverride:
     def _make_monitor(self):
-        return PositionMonitor(config={
-            "max_hold_days": 90,
-            "move_be_at_r": 1.5,
-            "max_distribution_days": 5,
-            "position_halt_flag_count": 3,
-        })
+        return PositionMonitor(
+            config={
+                "max_hold_days": 90,
+                "move_be_at_r": 1.5,
+                "max_distribution_days": 5,
+                "position_halt_flag_count": 3,
+            }
+        )
 
     def test_stop_loss_hit_sets_exit_price_override_to_active_stop(self):
         """A gapped-through-stop position (current_price far below active_stop) must

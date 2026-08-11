@@ -54,7 +54,9 @@ def test_notify_entry_phase_runs_inside_the_transaction_after_the_order_and_reco
     """Sanity check the premise: PHASE 4 (notify) must run after PHASE 2 (submit) and
     PHASE 3 (record) inside the same _execute_entry_txn - if this ordering changes, the
     non-blocking requirement above should be re-examined."""
-    match = re.search(r"def _execute_entry_txn\(.*?\n(.*?)\n        # Execute entry transaction with locks", SOURCE, re.DOTALL)
+    match = re.search(
+        r"def _execute_entry_txn\(.*?\n(.*?)\n        # Execute entry transaction with locks", SOURCE, re.DOTALL
+    )
     assert match, "could not locate _execute_entry_txn"
     txn_body = match.group(1)
     submit_pos = txn_body.index("_submit_entry_phase")

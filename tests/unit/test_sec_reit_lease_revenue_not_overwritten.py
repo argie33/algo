@@ -31,9 +31,7 @@ class TestReitLeaseRevenueNotOverwrittenByAscContractRevenue:
             "reason": "reason",
         }
         loader._fallback_only_fields = frozenset()
-        loader._reit_only_fallback_fields = frozenset(
-            {"revenue_from_contract_with_customer_excluding_assessed_tax"}
-        )
+        loader._reit_only_fallback_fields = frozenset({"revenue_from_contract_with_customer_excluding_assessed_tax"})
         loader._reit_symbols = reit_symbols
         return loader
 

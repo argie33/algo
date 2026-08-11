@@ -84,7 +84,9 @@ class FileLockManager:
                                     expiry = expiry.replace(tzinfo=timezone.utc)
                                 is_content_expired = now > expiry
                     except Exception as parse_err:
-                        logger.debug(f"[FILE_LOCK] Could not parse lock file content, treating as not-expired: {parse_err}")
+                        logger.debug(
+                            f"[FILE_LOCK] Could not parse lock file content, treating as not-expired: {parse_err}"
+                        )
 
                     # Remove lock if EITHER content is expired OR file is too old (crashed process)
                     if is_content_expired or is_file_stale:
@@ -251,14 +253,16 @@ class FileLockManager:
                     lock_file.unlink()
                 except OSError as e:
                     # WinError 32 = file in use by another process
-                    if hasattr(e, 'winerror') and e.winerror == 32:
+                    if hasattr(e, "winerror") and e.winerror == 32:
                         # Another process might still be using the file - retry once
                         time.sleep(0.1)
                         try:
                             lock_file.unlink()
                         except OSError:
                             # Still locked - that's OK, it will auto-expire. Just log and continue
-                            logger.debug(f"[FILE_LOCK] Could not immediately delete {lock_file.name} (in use by another process), will auto-expire")
+                            logger.debug(
+                                f"[FILE_LOCK] Could not immediately delete {lock_file.name} (in use by another process), will auto-expire"
+                            )
                     else:
                         raise
 
@@ -278,8 +282,10 @@ class FileLockManager:
                 self.current_lock_file.unlink()
             except OSError as e:
                 # WinError 32 = file in use - OK to ignore, lock will auto-expire
-                if hasattr(e, 'winerror') and e.winerror == 32:
-                    logger.debug(f"[FILE_LOCK] Cleanup: {self.current_lock_file.name} still in use (OK, will auto-expire)")
+                if hasattr(e, "winerror") and e.winerror == 32:
+                    logger.debug(
+                        f"[FILE_LOCK] Cleanup: {self.current_lock_file.name} still in use (OK, will auto-expire)"
+                    )
                 else:
                     logger.debug(f"[FILE_LOCK] Cleanup error (non-critical): {e}")
 

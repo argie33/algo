@@ -53,7 +53,13 @@ class TestRepairMissingExitPricesNanGuard:
         """The core bug: a NaN entry_price must not reach the UPDATE with a NaN
         profit_loss_pct."""
         corrupted_row = (
-            "TRD-1", "AAPL", float("nan"), date(2026, 8, 10), None, 90.0, 100,
+            "TRD-1",
+            "AAPL",
+            float("nan"),
+            date(2026, 8, 10),
+            None,
+            90.0,
+            100,
         )  # trade_id, symbol, entry_price, exit_date, _, stop_price, entry_qty
         factory, write_cur = _mock_db_context([corrupted_row], price_row=(105.0,))
 
@@ -61,9 +67,7 @@ class TestRepairMissingExitPricesNanGuard:
         with patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=factory):
             _repair_missing_exit_prices(lambda *a, **kw: log_calls.append((a, kw)))
 
-        update_calls = [
-            c for c in write_cur.execute.call_args_list if c.args and "UPDATE algo_trades" in c.args[0]
-        ]
+        update_calls = [c for c in write_cur.execute.call_args_list if c.args and "UPDATE algo_trades" in c.args[0]]
         assert update_calls == [], (
             f"Expected the NaN entry_price to skip the repair entirely, but found an UPDATE call: {update_calls}"
         )
@@ -75,9 +79,7 @@ class TestRepairMissingExitPricesNanGuard:
         with patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=factory):
             _repair_missing_exit_prices(lambda *a, **kw: None)
 
-        update_calls = [
-            c for c in write_cur.execute.call_args_list if c.args and "UPDATE algo_trades" in c.args[0]
-        ]
+        update_calls = [c for c in write_cur.execute.call_args_list if c.args and "UPDATE algo_trades" in c.args[0]]
         assert update_calls == []
 
     def test_normal_finite_values_still_repair_correctly(self) -> None:
@@ -89,9 +91,7 @@ class TestRepairMissingExitPricesNanGuard:
         with patch("algo.orchestrator.phase9_reconciliation.DatabaseContext", side_effect=factory):
             _repair_missing_exit_prices(lambda *a, **kw: log_calls.append((a, kw)))
 
-        update_calls = [
-            c for c in write_cur.execute.call_args_list if c.args and "UPDATE algo_trades" in c.args[0]
-        ]
+        update_calls = [c for c in write_cur.execute.call_args_list if c.args and "UPDATE algo_trades" in c.args[0]]
         assert len(update_calls) == 1
         params = update_calls[0].args[1]
         exit_price, pnl_dollars, pnl_pct, r_multiple = params[0], params[1], params[2], params[3]

@@ -50,8 +50,7 @@ def _assert_pct_matches(jsx_key: str, py_weight: float) -> None:
     jsx_weight = _jsx_weight_for_key(jsx_key)
     jsx_pct = int(re.match(r"(\d+)%", jsx_weight).group(1))
     assert jsx_pct == expected_pct, (
-        f"{jsx_key}: JSX badge says {jsx_weight!r} but load_stock_scores.py weights it "
-        f"{py_weight} ({expected_pct}%)"
+        f"{jsx_key}: JSX badge says {jsx_weight!r} but load_stock_scores.py weights it {py_weight} ({expected_pct}%)"
     )
 
 

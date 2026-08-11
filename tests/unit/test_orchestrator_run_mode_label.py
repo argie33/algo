@@ -26,21 +26,15 @@ class TestComputeRunModeLabel:
         assert compute_run_mode_label(dry_run=True, execution_mode="paper", alpaca_paper_trading=True) == "DRY RUN"
 
     def test_paper_execution_mode_labeled_paper(self):
-        assert (
-            compute_run_mode_label(dry_run=False, execution_mode="paper", alpaca_paper_trading=True) == "PAPER"
-        )
+        assert compute_run_mode_label(dry_run=False, execution_mode="paper", alpaca_paper_trading=True) == "PAPER"
         # Local dev sets execution_mode="paper" unconditionally, regardless of dry_run -
         # this is the exact scenario that previously mislabeled a local test run "LIVE".
-        assert (
-            compute_run_mode_label(dry_run=False, execution_mode="paper", alpaca_paper_trading=False) == "PAPER"
-        )
+        assert compute_run_mode_label(dry_run=False, execution_mode="paper", alpaca_paper_trading=False) == "PAPER"
 
     def test_auto_mode_with_paper_account_labeled_paper_not_live(self):
         # execution_mode="auto" with alpaca_paper_trading=True still routes to Alpaca's
         # paper endpoint - no real money at risk despite not being "paper" mode.
-        assert (
-            compute_run_mode_label(dry_run=False, execution_mode="auto", alpaca_paper_trading=True) == "PAPER"
-        )
+        assert compute_run_mode_label(dry_run=False, execution_mode="auto", alpaca_paper_trading=True) == "PAPER"
 
     def test_auto_mode_with_real_account_labeled_real_money(self):
         assert (

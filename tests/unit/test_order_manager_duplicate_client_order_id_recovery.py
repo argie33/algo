@@ -108,9 +108,7 @@ class TestEntryDuplicateRecovery:
             patch("algo.trading.order_manager.requests.post", return_value=reject_resp),
             patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
         ):
-            result = manager.send_bracket_order(
-                "MSFT", 10, 50.0, stop_loss_price=48.0, client_order_id="idem-key-xyz"
-            )
+            result = manager.send_bracket_order("MSFT", 10, 50.0, stop_loss_price=48.0, client_order_id="idem-key-xyz")
 
         assert result["success"] is True
         assert result["order_id"] == "real-order-456"
@@ -124,9 +122,7 @@ class TestEntryDuplicateRecovery:
             patch("algo.trading.order_manager.requests.post", return_value=reject_resp),
             patch("algo.trading.order_manager.requests.get", return_value=lookup_resp),
         ):
-            result = manager.send_bracket_order(
-                "MSFT", 10, 50.0, stop_loss_price=48.0, client_order_id="idem-key-xyz"
-            )
+            result = manager.send_bracket_order("MSFT", 10, 50.0, stop_loss_price=48.0, client_order_id="idem-key-xyz")
 
         assert result["success"] is False
 

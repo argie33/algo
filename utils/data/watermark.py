@@ -178,6 +178,7 @@ class WatermarkManager:
         # This prevents skipping dates with no market data
         if rows_loaded == 0:
             from algo.infrastructure import MarketCalendar
+
             if not MarketCalendar.is_trading_day(new_watermark):
                 logger.warning(
                     f"[WATERMARK] Skipping advancement for {self.table_name}/{symbol}: "

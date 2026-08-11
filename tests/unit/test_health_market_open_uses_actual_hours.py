@@ -33,8 +33,7 @@ def test_health_route_uses_is_market_open_not_is_trading_day():
     freshness_block = source.split("market_is_open = ", 1)[1].split("\n", 1)[0]
 
     assert "MarketCalendar.is_market_open(" in freshness_block, (
-        "health.py must compute market_is_open via the real 9:30-4:00 ET window check, "
-        f"got: {freshness_block!r}"
+        f"health.py must compute market_is_open via the real 9:30-4:00 ET window check, got: {freshness_block!r}"
     )
     assert "is_trading_day" not in freshness_block, (
         "is_trading_day() only checks weekday/holiday, not actual market hours - it is "

@@ -730,14 +730,20 @@ def _build_allowed_origins() -> set[str]:
     cache_ttl = timedelta(seconds=_ALLOWED_ORIGINS_CACHE_TTL_SECONDS)
 
     # Check if cache is still valid (within TTL)
-    if (_ALLOWED_ORIGINS_CACHE is not None and _ALLOWED_ORIGINS_CACHE_TIME is not None
-        and (now - _ALLOWED_ORIGINS_CACHE_TIME) < cache_ttl):
+    if (
+        _ALLOWED_ORIGINS_CACHE is not None
+        and _ALLOWED_ORIGINS_CACHE_TIME is not None
+        and (now - _ALLOWED_ORIGINS_CACHE_TIME) < cache_ttl
+    ):
         return _ALLOWED_ORIGINS_CACHE
 
     with _ALLOWED_ORIGINS_LOCK:
         # Double-check pattern after acquiring lock
-        if (_ALLOWED_ORIGINS_CACHE is not None and _ALLOWED_ORIGINS_CACHE_TIME is not None
-            and (now - _ALLOWED_ORIGINS_CACHE_TIME) < cache_ttl):
+        if (
+            _ALLOWED_ORIGINS_CACHE is not None
+            and _ALLOWED_ORIGINS_CACHE_TIME is not None
+            and (now - _ALLOWED_ORIGINS_CACHE_TIME) < cache_ttl
+        ):
             return _ALLOWED_ORIGINS_CACHE
 
         origins = set()
@@ -1127,11 +1133,15 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
                 return (False, None, "Token revocation verification failed (security check unavailable)")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 # Database unavailable - fail secure by rejecting token
-                logger.error(f"[TOKEN_REVOCATION_FAILED] Database error checking revocation: {type(e).__name__}: {e} - rejecting token")
+                logger.error(
+                    f"[TOKEN_REVOCATION_FAILED] Database error checking revocation: {type(e).__name__}: {e} - rejecting token"
+                )
                 return (False, None, "Token revocation verification failed (database unavailable)")
             except OSError as e:
                 # Cache/network errors - fail secure by rejecting token
-                logger.error(f"[TOKEN_REVOCATION_FAILED] Cache/network error checking revocation: {e} - rejecting token")
+                logger.error(
+                    f"[TOKEN_REVOCATION_FAILED] Cache/network error checking revocation: {e} - rejecting token"
+                )
                 return (False, None, "Token revocation verification failed (cache unavailable)")
 
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
@@ -1602,16 +1612,30 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             }
         except FileNotFoundError as e:
             logger.error(f"[ORCHESTRATOR_FAILED] Python executable not found: {e}", exc_info=True)
-            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": "Python executable not found"})}
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "orchestrator_failed", "message": "Python executable not found"}),
+            }
         except subprocess.TimeoutExpired as e:
             logger.error(f"[ORCHESTRATOR_FAILED] Orchestrator exceeded 10-minute timeout: {e}", exc_info=True)
-            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_timeout", "message": "Orchestrator execution timeout"})}
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "orchestrator_timeout", "message": "Orchestrator execution timeout"}),
+            }
         except OSError as e:
-            logger.error(f"[ORCHESTRATOR_FAILED] OS error during orchestrator execution: {type(e).__name__}: {e}", exc_info=True)
-            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": f"OS error: {e}"})}
+            logger.error(
+                f"[ORCHESTRATOR_FAILED] OS error during orchestrator execution: {type(e).__name__}: {e}", exc_info=True
+            )
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "orchestrator_failed", "message": f"OS error: {e}"}),
+            }
         except ImportError as e:
             logger.error(f"[ORCHESTRATOR_FAILED] Import error in orchestrator module: {e}", exc_info=True)
-            return {"statusCode": 500, "body": json.dumps({"error": "orchestrator_failed", "message": "Orchestrator module not available"})}
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "orchestrator_failed", "message": "Orchestrator module not available"}),
+            }
 
     # Health checks are handled via api_router (routes/health.py) for consistent response format
     # All health endpoints (basic, detailed, pipeline) now route through normal flow
@@ -1792,23 +1816,38 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             cache_ttl = timedelta(seconds=_NAIVE_DB_TZ_CACHE_TTL_SECONDS)
 
             # Check if cache is still valid (within TTL)
-            if (_NAIVE_DB_TZ_CACHE is not None and _NAIVE_DB_TZ_CACHE_TIME is not None
-                and (now - _NAIVE_DB_TZ_CACHE_TIME) < cache_ttl):
+            if (
+                _NAIVE_DB_TZ_CACHE is not None
+                and _NAIVE_DB_TZ_CACHE_TIME is not None
+                and (now - _NAIVE_DB_TZ_CACHE_TIME) < cache_ttl
+            ):
                 return _NAIVE_DB_TZ_CACHE
 
             with _NAIVE_DB_TZ_LOCK:
                 # Double-check pattern after acquiring lock
-                if (_NAIVE_DB_TZ_CACHE is not None and _NAIVE_DB_TZ_CACHE_TIME is not None
-                    and (now - _NAIVE_DB_TZ_CACHE_TIME) < cache_ttl):
+                if (
+                    _NAIVE_DB_TZ_CACHE is not None
+                    and _NAIVE_DB_TZ_CACHE_TIME is not None
+                    and (now - _NAIVE_DB_TZ_CACHE_TIME) < cache_ttl
+                ):
                     return _NAIVE_DB_TZ_CACHE
 
                 if _NAIVE_DB_TZ_CACHE is None or _NAIVE_DB_TZ_CACHE_TIME is None:
                     try:
                         from utils.db.timezone_utils import get_db_timezone
+
                         _NAIVE_DB_TZ_CACHE = get_db_timezone()
                         _NAIVE_DB_TZ_CACHE_TIME = now
-                    except (ImportError, RuntimeError, ValueError, psycopg2.DatabaseError, psycopg2.OperationalError) as tz_err:
-                        logger.warning(f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {type(tz_err).__name__}: {tz_err}")
+                    except (
+                        ImportError,
+                        RuntimeError,
+                        ValueError,
+                        psycopg2.DatabaseError,
+                        psycopg2.OperationalError,
+                    ) as tz_err:
+                        logger.warning(
+                            f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {type(tz_err).__name__}: {tz_err}"
+                        )
                         _NAIVE_DB_TZ_CACHE = timezone.utc
                         _NAIVE_DB_TZ_CACHE_TIME = now
             return _NAIVE_DB_TZ_CACHE

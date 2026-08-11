@@ -67,9 +67,7 @@ def _check_sector_weak(ticker: str, signal_date: str) -> bool:
     """Check if sector has a negative signal."""
     try:
         with DatabaseContext("read") as cur:
-            cur.execute(
-                "SELECT sector FROM company_profile WHERE symbol = %s", (ticker,)
-            )
+            cur.execute("SELECT sector FROM company_profile WHERE symbol = %s", (ticker,))
             sector_row = cur.fetchone()
             if sector_row is None:
                 return False

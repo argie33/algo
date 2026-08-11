@@ -21,8 +21,10 @@ def _live_config():
 class TestPhase3HaltCheckFailureActuallyHalts:
     def test_get_open_positions_failure_halts_phase(self):
         """get_open_positions() raising must halt Phase 3, not just log and continue."""
-        with patch("algo.monitoring.PositionMonitor") as MockMonitor, \
-             patch("algo.infrastructure.MarketEventHandler") as MockMEH:
+        with (
+            patch("algo.monitoring.PositionMonitor") as MockMonitor,
+            patch("algo.infrastructure.MarketEventHandler") as MockMEH,
+        ):
             monitor = MockMonitor.return_value
             monitor.get_open_positions.side_effect = RuntimeError("DB unavailable")
             MockMEH.return_value = MagicMock()
@@ -44,8 +46,10 @@ class TestPhase3HaltCheckFailureActuallyHalts:
     def test_halt_check_error_for_a_position_halts_phase(self):
         """A single symbol's halt check erroring (not just total fetch failure) must also halt,
         matching the explicit 'GOVERNANCE: Fail-fast if halt checks failed' raise in the code."""
-        with patch("algo.monitoring.PositionMonitor") as MockMonitor, \
-             patch("algo.infrastructure.MarketEventHandler") as MockMEH:
+        with (
+            patch("algo.monitoring.PositionMonitor") as MockMonitor,
+            patch("algo.infrastructure.MarketEventHandler") as MockMEH,
+        ):
             monitor = MockMonitor.return_value
             monitor.get_open_positions.return_value = [{"symbol": "AAPL"}]
             meh = MagicMock()
@@ -67,8 +71,10 @@ class TestPhase3HaltCheckFailureActuallyHalts:
     def test_successful_halt_checks_do_not_halt(self):
         """Sanity check: when halt checking succeeds cleanly, the phase must proceed normally
         (guards against a fix that halts unconditionally instead of only on real failure)."""
-        with patch("algo.monitoring.PositionMonitor") as MockMonitor, \
-             patch("algo.infrastructure.MarketEventHandler") as MockMEH:
+        with (
+            patch("algo.monitoring.PositionMonitor") as MockMonitor,
+            patch("algo.infrastructure.MarketEventHandler") as MockMEH,
+        ):
             monitor = MockMonitor.return_value
             monitor.get_open_positions.return_value = [{"symbol": "AAPL"}]
             monitor.check_stale_orders.return_value = {"status": "OK"}

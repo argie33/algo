@@ -61,9 +61,10 @@ class TestRecordFillUsesEasternDate:
         mock_db_context.__enter__ = MagicMock(return_value=mock_cur)
         mock_db_context.__exit__ = MagicMock(return_value=False)
 
-        with patch("algo.trading.tca.DatabaseContext", return_value=mock_db_context), patch(
-            "algo.trading.tca.date"
-        ) as mock_date_module:
+        with (
+            patch("algo.trading.tca.DatabaseContext", return_value=mock_db_context),
+            patch("algo.trading.tca.date") as mock_date_module,
+        ):
             mock_date_module.today.side_effect = AssertionError(
                 "record_fill() must not call date.today() - use datetime.now(EASTERN_TZ).date()"
             )

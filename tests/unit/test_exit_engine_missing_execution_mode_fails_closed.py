@@ -44,9 +44,7 @@ def _engine(mock_config):
 
 
 class TestMissingExecutionModeFailsClosed:
-    def test_401_with_missing_execution_mode_raises_not_silently_paper(
-        self, mock_config_missing_execution_mode
-    ):
+    def test_401_with_missing_execution_mode_raises_not_silently_paper(self, mock_config_missing_execution_mode):
         engine = _engine(mock_config_missing_execution_mode)
         unauthorized = MagicMock(status_code=401, text="unauthorized")
 
@@ -61,9 +59,7 @@ class TestMissingExecutionModeFailsClosed:
             with pytest.raises(RuntimeError, match="execution_mode config missing"):
                 engine._fetch_alpaca_quote("AAPL")
 
-    def test_404_with_missing_execution_mode_raises_not_silently_paper(
-        self, mock_config_missing_execution_mode
-    ):
+    def test_404_with_missing_execution_mode_raises_not_silently_paper(self, mock_config_missing_execution_mode):
         engine = _engine(mock_config_missing_execution_mode)
         not_found = MagicMock(status_code=404, text="not found")
 

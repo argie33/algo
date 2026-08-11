@@ -43,6 +43,7 @@ def _cursor_for_table_sequence(naive_updated_at: datetime, session_tz: str = "Am
     fetchone_results.append(coverage_row)
 
     call_counter = [0]
+
     def _fetchone():
         if call_counter[0] < len(fetchone_results):
             result = fetchone_results[call_counter[0]]
@@ -63,6 +64,7 @@ class TestStockScoresStalenessTimezone:
     def setup_method(self):
         """Clear the global timezone cache before each test."""
         import utils.db.timezone_utils
+
         utils.db.timezone_utils._DB_TZ_CACHE = None
 
     def test_naive_updated_at_resolves_real_session_timezone_not_utc(self):
@@ -75,8 +77,10 @@ class TestStockScoresStalenessTimezone:
 
         loader = StockScoresLoader.__new__(StockScoresLoader)
         # Patch DatabaseContext in both modules to use the same mock
-        with patch("loaders.load_stock_scores.DatabaseContext", return_value=mock_db_context), \
-             patch("utils.db.timezone_utils.DatabaseContext", return_value=mock_db_context):
+        with (
+            patch("loaders.load_stock_scores.DatabaseContext", return_value=mock_db_context),
+            patch("utils.db.timezone_utils.DatabaseContext", return_value=mock_db_context),
+        ):
             loader.validate_upstream_metrics_ready()
 
         assert "SHOW timezone" in cur._executed_sql, (
@@ -99,6 +103,7 @@ class TestStockScoresStalenessTimezone:
         executed_sql = []
 
         call_counter = [0]
+
         def _fetchone():
             if call_counter[0] < len(fetchone_results):
                 result = fetchone_results[call_counter[0]]

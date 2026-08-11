@@ -54,15 +54,19 @@ def _run_load_global(loader, fetch_global_return):
 
     loader.fetch_global = MagicMock(return_value=fetch_global_return)
     loader.transform = MagicMock(side_effect=lambda rows: rows)
-    loader._bulk_insert_mgr.bulk_insert.return_value = len(fetch_global_return) if isinstance(fetch_global_return, list) else 0
+    loader._bulk_insert_mgr.bulk_insert.return_value = (
+        len(fetch_global_return) if isinstance(fetch_global_return, list) else 0
+    )
     loader._log_execution_history = MagicMock()
 
     conn_manager = MagicMock()
 
-    with patch("utils.db.local_file_lock.get_lock_manager", return_value=lock_manager), \
-         patch("utils.optimal_loader.DatabaseContext", side_effect=fake_db_context), \
-         patch("utils.db.pooled_connection_manager.PooledConnectionManager", return_value=conn_manager), \
-         patch("utils.db.pooled_context_var.set_pooled_connection"):
+    with (
+        patch("utils.db.local_file_lock.get_lock_manager", return_value=lock_manager),
+        patch("utils.optimal_loader.DatabaseContext", side_effect=fake_db_context),
+        patch("utils.db.pooled_connection_manager.PooledConnectionManager", return_value=conn_manager),
+        patch("utils.db.pooled_context_var.set_pooled_connection"),
+    ):
         return loader.load_global()
 
 

@@ -19,7 +19,7 @@ financials = importlib.import_module("lambda.api.routes.financials")
 def _key_metrics_sql_block() -> str:
     source = inspect.getsource(financials.handle)
     start = source.index('if endpoint == "key-metrics"')
-    end = source.index('if endpoint ==', start + 1) if 'if endpoint ==' in source[start + 1 :] else len(source)
+    end = source.index("if endpoint ==", start + 1) if "if endpoint ==" in source[start + 1 :] else len(source)
     return source[start:end]
 
 

@@ -59,11 +59,11 @@ def test_failed_validation_rec_counted_as_error_not_silently_dropped():
         # the cleanup DELETE above, which uses rowcount not fetchone) runs first and must be
         # first in this list, or every later fetchone() shifts by one.
         mock_cur.fetchone.side_effect = [
-            (0,),    # Orphaned-trade validation count query
+            (0,),  # Orphaned-trade validation count query
             (0, 0),  # Sector concentration check - count query
-            (0,),    # Sector concentration check - SUM query
+            (0,),  # Sector concentration check - SUM query
             (0, 0),  # Size concentration check - count query
-            (0,),    # Size concentration check - SUM query
+            (0,),  # Size concentration check - SUM query
         ]
         mock_db_ctx.return_value.__enter__.return_value = mock_cur
         mock_db_ctx.return_value.__exit__.return_value = False

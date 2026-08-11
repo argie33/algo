@@ -41,9 +41,11 @@ def _run_update_final_status(loader, expected_symbols, count_and_max_row, scoped
         ctx.__exit__.return_value = False
         return ctx
 
-    with patch("utils.optimal_loader.DatabaseContext", side_effect=fake_db_context), \
-         patch("utils.db.pooled_context_var.get_pooled_connection", return_value=None), \
-         patch("utils.db.pooled_context_var.set_pooled_connection"):
+    with (
+        patch("utils.optimal_loader.DatabaseContext", side_effect=fake_db_context),
+        patch("utils.db.pooled_context_var.get_pooled_connection", return_value=None),
+        patch("utils.db.pooled_context_var.set_pooled_connection"),
+    ):
         loader._update_final_status(expected_symbols, ["market"])
 
     return read_cur, write_cur

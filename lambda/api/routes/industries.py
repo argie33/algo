@@ -228,7 +228,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         momentum_label = (
             "Strong"
             if momentum is not None and momentum >= 60
-            else "Moderate" if momentum is not None and momentum >= 45 else "Weak"
+            else "Moderate"
+            if momentum is not None and momentum >= 45
+            else "Weak"
         )
 
         industries.append(

@@ -71,9 +71,7 @@ class TestEtfPriceDailyIndependentStaleness:
         stale = datetime.date(2026, 8, 5)
         cursor = _PerTableCursor(fresh, stale)
         monkeypatch.setattr(mod, "DatabaseContext", lambda *a, **kw: _PerTableDatabaseContext(cursor))
-        monkeypatch.setattr(
-            mod, "_get_expected_data_date", lambda **kwargs: (fresh, "EOD - test")
-        )
+        monkeypatch.setattr(mod, "_get_expected_data_date", lambda **kwargs: (fresh, "EOD - test"))
 
         result = _check_and_refresh_local(run_date=fresh, pipeline_context="EOD", dry_run=True)
 

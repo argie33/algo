@@ -63,7 +63,9 @@ def loader_timeout_context(loader_name: str, timeout_seconds: int | None = None)
             logger.info(f"[LOADER_TIMEOUT] {loader_name}: timeout enforcement enabled ({timeout}s max)")
         except (AttributeError, ValueError):
             # Windows or signal already set - use time-based fallback only
-            logger.debug(f"[LOADER_TIMEOUT] {loader_name}: signal-based timeout not available, using time-based fallback")
+            logger.debug(
+                f"[LOADER_TIMEOUT] {loader_name}: signal-based timeout not available, using time-based fallback"
+            )
 
         try:
             yield
@@ -102,10 +104,13 @@ def with_loader_timeout(timeout_seconds: int | None = None) -> Callable[[Callabl
     Raises:
         LoaderTimeoutError: If loader exceeds timeout
     """
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             with loader_timeout_context(func.__name__, timeout_seconds):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

@@ -114,6 +114,7 @@ DB_KEEPALIVES_COUNT: Final[int] = int(os.environ.get("DB_KEEPALIVES_COUNT", "3")
 # VALIDATION & INITIALIZATION
 # ============================================================================
 
+
 def validate_config() -> None:
     """Validate all configuration values at startup.
 
@@ -139,8 +140,7 @@ def validate_config() -> None:
 
     if DB_POOL_MIN_CONNECTIONS > DB_POOL_MAX_CONNECTIONS:
         errors.append(
-            f"DB_POOL_MIN_CONNECTIONS ({DB_POOL_MIN_CONNECTIONS}) "
-            f"> DB_POOL_MAX_CONNECTIONS ({DB_POOL_MAX_CONNECTIONS})"
+            f"DB_POOL_MIN_CONNECTIONS ({DB_POOL_MIN_CONNECTIONS}) > DB_POOL_MAX_CONNECTIONS ({DB_POOL_MAX_CONNECTIONS})"
         )
 
     if DB_POOL_MAX_IDLE_SECONDS <= 0:
@@ -174,6 +174,7 @@ def validate_config() -> None:
 
 if __name__ == "__main__":
     import logging
+
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 

@@ -204,7 +204,7 @@ class Form345TransactionVelocityAggregator:
 
             # Read streamed content in chunks to avoid memory exhaustion
             try:
-                zip_bytes = b''
+                zip_bytes = b""
                 for chunk in resp.iter_content(chunk_size=8192):
                     if chunk:
                         zip_bytes += chunk

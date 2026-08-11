@@ -476,9 +476,12 @@ class ValueAtRisk:
                     # bug class): `<= 0` doesn't catch NaN. A NaN price/qty here would
                     # silently corrupt portfolio VaR/beta risk reporting.
                     if (
-                        math.isnan(safe_price) or math.isinf(safe_price)
-                        or math.isnan(safe_qty) or math.isinf(safe_qty)
-                        or safe_price <= 0 or safe_qty <= 0
+                        math.isnan(safe_price)
+                        or math.isinf(safe_price)
+                        or math.isnan(safe_qty)
+                        or math.isinf(safe_qty)
+                        or safe_price <= 0
+                        or safe_qty <= 0
                     ):
                         raise ValueError(
                             f"[VAR CALCULATION FAILED] {symbol}: invalid current_price ({cur_price}) or quantity ({qty}). "

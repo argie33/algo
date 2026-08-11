@@ -28,7 +28,7 @@ def test_get_lock_manager_always_returns_dynamodb():
     try:
         os.environ.pop("LOCAL_MODE", None)
 
-        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb:
+        with patch("utils.db.dynamo_lock.DynamoDBLockManager") as mock_dynamodb:
             # Mock DynamoDBLockManager to bypass actual AWS calls
             mock_lock_manager = MagicMock()
             mock_lock_manager.is_available = True
@@ -61,8 +61,10 @@ def test_get_lock_manager_falls_back_to_rds_if_dynamodb_unavailable():
     try:
         os.environ["LOCAL_MODE"] = "false"  # Test production fallback behavior, not LOCAL_MODE
 
-        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
-             patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
+        with (
+            patch("utils.db.dynamo_lock.DynamoDBLockManager") as mock_dynamodb,
+            patch("utils.db.rds_lock.RDSLockManager") as mock_rds,
+        ):
             mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
             mock_rds_manager = MagicMock()
             mock_rds_manager.is_available = True
@@ -86,8 +88,10 @@ def test_get_lock_manager_fails_fast_if_both_dynamodb_and_rds_unavailable():
     try:
         os.environ["LOCAL_MODE"] = "false"  # Test production fallback behavior, not LOCAL_MODE
 
-        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
-             patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
+        with (
+            patch("utils.db.dynamo_lock.DynamoDBLockManager") as mock_dynamodb,
+            patch("utils.db.rds_lock.RDSLockManager") as mock_rds,
+        ):
             mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
             mock_rds.side_effect = RuntimeError("RDS connection refused")
 
@@ -121,7 +125,7 @@ def test_local_mode_env_var_ignored_for_orchestrator():
     os.environ["LOCAL_MODE"] = "1"
 
     try:
-        with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb:
+        with patch("utils.db.dynamo_lock.DynamoDBLockManager") as mock_dynamodb:
             mock_lock_manager = MagicMock()
             mock_dynamodb.return_value = mock_lock_manager
 
@@ -148,7 +152,7 @@ def test_orchestrator_fails_fast_if_lock_manager_unavailable():
     mock_config = MagicMock()
     mock_config.get.return_value = "paper"  # execution_mode
 
-    with patch('utils.db.local_file_lock.get_lock_manager') as mock_get_lock:
+    with patch("utils.db.local_file_lock.get_lock_manager") as mock_get_lock:
         mock_get_lock.side_effect = RuntimeError("DynamoDB unavailable")
 
         with pytest.raises(RuntimeError):

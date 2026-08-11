@@ -59,7 +59,6 @@ FRED_SERIES = [
     "T10Y3M",  # 10Y-3M spread (longer recession indicator)
     "T5YIE",  # 5-year breakeven inflation
     "T10YIE",  # 10-year breakeven inflation
-
     # Yield curve (all maturities)
     "DGS3MO",  # 3-month treasury
     "DGS6MO",  # 6-month treasury
@@ -71,11 +70,9 @@ FRED_SERIES = [
     "DGS10",  # 10-year treasury
     "DGS20",  # 20-year treasury
     "DGS30",  # 30-year treasury
-
     # Credit spreads
     "BAMLH0A0HYM2",  # High Yield OAS
     "BAMLC0A0CM",  # Investment Grade OAS
-
     # Employment & income
     "PAYEMS",  # Total nonfarm payroll
     "UNRATE",  # Unemployment rate
@@ -85,13 +82,11 @@ FRED_SERIES = [
     "JTSQUR",  # JOLTS quit rate
     "ICSA",  # Initial claims (weekly)
     "UEMPMEAN",  # Mean unemployment duration
-
     # Inflation
     "CPIAUCSL",  # CPI - All Urban Consumers
     "CPILFESL",  # Core CPI (ex-food & energy)
     "PCEPILFE",  # Core PCE Inflation
     "PPIACO",  # Producer Price Index
-
     # Activity & production
     "INDPRO",  # Industrial Production
     "RSXFS",  # Retail Sales
@@ -100,32 +95,26 @@ FRED_SERIES = [
     "TCU",  # Capacity Utilization
     "CFNAI",  # Chicago Fed Activity Index
     "MICH",  # Consumer Sentiment (University of Michigan)
-
     # Growth & income
     "GDPC1",  # Real GDP
     "DSPIC96",  # Real Disposable Income
     "TOTALSA",  # Total nonfarm payroll (seasonally adjusted)
-
     # Money supply & credit
     "M1SL",  # M1 Money Supply
     "M2SL",  # M2 Money Supply
     "WALCL",  # Monetary Base
     "BUSLOANS",  # Commercial and Industrial Loans
     "PRIME",  # Bank prime loan rate
-
     # Financial conditions
     "ANFCI",  # Advanced National Financial Conditions Index
     "STLFSI4",  # St. Louis Fed Financial Stress Index
-
     # Consumer/housing
     "MORTGAGE30US",  # 30-year mortgage rate
     "PSAVERT",  # Personal savings rate
     "UMCSENT",  # Consumer sentiment
-
     # Currency & commodities
     "DTWEXBGS",  # Trade-weighted USD index
     "DCOILWTICO",  # WTI Crude Oil price
-
     # Recession indicator
     "USREC",  # NBER recession indicator
 ]
@@ -380,8 +369,9 @@ def load() -> dict[str, Any]:
     # FAILED by a check built for a different loader shape.
     fred_series_results = result.get("fred_series") or {}
     total_expected = len(FRED_SERIES) + 1  # +1 for DXY
+    dxy_status = result.get("dxy")
     succeeded = sum(1 for v in fred_series_results.values() if not str(v).startswith("unavailable")) + (
-        0 if str(result.get("dxy", "")).startswith("unavailable") else 1
+        0 if dxy_status is None or str(dxy_status).startswith("unavailable") else 1
     )
     status_mgr.mark_completed(
         execution_duration_sec=time.time() - start_time,
@@ -410,9 +400,7 @@ def _load_impl() -> dict[str, Any]:
                 mark_unavailable(series_id, "FRED_API_KEY not configured")
                 fred_results[series_id] = "unavailable (no API key)"
             except RuntimeError as e:
-                raise RuntimeError(
-                    f"[ECONOMIC] Cannot mark {series_id} unavailable due to database error: {e}"
-                ) from e
+                raise RuntimeError(f"[ECONOMIC] Cannot mark {series_id} unavailable due to database error: {e}") from e
     else:
         for i, series_id in enumerate(FRED_SERIES):
             # Rate limiting: 5s between requests
@@ -450,9 +438,7 @@ def _load_impl() -> dict[str, Any]:
             mark_unavailable("DXY_ICE", str(e))
             dxy_result = "unavailable (fetch error)"
         except RuntimeError as mark_err:
-            raise RuntimeError(
-                f"[ECONOMIC] DXY fetch failed and unable to mark unavailable: {mark_err}"
-            ) from mark_err
+            raise RuntimeError(f"[ECONOMIC] DXY fetch failed and unable to mark unavailable: {mark_err}") from mark_err
 
     logger.info(f"[ECONOMIC] Load complete: {total_inserted} total records inserted")
     return {

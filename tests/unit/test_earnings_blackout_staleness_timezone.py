@@ -53,8 +53,7 @@ class TestEarningsBlackoutStalenessUsesRealUtcElapsedTime:
             result = blackout.run("AAPL", datetime.now(timezone.utc).date())
 
         assert result["pass"] is False, (
-            "50h-stale earnings data must be blocked by the 48h freshness gate - "
-            f"got {result}"
+            f"50h-stale earnings data must be blocked by the 48h freshness gate - got {result}"
         )
         assert "stale" in result["reason"].lower()
 

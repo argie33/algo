@@ -31,7 +31,7 @@ def _auto_mode_exit_block(source: str) -> str:
     """Extract the `if execution_mode == "auto": ... if exit_order_result["success"]:` block."""
     start = source.index('if exit_order_result["success"]:')
     # Bounded by the next top-level `else:` that handles the failed-order branch
-    end = source.index('# Determine final exit price', start)
+    end = source.index("# Determine final exit price", start)
     return source[start:end]
 
 

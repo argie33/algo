@@ -63,25 +63,29 @@ class TestPhase6ConcentrationDecimalHandling:
 
         # Individual position values as Decimal (like psycopg2 returns)
         positions = [
-            ("pos_001", "AAPL", Decimal("8500.00")),    # 8.5% - exceeds 6% limit
-            ("pos_002", "MSFT", Decimal("5000.00")),    # 5% - OK
-            ("pos_003", "GOOGL", Decimal("4000.00")),   # 4% - OK
+            ("pos_001", "AAPL", Decimal("8500.00")),  # 8.5% - exceeds 6% limit
+            ("pos_002", "MSFT", Decimal("5000.00")),  # 5% - OK
+            ("pos_003", "GOOGL", Decimal("4000.00")),  # 4% - OK
         ]
 
         # Mock database returns for concentration check
         # First: COUNT check for NULL position_values
-        mock_cursor.fetchone = MagicMock(side_effect=[
-            (3, 0),  # COUNT(*), COUNT(NULL) - no NULLs
-            (total_value,),  # SUM(position_value)
-            # Then positions data
-            ("pos_001", "AAPL", Decimal("8500.00")),
-            ("pos_002", "MSFT", Decimal("5000.00")),
-            ("pos_003", "GOOGL", Decimal("4000.00")),
-        ])
+        mock_cursor.fetchone = MagicMock(
+            side_effect=[
+                (3, 0),  # COUNT(*), COUNT(NULL) - no NULLs
+                (total_value,),  # SUM(position_value)
+                # Then positions data
+                ("pos_001", "AAPL", Decimal("8500.00")),
+                ("pos_002", "MSFT", Decimal("5000.00")),
+                ("pos_003", "GOOGL", Decimal("4000.00")),
+            ]
+        )
 
-        mock_cursor.fetchall = MagicMock(side_effect=[
-            [positions[0], positions[1], positions[2]],  # First call gets all positions
-        ])
+        mock_cursor.fetchall = MagicMock(
+            side_effect=[
+                [positions[0], positions[1], positions[2]],  # First call gets all positions
+            ]
+        )
 
         # Run Phase 6
         with patch("utils.db.context.DatabaseContext", return_value=mock_context):
@@ -112,10 +116,12 @@ class TestPhase6ConcentrationDecimalHandling:
 
         # Sector concentration query returns COUNT as integer, but max_per_sector might be Decimal
         # from algo.config.get()
-        mock_cursor.fetchall = MagicMock(return_value=[
-            ("Technology", Decimal("12")),  # 12 positions - exceeds limit of 10
-            ("Finance", Decimal("8")),      # 8 positions - OK
-        ])
+        mock_cursor.fetchall = MagicMock(
+            return_value=[
+                ("Technology", Decimal("12")),  # 12 positions - exceeds limit of 10
+                ("Finance", Decimal("8")),  # 8 positions - OK
+            ]
+        )
 
         mock_cursor.execute = MagicMock()
         mock_cursor.fetchone = MagicMock(return_value=(0,))
@@ -149,7 +155,7 @@ class TestPhase6ConcentrationDecimalHandling:
         """
         # Simulate what Phase 6 was doing
         position_value = Decimal("8500")  # From database
-        total_value = Decimal("100000")   # From SUM()
+        total_value = Decimal("100000")  # From SUM()
         limit = 6.0  # Config value converted to float
 
         # The WRONG way (what was causing the error):

@@ -25,9 +25,7 @@ ALIASED_SHORTHANDS_COVERED_BY_A_SIBLING = frozenset({"momentum"})
 
 
 def test_every_registered_loader_is_reachable_from_some_pipeline():
-    reachable_filenames = {
-        normalize_loader_name(loader) for loaders in PIPELINES.values() for loader in loaders
-    }
+    reachable_filenames = {normalize_loader_name(loader) for loaders in PIPELINES.values() for loader in loaders}
 
     orphaned = [
         shorthand

@@ -40,6 +40,4 @@ class TestCapexAlternateConceptFallback:
             == "payments_to_acquire_property_plant_and_equipment"
         )
         # The alias target_key must itself be mapped through to the real capex column.
-        assert (
-            _CASHFLOW_FIELD_MAPPING["payments_to_acquire_property_plant_and_equipment"] == "capex"
-        )
+        assert _CASHFLOW_FIELD_MAPPING["payments_to_acquire_property_plant_and_equipment"] == "capex"

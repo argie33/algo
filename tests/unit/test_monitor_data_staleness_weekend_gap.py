@@ -48,9 +48,7 @@ class TestWeekendGapCoversAllOnceDailyTables:
             results = mds.check_all_tables()
 
         for table in ("stock_scores", "algo_trades", "algo_positions"):
-            assert results[table]["level"] == "ok", (
-                f"{table} should be 'ok' across a weekend gap, got {results[table]}"
-            )
+            assert results[table]["level"] == "ok", f"{table} should be 'ok' across a weekend gap, got {results[table]}"
 
     def test_stock_scores_still_flags_critical_on_a_real_gap(self):
         """Sanity check the fix doesn't just always return 'ok': a genuinely
@@ -66,6 +64,7 @@ class TestWeekendGapCoversAllOnceDailyTables:
         fixed to the same 1440/2160/2880 minute bounds. A "genuinely stuck"
         scenario now means missing more than a full extra trading day's run.
         """
+
         def fake_age(table_name):
             return 45 * 60 if table_name == "stock_scores" else 60  # 45h: past stale(36h), short of dead(48h)
 
@@ -91,6 +90,7 @@ class TestWeekendGapCoversAllOnceDailyTables:
         to the dedicated staleness tool. Same once-per-trading-day cadence as
         algo_signals: a ~2.2-day-old Friday row on a Sunday check must read 'ok'.
         """
+
         def fake_age(table_name):
             return 2.2 * 1440 if table_name == "buy_sell_daily" else 60
 

@@ -427,11 +427,20 @@ class RiskMetricsLoader(OptimalLoader):
             # volatility_252d/volatility_60d/beta/debt_to_assets must be non-NULL"), so
             # requiring all four upstream silently dropped real data the scorer was
             # designed to consume. Mark unavailable only if every component failed.
-            has_any_metric = any(v is not None for v in [
-                vol_30d, vol_60d, vol_252d, beta, debt_to_assets,
-                downside_vol_30d, downside_vol_60d, downside_vol_252d,
-                max_drawdown_252d
-            ])
+            has_any_metric = any(
+                v is not None
+                for v in [
+                    vol_30d,
+                    vol_60d,
+                    vol_252d,
+                    beta,
+                    debt_to_assets,
+                    downside_vol_30d,
+                    downside_vol_60d,
+                    downside_vol_252d,
+                    max_drawdown_252d,
+                ]
+            )
             data_unavailable = not has_any_metric
             unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
@@ -462,9 +471,15 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_30d_unavailable_reason": "insufficient_history" if vol_30d is None else None,
                 "volatility_60d_unavailable_reason": "insufficient_history" if vol_60d is None else None,
                 "volatility_252d_unavailable_reason": "insufficient_history" if vol_252d is None else None,
-                "downside_volatility_30d_unavailable_reason": "insufficient_history" if downside_vol_30d is None else None,
-                "downside_volatility_60d_unavailable_reason": "insufficient_history" if downside_vol_60d is None else None,
-                "downside_volatility_252d_unavailable_reason": "insufficient_history" if downside_vol_252d is None else None,
+                "downside_volatility_30d_unavailable_reason": "insufficient_history"
+                if downside_vol_30d is None
+                else None,
+                "downside_volatility_60d_unavailable_reason": "insufficient_history"
+                if downside_vol_60d is None
+                else None,
+                "downside_volatility_252d_unavailable_reason": "insufficient_history"
+                if downside_vol_252d is None
+                else None,
                 "max_drawdown_1y_unavailable_reason": "insufficient_history" if max_drawdown_252d is None else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,

@@ -142,6 +142,7 @@ class PhaseEventHub:
         self.event_history: list[PhaseEvent] = []
         # Max events to keep in memory, configurable via PHASE_EVENT_HISTORY_MAX environment variable
         from loaders.config import get_phase_event_history_max
+
         try:
             self.max_history = get_phase_event_history_max()
         except ValueError as e:

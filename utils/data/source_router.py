@@ -669,7 +669,9 @@ class DataSourceRouter:
                         # CRITICAL FIX: Include adj_close (was 99.9% NULL before this fix).
                         # Fallback to close if Adj Close missing from yfinance response.
                         adj_close_val = row.get(("Adj Close", yf_symbol))
-                        if adj_close_val is None or (isinstance(adj_close_val, float) and adj_close_val != adj_close_val):
+                        if adj_close_val is None or (
+                            isinstance(adj_close_val, float) and adj_close_val != adj_close_val
+                        ):
                             adj_close_val = close_val
 
                         # Skip if any required value is missing or is NaN

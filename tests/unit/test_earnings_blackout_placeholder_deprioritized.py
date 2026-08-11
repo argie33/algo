@@ -84,6 +84,4 @@ class TestEarningsBlackoutPrioritizesRealDataOverPlaceholder:
         with patch("algo.risk.earnings_blackout.DatabaseContext", return_value=mock_db_context):
             result = blackout.run("NEWIPO", date(2026, 8, 7))
 
-        assert result["pass"] is False, (
-            "with no real earnings data at all, the placeholder date must still fail closed"
-        )
+        assert result["pass"] is False, "with no real earnings data at all, the placeholder date must still fail closed"

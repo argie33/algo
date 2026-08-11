@@ -58,7 +58,9 @@ class TestFetchIncremental:
     def test_stale_watermark_still_fetches(self):
         loader = AnalystSentimentAnalysisLoader.__new__(AnalystSentimentAnalysisLoader)
         yesterday = date(2020, 1, 1)
-        with patch("loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=_summary()) as mock_fetch:
+        with patch(
+            "loaders.load_analyst_sentiment_analysis.fetch_analyst_sentiment", return_value=_summary()
+        ) as mock_fetch:
             result = loader.fetch_incremental("AAPL", since=yesterday)
         mock_fetch.assert_called_once_with("AAPL")
         assert len(result) == 1

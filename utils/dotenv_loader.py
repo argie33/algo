@@ -32,6 +32,7 @@ def load_env_local() -> None:
     # Try using dotenv library first (most robust)
     try:
         from dotenv import load_dotenv
+
         load_dotenv(env_local_path, override=False)
         return
     except ImportError:
@@ -61,23 +62,25 @@ def load_env_local() -> None:
 
     except PermissionError:
         import warnings
+
         warnings.warn(
             f"[ENV_LOAD] Permission denied reading .env.local at {env_local_path}. "
             "Local development credentials may not be available. "
             "Check file permissions and ensure .env.local is readable.",
             RuntimeWarning,
-            stacklevel=2
+            stacklevel=2,
         )
     except FileNotFoundError:
         pass  # Already checked for existence above, this shouldn't happen
     except Exception as e:
         import warnings
+
         warnings.warn(
             f"[ENV_LOAD] Failed to parse .env.local: {type(e).__name__}: {e}. "
             "Local development credentials may not be available. "
             "Check .env.local syntax and file integrity.",
             RuntimeWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
 

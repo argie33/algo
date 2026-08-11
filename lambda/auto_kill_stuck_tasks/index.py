@@ -4,6 +4,7 @@ Session 199: Auto-terminate stuck ECS tasks that have been unhealthy for > 2 hou
 Triggered by CloudWatch alarms or EventBridge schedule (every 6 hours).
 Prevents cost waste from lingering failed tasks (~$45+/month per stuck task).
 """
+
 import json
 import logging
 import os
@@ -14,8 +15,8 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-ecs = boto3.client('ecs', region_name='us-east-1')
-sns = boto3.client('sns', region_name='us-east-1')
+ecs = boto3.client("ecs", region_name="us-east-1")
+sns = boto3.client("sns", region_name="us-east-1")
 
 
 def get_unhealthy_tasks(cluster_name):
@@ -25,13 +26,13 @@ def get_unhealthy_tasks(cluster_name):
 
         # FAIL-FAST: ECS response must include 'taskArns' key (even if empty list)
         # Missing key indicates API malformation or network error - don't silently continue
-        if 'taskArns' not in response:
+        if "taskArns" not in response:
             raise RuntimeError(
                 f"[CRITICAL] ECS list_tasks response malformed: missing 'taskArns' key. "
                 f"This indicates API unavailability or response parsing error. "
                 f"Response keys: {list(response.keys())}"
             )
-        task_arns = response['taskArns']
+        task_arns = response["taskArns"]
 
         if not task_arns:
             # No work to do: no running tasks in cluster
@@ -42,15 +43,15 @@ def get_unhealthy_tasks(cluster_name):
         now = datetime.now(timezone.utc)
 
         # Read timeout thresholds from environment
-        unhealthy_timeout = int(os.getenv('UNHEALTHY_TIMEOUT', '7200'))  # 2 hours
-        unknown_timeout = int(os.getenv('UNKNOWN_TIMEOUT', '10800'))      # 3 hours
-        hard_limit_timeout = int(os.getenv('HARD_LIMIT_TIMEOUT', '14400'))# 4 hours
+        unhealthy_timeout = int(os.getenv("UNHEALTHY_TIMEOUT", "7200"))  # 2 hours
+        unknown_timeout = int(os.getenv("UNKNOWN_TIMEOUT", "10800"))  # 3 hours
+        hard_limit_timeout = int(os.getenv("HARD_LIMIT_TIMEOUT", "14400"))  # 4 hours
 
-        for task in details['tasks']:
-            task_arn = task['taskArn']
-            task_name = task['taskDefinitionArn'].split('/')[-1]
-            health = task.get('healthStatus', 'UNKNOWN')
-            started_at = task.get('startedAt')
+        for task in details["tasks"]:
+            task_arn = task["taskArn"]
+            task_name = task["taskDefinitionArn"].split("/")[-1]
+            health = task.get("healthStatus", "UNKNOWN")
+            started_at = task.get("startedAt")
 
             if not started_at:
                 continue
@@ -65,25 +66,27 @@ def get_unhealthy_tasks(cluster_name):
             # 2. UNKNOWN health for > 3 hours (no health check data = stuck)
             # 3. ANY status > 4 hours (way too long regardless)
 
-            if health == 'UNHEALTHY' and age_seconds > unhealthy_timeout:
+            if health == "UNHEALTHY" and age_seconds > unhealthy_timeout:
                 should_kill = True
-                reason = f'UNHEALTHY for {age_hours:.1f}h (threshold: {unhealthy_timeout//3600}h)'
-            elif health == 'UNKNOWN' and age_seconds > unknown_timeout:
+                reason = f"UNHEALTHY for {age_hours:.1f}h (threshold: {unhealthy_timeout // 3600}h)"
+            elif health == "UNKNOWN" and age_seconds > unknown_timeout:
                 should_kill = True
-                reason = f'UNKNOWN (no health check) for {age_hours:.1f}h (threshold: {unknown_timeout//3600}h)'
+                reason = f"UNKNOWN (no health check) for {age_hours:.1f}h (threshold: {unknown_timeout // 3600}h)"
             elif age_seconds > hard_limit_timeout:
                 should_kill = True
-                reason = f'Running too long ({age_hours:.1f}h, hard limit: {hard_limit_timeout//3600}h)'
+                reason = f"Running too long ({age_hours:.1f}h, hard limit: {hard_limit_timeout // 3600}h)"
 
             if should_kill:
-                unhealthy.append({
-                    'arn': task_arn,
-                    'name': task_name,
-                    'health': health,
-                    'age_hours': age_hours,
-                    'reason': reason,
-                    'started_at': started_at.isoformat()
-                })
+                unhealthy.append(
+                    {
+                        "arn": task_arn,
+                        "name": task_name,
+                        "health": health,
+                        "age_hours": age_hours,
+                        "reason": reason,
+                        "started_at": started_at.isoformat(),
+                    }
+                )
 
         return unhealthy
 
@@ -95,33 +98,21 @@ def get_unhealthy_tasks(cluster_name):
 def kill_task(cluster_name, task_arn, reason):
     """Terminate a task with given reason."""
     try:
-        result = ecs.stop_task(
-            cluster=cluster_name,
-            task=task_arn,
-            reason=reason
-        )
+        result = ecs.stop_task(cluster=cluster_name, task=task_arn, reason=reason)
         return {
-            'success': True,
-            'task': result['task']['taskArn'].split('/')[-1],
-            'status': result['task']['lastStatus']
+            "success": True,
+            "task": result["task"]["taskArn"].split("/")[-1],
+            "status": result["task"]["lastStatus"],
         }
     except Exception as e:
         logger.error(f"ERROR: Failed to stop task {task_arn}: {e}")
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 def format_alert_message(killed_tasks, cluster_name, project_name, environment):
     """Format alert message for SNS."""
     if not killed_tasks:
-        return (
-            f"ECS Auto-Kill Report\n"
-            f"Cluster: {cluster_name}\n"
-            f"Status: No stuck tasks found\n"
-            f"Cost impact: $0 saved"
-        )
+        return f"ECS Auto-Kill Report\nCluster: {cluster_name}\nStatus: No stuck tasks found\nCost impact: $0 saved"
 
     lines = [
         f"ECS Auto-Kill Report - {project_name}-{environment}",
@@ -129,7 +120,7 @@ def format_alert_message(killed_tasks, cluster_name, project_name, environment):
         f"Cluster: {cluster_name}",
         "",
         f"Killed {len(killed_tasks)} stuck task(s):",
-        ""
+        "",
     ]
 
     total_monthly_savings = len(killed_tasks) * 45  # ~$45/month per task
@@ -156,11 +147,7 @@ def send_alert(message, topic_arn, subject):
         return
 
     try:
-        sns.publish(
-            TopicArn=topic_arn,
-            Subject=subject,
-            Message=message
-        )
+        sns.publish(TopicArn=topic_arn, Subject=subject, Message=message)
         logger.info(f"Alert sent to SNS: {topic_arn}")
     except Exception as e:
         logger.warning(f"WARNING: Failed to send SNS alert: {e}")
@@ -176,10 +163,10 @@ def lambda_handler(event, context):
     logger.info(f"Starting auto-kill check at {start_time.isoformat()}")
 
     # Get configuration from environment
-    cluster_name = os.getenv('CLUSTER_NAME', 'algo-cluster')
-    sns_topic_arn = os.getenv('SNS_ALERT_TOPIC', '')
-    project_name = os.getenv('PROJECT_NAME', 'algo')
-    environment = os.getenv('ENVIRONMENT', 'dev')
+    cluster_name = os.getenv("CLUSTER_NAME", "algo-cluster")
+    sns_topic_arn = os.getenv("SNS_ALERT_TOPIC", "")
+    project_name = os.getenv("PROJECT_NAME", "algo")
+    environment = os.getenv("ENVIRONMENT", "dev")
 
     try:
         # Find stuck tasks
@@ -190,16 +177,18 @@ def lambda_handler(event, context):
         killed = []
         for task in stuck_tasks:
             logger.info(f"Killing {task['name']}: {task['reason']}")
-            result = kill_task(cluster_name, task['arn'], task['reason'])
+            result = kill_task(cluster_name, task["arn"], task["reason"])
 
-            if result['success']:
-                killed.append({
-                    'name': task['name'],
-                    'health': task['health'],
-                    'age_hours': task['age_hours'],
-                    'reason': task['reason'],
-                    'killed_at': datetime.now(timezone.utc).isoformat()
-                })
+            if result["success"]:
+                killed.append(
+                    {
+                        "name": task["name"],
+                        "health": task["health"],
+                        "age_hours": task["age_hours"],
+                        "reason": task["reason"],
+                        "killed_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
                 logger.info("  ✓ Successfully killed")
             else:
                 logger.error(f"  ✗ Failed: {result['error']}")
@@ -214,11 +203,11 @@ def lambda_handler(event, context):
         # Return result
         elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
         return {
-            'statusCode': 200,
-            'message': f'Successfully processed {len(stuck_tasks)} stuck task(s), killed {len(killed)}',
-            'killed_count': len(killed),
-            'killed_tasks': [t['name'] for t in killed],
-            'elapsed_seconds': elapsed
+            "statusCode": 200,
+            "message": f"Successfully processed {len(stuck_tasks)} stuck task(s), killed {len(killed)}",
+            "killed_count": len(killed),
+            "killed_tasks": [t["name"] for t in killed],
+            "elapsed_seconds": elapsed,
         }
 
     except Exception as e:
@@ -229,20 +218,16 @@ def lambda_handler(event, context):
         alert_msg = f"{error_msg}\n\nCheck Lambda logs: /aws/lambda/{project_name}-auto-kill-stuck-tasks-{environment}"
         send_alert(alert_msg, sns_topic_arn, "ERROR: ECS Auto-Kill Failed")
 
-        return {
-            'statusCode': 500,
-            'error': error_msg,
-            'killed_count': 0
-        }
+        return {"statusCode": 500, "error": error_msg, "killed_count": 0}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Local testing
-    os.environ.setdefault('CLUSTER_NAME', 'algo-cluster')
-    os.environ.setdefault('PROJECT_NAME', 'algo')
-    os.environ.setdefault('ENVIRONMENT', 'dev')
+    os.environ.setdefault("CLUSTER_NAME", "algo-cluster")
+    os.environ.setdefault("PROJECT_NAME", "algo")
+    os.environ.setdefault("ENVIRONMENT", "dev")
 
     result = lambda_handler({}, None)
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Lambda Result:")
     print(json.dumps(result, indent=2))

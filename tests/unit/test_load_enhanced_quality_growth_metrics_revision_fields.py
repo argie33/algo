@@ -19,7 +19,13 @@ def _loader() -> EnhancedQualityGrowthMetricsLoader:
 
 def _eps_trend_df(current=1.97898, ago_60=2.00767, ago_90=2.00701) -> pd.DataFrame:
     return pd.DataFrame(
-        {"current": [current], "7daysAgo": [2.01686], "30daysAgo": [2.00836], "60daysAgo": [ago_60], "90daysAgo": [ago_90]},
+        {
+            "current": [current],
+            "7daysAgo": [2.01686],
+            "30daysAgo": [2.00836],
+            "60daysAgo": [ago_60],
+            "90daysAgo": [ago_90],
+        },
         index=["0q"],
     )
 

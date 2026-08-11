@@ -19,14 +19,22 @@ class PhaseErrorMessages:
 
     # Configuration Issues
     MISSING_CONFIG_KEY = "Configuration missing required key: {key}. Check algo_config table."
-    INVALID_CONFIG_VALUE = "Configuration value {key}={value} outside valid range [{min}, {max}]. Check algo_config table."
+    INVALID_CONFIG_VALUE = (
+        "Configuration value {key}={value} outside valid range [{min}, {max}]. Check algo_config table."
+    )
     INVALID_EXECUTION_MODE = "Invalid execution_mode='{mode}'. Must be 'paper', 'dry', 'review', or 'auto'."
-    MISSING_EXPLICIT_THRESHOLD = "Cannot proceed without explicit {param} threshold (no hardcoded fallback). Check algo_config."
+    MISSING_EXPLICIT_THRESHOLD = (
+        "Cannot proceed without explicit {param} threshold (no hardcoded fallback). Check algo_config."
+    )
 
     # Database Connectivity & Health
-    DATABASE_UNAVAILABLE = "Database connectivity failed. Check database health, RDS credentials, or schema consistency."
+    DATABASE_UNAVAILABLE = (
+        "Database connectivity failed. Check database health, RDS credentials, or schema consistency."
+    )
     QUERY_TIMEOUT = "Database query timeout. Orchestrator may be under heavy load. Retrying..."
-    LOCK_ACQUISITION_FAILED = "Could not acquire orchestrator lock after {retries} retries. Another instance may be running."
+    LOCK_ACQUISITION_FAILED = (
+        "Could not acquire orchestrator lock after {retries} retries. Another instance may be running."
+    )
 
     # Halt Conditions
     CIRCUIT_BREAKER_TRIGGERED = "Circuit breaker triggered: {reason}. Halting new entries to protect capital."
@@ -44,7 +52,9 @@ class PhaseErrorMessages:
 
     # Alpaca & Broker Integration
     ALPACA_AUTH_FAILED = "Alpaca authentication failed. Check API credentials and network connectivity."
-    ALPACA_ORDER_SUBMISSION_FAILED = "Order submission to Alpaca failed: {error}. Check market hours and account status."
+    ALPACA_ORDER_SUBMISSION_FAILED = (
+        "Order submission to Alpaca failed: {error}. Check market hours and account status."
+    )
 
     @staticmethod
     def format(template: str, **kwargs: Any) -> str:

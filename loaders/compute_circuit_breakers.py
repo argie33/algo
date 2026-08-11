@@ -418,8 +418,10 @@ def _compute_weekly_loss(cur: Any, today: date) -> float:
     cur_val = float(row["cur_val"])
     week_ago_val = float(row["week_ago_val"])
     if (
-        math.isnan(cur_val) or math.isinf(cur_val)
-        or math.isnan(week_ago_val) or math.isinf(week_ago_val)
+        math.isnan(cur_val)
+        or math.isinf(cur_val)
+        or math.isnan(week_ago_val)
+        or math.isinf(week_ago_val)
         or week_ago_val <= 0
     ):
         raise ValueError(f"Invalid adjusted_equity for 7-day calculation: cur={cur_val}, week_ago={week_ago_val}")
@@ -516,11 +518,15 @@ def _compute_open_risk(cur: Any) -> float:
     port_val = float(port_row["total_portfolio_value"])
 
     if (
-        math.isnan(port_val) or math.isinf(port_val)
-        or math.isnan(total_risk) or math.isinf(total_risk)
+        math.isnan(port_val)
+        or math.isinf(port_val)
+        or math.isnan(total_risk)
+        or math.isinf(total_risk)
         or port_val <= 0
     ):
-        raise ValueError(f"Invalid portfolio/risk value for risk calculation: port_val={port_val}, total_risk={total_risk}")
+        raise ValueError(
+            f"Invalid portfolio/risk value for risk calculation: port_val={port_val}, total_risk={total_risk}"
+        )
 
     risk_pct = total_risk / port_val * 100
     return risk_pct
@@ -543,11 +549,7 @@ def _compute_spy_change(cur: Any, today: date) -> float:
     latest = float(prices[0]["close"])
     prior = float(prices[1]["close"])
 
-    if (
-        math.isnan(latest) or math.isinf(latest)
-        or math.isnan(prior) or math.isinf(prior)
-        or latest <= 0 or prior <= 0
-    ):
+    if math.isnan(latest) or math.isinf(latest) or math.isnan(prior) or math.isinf(prior) or latest <= 0 or prior <= 0:
         raise ValueError(f"Invalid SPY prices for {today}: latest={latest}, prior={prior}")
 
     change = (latest - prior) / prior * 100
@@ -565,7 +567,8 @@ def _compute_win_rate(cur: Any) -> float:
     # while the live gate's own win_rate_floor check reported the real 61.1%. CONCENTRATION
     # added 2026-08-03 alongside the same fix in the live gate - see
     # _compute_consecutive_losses above for the live-reproduced incident.
-    cur.execute("""
+    cur.execute(
+        """
         SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
                COUNT(*) FILTER (WHERE pnl_pct < 0) as losses
         FROM (
@@ -585,7 +588,9 @@ def _compute_win_rate(cur: Any) -> float:
                 LIMIT 30
             ) recent_closed
         ) recent_trades
-    """, ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"))
+    """,
+        ("%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
+    )
     row = cur.fetchone()
     if not row:
         raise ValueError("Win rate query failed")

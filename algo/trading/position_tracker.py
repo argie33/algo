@@ -120,7 +120,7 @@ class PositionTracker:
                     effective_stop = current_stop
 
             if full_exit or effective_new_qty <= 0:
-                actual_exit_reason = exit_reason if exit_reason is not None else 'position_tracker_full_exit'
+                actual_exit_reason = exit_reason if exit_reason is not None else "position_tracker_full_exit"
                 # CRITICAL: DO NOT modify quantity when closing position. Quantity should remain as the historical shares held.
                 # Previous bug: Set quantity = 0 on close, destroying historical record. Position data becomes meaningless.
                 # Correct approach: Use status='closed' to indicate position is no longer open. Keep quantity unchanged.

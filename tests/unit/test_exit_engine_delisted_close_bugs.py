@@ -89,7 +89,7 @@ def _run_with_fetch_recent_prices(mock_config, **fetch_kwargs):
     # 2. Archive price lookup -> (95.0,) (last valid archive price before delisting)
     mock_cur.fetchone.side_effect = [
         ("open", 10, 90.0),  # FOR UPDATE position recheck
-        (95.0,),             # Archive price lookup
+        (95.0,),  # Archive price lookup
     ]
 
     mock_ctx = MagicMock()
@@ -103,18 +103,16 @@ def _run_with_fetch_recent_prices(mock_config, **fetch_kwargs):
             patch.object(engine, "_fetch_market_dist_days", return_value=set()),
             patch.object(engine, "_fetch_recent_prices", **fetch_kwargs),
         ):
-            exits_executed, _stop_raises_executed, trade_errors, forced_closes_no_price = engine.check_and_execute_exits(current_date)
+            exits_executed, _stop_raises_executed, trade_errors, forced_closes_no_price = (
+                engine.check_and_execute_exits(current_date)
+            )
 
     return mock_cur, exits_executed, trade_errors, forced_closes_no_price
 
 
 def _assert_close_updates_are_valid(mock_cur):
-    trade_update_calls = [
-        c for c in mock_cur.execute.call_args_list if "UPDATE algo_trades" in str(c.args[0])
-    ]
-    position_update_calls = [
-        c for c in mock_cur.execute.call_args_list if "UPDATE algo_positions" in str(c.args[0])
-    ]
+    trade_update_calls = [c for c in mock_cur.execute.call_args_list if "UPDATE algo_trades" in str(c.args[0])]
+    position_update_calls = [c for c in mock_cur.execute.call_args_list if "UPDATE algo_positions" in str(c.args[0])]
     assert trade_update_calls, "expected a close UPDATE against algo_trades"
     assert position_update_calls, "expected a close UPDATE against algo_positions"
 
@@ -125,9 +123,7 @@ def _assert_close_updates_are_valid(mock_cur):
     assert "ORDER BY" not in trade_sql.upper(), (
         "ORDER BY/LIMIT directly on an UPDATE statement is invalid Postgres syntax"
     )
-    assert "WHERE trade_id = %s" in trade_sql, (
-        "expected an unambiguous match on the unique trade_id column"
-    )
+    assert "WHERE trade_id = %s" in trade_sql, "expected an unambiguous match on the unique trade_id column"
     # Bug 2: the close must cover every live status the candidate SELECT can surface,
     # not just 'open'.
     for status in TradeStatus.all_open():

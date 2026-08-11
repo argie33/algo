@@ -35,7 +35,7 @@ def test_orphan_close_sets_exit_time_not_just_exit_date():
     #    was actually persisted; must be non-None or this path raises a data-corruption error
     mock_write_cur.fetchone.side_effect = [
         (150.0,),  # price_daily close price
-        (0,),      # COALESCE(SUM(prior_partial), 0)
+        (0,),  # COALESCE(SUM(prior_partial), 0)
         (150.0,),  # verify exit_price was written
     ]
     mock_write_ctx = MagicMock()
@@ -54,9 +54,7 @@ def test_orphan_close_sets_exit_time_not_just_exit_date():
     ):
         _record_closed_positions_exits({}, date(2026, 7, 24), MagicMock())
 
-    trade_update_calls = [
-        c for c in mock_write_cur.execute.call_args_list if "UPDATE algo_trades" in str(c.args[0])
-    ]
+    trade_update_calls = [c for c in mock_write_cur.execute.call_args_list if "UPDATE algo_trades" in str(c.args[0])]
     assert trade_update_calls, "expected an UPDATE algo_trades call for the orphan-close path"
     sql_text = trade_update_calls[0].args[0]
     assert "exit_time = CURRENT_TIMESTAMP" in sql_text

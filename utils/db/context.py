@@ -434,8 +434,7 @@ class DatabaseContext:
                         logger.debug("[DB_CONTEXT] Not closing externally-managed connection")
             except Exception as cleanup_err:
                 logger.critical(
-                    f"[DB_CONTEXT CRITICAL] Commit/rollback failed during cleanup: {cleanup_err}",
-                    exc_info=True
+                    f"[DB_CONTEXT CRITICAL] Commit/rollback failed during cleanup: {cleanup_err}", exc_info=True
                 )
                 # CRITICAL FIX: Re-raise the cleanup error so caller knows transaction failed
                 # Previously this was silently logged and suppressed, causing transactions to
@@ -466,13 +465,13 @@ class DatabaseContext:
         try:
             # Get the default connection pool from get_db_connection
             conn = get_db_connection(timeout=2)
-            if hasattr(conn, 'pool'):
+            if hasattr(conn, "pool"):
                 # If connection has a pool reference, check utilization
                 db_pool = conn.pool
-                if hasattr(db_pool, '_pool'):
+                if hasattr(db_pool, "_pool"):
                     # SimpleConnectionPool or ThreadedConnectionPool
-                    available = len(db_pool._pool) if hasattr(db_pool, '_pool') else 0
-                    capacity = db_pool._maxconn if hasattr(db_pool, '_maxconn') else 10
+                    available = len(db_pool._pool) if hasattr(db_pool, "_pool") else 0
+                    capacity = db_pool._maxconn if hasattr(db_pool, "_maxconn") else 10
                     used = max(0, capacity - available)
                     utilization_pct = (used / capacity * 100) if capacity > 0 else 0
 

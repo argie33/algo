@@ -60,8 +60,10 @@ def _compute_short_interest_trend(current_pct: Any, prior_pct: Any) -> str | Non
     if current_pct is None or prior_pct is None:
         return None
     if (
-        math.isnan(current_pct) or math.isinf(current_pct)
-        or math.isnan(prior_pct) or math.isinf(prior_pct)
+        math.isnan(current_pct)
+        or math.isinf(current_pct)
+        or math.isnan(prior_pct)
+        or math.isinf(prior_pct)
         or prior_pct == 0
     ):
         return None
@@ -321,9 +323,7 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_percent_of_float_unavailable_reason": (
                     "missing_sec_data" if short_percent_of_float is None else None
                 ),
-                "short_ratio_unavailable_reason": (
-                    "missing_finra_data" if short_ratio is None else None
-                ),
+                "short_ratio_unavailable_reason": ("missing_finra_data" if short_ratio is None else None),
                 "top_10_institutions_pct": top_10_institutions_pct,
                 "top_10_institutions_pct_unavailable_reason": (
                     "institutional_data_not_available" if top_10_institutions_pct is None else None
@@ -348,7 +348,9 @@ class PositioningMetricsLoader(OptimalLoader):
                     else (
                         institutional_source
                         if institutional_source != "unavailable"
-                        else insider_source if insider_source != "unavailable" else "none"
+                        else insider_source
+                        if insider_source != "unavailable"
+                        else "none"
                     )
                 ),
                 "source_tracking": {

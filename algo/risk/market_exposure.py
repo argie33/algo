@@ -216,6 +216,7 @@ class MarketExposure:
                 # normalize_to_utc_datetime - resolve the real session timezone dynamically.
                 if not updated_at.tzinfo:
                     from utils.db.timezone_utils import get_db_timezone
+
                     naive_tz = get_db_timezone()
                     updated_at = updated_at.replace(tzinfo=naive_tz)
                 now = datetime.now(timezone.utc)
@@ -1166,7 +1167,13 @@ class MarketExposure:
             # caught NaN/Inf (always False in Python), and claims_now had no finiteness
             # check - a NaN would produce a NaN chg_pct whose `> 30`/`> 20` comparisons below
             # all silently evaluate False, masking a real jobless-claims stress signal.
-            if math.isnan(claims_now) or math.isinf(claims_now) or math.isnan(claims_26w) or math.isinf(claims_26w) or claims_26w <= 0:
+            if (
+                math.isnan(claims_now)
+                or math.isinf(claims_now)
+                or math.isnan(claims_26w)
+                or math.isinf(claims_26w)
+                or claims_26w <= 0
+            ):
                 msg = (
                     f"[MARKET_STRESS] Invalid jobless claims data (now={claims_now}, 26w_baseline={claims_26w}) - cannot compute jobless claims signal. "
                     "Jobless claims are REQUIRED for accurate market stress calculation. "

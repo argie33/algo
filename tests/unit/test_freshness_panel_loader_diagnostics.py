@@ -119,7 +119,7 @@ def test_inventory_omitted_does_not_break_panel():
     assert "Tracked but missing from DB" not in text
 
 
-def test_repeated_failures_section_shows_streak_and_last_success(): # migration 1163
+def test_repeated_failures_section_shows_streak_and_last_success():  # migration 1163
     items = [
         {
             "tbl": "sec_valuations",

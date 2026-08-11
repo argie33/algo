@@ -17,9 +17,7 @@ from loaders.load_market_constituents import should_exclude
 
 class TestNewExclusionPatterns:
     def test_preference_shares_excluded(self):
-        assert should_exclude(
-            "Aspen Insurance Holdings Limited 5.625% Perpetual Non-Cumulative Preference Shares"
-        )
+        assert should_exclude("Aspen Insurance Holdings Limited 5.625% Perpetual Non-Cumulative Preference Shares")
 
     def test_subordinated_debentures_excluded(self):
         assert should_exclude("American Financial Group, Inc. 5.125% Subordinated Debentures due 2059")
@@ -74,9 +72,7 @@ class TestRightsWhenIssuedAndDepositaryShareExclusionPatterns:
         assert should_exclude("Equitable Holdings, Inc. Depositary Shares")
 
     def test_dep_shs_abbreviation_excluded(self):
-        assert should_exclude(
-            "Morgan Stanley Dep Shs Rpstg 1/1000th Int Prd Ser F Fxd to Flag"
-        )
+        assert should_exclude("Morgan Stanley Dep Shs Rpstg 1/1000th Int Prd Ser F Fxd to Flag")
 
     def test_pfd_shs_ser_excluded(self):
         """Not caught by the existing `\\bpfd (ser|stock)` pattern - "Shs" sits between

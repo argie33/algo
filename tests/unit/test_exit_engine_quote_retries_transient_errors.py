@@ -79,9 +79,7 @@ class TestFetchAlpacaQuoteRetriesTransientErrors:
                 return_value={"key": "k", "secret": "s"},
             ),
             patch("algo.trading.exit_engine.get_alpaca_data_url", return_value="https://data.alpaca.markets"),
-            patch(
-                "algo.trading.exit_engine.requests.get", return_value=unavailable
-            ) as mock_get,
+            patch("algo.trading.exit_engine.requests.get", return_value=unavailable) as mock_get,
             patch("algo.trading.exit_engine.time.sleep"),
         ):
             with pytest.raises(RuntimeError, match="503"):

@@ -113,9 +113,7 @@ class TestDatabaseAvailabilityRecovery(unittest.TestCase):
 
         self.assertEqual(error.error_category, ErrorCategory.TRANSIENT)
         self.assertTrue(error.retry_eligible)
-        self.assertTrue(
-            "timeout" in error.context.get("query", "").lower() or "timeout" in error.message.lower()
-        )
+        self.assertTrue("timeout" in error.context.get("query", "").lower() or "timeout" in error.message.lower())
 
     def test_database_partial_write_rollback(self):
         """Verify partial writes are rolled back on failure.
@@ -822,7 +820,9 @@ class RecoveryTestReport:
         """Initialize report generator."""
         self.findings: list[dict] = []
 
-    def add_finding(self, category: str, severity: str, description: str, gap: str, mitigation: str | None = None) -> None:
+    def add_finding(
+        self, category: str, severity: str, description: str, gap: str, mitigation: str | None = None
+    ) -> None:
         """Add a finding to the report.
 
         Args:

@@ -66,8 +66,7 @@ def test_final_verification_failed_reports_degraded_not_success(mock_config):
     result, logged = _run_with_result(recon_result, mock_config)
 
     assert result.status == "degraded", (
-        "a failed final-verification must not be reported as clean 'ok' - "
-        f"got status={result.status!r}"
+        f"a failed final-verification must not be reported as clean 'ok' - got status={result.status!r}"
     )
     assert result.ok, "degraded must still count as ok for downstream Phase 5+ dependency checks"
     assert logged, "log_phase_result_fn must have been called"

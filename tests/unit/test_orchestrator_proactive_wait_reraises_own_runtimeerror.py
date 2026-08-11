@@ -32,6 +32,7 @@ def _find_method(name: str) -> ast.FunctionDef:
 def test_own_runtimeerror_reraised_before_generic_exception_handler():
     method = _find_method("_wait_for_critical_loaders_proactive")
     try_nodes = [node for node in ast.walk(method) if isinstance(node, ast.Try)]
+
     # The outer try (the one with a catch-all `except Exception`) is the one whose
     # handler ordering matters here.
     def _handler_types(t: ast.Try) -> list[str | None]:

@@ -213,8 +213,9 @@ class HaltFlagManager:
                             hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
                             reason = item.get("reason") or "N/A"
                             not_eligible_note = (
-                                "" if now_et < market_open_et else
-                                f" NOT auto-expired: triggered_by={triggered_by!r} requires explicit clear "
+                                ""
+                                if now_et < market_open_et
+                                else f" NOT auto-expired: triggered_by={triggered_by!r} requires explicit clear "
                                 "via scripts/manage_halt_flag.py or that phase's own logic."
                             )
                             logger.critical(
@@ -820,7 +821,9 @@ class HaltFlagManager:
                 try:
                     cur.execute("SELECT pg_advisory_lock(%s)", (lock_id,))
 
-                    state_value = json.dumps({"halt_triggered_by": triggered_by, "reason": reason or "Phase 1 degraded"})
+                    state_value = json.dumps(
+                        {"halt_triggered_by": triggered_by, "reason": reason or "Phase 1 degraded"}
+                    )
                     # force=True: unconditional overwrite (no CASE guard) - see docstring above.
                     preserve_guard = "algo_runtime_state.halt_flag" if not force else "FALSE"
                     cur.execute(
@@ -849,7 +852,9 @@ class HaltFlagManager:
                             triggered_by,
                         ),
                     )
-                    logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
+                    logger.critical(
+                        f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)"
+                    )
                     return True
                 finally:
                     try:

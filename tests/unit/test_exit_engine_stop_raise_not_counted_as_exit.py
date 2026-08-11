@@ -88,7 +88,9 @@ def test_stop_raise_only_outcome_is_not_counted_as_an_exit(mock_config):
             patch.object(engine, "_fetch_recent_prices", return_value=(105.0, 100.0)),
             patch.object(engine, "_evaluate_position", return_value=stop_raise_signal),
         ):
-            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = engine.check_and_execute_exits(current_date)
+            exits_executed, stop_raises_executed, trade_errors, _forced_closes_no_price = (
+                engine.check_and_execute_exits(current_date)
+            )
 
     assert (exits_executed, stop_raises_executed, trade_errors) == (0, 1, 0), (
         "a stop-raise-only outcome must be counted in stop_raises_executed, not "

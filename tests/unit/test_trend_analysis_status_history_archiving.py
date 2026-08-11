@@ -38,6 +38,7 @@ class TestTrendAnalysisStatusHistoryArchiving:
 
     def test_failed_status_archives_to_history(self):
         cur = MagicMock()
+
         # Mock fetchone to return different results based on SQL content
         def mock_fetchone_fn():
             last_sql = cur.execute.call_args[0][0] if cur.execute.called else ""

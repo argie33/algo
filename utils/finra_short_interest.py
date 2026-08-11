@@ -65,10 +65,7 @@ class FINRAShortInterestFetcher:
                 logger.debug(f"[FINRA] {candidate} fetch failed: {e}")
                 continue
             if data:
-                logger.info(
-                    f"[FINRA] Fetched short interest for settlement date {candidate} "
-                    f"({len(data)} symbols)"
-                )
+                logger.info(f"[FINRA] Fetched short interest for settlement date {candidate} ({len(data)} symbols)")
                 return data, candidate
 
         logger.warning("[FINRA] No published short interest cycle found in lookback window")
@@ -139,9 +136,7 @@ class FINRAShortInterestFetcher:
                 )
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
-                raise RuntimeError(
-                    f"[FINRA] HTTP error fetching short interest for {target_date}: {e}"
-                ) from e
+                raise RuntimeError(f"[FINRA] HTTP error fetching short interest for {target_date}: {e}") from e
 
             # FINRA returns 204 No Content (empty body) when a query matches zero rows.
             if response.status_code == 204 or not response.content:

@@ -74,10 +74,7 @@ class TestBetaCalculation:
         stock_mean = sum(stock_returns) / n
         market_mean = sum(market_returns) / n
 
-        cov = sum(
-            (stock_returns[i] - stock_mean) * (market_returns[i] - market_mean)
-            for i in range(n)
-        ) / n
+        cov = sum((stock_returns[i] - stock_mean) * (market_returns[i] - market_mean) for i in range(n)) / n
         var = sum((market_returns[i] - market_mean) ** 2 for i in range(n)) / n
 
         beta = cov / var if var > 0 else 0
@@ -92,10 +89,7 @@ class TestBetaCalculation:
         stock_mean = sum(stock_returns) / n
         market_mean = sum(market_returns) / n
 
-        cov = sum(
-            (stock_returns[i] - stock_mean) * (market_returns[i] - market_mean)
-            for i in range(n)
-        ) / n
+        cov = sum((stock_returns[i] - stock_mean) * (market_returns[i] - market_mean) for i in range(n)) / n
         var = sum((market_returns[i] - market_mean) ** 2 for i in range(n)) / n
 
         beta = cov / var if var > 0 else 0

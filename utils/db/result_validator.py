@@ -31,9 +31,7 @@ def validate_row_structure(
         RowValidationError: If row structure doesn't match expectations
     """
     if not isinstance(row, (tuple, list)):
-        raise RowValidationError(
-            f"[{source}] Expected row to be tuple or list, got {type(row).__name__}"
-        )
+        raise RowValidationError(f"[{source}] Expected row to be tuple or list, got {type(row).__name__}")
 
     expected_count = len(expected_columns)
     actual_count = len(row)
@@ -72,23 +70,18 @@ def safe_get_column(
         RowValidationError: If value is missing, wrong type, or None when not allowed
     """
     if not isinstance(row, (tuple, list)):
-        raise RowValidationError(
-            f"[{source}] {column_name}: Row is {type(row).__name__}, expected tuple or list"
-        )
+        raise RowValidationError(f"[{source}] {column_name}: Row is {type(row).__name__}, expected tuple or list")
 
     if index >= len(row):
         raise RowValidationError(
-            f"[{source}] {column_name}: Column index {index} out of bounds. "
-            f"Row has {len(row)} columns."
+            f"[{source}] {column_name}: Column index {index} out of bounds. Row has {len(row)} columns."
         )
 
     value = row[index]
 
     if value is None:
         if not allow_none:
-            raise RowValidationError(
-                f"[{source}] {column_name}: Column value is NULL, but NULL is not allowed"
-            )
+            raise RowValidationError(f"[{source}] {column_name}: Column value is NULL, but NULL is not allowed")
         return None
 
     if expected_type is not None:
@@ -140,11 +133,7 @@ class RowAccessor:
         allow_none: bool = False,
     ) -> Any:
         """Get column value with type checking."""
-        column_name = (
-            self.column_names[index]
-            if 0 <= index < len(self.column_names)
-            else f"column_{index}"
-        )
+        column_name = self.column_names[index] if 0 <= index < len(self.column_names) else f"column_{index}"
         return safe_get_column(
             self.row,
             index,

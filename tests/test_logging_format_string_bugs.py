@@ -96,6 +96,5 @@ def test_no_logger_calls_mix_brace_placeholders_with_percent_args():
         "Found logger calls using {name}-style placeholders in a plain string while also "
         "passing %-style positional args. The {name} part is never substituted - fix by "
         "either using %s for every value or making the whole string an f-string with no "
-        "extra positional args:\n"
-        + "\n".join(f"  {p}:{line}: {msg!r}" for p, line, msg in all_bugs)
+        "extra positional args:\n" + "\n".join(f"  {p}:{line}: {msg!r}" for p, line, msg in all_bugs)
     )

@@ -49,7 +49,7 @@ def test_db_error_recording_exit_raises_instead_of_silently_continuing():
     # Mock fetchone() to return proper values for price_daily and audit_log queries
     write_cur.fetchone.side_effect = [
         (150.50,),  # price_daily close (first fetchone call on line 1068)
-        (0,),       # prior_partial audit_log sum (second fetchone call on line 1120)
+        (0,),  # prior_partial audit_log sum (second fetchone call on line 1120)
     ]
 
     def fake_log(*args, **kwargs):
@@ -97,7 +97,7 @@ def test_algo_trades_zero_rowcount_gracefully_continues():
     # Mock fetchone() to return proper values for price_daily and audit_log queries
     write_cur.fetchone.side_effect = [
         (150.50,),  # price_daily close (first fetchone call on line 1068)
-        (0,),       # prior_partial audit_log sum (second fetchone call on line 1120)
+        (0,),  # prior_partial audit_log sum (second fetchone call on line 1120)
     ]
 
     def fake_log(*args, **kwargs):

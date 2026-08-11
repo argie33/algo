@@ -29,31 +29,23 @@ from utils.validation.financial import FinancialDataValidator
 
 class TestPnlCalculationRejectsNanAndInfinity:
     def test_nan_entry_price_rejected_not_silently_accepted(self):
-        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(
-            float("nan"), 110.0, 10
-        )
+        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(float("nan"), 110.0, 10)
         assert valid is False
         assert pnl_dollars is None
         assert pnl_pct is None
         assert msg
 
     def test_infinity_entry_price_rejected(self):
-        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(
-            float("inf"), 110.0, 10
-        )
+        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(float("inf"), 110.0, 10)
         assert valid is False
         assert pnl_dollars is None
 
     def test_nan_exit_price_rejected(self):
-        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(
-            100.0, float("nan"), 10
-        )
+        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(100.0, float("nan"), 10)
         assert valid is False
 
     def test_nan_quantity_rejected(self):
-        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(
-            100.0, 110.0, float("nan")
-        )
+        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(100.0, 110.0, float("nan"))
         assert valid is False
 
     def test_valid_result_never_contains_nan_or_inf(self):
@@ -64,9 +56,7 @@ class TestPnlCalculationRejectsNanAndInfinity:
             (50.0, 45.0, 100),
             (0.01, 0.02, 1),
         ]:
-            valid, pnl_dollars, pnl_pct, _ = FinancialDataValidator.validate_pnl_calculation(
-                entry, exit_price, qty
-            )
+            valid, pnl_dollars, pnl_pct, _ = FinancialDataValidator.validate_pnl_calculation(entry, exit_price, qty)
             if valid:
                 assert math.isfinite(pnl_dollars)
                 assert math.isfinite(pnl_pct)
@@ -76,9 +66,7 @@ class TestPnlCalculationTypeCoercion:
     def test_string_prices_succeed_not_typeerror(self):
         """A valid string-typed price must be coerced and sized normally, not crash with
         "'<=' not supported between instances of 'str' and 'int'"."""
-        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation(
-            "100.0", "110.0", 10
-        )
+        valid, pnl_dollars, pnl_pct, msg = FinancialDataValidator.validate_pnl_calculation("100.0", "110.0", 10)
         assert valid is True
         assert pnl_dollars == 100.0
         assert pnl_pct == 10.0

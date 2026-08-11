@@ -44,10 +44,13 @@ class TestSendMarketExitIdempotency:
         retries that share the same client_order_id."""
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch(
-            "algo.trading.order_manager.requests.post",
-            side_effect=[requests.Timeout("timed out"), _mock_response()],
-        ) as mock_post, patch("algo.trading.order_manager.time.sleep"):
+        with (
+            patch(
+                "algo.trading.order_manager.requests.post",
+                side_effect=[requests.Timeout("timed out"), _mock_response()],
+            ) as mock_post,
+            patch("algo.trading.order_manager.time.sleep"),
+        ):
             result = manager.send_market_exit("TEST", 10, execution_mode="auto", client_order_id="exit-stable-1")
 
         assert result["success"] is True
@@ -99,7 +102,9 @@ class TestExecutorPersistsPendingClientOrderId:
 
         call_kwargs = mock_order_manager.send_market_exit.call_args
         args, kwargs = call_kwargs
-        passed_id = kwargs.get("client_order_id") if "client_order_id" in kwargs else (args[3] if len(args) > 3 else None)
+        passed_id = (
+            kwargs.get("client_order_id") if "client_order_id" in kwargs else (args[3] if len(args) > 3 else None)
+        )
         assert passed_id, "executor must pass a non-empty client_order_id to send_market_exit"
 
     def test_two_different_trades_get_different_ids(self):

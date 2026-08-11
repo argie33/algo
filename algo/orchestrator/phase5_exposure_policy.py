@@ -55,9 +55,7 @@ def validate_constraint_dict(constraints: ExposureConstraints | dict[str, Any]) 
     # Validate individual field values
     if "halt_new_entries" in constraints:
         if not isinstance(constraints["halt_new_entries"], bool):
-            errors.append(
-                f"halt_new_entries must be bool, got {type(constraints.get('halt_new_entries')).__name__}"
-            )
+            errors.append(f"halt_new_entries must be bool, got {type(constraints.get('halt_new_entries')).__name__}")
         elif constraints["halt_new_entries"] and not constraints.get("halt_reason"):
             errors.append("halt_reason required when halt_new_entries=True")
 

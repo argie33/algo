@@ -24,9 +24,7 @@ class TestMarkLoaderFailedAfterCrash:
         mock_status_mgr = MagicMock()
         mock_status_mgr.get_status.return_value = {"status": "RUNNING"}
 
-        with patch(
-            "algo.orchestrator.phase1_failsafe_retry.LoaderStatusManager", return_value=mock_status_mgr
-        ):
+        with patch("algo.orchestrator.phase1_failsafe_retry.LoaderStatusManager", return_value=mock_status_mgr):
             _mark_loader_failed_after_crash("prices", "subprocess timed out")
 
         # load_prices.py owns 6 output tables - all must be checked and marked
@@ -38,9 +36,7 @@ class TestMarkLoaderFailedAfterCrash:
         mock_status_mgr = MagicMock()
         mock_status_mgr.get_status.return_value = {"status": "FAILED"}
 
-        with patch(
-            "algo.orchestrator.phase1_failsafe_retry.LoaderStatusManager", return_value=mock_status_mgr
-        ):
+        with patch("algo.orchestrator.phase1_failsafe_retry.LoaderStatusManager", return_value=mock_status_mgr):
             _mark_loader_failed_after_crash("prices", "subprocess timed out")
 
         mock_status_mgr.mark_failed.assert_not_called()

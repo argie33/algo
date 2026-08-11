@@ -25,7 +25,7 @@ SOURCE = (Path(__file__).parent.parent.parent / "algo" / "trading" / "executor_e
 
 def _update_algo_trades_statements(source: str) -> list[str]:
     """Extract each `UPDATE algo_trades ... WHERE trade_id = %s` SQL block."""
-    return re.findall(r'UPDATE algo_trades\s+SET.*?WHERE trade_id = %s', source, re.DOTALL)
+    return re.findall(r"UPDATE algo_trades\s+SET.*?WHERE trade_id = %s", source, re.DOTALL)
 
 
 def test_found_all_three_confirmed_exit_update_statements():

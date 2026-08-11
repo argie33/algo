@@ -16,11 +16,7 @@ def _make_loader():
     loader = PriceLoader.__new__(PriceLoader)
     loader.table_name = "price_daily"
     loader.interval = "1d"
-    loader._stats = {
-        "symbols_total": 10,
-        "symbols_processed": 10,
-        "start_time": 1_700_000_000.0
-    }
+    loader._stats = {"symbols_total": 10, "symbols_processed": 10, "start_time": 1_700_000_000.0}
     return loader
 
 
@@ -34,7 +30,7 @@ class TestCacheInvalidationFailure:
         # Mock database queries for data collection
         cur.fetchone.side_effect = [
             (500, "2026-07-31"),  # COUNT(*), MAX(date)
-            (10,),                 # COUNT(DISTINCT symbol)
+            (10,),  # COUNT(DISTINCT symbol)
             (None, None, None, 500, 100.0, 10, 10),  # SELECT from status for archive
         ]
         cur.rowcount = 1

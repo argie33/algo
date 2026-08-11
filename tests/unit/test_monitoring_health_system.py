@@ -78,9 +78,7 @@ class TestPipelineHealthMonitoring:
 
         for table_name in ("sec_dividends", "sec_material_events", "equity_curve_daily"):
             health = monitor.check_table_health(mock_cursor, table_name, None, 7)
-            assert health.status == HealthStatus.DEPRECATED, (
-                f"{table_name}: expected DEPRECATED, got {health.status}"
-            )
+            assert health.status == HealthStatus.DEPRECATED, f"{table_name}: expected DEPRECATED, got {health.status}"
             assert health.is_healthy
 
     def test_restored_writer_table_with_zero_rows_reports_missing_not_deprecated(self):
@@ -727,5 +725,3 @@ class TestAlertTriggering:
             within_limits = aggregator.check_limits()
             # If not within limits, alert should trigger
             assert isinstance(within_limits, bool)
-
-

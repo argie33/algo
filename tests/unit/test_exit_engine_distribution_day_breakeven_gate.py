@@ -60,8 +60,10 @@ def _evaluate(mock_config, cur_price, entry_price, last_partial_exit_date=None, 
     class ConfigDict(dict):
         def get(self, key, default=None):
             return super().get(key, default)
+
         def __getitem__(self, key):
             return super().__getitem__(key)
+
         def __contains__(self, key):
             return super().__contains__(key)
 

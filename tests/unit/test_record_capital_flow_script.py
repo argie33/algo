@@ -54,7 +54,13 @@ class TestRecordCapitalFlowScript:
             record_capital_flow.record_flow(date(2026, 8, 10), Decimal("-5000"), "manual", "withdrawal to bank")
 
         insert_call = mock_cur.execute.call_args_list[0]
-        assert insert_call.args[1] == (date(2026, 8, 10), Decimal("-5000"), "withdrawal", "manual", "withdrawal to bank")
+        assert insert_call.args[1] == (
+            date(2026, 8, 10),
+            Decimal("-5000"),
+            "withdrawal",
+            "manual",
+            "withdrawal to bank",
+        )
 
     def test_recompute_query_runs_after_insert(self):
         """The core correctness property: recording a flow must also recompute the

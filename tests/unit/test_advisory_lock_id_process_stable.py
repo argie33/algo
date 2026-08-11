@@ -39,8 +39,7 @@ def test_halt_flag_lock_id_stable_across_real_separate_processes() -> None:
     random PYTHONHASHSEED) and confirm they compute the identical lock_id. Using the
     built-in hash() instead of crc32 would make this test flaky/fail across runs."""
     snippet = (
-        "from algo.orchestration.halt_flag_manager import HaltFlagManager;"
-        "print(HaltFlagManager.HALT_FLAG_LOCK_ID)"
+        "from algo.orchestration.halt_flag_manager import HaltFlagManager;print(HaltFlagManager.HALT_FLAG_LOCK_ID)"
     )
     outputs = {
         subprocess.run([sys.executable, "-c", snippet], capture_output=True, text=True, check=True).stdout.strip()

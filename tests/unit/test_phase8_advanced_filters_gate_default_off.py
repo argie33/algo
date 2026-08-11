@@ -58,6 +58,6 @@ def test_gate_per_candidate_failure_does_not_raise():
     # The nearest enclosing except after the evaluate_candidate() call must not re-raise -
     # it should log a warning and fall through, not `continue`/`raise` the candidate away
     # on an infrastructure error (as opposed to a real af_result["pass"] is False rejection).
-    after_call = loop_section[gate_call_idx:gate_call_idx + 1500]
+    after_call = loop_section[gate_call_idx : gate_call_idx + 1500]
     assert "except Exception as e:" in after_call
     assert "failing open" in after_call.lower()

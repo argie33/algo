@@ -26,9 +26,7 @@ def _find_mark_completed_call():
     calls = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "mark_completed"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "mark_completed"
     ]
     assert len(calls) == 1, f"Expected exactly one mark_completed() call, found {len(calls)}"
     return calls[0]

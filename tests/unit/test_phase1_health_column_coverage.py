@@ -84,21 +84,36 @@ class TestHealthColumnCoverage:
         warning and return normally, never raise."""
         with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
             _check_health_column_coverage(
-                total_rows=10, pcr_rows=0, pcr_distinct=None, vix_rows=10, vix_distinct=5, health_max_date=date(2026, 7, 27)
+                total_rows=10,
+                pcr_rows=0,
+                pcr_distinct=None,
+                vix_rows=10,
+                vix_distinct=5,
+                health_max_date=date(2026, 7, 27),
             )
         assert any("put_call_ratio" in r.message and r.levelname == "WARNING" for r in caplog.records)
 
     def test_missing_vix_warns_not_halts(self, caplog) -> None:
         with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
             _check_health_column_coverage(
-                total_rows=10, pcr_rows=10, pcr_distinct=5, vix_rows=0, vix_distinct=None, health_max_date=date(2026, 7, 27)
+                total_rows=10,
+                pcr_rows=10,
+                pcr_distinct=5,
+                vix_rows=0,
+                vix_distinct=None,
+                health_max_date=date(2026, 7, 27),
             )
         assert any("VIX" in r.message and r.levelname == "WARNING" for r in caplog.records)
 
     def test_both_optional_columns_missing_warns_twice_not_halts(self, caplog) -> None:
         with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
             _check_health_column_coverage(
-                total_rows=10, pcr_rows=0, pcr_distinct=None, vix_rows=0, vix_distinct=None, health_max_date=date(2026, 7, 27)
+                total_rows=10,
+                pcr_rows=0,
+                pcr_distinct=None,
+                vix_rows=0,
+                vix_distinct=None,
+                health_max_date=date(2026, 7, 27),
             )
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         assert len(warnings) == 2
@@ -109,12 +124,22 @@ class TestHealthColumnCoverage:
         being null within an existing row. This must still raise."""
         with pytest.raises(RuntimeError, match="market_health_daily has no rows"):
             _check_health_column_coverage(
-                total_rows=0, pcr_rows=0, pcr_distinct=None, vix_rows=0, vix_distinct=None, health_max_date=date(2026, 7, 27)
+                total_rows=0,
+                pcr_rows=0,
+                pcr_distinct=None,
+                vix_rows=0,
+                vix_distinct=None,
+                health_max_date=date(2026, 7, 27),
             )
 
     def test_full_coverage_logs_no_warnings(self, caplog) -> None:
         with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
             _check_health_column_coverage(
-                total_rows=10, pcr_rows=10, pcr_distinct=5, vix_rows=10, vix_distinct=8, health_max_date=date(2026, 7, 27)
+                total_rows=10,
+                pcr_rows=10,
+                pcr_distinct=5,
+                vix_rows=10,
+                vix_distinct=8,
+                health_max_date=date(2026, 7, 27),
             )
         assert not any(r.levelname == "WARNING" for r in caplog.records)

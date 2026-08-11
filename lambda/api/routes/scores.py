@@ -495,9 +495,13 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "earnings_beat_rate": data.get("earnings_beat_rate"),
                 "earnings_beat_rate_unavailable_reason": data.get("earnings_beat_rate_unavailable_reason"),
                 "consecutive_positive_quarters": data.get("consecutive_positive_quarters"),
-                "consecutive_positive_quarters_unavailable_reason": data.get("consecutive_positive_quarters_unavailable_reason"),
+                "consecutive_positive_quarters_unavailable_reason": data.get(
+                    "consecutive_positive_quarters_unavailable_reason"
+                ),
                 "estimate_revision_direction": data.get("estimate_revision_direction"),
-                "estimate_revision_direction_unavailable_reason": data.get("estimate_revision_direction_unavailable_reason"),
+                "estimate_revision_direction_unavailable_reason": data.get(
+                    "estimate_revision_direction_unavailable_reason"
+                ),
                 "revision_activity_30d": data.get("revision_activity_30d"),
                 "revision_activity_30d_unavailable_reason": data.get("revision_activity_30d_unavailable_reason"),
                 "estimate_momentum_60d": data.get("estimate_momentum_60d"),
@@ -614,7 +618,9 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "net_income_growth_yoy": data.get("net_income_growth_yoy"),
                 "net_income_growth_yoy_unavailable_reason": data.get("net_income_growth_yoy_unavailable_reason"),
                 "operating_income_growth_yoy": data.get("operating_income_growth_yoy"),
-                "operating_income_growth_yoy_unavailable_reason": data.get("operating_income_growth_yoy_unavailable_reason"),
+                "operating_income_growth_yoy_unavailable_reason": data.get(
+                    "operating_income_growth_yoy_unavailable_reason"
+                ),
                 "gross_margin_trend": data.get("gross_margin_trend"),
                 "gross_margin_trend_unavailable_reason": data.get("gross_margin_trend_unavailable_reason"),
                 "operating_margin_trend": data.get("operating_margin_trend"),
@@ -626,7 +632,9 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "sustainable_growth_rate": data.get("sustainable_growth_rate"),
                 "sustainable_growth_rate_unavailable_reason": data.get("sustainable_growth_rate_unavailable_reason"),
                 "quarterly_growth_momentum": data.get("quarterly_growth_momentum"),
-                "quarterly_growth_momentum_unavailable_reason": data.get("quarterly_growth_momentum_unavailable_reason"),
+                "quarterly_growth_momentum_unavailable_reason": data.get(
+                    "quarterly_growth_momentum_unavailable_reason"
+                ),
                 "earnings_growth_4q_avg": data.get("earnings_growth_4q_avg"),
                 "earnings_growth_4q_avg_unavailable_reason": data.get("earnings_growth_4q_avg_unavailable_reason"),
                 "fcf_growth_yoy": data.get("fcf_growth_yoy"),
@@ -644,11 +652,15 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 # institutional_ownership_pct_unavailable_reason - the missing "_pct" here meant
                 # this reason was computed but never actually reached the UI; a real null value
                 # rendered as a bare "No data" instead of the actual reason underneath it.
-                "institutional_ownership_pct_unavailable_reason": data.get("institutional_ownership_unavailable_reason"),
+                "institutional_ownership_pct_unavailable_reason": data.get(
+                    "institutional_ownership_unavailable_reason"
+                ),
                 "top_10_institutions_pct": data.get("top_10_institutions_pct"),
                 "top_10_institutions_pct_unavailable_reason": data.get("top_10_institutions_pct_unavailable_reason"),
                 "institutional_holders_count": data.get("institutional_holders_count"),
-                "institutional_holders_count_unavailable_reason": data.get("institutional_holders_count_unavailable_reason"),
+                "institutional_holders_count_unavailable_reason": data.get(
+                    "institutional_holders_count_unavailable_reason"
+                ),
                 "insider_ownership_pct": data.get("insider_own_val"),
                 "insider_ownership_pct_unavailable_reason": data.get("insider_ownership_unavailable_reason"),
                 "short_interest_pct": data.get("short_pct_val"),
@@ -724,9 +736,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     data.get("segment_unavailable_reason") if data.get("segment_count") is None else None
                 ),
                 "largest_segment_revenue_pct_unavailable_reason": (
-                    data.get("segment_unavailable_reason")
-                    if data.get("largest_segment_revenue_pct") is None
-                    else None
+                    data.get("segment_unavailable_reason") if data.get("largest_segment_revenue_pct") is None else None
                 ),
                 "is_diversified_unavailable_reason": (
                     data.get("segment_unavailable_reason") if data.get("is_diversified") is None else None
@@ -906,9 +916,7 @@ def _get_stock_scores(  # noqa: C901
             # Loader marks data_unavailable=true for scores with <4/6 metrics or data_completeness < 70%.
             # API: Return all scores where loader marked available; dashboard filters on completeness %.
             # This gives traders full visibility: completeness % shown for all scores >= 50%.
-            where_clause += (
-                " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
-            )
+            where_clause += " AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
 
         # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
         # per-symbol LATERAL lookups (price_daily/technical_data_daily) only against that
@@ -1304,9 +1312,13 @@ def _get_stock_scores(  # noqa: C901
                 "earnings_beat_rate": d.get("earnings_beat_rate"),
                 "earnings_beat_rate_unavailable_reason": d.get("earnings_beat_rate_unavailable_reason"),
                 "consecutive_positive_quarters": d.get("consecutive_positive_quarters"),
-                "consecutive_positive_quarters_unavailable_reason": d.get("consecutive_positive_quarters_unavailable_reason"),
+                "consecutive_positive_quarters_unavailable_reason": d.get(
+                    "consecutive_positive_quarters_unavailable_reason"
+                ),
                 "estimate_revision_direction": d.get("estimate_revision_direction"),
-                "estimate_revision_direction_unavailable_reason": d.get("estimate_revision_direction_unavailable_reason"),
+                "estimate_revision_direction_unavailable_reason": d.get(
+                    "estimate_revision_direction_unavailable_reason"
+                ),
                 "revision_activity_30d": d.get("revision_activity_30d"),
                 "revision_activity_30d_unavailable_reason": d.get("revision_activity_30d_unavailable_reason"),
                 "estimate_momentum_60d": d.get("estimate_momentum_60d"),
@@ -1414,7 +1426,9 @@ def _get_stock_scores(  # noqa: C901
                 "net_income_growth_yoy": d.get("net_income_growth_yoy"),
                 "net_income_growth_yoy_unavailable_reason": d.get("net_income_growth_yoy_unavailable_reason"),
                 "operating_income_growth_yoy": d.get("operating_income_growth_yoy"),
-                "operating_income_growth_yoy_unavailable_reason": d.get("operating_income_growth_yoy_unavailable_reason"),
+                "operating_income_growth_yoy_unavailable_reason": d.get(
+                    "operating_income_growth_yoy_unavailable_reason"
+                ),
                 "gross_margin_trend": d.get("gross_margin_trend"),
                 "gross_margin_trend_unavailable_reason": d.get("gross_margin_trend_unavailable_reason"),
                 "operating_margin_trend": d.get("operating_margin_trend"),
@@ -1448,7 +1462,9 @@ def _get_stock_scores(  # noqa: C901
                 "top_10_institutions_pct": d.get("top_10_institutions_pct"),
                 "top_10_institutions_pct_unavailable_reason": d.get("top_10_institutions_pct_unavailable_reason"),
                 "institutional_holders_count": d.get("institutional_holders_count"),
-                "institutional_holders_count_unavailable_reason": d.get("institutional_holders_count_unavailable_reason"),
+                "institutional_holders_count_unavailable_reason": d.get(
+                    "institutional_holders_count_unavailable_reason"
+                ),
                 "insider_ownership_pct": d.get("insider_own_val"),
                 "insider_ownership_pct_unavailable_reason": d.get("insider_ownership_unavailable_reason"),
                 "short_interest_pct": d.get("short_pct_val"),
@@ -1545,8 +1561,8 @@ def _get_stock_scores(  # noqa: C901
 
             # Ensure these are in the response
             d["data_completeness"] = completeness if completeness is not None else 0.0
-            d["data_unavailable_reason"] = reason if reason else (
-                "Data completeness below 70% threshold" if unavailable else None
+            d["data_unavailable_reason"] = (
+                reason if reason else ("Data completeness below 70% threshold" if unavailable else None)
             )
 
             # CRITICAL FIX: If current price is missing, mark data unavailable
@@ -1554,7 +1570,9 @@ def _get_stock_scores(  # noqa: C901
             # Don't silently include incomplete scores - that masks data quality issues
             if d.get("current_price") is None:
                 d["_data_unavailable"] = True
-                d["_data_unavailable_reason"] = "current_price missing from price_daily - cannot calculate position risk"
+                d["_data_unavailable_reason"] = (
+                    "current_price missing from price_daily - cannot calculate position risk"
+                )
 
             items.append(d)
 
@@ -1620,15 +1638,14 @@ def _get_stock_scores(  # noqa: C901
         avg_completeness = None
         completeness_threshold_pct = None
         if items:
-            completeness_values = [
-                dc for d in items
-                if (dc := d.get("data_completeness")) is not None and dc > 0
-            ]
+            completeness_values = [dc for d in items if (dc := d.get("data_completeness")) is not None and dc > 0]
             if completeness_values:
                 avg_completeness = sum(completeness_values) / len(completeness_values)
                 # Count how many meet trading gate (70%+ complete)
                 trading_gate_count = sum(1 for c in completeness_values if c >= 70)
-                completeness_threshold_pct = 100 * trading_gate_count / len(completeness_values) if completeness_values else 0
+                completeness_threshold_pct = (
+                    100 * trading_gate_count / len(completeness_values) if completeness_values else 0
+                )
 
         result = {
             "items": items,
@@ -1643,9 +1660,11 @@ def _get_stock_scores(  # noqa: C901
             "grades": grades_summary if grades_summary else None,
             "data_health": {
                 "avg_completeness": round(avg_completeness, 2) if avg_completeness is not None else None,
-                "meeting_trading_gate": f"{completeness_threshold_pct:.0f}%" if completeness_threshold_pct is not None else None,
-                "note": "Completeness >= 70% passes trading entry gate; < 70% filtered per GOVERNANCE"
-            }
+                "meeting_trading_gate": f"{completeness_threshold_pct:.0f}%"
+                if completeness_threshold_pct is not None
+                else None,
+                "note": "Completeness >= 70% passes trading entry gate; < 70% filtered per GOVERNANCE",
+            },
         }
         return json_response(200, result, data_freshness=freshness)
     except (
@@ -1714,6 +1733,7 @@ def _get_incomplete_stocks(
                 try:
                     if isinstance(d["unavailable_metrics"], str):
                         import json
+
                         d["unavailable_metrics"] = json.loads(d["unavailable_metrics"])
                 except (TypeError, ValueError) as parse_err:
                     logger.warning(f"Could not parse unavailable_metrics, keeping raw value: {parse_err}")
@@ -1732,7 +1752,7 @@ def _get_incomplete_stocks(
                 "page": (offset // limit) + 1 if limit > 0 else 1,
                 "totalPages": ((total_count - 1) // limit) + 1 if limit > 0 else 1,
             },
-            "note": "Stocks with data_unavailable=true or completeness < 70%. These are SPACs, new listings, or stocks with insufficient SEC data."
+            "note": "Stocks with data_unavailable=true or completeness < 70%. These are SPACs, new listings, or stocks with insufficient SEC data.",
         }
         return json_response(200, result, data_freshness=freshness)
 

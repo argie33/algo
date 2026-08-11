@@ -69,7 +69,9 @@ class TestFinalizeComboPassesScopedSymbols:
 
         with patch("algo.reporting.metrics.MetricsPublisher") as mock_publisher:
             mock_publisher.return_value.__enter__.return_value = MagicMock()
-            result = _finalize_all(loaders, total_combos=2, symbol_count=len(symbols), duration_sec=1.0, symbols=symbols)
+            result = _finalize_all(
+                loaders, total_combos=2, symbol_count=len(symbols), duration_sec=1.0, symbols=symbols
+            )
 
         assert result == 0
         for loader in loaders:

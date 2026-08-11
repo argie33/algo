@@ -33,8 +33,10 @@ class TestBracketOrderPriceRounding:
         This is the exact boundary case the bug produced silently-wrong broker orders on."""
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
-             patch("algo.trading.order_manager.validator") as mock_validator:
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
+            patch("algo.trading.order_manager.validator") as mock_validator,
+        ):
             mock_validator.validate_order_response.return_value = {
                 "valid": True,
                 "status": "accepted",
@@ -57,8 +59,10 @@ class TestBracketOrderPriceRounding:
     def test_stop_price_rounds_correctly_at_half_cent_boundary(self):
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
-             patch("algo.trading.order_manager.validator") as mock_validator:
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
+            patch("algo.trading.order_manager.validator") as mock_validator,
+        ):
             mock_validator.validate_order_response.return_value = {
                 "valid": True,
                 "status": "accepted",
@@ -85,8 +89,10 @@ class TestBracketOrderPriceRounding:
         the Decimal quantize was meant to avoid."""
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
-             patch("algo.trading.order_manager.validator") as mock_validator:
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
+            patch("algo.trading.order_manager.validator") as mock_validator,
+        ):
             mock_validator.validate_order_response.return_value = {
                 "valid": True,
                 "status": "accepted",
@@ -127,8 +133,10 @@ class TestSendBracketOrderToleratesNoneStopLoss:
     def test_none_stop_loss_does_not_crash_before_reaching_fallback_logic(self):
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
-             patch("algo.trading.order_manager.validator") as mock_validator:
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
+            patch("algo.trading.order_manager.validator") as mock_validator,
+        ):
             mock_validator.validate_order_response.return_value = {
                 "valid": True,
                 "status": "accepted",
@@ -166,8 +174,10 @@ class TestClientOrderIdIdempotency:
     def test_client_order_id_included_when_provided(self):
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
-             patch("algo.trading.order_manager.validator") as mock_validator:
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
+            patch("algo.trading.order_manager.validator") as mock_validator,
+        ):
             mock_validator.validate_order_response.return_value = {
                 "valid": True,
                 "status": "accepted",
@@ -193,8 +203,10 @@ class TestClientOrderIdIdempotency:
         send a null/empty field to Alpaca's API."""
         manager = OrderManager("fake_key", "fake_secret", "https://fake.alpaca.test")
 
-        with patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post, \
-             patch("algo.trading.order_manager.validator") as mock_validator:
+        with (
+            patch("algo.trading.order_manager.requests.post", return_value=_mock_response()) as mock_post,
+            patch("algo.trading.order_manager.validator") as mock_validator,
+        ):
             mock_validator.validate_order_response.return_value = {
                 "valid": True,
                 "status": "accepted",

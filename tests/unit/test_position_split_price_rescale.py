@@ -41,9 +41,7 @@ class TestSplitAdjustmentRescalesTradePrices:
             adjustments=adjustments,
         )
 
-        trades_calls = [
-            c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]
-        ]
+        trades_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_trades" in c.args[0]]
         assert len(trades_calls) == 1, "must issue exactly one algo_trades UPDATE for the split"
 
         sql, params = trades_calls[0].args
@@ -77,9 +75,7 @@ class TestSplitAdjustmentRescalesTradePrices:
             adjustments=adjustments,
         )
 
-        positions_calls = [
-            c for c in cur.execute.call_args_list if "UPDATE algo_positions" in c.args[0]
-        ]
+        positions_calls = [c for c in cur.execute.call_args_list if "UPDATE algo_positions" in c.args[0]]
         assert len(positions_calls) == 1
         sql, params = positions_calls[0].args
         for col in (

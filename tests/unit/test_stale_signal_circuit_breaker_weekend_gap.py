@@ -50,8 +50,7 @@ class TestStaleSignalCircuitBreakerWeekendGap:
         monday = date(2026, 7, 27)
         friday_close = date(2026, 7, 24)
 
-        with _mock_db(friday_close, friday_close), \
-             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+        with _mock_db(friday_close, friday_close), patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
             mock_dt.now.return_value = _fake_utcnow(monday)
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 
@@ -62,8 +61,10 @@ class TestStaleSignalCircuitBreakerWeekendGap:
         day_after_holiday = date(2026, 1, 20)
         prior_trading_day_close = date(2026, 1, 16)
 
-        with _mock_db(prior_trading_day_close, prior_trading_day_close), \
-             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+        with (
+            _mock_db(prior_trading_day_close, prior_trading_day_close),
+            patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt,
+        ):
             mock_dt.now.return_value = _fake_utcnow(day_after_holiday)
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 
@@ -75,8 +76,7 @@ class TestStaleSignalCircuitBreakerWeekendGap:
         monday = date(2026, 7, 27)
         stale_date = date(2026, 7, 20)  # the Monday before - a full extra week stale
 
-        with _mock_db(stale_date, stale_date), \
-             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+        with _mock_db(stale_date, stale_date), patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
             mock_dt.now.return_value = _fake_utcnow(monday)
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 
@@ -88,8 +88,10 @@ class TestStaleSignalCircuitBreakerWeekendGap:
         tuesday = date(2026, 7, 21)
         mondays_close = date(2026, 7, 20)
 
-        with _mock_db(mondays_close, mondays_close), \
-             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+        with (
+            _mock_db(mondays_close, mondays_close),
+            patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt,
+        ):
             mock_dt.now.return_value = _fake_utcnow(tuesday)
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 
@@ -103,8 +105,10 @@ class TestStaleSignalCircuitBreakerWeekendGap:
         todays_price = date(2026, 7, 21)  # Tuesday's close (EOD loader just finished)
         yesterdays_signal = date(2026, 7, 20)  # Monday's signal (computed from Friday's close)
 
-        with _mock_db(todays_price, yesterdays_signal), \
-             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+        with (
+            _mock_db(todays_price, yesterdays_signal),
+            patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt,
+        ):
             mock_dt.now.return_value = _fake_utcnow(tuesday)
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 
@@ -117,8 +121,10 @@ class TestStaleSignalCircuitBreakerWeekendGap:
         todays_price = date(2026, 7, 21)  # Tuesday's close
         week_old_signal = date(2026, 7, 14)  # Previous Tuesday's signal (> 1 day stale)
 
-        with _mock_db(todays_price, week_old_signal), \
-             patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt:
+        with (
+            _mock_db(todays_price, week_old_signal),
+            patch("algo.risk.stale_signal_circuit_breaker.datetime") as mock_dt,
+        ):
             mock_dt.now.return_value = _fake_utcnow(tuesday)
             is_safe, msg = StaleSignalCircuitBreaker.check_signal_freshness()
 

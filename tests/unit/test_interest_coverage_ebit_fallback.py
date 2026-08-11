@@ -122,9 +122,7 @@ class TestInterestCoverageEbitFallback:
 
     def test_real_operating_income_still_wins_over_ebit_fallback(self, monkeypatch):
         loader = _make_loader(monkeypatch)
-        row = _quality_row(
-            operating_income=60_000_000.0, interest_expense=10_000_000.0, pretax_income=1_000_000_000.0
-        )
+        row = _quality_row(operating_income=60_000_000.0, interest_expense=10_000_000.0, pretax_income=1_000_000_000.0)
 
         metrics = loader._compute_quality_metrics("NORMALCO", row, ev_metrics=None)
 
@@ -163,9 +161,7 @@ class TestInterestCoverageEbitFallback:
 
         assert metrics["interest_coverage"] is None
 
-    def test_negligible_interest_expense_denominator_marked_unavailable_via_real_operating_income(
-        self, monkeypatch
-    ):
+    def test_negligible_interest_expense_denominator_marked_unavailable_via_real_operating_income(self, monkeypatch):
         # The same near-zero-denominator failure mode hits a real, already-shipped
         # OperatingIncomeLoss-based ratio just as badly - live-confirmed via IKT/ENVB
         # (real, if hugely negative, operating_income against a real $5-$11 interest

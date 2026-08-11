@@ -42,8 +42,7 @@ def test_unrelated_unique_constraint_does_not_satisfy_check(conn):
     """A UNIQUE constraint on a column that isn't (symbol, date) must NOT count."""
     cur = conn.cursor()
     cur.execute(
-        "CREATE TEMP TABLE test_price_unrelated_unique "
-        "(id serial, symbol text, date date, unrelated_col text UNIQUE)"
+        "CREATE TEMP TABLE test_price_unrelated_unique (id serial, symbol text, date date, unrelated_col text UNIQUE)"
     )
     loader = _make_loader("test_price_unrelated_unique")
     with pytest.raises(RuntimeError, match="No UNIQUE constraint or index"):
@@ -52,10 +51,7 @@ def test_unrelated_unique_constraint_does_not_satisfy_check(conn):
 
 def test_real_symbol_date_unique_constraint_satisfies_check(conn):
     cur = conn.cursor()
-    cur.execute(
-        "CREATE TEMP TABLE test_price_real_unique "
-        "(id serial, symbol text, date date, UNIQUE(symbol, date))"
-    )
+    cur.execute("CREATE TEMP TABLE test_price_real_unique (id serial, symbol text, date date, UNIQUE(symbol, date))")
     loader = _make_loader("test_price_real_unique")
     loader._verify_unique_constraint_exists(cur)  # must not raise
 

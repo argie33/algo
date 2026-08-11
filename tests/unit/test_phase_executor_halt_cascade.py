@@ -113,9 +113,12 @@ def test_skipped_phase_error_names_the_actual_halting_phase():
     executor.register_phases(
         [
             PhaseDefinition(
-                2, "circuit_breakers", [],
-                lambda executor, **kw: PhaseResult(2, "circuit_breakers", "halted", {}, True,
-                                                    "Consecutive Losses Limit: 10 consecutive losses >= 5"),
+                2,
+                "circuit_breakers",
+                [],
+                lambda executor, **kw: PhaseResult(
+                    2, "circuit_breakers", "halted", {}, True, "Consecutive Losses Limit: 10 consecutive losses >= 5"
+                ),
             ),
             PhaseDefinition(5, "exposure_policy", [], lambda executor, **kw: _ok_phase(5)),
         ]
@@ -240,7 +243,9 @@ def test_dependency_genuinely_errored_still_stores_critical_error_result() -> No
     executor.register_phases(
         [
             PhaseDefinition(
-                4, "reconciliation", [],
+                4,
+                "reconciliation",
+                [],
                 lambda executor, **kw: PhaseResult(4, "reconciliation", "error", {}, False, "boom"),
                 always_run=True,
             ),

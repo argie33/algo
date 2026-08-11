@@ -41,7 +41,11 @@ HEALTHY_DRY_RUN_PHASES = {
     3: {"name": "position_monitor", "status": "ok", "summary": "16 positions updated"},
     4: {"name": "reconciliation", "status": "ok", "summary": "16 positions verified"},
     5: {"name": "exposure_policy", "status": "ok", "summary": "no actions"},
-    6: {"name": "exit_execution", "status": "degraded", "summary": "DRY-RUN: exit execution skipped (no real trades placed)"},
+    6: {
+        "name": "exit_execution",
+        "status": "degraded",
+        "summary": "DRY-RUN: exit execution skipped (no real trades placed)",
+    },
     7: {"name": "signal_generation", "status": "ok", "summary": "17 signals qualified"},
     8: {
         "name": "entry_execution",
@@ -87,9 +91,7 @@ class TestFinalReportBlockedDryRunCombo:
         """Isolates bug #2: even with only Phase 8 blocked (no Phase 6 involvement), the
         blocked-guard-is-healthy branch must actually trigger 'ok', not fall through to
         'degraded' because phase_8_blocked could never become True."""
-        phases = {
-            n: p for n, p in HEALTHY_DRY_RUN_PHASES.items() if n != 6
-        }  # drop Phase 6 entirely - isolate bug #2
+        phases = {n: p for n, p in HEALTHY_DRY_RUN_PHASES.items() if n != 6}  # drop Phase 6 entirely - isolate bug #2
         result = _run_final_report(phases)
         assert result["success"] is True
 

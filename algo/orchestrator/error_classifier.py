@@ -68,8 +68,7 @@ class PhaseErrorClassifier:
 
         # Check for permanent error keywords
         if any(
-            keyword in msg_lower
-            for keyword in ("validation", "invalid", "missing required", "schema", "type error")
+            keyword in msg_lower for keyword in ("validation", "invalid", "missing required", "schema", "type error")
         ):
             return ErrorSeverity.PERMANENT
 
@@ -105,9 +104,7 @@ class PhaseErrorClassifier:
         exc_type = type(exc).__name__
         context_str = f" | {context}" if context else ""
 
-        log_msg = (
-            f"[{phase_name}] {severity.value.upper()}: {exc_type}: {exc!s}{context_str}"
-        )
+        log_msg = f"[{phase_name}] {severity.value.upper()}: {exc_type}: {exc!s}{context_str}"
 
         if severity == ErrorSeverity.FATAL:
             logger.error(log_msg)

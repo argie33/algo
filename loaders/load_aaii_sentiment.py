@@ -321,7 +321,9 @@ class AAIISentimentLoader(OptimalLoader):
                 error_type = type(e).__name__
                 logger.warning(f"[AAII_SENTIMENT] Attempt {attempt} network error ({error_type}): {str(e)[:100]}")
                 if attempt >= 2:
-                    logger.error("[AAII_SENTIMENT] Network error fetching AAII sentiment after all attempts - fail-fast")
+                    logger.error(
+                        "[AAII_SENTIMENT] Network error fetching AAII sentiment after all attempts - fail-fast"
+                    )
                     raise RuntimeError(
                         f"[AAII_SENTIMENT] Cannot fetch sentiment data due to network errors. "
                         f"Operators must be alerted to infrastructure issues: {error_type}: {e}"

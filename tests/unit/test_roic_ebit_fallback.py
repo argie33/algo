@@ -153,9 +153,7 @@ class TestRoicEbitFallback:
         # apply the EBIT approximation when that year lacks operating_income too.
         fallback_row = (200_000_000.0, 800_000_000.0, None, 50_000_000.0)
         loader = _make_loader(monkeypatch, fallback_row=fallback_row)
-        row = _quality_row(
-            operating_income=None, interest_expense=None, pretax_income=None, income_tax_expense=None
-        )
+        row = _quality_row(operating_income=None, interest_expense=None, pretax_income=None, income_tax_expense=None)
 
         metrics = loader._compute_quality_metrics("AFL", row, ev_metrics=None)
 

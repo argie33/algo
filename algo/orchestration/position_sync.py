@@ -67,7 +67,7 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
     error_details: list[dict[str, str]] = []
 
     try:
-        with DatabaseContext('write') as cur:
+        with DatabaseContext("write") as cur:
             # CRITICAL CLEANUP: Close positions that are marked 'open' but have no trades representing open positions
             # These can occur when:
             # 1. Position insertion succeeds but trade insertion fails or rolls back (orphaned)
@@ -81,7 +81,7 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
             # CRITICAL: Do NOT close positions created in the last 60 seconds - Phase 8 entry execution
             # may still be committing trades to the database for newly-created positions. Closing them
             # here creates orphaned positions with no matching trades, breaking the exit path.
-            cur.execute('''
+            cur.execute("""
                 UPDATE algo_positions p SET status = 'closed', updated_at = NOW()
                 WHERE p.status = 'open'
                 AND p.created_at < NOW() - INTERVAL '60 seconds'
@@ -90,26 +90,28 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                     WHERE t.position_id = p.position_id
                     AND NOT (t.status = 'closed' AND t.exit_price IS NOT NULL)
                 )
-            ''')
+            """)
             closed_count = cur.rowcount
             if closed_count > 0:
-                logger.warning(f"[POSITION_SYNC] Cleanup: Closed {closed_count} orphaned position(s) with no open/filled trades")
+                logger.warning(
+                    f"[POSITION_SYNC] Cleanup: Closed {closed_count} orphaned position(s) with no open/filled trades"
+                )
 
-        with DatabaseContext('write') as cur:
+        with DatabaseContext("write") as cur:
             # Get all open positions from trades
             # CRITICAL FIX: Include trades with status='closed' if they don't have exit_price set.
             # Phase 6 marks entry trades as status='closed' when exiting, and sets exit_price.
             # A trade with status='closed' AND exit_price is actually FULLY EXITED.
             # A trade with status='closed' AND exit_price IS NULL should not happen, but include it for robustness.
             # We want: net quantity of all trades that represent currently-held positions (not fully exited).
-            cur.execute('''
+            cur.execute("""
                 SELECT symbol, SUM(quantity) as total_qty
                 FROM algo_trades
                 WHERE NOT (status = 'closed' AND exit_price IS NOT NULL)
                 GROUP BY symbol
                 HAVING SUM(quantity) > 0
                 ORDER BY symbol
-            ''')
+            """)
 
             open_positions = cur.fetchall()
             logger.info(f"[POSITION_SYNC] Found {len(open_positions)} open positions in trades")
@@ -123,7 +125,8 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                     # Always fetch stop_loss_price from trade first, so we can sync it to both INSERT and UPDATE
                     # CRITICAL FIX: Exclude trades that are fully exited (status='closed' AND exit_price IS NOT NULL)
                     # because those don't represent open positions.
-                    cur.execute('''
+                    cur.execute(
+                        """
                         SELECT entry_price, position_id, stop_loss_price,
                                target_1_price, target_2_price, target_3_price,
                                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple
@@ -131,7 +134,9 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                         WHERE symbol = %s AND NOT (status = 'closed' AND exit_price IS NOT NULL)
                         ORDER BY entry_date DESC
                         LIMIT 1
-                    ''', (symbol,))
+                    """,
+                        (symbol,),
+                    )
 
                     trade_row = cur.fetchone()
                     if not trade_row:
@@ -142,9 +147,15 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                         continue
 
                     (
-                        entry_price, trade_position_id, stop_loss_price,
-                        target_1_price, target_2_price, target_3_price,
-                        target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                        entry_price,
+                        trade_position_id,
+                        stop_loss_price,
+                        target_1_price,
+                        target_2_price,
+                        target_3_price,
+                        target_1_r_multiple,
+                        target_2_r_multiple,
+                        target_3_r_multiple,
                     ) = trade_row
 
                     # Check for existing position (open OR closed) for this symbol
@@ -157,8 +168,8 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                     # Using id caused duplicate positions: one with id/position_id mismatch pointing
                     # to no trades (orphaned), another with correct position_id pointing to trades.
                     cur.execute(
-                        'SELECT position_id, status FROM algo_positions WHERE symbol = %s ORDER BY CASE WHEN status = %s THEN 0 ELSE 1 END, updated_at DESC LIMIT 1',
-                        (symbol, 'open')
+                        "SELECT position_id, status FROM algo_positions WHERE symbol = %s ORDER BY CASE WHEN status = %s THEN 0 ELSE 1 END, updated_at DESC LIMIT 1",
+                        (symbol, "open"),
                     )
                     existing = cur.fetchone()
 
@@ -173,9 +184,9 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                         # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
                         # if a symbol has been traded multiple times (closed/reopened).
                         cur.execute(
-                            f'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s '
-                            f'AND status IN ({",".join(["%s"] * len(LINKED_TRADE_STATUSES))})',
-                            (trade_position_id, *LINKED_TRADE_STATUSES)
+                            f"SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s "
+                            f"AND status IN ({','.join(['%s'] * len(LINKED_TRADE_STATUSES))})",
+                            (trade_position_id, *LINKED_TRADE_STATUSES),
                         )
                         trade_ids_result = cur.fetchone()
                         new_trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
@@ -190,8 +201,7 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                             trade_ids_arr = new_trade_ids_arr
                         else:
                             cur.execute(
-                                'SELECT trade_ids_arr FROM algo_positions WHERE position_id = %s',
-                                (existing_id,)
+                                "SELECT trade_ids_arr FROM algo_positions WHERE position_id = %s", (existing_id,)
                             )
                             existing_arr_row = cur.fetchone()
                             trade_ids_arr = existing_arr_row[0] if existing_arr_row and existing_arr_row[0] else []
@@ -224,18 +234,29 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                         # CASE referencing the pre-update `status` column (all SET expressions in one
                         # UPDATE see the OLD row, so this correctly checks the status BEFORE this same
                         # statement's own `status = %s` write takes effect).
-                        trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
+                        trade_ids_text = ",".join(trade_ids_arr) if trade_ids_arr else None
                         cur.execute(
-                            'UPDATE algo_positions SET quantity = %s, status = %s, '
-                            '  stop_loss_price = %s, '
-                            '  current_stop_price = CASE WHEN status = %s THEN %s ELSE current_stop_price END, '
-                            '  trade_ids = %s, trade_ids_arr = %s, updated_at = NOW() '
-                            'WHERE position_id = %s',
-                            (total_qty, 'open', stop_loss_price, 'closed', stop_loss_price, trade_ids_text, trade_ids_arr, existing_id)
+                            "UPDATE algo_positions SET quantity = %s, status = %s, "
+                            "  stop_loss_price = %s, "
+                            "  current_stop_price = CASE WHEN status = %s THEN %s ELSE current_stop_price END, "
+                            "  trade_ids = %s, trade_ids_arr = %s, updated_at = NOW() "
+                            "WHERE position_id = %s",
+                            (
+                                total_qty,
+                                "open",
+                                stop_loss_price,
+                                "closed",
+                                stop_loss_price,
+                                trade_ids_text,
+                                trade_ids_arr,
+                                existing_id,
+                            ),
                         )
                         updated += 1
-                        action = "reopened" if existing_status == 'closed' else "updated"
-                        logger.debug(f"[POSITION_SYNC] {action.capitalize()} {symbol}: {total_qty:.2f} shares (was {existing_status})")
+                        action = "reopened" if existing_status == "closed" else "updated"
+                        logger.debug(
+                            f"[POSITION_SYNC] {action.capitalize()} {symbol}: {total_qty:.2f} shares (was {existing_status})"
+                        )
                     else:
                         # Insert new position (trade data already fetched above)
                         # algo_positions requires position_id, avg_entry_price, stop_loss_price,
@@ -297,9 +318,9 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                         # CRITICAL: Must filter by position_id (UUID), not symbol, to avoid pulling trades from other positions
                         # if a symbol has been traded multiple times (closed/reopened).
                         cur.execute(
-                            f'SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s '
-                            f'AND status IN ({",".join(["%s"] * len(LINKED_TRADE_STATUSES))})',
-                            (trade_position_id, *LINKED_TRADE_STATUSES)
+                            f"SELECT ARRAY_AGG(trade_id) FROM algo_trades WHERE position_id = %s "
+                            f"AND status IN ({','.join(['%s'] * len(LINKED_TRADE_STATUSES))})",
+                            (trade_position_id, *LINKED_TRADE_STATUSES),
                         )
                         trade_ids_result = cur.fetchone()
                         trade_ids_arr = trade_ids_result[0] if trade_ids_result and trade_ids_result[0] else []
@@ -312,8 +333,9 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                             risk_pct = ((entry_price - stop_loss_price) / entry_price) * 100.0
 
                         # Insert new position
-                        trade_ids_text = ','.join(trade_ids_arr) if trade_ids_arr else None
-                        cur.execute('''
+                        trade_ids_text = ",".join(trade_ids_arr) if trade_ids_arr else None
+                        cur.execute(
+                            """
                             INSERT INTO algo_positions (
                                 position_id, symbol, quantity, avg_entry_price, entry_price,
                                 current_price, status, entry_date,
@@ -330,23 +352,35 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
                                 %s, %s, %s,
                                 %s, %s, %s, %s, NOW(), NOW()
                             )
-                        ''', (
-                            trade_position_id, symbol, total_qty, entry_price, entry_price,
-                            entry_price, 'open',
-                            stop_loss_price, stop_loss_price,
-                            target_1_price, target_2_price, target_3_price,
-                            target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                            trade_ids_text, trade_ids_arr, risk_pct, get_algo_owner_cognito_sub(),
-                        ))
+                        """,
+                            (
+                                trade_position_id,
+                                symbol,
+                                total_qty,
+                                entry_price,
+                                entry_price,
+                                entry_price,
+                                "open",
+                                stop_loss_price,
+                                stop_loss_price,
+                                target_1_price,
+                                target_2_price,
+                                target_3_price,
+                                target_1_r_multiple,
+                                target_2_r_multiple,
+                                target_3_r_multiple,
+                                trade_ids_text,
+                                trade_ids_arr,
+                                risk_pct,
+                                get_algo_owner_cognito_sub(),
+                            ),
+                        )
                         inserted += 1
                         logger.debug(f"[POSITION_SYNC] Inserted new position {symbol}: {total_qty:.2f} shares")
 
                 except Exception as e:
                     error_reason = f"{type(e).__name__}: {str(e)[:500]}"
-                    logger.error(
-                        f"[POSITION_SYNC] Error syncing {symbol}: {type(e).__name__}: {e}",
-                        exc_info=True
-                    )
+                    logger.error(f"[POSITION_SYNC] Error syncing {symbol}: {type(e).__name__}: {e}", exc_info=True)
                     errors += 1
                     error_details.append({"symbol": symbol, "reason": error_reason})
                     # Rollback to savepoint to recover from transaction abort
@@ -362,9 +396,7 @@ def sync_positions_from_trades() -> tuple[int, int, int, list[dict[str, str]]]:
         raise RuntimeError(f"Position sync failed: {e}") from e
 
     if error_details:
-        error_summary = ", ".join(
-            f"{d['symbol']}({d['reason'][:30]})" for d in error_details[:5]
-        )
+        error_summary = ", ".join(f"{d['symbol']}({d['reason'][:30]})" for d in error_details[:5])
         if len(error_details) > 5:
             error_summary += f" ... and {len(error_details) - 5} more"
         logger.warning(f"[POSITION_SYNC] Sync errors for {len(error_details)} symbols: {error_summary}")
@@ -387,25 +419,28 @@ def validate_position_count(expected_approximate: int | None = None) -> bool:
     Returns True only if positions and trades match perfectly or with explained variance.
     """
     try:
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             # Get all open positions by symbol
-            cur.execute('''
+            cur.execute(
+                """
                 SELECT symbol, COUNT(*) as pos_count
                 FROM algo_positions
                 WHERE status = %s
                 GROUP BY symbol
-            ''', ('open',))
+            """,
+                ("open",),
+            )
             position_symbols = {row[0]: row[1] for row in cur.fetchall()}
             open_count = sum(position_symbols.values())
 
             # Get all symbols with open trades and positive quantity
-            cur.execute('''
+            cur.execute("""
                 SELECT symbol, SUM(quantity) as total_qty
                 FROM algo_trades
                 WHERE status IN ('filled', 'open')
                 GROUP BY symbol
                 HAVING SUM(quantity) > 0
-            ''')
+            """)
             trade_symbols = {row[0]: row[1] for row in cur.fetchall()}
 
             # STRICT VALIDATION: Check for discrepancies

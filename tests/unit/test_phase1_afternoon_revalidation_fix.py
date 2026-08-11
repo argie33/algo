@@ -50,7 +50,7 @@ def test_phase1_pipeline_context_assignment_matches_validation():
     found = any(re.search(pattern, content, re.DOTALL) for pattern in assignment_patterns)
     assert found, (
         "Phase 1 should assign pipeline_context to exactly ('MORNING', 'INTRADAY', 'EOD'). "
-        "Expected pattern like: pipeline_context = \"EOD\" if ... else \"INTRADAY\" if ... else \"MORNING\""
+        'Expected pattern like: pipeline_context = "EOD" if ... else "INTRADAY" if ... else "MORNING"'
     )
 
     # Find where it's used for today's price validation (EOD only)
@@ -63,4 +63,5 @@ def test_phase1_pipeline_context_assignment_matches_validation():
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v"])

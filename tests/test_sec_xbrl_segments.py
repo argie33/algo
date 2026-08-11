@@ -287,9 +287,7 @@ class TestExtractSegmentRevenueFromXbrlXml:
         many filers tag OperatingIncomeLoss per segment but never Assets - honest
         None, not a fabricated 0, distinguishes "not disclosed" from "disclosed as
         zero"."""
-        contexts = _context(
-            "c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31"
-        )
+        contexts = _context("c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31")
         facts = """<us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>"""
         xml_content = self._xml(contexts, facts)
 
@@ -313,7 +311,10 @@ class TestExtractSegmentRevenueFromXbrlXml:
             _context("c1", "StatementBusinessSegmentsAxis", "MedsSegmentMember", "2025-01-01", "2025-12-31")
             + _multi_dim_context(
                 "c2",
-                [("StatementGeographicalAxis", "UnitedStatesMember"), ("StatementBusinessSegmentsAxis", "MedsSegmentMember")],
+                [
+                    ("StatementGeographicalAxis", "UnitedStatesMember"),
+                    ("StatementBusinessSegmentsAxis", "MedsSegmentMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
@@ -350,12 +351,18 @@ class TestExtractSegmentRevenueFromXbrlXml:
         the corporate/eliminations line), not a further breakdown of the segment."""
         contexts = _multi_dim_context(
             "c1",
-            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "NorthAmericaSegmentMember")],
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "NorthAmericaSegmentMember"),
+            ],
             "2025-01-01",
             "2025-12-31",
         ) + _multi_dim_context(
             "c2",
-            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "EuropeSegmentMember")],
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "EuropeSegmentMember"),
+            ],
             "2025-01-01",
             "2025-12-31",
         )
@@ -383,7 +390,10 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "c1", "StatementBusinessSegmentsAxis", "MedsSegmentMember", "2025-01-01", "2025-12-31"
         ) + _multi_dim_context(
             "c2",
-            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "MedsSegmentMember")],
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "MedsSegmentMember"),
+            ],
             "2025-01-01",
             "2025-12-31",
         )
@@ -403,10 +413,9 @@ class TestExtractSegmentRevenueFromXbrlXml:
         """A quarterly OperatingIncomeLoss fact sharing the annual revenue fact's
         end date (e.g. Q4 ending on the same fiscal year-end) must not leak in next
         to an annual revenue total - they measure different-length periods."""
-        contexts = (
-            _context("c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31")
-            + _context("c2", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-10-01", "2025-12-31")
-        )
+        contexts = _context(
+            "c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31"
+        ) + _context("c2", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-10-01", "2025-12-31")
         facts = """
         <us-gaap:Revenues contextRef="c1">400000000</us-gaap:Revenues>
         <us-gaap:OperatingIncomeLoss contextRef="c2">50000000</us-gaap:OperatingIncomeLoss>
@@ -467,9 +476,7 @@ class TestExtractSegmentRevenueFromXbrlXml:
         """RevenuesNetOfInterestExpense is last in the preference order - a filer
         that tags the normal Revenues concept must not have it overridden by a
         stray/irrelevant RevenuesNetOfInterestExpense fact."""
-        contexts = _context(
-            "c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31"
-        )
+        contexts = _context("c1", "StatementBusinessSegmentsAxis", "CloudSegmentMember", "2025-01-01", "2025-12-31")
         facts = """
         <us-gaap:Revenues contextRef="c1">100000000</us-gaap:Revenues>
         <us-gaap:RevenuesNetOfInterestExpense contextRef="c1">999999999</us-gaap:RevenuesNetOfInterestExpense>
@@ -496,13 +503,19 @@ class TestExtractSegmentRevenueFromXbrlXml:
         contexts = (
             _multi_dim_context(
                 "c1",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "ConsumerBankingSegmentMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "ConsumerBankingSegmentMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
             + _multi_dim_context(
                 "c2",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "GlobalWealthAndInvestmentManagementSegmentMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "GlobalWealthAndInvestmentManagementSegmentMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
@@ -556,7 +569,10 @@ class TestExtractSegmentRevenueFromXbrlXml:
             "2025-12-31",
         ) + _multi_dim_context(
             "c2",
-            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "NEERSegmentMember")],
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "NEERSegmentMember"),
+            ],
             "2025-01-01",
             "2025-12-31",
         )
@@ -612,13 +628,19 @@ class TestExtractSegmentRevenueFromXbrlXml:
         contexts = (
             _multi_dim_context(
                 "c1",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "ConstructionIndustriesMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "ConstructionIndustriesMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
             + _multi_dim_context(
                 "c2",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "ResourceIndustriesMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "ResourceIndustriesMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
@@ -660,7 +682,10 @@ class TestExtractSegmentRevenueFromXbrlXml:
         wrong (gross) value, overstating this segment's revenue by ~19%."""
         contexts = _multi_dim_context(
             "c1",
-            [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "PowerEnergyMember")],
+            [
+                ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                ("StatementBusinessSegmentsAxis", "PowerEnergyMember"),
+            ],
             "2025-01-01",
             "2025-12-31",
         ) + _context("c2", "StatementBusinessSegmentsAxis", "PowerEnergyMember", "2025-01-01", "2025-12-31")
@@ -688,19 +713,28 @@ class TestExtractSegmentRevenueFromXbrlXml:
         contexts = (
             _multi_dim_context(
                 "c1",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "NorthAmericaOperatingSegmentMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "NorthAmericaOperatingSegmentMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
             + _multi_dim_context(
                 "c2",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "InternationalOperatingSegmentMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "InternationalOperatingSegmentMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
             + _multi_dim_context(
                 "c3",
-                [("ConsolidationItemsAxis", "OperatingSegmentsMember"), ("StatementBusinessSegmentsAxis", "GlobalPersonalTravelInsuranceSegmentMember")],
+                [
+                    ("ConsolidationItemsAxis", "OperatingSegmentsMember"),
+                    ("StatementBusinessSegmentsAxis", "GlobalPersonalTravelInsuranceSegmentMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
@@ -955,13 +989,19 @@ class TestCrossTabSegmentRevenueFallback:
             _context("u1", "StatementBusinessSegmentsAxis", "AlphaMember", "2025-01-01", "2025-12-31")
             + _multi_dim_context(
                 "c1",
-                [("StatementBusinessSegmentsAxis", "AlphaMember"), ("ProductOrServiceAxis", "UnderwritingOperationsMember")],
+                [
+                    ("StatementBusinessSegmentsAxis", "AlphaMember"),
+                    ("ProductOrServiceAxis", "UnderwritingOperationsMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )
             + _multi_dim_context(
                 "c2",
-                [("StatementBusinessSegmentsAxis", "BetaMember"), ("ProductOrServiceAxis", "UnderwritingOperationsMember")],
+                [
+                    ("StatementBusinessSegmentsAxis", "BetaMember"),
+                    ("ProductOrServiceAxis", "UnderwritingOperationsMember"),
+                ],
                 "2025-01-01",
                 "2025-12-31",
             )

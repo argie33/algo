@@ -78,12 +78,8 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
         if metrics.data_unavailable:
             return self._unavailable_record(symbol, measurement_date, metrics.reason or "no_data")
 
-        confidence_30d = self._compute_confidence_score(
-            metrics.buy_transactions_30d, metrics.sell_transactions_30d
-        )
-        confidence_90d = self._compute_confidence_score(
-            metrics.buy_transactions_90d, metrics.sell_transactions_90d
-        )
+        confidence_30d = self._compute_confidence_score(metrics.buy_transactions_30d, metrics.sell_transactions_30d)
+        confidence_90d = self._compute_confidence_score(metrics.buy_transactions_90d, metrics.sell_transactions_90d)
         insider_confidence_score = int(0.6 * confidence_90d + 0.4 * confidence_30d)
 
         record = {

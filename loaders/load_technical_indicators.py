@@ -558,7 +558,7 @@ class VectorizedTechnicalLoader:
             logger.warning(
                 f"[INDICATORS] {len(skipped_symbols)} symbols skipped due to data quality issues "
                 f"(extreme ROC values, insufficient price data, etc): {skipped_symbols[:10]}"
-                + (f"... and {len(skipped_symbols)-10} more" if len(skipped_symbols) > 10 else "")
+                + (f"... and {len(skipped_symbols) - 10} more" if len(skipped_symbols) > 10 else "")
             )
 
         if not results:
@@ -628,7 +628,9 @@ class VectorizedTechnicalLoader:
             if vcp_patterns:
                 self._bulk_insert_vcp_patterns(vcp_patterns)
                 if failed_symbols:
-                    logger.warning(f"[VCP] Partial success: {len(vcp_patterns)} patterns computed, {len(failed_symbols)} symbols failed: {failed_symbols[:10]}")
+                    logger.warning(
+                        f"[VCP] Partial success: {len(vcp_patterns)} patterns computed, {len(failed_symbols)} symbols failed: {failed_symbols[:10]}"
+                    )
             else:
                 logger.warning("[VCP] No VCP patterns computed - all symbols failed or empty indicators")
         except Exception as e:
@@ -703,9 +705,9 @@ class VectorizedTechnicalLoader:
             else None
         )
 
-        range_hist = last_30.assign(
-            _range_pct=lambda d: (d["high"] - d["low"]) / d["close"].replace(0, pd.NA) * 100
-        )["_range_pct"].dropna()
+        range_hist = last_30.assign(_range_pct=lambda d: (d["high"] - d["low"]) / d["close"].replace(0, pd.NA) * 100)[
+            "_range_pct"
+        ].dropna()
         range_30d_avg = float(range_hist.mean()) if not range_hist.empty else None
 
         vcp_patterns.append(

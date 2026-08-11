@@ -59,7 +59,7 @@ def test_phase6_dry_run_counts_exits():
     log_phase_result_fn = MagicMock()
 
     # Mock DatabaseContext for position price fetching
-    with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext') as mock_db:
+    with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext") as mock_db:
         # Set up mock cursor with side_effect for multiple queries
         mock_cursor = MagicMock()
         # Configure fetchone responses for: orphaned-trade validation + concentration checks
@@ -69,12 +69,12 @@ def test_phase6_dry_run_counts_exits():
         # first in this list or every later fetchone() shifts by one and the shapes stop
         # matching what each query actually expects.
         mock_cursor.fetchone.side_effect = [
-            (0,),        # Orphaned-trade validation count query
-            (0, 0),      # Sector concentration check - count query
-            (0,),        # Sector concentration check - SUM query
-            (0, 0),      # Size concentration check - count query
-            (0,),        # Size concentration check - SUM query
-            (150.0,),    # current_price for force_exit
+            (0,),  # Orphaned-trade validation count query
+            (0, 0),  # Sector concentration check - count query
+            (0,),  # Sector concentration check - SUM query
+            (0, 0),  # Size concentration check - count query
+            (0,),  # Size concentration check - SUM query
+            (150.0,),  # current_price for force_exit
         ]
         mock_cursor.fetchall.return_value = []  # No positions for concentration check (empty portfolio)
         mock_cursor.rowcount = 0  # No orphaned trades deleted by the cleanup DELETE
@@ -86,7 +86,7 @@ def test_phase6_dry_run_counts_exits():
         # Run phase 6 in dry-run mode
         result = phase6_run(
             config=config,
-            run_date=__import__('datetime').date.today(),
+            run_date=__import__("datetime").date.today(),
             dry_run=True,
             alerts=alert_manager,
             verbose=False,
@@ -108,8 +108,7 @@ def test_phase6_dry_run_counts_exits():
     assert len(result.data) > 0, "Phase 6 dry-run should return data with exit counts"
 
     # Verify exit counts are present
-    assert "exits" in result.data or "exits_executed" in result.data, \
-        "Phase 6 result should include exit count"
+    assert "exits" in result.data or "exits_executed" in result.data, "Phase 6 result should include exit count"
     assert "stop_raises" in result.data, "Phase 6 result should include stop_raises count"
 
     # Verify the counts are reasonable
@@ -144,15 +143,15 @@ def test_phase6_dry_run_returns_degraded_status():
     alert_manager = MagicMock()
     log_phase_result_fn = MagicMock()
 
-    with patch('algo.orchestrator.phase6_exit_execution.DatabaseContext') as mock_db:
+    with patch("algo.orchestrator.phase6_exit_execution.DatabaseContext") as mock_db:
         # Set up mock cursor for concentration checks with empty portfolio
         mock_cursor = MagicMock()
         mock_cursor.fetchone.side_effect = [
-            (0,),        # Orphaned-trade validation count query
-            (0, 0),      # Sector concentration check - count query
-            (0,),        # Sector concentration check - SUM query
-            (0, 0),      # Size concentration check - count query
-            (0,),        # Size concentration check - SUM query
+            (0,),  # Orphaned-trade validation count query
+            (0, 0),  # Sector concentration check - count query
+            (0,),  # Sector concentration check - SUM query
+            (0, 0),  # Size concentration check - count query
+            (0,),  # Size concentration check - SUM query
         ]
         mock_cursor.fetchall.return_value = []  # No positions for concentration checks
         mock_cursor.rowcount = 0  # No orphaned trades deleted by the cleanup DELETE
@@ -163,7 +162,7 @@ def test_phase6_dry_run_returns_degraded_status():
 
         result = phase6_run(
             config=config,
-            run_date=__import__('datetime').date.today(),
+            run_date=__import__("datetime").date.today(),
             dry_run=True,
             alerts=alert_manager,
             verbose=False,

@@ -100,12 +100,12 @@ def test_concurrent_orchestrator_stress():
         print(f"[{run_num}] Starting...")
         result = run_orchestrator_subprocess(run_num)
         results.append(result)
-        status = "OK" if result['success'] else "FAILED"
+        status = "OK" if result["success"] else "FAILED"
         print(f"[{run_num}] {status}")
 
     # Start all threads at roughly the same time
     for i in range(5):
-        t = threading.Thread(target=run_thread, args=(i+1,))
+        t = threading.Thread(target=run_thread, args=(i + 1,))
         t.start()
         threads.append(t)
         time.sleep(0.5)  # Slight stagger to avoid thundering herd
@@ -122,16 +122,16 @@ def test_concurrent_orchestrator_stress():
     print("RESULTS")
     print("=" * 80)
 
-    passed = sum(1 for r in results if r['success'])
-    failed = sum(1 for r in results if not r['success'])
+    passed = sum(1 for r in results if r["success"])
+    failed = sum(1 for r in results if not r["success"])
 
-    for result in sorted(results, key=lambda x: x['run_num']):
-        status = "PASS" if result['success'] else "FAIL"
+    for result in sorted(results, key=lambda x: x["run_num"]):
+        status = "PASS" if result["success"] else "FAIL"
         print(f"  Run {result['run_num']}: {status}")
-        if not result['success']:
-            if 'error' in result:
+        if not result["success"]:
+            if "error" in result:
                 print(f"    Error: {result['error']}")
-            if result.get('stderr'):
+            if result.get("stderr"):
                 print(f"    Stderr: {result['stderr'][:100]}")
 
     print()
@@ -143,17 +143,20 @@ def test_concurrent_orchestrator_stress():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as halted_count
             FROM orchestrator_execution_log
             WHERE run_date = CURRENT_DATE
                 AND phases_halted > 0
                 AND started_at > %s
-        """, (start_time.replace(tzinfo=None),))
+        """,
+            (start_time.replace(tzinfo=None),),
+        )
 
         result = cur.fetchone()
         if result:
-            halted_in_test = result.get('halted_count', result[0]) if isinstance(result, dict) else result[0]
+            halted_in_test = result.get("halted_count", result[0]) if isinstance(result, dict) else result[0]
         else:
             halted_in_test = 0
         conn.close()

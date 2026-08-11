@@ -45,9 +45,7 @@ class TestCancelRetriesTransientErrors:
         unavailable = MagicMock(status_code=503, text="service unavailable")
 
         with (
-            patch(
-                "algo.trading.order_manager.requests.delete", return_value=unavailable
-            ) as mock_delete,
+            patch("algo.trading.order_manager.requests.delete", return_value=unavailable) as mock_delete,
             patch("algo.trading.order_manager.time.sleep"),
         ):
             try:
@@ -63,9 +61,7 @@ class TestCancelRetriesTransientErrors:
         not_found = MagicMock(status_code=404, text="order not found")
 
         with (
-            patch(
-                "algo.trading.order_manager.requests.delete", return_value=not_found
-            ) as mock_delete,
+            patch("algo.trading.order_manager.requests.delete", return_value=not_found) as mock_delete,
         ):
             try:
                 manager.cancel_bracket_orders("order-123")

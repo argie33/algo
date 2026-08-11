@@ -76,7 +76,10 @@ LOADER_TABLES: dict[str, list[str]] = {
     # Consolidated Session 275: replaces load_quality_growth_metrics.py and the
     # yfinance-derived-metrics portion of the old yfinance_derived_metrics loader.
     "load_value_quality_growth_metrics.py": ["growth_metrics", "quality_metrics", "value_metrics"],
-    "load_enhanced_quality_growth_metrics.py": ["quality_metrics", "growth_metrics"],  # Adds analyst estimates, earnings surprises, trend metrics
+    "load_enhanced_quality_growth_metrics.py": [
+        "quality_metrics",
+        "growth_metrics",
+    ],  # Adds analyst estimates, earnings surprises, trend metrics
     "load_risk_metrics_daily.py": ["momentum_metrics", "stability_metrics"],
     "load_stock_scores.py": ["stock_scores"],
     "load_buy_sell_daily.py": ["buy_sell_daily"],
@@ -123,7 +126,9 @@ def primary_table(loader_name: str) -> str | None:
     if tables is None:
         tables = PSEUDO_LOADER_TABLES.get(loader_name)
     if tables is None:
-        logger.warning(f"[LOADER_REGISTRY] Unknown loader: {loader_name}. Not found in LOADER_TABLES or PSEUDO_LOADER_TABLES.")
+        logger.warning(
+            f"[LOADER_REGISTRY] Unknown loader: {loader_name}. Not found in LOADER_TABLES or PSEUDO_LOADER_TABLES."
+        )
     return tables[0] if tables else None
 
 

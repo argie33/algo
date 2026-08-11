@@ -26,9 +26,7 @@ def _find_mark_completed_call():
     calls = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "mark_completed"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "mark_completed"
     ]
     assert len(calls) == 1, f"Expected exactly one mark_completed() call, found {len(calls)}"
     return calls[0]
@@ -49,7 +47,7 @@ def test_completion_numerator_is_not_same_day_signal_count():
 
     # The signals-generated count may still be computed for informational logging, but must
     # not be the sole source feeding the completion gate.
-    assert "result.get(\"symbols_processed\"" in src or "result.get('symbols_processed'" in src
+    assert 'result.get("symbols_processed"' in src or "result.get('symbols_processed'" in src
 
 
 def test_mark_completed_still_passes_current_run_counts():

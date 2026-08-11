@@ -23,21 +23,34 @@ from algo.monitoring.position_monitor import PositionMonitor
 
 class TestActiveStopUsesLiveCurrentStopPrice:
     def _make_monitor(self):
-        return PositionMonitor(config={
-            "max_hold_days": 90,
-            "move_be_at_r": 1.5,
-            "max_distribution_days": 5,
-            "position_halt_flag_count": 3,
-        })
+        return PositionMonitor(
+            config={
+                "max_hold_days": 90,
+                "move_be_at_r": 1.5,
+                "max_distribution_days": 5,
+                "position_halt_flag_count": 3,
+            }
+        )
 
     def _row(self, stop_loss_price, current_stop_price):
         # Row shape matches the SELECT in review_positions()/_review_with_cursor():
         # (position_id, symbol, entry_price, stop_loss_price, t1, t2, t3, entry_date,
         #  created_at, quantity, target_levels_hit, trade_ids_arr, current_stop_price, current_price)
         return (
-            1, "DAC", 142.045, stop_loss_price, None, None, None,
-            date(2026, 7, 20), date(2026, 7, 20), 13, 0, ["TRD-B2522D6400"],
-            current_stop_price, 133.81,
+            1,
+            "DAC",
+            142.045,
+            stop_loss_price,
+            None,
+            None,
+            None,
+            date(2026, 7, 20),
+            date(2026, 7, 20),
+            13,
+            0,
+            ["TRD-B2522D6400"],
+            current_stop_price,
+            133.81,
         )
 
     def test_active_stop_uses_current_stop_price_not_frozen_stop_loss_price(self):
@@ -48,12 +61,14 @@ class TestActiveStopUsesLiveCurrentStopPrice:
         # (135.43) sits ABOVE current price (133.81) - would falsely trigger a stop-hit -
         # while the real current_stop_price (125.83) sits safely below it.
         row = self._row(stop_loss_price=135.43, current_stop_price=125.8252)
-        with patch.object(monitor, "_fetch_current_market", return_value=(133.81, 5.0, 130.0, 130.0)), \
-             patch.object(monitor, "_check_relative_strength", return_value="neutral"), \
-             patch.object(monitor, "_check_sector_health", return_value="neutral"), \
-             patch.object(monitor, "_max_unrealized_pct", return_value=0.0), \
-             patch.object(monitor, "_days_to_earnings", return_value=30), \
-             patch.object(monitor, "_fetch_market_dist_days", return_value=0):
+        with (
+            patch.object(monitor, "_fetch_current_market", return_value=(133.81, 5.0, 130.0, 130.0)),
+            patch.object(monitor, "_check_relative_strength", return_value="neutral"),
+            patch.object(monitor, "_check_sector_health", return_value="neutral"),
+            patch.object(monitor, "_max_unrealized_pct", return_value=0.0),
+            patch.object(monitor, "_days_to_earnings", return_value=30),
+            patch.object(monitor, "_fetch_market_dist_days", return_value=0),
+        ):
             rec = monitor._evaluate_position(row, date(2026, 8, 3))
 
         assert rec["active_stop"] == 125.8252, (

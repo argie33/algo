@@ -76,6 +76,7 @@ class TestHaltFlagManager:
             # Alert or log should have been called
             assert alerts is not None
 
+
 class TestExecutionTracker:
     """Test execution tracking for trade state management."""
 
@@ -130,6 +131,7 @@ class TestExecutionTracker:
                 last = tracker.get_last_execution()
                 if last:
                     assert "timestamp" in last or "time" in last or True
+
 
 class TestOrchestrationPhaseContract:
     """Test phase data contracts for data integrity."""
@@ -188,6 +190,7 @@ class TestOrchestrationPhaseContract:
         except (TypeError, ValueError):
             pytest.fail("Phase result data is not JSON serializable")
 
+
 class TestOrchestrationErrorPropagation:
     """Test error handling between phases."""
 
@@ -222,6 +225,7 @@ class TestOrchestrationErrorPropagation:
         # Should have error categories for different failure types
         assert hasattr(ErrorCategory, "DATA_INVALID") or hasattr(ErrorCategory, "INVALID_DATA")
         assert hasattr(ErrorCategory, "DATABASE_ERROR") or hasattr(ErrorCategory, "DB_ERROR")
+
 
 class TestOrchestrationStateTransitions:
     """Test valid state transitions in orchestration."""
@@ -268,6 +272,7 @@ class TestOrchestrationStateTransitions:
             should_execute = not halt_phase.halted
             assert not should_execute
 
+
 class TestOrchestrationConcurrency:
     """Test concurrent phase execution and thread safety."""
 
@@ -313,6 +318,7 @@ class TestOrchestrationConcurrency:
         if results:
             assert all(r == results[0] for r in results)
 
+
 class TestOrchestrationDataIntegrity:
     """Test that data is not corrupted between phases."""
 
@@ -346,6 +352,7 @@ class TestOrchestrationDataIntegrity:
 
         # Should detect null value
         assert result.data["signal_count"] is None
+
 
 class TestOrchestrationExitConditions:
     """Test conditions that halt orchestration."""
@@ -396,6 +403,7 @@ class TestOrchestrationExitConditions:
 
         assert halt_result.halted
 
+
 class TestOrchestrationLogging:
     """Test logging of orchestration events."""
 
@@ -419,6 +427,7 @@ class TestOrchestrationLogging:
 
         # Should have timestamp or created_at
         assert hasattr(result, "timestamp") or hasattr(result, "created_at") or True
+
 
 class TestOrchestrationRecovery:
     """Test recovery from partial failures."""
@@ -454,6 +463,7 @@ class TestOrchestrationRecovery:
 
         # Should not retry on data validation errors
         assert permanent_error.halted
+
 
 class TestSkippedPhasesReachAuditTrail:
     """Regression: phases skipped after an earlier halt (skip_if_halted=True) must still
@@ -516,6 +526,7 @@ class TestSkippedPhasesReachAuditTrail:
         # Executed phases must still log normally (no regression on the working path).
         assert tracker.phase_results[1]["status"] == "ok"
         assert tracker.phase_results[2]["status"] == "halted"
+
 
 class TestTrackerStatusSyncedToCanonicalVocabulary:
     """Regression: a phase that calls log_phase_result_fn() directly with its own ad-hoc

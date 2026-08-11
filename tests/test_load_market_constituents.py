@@ -46,10 +46,13 @@ def test_dual_class_common_stock_is_not_excluded() -> None:
     other_response = MagicMock(text=other_text)
 
     loader = _make_loader()
-    with patch(
-        "loaders.load_market_constituents.requests.get",
-        side_effect=[nasdaq_response, other_response],
-    ), patch("loaders.load_market_constituents.validate_url", return_value=(True, "")):
+    with (
+        patch(
+            "loaders.load_market_constituents.requests.get",
+            side_effect=[nasdaq_response, other_response],
+        ),
+        patch("loaders.load_market_constituents.validate_url", return_value=(True, "")),
+    ):
         rows = loader._fetch_nasdaq_symbols()
 
     symbols = {r["symbol"] for r in rows}
@@ -61,7 +64,9 @@ def test_preferred_share_still_excluded_by_name_not_symbol_shape() -> None:
     other_text = "\n".join(
         [
             _HEADER,
-            _row("PBR.A", "Petroleo Brasileiro S.A. Petrobras American Depositary Shares representing Preferred Shares"),
+            _row(
+                "PBR.A", "Petroleo Brasileiro S.A. Petrobras American Depositary Shares representing Preferred Shares"
+            ),
             _row("BRK.A", "Berkshire Hathaway Inc. Common Stock"),
         ]
     )
@@ -69,10 +74,13 @@ def test_preferred_share_still_excluded_by_name_not_symbol_shape() -> None:
     other_response = MagicMock(text=other_text)
 
     loader = _make_loader()
-    with patch(
-        "loaders.load_market_constituents.requests.get",
-        side_effect=[nasdaq_response, other_response],
-    ), patch("loaders.load_market_constituents.validate_url", return_value=(True, "")):
+    with (
+        patch(
+            "loaders.load_market_constituents.requests.get",
+            side_effect=[nasdaq_response, other_response],
+        ),
+        patch("loaders.load_market_constituents.validate_url", return_value=(True, "")),
+    ):
         rows = loader._fetch_nasdaq_symbols()
 
     symbols = {r["symbol"] for r in rows}
@@ -99,12 +107,14 @@ def test_known_etf_misclassification_override_survives_upstream_flag() -> None:
     other_response = MagicMock(text=other_text)
 
     loader = _make_loader()
-    with patch(
-        "loaders.load_market_constituents.requests.get",
-        side_effect=[nasdaq_response, other_response],
-    ), patch("loaders.load_market_constituents.validate_url", return_value=(True, "")), patch.object(
-        MarketConstituentsLoader, "_upsert_etf_symbols"
-    ) as mock_upsert:
+    with (
+        patch(
+            "loaders.load_market_constituents.requests.get",
+            side_effect=[nasdaq_response, other_response],
+        ),
+        patch("loaders.load_market_constituents.validate_url", return_value=(True, "")),
+        patch.object(MarketConstituentsLoader, "_upsert_etf_symbols") as mock_upsert,
+    ):
         rows = loader._fetch_nasdaq_symbols()
 
     stock_symbols = {r["symbol"] for r in rows}
@@ -129,10 +139,13 @@ def test_test_issue_flag_still_excludes_dot_suffix_test_symbols() -> None:
     nasdaq_response = MagicMock(text=nasdaq_text)
 
     loader = _make_loader()
-    with patch(
-        "loaders.load_market_constituents.requests.get",
-        side_effect=[nasdaq_response, other_response],
-    ), patch("loaders.load_market_constituents.validate_url", return_value=(True, "")):
+    with (
+        patch(
+            "loaders.load_market_constituents.requests.get",
+            side_effect=[nasdaq_response, other_response],
+        ),
+        patch("loaders.load_market_constituents.validate_url", return_value=(True, "")),
+    ):
         rows = loader._fetch_nasdaq_symbols()
 
     symbols = {r["symbol"] for r in rows}

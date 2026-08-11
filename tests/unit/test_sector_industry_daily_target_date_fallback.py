@@ -91,6 +91,5 @@ def test_uses_today_directly_when_coverage_is_adequate():
         assert insert_calls, "sector_performance INSERT was never executed"
         params = insert_calls[0][0][1]
         assert date(2026, 8, 10) in params, (
-            "today() has adequate price_daily coverage - should use it directly, not fall "
-            "back unnecessarily."
+            "today() has adequate price_daily coverage - should use it directly, not fall back unnecessarily."
         )

@@ -72,9 +72,7 @@ def _update_loader_status(
     # Use LoaderStatusManager for centralized status updates (RACE CONDITION FIX)
     valid_statuses = {"RUNNING", "COMPLETED", "FAILED"}
     if status not in valid_statuses:
-        raise ValueError(
-            f"Invalid status '{status}'. Must be one of: {', '.join(sorted(valid_statuses))}"
-        )
+        raise ValueError(f"Invalid status '{status}'. Must be one of: {', '.join(sorted(valid_statuses))}")
 
     status_mgr = LoaderStatusManager(_TABLE)
 
@@ -309,7 +307,9 @@ def run() -> dict:  # type: ignore[type-arg]
             "duration_sec": round(elapsed, 1),
         }
         logger.info(f"[TREND] Done: {inserted} rows upserted in {elapsed:.1f}s")
-        _update_loader_status("COMPLETED", execution_duration_sec=elapsed, symbol_count=symbol_count, symbols_loaded=symbol_count)
+        _update_loader_status(
+            "COMPLETED", execution_duration_sec=elapsed, symbol_count=symbol_count, symbols_loaded=symbol_count
+        )
         return result
 
     except Exception as e:

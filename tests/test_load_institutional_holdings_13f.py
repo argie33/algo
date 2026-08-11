@@ -136,7 +136,9 @@ def test_crosswalk_to_tickers_uses_cache_and_only_queries_openfigi_for_new_cusip
             return False
 
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
-    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"])
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"]
+    )
 
     def _fail_if_called(cusips):
         raise AssertionError(f"OpenFIGI should not be queried for already-cached CUSIPs, got {cusips}")
@@ -170,7 +172,10 @@ def test_crosswalk_to_tickers_queries_and_caches_new_cusips(monkeypatch):
             return False
 
     monkeypatch.setattr("loaders.load_institutional_holdings_13f.DatabaseContext", _FakeDatabaseContext)
-    monkeypatch.setattr("loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"])
+    monkeypatch.setattr(
+        "loaders.load_institutional_holdings_13f.get_active_symbols", lambda exclude_etfs=True: ["AAPL"]
+    )
+
     def _fake_fetch_cusip_tickers(cusips, on_batch_resolved=None, deadline=None):
         resolved = {"037833100": {"ticker": "AAPL", "name": "APPLE INC"}}
         if on_batch_resolved is not None:

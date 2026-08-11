@@ -18,7 +18,7 @@ financials = importlib.import_module("lambda.api.routes.financials")
 def _ownership_block() -> str:
     source = inspect.getsource(financials.handle)
     start = source.index('if endpoint == "ownership"')
-    end = source.index('if endpoint ==', start + 1)
+    end = source.index("if endpoint ==", start + 1)
     return source[start:end]
 
 

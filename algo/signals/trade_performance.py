@@ -111,9 +111,12 @@ class SignalTradePerformancePopulator:
                     # paths (this only corrupts analytics/IC-attribution rows), fixed for
                     # consistency.
                     if (
-                        math.isnan(entry_price) or math.isinf(entry_price)
-                        or math.isnan(entry_qty) or math.isinf(entry_qty)
-                        or entry_price <= 0 or entry_qty <= 0
+                        math.isnan(entry_price)
+                        or math.isinf(entry_price)
+                        or math.isnan(entry_qty)
+                        or math.isinf(entry_qty)
+                        or entry_price <= 0
+                        or entry_qty <= 0
                     ):
                         logger.error(
                             f"CRITICAL: Trade {trade_id_int} ({symbol}) has invalid prices/quantity. "

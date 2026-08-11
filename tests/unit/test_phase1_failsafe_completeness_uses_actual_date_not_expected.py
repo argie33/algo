@@ -81,9 +81,7 @@ class TestCompletenessChecksActualLatestDateNotExpectedDate:
             "(2026-08-07) instead of the table's own actual latest date (today)"
         )
 
-        stock_scores_completeness_queries = [
-            (q, p) for q, p in cursor.completeness_queries if "stock_scores" in q
-        ]
+        stock_scores_completeness_queries = [(q, p) for q, p in cursor.completeness_queries if "stock_scores" in q]
         assert stock_scores_completeness_queries, "expected a completeness COUNT(*) query against stock_scores"
         for _, params in stock_scores_completeness_queries:
             assert today in params, (

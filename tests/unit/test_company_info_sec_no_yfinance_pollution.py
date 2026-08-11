@@ -42,9 +42,7 @@ class TestCompanyInfoSecStaysSecOnly:
         for path in (REPO_ROOT / "scripts").rglob("*.py"):
             text = path.read_text(encoding="utf-8", errors="ignore")
             has_yfinance_fetch = "yf.Ticker(" in text or "yfinance.Ticker(" in text
-            has_company_info_sec_write = (
-                "UPDATE company_info_sec" in text or "INSERT INTO company_info_sec" in text
-            )
+            has_company_info_sec_write = "UPDATE company_info_sec" in text or "INSERT INTO company_info_sec" in text
             if has_yfinance_fetch and has_company_info_sec_write:
                 hits.append(str(path.relative_to(REPO_ROOT)))
         assert not hits, f"found yfinance-fetch + company_info_sec-write combination in: {hits}"

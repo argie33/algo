@@ -661,6 +661,7 @@ def main() -> int:
     args = parser.parse_args()
 
     from algo.config import MAX_BACKFILL_DAYS_LIMIT
+
     today = date.today()
     start = date.fromisoformat(args.start_date) if args.start_date else today - timedelta(days=MAX_BACKFILL_DAYS_LIMIT)
     end = date.fromisoformat(args.end_date) if args.end_date else today

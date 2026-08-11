@@ -115,16 +115,16 @@ def test_sizer_blocked_and_liquidity_skips_are_persisted_to_audit_table():
 
     source = inspect.getsource(p8.run)
 
-    liquidity_branch = source.split('if not liq_ok:')[1].split("continue", 1)[0]
-    assert '_log_signal_rejection(' in liquidity_branch
+    liquidity_branch = source.split("if not liq_ok:")[1].split("continue", 1)[0]
+    assert "_log_signal_rejection(" in liquidity_branch
     assert '"liquidity"' in liquidity_branch
 
     sizer_status_branch = source.split('if sizing["status"] != "ok":')[1].split("continue", 1)[0]
-    assert '_log_signal_rejection(' in sizer_status_branch
+    assert "_log_signal_rejection(" in sizer_status_branch
     assert '"sizer_blocked"' in sizer_status_branch
 
     sizer_shares_branch = source.split('elif sizing["shares"] < 1:')[1].split("continue", 1)[0]
-    assert '_log_signal_rejection(' in sizer_shares_branch
+    assert "_log_signal_rejection(" in sizer_shares_branch
     assert '"sizer_blocked"' in sizer_shares_branch
 
 
@@ -152,9 +152,9 @@ def test_every_failed_count_increment_also_records_a_failed_entry():
     assert "failed_entries.append(" in branch
 
     # Branch 2: ValueError/ZeroDivisionError/TypeError/DatabaseError during execution.
-    branch = source.split(
-        "except (ValueError, ZeroDivisionError, TypeError, DatabaseError) as exec_err:", 1
-    )[1].split("failed_count += 1", 1)[0]
+    branch = source.split("except (ValueError, ZeroDivisionError, TypeError, DatabaseError) as exec_err:", 1)[1].split(
+        "failed_count += 1", 1
+    )[0]
     assert "failed_entries.append(" in branch
 
     # Branch 3: generic (non-duplicate-key) psycopg2.DatabaseError.
@@ -163,9 +163,9 @@ def test_every_failed_count_increment_also_records_a_failed_entry():
 
     # Branch 4: outer per-symbol except (RuntimeError, ValueError, TypeError, AttributeError,
     # IndexError, psycopg2.Error, DatabaseError) - "processing_error" catch-all.
-    branch = source.split('"processing_error", str(e), run_date, entry_price_val', 1)[1].split(
-        "failed_count += 1", 1
-    )[0]
+    branch = source.split('"processing_error", str(e), run_date, entry_price_val', 1)[1].split("failed_count += 1", 1)[
+        0
+    ]
     assert "failed_entries.append(" in branch
 
 

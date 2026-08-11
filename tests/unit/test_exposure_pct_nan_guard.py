@@ -36,11 +36,17 @@ class TestFetchExposureTierInfoRejectsNaN:
     def test_nan_exposure_pct_raises(self):
         cur = MagicMock()
         with patch.object(
-            risk_dashboard_module, "execute_with_timeout",
-            return_value=[{
-                "exposure_pct": float("nan"), "regime": "confirmed_uptrend", "halt_reasons": None,
-                "data_unavailable": False, "reason": None,
-            }],
+            risk_dashboard_module,
+            "execute_with_timeout",
+            return_value=[
+                {
+                    "exposure_pct": float("nan"),
+                    "regime": "confirmed_uptrend",
+                    "halt_reasons": None,
+                    "data_unavailable": False,
+                    "reason": None,
+                }
+            ],
         ):
             with pytest.raises(ValueError, match="CRITICAL"):
                 risk_dashboard_module._fetch_exposure_tier_info(cur)
@@ -48,11 +54,17 @@ class TestFetchExposureTierInfoRejectsNaN:
     def test_valid_exposure_pct_still_computes(self):
         cur = MagicMock()
         with patch.object(
-            risk_dashboard_module, "execute_with_timeout",
-            return_value=[{
-                "exposure_pct": 50.0, "regime": "confirmed_uptrend", "halt_reasons": None,
-                "data_unavailable": False, "reason": None,
-            }],
+            risk_dashboard_module,
+            "execute_with_timeout",
+            return_value=[
+                {
+                    "exposure_pct": 50.0,
+                    "regime": "confirmed_uptrend",
+                    "halt_reasons": None,
+                    "data_unavailable": False,
+                    "reason": None,
+                }
+            ],
         ):
             result = risk_dashboard_module._fetch_exposure_tier_info(cur)
         assert result["exposure_pct"] == 50.0

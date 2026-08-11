@@ -67,6 +67,7 @@ class TestPanelWithMalformedRiskData:
         panel = panel_algo_health(run=run, act=None, hlth=None, notifs=[], risk=malformed_risk)
         assert panel is not None
 
+
 class TestBuildResultsPanelWithMalformedData:
     """_build_results_panel should handle corrupted data."""
 
@@ -81,10 +82,9 @@ class TestBuildResultsPanelWithMalformedData:
         }
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
-        panel = _build_results_panel(
-            run=run, act=None, algo_metrics=[], exec_hist=[], risk=corrupted_risk, notifs=[]
-        )
+        panel = _build_results_panel(run=run, act=None, algo_metrics=[], exec_hist=[], risk=corrupted_risk, notifs=[])
         assert panel is not None
+
 
 class TestPanelWithMalformedHealthData:
     """Dashboard should handle corrupted health data."""
@@ -122,6 +122,7 @@ class TestPanelWithMalformedHealthData:
         panel = _build_freshness_panel(malformed_items, ready_to_trade=True)
         assert panel is not None
 
+
 class TestSignalQualityScoreWithMalformedData:
     """Signal filtering should handle wrong score types."""
 
@@ -145,6 +146,7 @@ class TestSignalQualityScoreWithMalformedData:
         # Should return None, not crash
         assert score is None
 
+
 class TestMarketDataWithMalformedPercentages:
     """Market movers should handle corrupted percentage data."""
 
@@ -167,6 +169,7 @@ class TestMarketDataWithMalformedPercentages:
 
         # Should return None, not crash
         assert ret is None
+
 
 class TestComparisonSafetyPatterns:
     """Verify that all numeric comparisons are type-safe."""

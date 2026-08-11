@@ -17,7 +17,7 @@ from utils.external.sec_form345_transaction_velocity import Form345TransactionVe
 
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = Path.home() / '.algo' / 'sec_form345_cache'
+CACHE_DIR = Path.home() / ".algo" / "sec_form345_cache"
 CACHE_TIMEOUT_SECONDS = 5 * 60  # 5 minute cache for metadata
 
 
@@ -39,7 +39,9 @@ class CachedForm345Aggregator:
         self._build_complete = threading.Event()
         self._lock = threading.Lock()
 
-    def get_velocity_metrics(self, symbol: str, measurement_date: date | None = None, wait_for_download: bool = False) -> VelocityMetrics:
+    def get_velocity_metrics(
+        self, symbol: str, measurement_date: date | None = None, wait_for_download: bool = False
+    ) -> VelocityMetrics:
         """Get insider transaction velocity for a symbol.
 
         Args:
@@ -112,7 +114,9 @@ class CachedForm345Aggregator:
     def _background_build(self) -> None:
         """Download data in background thread."""
         try:
-            logger.info(f"[Form345] Downloading {self._lookback_quarters} quarters of Form 3/4/5 data (may take 2-5 min)...")
+            logger.info(
+                f"[Form345] Downloading {self._lookback_quarters} quarters of Form 3/4/5 data (may take 2-5 min)..."
+            )
             self._aggregator = Form345TransactionVelocityAggregator(lookback_quarters=self._lookback_quarters)
             # Trigger the build
             self._aggregator._ensure_built()

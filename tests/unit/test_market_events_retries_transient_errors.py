@@ -65,9 +65,7 @@ class TestCheckSingleStockHaltRetriesTransientErrors:
         unavailable = MagicMock(status_code=503, text="service unavailable")
 
         with (
-            patch(
-                "algo.infrastructure.market_events.requests.get", return_value=unavailable
-            ) as mock_get,
+            patch("algo.infrastructure.market_events.requests.get", return_value=unavailable) as mock_get,
             patch("algo.infrastructure.market_events.get_api_timeout", return_value=10),
             patch("algo.infrastructure.market_events.time.sleep"),
         ):
@@ -135,9 +133,7 @@ class TestCheckDelistingRetriesTransientErrors:
         unavailable = MagicMock(status_code=503, text="service unavailable")
 
         with (
-            patch(
-                "algo.infrastructure.market_events.requests.get", return_value=unavailable
-            ) as mock_get,
+            patch("algo.infrastructure.market_events.requests.get", return_value=unavailable) as mock_get,
             patch("algo.infrastructure.market_events.get_api_timeout", return_value=10),
             patch("algo.infrastructure.market_events.time.sleep"),
         ):

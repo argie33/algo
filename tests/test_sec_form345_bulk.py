@@ -61,11 +61,7 @@ def test_two_transactions_same_owner_keeps_only_latest_position() -> None:
         "0001-24-000001\t01-JUL-2024\t4\t0000123456\tTEST\n"
         "0001-24-000002\t15-AUG-2024\t4\t0000123456\tTEST\n"
     )
-    owner = (
-        "ACCESSION_NUMBER\tRPTOWNERCIK\n"
-        "0001-24-000001\t0000000111\n"
-        "0001-24-000002\t0000000111\n"
-    )
+    owner = "ACCESSION_NUMBER\tRPTOWNERCIK\n0001-24-000001\t0000000111\n0001-24-000002\t0000000111\n"
     trans = (
         "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n"
         "0001-24-000001\t01-JUL-2024\tP\t5000\n"
@@ -86,15 +82,8 @@ def test_joint_filers_on_one_accession_counted_once() -> None:
     """Per docstring: 'take the first listed owner per accession ... to avoid
     double-counting the same reported share balance across co-filers.'"""
     submission = "ACCESSION_NUMBER\tFILING_DATE\tDOCUMENT_TYPE\tISSUERCIK\tISSUERTRADINGSYMBOL\n0001-24-000001\t01-JUL-2024\t4\t0000123456\tTEST\n"
-    owner = (
-        "ACCESSION_NUMBER\tRPTOWNERCIK\n"
-        "0001-24-000001\t0000000111\n"
-        "0001-24-000001\t0000000222\n"
-    )
-    trans = (
-        "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n"
-        "0001-24-000001\t01-JUL-2024\tP\t5000\n"
-    )
+    owner = "ACCESSION_NUMBER\tRPTOWNERCIK\n0001-24-000001\t0000000111\n0001-24-000001\t0000000222\n"
+    trans = "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n0001-24-000001\t01-JUL-2024\tP\t5000\n"
     zip_bytes = _zip_from(submission, owner, trans=trans)
     agg = _aggregator_single_quarter(zip_bytes)
 
@@ -111,12 +100,16 @@ def test_older_quarter_does_not_overwrite_newer_owner_position() -> None:
     quarter must not clobber their current position."""
     sub_q2 = "ACCESSION_NUMBER\tFILING_DATE\tDOCUMENT_TYPE\tISSUERCIK\tISSUERTRADINGSYMBOL\n0001-24-000001\t01-APR-2024\t4\t0000123456\tTEST\n"
     own_q2 = "ACCESSION_NUMBER\tRPTOWNERCIK\n0001-24-000001\t0000000111\n"
-    trans_q2 = "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n0001-24-000001\t01-APR-2024\tP\t9000\n"
+    trans_q2 = (
+        "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n0001-24-000001\t01-APR-2024\tP\t9000\n"
+    )
     zip_q2 = _zip_from(sub_q2, own_q2, trans=trans_q2)
 
     sub_q3 = "ACCESSION_NUMBER\tFILING_DATE\tDOCUMENT_TYPE\tISSUERCIK\tISSUERTRADINGSYMBOL\n0001-24-000002\t01-JUL-2024\t4\t0000123456\tTEST\n"
     own_q3 = "ACCESSION_NUMBER\tRPTOWNERCIK\n0001-24-000002\t0000000111\n"
-    trans_q3 = "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n0001-24-000002\t01-JUL-2024\tS\t4000\n"
+    trans_q3 = (
+        "ACCESSION_NUMBER\tTRANS_DATE\tTRANS_CODE\tSHRS_OWND_FOLWNG_TRANS\n0001-24-000002\t01-JUL-2024\tS\t4000\n"
+    )
     zip_q3 = _zip_from(sub_q3, own_q3, trans=trans_q3)
 
     agg = _aggregator_multi_quarter([zip_q3, zip_q2])

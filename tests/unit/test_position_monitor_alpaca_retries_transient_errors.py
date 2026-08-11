@@ -63,9 +63,7 @@ class TestCancelOnAlpacaRetriesTransientErrors:
                 "algo.monitoring.position_monitor.get_alpaca_base_url",
                 return_value="https://paper-api.alpaca.markets",
             ),
-            patch(
-                "algo.monitoring.position_monitor.requests.delete", return_value=unavailable
-            ) as mock_delete,
+            patch("algo.monitoring.position_monitor.requests.delete", return_value=unavailable) as mock_delete,
             patch("algo.monitoring.position_monitor.time.sleep"),
         ):
             try:
@@ -100,9 +98,7 @@ class TestFetchAlpacaQtyRetriesTransientErrors:
         monitor = _monitor()
         not_found = MagicMock(status_code=404, text="not found")
 
-        with patch(
-            "algo.monitoring.position_monitor.requests.get", return_value=not_found
-        ) as mock_get:
+        with patch("algo.monitoring.position_monitor.requests.get", return_value=not_found) as mock_get:
             try:
                 monitor._fetch_alpaca_qty("https://paper-api.alpaca.markets", "k", "s", "AAPL")
                 raise AssertionError("expected RuntimeError")

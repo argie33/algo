@@ -73,7 +73,9 @@ class TestHaltFlagRdsSameDayNaiveTimestamp:
         assert result is True
 
         parse_warnings = [c for c in mock_logger.warning.call_args_list if "Could not parse RDS timestamp" in str(c)]
-        assert not parse_warnings, f"same-day naive-UTC timestamp must parse cleanly, not fall through: {parse_warnings}"
+        assert not parse_warnings, (
+            f"same-day naive-UTC timestamp must parse cleanly, not fall through: {parse_warnings}"
+        )
 
         critical_calls = [str(c) for c in mock_logger.critical.call_args_list]
         assert any("Triggered" in c and "h ago" in c for c in critical_calls), (

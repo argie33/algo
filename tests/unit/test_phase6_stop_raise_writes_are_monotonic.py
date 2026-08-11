@@ -40,8 +40,10 @@ class TestPhase6StopRaiseWritesAreMonotonic:
     def test_raise_stop_write_still_scopes_to_open_positions(self):
         """Sanity check: the GREATEST() fix must not have dropped the existing
         `AND status = %s` (open-position) scoping on the RAISE_STOP write."""
-        assert "GREATEST(current_stop_price, %s) \"\n                                        \"WHERE id = %s AND status = %s" in SOURCE or (
-            "WHERE id = %s AND status = %s" in SOURCE
+        assert (
+            'GREATEST(current_stop_price, %s) "\n                                        "WHERE id = %s AND status = %s'
+            in SOURCE
+            or ("WHERE id = %s AND status = %s" in SOURCE)
         ), "RAISE_STOP's UPDATE must still scope to `id = %s AND status = %s`"
 
     def test_no_bare_unconditional_current_stop_price_assignment_remains(self):

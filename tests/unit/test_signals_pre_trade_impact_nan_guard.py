@@ -48,7 +48,8 @@ class TestPreTradeImpactRejectsNaNEntryPriceFallback:
         cur.fetchone.return_value = (float("nan"),)
         body = {"symbol": "AAPL", "position_dollars": 1000.0}
         with patch.object(
-            signals_module, "_validate_portfolio_snapshot",
+            signals_module,
+            "_validate_portfolio_snapshot",
             return_value=(({}, 100_000.0, 5), None),
         ):
             result = signals_module._calculate_pre_trade_impact(cur, body)

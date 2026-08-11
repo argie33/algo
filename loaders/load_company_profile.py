@@ -226,8 +226,7 @@ class CompanyProfileLoader(OptimalLoader):
         # Unmapped SIC codes indicate incomplete data; must be marked unavailable for operator visibility.
         if not sic_code:
             logger.warning(
-                f"[{symbol}] No SIC code in company_info_sec. "
-                f"Cannot determine GICS sector. Marking data_unavailable."
+                f"[{symbol}] No SIC code in company_info_sec. Cannot determine GICS sector. Marking data_unavailable."
             )
             return [
                 {

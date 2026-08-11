@@ -341,14 +341,10 @@ class OrchestratorPhaseExecutor:
             # dependency failure (missing/wrong-type/invalid-schema data) by checking whether
             # any failed dependency's own status is "halted".
             halted_deps = [
-                dep for dep in phase.dependencies
-                if getattr(self.phase_results.get(dep), "status", None) == "halted"
+                dep for dep in phase.dependencies if getattr(self.phase_results.get(dep), "status", None) == "halted"
             ]
             if halted_deps:
-                logger.info(
-                    f"[PHASE {phase_num}] Skipped: upstream dependency {halted_deps} halted "
-                    f"({dep_error})"
-                )
+                logger.info(f"[PHASE {phase_num}] Skipped: upstream dependency {halted_deps} halted ({dep_error})")
                 skip_data = self._get_default_skip_data(phase_num)
                 if "status" not in skip_data:
                     skip_data["status"] = "halted"
@@ -483,11 +479,14 @@ class OrchestratorPhaseExecutor:
             if phase_num == 7:
                 try:
                     from utils.db.local_file_lock import get_lock_manager
+
                     lock_manager = get_lock_manager()
-                    if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                    if lock_manager and hasattr(lock_manager, "cleanup_expired_locks"):
                         cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=600)
                         if cleaned > 0:
-                            logger.info(f"[PRE-PHASE-7] Cleaned {cleaned} expired loader lock(s) before signal generation")
+                            logger.info(
+                                f"[PRE-PHASE-7] Cleaned {cleaned} expired loader lock(s) before signal generation"
+                            )
                 except Exception as cleanup_err:
                     logger.warning(f"[PRE-PHASE-7] Lock cleanup failed (non-blocking): {cleanup_err}")
 
@@ -516,8 +515,7 @@ class OrchestratorPhaseExecutor:
                 # they were reading THIS phase's (unset) error instead of the upstream cause.
                 upstream_reason = f"upstream Phase {error_phase} halted: {error_message}"
                 logger.info(
-                    f"Phase {phase_num} ({phase_def.phase_name}) skipped due to earlier phase halt "
-                    f"({upstream_reason})"
+                    f"Phase {phase_num} ({phase_def.phase_name}) skipped due to earlier phase halt ({upstream_reason})"
                 )
                 result = PhaseResult(
                     phase_num=phase_num,

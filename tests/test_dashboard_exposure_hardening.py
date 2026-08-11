@@ -92,6 +92,7 @@ class TestExposureCompactMissingFields:
             if record.levelno == logging.WARNING
         )
 
+
 class TestExposureCompactInvalidFactorData:
     """Compact panel should handle invalid factor data gracefully."""
 
@@ -142,6 +143,7 @@ class TestExposureCompactInvalidFactorData:
         # Should show the reason in the UI (not generic "N/A")
         assert result is not None
 
+
 class TestExposureCompactOptionalFactors:
     """Optional factors like sector_rotation should not fail silently."""
 
@@ -190,6 +192,7 @@ class TestExposureCompactOptionalFactors:
             if record.levelno == logging.WARNING
         )
         assert result is not None
+
 
 class TestExposureExpandedMissingFields:
     """Expanded exposure panel should handle missing fields with data_unavailable markers."""
@@ -262,6 +265,7 @@ class TestExposureExpandedMissingFields:
         # Should still return result
         assert result is not None
 
+
 class TestExposureExpandedMalformedFactorData:
     """Expanded panel should handle malformed factor data."""
 
@@ -328,6 +332,7 @@ class TestExposureExpandedMalformedFactorData:
         # Should return a Panel
         assert isinstance(result, Panel)
 
+
 class TestExposureExpandedOptionalAdjustments:
     """Optional adjustments should be handled explicitly."""
 
@@ -384,6 +389,7 @@ class TestExposureExpandedOptionalAdjustments:
         )
         # Should return a Panel
         assert isinstance(result, Panel)
+
 
 class TestExposureNoSilentEmptyReturns:
     """Verify that no silent empty returns occur."""

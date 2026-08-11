@@ -74,9 +74,7 @@ class TestLockCleanupThresholdMatchesLoaderTTL:
     def test_production_threshold_honors_loader_sla_env_override(self):
         """Threshold must track LOADER_SLA_TIMEOUT_SECONDS the same way optimal_loader.py's
         lock_ttl does, not be a value independent of it."""
-        thresholds = _run_cleanup_and_capture_threshold(
-            {"LOCAL_MODE": "False", "LOADER_SLA_TIMEOUT_SECONDS": "3600"}
-        )
+        thresholds = _run_cleanup_and_capture_threshold({"LOCAL_MODE": "False", "LOADER_SLA_TIMEOUT_SECONDS": "3600"})
         assert thresholds and all(t == 3600 for t in thresholds)
 
     def test_local_mode_threshold_matches_optimal_loader_3600s(self):
@@ -89,9 +87,7 @@ class TestLockCleanupThresholdMatchesLoaderTTL:
     def test_local_mode_threshold_honors_loader_sla_env_override(self):
         """Even in LOCAL_MODE, an explicit LOADER_SLA_TIMEOUT_SECONDS must win - this was
         the other half of the original bug: LOCAL_MODE used to ignore this env var entirely."""
-        thresholds = _run_cleanup_and_capture_threshold(
-            {"LOCAL_MODE": "True", "LOADER_SLA_TIMEOUT_SECONDS": "300"}
-        )
+        thresholds = _run_cleanup_and_capture_threshold({"LOCAL_MODE": "True", "LOADER_SLA_TIMEOUT_SECONDS": "300"})
         assert thresholds and all(t == 300 for t in thresholds)
 
     def test_long_running_loader_not_flagged_stuck_in_production(self):

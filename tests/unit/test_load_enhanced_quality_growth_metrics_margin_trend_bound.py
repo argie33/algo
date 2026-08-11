@@ -106,8 +106,16 @@ class TestMarginTrendBound:
 
     def test_near_zero_prior_equity_does_not_blow_up_roe_trend(self, monkeypatch):
         income_rows = [
-            _income_row(2025, revenue=1_000_000_000.0, operating_income=150_000_000.0, net_income=100_000_000.0, equity=500_000_000.0),
-            _income_row(2024, revenue=900_000_000.0, operating_income=100_000_000.0, net_income=80_000_000.0, equity=100.0),
+            _income_row(
+                2025,
+                revenue=1_000_000_000.0,
+                operating_income=150_000_000.0,
+                net_income=100_000_000.0,
+                equity=500_000_000.0,
+            ),
+            _income_row(
+                2024, revenue=900_000_000.0, operating_income=100_000_000.0, net_income=80_000_000.0, equity=100.0
+            ),
         ]
         margin_rows = [
             _margin_row(2025, cost_of_revenue=600_000_000.0, gross_profit=400_000_000.0),
