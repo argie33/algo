@@ -16,6 +16,7 @@ Run:
 """
 
 import logging
+import os
 import sys
 from datetime import date, datetime
 from typing import Any
@@ -156,6 +157,10 @@ class InsiderTransactionVelocityLoader(OptimalLoader):
 def main() -> int:
     """Entry point for load_insider_transaction_velocity.py."""
     try:
+        # BUGFIX 2026-08-11: First symbol waits for Form 345 download (1080s), which exceeds
+        # the default per-symbol timeout of 600s. Set it to match the aggregator timeout.
+        if "LOADER_PER_SYMBOL_TIMEOUT_SECONDS" not in os.environ:
+            os.environ["LOADER_PER_SYMBOL_TIMEOUT_SECONDS"] = "1200"
         return run_loader(InsiderTransactionVelocityLoader)
     except Exception as e:
         logger.error(f"[INSIDER_VELOCITY FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
