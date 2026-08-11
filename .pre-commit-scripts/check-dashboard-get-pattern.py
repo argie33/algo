@@ -66,7 +66,15 @@ def check_dashboard_patterns(filepath: str) -> list[str]:
     """
     violations = []
 
-    if not filepath.endswith(".py") or "dashboard" not in filepath:
+    # BUG FOUND 2026-08-11: this matched "dashboard" as a bare substring anywhere in the
+    # path, so it fired on lambda/api/routes/algo_handlers/dashboard.py - a Lambda API
+    # handler that has nothing to do with the TUI dashboard package and doesn't import
+    # error_boundary/has_error() at all (it uses @db_route_handler/@validate_api_response
+    # instead). The has_error() convention this check enforces is defined in
+    # dashboard/error_boundary.py and only applies to the dashboard/ TUI package - scope to
+    # that specifically, not any file whose path happens to contain the word "dashboard".
+    normalized = filepath.replace("\\", "/")
+    if not filepath.endswith(".py") or not (normalized.startswith("dashboard/") or "/dashboard/" in normalized):
         return violations
 
     try:
