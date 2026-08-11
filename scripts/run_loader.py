@@ -202,6 +202,13 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
     Returns:
         Result from loader.run() or loader.load_global()
     """
+    # FIX: Financial statements loader needs env vars to be set before instantiation
+    if loader_filename == "load_financial_statements.py":
+        if "LOADER_STATEMENT_TYPE" not in os.environ:
+            os.environ["LOADER_STATEMENT_TYPE"] = "income"
+        if "LOADER_PERIOD" not in os.environ:
+            os.environ["LOADER_PERIOD"] = "annual"
+
     loader = loader_class()
     table_name = loader.table_name
 
@@ -393,13 +400,13 @@ def main():
         except ValueError as e:
             logger.error(f"[LOADER] {e}")
             print(f"ERROR: {e}", file=sys.stderr)
-            print(f"Use --list-loaders to see available loaders", file=sys.stderr)
+            print("Use --list-loaders to see available loaders", file=sys.stderr)
             return 1
 
         if loader_filename not in LOADER_TABLES:
             logger.error(f"[LOADER] Unknown loader: {loader_filename}")
             print(f"ERROR: Unknown loader '{loader_filename}'", file=sys.stderr)
-            print(f"Use --list-loaders to see available loaders", file=sys.stderr)
+            print("Use --list-loaders to see available loaders", file=sys.stderr)
             return 1
 
         table_names = LOADER_TABLES[loader_filename]
