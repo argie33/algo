@@ -1286,7 +1286,12 @@ def run(
     # CRITICAL GUARD: Check for pending/recent orders that may still be filling
     # If orders from prior run are still pending, executing new entries risks duplicates
     # NOTE: Skip this guard in paper mode since there are no real pending orders in simulation
-    if execution_mode != "paper":
+    # BUG FOUND 2026-08-11: "dry" mode is equally simulation-only (same allowlist distinction
+    # already fixed in executor.py's credential-fetch handling and
+    # phase2_circuit_breakers.py's leniency check) - a bare `!= "paper"` here missed it, so
+    # this pending-order DB check (meaningless for a mode that never places real orders) ran
+    # in dry mode too.
+    if execution_mode not in ("paper", "dry"):
         try:
             with DatabaseContext("read") as cur:
                 # Check for positions created in the last 10 minutes (indicates recent fills or pending orders)

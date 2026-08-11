@@ -559,16 +559,21 @@ class DailyReconciliation:
                     if portfolio_value > 0 and open_position_count > 0:
                         # Query actual largest position as percentage of portfolio
                         # Use portfolio_value for consistency with cash/equity calculations
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT MAX(position_value / %s * 100) as largest_pct,
                                    AVG(position_value / %s * 100) as avg_pct
                             FROM algo_positions
                             WHERE status = 'open' AND quantity != 0
-                        """, (portfolio_value, portfolio_value))
+                        """,
+                            (portfolio_value, portfolio_value),
+                        )
                         conc_row = cur.fetchone()
                         if conc_row and conc_row[0] is not None:
                             largest_position_pct_paper = float(conc_row[0])
-                            avg_position_size_pct_paper = float(conc_row[1]) if conc_row[1] else (100.0 / open_position_count)
+                            avg_position_size_pct_paper = (
+                                float(conc_row[1]) if conc_row[1] else (100.0 / open_position_count)
+                            )
                             logger.debug(
                                 f"[RECONCILIATION] Paper mode concentration metrics: "
                                 f"portfolio_value=${portfolio_value:.2f}, "
@@ -577,18 +582,25 @@ class DailyReconciliation:
                             )
                         else:
                             # Fallback: if query fails, use theoretical average (100% / position_count)
-                            avg_position_size_pct_paper = 100.0 / open_position_count if open_position_count > 0 else 0.0
-                            largest_position_pct_paper = 100.0 / open_position_count  # Theoretical minimum for n equal positions, NOT average
+                            avg_position_size_pct_paper = (
+                                100.0 / open_position_count if open_position_count > 0 else 0.0
+                            )
+                            largest_position_pct_paper = (
+                                100.0 / open_position_count
+                            )  # Theoretical minimum for n equal positions, NOT average
 
                     # Calculate Herfindahl index for concentration_risk_pct
                     # This is the sum of squared position percentages (0-10000, where 10000 = single position)
                     herfindahl_paper = 0.0
                     if portfolio_value > 0:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT position_value / %s * 100
                             FROM algo_positions
                             WHERE status = 'open' AND quantity != 0
-                        """, (portfolio_value,))
+                        """,
+                            (portfolio_value,),
+                        )
                         for pos_row in cur.fetchall():
                             pct = float(pos_row[0])
                             herfindahl_paper += pct * pct
@@ -865,7 +877,13 @@ class DailyReconciliation:
 
                 # CRITICAL FIX: Allow cash to be None in paper mode, calculate after position_value computed
                 # Live mode requires real cash from broker, but paper mode can compute it from portfolio - positions
-                if cash is None and execution_mode != "paper":
+                # BUG FOUND 2026-08-11: "dry" mode is equally a no-real-broker local mode (same
+                # allowlist distinction already fixed in executor.py's credential-fetch handling
+                # and phase2_circuit_breakers.py's leniency check) - a bare `!= "paper"` here
+                # missed it, so a None cash value in dry mode incorrectly raised this fatal
+                # "Live mode: Broker cash is missing" halt instead of the paper-mode-equivalent
+                # graceful compute-from-portfolio path.
+                if cash is None and execution_mode not in ("paper", "dry"):
                     logger.critical(
                         "Live mode: Broker cash is missing - reconciliation cannot proceed without live cash value"
                     )
@@ -1065,7 +1083,6 @@ class DailyReconciliation:
                 total_position_value = analysis["total_position_value"]
                 unrealized_pnl = analysis["unrealized_pnl"]
                 analysis_unrealized_pnl_pct = analysis["unrealized_pnl_pct"]
-                positions_with_prices = analysis["positions_with_prices"]
                 unrealized_pnl_winning_count = analysis["winning_count"]
                 unrealized_pnl_losing_count = analysis["losing_count"]
                 unrealized_pnl_breakeven_count = analysis["breakeven_count"]
@@ -1176,7 +1193,7 @@ class DailyReconciliation:
                     # This measures portfolio concentration: 1/n for equal-weight = low concentration, 100 for single position = high
                     herfindahl_index_dec = Decimal(0)
                     for pos_val in position_values:
-                        pos_pct = (Decimal(str(pos_val)) / total_equity_dec * Decimal(100))
+                        pos_pct = Decimal(str(pos_val)) / total_equity_dec * Decimal(100)
                         herfindahl_index_dec += pos_pct * pos_pct
 
                     logger.debug(
@@ -1650,10 +1667,15 @@ class DailyReconciliation:
                         ) from e
 
                     if (
-                        math.isnan(entry_price) or math.isinf(entry_price)
-                        or math.isnan(stop_loss_price) or math.isinf(stop_loss_price)
-                        or math.isnan(entry_qty) or math.isinf(entry_qty)
-                        or entry_price <= 0 or stop_loss_price <= 0 or entry_qty <= 0
+                        math.isnan(entry_price)
+                        or math.isinf(entry_price)
+                        or math.isnan(stop_loss_price)
+                        or math.isinf(stop_loss_price)
+                        or math.isnan(entry_qty)
+                        or math.isinf(entry_qty)
+                        or entry_price <= 0
+                        or stop_loss_price <= 0
+                        or entry_qty <= 0
                     ):
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
                         raise ValueError(
@@ -1955,19 +1977,13 @@ class DailyReconciliation:
             risk_per_share = float(entry_price) - float(stop_loss_price)
             if risk_per_share > 0:
                 total_risk = Decimal(str(risk_per_share)) * qty_dec
-                exit_r_multiple = float(
-                    (cumulative_pnl / total_risk).quantize(
-                        Decimal("0.01"), ROUND_HALF_UP
-                    )
-                )
+                exit_r_multiple = float((cumulative_pnl / total_risk).quantize(Decimal("0.01"), ROUND_HALF_UP))
             else:
                 exit_r_multiple = None
 
             # P&L % based on total realized P&L relative to total position cost
             pnl_pct = float(
-                (cumulative_pnl / (entry_dec * qty_dec) * Decimal(100)).quantize(
-                    Decimal("0.01"), ROUND_HALF_UP
-                )
+                (cumulative_pnl / (entry_dec * qty_dec) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
             )
             pnl_dollars = float(cumulative_pnl.quantize(Decimal("0.01"), ROUND_HALF_UP))
 
@@ -2064,6 +2080,7 @@ class DailyReconciliation:
                     exit_time_utc = exit_time
                 else:
                     from utils.db.timezone_utils import get_db_timezone
+
                     naive_tz = get_db_timezone()
                     exit_time_utc = exit_time.replace(tzinfo=naive_tz)
                 age = now - exit_time_utc
