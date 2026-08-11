@@ -141,9 +141,7 @@ class PositionContext:
                 missing_keys.append(f"'{key}' ({expected_type.__name__})")
             elif not isinstance(self.config[key], expected_type):
                 actual_type = type(self.config[key]).__name__
-                missing_keys.append(
-                    f"'{key}' has type {actual_type}, expected {expected_type.__name__}"
-                )
+                missing_keys.append(f"'{key}' has type {actual_type}, expected {expected_type.__name__}")
 
         if missing_keys:
             raise ValueError(
@@ -728,7 +726,7 @@ class ExitEngine:
                     ) = row
 
                     # ISSUE 11 FIX: Use unique savepoint names to prevent collision on retry
-                    _sp = f"sp_exit_{int(time.time()*1000000)}_{uuid.uuid4().hex[:8]}"
+                    _sp = f"sp_exit_{int(time.time() * 1000000)}_{uuid.uuid4().hex[:8]}"
                     cur.execute(f"SAVEPOINT {_sp}")
                     is_estimated_price_exit = False  # Reset for each position - used if archive price fallback
                     try:
@@ -798,6 +796,33 @@ class ExitEngine:
                             t2_price = Decimal(str(t2_price)) if t2_price else None
 
                             t3_price = Decimal(str(t3_price)) if t3_price else None
+
+                            # BUG FOUND 2026-08-11: entry_price/init_stop/active_stop were converted
+                            # to Decimal here but never checked for NaN/Infinity. Decimal arithmetic
+                            # silently propagates NaN (unlike ordering comparisons, which raise) - a
+                            # NaN/infinite value here would sail through this try block, then raise a
+                            # raw decimal.InvalidOperation the first time it's used in an ordering
+                            # comparison further down (e.g. the hard-stop check `cur_price_dec <=
+                            # hard_stop_dec` a few lines below, or inside _evaluate_position). This
+                            # per-position loop's own `except` clause (further down, wraps the whole
+                            # SAVEPOINT block) does NOT include InvalidOperation (an ArithmeticError) -
+                            # only (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError,
+                            # KeyError, RuntimeError) - so one position with a corrupted NaN price
+                            # would propagate straight out of this per-position try, aborting exit
+                            # evaluation (including hard stop-loss checks) for every OTHER open
+                            # position for the rest of this run. Same bug class as
+                            # trade_validator.py's validate_entry_preconditions (entry side) and
+                            # executor_exit_handler.py's stop_loss_price guard (exit-record side) -
+                            # this is the exit-EVALUATION-side sibling. Catching it as ValueError here
+                            # routes it through this block's own `except (TypeError, ValueError)`
+                            # handler above, producing this file's normal diagnostic message instead.
+                            for _label, _value in (
+                                ("entry_price", entry_price),
+                                ("init_stop", init_stop),
+                                ("active_stop", active_stop),
+                            ):
+                                if not _value.is_finite():
+                                    raise ValueError(f"{symbol}: {_label}={_value} is not a finite number")
 
                             if target_hits is None:
                                 raise ValueError(
@@ -940,7 +965,9 @@ class ExitEngine:
                                     f"[EXIT ENGINE CRITICAL] {symbol}: No price data available (current or archive). "
                                     f"Cannot evaluate exit. Position remains open - retry when price data available."
                                 )
-                                _missing_price_err = RuntimeError(f"No price data available (current or archive) for {symbol}")
+                                _missing_price_err = RuntimeError(
+                                    f"No price data available (current or archive) for {symbol}"
+                                )
                                 trade_errors += 1
                                 _persist_exit_check_error(
                                     current_date,
@@ -952,6 +979,20 @@ class ExitEngine:
                                 )
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
+
+                        # BUG FOUND 2026-08-11: cur_price/prev_close (from a live Alpaca quote or a
+                        # DB fallback, above) were never checked for NaN/Infinity before reaching the
+                        # hard-stop comparison a few lines below (`cur_price_dec <= hard_stop_dec`) or
+                        # ExitStrategyChain's checks further down. Same bug class and same blast
+                        # radius as the entry_price/init_stop/active_stop guard added above this
+                        # block: a NaN/infinite cur_price would raise a raw decimal.InvalidOperation
+                        # (an ArithmeticError) that this per-position loop's own `except` clause below
+                        # doesn't catch, aborting exit evaluation - including hard stop-loss checks -
+                        # for every OTHER open position for the rest of this run.
+                        if math.isnan(cur_price) or math.isinf(cur_price) or cur_price <= 0:
+                            raise ValueError(f"{symbol}: cur_price={cur_price} is not a finite positive number")
+                        if prev_close is not None and (math.isnan(prev_close) or math.isinf(prev_close)):
+                            raise ValueError(f"{symbol}: prev_close={prev_close} is not a finite number")
 
                         days_held = (current_date - trade_date).days
 
@@ -995,36 +1036,40 @@ class ExitEngine:
                             # Hard stop-loss above already checked and not triggered
                             min_hold_val = self.config.get("min_hold_days")
                             if min_hold_val is None:
-                                raise ValueError("CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period.")
+                                raise ValueError(
+                                    "CRITICAL: min_hold_days config missing. Cannot enforce minimum holding period."
+                                )
                             min_hold_days_check = int(min_hold_val)
 
                             if days_held < min_hold_days_check:
                                 if self.verbose:
-                                    logger.info(f"  {symbol}: hold (minimum hold period not met: {days_held}d held < {min_hold_days_check}d required)")
+                                    logger.info(
+                                        f"  {symbol}: hold (minimum hold period not met: {days_held}d held < {min_hold_days_check}d required)"
+                                    )
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
                                 continue
 
                             exit_signal = self._evaluate_position(
-                            cur,
-                            symbol,
-                            current_date,
-                            Decimal(str(cur_price)),
-                            Decimal(str(prev_close)) if prev_close is not None else None,
-                            entry_price,
-                            active_stop,
-                            init_stop,
-                            t1_price,
-                            t2_price,
-                            t3_price,
-                            target_hits,
-                            days_held,
-                            dist_days_today,
-                            t1_hit_time,
-                            t2_hit_time,
-                            t3_hit_time,
-                            last_partial_exit_date,
-                            partial_exits_log,
-                        )
+                                cur,
+                                symbol,
+                                current_date,
+                                Decimal(str(cur_price)),
+                                Decimal(str(prev_close)) if prev_close is not None else None,
+                                entry_price,
+                                active_stop,
+                                init_stop,
+                                t1_price,
+                                t2_price,
+                                t3_price,
+                                target_hits,
+                                days_held,
+                                dist_days_today,
+                                t1_hit_time,
+                                t2_hit_time,
+                                t3_hit_time,
+                                last_partial_exit_date,
+                                partial_exits_log,
+                            )
 
                         if not exit_signal:
                             t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "--"
@@ -1097,7 +1142,13 @@ class ExitEngine:
 
                         cur.execute(f"RELEASE SAVEPOINT {_sp}")
 
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, KeyError, RuntimeError) as _trade_err:
+                    except (
+                        psycopg2.DatabaseError,
+                        psycopg2.OperationalError,
+                        ValueError,
+                        KeyError,
+                        RuntimeError,
+                    ) as _trade_err:
                         # CRITICAL FIX: Rollback to savepoint may itself fail if transaction is aborted.
                         # Wrap it in try-except to ensure we log the error and continue to the next position,
                         # rather than propagating a "current transaction is aborted" error that would abort
@@ -1942,7 +1993,9 @@ class ExitEngine:
             # STOP price for a real open position - a silent NaN here is worse than a crash.
             for r in rows:
                 if r[0] is None or math.isnan(float(r[0])) or math.isinf(float(r[0])):
-                    raise ValueError(f"Invalid close price {r[0]!r} in price_daily for {symbol} - cannot calculate 21-EMA stop")
+                    raise ValueError(
+                        f"Invalid close price {r[0]!r} in price_daily for {symbol} - cannot calculate 21-EMA stop"
+                    )
 
             closes = [Decimal(str(r[0])) for r in rows]
 
