@@ -557,7 +557,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # same computed values, not a duplicate table"). _compute_growth_metrics has no
             # access to that computation and always defaulted its own copy to None - growth_
             # metrics's half of every one of these columns was silently dead on arrival.
-            if not growth_dict.get("data_unavailable") and not quality_dict.get("data_unavailable"):
+            #
+            # FIXED 2026-08-10: previously also required quality_dict itself to not be
+            # data_unavailable, so a symbol whose quality side failed entirely (e.g.
+            # stale_fiscal_data) but whose growth side partially succeeded got NULL value
+            # AND NULL reason for every shared field - indistinguishable from a bug on the
+            # scores page ("No data" instead of "SEC data not available"). _unavailable_marker
+            # always populates a real reason code (e.g. "missing_sec_data") for every shared
+            # field even when quality_dict.data_unavailable is True, so it's always safe to
+            # copy from it; growth_dict's own data_unavailable still gates the write target
+            # (a fully-blanked growth row shouldn't be selectively patched). Live-confirmed on
+            # DMRC/CNK (quality data_unavailable=True, growth data_unavailable=False): both had
+            # sustainable_growth_rate=NULL with no reason before this fix.
+            if not growth_dict.get("data_unavailable"):
                 for field in _SHARED_TREND_FIELDS:
                     if quality_dict.get(field) is not None:
                         growth_dict[field] = quality_dict[field]

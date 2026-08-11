@@ -1751,6 +1751,13 @@ data "aws_iam_policy_document" "developer" {
   }
 
   # S3 (read-only for frontend and data buckets)
+  # FIX 2026-08-10: GetObject/ListBucket/GetBucketLocation all support bucket-level ARN
+  # scoping per AWS IAM (ListBucket/GetBucketLocation take the bucket ARN, GetObject takes
+  # bucket/*) - the previous resources=["*"] granted read access to every bucket in the
+  # account, not just this project's, despite the comment's stated intent. Scoped to match
+  # the same "${var.project_name}*" pattern already used by the "S3" statement above.
+  # ListAllMyBuckets has no resource-level ARN support in IAM and must stay "*" - kept in
+  # its own statement so the scoped grant isn't diluted back to account-wide.
   statement {
     sid    = "S3ReadOnly"
     effect = "Allow"
@@ -1758,9 +1765,20 @@ data "aws_iam_policy_document" "developer" {
     actions = [
       "s3:GetObject",
       "s3:ListBucket",
-      "s3:GetBucketLocation",
-      "s3:ListAllMyBuckets"
+      "s3:GetBucketLocation"
     ]
+
+    resources = [
+      "arn:aws:s3:::${var.project_name}*",
+      "arn:aws:s3:::${var.project_name}*/*"
+    ]
+  }
+
+  statement {
+    sid    = "S3ListAllBuckets"
+    effect = "Allow"
+
+    actions = ["s3:ListAllMyBuckets"]
 
     resources = ["*"]
   }

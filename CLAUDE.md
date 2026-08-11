@@ -29,6 +29,18 @@ python scripts/monitor_data_staleness.py               # Check freshness
 python scripts/verify_eventbridge_scheduler.py --fix   # Repair scheduler if stuck
 ```
 
+`monitor_data_staleness.py` and Phase 1 (`algo/orchestrator/phase1_data_freshness.py`) use
+**different freshness methodologies** — a table can show FRESH in the monitor and still halt
+Phase 1 minutes later:
+- `monitor_data_staleness.py`: simple elapsed-time buckets (fresh/stale/critical at
+  24h/36h/48h for most tables).
+- Phase 1: date-aware — requires TODAY's data once market close has passed, YESTERDAY's data
+  otherwise (`is_after_market_close` check), not just "loaded within N hours".
+An operator checking the monitor at 4 PM can see FRESH on yesterday's data that Phase 1 will
+correctly halt on at 5 PM once market close makes today's data the requirement. This is
+expected — not a bug in either script — but don't use the monitor's output as a substitute for
+running the orchestrator itself when you need to know if Phase 1 will pass.
+
 ## Core Rules (Non-Negotiable)
 
 **Data integrity first.** These rules prevent real bugs:

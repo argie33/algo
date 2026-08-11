@@ -252,6 +252,56 @@ function ScoresDashboardPage() {
     return o;
   }, [items]);
 
+  const loadDetail = async (symbol) => {
+    try {
+      // Try new details endpoint first (has factor inputs), fall back to stockscores
+      let item = null;
+      try {
+        const r = await api.get(`/api/scores/details/${symbol}`);
+        if (r?.data && typeof r.data === "object" && !Array.isArray(r.data)) {
+          item = r.data;
+        }
+      } catch (err) {
+        console.debug(`[ScoresDashboard] Details endpoint not available for ${symbol}, trying stockscores`);
+        // Fallback to stockscores
+        const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
+        let result = r.data?.items?.[0];
+        if (!result) {
+          result = r.data?.data?.items?.[0];
+        }
+        if (!result) {
+          result = r.data?.top?.[0];
+        }
+        if (!result) {
+          result = r.data?.data?.top?.[0];
+        }
+        if (result) {
+          item = result;
+        }
+      }
+
+      if (item) {
+        console.debug(`[ScoresDashboard] Found detail item for ${symbol}, quality_inputs present: ${"quality_inputs" in item}`);
+        setDetails((d) => ({ ...d, [symbol]: item }));
+      } else {
+        console.warn(`[ScoresDashboard] No detail item returned for ${symbol}`);
+        setDetails((d) => ({
+          ...d,
+          [symbol]: { symbol, error: "No data returned from API" },
+        }));
+      }
+    } catch (err) {
+      console.error(
+        `[ScoresDashboard] Failed to load detail for ${symbol}:`,
+        err?.message || err
+      );
+      setDetails((d) => ({
+        ...d,
+        [symbol]: { symbol, error: err?.message || "Request failed" },
+      }));
+    }
+  };
+
   const expandStock = async (symbol) => {
     if (selectedSymbol === symbol) {
       setSelectedSymbol(null);
@@ -259,55 +309,22 @@ function ScoresDashboardPage() {
     }
     setSelectedSymbol(symbol);
     if (!details[symbol]) {
-      try {
-        // Try new details endpoint first (has factor inputs), fall back to stockscores
-        let item = null;
-        try {
-          const r = await api.get(`/api/scores/details/${symbol}`);
-          if (r?.data && typeof r.data === "object" && !Array.isArray(r.data)) {
-            item = r.data;
-          }
-        } catch (err) {
-          console.debug(`[ScoresDashboard] Details endpoint not available for ${symbol}, trying stockscores`);
-          // Fallback to stockscores
-          const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
-          let result = r.data?.items?.[0];
-          if (!result) {
-            result = r.data?.data?.items?.[0];
-          }
-          if (!result) {
-            result = r.data?.top?.[0];
-          }
-          if (!result) {
-            result = r.data?.data?.top?.[0];
-          }
-          if (result) {
-            item = result;
-          }
-        }
-
-        if (item) {
-          console.debug(`[ScoresDashboard] Found detail item for ${symbol}, quality_inputs present: ${"quality_inputs" in item}`);
-          setDetails((d) => ({ ...d, [symbol]: item }));
-        } else {
-          console.warn(`[ScoresDashboard] No detail item returned for ${symbol}`);
-          setDetails((d) => ({
-            ...d,
-            [symbol]: { symbol, error: "No data returned from API" },
-          }));
-        }
-      } catch (err) {
-        console.error(
-          `[ScoresDashboard] Failed to load detail for ${symbol}:`,
-          err?.message || err
-        );
-        setDetails((d) => ({
-          ...d,
-          [symbol]: { symbol, error: err?.message || "Request failed" },
-        }));
-      }
+      await loadDetail(symbol);
     }
   };
+
+  // Loaders can backfill/correct a symbol's data after it was first expanded and
+  // cached in `details` - without this, an accordion opened once keeps showing
+  // whatever "No data"/"SEC data not available" snapshot it fetched at expand time
+  // for the rest of the page's lifetime, even after the underlying tables are fixed.
+  // Mirrors the rankings list's own 60s refetchInterval above.
+  useEffect(() => {
+    if (!selectedSymbol) return;
+    const id = setInterval(() => {
+      loadDetail(selectedSymbol);
+    }, 60000);
+    return () => clearInterval(id);
+  }, [selectedSymbol]);
 
   const clear = () => {
     setSearch("");
@@ -907,6 +924,11 @@ function _formatReasonDisplay(reason) {
     missing_finra_data: "FINRA data unavailable",
     missing_price_data: "Price data unavailable",
     no_segment_disclosure: "Single-segment filer",
+    no_computable_segment_metrics: "Segment data not computable",
+    no_segment_dimension_contexts_in_xbrl_xml: "No segment breakdown in filing",
+    no_segment_revenue_in_xbrl_xml: "No segment revenue in filing",
+    no_segment_count_facts_in_companyfacts: "Segment data not in SEC filing",
+    no_segment_data: "Segment data unavailable",
   };
   return reasonMap[reason] || reason;
 }

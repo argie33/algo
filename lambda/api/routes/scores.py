@@ -596,15 +596,19 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             # Positioning Inputs
             data["positioning_inputs"] = {
                 "institutional_ownership_pct": data.get("inst_own_val"),
-                "institutional_ownership_unavailable_reason": data.get("institutional_ownership_unavailable_reason"),
+                # Frontend schema key is institutional_ownership_pct, so FactorInputs looks up
+                # institutional_ownership_pct_unavailable_reason - the missing "_pct" here meant
+                # this reason was computed but never actually reached the UI; a real null value
+                # rendered as a bare "No data" instead of the actual reason underneath it.
+                "institutional_ownership_pct_unavailable_reason": data.get("institutional_ownership_unavailable_reason"),
                 "top_10_institutions_pct": data.get("top_10_institutions_pct"),
                 "top_10_institutions_pct_unavailable_reason": data.get("top_10_institutions_pct_unavailable_reason"),
                 "institutional_holders_count": data.get("institutional_holders_count"),
                 "institutional_holders_count_unavailable_reason": data.get("institutional_holders_count_unavailable_reason"),
                 "insider_ownership_pct": data.get("insider_own_val"),
-                "insider_ownership_unavailable_reason": data.get("insider_ownership_unavailable_reason"),
+                "insider_ownership_pct_unavailable_reason": data.get("insider_ownership_unavailable_reason"),
                 "short_interest_pct": data.get("short_pct_val"),
-                "short_interest_unavailable_reason": data.get("short_interest_unavailable_reason"),
+                "short_interest_pct_unavailable_reason": data.get("short_interest_unavailable_reason"),
                 "short_percent_of_float": data.get("short_pct_float"),
                 "short_percent_of_float_unavailable_reason": data.get("short_percent_of_float_unavailable_reason"),
                 "short_interest_trend": data.get("short_interest_trend_val"),
@@ -660,10 +664,28 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "segment_count": data.get("segment_count"),
                 "largest_segment_revenue_pct": data.get("largest_segment_revenue_pct"),
                 "is_diversified": data.get("is_diversified"),
+                # Segment fields all come from the same sec_segment_metrics row, so they
+                # share one reason - but each was only wired to revenue_concentration_hhi,
+                # not to segment_count/largest_segment_revenue_pct/is_diversified. Those 3
+                # rendered as a bare, unexplained "No data" on the Stability tab even though
+                # the real reason (e.g. no_segment_disclosure, no_computable_segment_metrics)
+                # was sitting right there in segm.reason - looked like a loader gap when it
+                # was actually just an unwired API field.
                 "revenue_concentration_hhi_unavailable_reason": (
                     data.get("segment_unavailable_reason")
                     if data.get("segment_revenue_concentration_hhi") is None
                     else None
+                ),
+                "segment_count_unavailable_reason": (
+                    data.get("segment_unavailable_reason") if data.get("segment_count") is None else None
+                ),
+                "largest_segment_revenue_pct_unavailable_reason": (
+                    data.get("segment_unavailable_reason")
+                    if data.get("largest_segment_revenue_pct") is None
+                    else None
+                ),
+                "is_diversified_unavailable_reason": (
+                    data.get("segment_unavailable_reason") if data.get("is_diversified") is None else None
                 ),
             }
 
@@ -1327,15 +1349,19 @@ def _get_stock_scores(  # noqa: C901
             # Positioning Inputs: Ownership and short interest
             d["positioning_inputs"] = {
                 "institutional_ownership_pct": d.get("inst_own_val"),
-                "institutional_ownership_unavailable_reason": d.get("institutional_ownership_unavailable_reason"),
+                # See matching comment in _get_stock_details - frontend looks up
+                # institutional_ownership_pct_unavailable_reason/insider_ownership_pct_.../
+                # short_interest_pct_..., the missing "_pct" meant a real null value here
+                # rendered as a bare "No data" instead of the actual reason.
+                "institutional_ownership_pct_unavailable_reason": d.get("institutional_ownership_unavailable_reason"),
                 "top_10_institutions_pct": d.get("top_10_institutions_pct"),
                 "top_10_institutions_pct_unavailable_reason": d.get("top_10_institutions_pct_unavailable_reason"),
                 "institutional_holders_count": d.get("institutional_holders_count"),
                 "institutional_holders_count_unavailable_reason": d.get("institutional_holders_count_unavailable_reason"),
                 "insider_ownership_pct": d.get("insider_own_val"),
-                "insider_ownership_unavailable_reason": d.get("insider_ownership_unavailable_reason"),
+                "insider_ownership_pct_unavailable_reason": d.get("insider_ownership_unavailable_reason"),
                 "short_interest_pct": d.get("short_pct_val"),
-                "short_interest_unavailable_reason": d.get("short_interest_unavailable_reason"),
+                "short_interest_pct_unavailable_reason": d.get("short_interest_unavailable_reason"),
                 "short_percent_of_float": d.get("short_pct_float"),
                 "short_percent_of_float_unavailable_reason": d.get("short_percent_of_float_unavailable_reason"),
                 "short_interest_trend": d.get("short_interest_trend_val"),
@@ -1382,8 +1408,19 @@ def _get_stock_scores(  # noqa: C901
                 "segment_count": d.get("segment_count"),
                 "largest_segment_revenue_pct": d.get("largest_segment_revenue_pct"),
                 "is_diversified": d.get("is_diversified"),
+                # See matching comment in _get_stock_details - same reason applies to all 4
+                # segment fields, but was only wired to revenue_concentration_hhi.
                 "revenue_concentration_hhi_unavailable_reason": (
                     d.get("segment_unavailable_reason") if d.get("segment_revenue_concentration_hhi") is None else None
+                ),
+                "segment_count_unavailable_reason": (
+                    d.get("segment_unavailable_reason") if d.get("segment_count") is None else None
+                ),
+                "largest_segment_revenue_pct_unavailable_reason": (
+                    d.get("segment_unavailable_reason") if d.get("largest_segment_revenue_pct") is None else None
+                ),
+                "is_diversified_unavailable_reason": (
+                    d.get("segment_unavailable_reason") if d.get("is_diversified") is None else None
                 ),
             }
 
