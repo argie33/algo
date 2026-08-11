@@ -44,7 +44,11 @@ class QualityChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("NULL anomaly check query returned no results - database state corrupted")
-            if isinstance(row, dict):
+            # BUG FOUND 2026-08-11: DictRow (what DictCursor actually returns) is dict-LIKE
+            # but not a `dict` subclass - isinstance(row, dict) was always False here,
+            # unconditionally crashing this checker on every real row. Same fix as
+            # coverage.py/alignment.py/specialized.py's other instances.
+            if isinstance(row, dict) or hasattr(row, "keys"):
                 today_nulls, today_total = row.get("today_nulls"), row.get("today_total")
             else:
                 raise TypeError(

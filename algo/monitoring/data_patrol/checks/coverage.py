@@ -39,7 +39,14 @@ class CoverageChecker(BaseCheck):
                 CROSS JOIN latest_date ld
             """)
             row = cur.fetchone()
-            if isinstance(row, dict):
+            # BUG FOUND 2026-08-11: DictCursor (psycopg2.extras) returns DictRow, which is
+            # dict-LIKE (supports .get()/.keys()) but is NOT a `dict` subclass -
+            # isinstance(row, dict) was always False for a correctly-configured DictCursor,
+            # so this "mismatch" branch fired on every single real row, unconditionally
+            # crashing this checker. Same established pattern already correctly used in
+            # specialized.py:206 - accept dict-like via hasattr("keys"), not a strict dict
+            # subclass check.
+            if isinstance(row, dict) or hasattr(row, "keys"):
                 today_count = row.get("today_count")
             else:
                 raise TypeError(
@@ -254,6 +261,7 @@ class CoverageChecker(BaseCheck):
                     cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                 except Exception as rollback_err:
                     import logging
+
                     logging.getLogger(__name__).error(f"Savepoint rollback failed: {rollback_err}")
             finally:
                 cur.execute(f"RELEASE SAVEPOINT {sp}")

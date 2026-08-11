@@ -166,7 +166,10 @@ class AlignmentChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("Signal alignment query returned no results - database state corrupted")
-            if isinstance(row, dict):
+            # BUG FOUND 2026-08-11: DictRow (what DictCursor actually returns) is dict-LIKE
+            # but not a `dict` subclass - isinstance(row, dict) was always False here,
+            # unconditionally crashing this checker on every real row.
+            if isinstance(row, dict) or hasattr(row, "keys"):
                 total, missing_price, missing_tech = (
                     row.get("total_signals"),
                     row.get("missing_price"),
@@ -405,7 +408,9 @@ class AlignmentChecker(BaseCheck):
 
             counts_by_table = {}
             for row in cur.fetchall():
-                if not isinstance(row, dict):
+                # BUG FOUND 2026-08-11: DictRow (what DictCursor actually returns) is
+                # dict-LIKE but not a `dict` subclass - this always raised on real data.
+                if not (isinstance(row, dict) or hasattr(row, "keys")):
                     raise TypeError(
                         f"Expected dict-like row from DictCursor, got {type(row).__name__}. "
                         f"This indicates cursor configuration mismatch. Check data_patrol cursor factory."

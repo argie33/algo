@@ -269,7 +269,9 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("RSI bounds check query returned no results - database state corrupted")
-            if isinstance(row, dict):
+            # BUG FOUND 2026-08-11: DictRow (what DictCursor actually returns) is dict-LIKE
+            # but not a `dict` subclass - always raised on real data.
+            if isinstance(row, dict) or hasattr(row, "keys"):
                 bad_rsi, null_rsi, total = row.get("bad_rsi"), row.get("null_rsi"), row.get("total")
             else:
                 raise TypeError(
@@ -357,7 +359,8 @@ class SpecializedChecker(BaseCheck):
             """)
             columns = []
             for row in cur.fetchall():
-                if isinstance(row, dict):
+                # BUG FOUND 2026-08-11: DictRow is dict-LIKE but not a `dict` subclass.
+                if isinstance(row, dict) or hasattr(row, "keys"):
                     col = row.get("column_name")
                 else:
                     raise TypeError(
@@ -483,7 +486,8 @@ class SpecializedChecker(BaseCheck):
                 )
                 columns = []
                 for row in cur.fetchall():
-                    if isinstance(row, dict):
+                    # BUG FOUND 2026-08-11: DictRow is dict-LIKE but not a `dict` subclass.
+                    if isinstance(row, dict) or hasattr(row, "keys"):
                         col = row.get("column_name")
                     else:
                         raise TypeError(
@@ -511,7 +515,8 @@ class SpecializedChecker(BaseCheck):
                         # Fallback to updated_at if created_at doesn't exist
                         cur.execute(f"SELECT COUNT(*) as count, MAX(updated_at) as max_updated FROM {tbl_safe}")
                     row = cur.fetchone()
-                    if isinstance(row, dict):
+                    # BUG FOUND 2026-08-11: DictRow is dict-LIKE but not a `dict` subclass.
+                    if isinstance(row, dict) or hasattr(row, "keys"):
                         count, max_updated = row.get("count"), row.get("max_updated")
                     else:
                         raise TypeError(
