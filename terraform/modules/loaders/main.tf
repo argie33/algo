@@ -557,8 +557,8 @@ locals {
     # loader_file_map comments above for why these were previously unscheduled. Sized like
     # analyst_upgrade_downgrade/analyst_sentiment_analysis below (same shape: per-symbol
     # yfinance call, no bulk endpoint) - live-tested locally at ~1-2s/symbol.
-    "analyst_earnings_estimates"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
-    "enhanced_quality_growth_metrics" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    "analyst_earnings_estimates"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "enhanced_quality_growth_metrics" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
 
     # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
     # Replaces: old sector_performance + sector_ranking + industry_ranking loaders
@@ -586,7 +586,7 @@ locals {
     # analyst_earnings_estimates/analyst_upgrade_downgrade (same shape: per-symbol yfinance
     # call, no bulk endpoint) - live-tested locally at ~5s/symbol for the earnings_dates
     # window fetch.
-    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
 
     # ============================================================
     # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)
@@ -657,14 +657,14 @@ locals {
 
     # Dividends: Ex-dates, payment dates, yields (XBRL + 8-K extraction)
     # Typical run ~5-10 min for 5k symbols, lightweight (~100MB)
-    "dividend_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+    "dividend_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
 
     # Analyst upgrade/downgrade ratings: per-symbol yfinance call across the universe,
     # same shape/sizing as dividend_data (per-symbol external API, not bulk).
-    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
     # Analyst sentiment analysis: two per-symbol yfinance calls (recommendations_summary +
     # analyst_price_targets) - same shape/sizing as analyst_upgrade_downgrade.
-    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
