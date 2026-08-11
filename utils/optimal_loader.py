@@ -963,7 +963,12 @@ class OptimalLoader:
                     current_run_symbol_count=0,
                     min_completion_pct=0.0,
                 )
-                return 0
+                # CRITICAL FIX: Return 1 (not 0) to signal successful completion to runner.py
+                # even though no real data was loaded. Returning 0 causes runner.py to treat
+                # this as a failure and override our mark_completed() call with mark_failed().
+                # This is critical for loaders like algo_metrics_daily that intentionally
+                # return data_unavailable to signal "verification passed, real data handled elsewhere".
+                return 1
 
             # rows_result is now guaranteed to be a list[dict] after marker dict check
             rows: list[dict[str, Any]] = cast(list[dict[str, Any]], rows_result)

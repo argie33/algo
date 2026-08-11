@@ -136,8 +136,8 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                 # LOADER CONSOLIDATION FIX: Return verification-only result
                 # Phase 9 (orchestrator) is now the exclusive writer to algo_metrics_daily.
                 # This loader verifies metrics can be computed (validates data integrity)
-                # but does NOT persist. Returning data_unavailable=True with reason_type="not_applicable"
-                # tells data_loader_status this is intentional (not a failure).
+                # and updates the algo_metrics_daily table with a marker record (data_unavailable=True).
+                # This signals: "verification passed, no new real data to write, Phase 9 handles persistence".
                 logger.info(
                     f"[ALGO_METRICS] Metrics verified for {row[0]}: "
                     f"{total_actions} actions, {entries} entries, {exits} exits. "
