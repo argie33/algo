@@ -309,6 +309,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     mm.momentum_6m AS momentum_6m_val,
                     mm.momentum_12m AS momentum_12m_val,
                     (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable,
+                    phist.n AS price_history_days,
                     segm.revenue_concentration_hhi AS segment_revenue_concentration_hhi,
                     segm.segment_count,
                     segm.largest_segment_revenue_pct,
@@ -349,6 +350,19 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                     ORDER BY date DESC
                     LIMIT 1
                 ) tl ON true
+                LEFT JOIN LATERAL (
+                    -- Same LIMIT 253 window loaders/load_risk_metrics_daily.py reads to compute
+                    -- momentum - mirrors its row-count thresholds (22/63/126/252 days) so recently-
+                    -- listed symbols with too little history show "Insufficient history" instead of
+                    -- an unexplained "No data" for momentum_6m/12m/price_vs_sma_200.
+                    SELECT COUNT(*) AS n
+                    FROM (
+                        SELECT 1 FROM price_daily
+                        WHERE symbol = sc.symbol
+                        ORDER BY date DESC
+                        LIMIT 253
+                    ) recent
+                ) phist ON true
                 LEFT JOIN LATERAL (
                     SELECT MAX(high) AS high_52w
                     FROM price_daily
@@ -513,15 +527,37 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             }
 
             # Momentum Inputs
+            # loaders/load_risk_metrics_daily.py computes each momentum window from the row-count
+            # of price history it can read (22/63/126/252 days for 1m/3m/6m/12m) but only records a
+            # row-level `reason` when EVERY window fails - a symbol with 1m/3m but not 6m/12m (e.g.
+            # a recent IPO) gets reason=None, so the missing window rendered as an unexplained bare
+            # "No data" instead of "Insufficient history". price_history_days (phist LATERAL join
+            # above) mirrors those same thresholds to backfill the reason for display purposes only.
+            _phist_days = data.get("price_history_days") or 0
             data["momentum_inputs"] = {
                 "current_price": data.get("current_price"),
                 "price_vs_52w_high": data.get("price_vs_52w_high_val"),
                 "price_vs_sma_50": data.get("price_vs_sma_50"),
                 "price_vs_sma_200": data.get("price_vs_sma_200"),
+                "price_vs_sma_200_unavailable_reason": (
+                    "insufficient_history" if data.get("price_vs_sma_200") is None and _phist_days < 200 else None
+                ),
                 "momentum_1m": data.get("momentum_1m_val"),
+                "momentum_1m_unavailable_reason": (
+                    "insufficient_history" if data.get("momentum_1m_val") is None and _phist_days < 22 else None
+                ),
                 "momentum_3m": data.get("momentum_3m_val"),
+                "momentum_3m_unavailable_reason": (
+                    "insufficient_history" if data.get("momentum_3m_val") is None and _phist_days < 63 else None
+                ),
                 "momentum_6m": data.get("momentum_6m_val"),
+                "momentum_6m_unavailable_reason": (
+                    "insufficient_history" if data.get("momentum_6m_val") is None and _phist_days < 126 else None
+                ),
                 "momentum_12_3": data.get("momentum_12m_val"),
+                "momentum_12_3_unavailable_reason": (
+                    "insufficient_history" if data.get("momentum_12m_val") is None and _phist_days < 252 else None
+                ),
                 "rsi": data.get("tdd_rsi"),
                 "macd": data.get("tdd_macd"),
                 "roc_20d": data.get("tdd_roc_20d"),
@@ -547,6 +583,7 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
                 "stock_ev_ebitda": data.get("ev_ebitda"),
                 "stock_ev_ebitda_unavailable_reason": data.get("ev_ebitda_unavailable_reason"),
                 "stock_ev_revenue": data.get("ev_revenue"),
+                "stock_ev_revenue_unavailable_reason": data.get("ev_revenue_unavailable_reason"),
                 "fcf_yield": data.get("fcf_yield_val"),
                 "fcf_yield_unavailable_reason": data.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": data.get("dividend_yield"),
@@ -554,19 +591,26 @@ def _get_stock_details(cur: cursor, symbol: str) -> Any:
             }
 
             # Growth Inputs
+            # Reason keys use the frontend's <schema-key>_unavailable_reason convention
+            # (schema keys are revenue_growth_1y_pct/revenue_growth_3y_cagr/etc, not the
+            # bare revenue_growth_1y/revenue_growth_3y used elsewhere) - StockScoreAccordion's
+            # InputRow looks up `${row.key}_unavailable_reason` verbatim, so a mismatched
+            # suffix here means it silently falls through to the generic "No data" label
+            # instead of the real reason (e.g. "insufficient_history") even though the
+            # reason was already computed and available in `data`.
             data["growth_inputs"] = {
                 "revenue_growth_1y_pct": data.get("rev_growth_1y_val"),
-                "revenue_growth_1y_unavailable_reason": data.get("revenue_growth_1y_unavailable_reason"),
+                "revenue_growth_1y_pct_unavailable_reason": data.get("revenue_growth_1y_unavailable_reason"),
                 "eps_growth_1y_pct": data.get("eps_growth_1y_val"),
-                "eps_growth_1y_unavailable_reason": data.get("eps_growth_1y_unavailable_reason"),
+                "eps_growth_1y_pct_unavailable_reason": data.get("eps_growth_1y_unavailable_reason"),
                 "revenue_growth_3y_cagr": data.get("rev_growth_3y_val"),
-                "revenue_growth_3y_unavailable_reason": data.get("revenue_growth_3y_unavailable_reason"),
+                "revenue_growth_3y_cagr_unavailable_reason": data.get("revenue_growth_3y_unavailable_reason"),
                 "eps_growth_3y_cagr": data.get("eps_growth_3y_val"),
-                "eps_growth_3y_unavailable_reason": data.get("eps_growth_3y_unavailable_reason"),
+                "eps_growth_3y_cagr_unavailable_reason": data.get("eps_growth_3y_unavailable_reason"),
                 "revenue_growth_5y_cagr": data.get("rev_growth_5y_val"),
-                "revenue_growth_5y_unavailable_reason": data.get("revenue_growth_5y_unavailable_reason"),
+                "revenue_growth_5y_cagr_unavailable_reason": data.get("revenue_growth_5y_unavailable_reason"),
                 "eps_growth_5y_cagr": data.get("eps_growth_5y_val"),
-                "eps_growth_5y_unavailable_reason": data.get("eps_growth_5y_unavailable_reason"),
+                "eps_growth_5y_cagr_unavailable_reason": data.get("eps_growth_5y_unavailable_reason"),
                 "net_income_growth_yoy": data.get("net_income_growth_yoy"),
                 "net_income_growth_yoy_unavailable_reason": data.get("net_income_growth_yoy_unavailable_reason"),
                 "operating_income_growth_yoy": data.get("operating_income_growth_yoy"),
@@ -1064,6 +1108,7 @@ def _get_stock_scores(  # noqa: C901
                     mm.momentum_6m AS momentum_6m_val,
                     mm.momentum_12m AS momentum_12m_val,
                     (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable,
+                    phist.n AS price_history_days,
                     segm.revenue_concentration_hhi AS segment_revenue_concentration_hhi,
                     segm.segment_count,
                     segm.largest_segment_revenue_pct,
@@ -1103,6 +1148,16 @@ def _get_stock_scores(  # noqa: C901
                     ORDER BY date DESC
                     LIMIT 1
                 ) tl ON true
+                LEFT JOIN LATERAL (
+                    -- See matching comment in _get_stock_details.
+                    SELECT COUNT(*) AS n
+                    FROM (
+                        SELECT 1 FROM price_daily
+                        WHERE symbol = fs.symbol
+                        ORDER BY date DESC
+                        LIMIT 253
+                    ) recent
+                ) phist ON true
                 LEFT JOIN LATERAL (
                     SELECT MAX(high) AS high_52w
                     FROM price_daily
@@ -1266,15 +1321,33 @@ def _get_stock_scores(  # noqa: C901
             }
 
             # Momentum Inputs: Price momentum, technical indicators
+            # See matching comment in _get_stock_details for why the *_unavailable_reason
+            # fields below are derived from price_history_days rather than a stored column.
+            _phist_days = d.get("price_history_days") or 0
             d["momentum_inputs"] = {
                 "current_price": d.get("current_price"),
                 "price_vs_52w_high": d.get("price_vs_52w_high_val"),
                 "price_vs_sma_50": d.get("price_vs_sma_50"),
                 "price_vs_sma_200": d.get("price_vs_sma_200"),
+                "price_vs_sma_200_unavailable_reason": (
+                    "insufficient_history" if d.get("price_vs_sma_200") is None and _phist_days < 200 else None
+                ),
                 "momentum_1m": d.get("momentum_1m_val"),
+                "momentum_1m_unavailable_reason": (
+                    "insufficient_history" if d.get("momentum_1m_val") is None and _phist_days < 22 else None
+                ),
                 "momentum_3m": d.get("momentum_3m_val"),
+                "momentum_3m_unavailable_reason": (
+                    "insufficient_history" if d.get("momentum_3m_val") is None and _phist_days < 63 else None
+                ),
                 "momentum_6m": d.get("momentum_6m_val"),
+                "momentum_6m_unavailable_reason": (
+                    "insufficient_history" if d.get("momentum_6m_val") is None and _phist_days < 126 else None
+                ),
                 "momentum_12_3": d.get("momentum_12m_val"),
+                "momentum_12_3_unavailable_reason": (
+                    "insufficient_history" if d.get("momentum_12m_val") is None and _phist_days < 252 else None
+                ),
                 "rsi": d.get("tdd_rsi"),
                 "macd": d.get("tdd_macd"),
                 "roc_20d": d.get("tdd_roc_20d"),
@@ -1300,6 +1373,7 @@ def _get_stock_scores(  # noqa: C901
                 "stock_ev_ebitda": d.get("ev_ebitda"),
                 "stock_ev_ebitda_unavailable_reason": d.get("ev_ebitda_unavailable_reason"),
                 "stock_ev_revenue": d.get("ev_revenue"),
+                "stock_ev_revenue_unavailable_reason": d.get("ev_revenue_unavailable_reason"),
                 "fcf_yield": d.get("fcf_yield_val"),
                 "fcf_yield_unavailable_reason": d.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": d.get("dividend_yield"),
@@ -1307,19 +1381,21 @@ def _get_stock_scores(  # noqa: C901
             }
 
             # Growth Inputs: Revenue and EPS growth
+            # Reason keys use the frontend's <schema-key>_unavailable_reason convention (see
+            # matching comment on the details-endpoint copy of this block above).
             d["growth_inputs"] = {
                 "revenue_growth_1y_pct": d.get("rev_growth_1y_val"),
-                "revenue_growth_1y_unavailable_reason": d.get("revenue_growth_1y_unavailable_reason"),
+                "revenue_growth_1y_pct_unavailable_reason": d.get("revenue_growth_1y_unavailable_reason"),
                 "eps_growth_1y_pct": d.get("eps_growth_1y_val"),
-                "eps_growth_1y_unavailable_reason": d.get("eps_growth_1y_unavailable_reason"),
+                "eps_growth_1y_pct_unavailable_reason": d.get("eps_growth_1y_unavailable_reason"),
                 "revenue_growth_3y_cagr": d.get("rev_growth_3y_val"),
-                "revenue_growth_3y_unavailable_reason": d.get("revenue_growth_3y_unavailable_reason"),
+                "revenue_growth_3y_cagr_unavailable_reason": d.get("revenue_growth_3y_unavailable_reason"),
                 "eps_growth_3y_cagr": d.get("eps_growth_3y_val"),
-                "eps_growth_3y_unavailable_reason": d.get("eps_growth_3y_unavailable_reason"),
+                "eps_growth_3y_cagr_unavailable_reason": d.get("eps_growth_3y_unavailable_reason"),
                 "revenue_growth_5y_cagr": d.get("rev_growth_5y_val"),
-                "revenue_growth_5y_unavailable_reason": d.get("revenue_growth_5y_unavailable_reason"),
+                "revenue_growth_5y_cagr_unavailable_reason": d.get("revenue_growth_5y_unavailable_reason"),
                 "eps_growth_5y_cagr": d.get("eps_growth_5y_val"),
-                "eps_growth_5y_unavailable_reason": d.get("eps_growth_5y_unavailable_reason"),
+                "eps_growth_5y_cagr_unavailable_reason": d.get("eps_growth_5y_unavailable_reason"),
                 "net_income_growth_yoy": d.get("net_income_growth_yoy"),
                 "net_income_growth_yoy_unavailable_reason": d.get("net_income_growth_yoy_unavailable_reason"),
                 "operating_income_growth_yoy": d.get("operating_income_growth_yoy"),
