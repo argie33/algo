@@ -829,6 +829,21 @@ class ExitHandler:
                 f"Cannot calculate P&L with zero, negative, or non-finite entry price. Check position data integrity."
             )
 
+        # BUG FOUND 2026-08-11: the two checks above (and this file's own comment at the top
+        # of this block) claimed to be "the last gate before Decimal(str(entry_price)) -
+        # Decimal(str(stop_loss_price))", but stop_loss_price itself was never actually
+        # checked here - only final_exit_price and entry_price were. A NaN stop_loss_price
+        # (e.g. from legacy pre-validation bad data) would reach `Decimal(str(stop_loss_price))`
+        # unguarded; Decimal arithmetic silently propagates NaN (unlike ordering comparisons,
+        # which raise), so risk_per_share below would become a NaN Decimal, and the very next
+        # line's `if risk_per_share <= 0:` would then raise a raw decimal.InvalidOperation
+        # instead of this function's own clean, diagnostic ValueError pattern.
+        if math.isnan(stop_loss_price) or math.isinf(stop_loss_price) or stop_loss_price <= 0:
+            raise ValueError(
+                f"[INVALID_STOP_LOSS_PRICE] Stop loss price {stop_loss_price} is invalid for {symbol}. "
+                f"Cannot calculate P&L with zero, negative, or non-finite stop loss price. Check position data integrity."
+            )
+
         # Calculate P&L metrics
         risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
         if risk_per_share <= 0:
@@ -1036,9 +1051,7 @@ class ExitHandler:
             # partial exits raised "expected 4.87 shares... got 4.8700 shares" and were
             # counted as failures. Route both sides through Decimal(str(...)) - the string
             # form matches on decimal value, not binary float representation.
-            if not full_exit and (
-                final_status != "open" or Decimal(str(final_qty)) != Decimal(str(new_qty))
-            ):
+            if not full_exit and (final_status != "open" or Decimal(str(final_qty)) != Decimal(str(new_qty))):
                 raise DatabaseError(
                     f"Position consistency error: partial exit expected {new_qty} shares and 'open' status, "
                     f"got {final_qty} shares and '{final_status}'. "
