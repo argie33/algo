@@ -19,8 +19,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
-import psycopg2
-
 from algo.config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 
@@ -111,6 +109,21 @@ class AlertManager:
         already has its own error handling for email/SNS) from proceeding - logging the
         failure is the correct behavior, not raising, since these call sites are documented
         as non-blocking elsewhere in this file.
+
+        BUG FOUND 2026-08-11: the except clause only caught (psycopg2.DatabaseError,
+        psycopg2.OperationalError), but json.dumps(details) below can raise TypeError for
+        any non-JSON-serializable value (Decimal, datetime, etc. - this codebase's own
+        established Decimal-handling footgun, see feedback_psycopg2_decimal_arithmetic) -
+        that's not a psycopg2 exception at all, so it propagated straight through this
+        "best-effort" function and out of send_position_alert()/critical(), which most
+        callers (phase2_circuit_breakers.py, phase3_position_monitor.py,
+        phase6_exit_execution.py) invoke with no try/except of their own, trusting this
+        contract. A single non-serializable value in an alert's details dict - entirely
+        plausible for a RISK_BREACH/DIVERGENCE alert carrying raw dollar amounts - could
+        have crashed the very circuit-breaker/exit-error phase trying to report it. Added
+        default=str to degrade gracefully instead of raising in the first place, and
+        broadened the catch to match this function's own documented "must not prevent the
+        caller... from proceeding" promise for anything else that could still go wrong.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -126,10 +139,10 @@ class AlertManager:
                         title,
                         message,
                         symbol,
-                        json.dumps(details) if details else None,
+                        json.dumps(details, default=str) if details else None,
                     ),
                 )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except Exception as e:
             logger.error(f"[ALERTS] Failed to persist alert to algo_notifications: {e}. Title: {title}")
 
     def _get_sns_client(self) -> Any:
@@ -258,7 +271,12 @@ class AlertManager:
         if details:
             body_lines.append("")
             body_lines.append("Details:")
-            body_lines.append(json.dumps(details, indent=2))
+            # default=str: same fix as _persist_to_db - details dicts plausibly carry
+            # Decimal/datetime values (raw dollar amounts, timestamps) that json.dumps
+            # can't serialize by default. This call sits before any try/except in this
+            # method, so an unguarded TypeError here would crash send_position_alert()
+            # itself immediately, before even reaching the DB/email/SNS branches below.
+            body_lines.append(json.dumps(details, indent=2, default=str))
 
         body_text = "\n".join(body_lines)
 
@@ -274,7 +292,13 @@ class AlertManager:
         if self.email_to:
             try:
                 self._send_email(subject, body_text)
-            except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
+            except Exception as e:
+                # Broadened from a narrow (smtplib.SMTPException, RuntimeError, OSError,
+                # ConnectionError) tuple to match this method's documented "Non-blocking
+                # (logs errors only)" contract unconditionally, consistent with the SNS
+                # branch immediately below and _persist_to_db's equivalent fix above -
+                # same root cause (a non-exhaustive except clause on a function whose
+                # entire purpose is "never raise"), same fix.
                 logger.error(f"Position alert email failed (non-blocking): {e}")
 
         if self.sns_topic:
@@ -364,7 +388,7 @@ class AlertManager:
         if self.email_to:
             try:
                 self._send_email(subject, body_text)
-            except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
+            except Exception as e:
                 logger.error(f"Critical alert email failed (non-blocking): {e}")
 
         if self.sns_topic:
