@@ -121,23 +121,28 @@ class TradeExecutor:
             self.alpaca_secret = alpaca_creds.get("secret")
         except ValueError as e:
             logger.debug(f"[EXECUTOR] Alpaca credentials not found (ValueError): {e}")
-            if self.execution_mode != "paper":
+            # "paper" and "dry" are both LOCAL-only modes that never touch Alpaca (see the
+            # execution_mode-in-("paper","dry") allowlist a few lines below for the same
+            # distinction) - a bare `!= "paper"` here missed "dry" and made a legitimate
+            # missing-credentials condition in dry-run mode a fatal crash instead of the
+            # graceful no-live-broker fallback dry mode is supposed to get.
+            if self.execution_mode not in ("paper", "dry"):
                 logger.critical(f"[EXECUTOR_INIT] Non-paper mode requires Alpaca credentials, but got ValueError: {e}")
                 raise
-            logger.warning("[EXECUTOR] Alpaca credentials not found - paper trading mode without live broker")
+            logger.warning(f"[EXECUTOR] Alpaca credentials not found - {self.execution_mode} mode without live broker")
         except (TypeError, AttributeError, KeyError) as e:
             logger.error(
                 f"[EXECUTOR] Failed to extract credentials from manager response: "
                 f"{type(e).__name__}: {e}. Response structure may be invalid."
             )
-            if self.execution_mode != "paper":
+            if self.execution_mode not in ("paper", "dry"):
                 raise ValueError(f"Credential manager returned invalid structure: {type(e).__name__}: {e}") from e
-            logger.warning("[EXECUTOR] Credential structure invalid - paper trading mode without live broker")
+            logger.warning(f"[EXECUTOR] Credential structure invalid - {self.execution_mode} mode without live broker")
         except Exception as e:
             logger.exception(f"[EXECUTOR] Unexpected error during credential retrieval: {type(e).__name__}: {e}")
-            if self.execution_mode != "paper":
+            if self.execution_mode not in ("paper", "dry"):
                 raise
-            logger.warning("[EXECUTOR] Credential retrieval failed - paper trading mode without live broker")
+            logger.warning(f"[EXECUTOR] Credential retrieval failed - {self.execution_mode} mode without live broker")
 
         # Use strategy pattern to resolve correct endpoint based on execution mode
         configured_url = os.getenv("APCA_API_BASE_URL")
