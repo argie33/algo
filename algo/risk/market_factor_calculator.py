@@ -449,7 +449,7 @@ class MarketFactorCalculator:
                 # This is an expected, graceful degradation (optional enrichment)
                 return {
                     "data_unavailable": True,
-                    "reason": f"Put/call ratio data unavailable on or before {eval_date} (optional sentiment enrichment)"
+                    "reason": f"Put/call ratio data unavailable on or before {eval_date} (optional sentiment enrichment)",
                 }
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
@@ -458,32 +458,20 @@ class MarketFactorCalculator:
             else:
                 # Tuple result - validate structure before indexing
                 if not row or len(row) < 1:
-                    return {
-                        "data_unavailable": True,
-                        "reason": "Query returned empty or invalid result structure"
-                    }
+                    return {"data_unavailable": True, "reason": "Query returned empty or invalid result structure"}
                 pcr_val = row[0]
             if pcr_val is None:
-                return {
-                    "data_unavailable": True,
-                    "reason": "put_call_ratio value is NULL (data quality issue)"
-                }
+                return {"data_unavailable": True, "reason": "put_call_ratio value is NULL (data quality issue)"}
 
             pcr = float(pcr_val)
             if not (0.2 <= pcr <= 3.0):
                 reason = f"Put/call ratio {pcr} outside realistic 0.2-3.0 range (data quality issue)"
                 logger.warning(f"[PUT_CALL_RATIO] {reason} - treating as unavailable")
-                return {
-                    "data_unavailable": True,
-                    "reason": reason
-                }
+                return {"data_unavailable": True, "reason": reason}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
         except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as e:
-            return {
-                "data_unavailable": True,
-                "reason": f"Query failed: {type(e).__name__}"
-            }
+            return {"data_unavailable": True, "reason": f"Query failed: {type(e).__name__}"}
 
     def new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """52-week new highs vs new lows (critical).
@@ -606,11 +594,28 @@ class MarketFactorCalculator:
         """
         try:
             cur.execute(
-                "SELECT bullish, bearish FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                "SELECT bullish, bearish, date FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
             if row and row[0] is not None and row[1] is not None:
+                # BUG FOUND 2026-08-11: unlike every daily factor in this file (e.g. the SPY
+                # selling-pressure check above), this query had no staleness bound at all -
+                # "most recent reading, however old" would be used silently forever if the
+                # weekly AAII loader ever stopped running (site/scraper change, Incapsula
+                # bypass breaking - see loader history). AAII publishes weekly; 21 days gives
+                # generous room for a holiday-delayed publication (never false-positives on
+                # normal operation) while still catching a genuinely dead loader well before
+                # it silently feeds a stale contrarian signal into risk scoring for months.
+                reading_date = row[2]
+                staleness_days = (eval_date - reading_date).days
+                if staleness_days > 21:
+                    raise RuntimeError(
+                        f"[AAII CRITICAL] AAII sentiment data is stale: most recent reading from "
+                        f"{reading_date} ({staleness_days} days before eval_date {eval_date}), "
+                        f"exceeds 21-day tolerance for a weekly survey. Check the aaii_sentiment "
+                        f"loader - it may have stopped running."
+                    )
                 bull = float(row[0])
                 bear = float(row[1])
                 if math.isnan(bull) or math.isinf(bull) or math.isnan(bear) or math.isinf(bear):
@@ -664,16 +669,27 @@ class MarketFactorCalculator:
         """
         try:
             cur.execute(
-                "SELECT naaim_number_mean FROM naaim WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                "SELECT naaim_number_mean, date FROM naaim WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
             if row is not None and row[0] is not None:
+                # BUG FOUND 2026-08-11: same unbounded-staleness gap as aaii() above - see its
+                # comment for the full reasoning. NAAIM is also a weekly survey; same 21-day
+                # tolerance.
+                reading_date = row[1]
+                staleness_days = (eval_date - reading_date).days
+                if staleness_days > 21:
+                    raise RuntimeError(
+                        f"[NAAIM CRITICAL] NAAIM exposure data is stale: most recent reading from "
+                        f"{reading_date} ({staleness_days} days before eval_date {eval_date}), "
+                        f"exceeds 21-day tolerance for a weekly survey. Check the naaim loader - "
+                        f"it may have stopped running."
+                    )
                 exp = float(row[0])
                 if math.isnan(exp) or math.isinf(exp):
                     raise RuntimeError(
-                        f"[NAAIM CRITICAL] Non-finite NAAIM exposure value: {exp!r}. "
-                        f"Data quality issue in naaim table."
+                        f"[NAAIM CRITICAL] Non-finite NAAIM exposure value: {exp!r}. Data quality issue in naaim table."
                     )
                 score = min(100, max(0, 100 - exp / 2))
                 return {"value": round(exp, 1), "score": score}
