@@ -215,6 +215,7 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
         "market_exposure_daily",
         "market_sentiment",
         "sector_performance",
+        "naaim",
     ]:
         # Global loaders (market-wide, not per-symbol)
         logger.info(f"[LOADER] {table_name}: using global mode (no per-symbol runs)")

@@ -27,6 +27,7 @@ class NAAIMExposureLoader(OptimalLoader):
     table_name = "naaim"
     primary_key = ("date",)
     watermark_field = "date"
+    is_symbol_based = False
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         """Fetch NAAIM Exposure Index from website. FAIL-FAST on missing data.
