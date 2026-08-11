@@ -1283,10 +1283,17 @@ def run(
             f"the guard was explicitly overridden."
         )
 
-    # CRITICAL GUARD: Check for pending/recent orders that may still be filling
+    # CRITICAL GUARD: Check for pending/recent orders that may still be filling AT THE BROKER
     # If orders from prior run are still pending, executing new entries risks duplicates
-    # NOTE: Skip this guard in paper mode since there are no real pending orders in simulation
-    if execution_mode != "paper":
+    # BUG FOUND 2026-08-11: only "auto" ever sends orders to Alpaca (see executor.py's
+    # _submit_and_validate_order - "paper"/"dry"/"review" all create LOCAL-only fake fills).
+    # This used a blocklist (`!= "paper"`) instead of the codebase's established allowlist
+    # convention for broker-touching checks, so "dry" mode (this system's default outside-
+    # market-hours mode) and "review" mode also ran this guard - querying algo_positions for
+    # "recent" rows that can never represent a real in-flight broker order in those modes, and
+    # incorrectly returning a "blocked" PhaseResult instead of the intended dry-run/review
+    # behavior whenever any local position happened to be recently created.
+    if execution_mode == "auto":
         try:
             with DatabaseContext("read") as cur:
                 # Check for positions created in the last 10 minutes (indicates recent fills or pending orders)
@@ -1330,7 +1337,7 @@ def run(
             log_phase_result_fn(8, "entry_execution", "halt", msg)
             raise RuntimeError(msg) from e
     else:
-        logger.info("[PHASE 8 PENDING ORDERS GUARD] Skipping in paper mode (no real pending orders)")
+        logger.info(f"[PHASE 8 PENDING ORDERS GUARD] Skipping in {execution_mode} mode (no real broker orders)")
 
     # SIGNAL FRESHNESS GUARD: algo/risk/stale_signal_circuit_breaker.py was written
     # ("ROOT CAUSE #4 fix") specifically to catch entries placed off stale signals -
@@ -1879,8 +1886,17 @@ def run(
             portfolio_value_source = "alpaca_api"
             logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from Alpaca API)")
         except RuntimeError as api_err:
-            # Tertiary: Use configured fallback ONLY in paper mode
-            if execution_mode == "paper":
+            # Tertiary: Use configured fallback in paper/dry mode - neither ever submits a real
+            # order (see the PENDING ORDERS GUARD above), so an approximate simulated portfolio
+            # value is fine and consistent with those modes' whole purpose; "review"/"auto" both
+            # persist real decisions and must fail-fast instead (see the `else` branch below).
+            # BUG FOUND 2026-08-11: this used to check only `== "paper"`, so "dry" mode (this
+            # system's default outside-market-hours mode) fell into the live-mode fail-fast
+            # branch and HALTED Phase 8 whenever the DB snapshot and Alpaca API were both
+            # transiently unavailable at the same time - a purely cosmetic "halt" for a mode
+            # that was never going to execute a trade either way, indistinguishable in
+            # orchestrator status from a real halt.
+            if execution_mode in ("paper", "dry"):
                 initial_capital = config.get("initial_capital_paper_trading")
                 if not initial_capital or initial_capital <= 0:
                     error_msg = (
@@ -1895,14 +1911,14 @@ def run(
                 portfolio_value = Decimal(str(initial_capital))
                 portfolio_value_source = "configured_fallback"
                 logger.warning(
-                    f"[PHASE 8] Using configured paper trading capital ${portfolio_value:,.0f} "
+                    f"[PHASE 8] Using configured {execution_mode} trading capital ${portfolio_value:,.0f} "
                     f"(latest snapshot and API unavailable). "
                     f"Position sizing may be inaccurate. Snapshot error: {db_err}. API error: {api_err}"
                 )
             else:
-                # Live mode: never use fallback, fail-fast
+                # Live/review mode: never use fallback, fail-fast
                 error_msg = (
-                    f"[PHASE 8 HALT] Cannot determine portfolio value (live mode). "
+                    f"[PHASE 8 HALT] Cannot determine portfolio value (execution_mode={execution_mode}). "
                     f"Snapshot error: {db_err}. API error: {api_err}"
                 )
                 logger.critical(error_msg)
