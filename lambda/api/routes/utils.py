@@ -292,8 +292,7 @@ def query_failed_response(error: Exception | str, context: str = "query") -> Any
     """
     from utils.error_handlers import sanitize_error_message
 
-    error_msg = str(error) if isinstance(error, Exception) else str(error)
-    error_msg = sanitize_error_message(error_msg)
+    error_msg = sanitize_error_message(str(error))
 
     logger.error(f"[query_failed_response] {context} failed: {error_msg}")
 

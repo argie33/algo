@@ -248,13 +248,6 @@ LOADERS: dict[str, dict[str, Any]] = {
         "min_rows": 100,
         "critical": False,
     },
-    "load_market_exposure_daily.py": {
-        "output_table": "market_exposure_daily",
-        "date_column": "date",
-        "min_rows": 1,
-        "critical": False,
-        "note": "Computed by algo/risk/market_exposure.py during orchestrator Phase 5, not a standalone loaders/ script",
-    },
 }
 
 # Guard against this file's output_table entries silently drifting from reality
