@@ -29,6 +29,7 @@ from routes.utils import (
 )
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
+from algo.monitoring.pipeline_health import PipelineHealth
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import format_decimal_string, get_optional_field
 
@@ -155,7 +156,15 @@ PIPELINE_REMOVED_TABLES = {
     "signal_trade_performance",
     "qualified_trades",
     "manual_positions",
-}
+} | PipelineHealth.KNOWN_DEPRECATED_TABLES
+# ^ Unioned in rather than hand-duplicated: this set and algo/monitoring/pipeline_health.py's
+# KNOWN_DEPRECATED_TABLES are both "tables with no writer, expected to sit frozen" allowlists,
+# but were maintained as two independent literals. They drifted - sec_cash_flow_metrics
+# (deprecated 2026-07-27) and algo_performance_metrics (confirmed dead 2026-08-10) were added
+# to KNOWN_DEPRECATED_TABLES but never mirrored here, so this endpoint (the actual source for
+# the dashboard's DATA FRESHNESS panel) kept reporting both as false STALE for weeks - confirmed
+# live 2026-08-11 in the "5 stale" dashboard count. Unioning instead of copying means any future
+# addition to KNOWN_DEPRECATED_TABLES can't silently drift out of sync with this list again.
 
 
 @db_route_handler("get data quality")
@@ -351,11 +360,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             loader_rows_raw = cur.fetchall()
         except psycopg2.errors.UndefinedTable:
             _rollback_after_error(cur)
-            logger.warning("[DATA_STATUS] data_loader_status table does not exist - will only report algo-generated tables")
+            logger.warning(
+                "[DATA_STATUS] data_loader_status table does not exist - will only report algo-generated tables"
+            )
             loader_rows_raw = []
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             _rollback_after_error(cur)
-            logger.warning(f"[DATA_STATUS] Could not query data_loader_status: {e} - will only report algo-generated tables")
+            logger.warning(
+                f"[DATA_STATUS] Could not query data_loader_status: {e} - will only report algo-generated tables"
+            )
             loader_rows_raw = []
 
         loader_rows = []
@@ -777,7 +790,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
             sources = enriched_sources
         except ImportError as e:
-            logger.warning(f"[DATA_STATUS] Freshness enhancements module not available: {e}. Dashboard will show basic freshness only.")
+            logger.warning(
+                f"[DATA_STATUS] Freshness enhancements module not available: {e}. Dashboard will show basic freshness only."
+            )
 
         # CRITICAL: Validate all sources have 'name' field before returning (prevents dashboard fetch_health errors)
         validated_sources = []
@@ -943,7 +958,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 else:
                     execution_health["phase_3_position_monitor"] = {
                         "open_positions": int(open_count_val),
-                        "oldest_days": int(pos_dict["oldest_days"]) if pos_dict.get("oldest_days") is not None else None,
+                        "oldest_days": int(pos_dict["oldest_days"])
+                        if pos_dict.get("oldest_days") is not None
+                        else None,
                         "max_loss_pct": (
                             float(pos_dict["max_loss_pct"]) if pos_dict.get("max_loss_pct") is not None else None
                         ),
@@ -1055,7 +1072,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "exits_executed": total_exits,
                         "successful_exits": successful,
                         "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
-                        "avg_profit": float(exit_dict["avg_profit"]) if exit_dict.get("avg_profit") is not None else None,
+                        "avg_profit": float(exit_dict["avg_profit"])
+                        if exit_dict.get("avg_profit") is not None
+                        else None,
                         "symbols_exited": symbols_exited_val,
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
@@ -1149,7 +1168,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "successful_entries": successful,
                         "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
                         "avg_entry_price": (
-                            float(entry_dict["avg_entry_price"]) if entry_dict.get("avg_entry_price") is not None else None
+                            float(entry_dict["avg_entry_price"])
+                            if entry_dict.get("avg_entry_price") is not None
+                            else None
                         ),
                         "symbols_entered": symbols_entered_val,
                     }
@@ -2088,26 +2109,18 @@ def _collect_phase2_circuit_breakers(cur: cursor, execution_health: dict[str, An
         )
 
         check_date = cb_dict.get("check_date")
-        check_date_str = (
-            check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
-        )
+        check_date_str = check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
 
         execution_health["phase_2_circuit_breakers"] = {
             "any_triggered": any_triggered,
             "drawdown_pct": (
-                float(cb_dict["portfolio_drawdown_pct"])
-                if cb_dict.get("portfolio_drawdown_pct") is not None
-                else None
+                float(cb_dict["portfolio_drawdown_pct"]) if cb_dict.get("portfolio_drawdown_pct") is not None else None
             ),
-            "daily_loss_pct": (
-                float(cb_dict["daily_loss_pct"]) if cb_dict.get("daily_loss_pct") is not None else None
-            ),
+            "daily_loss_pct": (float(cb_dict["daily_loss_pct"]) if cb_dict.get("daily_loss_pct") is not None else None),
             "weekly_loss_pct": (
                 float(cb_dict["weekly_loss_pct"]) if cb_dict.get("weekly_loss_pct") is not None else None
             ),
-            "open_risk_pct": (
-                float(cb_dict["open_risk_pct"]) if cb_dict.get("open_risk_pct") is not None else None
-            ),
+            "open_risk_pct": (float(cb_dict["open_risk_pct"]) if cb_dict.get("open_risk_pct") is not None else None),
             "vix_level": float(cb_dict["vix_level"]) if cb_dict.get("vix_level") is not None else None,
             "last_check": check_date_str,
         }
