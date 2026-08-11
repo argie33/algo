@@ -40,7 +40,6 @@ from algo.config.credential_manager import get_alpaca_credentials, get_credentia
 from algo.trading.exceptions import ExchangeAPIError
 from algo.trading.quote_fetcher import fetch_live_quote
 from utils.db import DatabaseContext
-from utils.trading import TradeStatus
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -465,12 +464,12 @@ class PositionMonitor:
                     f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
                 ) from conc_e
 
-            # CRITICAL FIX: `t.status IN ('open','pending')` never matches a live
-            # (execution_mode=auto) filled order, which writes status='filled'/'partially_filled'
-            # literally (see algo/trading/exit_engine.py's identical fix and executor_entry_handler.py).
-            # Use TradeStatus.all_open() so Phase 3 position monitoring actually reviews live positions.
-            open_statuses = TradeStatus.all_open()
-            status_placeholders = ", ".join(["%s"] * len(open_statuses))
+            # NOTE: this queries algo_positions.status, not algo_trades.status - a separate,
+            # already-normalized PositionStatus enum that every entry path (including
+            # paper_pending/paper mode) writes as 'open' for any genuinely open position
+            # (see test_entry_handler_paper_pending_position_status.py). It doesn't need
+            # TradeStatus.all_open()'s multi-value IN-clause the way algo_trades-status
+            # queries (exit_engine.py, circuit_breaker.py) do.
             # CRITICAL FIX 2026-08-02: Add FOR UPDATE locking to prevent TOCTOU race with Phase 6
             # If Phase 6 (exit_engine) runs concurrently in Lambda/ECS:
             # Without lock: Phase 3 reads -> Phase 6 modifies -> Phase 3 evaluates stale data
