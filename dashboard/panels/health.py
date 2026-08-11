@@ -3297,7 +3297,20 @@ def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
         if st_raw is None:
             st_raw = ""
         st = st_raw
-        sc, si = _format_phase_badge(st)
+        # Same benign-stub exemption as _build_phase_badges_and_metrics (see that function's
+        # 2026-08-10 writeup): Phase 6's dry_run branch reports status="degraded"
+        # unconditionally before any real exit logic runs, so this literal "DRY-RUN" summary
+        # can never coexist with a genuine exit error. _format_phase_badge() alone can't tell
+        # the two apart - it only receives the raw status string, no summary text - so this
+        # audit-log-format fallback path (panel_algo_health's non-exec_log branch) rendered
+        # Phase 6 as a yellow "~" halted-looking badge on every dry-run, same bug class as the
+        # 4 other call sites already fixed, missed here because this is a structurally
+        # separate function reached via a different data-source branch.
+        is_dry_run_stub = st.lower() == "degraded" and "DRY-RUN" in (p.get("summary") or "")
+        if is_dry_run_stub:
+            sc, si = (DIM, "⊘")
+        else:
+            sc, si = _format_phase_badge(st)
         phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
     return phase_badges
 
