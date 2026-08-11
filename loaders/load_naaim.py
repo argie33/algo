@@ -58,7 +58,26 @@ class NAAIMExposureLoader(OptimalLoader):
             # Try pandas read_html
             from io import StringIO
 
-            tables = pd.read_html(StringIO(response.text), flavor="lxml")
+            # BUG FOUND 2026-08-11: pd.read_html() raises ValueError("No tables found matching
+            # regex '.+'") when the page has zero <table> elements - it never returns an empty
+            # list, so the "if not tables:" graceful data_unavailable path below could never
+            # actually be reached; this call crashed the whole loader instead. Live-confirmed
+            # root cause: NAAIM's public page banner states "Effective August 1, 2026, the
+            # NAAIM Exposure Index has transitioned to a subscription-based access model" - the
+            # free page genuinely has no table anymore, not a transient site glitch. This is
+            # an operational gap (needs a subscription/API key or an alternative data source),
+            # not something a code fix alone can resolve, but the loader must still fail
+            # gracefully (explicit data_unavailable marker) instead of hard-crashing every run.
+            try:
+                tables = pd.read_html(StringIO(response.text), flavor="lxml")
+            except ValueError as html_err:
+                logger.warning(
+                    f"NAAIM page contains no data tables ({html_err}). NAAIM transitioned the "
+                    "Exposure Index to a subscription-based access model 2026-08-01 - the free "
+                    "public page no longer includes the data table. Needs a subscription/API "
+                    "key or an alternative source, not just a retry."
+                )
+                return [{"data_unavailable": True, "reason": "no_data_tables_found"}]
 
             if not tables:
                 logger.warning(
