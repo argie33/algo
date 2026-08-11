@@ -31,6 +31,18 @@ def _load_scheduler_module():
     return module
 
 
+def _mock_proc(returncode=0):
+    """Build a mock subprocess.Popen() process: run_pipeline() switched from subprocess.run()
+    to subprocess.Popen() (2026-08-11, tail-capture fix). Its reader thread does
+    `for line in proc.stdout` then `proc.stdout.close()`, so the mock's .stdout must support
+    both."""
+    proc = MagicMock()
+    proc.stdout = MagicMock()
+    proc.stdout.__iter__.return_value = iter([])
+    proc.wait.return_value = returncode
+    return proc
+
+
 class TestIndependentLoaderContinuesAfterUpstreamFailure:
     def test_second_independent_loader_still_runs_after_first_fails(self):
         module = _load_scheduler_module()
@@ -38,15 +50,17 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
         # them (neither declares a dependency on the other) - a real independent pair,
         # matching the real "scores" -> "buy_sell" case without depending on that exact
         # pipeline's current membership.
-        results = [MagicMock(returncode=1), MagicMock(returncode=0)]
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module.subprocess, "run", side_effect=results) as mock_run, \
-             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark:
+        procs = [_mock_proc(returncode=1), _mock_proc(returncode=0)]
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "Popen", side_effect=procs) as mock_popen,
+            patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
+        ):
             rc = module.run_pipeline("test_pipeline")
 
         # Both loaders were actually invoked - the second was not skipped.
-        assert mock_run.call_count == 2
+        assert mock_popen.call_count == 2
         # Overall pipeline still reports failure (something did go wrong).
         assert rc == 1
         # Only the first (failed) loader got marked failed.
@@ -58,26 +72,28 @@ class TestIndependentLoaderContinuesAfterUpstreamFailure:
         # Isolate from LOADER_DEPENDENCIES' real chains (value_quality_growth itself
         # requires financial_statements/valuations/analyst_earnings_estimates, which would
         # skip it before it even runs) - use a synthetic 2-loader dependency edge instead.
-        mock_result = MagicMock(returncode=1)
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}), \
-             patch.object(module, "LOADER_DEPENDENCIES", {"sector_industry": ["trend_analysis"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module.subprocess, "run", return_value=mock_result) as mock_run, \
-             patch.object(module, "_mark_loader_failed_after_crash"):
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
+            patch.object(module, "LOADER_DEPENDENCIES", {"sector_industry": ["trend_analysis"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "Popen", return_value=_mock_proc(returncode=1)) as mock_popen,
+            patch.object(module, "_mark_loader_failed_after_crash"),
+        ):
             rc = module.run_pipeline("test_pipeline")
 
         # Only the first loader (trend_analysis) was actually invoked and failed -
         # sector_industry, which genuinely depends on it, was correctly skipped.
-        assert mock_run.call_count == 1
+        assert mock_popen.call_count == 1
         assert rc == 1
 
     def test_all_success_still_returns_zero(self):
         module = _load_scheduler_module()
-        mock_result = MagicMock(returncode=0)
-        with patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}), \
-             patch.object(module, "reap_stale_running_loaders", return_value=[]), \
-             patch.object(module.subprocess, "run", return_value=mock_result) as mock_run:
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis", "sector_industry"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "Popen", return_value=_mock_proc(returncode=0)) as mock_popen,
+        ):
             rc = module.run_pipeline("test_pipeline")
 
-        assert mock_run.call_count == 2
+        assert mock_popen.call_count == 2
         assert rc == 0

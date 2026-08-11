@@ -34,6 +34,14 @@ def _load_scheduler_module():
     return module
 
 
+def _stdout_mock(lines=()):
+    """The reader thread does `for line in proc.stdout` then `proc.stdout.close()` - a plain
+    iter() has no .close(), so use a MagicMock with __iter__ wired to the given lines."""
+    stdout = MagicMock()
+    stdout.__iter__.return_value = iter(lines)
+    return stdout
+
+
 class TestMarkLoaderFailedAfterCrash:
     def test_marks_every_table_the_loader_owns(self):
         module = _load_scheduler_module()
@@ -60,13 +68,22 @@ class TestMarkLoaderFailedAfterCrash:
 
 
 class TestRunPipelineMarksFailedOnCrash:
+    """NOTE 2026-08-11: run_pipeline() switched from subprocess.run() to subprocess.Popen()
+    (see local_loader_scheduler.py's tail-capture fix) so a crash's real output could be
+    attached to the failure message instead of a bare "exit code N". These tests mock
+    subprocess.Popen accordingly - the process's stdout must be an iterable (the reader
+    thread does `for line in pipe`) and wait() takes the place of run()'s returncode/
+    TimeoutExpired."""
+
     def test_nonzero_exit_marks_loader_failed(self):
         module = _load_scheduler_module()
-        mock_result = MagicMock(returncode=1)
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.wait.return_value = 1
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
-            patch.object(module.subprocess, "run", return_value=mock_result),
+            patch.object(module.subprocess, "Popen", return_value=mock_proc),
             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
         ):
             rc = module.run_pipeline("test_pipeline")
@@ -78,14 +95,13 @@ class TestRunPipelineMarksFailedOnCrash:
 
     def test_timeout_marks_loader_failed(self):
         module = _load_scheduler_module()
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="x", timeout=1), 0]
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
-            patch.object(
-                module.subprocess,
-                "run",
-                side_effect=subprocess.TimeoutExpired(cmd="x", timeout=1),
-            ),
+            patch.object(module.subprocess, "Popen", return_value=mock_proc),
             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
         ):
             rc = module.run_pipeline("test_pipeline")
@@ -94,20 +110,42 @@ class TestRunPipelineMarksFailedOnCrash:
         mock_mark.assert_called_once()
         assert mock_mark.call_args.args[0] == "load_trend_analysis.py"
         assert "timed out" in mock_mark.call_args.args[1]
+        mock_proc.kill.assert_called_once()
 
     def test_success_does_not_mark_failed(self):
         module = _load_scheduler_module()
-        mock_result = MagicMock(returncode=0)
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.wait.return_value = 0
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
-            patch.object(module.subprocess, "run", return_value=mock_result),
+            patch.object(module.subprocess, "Popen", return_value=mock_proc),
             patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
         ):
             rc = module.run_pipeline("test_pipeline")
 
         assert rc == 0
         mock_mark.assert_not_called()
+
+    def test_failure_message_includes_captured_output_tail(self):
+        """The whole point of the Popen switch: a crash's real stdout/stderr output must
+        reach data_loader_status.error_message, not just a bare exit code."""
+        module = _load_scheduler_module()
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock(["Traceback (most recent call last):\n", "ValueError: boom\n"])
+        mock_proc.wait.return_value = 1
+        with (
+            patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
+            patch.object(module, "reap_stale_running_loaders", return_value=[]),
+            patch.object(module.subprocess, "Popen", return_value=mock_proc),
+            patch.object(module, "_mark_loader_failed_after_crash") as mock_mark,
+        ):
+            module.run_pipeline("test_pipeline")
+
+        mock_mark.assert_called_once()
+        message = mock_mark.call_args.args[1]
+        assert "ValueError: boom" in message
 
 
 class TestChildLoaderTimeoutMatchesScheduler:
@@ -122,17 +160,19 @@ class TestChildLoaderTimeoutMatchesScheduler:
 
     def test_env_carries_matching_timeout_minutes(self):
         module = _load_scheduler_module()
-        mock_result = MagicMock(returncode=0)
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.wait.return_value = 0
         # "trend_analysis" -> 15 * 60 = 900s in LOADER_TIMEOUTS
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["trend_analysis"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
-            patch.object(module.subprocess, "run", return_value=mock_result) as mock_run,
+            patch.object(module.subprocess, "Popen", return_value=mock_proc) as mock_popen,
         ):
             module.run_pipeline("test_pipeline")
 
-        assert mock_run.call_args.kwargs["timeout"] == 900
-        assert mock_run.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "15"
+        assert mock_proc.wait.call_args.kwargs["timeout"] == 900
+        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "15"
 
     def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self):
         """Direct regression for the live-reproduced case: enhanced_quality_growth's
@@ -142,14 +182,16 @@ class TestChildLoaderTimeoutMatchesScheduler:
         runner's stale 120 min default, because nothing used to propagate the real budget
         through."""
         module = _load_scheduler_module()
-        mock_result = MagicMock(returncode=0)
+        mock_proc = MagicMock()
+        mock_proc.stdout = _stdout_mock([])
+        mock_proc.wait.return_value = 0
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["enhanced_quality_growth"]}),
             patch.object(module, "reap_stale_running_loaders", return_value=[]),
             patch.object(module, "_check_loader_dependencies", return_value=True),
-            patch.object(module.subprocess, "run", return_value=mock_result) as mock_run,
+            patch.object(module.subprocess, "Popen", return_value=mock_proc) as mock_popen,
         ):
             module.run_pipeline("test_pipeline")
 
-        assert mock_run.call_args.kwargs["timeout"] == 200 * 60
-        assert mock_run.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "200"
+        assert mock_proc.wait.call_args.kwargs["timeout"] == 200 * 60
+        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "200"

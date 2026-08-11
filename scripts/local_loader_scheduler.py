@@ -8,10 +8,13 @@ Usage:
 """
 
 import argparse
+import collections
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
+from typing import IO
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
@@ -381,20 +384,64 @@ def run_pipeline(pipeline_name: str) -> int:
                 # constructor alone requires one specific combo to already be named.
                 env["LOADER_STATEMENT_TYPE"] = "all"
             cmd = [sys.executable, f"loaders/{loader_filename}"]
-            result = subprocess.run(
+            # BUG FOUND 2026-08-11: subprocess.run() with no stdout/stderr capture meant a
+            # crash only ever recorded a bare "exit code N" in data_loader_status.error_message
+            # - the real traceback only existed in whatever terminal/log redirect happened to
+            # be wrapping this scheduler invocation (if any), making a live-observed FAILED
+            # row (e.g. company_info_sec: "subprocess exited with code 1") undiagnosable from
+            # the DB alone. Switched to Popen with a tee'ing reader thread: output still
+            # streams live to this process's own stdout exactly as before, but the last 40
+            # lines are also kept and attached to the failure message on a non-zero exit.
+            tail_lines: collections.deque[str] = collections.deque(maxlen=40)
+            proc = subprocess.Popen(
                 cmd,
                 cwd=str(repo_root),
                 env=env,
-                timeout=timeout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
             )
-            if result.returncode != 0:
+
+            def _stream_and_capture(pipe: IO[str], sink: "collections.deque[str]") -> None:
+                for line in pipe:
+                    sys.stdout.write(line)
+                    sink.append(line.rstrip("\n"))
+                pipe.close()
+
+            assert proc.stdout is not None
+            reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=True)
+            reader_thread.start()
+            try:
+                returncode = proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                reader_thread.join(timeout=5)
                 print(
-                    f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {result.returncode}) - "
+                    f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
+                    f"Likely blocked by stale lock. Run: rm -f /tmp/algo-locks/*.lock - "
                     f"continuing with remaining independent loaders",
                     file=sys.stderr,
                 )
+                tail = "\n".join(tail_lines)
                 _mark_loader_failed_after_crash(
-                    loader_filename, f"local_loader_scheduler: subprocess exited with code {result.returncode}"
+                    loader_filename,
+                    f"local_loader_scheduler: timed out after {timeout}s. Last output:\n{tail}",
+                )
+                any_failed = True
+                continue
+            reader_thread.join(timeout=5)
+            if returncode != 0:
+                print(
+                    f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {returncode}) - "
+                    f"continuing with remaining independent loaders",
+                    file=sys.stderr,
+                )
+                tail = "\n".join(tail_lines)
+                _mark_loader_failed_after_crash(
+                    loader_filename,
+                    f"local_loader_scheduler: subprocess exited with code {returncode}. Last output:\n{tail}",
                 )
                 any_failed = True
                 continue
