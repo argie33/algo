@@ -28,6 +28,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
     table_name = "algo_metrics_daily"
     primary_key = ("date",)
     watermark_field = "date"
+    is_symbol_based = False
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
         now_utc = datetime.now(timezone.utc)
