@@ -91,17 +91,28 @@ def _float(value: Any, default: float | None = None, context: str = "") -> float
         if default is None:
             raise ValueError(f"Circuit breaker metric is missing (required, not optional) {context}")
         return default
+    # BUG FOUND 2026-08-11 (via fuzzing pathological inputs): the NaN/Inf check used to run
+    # inside this same try block, so its own `raise ValueError("Invalid float ... (NaN/Inf)")`
+    # was immediately caught by the `except (ValueError, TypeError)` below and silently
+    # rewritten into the generic "Failed to convert ... to float" message - the more specific,
+    # deliberately-written diagnostic (distinguishing "couldn't parse a number at all" from
+    # "parsed fine but the value itself is NaN/Infinity", two different data-quality failure
+    # modes worth telling apart when debugging a real circuit-breaker halt) was unreachable as
+    # the top-level message. Not a safety gap (still correctly raises/returns default either
+    # way), just a diagnostics gap. Split the conversion (which can legitimately raise
+    # ValueError/TypeError) from the NaN/Inf validation (which must not be caught by the same
+    # handler) into separate steps.
     try:
         f = float(value)
-        if math.isnan(f) or math.isinf(f):
-            if default is None:
-                raise ValueError(f"Invalid float {value!r} (NaN/Inf) {context}")
-            return default
-        return f
     except (ValueError, TypeError) as e:
         if default is None:
             raise ValueError(f"Failed to convert {value!r} to float {context}") from e
         return default
+    if math.isnan(f) or math.isinf(f):
+        if default is None:
+            raise ValueError(f"Invalid float {value!r} (NaN/Inf) {context}")
+        return default
+    return f
 
 
 class CircuitBreaker:
@@ -583,7 +594,14 @@ class CircuitBreaker:
             ORDER BY exit_date DESC, exit_time DESC NULLS LAST, id DESC
             LIMIT 10
             """,
-            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
+            (
+                TradeStatus.CLOSED.value,
+                "%reconciliation%",
+                "%force%close%",
+                "%delisted%",
+                "%DATA-QC%",
+                "%CONCENTRATION%",
+            ),
         )
         rows = cur.fetchall()
         if not rows:
@@ -691,7 +709,14 @@ class CircuitBreaker:
                 ) recent_closed
             ) all_trades
             """,
-            (TradeStatus.CLOSED.value, "%reconciliation%", "%force%close%", "%delisted%", "%DATA-QC%", "%CONCENTRATION%"),
+            (
+                TradeStatus.CLOSED.value,
+                "%reconciliation%",
+                "%force%close%",
+                "%delisted%",
+                "%DATA-QC%",
+                "%CONCENTRATION%",
+            ),
         )
         row = cur.fetchone()
         if row is None:
@@ -1364,10 +1389,9 @@ class CircuitBreaker:
             # (not halted) for a genuinely unusable SPY price, contradicting this function's
             # own documented "CRITICAL: Missing or invalid SPY prices must halt trading
             # (fail-closed)" contract.
-            if (
-                latest is not None
-                and (math.isnan(latest) or math.isinf(latest))
-            ) or (prior is not None and (math.isnan(prior) or math.isinf(prior))):
+            if (latest is not None and (math.isnan(latest) or math.isinf(latest))) or (
+                prior is not None and (math.isnan(prior) or math.isinf(prior))
+            ):
                 logger.critical(
                     f"CIRCUIT BREAKER: Non-finite SPY price data (latest={latest}, prior={prior}). "
                     "Cannot calculate prior-day market change. Halting to prevent trading with invalid market data."
@@ -1533,7 +1557,9 @@ class CircuitBreaker:
                     or math.isinf(unrealized_pnl_f)
                     or cost_basis <= 0
                 ):
-                    logger.warning(f"Sector drawdown check: skipping position with invalid cost basis/P&L (sector={sector}, basis={cost_basis}, pnl={unrealized_pnl_f})")
+                    logger.warning(
+                        f"Sector drawdown check: skipping position with invalid cost basis/P&L (sector={sector}, basis={cost_basis}, pnl={unrealized_pnl_f})"
+                    )
                     skipped_positions += 1
                     continue
             except (ValueError, TypeError) as e:
@@ -1545,8 +1571,13 @@ class CircuitBreaker:
 
         # If we skipped all positions, insufficient data to calculate sector drawdown
         if not sector_pnl:
-            logger.info(f"Sector drawdown check: all {skipped_positions} positions skipped due to missing data - insufficient data for sector drawdown calculation")
-            return {"halted": False, "reason": "Insufficient data for sector drawdown check (positions missing P&L data)"}
+            logger.info(
+                f"Sector drawdown check: all {skipped_positions} positions skipped due to missing data - insufficient data for sector drawdown calculation"
+            )
+            return {
+                "halted": False,
+                "reason": "Insufficient data for sector drawdown check (positions missing P&L data)",
+            }
 
         sector_returns = {s: sector_pnl[s] / sector_basis[s] * 100 for s in sector_pnl}
         worst_sector = min(sector_returns, key=lambda s: sector_returns[s])
@@ -1605,7 +1636,13 @@ class CircuitBreaker:
         # Python), and today_val had no finiteness check at all - either would silently
         # produce a NaN `daily`, whose `daily >= threshold` comparison below always
         # evaluates False, masking a real profit-cap breach (this check's whole purpose).
-        if math.isnan(prev_val) or math.isinf(prev_val) or math.isnan(today_val) or math.isinf(today_val) or prev_val <= 0:
+        if (
+            math.isnan(prev_val)
+            or math.isinf(prev_val)
+            or math.isnan(today_val)
+            or math.isinf(today_val)
+            or prev_val <= 0
+        ):
             return {"halted": False, "reason": "Insufficient history"}
         daily = (today_val - prev_val) / prev_val * 100.0
         daily_profit_val = self._get_required_config("daily_profit_cap_pct", "in daily profit cap check")
