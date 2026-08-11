@@ -115,40 +115,6 @@ jobs:
         run: |
           trufflehog filesystem . --only-verified 2>/dev/null || true
 
-  lint-js:
-    name: Lint JavaScript
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Install dependencies
-        working-directory: webapp/lambda
-        run: npm ci
-
-      - name: Run ESLint
-        working-directory: webapp/lambda
-        run: npm run lint
-
-      - name: Run Prettier check
-        working-directory: webapp/lambda
-        run: npm run format:check
-
-      - name: Run Jest unit tests
-        working-directory: webapp/lambda
-        run: npm run test:unit
-
-      - name: Run npm audit
-        working-directory: webapp/lambda
-        run: npm audit --audit-level=high
-
   lint-frontend:
     # ADDED 2026-08-10: this job never existed - CI only ever covered webapp/lambda
     # (a separate Node backend-glue directory), never webapp/frontend (the actual React
@@ -161,6 +127,16 @@ jobs:
     # caught pre-merge. Both `npm run lint` and `npm run test:unit` verified clean
     # (0 warnings, 839 passed/18 skipped) before wiring this in, so this starts CI-green,
     # not CI-red on day one.
+    #
+    # REMOVED 2026-08-10 (later same day): the lint-js job that used to sit here covered
+    # webapp/lambda, a parallel Node/Express API implementation (own routes/handlers/tests,
+    # 148 files, real recent feature commits) that turned out to have zero production
+    # deployment path - no terraform resource, no GitHub Actions deploy step, nothing but
+    # this lint job exercised it. The actually-deployed API is lambda/api/ (Python, built by
+    # deploy-all-infrastructure.yml's "Build API Lambda" step, terraform-managed). Deleted
+    # webapp/lambda entirely rather than leave dead code that looked real enough to keep
+    # accumulating feature commits; see also package.json (main/start/dev used to point at
+    # webapp/lambda/index.js - the wrong, undeployed server).
     name: Lint & Test Frontend
     runs-on: ubuntu-latest
     permissions:

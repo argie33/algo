@@ -281,7 +281,12 @@ def run_pipeline(pipeline_name: str) -> int:
         "short_interest": 10 * 60,               # 10 min - FINRA data
         "insider_velocity": 15 * 60,             # 15 min - SEC Form 3/4/5 transaction analysis
         # Earnings calendar & SEC data
-        "earnings_calendar": 20 * 60,            # 20 min - yfinance earnings_dates window
+        # VERIFIED 2026-08-10: live full-universe run measured 521.7s (~8.7 min, 4917/4917,
+        # 0 failures) against the previous 20 min budget - comfortably within it. The 2
+        # consecutive real failures logged earlier the same day were transient (not a
+        # systemic undersized-budget bug like the other loaders in this dict), but bumped
+        # to 30 min anyway for margin against normal yfinance latency variance.
+        "earnings_calendar": 30 * 60,            # 30 min - yfinance earnings_dates window (measured ~9 min typical)
         "earnings_sec": 15 * 60,                 # 15 min - SEC filing date extraction
         "sec_reports": 10 * 60,                  # 10 min - 8-K report scanning
         "segment_info": 15 * 60,                 # 15 min - segment data extraction
