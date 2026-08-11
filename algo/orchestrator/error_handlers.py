@@ -108,7 +108,6 @@ def wrap_db_operation(
         Result of operation_fn if successful, None if fatal error
     """
     attempt = 0
-    last_error = None
 
     while attempt <= max_retries:
         try:

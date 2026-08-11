@@ -135,12 +135,6 @@ class PositionContext:
             "eight_week_rule_window_days": int,
         }
 
-        # Optional fields - only checked if actually used in exit chain
-        optional_config_keys = {
-            "min_sqs_for_exit": float,
-            "max_risk_per_trade_pct": float,
-        }
-
         missing_keys = []
         for key, expected_type in required_config_keys.items():
             if key not in self.config:

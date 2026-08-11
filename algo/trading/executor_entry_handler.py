@@ -885,7 +885,6 @@ class EntryHandler:
                         order_send_time,
                     )
 
-                leg_types = {leg.get("order_side") for leg in legs if isinstance(leg, dict)}
                 has_stop_loss = any(
                     leg.get("order_type") == "stop" for leg in legs if isinstance(leg, dict)
                 )
