@@ -3710,15 +3710,28 @@ def panel_status(
             if ps_raw is None:
                 ps_raw = ""
             ps = ps_raw.lower()
+            # Same benign-stub exemption as _build_phase_execution_panel/_build_results_panel
+            # (see either for the full 2026-08-10 writeup): Phase 6's dry_run branch reports
+            # status="degraded" unconditionally before any real exit logic runs, so this exact
+            # literal "DRY-RUN" summary can never coexist with a genuine exit error. Without
+            # this, this panel showed a yellow "~" (halted-looking) badge for Exit Execution on
+            # every single local dry-run - the same false-halt confusion already fixed twice
+            # elsewhere in this file but missed here (this panel is currently unreachable from
+            # the live dashboard, but a real bug is still a real bug).
+            is_dry_run_stub = ps == "degraded" and "DRY-RUN" in (p.get("summary") or "")
             sc = (
                 G
                 if ps in PHASE_SUCCESS_STATES
-                else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
+                else (DIM if is_dry_run_stub else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R))
             )
             si = (
                 "✓"
                 if ps in PHASE_SUCCESS_STATES
-                else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
+                else (
+                    "⊘"
+                    if is_dry_run_stub
+                    else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
+                )
             )
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 

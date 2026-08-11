@@ -107,7 +107,17 @@ class LoaderStatusManager:
     def mark_running(self, symbol_count: int | None = None) -> None:
         """Mark loader as starting execution now.
 
-        Sets: status=RUNNING, execution_started=NOW, completion_pct=0, symbols_loaded=0
+        Sets: status=RUNNING, execution_started=NOW, completion_pct=0, symbols_loaded=0, symbols_failed=0
+
+        FIXED 2026-08-10: symbols_failed was the one counter this method left untouched while
+        resetting symbols_loaded/completion_pct (same bug class already fixed here for those
+        two - see the comment below). A fresh run's row showed 0% complete next to a nonzero
+        symbols_failed carried over from the PRIOR run's final count, misread as "already
+        failing hard" on a run that hadn't processed anything yet. Live-reproduced 2026-08-10:
+        growth_metrics/quality_metrics showed a frozen 289/205 symbols_failed across multiple
+        checks minutes apart while genuinely still running - stale, not live. That column is
+        also surfaced directly to the dashboard health panel (lambda/api/routes/algo_handlers/
+        market.py), so the stale value was actively misleading operator monitoring.
 
         ISSUE #9 FIX: Uses SELECT FOR UPDATE for row-level locking within a single transaction.
         This prevents concurrent updates from overwriting counts.
@@ -125,7 +135,12 @@ class LoaderStatusManager:
                 result = cur.fetchone()
                 if result:
                     current_status = result[0]
-                    if current_status not in (LoaderStatus.NOT_STARTED.value, LoaderStatus.COMPLETED.value, LoaderStatus.FAILED.value, LoaderStatus.TIMEOUT.value):
+                    if current_status not in (
+                        LoaderStatus.NOT_STARTED.value,
+                        LoaderStatus.COMPLETED.value,
+                        LoaderStatus.FAILED.value,
+                        LoaderStatus.TIMEOUT.value,
+                    ):
                         logger.warning(
                             f"[STATUS_MANAGER] Unexpected status transition for {self.table_name}: "
                             f"{current_status} -> RUNNING"
@@ -157,7 +172,7 @@ class LoaderStatusManager:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, completion_pct = 0, last_updated = NOW()
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbol_count = %s, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW()
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, symbol_count, self.table_name),
@@ -166,7 +181,7 @@ class LoaderStatusManager:
                     cur.execute(
                         """
                         UPDATE data_loader_status
-                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbols_loaded = 0, completion_pct = 0, last_updated = NOW()
+                        SET status = %s, execution_started = NOW(), execution_completed = NULL, error_message = NULL, symbols_loaded = 0, symbols_failed = 0, completion_pct = 0, last_updated = NOW()
                         WHERE table_name = %s
                         """,
                         (LoaderStatus.RUNNING.value, self.table_name),
@@ -307,7 +322,7 @@ class LoaderStatusManager:
                 # This prevents marking as COMPLETE when data load was actually incomplete
                 cur.execute(
                     "SELECT symbol_count, symbols_loaded, completion_pct FROM data_loader_status WHERE table_name = %s FOR UPDATE",
-                    (self.table_name,)
+                    (self.table_name,),
                 )
                 status_row = cur.fetchone()
                 if current_run_symbols_loaded is not None and current_run_symbol_count is not None:
@@ -358,9 +373,12 @@ class LoaderStatusManager:
                                 consecutive_failures = consecutive_failures + 1
                             WHERE table_name = %s
                             """,
-                            (LoaderStatus.FAILED.value, actual_completion_pct,
-                             f"Incomplete load: only {loaded_symbols}/{total_symbols} symbols loaded ({actual_completion_pct:.2f}%)",
-                             self.table_name),
+                            (
+                                LoaderStatus.FAILED.value,
+                                actual_completion_pct,
+                                f"Incomplete load: only {loaded_symbols}/{total_symbols} symbols loaded ({actual_completion_pct:.2f}%)",
+                                self.table_name,
+                            ),
                         )
                         # Archive to history for pattern analysis
                         archived = self._archive_to_history(cur, LoaderStatus.FAILED.value)
@@ -403,9 +421,19 @@ class LoaderStatusManager:
                             symbol_count = %s, symbols_loaded = %s, symbols_failed = %s
                         WHERE table_name = %s
                         """,
-                        (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
-                         rate_limit_quota, symbols_per_sec, latest_date, total_symbols, loaded_symbols,
-                         symbols_failed, self.table_name),
+                        (
+                            LoaderStatus.COMPLETED.value,
+                            final_completion_pct,
+                            execution_duration_sec,
+                            http_status,
+                            rate_limit_quota,
+                            symbols_per_sec,
+                            latest_date,
+                            total_symbols,
+                            loaded_symbols,
+                            symbols_failed,
+                            self.table_name,
+                        ),
                     )
                     if cur.rowcount != 1:
                         raise RuntimeError(
@@ -424,9 +452,18 @@ class LoaderStatusManager:
                             symbol_count = %s, symbols_loaded = %s, symbols_failed = %s
                         WHERE table_name = %s
                         """,
-                        (LoaderStatus.COMPLETED.value, final_completion_pct, execution_duration_sec, http_status,
-                         rate_limit_quota, symbols_per_sec, total_symbols, loaded_symbols, symbols_failed,
-                         self.table_name),
+                        (
+                            LoaderStatus.COMPLETED.value,
+                            final_completion_pct,
+                            execution_duration_sec,
+                            http_status,
+                            rate_limit_quota,
+                            symbols_per_sec,
+                            total_symbols,
+                            loaded_symbols,
+                            symbols_failed,
+                            self.table_name,
+                        ),
                     )
                 if cur.rowcount != 1:
                     raise RuntimeError(
@@ -444,7 +481,9 @@ class LoaderStatusManager:
             # Log completion with error visibility (symbols_failed indicates partial success)
             duration_str = f"({execution_duration_sec:.1f}s)" if execution_duration_sec else ""
             if symbols_failed is not None and symbols_failed > 0:
-                logger.warning(f"[STATUS] {self.table_name}: COMPLETED with {symbols_failed} symbol failures {duration_str}")
+                logger.warning(
+                    f"[STATUS] {self.table_name}: COMPLETED with {symbols_failed} symbol failures {duration_str}"
+                )
             else:
                 logger.info(f"[STATUS] {self.table_name}: COMPLETED {duration_str}")
         except Exception as e:
@@ -598,7 +637,9 @@ class LoaderStatusManager:
             )
             result = cur.fetchone()
             if result:
-                exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count = result
+                exec_started, exec_completed, error_msg, row_count, completion_pct, symbols_loaded, symbol_count = (
+                    result
+                )
                 cur.execute(
                     """
                     INSERT INTO data_loader_status_history
@@ -606,8 +647,18 @@ class LoaderStatusManager:
                      http_status_code, row_count, completion_pct, symbols_loaded, symbol_count)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (self.table_name, status, exec_started, exec_completed, error_msg,
-                     http_status, row_count, completion_pct, symbols_loaded, symbol_count),
+                    (
+                        self.table_name,
+                        status,
+                        exec_started,
+                        exec_completed,
+                        error_msg,
+                        http_status,
+                        row_count,
+                        completion_pct,
+                        symbols_loaded,
+                        symbol_count,
+                    ),
                 )
                 # Clean up old history (keep only last 100 runs per table)
                 cur.execute(
@@ -739,7 +790,9 @@ class LoaderStatusManager:
                         f"but history archiving failed. Dashboard failure-pattern analysis may be incomplete."
                     )
 
-            logger.info(f"[STATUS] {self.table_name}: Final update - status={status_string}, completion_pct={completion_pct}")
+            logger.info(
+                f"[STATUS] {self.table_name}: Final update - status={status_string}, completion_pct={completion_pct}"
+            )
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed final status update for {self.table_name}: {e}")
             raise
@@ -844,6 +897,8 @@ def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hou
             f"the query itself errored, so any genuinely stuck loader is NOT being detected "
             f"this cycle): {e}"
         )
+        # No work to do this cycle without a successful query - best-effort bookkeeping, not
+        # critical-path data; a genuinely stuck loader is still caught on the next invocation.
         return []
 
     for table_name, execution_started in stale:

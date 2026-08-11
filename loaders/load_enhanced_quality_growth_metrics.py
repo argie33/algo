@@ -33,6 +33,7 @@ by adding these new columns as UPDATE operations.
 
 import logging
 import sys
+import threading
 import time
 from collections.abc import Iterable
 from datetime import date
@@ -72,6 +73,46 @@ def _bounded_margin_pct(numerator: float | None, denominator: float | None) -> f
         return None
     margin = numerator / denominator * 100
     return None if abs(margin) > MAX_MARGIN_ABS_PCT else margin
+
+
+_YFINANCE_CALL_TIMEOUT_SECONDS = 20.0
+
+
+def _yfinance_call_with_timeout(fn: Any, context: str, timeout_seconds: float = _YFINANCE_CALL_TIMEOUT_SECONDS) -> Any:
+    """Run a single yfinance property fetch on a daemon thread and abandon it if it
+    doesn't return within timeout_seconds.
+
+    LIVE-REPRODUCED 2026-08-10: ticker.earnings_dates hung for 40+ minutes on one symbol
+    (py-spy showed the main thread idle inside curl_cffi's perform() the entire time),
+    blocking the whole loader (and everything queued behind it in local_loader_scheduler.py's
+    "metrics" pipeline). yfinance's own _make_request has a timeout=30 default, but that's
+    passed to curl_cffi - which is NOT built on Python's socket module, so this codebase's
+    usual socket.setdefaulttimeout() fix (used elsewhere for yfinance hangs, e.g.
+    utils/external/yfinance_analyst_ratings.py) has no effect on it either, and
+    retry_with_backoff can't help since a truly-hung call never raises for it to catch.
+    Same daemon-thread-abandon pattern as load_financial_statements.py's proven per-symbol
+    timeout (2026-08-09) - daemon=True so an abandoned thread can't block process exit.
+    """
+    result: list[Any] = [None]
+    exc: list[BaseException | None] = [None]
+
+    def _run() -> None:
+        try:
+            result[0] = fn()
+        except BaseException as e:
+            exc[0] = e
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_seconds)
+
+    if thread.is_alive():
+        raise TimeoutError(
+            f"[{context}] yfinance call exceeded {timeout_seconds:.0f}s - abandoning (thread left running)"
+        )
+    if exc[0] is not None:
+        raise exc[0]
+    return result[0]
 
 
 class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
@@ -148,10 +189,17 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
                     with DatabaseContext("write") as cur:
                         growth_fields = [
-                            "gross_margin_trend", "operating_margin_trend", "net_margin_trend",
-                            "roe_trend", "sustainable_growth_rate", "fcf_growth_yoy", "ocf_growth_yoy",
-                            "asset_growth_yoy", "quarterly_growth_momentum", "net_income_growth_yoy",
-                            "operating_income_growth_yoy"
+                            "gross_margin_trend",
+                            "operating_margin_trend",
+                            "net_margin_trend",
+                            "roe_trend",
+                            "sustainable_growth_rate",
+                            "fcf_growth_yoy",
+                            "ocf_growth_yoy",
+                            "asset_growth_yoy",
+                            "quarterly_growth_momentum",
+                            "net_income_growth_yoy",
+                            "operating_income_growth_yoy",
                         ]
 
                         update_fields = []
@@ -165,7 +213,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             update_fields.append("updated_at = CURRENT_DATE")
                             cur.execute(
                                 f"UPDATE growth_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
-                                values + [symbol]
+                                [*values, symbol],
                             )
 
                         quality_fields = [
@@ -184,7 +232,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             # from 275 to 252 over a ~50-symbol-per-minute full-universe run while
                             # quality_metrics' count sat unchanged at 281 the entire time - this
                             # loader was structurally incapable of clearing them.
-                            "gross_margin_trend", "operating_margin_trend", "net_margin_trend",
+                            "gross_margin_trend",
+                            "operating_margin_trend",
+                            "net_margin_trend",
                             "roe_trend",
                             # roic_pct REMOVED 2026-08-03: found while fixing
                             # quality_metrics.roic_pct's real gap (was hardcoded unavailable in
@@ -207,10 +257,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             # to it), so this file's behavior cannot be verified via a local
                             # orchestrator run - only in AWS. The roic_pct removal above was and
                             # is load-bearing in production, not a hypothetical.
-                            "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
-                            "consecutive_positive_quarters", "estimate_revision_direction",
-                            "revision_activity_30d", "estimate_momentum_60d", "estimate_momentum_90d",
-                            "revision_trend_score", "earnings_growth_4q_avg"
+                            "earnings_surprise_avg",
+                            "eps_growth_stability",
+                            "earnings_beat_rate",
+                            "consecutive_positive_quarters",
+                            "estimate_revision_direction",
+                            "revision_activity_30d",
+                            "estimate_momentum_60d",
+                            "estimate_momentum_90d",
+                            "revision_trend_score",
+                            "earnings_growth_4q_avg",
                         ]
 
                         update_fields = []
@@ -224,7 +280,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                             update_fields.append("updated_at = CURRENT_DATE")
                             cur.execute(
                                 f"UPDATE quality_metrics SET {', '.join(update_fields)} WHERE symbol = %s",
-                                values + [symbol]
+                                [*values, symbol],
                             )
 
                     symbols_succeeded += 1
@@ -258,14 +314,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 else:
                     status_mgr.mark_failed(
                         error_message=f"Failed symbols: {symbols_failed}/{symbols_failed + symbols_succeeded}",
-                        completion_pct=100.0 * symbols_succeeded / max(symbols_succeeded + symbols_failed, 1)
+                        completion_pct=100.0 * symbols_succeeded / max(symbols_succeeded + symbols_failed, 1),
                     )
 
-            return {
-                "symbols_succeeded": symbols_succeeded,
-                "symbols_failed": symbols_failed,
-                "success": success
-            }
+            return {"symbols_succeeded": symbols_succeeded, "symbols_failed": symbols_failed, "success": success}
 
         except (psycopg2.Error, ValueError) as e:
             logger.error(f"[ENHANCED] Fatal error: {type(e).__name__}: {e}")
@@ -274,11 +326,16 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             logger.error(f"[ENHANCED] Fatal unexpected error: {type(e).__name__}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:
+    def fetch_incremental(self, symbol: str, since_date: date | None = None) -> list[dict[str, Any]]:  # noqa: C901
+        # Pre-existing complexity debt, surfaced now that the ruff pre-commit hook actually
+        # runs (see .pre-commit-config.yaml's 2026-08-10 fix) - not refactoring a finance-
+        # metrics computation under time pressure; same call made for market_events.py's
+        # check_market_circuit_breaker.
         """Compute enhanced metrics for symbol."""
         with DatabaseContext("read") as cur:
             # Get historical financial data for trend computation
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT i.fiscal_year, i.revenue, i.operating_income, i.net_income,
                        b.total_assets, b.stockholders_equity, b.current_liabilities,
                        c.operating_cash_flow, c.financing_cash_flow
@@ -288,7 +345,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 WHERE i.symbol = %s
                 ORDER BY i.fiscal_year DESC
                 LIMIT 5
-            """, (symbol,))
+            """,
+                (symbol,),
+            )
 
             income_rows = cur.fetchall()
             if not income_rows:
@@ -299,17 +358,18 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
         try:
             # Extract current year data
-            curr_fy, curr_rev, curr_oi, curr_ni, curr_assets, curr_equity, curr_curr_liab, curr_fcf, curr_ocf = income_rows[0]
+            curr_fy, curr_rev, curr_oi, curr_ni, curr_assets, curr_equity, _curr_curr_liab, curr_fcf, curr_ocf = (
+                income_rows[0]
+            )
 
             # Convert all to float early to avoid Decimal type issues
-            curr_rev_f = safe_float(curr_rev, 'revenue')
-            curr_oi_f = safe_float(curr_oi, 'operating_income')
-            curr_ni_f = safe_float(curr_ni, 'net_income')
-            curr_assets_f = safe_float(curr_assets, 'assets')
-            curr_equity_f = safe_float(curr_equity, 'equity')
-            curr_curr_liab_f = safe_float(curr_curr_liab, 'current_liabilities')
-            curr_fcf_f = safe_float(curr_fcf, 'fcf')
-            curr_ocf_f = safe_float(curr_ocf, 'ocf')
+            curr_rev_f = safe_float(curr_rev, "revenue")
+            curr_oi_f = safe_float(curr_oi, "operating_income")
+            curr_ni_f = safe_float(curr_ni, "net_income")
+            curr_assets_f = safe_float(curr_assets, "assets")
+            curr_equity_f = safe_float(curr_equity, "equity")
+            curr_fcf_f = safe_float(curr_fcf, "fcf")
+            curr_ocf_f = safe_float(curr_ocf, "ocf")
 
             # roic_pct computation REMOVED 2026-08-03 - see this loader's quality_fields list
             # comment above for why (confirmed-duplicate, cruder formula vs.
@@ -317,17 +377,26 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
             # Get prior year data if available
             if len(income_rows) > 1:
-                prior_fy, prior_rev, prior_oi, prior_ni, prior_assets, prior_equity, prior_curr_liab, prior_fcf, prior_ocf = income_rows[1]
+                (
+                    prior_fy,
+                    prior_rev,
+                    prior_oi,
+                    prior_ni,
+                    prior_assets,
+                    prior_equity,
+                    _prior_curr_liab,
+                    prior_fcf,
+                    prior_ocf,
+                ) = income_rows[1]
 
                 # Convert prior year values too
-                prior_rev_f = safe_float(prior_rev, 'revenue')
-                prior_oi_f = safe_float(prior_oi, 'operating_income')
-                prior_ni_f = safe_float(prior_ni, 'net_income')
-                prior_assets_f = safe_float(prior_assets, 'assets')
-                prior_equity_f = safe_float(prior_equity, 'equity')
-                prior_curr_liab_f = safe_float(prior_curr_liab, 'current_liabilities')
-                prior_fcf_f = safe_float(prior_fcf, 'fcf')
-                prior_ocf_f = safe_float(prior_ocf, 'ocf')
+                prior_rev_f = safe_float(prior_rev, "revenue")
+                prior_oi_f = safe_float(prior_oi, "operating_income")
+                prior_ni_f = safe_float(prior_ni, "net_income")
+                prior_assets_f = safe_float(prior_assets, "assets")
+                prior_equity_f = safe_float(prior_equity, "equity")
+                prior_fcf_f = safe_float(prior_fcf, "fcf")
+                prior_ocf_f = safe_float(prior_ocf, "ocf")
 
                 # YoY Growth metrics - only compute if both current and prior values exist and prior > 0
                 #
@@ -372,20 +441,23 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 if prior_rev_f and prior_rev_f > 0 and curr_rev_f and curr_rev_f > 0:
                     # Get COGS from income statement to compute margins
                     with DatabaseContext("read") as cur:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             SELECT fiscal_year, cost_of_revenue, gross_profit
                             FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year IN (%s, %s)
                             ORDER BY fiscal_year DESC
-                        """, (symbol, curr_fy, prior_fy))
+                        """,
+                            (symbol, curr_fy, prior_fy),
+                        )
 
                         margin_rows = cur.fetchall()
                         if len(margin_rows) == 2:
                             # Current year margin (using gross_profit / revenue)
-                            curr_gross_profit = safe_float(margin_rows[0][2], 'gross_profit')
-                            curr_cogs = safe_float(margin_rows[0][1], 'cogs')
-                            prior_gross_profit = safe_float(margin_rows[1][2], 'gross_profit')
-                            prior_cogs = safe_float(margin_rows[1][1], 'cogs')
+                            curr_gross_profit = safe_float(margin_rows[0][2], "gross_profit")
+                            curr_cogs = safe_float(margin_rows[0][1], "cogs")
+                            prior_gross_profit = safe_float(margin_rows[1][2], "gross_profit")
+                            prior_cogs = safe_float(margin_rows[1][1], "cogs")
 
                             # Fallback: compute gross_profit from revenue - COGS if not directly available
                             if curr_gross_profit is None and curr_cogs is not None:
@@ -429,8 +501,10 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
 
             # Log computed quarterly metrics for debugging
             quarterly_fields = [
-                "consecutive_positive_quarters", "earnings_growth_4q_avg", "eps_growth_stability",
-                "quarterly_growth_momentum"
+                "consecutive_positive_quarters",
+                "earnings_growth_4q_avg",
+                "eps_growth_stability",
+                "quarterly_growth_momentum",
             ]
             computed_quarterly = {k: v for k, v in metrics.items() if k in quarterly_fields and v is not None}
             if computed_quarterly:
@@ -464,8 +538,11 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             self._compute_estimate_revision_metrics(symbol, metrics)
 
             revision_fields = [
-                "estimate_revision_direction", "revision_activity_30d",
-                "estimate_momentum_60d", "estimate_momentum_90d", "revision_trend_score"
+                "estimate_revision_direction",
+                "revision_activity_30d",
+                "estimate_momentum_60d",
+                "estimate_momentum_90d",
+                "revision_trend_score",
             ]
             computed_revision = {k: v for k, v in metrics.items() if k in revision_fields and v is not None}
             if computed_revision:
@@ -496,25 +573,32 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             import yfinance as yf
 
             from utils.loaders.retry_helper import retry_with_backoff
+
             ticker = yf.Ticker(symbol)
 
             # Get last 4 quarters of earnings data. Retried (2026-08-09) for the same reason
             # as _compute_estimate_revision_metrics's eps_trend/eps_revisions fetch - a single
             # transient yfinance failure here shouldn't be indistinguishable from real absence.
+            # Each attempt is timeout-bounded (2026-08-10 fix) - see
+            # _yfinance_call_with_timeout's docstring for why a hang here can't just be caught
+            # by retry_with_backoff on its own.
             earnings_dates = retry_with_backoff(
-                lambda: ticker.earnings_dates, context=f"{symbol} earnings_dates", max_retries=2, backoff_seconds=1.0
+                lambda: _yfinance_call_with_timeout(lambda: ticker.earnings_dates, f"{symbol} earnings_dates"),
+                context=f"{symbol} earnings_dates",
+                max_retries=2,
+                backoff_seconds=1.0,
             )
             if earnings_dates is None or earnings_dates.empty:
                 logger.debug(f"[ENHANCED_METRICS] {symbol}: No earnings_dates from yfinance")
                 return
 
             # Take most recent 4 reported earnings
-            reported = earnings_dates[earnings_dates['Reported EPS'].notna()].head(4)
+            reported = earnings_dates[earnings_dates["Reported EPS"].notna()].head(4)
             if len(reported) < 2:
                 logger.debug(f"[ENHANCED_METRICS] {symbol}: Only {len(reported)} quarters with reported EPS")
                 return
 
-            surprises = reported['Surprise(%)'].dropna()
+            surprises = reported["Surprise(%)"].dropna()
             if len(surprises) > 0:
                 # Average surprise over available quarters (guard against outlier earnings surprises)
                 avg_surprise = float(surprises.mean())
@@ -527,7 +611,9 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                 if beat_rate <= 100:  # Should always be <=100 but guard anyway
                     metrics["earnings_beat_rate"] = float(beat_rate)
 
-                logger.info(f"[ENHANCED_METRICS] {symbol}: earnings_surprise_avg={metrics['earnings_surprise_avg']:.2f}%, earnings_beat_rate={metrics['earnings_beat_rate']:.2f}%")
+                logger.info(
+                    f"[ENHANCED_METRICS] {symbol}: earnings_surprise_avg={metrics['earnings_surprise_avg']:.2f}%, earnings_beat_rate={metrics['earnings_beat_rate']:.2f}%"
+                )
             else:
                 logger.debug(f"[ENHANCED_METRICS] {symbol}: No surprise data in earnings_dates")
 
@@ -535,8 +621,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             logger.debug(f"[ENHANCED_METRICS] {symbol}: yfinance not available")
         except Exception as e:
             logger.warning(
-                f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise after retries: "
-                f"{type(e).__name__}: {e}"
+                f"[ENHANCED_METRICS] {symbol}: Could not fetch earnings surprise after retries: {type(e).__name__}: {e}"
             )
 
     def _compute_estimate_revision_metrics(self, symbol: str, metrics: dict[str, Any]) -> None:
@@ -564,6 +649,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
             import yfinance as yf
 
             from utils.loaders.retry_helper import retry_with_backoff
+
             ticker = yf.Ticker(symbol)
 
             # PACING FIX 2026-08-10: bumped from max_retries=2/backoff=1.0s (~3s total wait) to
@@ -595,7 +681,8 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                         metrics["estimate_momentum_90d"] = float(round(momentum_90d, 2))
 
                 momentum_values = [
-                    v for v in (metrics.get("estimate_momentum_60d"), metrics.get("estimate_momentum_90d"))
+                    v
+                    for v in (metrics.get("estimate_momentum_60d"), metrics.get("estimate_momentum_90d"))
                     if v is not None
                 ]
                 if momentum_values:
@@ -629,23 +716,25 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
         """Compute metrics from quarterly earnings data."""
         with DatabaseContext("read") as cur:
             # Get last 8 quarters of earnings data
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT fiscal_year, fiscal_quarter, earnings_per_share, net_income
                 FROM quarterly_income_statement
                 WHERE symbol = %s AND data_unavailable IS NOT TRUE
                 ORDER BY fiscal_year DESC, fiscal_quarter DESC
                 LIMIT 8
-            """, (symbol,))
+            """,
+                (symbol,),
+            )
 
             quarters = cur.fetchall()
             if not quarters or len(quarters) < 2:
                 return
 
             # quarters is sorted newest first
-            eps_values = [safe_float(q[2], 'earnings_per_share') for q in quarters]  # EPS
-            ni_values = [safe_float(q[3], 'net_income') for q in quarters]   # Net Income
+            eps_values = [safe_float(q[2], "earnings_per_share") for q in quarters]  # EPS
+            ni_values = [safe_float(q[3], "net_income") for q in quarters]  # Net Income
             valid_eps = [e for e in eps_values if e is not None]
-            valid_ni = [n for n in ni_values if n is not None]
 
             # Compute consecutive positive quarters (from most recent going backwards)
             consecutive_positive = 0
@@ -677,6 +766,7 @@ class EnhancedQualityGrowthMetricsLoader(OptimalLoader):
                     # EPS growth stability (standard deviation)
                     if len(eps_growth_rates) >= 2:
                         import statistics
+
                         try:
                             stdev = statistics.stdev(eps_growth_rates)
                             # Cap stability metric too (same reason as growth rates)
