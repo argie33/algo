@@ -305,7 +305,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         coverage = pos.get("coverage")
 
     if coverage is None:
-        logger.debug("[POSITIONS_PANEL] Coverage metadata missing from API - filtering visibility unavailable (expected in local mode)")
+        logger.debug(
+            "[POSITIONS_PANEL] Coverage metadata missing from API - filtering visibility unavailable (expected in local mode)"
+        )
 
     # Display filtering status with clear explanation of what was filtered
     # Fail-fast: Check that coverage data is valid before using. Do not silently default to 0.
@@ -324,7 +326,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         filt = coverage.get("filtered_count")
 
         if total is None or valid is None or filt is None:
-            logger.error(f"[POSITIONS] Coverage data missing or None: total={total}, valid={valid}, filt={filt}. Got: {coverage}")
+            logger.error(
+                f"[POSITIONS] Coverage data missing or None: total={total}, valid={valid}, filt={filt}. Got: {coverage}"
+            )
             # Create error marker object for error panel rendering
             return Panel(
                 Text("Coverage data integrity error - missing required fields", style="red"),

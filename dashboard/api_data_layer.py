@@ -559,8 +559,6 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     return cached_data
 
 
-
-
 def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:  # noqa: C901
     """Call API endpoint with exponential backoff retry logic and circuit breaker.
 

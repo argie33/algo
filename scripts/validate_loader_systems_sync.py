@@ -20,10 +20,11 @@ from pathlib import Path
 # Force UTF-8 output on Windows. Guarded against pytest: reassigning sys.stdout/stderr
 # to a new TextIOWrapper while pytest has already substituted its own capture streams
 # corrupts pytest's capture teardown the first time anything imports this module.
-if sys.platform == 'win32' and "pytest" not in sys.modules:
+if sys.platform == "win32" and "pytest" not in sys.modules:
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root))
@@ -36,17 +37,17 @@ def load_terraform_loaders():
     tf_file = repo_root / "terraform" / "modules" / "loaders" / "main.tf"
 
     loaders = {}
-    with open(tf_file, 'r') as f:
+    with open(tf_file, "r") as f:
         content = f.read()
 
     # Extract loader_file_map block
-    start = content.find('loader_file_map = {')
-    end = content.find('}', start)
+    start = content.find("loader_file_map = {")
+    end = content.find("}", start)
     if start == -1 or end == -1:
         print("ERROR: Could not find loader_file_map in terraform file", file=sys.stderr)
         return {}
 
-    map_block = content[start:end+1]
+    map_block = content[start : end + 1]
 
     # Parse "key" = "value" pairs
     pattern = r'"([^"]+)"\s*=\s*"([^"]+)"'
@@ -62,28 +63,28 @@ def load_lambda_valid_names():
     """Extract VALID_LOADER_NAMES from lambda/trigger-loaders/lambda_function.py."""
     lambda_file = repo_root / "lambda" / "trigger-loaders" / "lambda_function.py"
 
-    with open(lambda_file, 'r') as f:
+    with open(lambda_file, "r") as f:
         content = f.read()
 
     # Check if it's importing from registry or hardcoded
-    if 'from loaders.loader_registry import get_table_names' in content:
+    if "from loaders.loader_registry import get_table_names" in content:
         print("✓ Lambda: Using auto-generated VALID_LOADER_NAMES from registry")
         return None  # Dynamically loaded, no static check needed
-    elif 'VALID_LOADER_NAMES = frozenset(' in content:
+    elif "VALID_LOADER_NAMES = frozenset(" in content:
         # Parse hardcoded list
-        start = content.find('VALID_LOADER_NAMES = frozenset(')
-        end = content.find('}', start)
+        start = content.find("VALID_LOADER_NAMES = frozenset(")
+        end = content.find("}", start)
         if start == -1 or end == -1:
             return set()
 
-        hardcoded_block = content[start:end+1]
+        hardcoded_block = content[start : end + 1]
         pattern = r'"([^"]+)"'
         names = set()
         for match in re.finditer(pattern, hardcoded_block):
             # Skip commented lines
-            line_start = hardcoded_block.rfind('\n', 0, match.start())
-            line = hardcoded_block[line_start:match.start()]
-            if '#' not in line:  # Not in a comment
+            line_start = hardcoded_block.rfind("\n", 0, match.start())
+            line = hardcoded_block[line_start : match.start()]
+            if "#" not in line:  # Not in a comment
                 names.add(match.group(1))
         return names
 

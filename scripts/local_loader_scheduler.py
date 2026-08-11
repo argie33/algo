@@ -12,7 +12,9 @@ import collections
 import os
 import subprocess
 import sys
+import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import IO
 
@@ -418,9 +420,10 @@ def run_pipeline(pipeline_name: str) -> int:
                 proc.kill()
                 proc.wait()
                 reader_thread.join(timeout=5)
+                lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
                 print(
                     f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
-                    f"Likely blocked by stale lock. Run: rm -f /tmp/algo-locks/*.lock - "
+                    f"Likely blocked by stale lock. Clean with: rm {lock_dir}/*.lock - "
                     f"continuing with remaining independent loaders",
                     file=sys.stderr,
                 )
@@ -475,7 +478,34 @@ def main():
     )
     args = parser.parse_args()
 
-    return run_pipeline(args.now)
+    # CRITICAL: Prevent concurrent scheduler invocations to avoid redundant loader runs
+    # A single global scheduler lock ensures only one instance can run at a time
+    scheduler_lock = Path(tempfile.gettempdir()) / "algo-scheduler.lock"
+    if scheduler_lock.exists():
+        # Check if lock is stale (> 12 hours, conservatively larger than max pipeline runtime ~4h)
+        lock_age = time.time() - scheduler_lock.stat().st_mtime
+        if lock_age < 43200:  # 12 hours in seconds
+            print(
+                f"[LOCAL_SCHEDULER] ERROR: Another scheduler instance is already running "
+                f"(lock held for {lock_age:.0f}s). Cannot start duplicate run. "
+                f"Wait for the existing instance to complete or manually remove {scheduler_lock} if stale.",
+                file=sys.stderr,
+            )
+            return 1
+        else:
+            print(f"[LOCAL_SCHEDULER] Cleaning stale scheduler lock (age: {lock_age:.0f}s)")
+            scheduler_lock.unlink()
+
+    try:
+        # Create lock before running pipeline
+        scheduler_lock.touch()
+        return run_pipeline(args.now)
+    finally:
+        # Always clean up lock on exit (success or failure)
+        try:
+            scheduler_lock.unlink()
+        except Exception as e:
+            print(f"[LOCAL_SCHEDULER] WARNING: Could not remove scheduler lock: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

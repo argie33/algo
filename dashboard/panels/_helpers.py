@@ -241,7 +241,9 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
     if not isinstance(data, dict) and not isinstance(data, list):
         logger.error(f"[_error_panel] {data_name}: expected dict or list, got {type(data).__name__}")
         return Panel(
-            Text.from_markup(f"[{R}]{data_name}[/] returned invalid data (expected dict or list, got {type(data).__name__})"),
+            Text.from_markup(
+                f"[{R}]{data_name}[/] returned invalid data (expected dict or list, got {type(data).__name__})"
+            ),
             title=f"[bold]{title}[/]",
             border_style=border,
             padding=(0, 1),

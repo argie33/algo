@@ -41,11 +41,11 @@ class DiagnosticResult:
 
     def to_dict(self):
         return {
-            'check': self.name,
-            'status': self.status,
-            'message': self.message,
-            'details': self.details,
-            'timestamp': self.timestamp.isoformat()
+            "check": self.name,
+            "status": self.status,
+            "message": self.message,
+            "details": self.details,
+            "timestamp": self.timestamp.isoformat(),
         }
 
 
@@ -76,12 +76,12 @@ class SystemDiagnostics:
         """Run diagnostics focused on a specific area."""
         try:
             focus_map = {
-                'database': [self.check_database_connection],
-                'locks': [self.check_locks_health],
-                'loaders': [self.check_loader_performance],
-                'consistency': [self.check_data_freshness],
-                'config': [self.check_configuration],
-                'errors': [self.check_recent_errors],
+                "database": [self.check_database_connection],
+                "locks": [self.check_locks_health],
+                "loaders": [self.check_loader_performance],
+                "consistency": [self.check_data_freshness],
+                "config": [self.check_configuration],
+                "errors": [self.check_recent_errors],
             }
 
             if focus not in focus_map:
@@ -100,33 +100,25 @@ class SystemDiagnostics:
     def check_database_connection(self):
         """Verify database connection works."""
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 cur.execute("SELECT 1")
                 result = cur.fetchone()
 
             if result:
-                self.results.append(DiagnosticResult(
-                    'Database Connection',
-                    'OK',
-                    'Database connection successful'
-                ))
+                self.results.append(DiagnosticResult("Database Connection", "OK", "Database connection successful"))
             else:
-                self.results.append(DiagnosticResult(
-                    'Database Connection',
-                    'CRITICAL',
-                    'Database connection returned no result'
-                ))
+                self.results.append(
+                    DiagnosticResult("Database Connection", "CRITICAL", "Database connection returned no result")
+                )
         except Exception as e:
-            self.results.append(DiagnosticResult(
-                'Database Connection',
-                'CRITICAL',
-                f'Database connection failed: {str(e)}'
-            ))
+            self.results.append(
+                DiagnosticResult("Database Connection", "CRITICAL", f"Database connection failed: {str(e)}")
+            )
 
     def check_locks_health(self):
         """Check for stale and orphaned locks."""
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 # Check for stale locks (>2 hours old).
                 #
                 # BUG FOUND 2026-08-10: this used to query data_loader_runs for
@@ -160,45 +152,35 @@ class SystemDiagnostics:
                     stale_locks = cur.fetchall()
 
                     if not stale_locks:
-                        self.results.append(DiagnosticResult(
-                            'Stale Locks',
-                            'OK',
-                            'No stale loader locks found'
-                        ))
+                        self.results.append(DiagnosticResult("Stale Locks", "OK", "No stale loader locks found"))
                     else:
                         stale_details = []
                         for row in stale_locks:
-                            age_hours = row['age_seconds'] / 3600
+                            age_hours = row["age_seconds"] / 3600
                             stale_details.append(f"{row['loader_name']} (age={age_hours:.1f}h)")
 
-                        severity = 'WARNING' if len(stale_locks) < 5 else 'ERROR'
-                        self.results.append(DiagnosticResult(
-                            'Stale Locks',
-                            severity,
-                            f'Found {len(stale_locks)} stale loader locks',
-                            {'stale_locks': stale_details[:5]}
-                        ))
+                        severity = "WARNING" if len(stale_locks) < 5 else "ERROR"
+                        self.results.append(
+                            DiagnosticResult(
+                                "Stale Locks",
+                                severity,
+                                f"Found {len(stale_locks)} stale loader locks",
+                                {"stale_locks": stale_details[:5]},
+                            )
+                        )
                 except Exception as table_error:
                     # Table might not exist
-                    if 'does not exist' in str(table_error).lower():
-                        self.results.append(DiagnosticResult(
-                            'Stale Locks',
-                            'OK',
-                            'data_loader_status table not found'
-                        ))
+                    if "does not exist" in str(table_error).lower():
+                        self.results.append(DiagnosticResult("Stale Locks", "OK", "data_loader_status table not found"))
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult(
-                'Stale Locks',
-                'WARNING',
-                f'Lock health check failed: {str(e)}'
-            ))
+            self.results.append(DiagnosticResult("Stale Locks", "WARNING", f"Lock health check failed: {str(e)}"))
 
     def check_loader_performance(self):
         """Check recent loader execution performance."""
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 # Check recent loader runs (last 24 hours)
                 query = """
                 SELECT
@@ -218,61 +200,57 @@ class SystemDiagnostics:
                     runs = cur.fetchall()
 
                     if not runs:
-                        self.results.append(DiagnosticResult(
-                            'Loader Performance',
-                            'WARNING',
-                            'No loader runs in last 24 hours'
-                        ))
+                        self.results.append(
+                            DiagnosticResult("Loader Performance", "WARNING", "No loader runs in last 24 hours")
+                        )
                     else:
                         # Summarize by status
                         status_counts = {}
                         for row in runs:
-                            status = row['status']
-                            status_counts[status] = status_counts.get(status, 0) + row['count']
+                            status = row["status"]
+                            status_counts[status] = status_counts.get(status, 0) + row["count"]
 
-                        failed = status_counts.get('failed', 0)
-                        error = status_counts.get('error', 0)
-                        completed = status_counts.get('completed', 0)
+                        failed = status_counts.get("failed", 0)
+                        error = status_counts.get("error", 0)
+                        completed = status_counts.get("completed", 0)
 
-                        overall_status = 'OK'
+                        overall_status = "OK"
                         if failed > 0 or error > 0:
-                            overall_status = 'WARNING' if failed < 3 else 'ERROR'
+                            overall_status = "WARNING" if failed < 3 else "ERROR"
 
-                        self.results.append(DiagnosticResult(
-                            'Loader Performance',
-                            overall_status,
-                            f'Runs: {completed} completed, {failed} failed, {error} error (24h)',
-                            {
-                                'completed_count': completed,
-                                'failed_count': failed,
-                                'error_count': error,
-                                'status_breakdown': status_counts
-                            }
-                        ))
+                        self.results.append(
+                            DiagnosticResult(
+                                "Loader Performance",
+                                overall_status,
+                                f"Runs: {completed} completed, {failed} failed, {error} error (24h)",
+                                {
+                                    "completed_count": completed,
+                                    "failed_count": failed,
+                                    "error_count": error,
+                                    "status_breakdown": status_counts,
+                                },
+                            )
+                        )
                 except Exception as table_error:
-                    if 'does not exist' in str(table_error).lower():
-                        self.results.append(DiagnosticResult(
-                            'Loader Performance',
-                            'OK',
-                            'data_loader_runs table not found'
-                        ))
+                    if "does not exist" in str(table_error).lower():
+                        self.results.append(
+                            DiagnosticResult("Loader Performance", "OK", "data_loader_runs table not found")
+                        )
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult(
-                'Loader Performance',
-                'WARNING',
-                f'Loader performance check failed: {str(e)}'
-            ))
+            self.results.append(
+                DiagnosticResult("Loader Performance", "WARNING", f"Loader performance check failed: {str(e)}")
+            )
 
     def check_data_freshness(self):
         """Check how recent the data is across key tables."""
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 tables_to_check = [
-                    ('price_daily', 'date'),
-                    ('buy_sell_daily', 'date'),
-                    ('quality_metrics', 'updated_at'),
+                    ("price_daily", "date"),
+                    ("buy_sell_daily", "date"),
+                    ("quality_metrics", "updated_at"),
                 ]
 
                 freshness_results = {}
@@ -282,64 +260,49 @@ class SystemDiagnostics:
                         cur.execute(query)
                         row = cur.fetchone()
 
-                        if row and row['max_date']:
-                            max_date = row['max_date']
+                        if row and row["max_date"]:
+                            max_date = row["max_date"]
                             today = datetime.utcnow()
 
                             # Handle both DATE and TIMESTAMP types
-                            if hasattr(max_date, 'date'):  # datetime/timestamp object
+                            if hasattr(max_date, "date"):  # datetime/timestamp object
                                 max_date_only = max_date.date()
                             else:  # string
                                 max_date_dt = datetime.fromisoformat(str(max_date))
                                 max_date_only = max_date_dt.date()
 
                             age_days = (today.date() - max_date_only).days
-                            freshness_results[table] = {
-                                'max_date': str(max_date_only),
-                                'age_days': age_days
-                            }
+                            freshness_results[table] = {"max_date": str(max_date_only), "age_days": age_days}
                         else:
-                            freshness_results[table] = {
-                                'max_date': 'no data',
-                                'age_days': None
-                            }
+                            freshness_results[table] = {"max_date": "no data", "age_days": None}
                     except Exception as table_error:
-                        if 'does not exist' in str(table_error).lower():
-                            freshness_results[table] = {'error': 'table not found'}
+                        if "does not exist" in str(table_error).lower():
+                            freshness_results[table] = {"error": "table not found"}
                         else:
-                            freshness_results[table] = {'error': str(table_error)}
+                            freshness_results[table] = {"error": str(table_error)}
 
                 # Determine overall status
-                ages = [v.get('age_days', 0) for v in freshness_results.values() if v.get('age_days') is not None]
+                ages = [v.get("age_days", 0) for v in freshness_results.values() if v.get("age_days") is not None]
                 max_age = max(ages) if ages else 0
 
                 if max_age > 2:
-                    status = 'WARNING'
-                    message = f'Some data is {max_age} days old'
+                    status = "WARNING"
+                    message = f"Some data is {max_age} days old"
                 elif max_age > 0:
-                    status = 'OK'
-                    message = f'Data up to {max_age} days old'
+                    status = "OK"
+                    message = f"Data up to {max_age} days old"
                 else:
-                    status = 'OK'
-                    message = 'All data current (today or yesterday)'
+                    status = "OK"
+                    message = "All data current (today or yesterday)"
 
-                self.results.append(DiagnosticResult(
-                    'Data Freshness',
-                    status,
-                    message,
-                    freshness_results
-                ))
+                self.results.append(DiagnosticResult("Data Freshness", status, message, freshness_results))
         except Exception as e:
-            self.results.append(DiagnosticResult(
-                'Data Freshness',
-                'WARNING',
-                f'Data freshness check failed: {str(e)}'
-            ))
+            self.results.append(DiagnosticResult("Data Freshness", "WARNING", f"Data freshness check failed: {str(e)}"))
 
     def check_configuration(self):
         """Check critical configuration values."""
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 query = """
                 SELECT key, value
                 FROM algo_config
@@ -350,43 +313,37 @@ class SystemDiagnostics:
                     cur.execute(query)
                     config_rows = cur.fetchall()
 
-                    config = {row['key']: row['value'] for row in config_rows}
+                    config = {row["key"]: row["value"] for row in config_rows}
 
                     # Verify execution mode is 'paper' (unless this is prod)
-                    exec_mode = config.get('execution_mode', 'unknown')
-                    status = 'OK' if exec_mode == 'paper' else 'WARNING'
-                    message = f'Execution mode: {exec_mode}'
+                    exec_mode = config.get("execution_mode", "unknown")
+                    status = "OK" if exec_mode == "paper" else "WARNING"
+                    message = f"Execution mode: {exec_mode}"
 
-                    self.results.append(DiagnosticResult(
-                        'Configuration',
-                        status,
-                        message,
-                        {
-                            'execution_mode': exec_mode,
-                            'alert_email_configured': bool(config.get('alert_email_to')),
-                            'sns_configured': bool(config.get('alerts_sns_topic'))
-                        }
-                    ))
+                    self.results.append(
+                        DiagnosticResult(
+                            "Configuration",
+                            status,
+                            message,
+                            {
+                                "execution_mode": exec_mode,
+                                "alert_email_configured": bool(config.get("alert_email_to")),
+                                "sns_configured": bool(config.get("alerts_sns_topic")),
+                            },
+                        )
+                    )
                 except Exception as table_error:
-                    if 'does not exist' in str(table_error).lower():
-                        self.results.append(DiagnosticResult(
-                            'Configuration',
-                            'WARNING',
-                            'algo_config table not found'
-                        ))
+                    if "does not exist" in str(table_error).lower():
+                        self.results.append(DiagnosticResult("Configuration", "WARNING", "algo_config table not found"))
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult(
-                'Configuration',
-                'WARNING',
-                f'Configuration check failed: {str(e)}'
-            ))
+            self.results.append(DiagnosticResult("Configuration", "WARNING", f"Configuration check failed: {str(e)}"))
 
     def check_recent_errors(self):
         """Check for recent errors in logs."""
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 # Check for recent errors in orchestrator logs
                 query = """
                 SELECT
@@ -402,39 +359,35 @@ class SystemDiagnostics:
                     row = cur.fetchone()
 
                     if row:
-                        error_count = row['error_count']
-                        last_error = row['last_error']
+                        error_count = row["error_count"]
+                        last_error = row["last_error"]
 
                         if error_count == 0:
-                            self.results.append(DiagnosticResult(
-                                'Recent Errors',
-                                'OK',
-                                'No orchestrator errors in last 24 hours'
-                            ))
+                            self.results.append(
+                                DiagnosticResult("Recent Errors", "OK", "No orchestrator errors in last 24 hours")
+                            )
                         else:
-                            status = 'WARNING' if error_count < 3 else 'ERROR'
-                            self.results.append(DiagnosticResult(
-                                'Recent Errors',
-                                status,
-                                f'{error_count} orchestrator errors (last 24h)',
-                                {'error_count': error_count, 'last_error': str(last_error)}
-                            ))
+                            status = "WARNING" if error_count < 3 else "ERROR"
+                            self.results.append(
+                                DiagnosticResult(
+                                    "Recent Errors",
+                                    status,
+                                    f"{error_count} orchestrator errors (last 24h)",
+                                    {"error_count": error_count, "last_error": str(last_error)},
+                                )
+                            )
                 except Exception as table_error:
                     # Table might not exist, which is OK
-                    if 'does not exist' in str(table_error).lower():
-                        self.results.append(DiagnosticResult(
-                            'Recent Errors',
-                            'OK',
-                            'Error log table not found (expected for some configurations)'
-                        ))
+                    if "does not exist" in str(table_error).lower():
+                        self.results.append(
+                            DiagnosticResult(
+                                "Recent Errors", "OK", "Error log table not found (expected for some configurations)"
+                            )
+                        )
                     else:
                         raise
         except Exception as e:
-            self.results.append(DiagnosticResult(
-                'Recent Errors',
-                'WARNING',
-                f'Error check failed: {str(e)}'
-            ))
+            self.results.append(DiagnosticResult("Recent Errors", "WARNING", f"Error check failed: {str(e)}"))
 
     def print_results(self) -> bool:
         """Print diagnostic results and return True if all are OK/WARNING."""
@@ -444,16 +397,16 @@ class SystemDiagnostics:
 
         # Color codes
         colors = {
-            'OK': '\033[92m',      # Green
-            'WARNING': '\033[93m', # Yellow
-            'ERROR': '\033[91m',   # Red
-            'CRITICAL': '\033[95m', # Magenta
-            'RESET': '\033[0m'
+            "OK": "\033[92m",  # Green
+            "WARNING": "\033[93m",  # Yellow
+            "ERROR": "\033[91m",  # Red
+            "CRITICAL": "\033[95m",  # Magenta
+            "RESET": "\033[0m",
         }
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("SYSTEM DIAGNOSTICS REPORT")
-        print("="*70)
+        print("=" * 70)
         print(f"Generated: {datetime.utcnow().isoformat()}Z")
         print()
 
@@ -465,13 +418,13 @@ class SystemDiagnostics:
             status_groups[result.status].append(result)
 
         # Print by status (OK first, CRITICAL last)
-        status_order = ['OK', 'WARNING', 'ERROR', 'CRITICAL']
+        status_order = ["OK", "WARNING", "ERROR", "CRITICAL"]
         for status in status_order:
             if status not in status_groups:
                 continue
 
             results_for_status = status_groups[status]
-            color = colors.get(status, '')
+            color = colors.get(status, "")
 
             print(f"{color}[{status}]{colors['RESET']} ({len(results_for_status)} checks)")
 
@@ -485,12 +438,12 @@ class SystemDiagnostics:
             print()
 
         # Summary
-        critical = len(status_groups.get('CRITICAL', []))
-        errors = len(status_groups.get('ERROR', []))
-        warnings = len(status_groups.get('WARNING', []))
-        ok = len(status_groups.get('OK', []))
+        critical = len(status_groups.get("CRITICAL", []))
+        errors = len(status_groups.get("ERROR", []))
+        warnings = len(status_groups.get("WARNING", []))
+        ok = len(status_groups.get("OK", []))
 
-        print("="*70)
+        print("=" * 70)
         print(f"SUMMARY: {ok} OK, {warnings} WARNING, {errors} ERROR, {critical} CRITICAL")
 
         if critical > 0:
@@ -505,10 +458,13 @@ class SystemDiagnostics:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run system diagnostics')
-    parser.add_argument('--focus', choices=['database', 'locks', 'loaders', 'consistency', 'config', 'errors'],
-                        help='Run only specific diagnostic')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
+    parser = argparse.ArgumentParser(description="Run system diagnostics")
+    parser.add_argument(
+        "--focus",
+        choices=["database", "locks", "loaders", "consistency", "config", "errors"],
+        help="Run only specific diagnostic",
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -522,5 +478,5 @@ def main():
     sys.exit(0 if success else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

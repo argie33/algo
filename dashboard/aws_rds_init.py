@@ -234,8 +234,7 @@ class RDSCredentialFetcher:
         user = os.getenv("DB_USER")
         if not user or user.strip() == "":
             raise AWSRDSInitializationError(
-                "DB_USER environment variable not set or is empty. "
-                "Set DB_USER to your database username."
+                "DB_USER environment variable not set or is empty. Set DB_USER to your database username."
             )
 
         # Get password
@@ -251,8 +250,7 @@ class RDSCredentialFetcher:
         database = os.getenv("DB_NAME")
         if not database or database.strip() == "":
             raise AWSRDSInitializationError(
-                "DB_NAME environment variable not set or is empty. "
-                "Set DB_NAME to your database name."
+                "DB_NAME environment variable not set or is empty. Set DB_NAME to your database name."
             )
 
         logger.info(f"[RDS_INIT] Using environment variables (host={host}, port={port}, user={user[:8]}...)")

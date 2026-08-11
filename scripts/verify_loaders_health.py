@@ -250,6 +250,7 @@ LOADERS: dict[str, dict[str, Any]] = {
     },
 }
 
+
 # Guard against this file's output_table entries silently drifting from reality
 # again (the exact bug this whole LOADERS dict was rebuilt to fix - see comment
 # above). loaders/loader_registry.py is the single shared source of truth that
@@ -355,14 +356,14 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
 
                     if max_date < prev_trading_day:
                         results["issues"].append(
-                            f"Stale data: from {max_date} ({age.days} calendar days old, "
-                            f"older than {prev_trading_day})"
+                            f"Stale data: from {max_date} ({age.days} calendar days old, older than {prev_trading_day})"
                         )
                 else:
                     results["issues"].append("No date data found")
             except Exception as e:
                 # Log staleness check failure but continue with other checks
                 import logging
+
                 logging.debug(f"[VERIFY_LOADERS] Failed to check date staleness for {config['output_table']}: {e}")
 
         # Check for excessive NULLs in key columns
@@ -383,9 +384,11 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                         results["issues"].append(f"High NULL rate in {col}: {null_pct:.1f}%")
                 except Exception as e:
                     import logging
+
                     logging.debug(f"[VERIFY_LOADERS] Failed to check NULL rate for {col}: {e}")
         except Exception as e:
             import logging
+
             logging.debug(f"[VERIFY_LOADERS] Failed to enumerate columns for {config['output_table']}: {e}")
 
         # Determine overall status

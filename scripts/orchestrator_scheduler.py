@@ -100,16 +100,13 @@ def scheduler_loop() -> None:
         try:
             conn = get_db_connection()
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT run_id FROM orchestrator_execution_log WHERE DATE(started_at) = %s",
-                    (today,)
-                )
+                cur.execute("SELECT run_id FROM orchestrator_execution_log WHERE DATE(started_at) = %s", (today,))
                 runs = cur.fetchall()
                 # Extract session names from run_ids (format: LOCAL-{SESSION_NAME}-...)
                 sessions = set()
                 for (run_id,) in runs:
                     # Parse "LOCAL-AFTERNOON-..." or "LOCAL-MORNING-..." etc
-                    parts = run_id.split('-')
+                    parts = run_id.split("-")
                     if len(parts) >= 2:
                         session = parts[1].lower()
                         if session in TRADING_SESSIONS:

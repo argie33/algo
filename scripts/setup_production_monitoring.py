@@ -53,7 +53,7 @@ class ProductionMonitor:
         print("=" * 60)
 
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 # Check for problematic positions
                 query = """
                 SELECT
@@ -89,7 +89,7 @@ class ProductionMonitor:
                     return False
 
         except Exception as e:
-            if 'does not exist' in str(e).lower():
+            if "does not exist" in str(e).lower():
                 print("Status: WARNING - Positions table not found (expected for some setups)")
                 return True
             else:
@@ -107,7 +107,7 @@ class ProductionMonitor:
         print("=" * 60)
 
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 query = """
                 SELECT
                     resource_name,
@@ -137,7 +137,7 @@ class ProductionMonitor:
                 else:
                     print(f"Status: WARNING ({len(stale_locks)} stale locks)")
                     for lock in stale_locks:
-                        age_hours = lock['age_seconds'] / 3600
+                        age_hours = lock["age_seconds"] / 3600
                         print(f"  {lock['resource_name']}: age={age_hours:.1f}h, PID={lock['owner_id']}")
                         self.warnings.append(f"Stale lock: {lock['resource_name']} ({age_hours:.1f}h old)")
                     return False
@@ -157,10 +157,10 @@ class ProductionMonitor:
         print("=" * 60)
 
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 tables_to_check = [
-                    ('price_daily', 'date'),
-                    ('buy_sell_daily', 'date'),
+                    ("price_daily", "date"),
+                    ("buy_sell_daily", "date"),
                 ]
 
                 all_fresh = True
@@ -172,10 +172,11 @@ class ProductionMonitor:
                         cur.execute(query)
                         row = cur.fetchone()
 
-                        if row and row['max_date']:
-                            max_date = row['max_date']
+                        if row and row["max_date"]:
+                            max_date = row["max_date"]
                             if isinstance(max_date, str):
                                 from datetime import datetime as dt
+
                                 max_date = dt.fromisoformat(max_date).date()
 
                             age_days = (today - max_date).days
@@ -191,7 +192,7 @@ class ProductionMonitor:
                             all_fresh = False
 
                     except Exception as e:
-                        if 'does not exist' in str(e).lower():
+                        if "does not exist" in str(e).lower():
                             print(f"  {table}: NOT FOUND")
                         else:
                             print(f"  {table}: ERROR - {e}")
@@ -215,7 +216,7 @@ class ProductionMonitor:
         print("=" * 60)
 
         try:
-            with DatabaseContext('read', timeout=10, enable_correlation_tracking=False) as cur:
+            with DatabaseContext("read", timeout=10, enable_correlation_tracking=False) as cur:
                 # Get current portfolio metrics
                 query = """
                 SELECT
@@ -239,9 +240,9 @@ class ProductionMonitor:
                     return True
 
                 if metrics:
-                    equity = metrics['equity'] or 0
-                    cash = metrics['total_cash'] or 0
-                    portfolio_value = metrics['portfolio_value'] or 0
+                    equity = metrics["equity"] or 0
+                    cash = metrics["total_cash"] or 0
+                    portfolio_value = metrics["portfolio_value"] or 0
 
                     expected_total = equity + cash
                     diff_pct = abs(portfolio_value - expected_total) / max(expected_total, 1) * 100
@@ -310,10 +311,10 @@ class ProductionMonitor:
         # Determine which checks to run
         if self.component:
             checks = {
-                'positions': [self.check_position_quantities],
-                'locks': [self.check_stale_locks],
-                'freshness': [self.check_data_freshness],
-                'reconciliation': [self.check_portfolio_reconciliation],
+                "positions": [self.check_position_quantities],
+                "locks": [self.check_stale_locks],
+                "freshness": [self.check_data_freshness],
+                "reconciliation": [self.check_portfolio_reconciliation],
             }
             check_functions = checks.get(self.component, [])
         else:
@@ -339,30 +340,21 @@ class ProductionMonitor:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Daily production health monitoring'
-    )
+    parser = argparse.ArgumentParser(description="Daily production health monitoring")
     parser.add_argument(
-        '--component',
-        choices=['positions', 'locks', 'freshness', 'reconciliation'],
-        help='Run only a specific monitoring component'
+        "--component",
+        choices=["positions", "locks", "freshness", "reconciliation"],
+        help="Run only a specific monitoring component",
     )
-    parser.add_argument(
-        '--alert',
-        action='store_true',
-        help='Send alerts on issues (requires alert configuration)'
-    )
+    parser.add_argument("--alert", action="store_true", help="Send alerts on issues (requires alert configuration)")
 
     args = parser.parse_args()
 
-    monitor = ProductionMonitor(
-        alert_on_issues=args.alert,
-        component=args.component
-    )
+    monitor = ProductionMonitor(alert_on_issues=args.alert, component=args.component)
 
     exit_code = monitor.run()
     sys.exit(exit_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

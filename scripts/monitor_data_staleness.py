@@ -436,7 +436,15 @@ def check_all_tables() -> dict:
                 stale_threshold = thresholds["stale"]
                 critical_threshold = thresholds["critical"]
 
-            emoji = "✅" if age < fresh_threshold else "⚠️ " if age < stale_threshold else "🔴" if age < critical_threshold else "💀"
+            emoji = (
+                "✅"
+                if age < fresh_threshold
+                else "⚠️ "
+                if age < stale_threshold
+                else "🔴"
+                if age < critical_threshold
+                else "💀"
+            )
 
             if age < fresh_threshold:
                 status = f"{emoji} FRESH ({formatted})"
@@ -653,8 +661,7 @@ def send_alert(table_name: str, level: str, age_minutes: int, threshold_minutes:
     elif method == "email":
         # Email alerting not yet implemented - fall back to log
         logger.warning(
-            f"[ALERT] Email alerting not yet implemented. "
-            f"Table: {table_name}, Level: {level}, Age: {age_minutes}min"
+            f"[ALERT] Email alerting not yet implemented. Table: {table_name}, Level: {level}, Age: {age_minutes}min"
         )
     elif method == "log":
         logger.warning(

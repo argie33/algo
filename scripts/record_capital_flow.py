@@ -118,7 +118,9 @@ def record_flow(flow_date: _date, amount: Decimal, source: str, notes: str | Non
         affected = cur.rowcount
 
     print(f"Recorded {flow_type} of ${abs(amount):,.2f} on {flow_date} (id={new_id}, source={source!r}).")
-    print(f"Recomputed adjusted_equity/adjusted_running_peak/adjusted_drawdown_pct for {affected} portfolio snapshot(s).")
+    print(
+        f"Recomputed adjusted_equity/adjusted_running_peak/adjusted_drawdown_pct for {affected} portfolio snapshot(s)."
+    )
     return int(new_id)
 
 
@@ -150,7 +152,9 @@ def main() -> int:
         help="Signed dollar amount: positive = deposit, negative = withdrawal (e.g. -5000 or 10000)",
     )
     group.add_argument("--list", action="store_true", help="List all recorded capital flows")
-    parser.add_argument("--date", type=_parse_date, default=_date.today(), help="Flow date, YYYY-MM-DD (default: today)")
+    parser.add_argument(
+        "--date", type=_parse_date, default=_date.today(), help="Flow date, YYYY-MM-DD (default: today)"
+    )
     parser.add_argument("--source", type=str, default="manual", help="Source tag (default: manual)")
     parser.add_argument("--notes", type=str, default=None, help="Free-text description (recommended)")
     args = parser.parse_args()
@@ -166,7 +170,10 @@ def main() -> int:
         return 1
 
     if args.date > _date.today():
-        print(f"ERROR: --date {args.date} is in the future. Capital flows must be dated on or before today.", file=sys.stderr)
+        print(
+            f"ERROR: --date {args.date} is in the future. Capital flows must be dated on or before today.",
+            file=sys.stderr,
+        )
         return 1
 
     try:

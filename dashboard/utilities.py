@@ -109,6 +109,7 @@ os.makedirs(_log_dir, exist_ok=True)
 _is_local_mode = os.environ.get("LOCAL_MODE") == "true" and "pytest" not in sys.modules
 _log_file = os.path.join(_log_dir, "dashboard-local.log" if _is_local_mode else "dashboard.log")
 
+
 class _AnsiStrippingFormatter(logging.Formatter):
     """Logging formatter that strips ANSI escape codes from Rich output."""
 
@@ -155,15 +156,22 @@ for _h in _root_logger.handlers[:]:
 _root_logger.setLevel(logging.ERROR)
 
 # File handler: INFO and above (Windows-safe version)
-_handler = _WindowsSafeRotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10*1024*1024, backupCount=3)
+_handler = _WindowsSafeRotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=3)
 _handler.setLevel(logging.INFO)
 _formatter = _AnsiStrippingFormatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 _handler.setFormatter(_formatter)
 _root_logger.addHandler(_handler)
 
 # Show all info/warnings/errors from dashboard modules
-for _name in ["dashboard", "dashboard.utilities", "dashboard.panels", "dashboard.fetchers_common",
-              "dashboard.api_data_layer", "dashboard.cognito_auth", "utils.validation.framework"]:
+for _name in [
+    "dashboard",
+    "dashboard.utilities",
+    "dashboard.panels",
+    "dashboard.fetchers_common",
+    "dashboard.api_data_layer",
+    "dashboard.cognito_auth",
+    "utils.validation.framework",
+]:
     logging.getLogger(_name).setLevel(logging.INFO)
     logging.getLogger(_name).propagate = True  # Ensure they propagate to root
 
@@ -228,7 +236,9 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
         else:
             untracked_items = data["untracked_items"]
             if not isinstance(untracked_items, list):
-                logger.warning(f"[DATA_FORMAT] Positions 'untracked_items' field is not a list: {type(untracked_items).__name__}. Treating as empty.")
+                logger.warning(
+                    f"[DATA_FORMAT] Positions 'untracked_items' field is not a list: {type(untracked_items).__name__}. Treating as empty."
+                )
                 untracked_items = []
         all_positions = items + untracked_items
         timestamp = data.get("timestamp") if "timestamp" in data else None

@@ -174,13 +174,16 @@ class DataIntegrityChecker:
                         reason_str = ", ".join(reasons)
                         logger.warning(f"[DATA_PATROL] Closing {symbol}: {reason_str}")
 
-                        cur.execute("""
+                        cur.execute(
+                            """
                         UPDATE algo_positions
                         SET status = 'closed',
                             exit_reason = %s,
                             closed_at = CURRENT_TIMESTAMP
                         WHERE position_id = %s
-                        """, (f"DATA_PATROL_incomplete_{reason_str}", pos_id))
+                        """,
+                            (f"DATA_PATROL_incomplete_{reason_str}", pos_id),
+                        )
 
                     return {
                         "check": "incomplete_position_data",
@@ -424,7 +427,9 @@ class DataIntegrityChecker:
             if result.get("found") or result.get("positions_closed"):
                 results["summary"]["total_issues_found"] += result.get("found") or result.get("positions_closed") or 0
 
-        logger.info(f"[DATA_PATROL] Checks complete: {results['summary']['total_issues_found']} issues found, "
-                   f"{results['summary']['total_fixed']} fixed, {results['summary']['total_errors']} errors")
+        logger.info(
+            f"[DATA_PATROL] Checks complete: {results['summary']['total_issues_found']} issues found, "
+            f"{results['summary']['total_fixed']} fixed, {results['summary']['total_errors']} errors"
+        )
 
         return results

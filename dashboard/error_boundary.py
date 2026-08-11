@@ -424,7 +424,9 @@ def error_summary_panel_expanded(data: dict[str, Any]) -> Panel | None:
         logger.debug("[ERROR_BOUNDARY] error_summary_panel_expanded: no errors found in data, returning None")
         return None
 
-    logger.warning(f"error_summary_panel_expanded: found {len(errors)} endpoint error(s): {', '.join(sorted(errors.keys()))}")
+    logger.warning(
+        f"error_summary_panel_expanded: found {len(errors)} endpoint error(s): {', '.join(sorted(errors.keys()))}"
+    )
 
     text_lines = []
     for endpoint, msg in sorted(errors.items()):

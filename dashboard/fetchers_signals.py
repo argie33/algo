@@ -341,10 +341,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
                 )
 
             # Other errors (database, validation, auth, etc): fail-fast
-            logger.error(
-                f"[SCORES] API error: {error_msg}. "
-                f"Check API and database connectivity."
-            )
+            logger.error(f"[SCORES] API error: {error_msg}. Check API and database connectivity.")
             record_data_quality_issue("scores", "api_call", "api_error", cast(str, error_msg))
             return FetcherValidator.build_error_response(cast(str, error_msg))
 
@@ -394,10 +391,14 @@ def fetch_scores(c: None) -> dict[str, Any]:
             universe_total = top_data["pagination"].get("total") if "total" in top_data["pagination"] else None
         elif "data" in top_data and isinstance(top_data["data"], dict):
             response_data_dict = top_data["data"]
-            universe_total = response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
+            universe_total = (
+                response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
+            )
         else:
             response_data_dict = top_data
-            universe_total = response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
+            universe_total = (
+                response_data_dict.get("universe_total") if "universe_total" in response_data_dict else None
+            )
         if universe_total is not None and not isinstance(universe_total, int):
             error_msg = f"Scores response 'universe_total' must be int, got {type(universe_total).__name__}"
             logger.error(error_msg)

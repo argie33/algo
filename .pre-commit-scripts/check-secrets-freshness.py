@@ -122,10 +122,20 @@ def check_secrets_freshness() -> tuple[bool, str]:
         # that would train whoever runs this to ignore its output, the same "cry wolf" alert-
         # fatigue pattern already fixed once this session for entry_handler's routine-trade logging.
         if name in [
-            "DB_NAME", "DB_USER", "AWS_ACCOUNT_ID", "API_GATEWAY_URL",
-            "AWS_REGION", "BILLING_EMAIL", "BILLING_MONTHLY_LIMIT", "BILLING_PHONE_NUMBER",
-            "DATA_PATROL_ENABLED", "DATA_PATROL_TIMEOUT_MS", "EXECUTION_MODE",
-            "NOTIFICATION_EMAIL", "ORCHESTRATOR_DRY_RUN", "ORCHESTRATOR_LOG_LEVEL",
+            "DB_NAME",
+            "DB_USER",
+            "AWS_ACCOUNT_ID",
+            "API_GATEWAY_URL",
+            "AWS_REGION",
+            "BILLING_EMAIL",
+            "BILLING_MONTHLY_LIMIT",
+            "BILLING_PHONE_NUMBER",
+            "DATA_PATROL_ENABLED",
+            "DATA_PATROL_TIMEOUT_MS",
+            "EXECUTION_MODE",
+            "NOTIFICATION_EMAIL",
+            "ORCHESTRATOR_DRY_RUN",
+            "ORCHESTRATOR_LOG_LEVEL",
         ]:
             continue
 

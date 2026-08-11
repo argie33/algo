@@ -465,8 +465,13 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         # Do NOT attempt direct render retry (would fail for same reason)
                         # Do NOT attempt error panel render (might also fail)
                         # FAIL-FAST: Log and exit, let operator know system requires manual intervention
-                        logger.critical(f"[CRITICAL] Dashboard render failed due to data integrity issue: {type(e).__name__}: {e}", exc_info=True)
-                        logger.critical("[CRITICAL] Recovery layer cannot fix this data. System requires manual intervention.")
+                        logger.critical(
+                            f"[CRITICAL] Dashboard render failed due to data integrity issue: {type(e).__name__}: {e}",
+                            exc_info=True,
+                        )
+                        logger.critical(
+                            "[CRITICAL] Recovery layer cannot fix this data. System requires manual intervention."
+                        )
                         logger.critical(f"Recovery status: {recovery.get_recovery_status()}")
                         # Stop rendering loop on critical failure
                         break
@@ -554,7 +559,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             # GOVERNANCE: Fail-fast on reload error. Never silently preserve stale data.
             # Stale portfolio data risks incorrect position sizing. Stale risk metrics risks uncontrolled exposure.
             # Mark data unavailable instead of showing potentially outdated state to user.
-            logger.error("Replacing stale cached state with explicit unavailability marker (GOVERNANCE: fail-fast on missing data)")
+            logger.error(
+                "Replacing stale cached state with explicit unavailability marker (GOVERNANCE: fail-fast on missing data)"
+            )
             state.result = {
                 "_data_unavailable": True,
                 "_dashboard_critical": True,

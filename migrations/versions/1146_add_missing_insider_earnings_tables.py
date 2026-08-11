@@ -108,6 +108,7 @@ def down() -> None:
 
 if __name__ == "__main__":
     import sys
+
     action = sys.argv[1] if len(sys.argv) > 1 else "upgrade"
     if action == "upgrade":
         up()

@@ -37,10 +37,12 @@ sys.path.insert(0, str(project_root))
 # Load Alpaca credentials from database (persistent storage, not files)
 try:
     from scripts.load_credentials import ensure_credentials_loaded
+
     ensure_credentials_loaded()
 except Exception as e:
     # Log but don't crash - credentials might come from environment
     import logging
+
     logging.getLogger(__name__).warning(f"[CREDS] Could not load credentials from database: {e}")
 
 # `lambda` is a Python reserved word, so `lambda.algo_orchestrator.lambda_function` can't be
@@ -172,6 +174,7 @@ def main() -> None:
     # Parse --date if provided (for testing historical/simulated runs)
     if args.date:
         from datetime import datetime as dt_cls
+
         try:
             test_date = dt_cls.strptime(args.date, "%Y-%m-%d").date()
             # Create a datetime at 12:00 PM ET on the specified date for run_id consistency
@@ -194,11 +197,15 @@ def main() -> None:
             prior_run = _find_todays_run(run_type, now.date())
             if prior_run is not None:
                 print(f"Skipping {run_type.upper()}: already ran today.")
-                print(f"  Prior run: {prior_run['run_id']} (status={prior_run['overall_status']}, "
-                      f"started {prior_run['started_at']})")
-                print("  Re-running the same trading day re-executes entry/exit/reconciliation "
-                      "against already-processed state and produces confusing duplicate-looking "
-                      "trades and oscillating portfolio snapshots. Pass --force to override.")
+                print(
+                    f"  Prior run: {prior_run['run_id']} (status={prior_run['overall_status']}, "
+                    f"started {prior_run['started_at']})"
+                )
+                print(
+                    "  Re-running the same trading day re-executes entry/exit/reconciliation "
+                    "against already-processed state and produces confusing duplicate-looking "
+                    "trades and oscillating portfolio snapshots. Pass --force to override."
+                )
                 continue
 
         print(f"Starting {run_type.upper()} orchestrator run...")
@@ -231,8 +238,11 @@ def main() -> None:
                 # real (paper) orders instead of monitor-only. FIXED: now dry_run=True is enforced.
                 # WARNING: If ORCHESTRATOR_DRY_RUN defeats the monitor-only guarantee, log it
                 if dry_run_override is not None and dry_run_override.lower() not in ("1", "true", "yes"):
-                    print(f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' would disable monitor-only "
-                          f"for --{run_type}, but safety override forces dry_run=True.", file=sys.stderr)
+                    print(
+                        f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' would disable monitor-only "
+                        f"for --{run_type}, but safety override forces dry_run=True.",
+                        file=sys.stderr,
+                    )
                 dry_run = True
             elif dry_run_override is not None:
                 # For LIVE_TRADING runs, respect explicit ORCHESTRATOR_DRY_RUN override
@@ -245,10 +255,12 @@ def main() -> None:
                     # with no other signal that this run type wasn't supposed to be dry-run.
                     # 2026-08-03: this happened repeatedly across a day's runs, discovered only
                     # by manually diffing orchestrator_execution_log after the fact.
-                    print(f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' is forcing "
-                          f"dry-run for --{run_type}, a live-trading run type. No real orders will "
-                          f"execute this run. Unset ORCHESTRATOR_DRY_RUN if this is unintended.",
-                          file=sys.stderr)
+                    print(
+                        f"  WARNING: ORCHESTRATOR_DRY_RUN env var '{dry_run_override}' is forcing "
+                        f"dry-run for --{run_type}, a live-trading run type. No real orders will "
+                        f"execute this run. Unset ORCHESTRATOR_DRY_RUN if this is unintended.",
+                        file=sys.stderr,
+                    )
             elif run_type in LIVE_TRADING_RUN_IDENTIFIERS:
                 dry_run = False
             else:

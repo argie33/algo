@@ -143,10 +143,12 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
         row_cells: list[str | Text] = []
         if show_company:
             row_cells.append(Text(str(rank), style="dim"))
-        row_cells.extend([
-            sym,
-            Text(company, style="dim"),
-        ])
+        row_cells.extend(
+            [
+                sym,
+                Text(company, style="dim"),
+            ]
+        )
 
         # TRANSPARENCY (2026-08-05): Show completeness indicator with score
         # Scores <70% complete are marked with ⚠ (less reliable due to missing metrics)
@@ -160,7 +162,9 @@ def _build_scores_table(top_scores: list[Any], limit: int = 15, show_company: bo
 
         row_cells.extend(
             [
-                Text.from_markup(comp_text) if comp_indicator else Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
+                Text.from_markup(comp_text)
+                if comp_indicator
+                else Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
                 _score_cell(mom),
                 _score_cell(qual),
                 _score_cell(val),
@@ -227,12 +231,14 @@ def _build_factor_top5_tables(top_scores: list[Any]) -> Layout:
                 Text(f"{score_val:.0f}" if score_val is not None else "--", style=_composite_score_color(score_val)),
             )
 
-        factor_panels.append(Panel(
-            t,
-            title=f"[bold dim]{factor_name}[/]",
-            border_style="dim",
-            padding=(0, 0),
-        ))
+        factor_panels.append(
+            Panel(
+                t,
+                title=f"[bold dim]{factor_name}[/]",
+                border_style="dim",
+                padding=(0, 0),
+            )
+        )
 
     # Arrange in 2 rows x 3 columns layout
     layout = Layout()

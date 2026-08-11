@@ -82,6 +82,7 @@ def get_loader_class_for_file(loader_filename: str):
 
         # Find any OptimalLoader subclass in the module (don't check table_name)
         from utils.optimal_loader import OptimalLoader
+
         for attr_name in dir(module):
             obj = getattr(module, attr_name)
             if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
@@ -136,6 +137,7 @@ def update_watermarks_to_today(loader_filename: str, table_names: list[str], sym
             (no --symbols/--limit restriction), so all active symbols are updated.
     """
     import psycopg2
+
     today_str = date.today().isoformat()
     map_loader_name = loader_filename.replace(".py", "")
 
@@ -171,7 +173,7 @@ def update_watermarks_to_today(loader_filename: str, table_names: list[str], sym
                         error_count = 0,
                         last_error = NULL
                     """,
-                    (map_loader_name, symbol, today_str, today_str)
+                    (map_loader_name, symbol, today_str, today_str),
                 )
 
             conn.commit()
@@ -206,18 +208,26 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
     logger.info(f"[LOADER] {table_name}: starting execution")
 
     # Special-case loaders with custom symbol selection logic
-    if table_name in ["stock_symbols", "etf_symbols", "market_health_daily", "market_exposure_daily", "market_sentiment", "sector_performance"]:
+    if table_name in [
+        "stock_symbols",
+        "etf_symbols",
+        "market_health_daily",
+        "market_exposure_daily",
+        "market_sentiment",
+        "sector_performance",
+    ]:
         # Global loaders (market-wide, not per-symbol)
         logger.info(f"[LOADER] {table_name}: using global mode (no per-symbol runs)")
         result = loader.load_global()
         # For global loaders, mark completion status (loader.load_global() doesn't update status)
         from utils.loaders.status_manager import LoaderStatusManager
+
         status_mgr = LoaderStatusManager(table_name)
         if result > 0:
             status_mgr.mark_completed(current_run_symbols_loaded=1, current_run_symbol_count=1)
             logger.info(f"[LOADER] {table_name}: marked as COMPLETED")
             # Also mark secondary tables if this loader has output_tables
-            if hasattr(loader, 'output_tables') and loader.output_tables:
+            if hasattr(loader, "output_tables") and loader.output_tables:
                 for secondary_table in loader.output_tables:
                     if secondary_table != table_name:
                         secondary_mgr = LoaderStatusManager(secondary_table)
@@ -227,31 +237,39 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
             status_mgr.mark_failed(error_message="Global loader returned 0 rows - no data produced", completion_pct=0.0)
             logger.info(f"[LOADER] {table_name}: marked as FAILED (no rows produced)")
             # Also mark secondary tables as failed
-            if hasattr(loader, 'output_tables') and loader.output_tables:
+            if hasattr(loader, "output_tables") and loader.output_tables:
                 for secondary_table in loader.output_tables:
                     if secondary_table != table_name:
                         secondary_mgr = LoaderStatusManager(secondary_table)
-                        secondary_mgr.mark_failed(error_message="Global loader returned 0 rows - no data produced", completion_pct=0.0)
+                        secondary_mgr.mark_failed(
+                            error_message="Global loader returned 0 rows - no data produced", completion_pct=0.0
+                        )
                         logger.info(f"[LOADER] {secondary_table}: marked as FAILED")
     elif table_name in ["trend_template_data"]:
         # Trend analysis has custom run() function in the module
         logger.info(f"[LOADER] {table_name}: using custom module run() function")
         from loaders.load_trend_analysis import run as run_trend
+
         result = run_trend()
     elif table_name in ["value_metrics", "quality_metrics", "growth_metrics"]:
         # Value/quality/growth: only load symbols with yfinance data (avoid NULL-filled rows)
         if not symbols:
             try:
                 import psycopg2
+
                 conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
                 cursor = conn.cursor()
-                cursor.execute("SELECT DISTINCT symbol FROM yfinance_snapshot WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL ORDER BY symbol")
+                cursor.execute(
+                    "SELECT DISTINCT symbol FROM yfinance_snapshot WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL ORDER BY symbol"
+                )
                 symbols = [row[0] for row in cursor.fetchall()]
                 cursor.close()
                 conn.close()
                 logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols with yfinance data")
             except Exception as e:
-                logger.warning(f"[LOADER] {table_name}: could not fetch yfinance symbols: {e}, using stock_symbols fallback")
+                logger.warning(
+                    f"[LOADER] {table_name}: could not fetch yfinance symbols: {e}, using stock_symbols fallback"
+                )
                 symbols = get_active_symbols(timeout_secs=60)
                 logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols from fallback")
 
@@ -274,6 +292,7 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
         since_date = None
         if backfill_days > 0:
             from datetime import date, timedelta
+
             since_date = date.today() - timedelta(days=backfill_days)
 
         result = loader.run(symbols=symbols, since_date=since_date)
@@ -322,15 +341,21 @@ def main():
 
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
-        "loader",
-        help="Loader file or shorthand name to run (e.g., 'prices', 'load_prices.py', 'technical_indicators')"
+        "loader", help="Loader file or shorthand name to run (e.g., 'prices', 'load_prices.py', 'technical_indicators')"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
-    parser.add_argument("--backfill", type=int, default=0, help="Days to backfill (default: 0 = load incremental data using watermarks)")
+    parser.add_argument(
+        "--backfill", type=int, default=0, help="Days to backfill (default: 0 = load incremental data using watermarks)"
+    )
     parser.add_argument("--limit", type=int, help="Limit for limited-dataset loaders")
-    parser.add_argument("--run-date", help="Run date (YYYY-MM-DD) for loader execution (default: today). Used by Phase 1 failsafe to set correct data expectations.")
+    parser.add_argument(
+        "--run-date",
+        help="Run date (YYYY-MM-DD) for loader execution (default: today). Used by Phase 1 failsafe to set correct data expectations.",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument("--force-refresh", action="store_true", help="Force refresh by bypassing watermarks and updating status")
+    parser.add_argument(
+        "--force-refresh", action="store_true", help="Force refresh by bypassing watermarks and updating status"
+    )
     parser.add_argument("--list-loaders", action="store_true", help="List all available loaders")
 
     # Handle --list-loaders before parsing args (easier)
@@ -361,6 +386,7 @@ def main():
 
         # Normalize loader name (supports shorthand, filename, with/without .py)
         from loaders.loader_registry import normalize_loader_name
+
         try:
             loader_filename = normalize_loader_name(loader_arg)
         except ValueError as e:
@@ -391,6 +417,7 @@ def main():
         # the canonical, tested LoaderStatusManager closes both gaps at once.
         if args.force_refresh:
             from utils.loaders.status_manager import LoaderStatusManager
+
             for table_name in table_names:
                 try:
                     LoaderStatusManager(table_name).mark_running()
@@ -411,11 +438,7 @@ def main():
 
         # Run the loader
         result = run_loader_generic(
-            loader_class,
-            loader_filename,
-            symbols=symbols,
-            backfill_days=args.backfill,
-            limit=args.limit
+            loader_class, loader_filename, symbols=symbols, backfill_days=args.backfill, limit=args.limit
         )
 
         logger.info(f"[LOADER] {loader_filename} completed: {result}")

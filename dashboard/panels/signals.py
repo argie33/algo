@@ -367,9 +367,7 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
         logger.debug("_build_buy_signals_table: buy_sigs is empty (no active signals)")
         return rows
 
-    rows.append(
-        Text.from_markup(f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(buy_sigs)} with price targets)[/]")
-    )
+    rows.append(Text.from_markup(f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(buy_sigs)} with price targets)[/]"))
     sig_table: Table = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
@@ -412,7 +410,9 @@ def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
         quality_c: str = _composite_score_color(quality_v) if quality_v is not None else "dim"
         rr_v: float | None = safe_float(rr_ratio)
         rr_c: str = (
-            G if rr_v is not None and rr_v > 1.5 else (Y if rr_v is not None and rr_v > 1 else (CY if rr_v is not None else DIM))
+            G
+            if rr_v is not None and rr_v > 1.5
+            else (Y if rr_v is not None and rr_v > 1 else (CY if rr_v is not None else DIM))
         )
 
         price_f: float | None = safe_float(price)
@@ -633,9 +633,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
             sector = (safe_get_field(bs, "sector", "") or "")[:16]
 
             quality_c = _composite_score_color(quality) if quality is not None else DIM
-            zone_s = (
-                f"${zone_start:.2f}-{zone_end:.2f}" if zone_start is not None and zone_end is not None else "--"
-            )
+            zone_s = f"${zone_start:.2f}-{zone_end:.2f}" if zone_start is not None and zone_end is not None else "--"
             setup_parts = [p for p in (base_type, market_stage.replace("Stage ", "S") if market_stage else None) if p]
             setup_s = " · ".join(setup_parts) if setup_parts else "--"
 
@@ -651,7 +649,9 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
                 Text(f"${t25:.2f}" if t25 is not None else "--", style=G),
                 Text(
                     f"{rsi_v:.0f}" if rsi_v is not None else "--",
-                    style=R if rsi_v is not None and rsi_v > 70 else (G if rsi_v is not None and rsi_v < 30 else "white"),
+                    style=R
+                    if rsi_v is not None and rsi_v > 70
+                    else (G if rsi_v is not None and rsi_v < 30 else "white"),
                 ),
                 Text(
                     f"{rs_v:.0f}" if rs_v is not None else "--",

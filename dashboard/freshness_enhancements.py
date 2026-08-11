@@ -103,9 +103,15 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     # always reporting quality_status="ok" for these tables regardless of actual data quality.
     critical_columns_map = {
         "price_daily": ["symbol", "date", "close", "volume"],
-        "stock_scores": ["symbol", "composite_score"],  # stock_scores has no date/signal_strength column (verified 2026-08-05)
+        "stock_scores": [
+            "symbol",
+            "composite_score",
+        ],  # stock_scores has no date/signal_strength column (verified 2026-08-05)
         "market_health_daily": ["date", "vix_level"],  # market_trend not market_regime (verified 2026-08-05)
-        "market_exposure_daily": ["date", "exposure_pct"],  # no tech_exposure/health_exposure columns (verified 2026-08-05)
+        "market_exposure_daily": [
+            "date",
+            "exposure_pct",
+        ],  # no tech_exposure/health_exposure columns (verified 2026-08-05)
         "technical_data_daily": ["symbol", "date", "rsi", "macd"],
         "trend_template_data": ["symbol", "date", "weinstein_stage"],
         "buy_sell_daily": ["symbol", "date", "signal", "strength"],
@@ -149,12 +155,15 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     sample_size = 200_000
     for col in critical_cols:
         try:
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN "{col}" IS NULL THEN 1 END) as null_count
                 FROM (SELECT "{col}" FROM "{table_name}" LIMIT %s) sample
-            """, (sample_size,))
+            """,
+                (sample_size,),
+            )
             result = cur.fetchone()
             if result:
                 total = result[0] or 0
@@ -176,14 +185,17 @@ def _run_data_quality_checks(table_name: str, cur: Any) -> tuple[list[str], str]
     # which is also what actually caps the scan (see Check 1's fix for why the old bare
     # LIMIT didn't bound anything).
     try:
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT COUNT(*) - COUNT(DISTINCT row_text) as duplicate_count
             FROM (
                 SELECT (t.*)::text as row_text
                 FROM "{table_name}" t
                 LIMIT %s
             ) sample
-        """, (sample_size,))
+        """,
+            (sample_size,),
+        )
         result = cur.fetchone()
         if result and result[0]:
             dup_count = result[0]
@@ -340,7 +352,9 @@ def _calculate_coverage(table_name: str, cur: Any) -> tuple[float | None, list[s
         # stock_scores holds one current row per symbol (no `date` column - see
         # information_schema.columns) rather than a daily snapshot history like price_daily/
         # technical_data_daily/buy_sell_daily, so "latest date" filtering doesn't apply there.
-        latest_date_filter = "" if table_name == "stock_scores" else f'WHERE date = (SELECT MAX(date) FROM "{table_name}")'
+        latest_date_filter = (
+            "" if table_name == "stock_scores" else f'WHERE date = (SELECT MAX(date) FROM "{table_name}")'
+        )
 
         # Get symbols in table for latest date
         cur.execute(f"""
@@ -437,13 +451,16 @@ def _analyze_failure_patterns(table_name: str, cur: Any) -> dict[str, Any]:
 
     try:
         # Get last 30 runs
-        cur.execute("""
+        cur.execute(
+            """
             SELECT status, execution_completed, execution_started
             FROM data_loader_status_history
             WHERE table_name = %s
             ORDER BY execution_completed DESC
             LIMIT 30
-        """, (table_name,))
+        """,
+            (table_name,),
+        )
 
         runs = cur.fetchall()
         if not runs:
@@ -571,13 +588,16 @@ def _check_row_count_stall(table_name: str, cur: Any) -> dict[str, Any]:
     result: dict[str, Any] = {"row_count_stalled": None, "row_count_stalled_since": None}
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT row_count, execution_completed
             FROM data_loader_status_history
             WHERE table_name = %s AND row_count IS NOT NULL
             ORDER BY execution_completed DESC
             LIMIT 5
-        """, (table_name,))
+        """,
+            (table_name,),
+        )
         runs = cur.fetchall()
         if len(runs) < 3:
             return result
@@ -602,7 +622,9 @@ def _check_row_count_stall(table_name: str, cur: Any) -> dict[str, Any]:
             # just a tight retry loop.
             if span_hours >= 24:
                 result["row_count_stalled"] = True
-                result["row_count_stalled_since"] = unchanged_run.isoformat() if hasattr(unchanged_run, "isoformat") else str(unchanged_run)
+                result["row_count_stalled_since"] = (
+                    unchanged_run.isoformat() if hasattr(unchanged_run, "isoformat") else str(unchanged_run)
+                )
 
     except Exception as e:
         _rollback_after_error(cur)
@@ -643,16 +665,22 @@ def enrich_health_item_with_api_diagnostics(health_item: dict[str, Any]) -> dict
 
     if http_status == 429:
         health_item["api_status"] = "rate_limited"
-        health_item["retry_strategy"] = "exponential backoff" + (f", {retry_count} retries so far" if retry_count else "")
+        health_item["retry_strategy"] = "exponential backoff" + (
+            f", {retry_count} retries so far" if retry_count else ""
+        )
     elif http_status in (401, 403):
         health_item["api_status"] = "auth_failed"
         health_item["retry_strategy"] = "credentials need rotation"
     elif http_status == 503:
         health_item["api_status"] = "service_down"
-        health_item["retry_strategy"] = "service unavailable" + (f", {retry_count} retries so far" if retry_count else "")
+        health_item["retry_strategy"] = "service unavailable" + (
+            f", {retry_count} retries so far" if retry_count else ""
+        )
     elif http_status is not None and http_status >= 400:
         health_item["api_status"] = "service_down"
-        health_item["retry_strategy"] = f"HTTP {http_status}" + (f", {retry_count} retries so far" if retry_count else "")
+        health_item["retry_strategy"] = f"HTTP {http_status}" + (
+            f", {retry_count} retries so far" if retry_count else ""
+        )
     # NOTE: rate_limit_quota (the display string, e.g. "98/100 calls used") has no production
     # callers populating it yet either - falls back to a category-only message below.
     elif "rate limit" in error_msg.lower() or "quota" in error_msg.lower():

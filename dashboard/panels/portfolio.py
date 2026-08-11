@@ -315,9 +315,7 @@ def panel_portfolio(
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
             # CRITICAL: Show beta value if positions exist (even if beta <= 0), show "--" only when no positions
             beta_display = f"{beta_v:.2f}" if has_positions else "--"
-            beta_c = (
-                "dim" if not has_positions else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
-            )
+            beta_c = "dim" if not has_positions else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
             tbl.add_row(
                 cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
                 cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),

@@ -117,8 +117,7 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
                                 "protection (could silently calculate 0 with None)"
                             ),
                             "fix": (
-                                "Add explicit None check before any arithmetic: "
-                                "if value is None: raise ValueError(...)"
+                                "Add explicit None check before any arithmetic: if value is None: raise ValueError(...)"
                             ),
                         }
                     )

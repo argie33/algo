@@ -309,11 +309,7 @@ def panel_completed_trades(trades: Any) -> Any:
         # placeholder unconditionally, so R here would render unavailable P&L identically
         # to a real loss.
         pc = DIM if pnl_for_color is None else (G if pnl_for_color > 0 else R)
-        si = (
-            f"[{DIM}]▪[/]"
-            if pnl_p is None
-            else (f"[{G}]▲[/]" if pnl_p > 0 else f"[{R}]▼[/]")
-        )
+        si = f"[{DIM}]▪[/]" if pnl_p is None else (f"[{G}]▲[/]" if pnl_p > 0 else f"[{R}]▼[/]")
         grade = _compute_trade_grade(rmul)
         grade_c = (
             G
@@ -536,11 +532,7 @@ def panel_trades_expanded(trades: Any) -> Any:
 
         # DIM (not R) when unavailable - see panel_completed_trades' identical fix above.
         pc = DIM if pnl_p is None else (G if pnl_p > 0 else R)
-        si = (
-            f"[{DIM}]▪[/]"
-            if pnl_p is None
-            else (f"[{G}]▲[/]" if pnl_p > 0 else f"[{R}]▼[/]")
-        )
+        si = f"[{DIM}]▪[/]" if pnl_p is None else (f"[{G}]▲[/]" if pnl_p > 0 else f"[{R}]▼[/]")
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
