@@ -74,6 +74,30 @@ if str(_project_root) not in sys.path:
 logger = logging.getLogger(__name__)
 
 
+def is_obviously_fake_alpaca_key(api_key: str) -> bool:
+    """Detect an obviously-fake/placeholder Alpaca API key ID, to fail fast at startup
+    instead of failing later (and confusingly) when Phase 8 tries to place a real order.
+
+    BUG FOUND 2026-08-11: the original inline check required an exact `len(api_key) == 20`,
+    but "PK0123456789ABCDEF" - the literal example this check's own comment names, and the
+    exact value seeded in this dev DB's algo_config.alpaca_api_key - is 18 characters, not
+    20. That length mismatch meant the documented example silently passed this guard and
+    only triggered a separate, non-blocking WARNING-level check elsewhere in this file -
+    defeating the stated "fail here at startup" purpose for the exact credential the check
+    was written to catch. A real Alpaca key ID is randomly generated, so instead of guessing
+    an exact length, detect the actual "obviously fake" signal: the characters after "PK"
+    being a strictly sequential 0-9/A-F run (i.e. any prefix of "0123456789ABCDEF" repeated)
+    - a pattern a random key would essentially never produce, at any length.
+    """
+    if not api_key or not api_key.startswith("PK"):
+        return False
+    suffix = api_key[2:].upper()
+    if len(suffix) < 8 or not suffix.isalnum():
+        return False
+    sequential_placeholder = "0123456789ABCDEF" * 4
+    return sequential_placeholder.startswith(suffix)
+
+
 def compute_run_mode_label(dry_run: bool, execution_mode: str, alpaca_paper_trading: bool) -> str:
     """Compute the run-mode label for the startup banner operators scan for real-money risk.
 
@@ -231,18 +255,22 @@ class Orchestrator:
                 )
         elif db_execution_mode:
             self.execution_mode = db_execution_mode
-            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}")
+            logger.info(
+                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using database config: {self.execution_mode}"
+            )
         else:
             # Only fallback to paper if database also doesn't have it set
             self.execution_mode = "paper"
-            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}")
+            logger.info(
+                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set and no database config, defaulting to: {self.execution_mode}"
+            )
 
         # CRITICAL: Validate execution_mode is one of the supported values
-        VALID_EXECUTION_MODES = {"paper", "dry", "review", "auto"}
-        if self.execution_mode not in VALID_EXECUTION_MODES:
+        valid_execution_modes = {"paper", "dry", "review", "auto"}
+        if self.execution_mode not in valid_execution_modes:
             raise ValueError(
                 f"[STARTUP CRITICAL] Invalid execution_mode: '{self.execution_mode}'. "
-                f"Must be one of: {', '.join(sorted(VALID_EXECUTION_MODES))}. "
+                f"Must be one of: {', '.join(sorted(valid_execution_modes))}. "
                 f"Note: 'live' is not supported; use 'auto' with alpaca_paper_trading=false for real-money trading. "
                 f"Check ORCHESTRATOR_EXECUTION_MODE env var and algo_config table."
             )
@@ -314,6 +342,7 @@ class Orchestrator:
 
         # 0. Validate OrchestratorConfig values (timeouts, thresholds, etc.)
         from algo.config.orchestrator_config import OrchestratorConfig
+
         is_valid, config_errors = OrchestratorConfig.validate()
         if not is_valid:
             error_msg = "\n  ".join(config_errors)
@@ -461,9 +490,12 @@ class Orchestrator:
                 # CRITICAL FIX: Reject obviously test/fake credentials
                 # Test credentials like "PK0123456789ABCDEF" or "test_*" will fail at runtime
                 # Fail here at startup with clear message instead of later during trading
-                if api_key.startswith("PK") and len(api_key) == 20 and api_key[2:].isalnum():
+                # See is_obviously_fake_alpaca_key()'s docstring (module level, above) for why
+                # this uses a sequential-placeholder pattern check rather than an exact length.
+                if is_obviously_fake_alpaca_key(api_key):
                     raise RuntimeError(
-                        "[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca credentials (starts with PK followed by hex). "
+                        "[STARTUP] CRITICAL: Detected TEST/FAKE Alpaca credentials (starts with PK followed by a "
+                        "sequential hex placeholder). "
                         "Cannot trade with test credentials in 'auto' mode. "
                         "This indicates the system is using database fallback credentials instead of real ones. "
                         "REQUIRED: Set real APCA_API_KEY_ID and APCA_API_SECRET_KEY in environment or AWS Secrets Manager. "
@@ -927,7 +959,9 @@ class Orchestrator:
 
                         incomplete_loaders = cur.fetchall()
                         if not incomplete_loaders:
-                            logger.info("[PROACTIVE WAIT] All critical loaders are at 90%+ completion (target threshold)")
+                            logger.info(
+                                "[PROACTIVE WAIT] All critical loaders are at 90%+ completion (target threshold)"
+                            )
                             return True
 
                         # Still running - log progress and wait
@@ -1290,7 +1324,9 @@ class Orchestrator:
                 )
                 return False
 
-            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist [OK] - {', '.join(found_tables[:3])}...")
+            logger.info(
+                f"[TABLE-CHECK] All {len(required_tables)} required tables exist [OK] - {', '.join(found_tables[:3])}..."
+            )
             return True
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1390,7 +1426,9 @@ class Orchestrator:
                         halt_reason or "",
                     ),
                 )
-            logger.debug(f"[EXECUTION_LOG] Wrote to algo_orchestrator_runs: run_id={self.run_id} status={overall_status}")
+            logger.debug(
+                f"[EXECUTION_LOG] Wrote to algo_orchestrator_runs: run_id={self.run_id} status={overall_status}"
+            )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[EXECUTION_LOG] Could not write to algo_orchestrator_runs: {e}")
 
@@ -1960,7 +1998,9 @@ class Orchestrator:
         try:
             exposure_constraints = executor.get_phase_data_required(5, "constraints")
         except Exception as phase5_data_err:
-            logger.debug(f"[PHASE 8] Could not get Phase 5 constraints from executor for parameter fallback: {phase5_data_err}")
+            logger.debug(
+                f"[PHASE 8] Could not get Phase 5 constraints from executor for parameter fallback: {phase5_data_err}"
+            )
             exposure_constraints = None
 
         result = run_phase8(
@@ -2080,9 +2120,11 @@ class Orchestrator:
         # ALLOW_OUTSIDE_MARKET_HOURS=true still bypasses for explicit automated testing.
         from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
 
-        allow_outside_hours = os.environ.get('ALLOW_OUTSIDE_MARKET_HOURS', 'false').lower() == 'true'
+        allow_outside_hours = os.environ.get("ALLOW_OUTSIDE_MARKET_HOURS", "false").lower() == "true"
         now_et = datetime.now(EASTERN_TZ).time()
-        logger.info(f"[MARKET_HOURS_GUARD] Checking: allow_outside_hours={allow_outside_hours}, now_et={now_et}, market_open={MARKET_OPEN_TIME}, market_close={MARKET_CLOSE_TIME}")
+        logger.info(
+            f"[MARKET_HOURS_GUARD] Checking: allow_outside_hours={allow_outside_hours}, now_et={now_et}, market_open={MARKET_OPEN_TIME}, market_close={MARKET_CLOSE_TIME}"
+        )
 
         # Market hours enforced for ALL runs (dry_run or not), UNLESS explicitly allowed
         if not allow_outside_hours and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
@@ -2229,12 +2271,14 @@ class Orchestrator:
             from utils.db.local_file_lock import get_lock_manager
 
             lock_manager = get_lock_manager()
-            if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+            if lock_manager and hasattr(lock_manager, "cleanup_expired_locks"):
                 # max_age_seconds=600 deletes locks created 10+ minutes ago
                 # This catches crashed loader processes much faster than waiting for TTL expiry
                 cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=600)
                 if cleaned > 0:
-                    logger.warning(f"[LOCK_CLEANUP] Removed {cleaned} stale lock(s) from crashed loaders (older than 600s)")
+                    logger.warning(
+                        f"[LOCK_CLEANUP] Removed {cleaned} stale lock(s) from crashed loaders (older than 600s)"
+                    )
         except Exception as cleanup_err:
             logger.warning(f"[LOCK_CLEANUP] Failed to cleanup stale locks: {cleanup_err}. Proceeding anyway.")
 
@@ -2436,9 +2480,7 @@ class Orchestrator:
             # visible.
             logger.critical(f"[ORCHESTRATOR CRASH] Unhandled exception during run: {type(e).__name__}: {e}")
             try:
-                self.execution_tracker.save_execution_log(
-                    "error", f"Orchestrator crashed: {type(e).__name__}: {e}"
-                )
+                self.execution_tracker.save_execution_log("error", f"Orchestrator crashed: {type(e).__name__}: {e}")
             except Exception as log_err:
                 logger.error(f"[ORCHESTRATOR CRASH] Could not save crash to execution log: {log_err}")
             raise
@@ -2522,7 +2564,11 @@ class Orchestrator:
             )
         elif any_degraded:
             skip_reason = next(
-                (p["summary"] for p in self.phase_results.values() if p["status"] in ("degraded", "completed_degraded")),
+                (
+                    p["summary"]
+                    for p in self.phase_results.values()
+                    if p["status"] in ("degraded", "completed_degraded")
+                ),
                 "phase_degraded",
             )
         elif any_skipped:
@@ -2559,7 +2605,11 @@ class Orchestrator:
             elif any_degraded:
                 overall_status = "degraded"
                 halt_reason = next(
-                    (p["summary"] for p in self.phase_results.values() if p["status"] in ("degraded", "completed_degraded")),
+                    (
+                        p["summary"]
+                        for p in self.phase_results.values()
+                        if p["status"] in ("degraded", "completed_degraded")
+                    ),
                     "Degraded - reason unknown",
                 )
             elif any_blocked:
@@ -2666,7 +2716,6 @@ class Orchestrator:
                 logger.warning(f"[EXECUTION_LOG] Failed to save orchestrator run status: {e}")
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
-
 
         # Publish CloudWatch metrics (non-blocking - never let metrics interrupt trading)
         try:

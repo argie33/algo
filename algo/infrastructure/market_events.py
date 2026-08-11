@@ -60,7 +60,12 @@ class MarketEventHandler:
         # In paper mode: skip market circuit breaker checks (local simulation, no need for Alpaca API).
         # Halt detection is still needed if positions are ever opened, but market circuit breaker
         # checks are not critical for paper mode (trades are simulated locally, not submitted to broker).
-        if execution_mode == "paper":
+        # BUG FOUND 2026-08-11: "dry" mode is equally a no-real-broker local mode (same
+        # allowlist distinction already fixed in executor.py's credential-fetch handling and
+        # phase2_circuit_breakers.py's leniency check) - a bare `== "paper"` here missed it, so
+        # dry mode fell through to requiring real Alpaca credentials below, the same class of
+        # crash-on-init bug already fixed for TradeExecutor.
+        if execution_mode in ("paper", "dry"):
             self.alpaca_key = None
             self.alpaca_secret = None
             self.alpaca_base_url = None

@@ -1096,7 +1096,14 @@ class DailyReconciliation:
                 # CRITICAL FIX: In paper mode, ALWAYS compute cash as portfolio_value - position_value
                 # Alpaca returns cash = $100k (initial capital) but doesn't update it as positions change
                 # Real remaining cash = portfolio - positions
-                if execution_mode == "paper":
+                # BUG FOUND 2026-08-11: follow-up to this same session's fix a few lines up (the
+                # cash-is-None check now also exempts "dry" mode from the fatal halt) - but
+                # without also exempting it HERE, a None cash in dry mode fell through to the
+                # `else` branch below and called Decimal(str(None)), crashing with
+                # decimal.InvalidOperation instead of computing cash the same way paper mode
+                # does. "dry" is equally a no-real-broker local mode (same allowlist distinction
+                # as executor.py's credential-fetch handling).
+                if execution_mode in ("paper", "dry"):
                     # Paper mode: Compute actual remaining cash from portfolio and positions
                     # pv is a float (from the broker adapter's JSON response); total_position_value
                     # is a Decimal (from PositionAnalyzer, for precision) - must align types before subtracting.
