@@ -226,6 +226,7 @@ class EntryHandler:
         # handler tried to use it, causing a NameError. Initializing here ensures it's
         # always defined for use in idempotency key and error handling.
         import uuid
+
         position_id = None
 
         # Check for idempotent duplicate (same symbol + signal_date = same signal, should not re-enter)
@@ -243,7 +244,7 @@ class EntryHandler:
             if idem_result and "error" in idem_result:
                 return {
                     "success": False,
-                    "trade_id": idem_result.get("existing_trade_id", ""),
+                    "trade_id": idem_result["existing_trade_id"],
                     "status": "duplicate_signal",
                     "message": idem_result["error"],
                     "duplicate": True,
@@ -257,6 +258,7 @@ class EntryHandler:
         import hashlib
 
         from utils.db.context import DatabaseContext
+
         logger.info(f"[POSITION DEDUP] {symbol}: Checking for existing position created today (open or closed)...")
         try:
             with DatabaseContext("read") as read_cursor:
@@ -273,7 +275,9 @@ class EntryHandler:
                 existing_pos = read_cursor.fetchone()
                 if existing_pos:
                     position_id, existing_status = existing_pos
-                    logger.info(f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})")
+                    logger.info(
+                        f"[POSITION REUSE] {symbol}: Reusing existing position {position_id} (status={existing_status})"
+                    )
                 else:
                     logger.debug(f"[POSITION DEDUP] {symbol}: No existing position found, will create new")
         except Exception as e:
@@ -353,8 +357,19 @@ class EntryHandler:
 
             # See executor.py::_validate_entry_conditions for why this must come from
             # error_details rather than a hardcoded 0 - it's the actual computed value
-            # max_reentries_per_name needs to ever fire past the first re-entry.
-            reentry_count = error_details.get("reentry_count", 0) if error_details else 0
+            # max_reentries_per_name needs to ever fire past the first re-entry. On the
+            # is_valid=True path _validate_entry_conditions always returns
+            # {"reentry_count": ...} (never None, never missing the key) - fail loudly if
+            # that contract is ever violated instead of silently defaulting to 0, which
+            # would quietly neuter max_reentries_per_name exactly like the bug this
+            # replaced.
+            if error_details is None or "reentry_count" not in error_details:
+                raise RuntimeError(
+                    f"CRITICAL: _validate_entry_phase returned is_valid=True for {symbol} without "
+                    f"'reentry_count' in error_details ({error_details!r}). This should be impossible - "
+                    f"see executor.py::_validate_entry_conditions."
+                )
+            reentry_count = error_details["reentry_count"]
 
             # Generate trade ID and prepare for submission
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
@@ -654,16 +669,19 @@ class EntryHandler:
                     request.position_id,
                 ),
             )
-            logger.info(f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id} status={request.order_status} position_id={request.position_id}")
+            logger.info(
+                f"[TRADE INSERT] {request.symbol}: SUCCEEDED with trade_id={request.trade_id} status={request.order_status} position_id={request.position_id}"
+            )
 
             # CRITICAL VALIDATION: Verify that open trades NEVER have exit_price set
             # If exit_price is set for an open trade, it indicates a bug in entry logic or data corruption
-            cur.execute(
-                "SELECT exit_price FROM algo_trades WHERE trade_id = %s",
-                (request.trade_id,)
-            )
+            cur.execute("SELECT exit_price FROM algo_trades WHERE trade_id = %s", (request.trade_id,))
             verify_row = cur.fetchone()
-            if verify_row and verify_row[0] is not None and request.order_status in ('open', 'paper_pending', 'pending', 'filled', 'partially_filled'):
+            if (
+                verify_row
+                and verify_row[0] is not None
+                and request.order_status in ("open", "paper_pending", "pending", "filled", "partially_filled")
+            ):
                 logger.critical(
                     f"[TRADE INSERT VALIDATION CRITICAL] {request.symbol}: Trade {request.trade_id} has "
                     f"status='{request.order_status}' but exit_price={verify_row[0]} (should be NULL for open trades). "
@@ -757,8 +775,7 @@ class EntryHandler:
                     )
                 except NotificationError as e:
                     logger.error(
-                        f"[TCA] Failed to send TCA slippage alert for {symbol} trade {trade_id} "
-                        f"(non-blocking): {e}"
+                        f"[TCA] Failed to send TCA slippage alert for {symbol} trade {trade_id} (non-blocking): {e}"
                     )
         except Exception as e:
             logger.error(
@@ -885,12 +902,8 @@ class EntryHandler:
                         order_send_time,
                     )
 
-                has_stop_loss = any(
-                    leg.get("order_type") == "stop" for leg in legs if isinstance(leg, dict)
-                )
-                has_take_profit = any(
-                    leg.get("order_type") == "limit" for leg in legs if isinstance(leg, dict)
-                )
+                has_stop_loss = any(leg.get("order_type") == "stop" for leg in legs if isinstance(leg, dict))
+                has_take_profit = any(leg.get("order_type") == "limit" for leg in legs if isinstance(leg, dict))
 
                 if not has_stop_loss or not has_take_profit:
                     try:
@@ -925,10 +938,41 @@ class EntryHandler:
             )
             if not fill_ok:
                 # Order did not fill - do NOT write to DB
+                #
+                # BUG FOUND 2026-08-11: the "Check for order rejection/cancellation" block that
+                # used to follow this one (removed here) checked `order_status`, which is set
+                # once from _submit_and_validate_order's IMMEDIATE POST response (above, before
+                # the fill-wait) and never reassigned - by construction it can only be
+                # "new"/"accepted"/"pending_new" at this point (anything Alpaca rejects outright
+                # at POST time already returns order_ok=False and never reaches here). So
+                # `order_status in ("rejected", "cancelled", "expired")` was structurally
+                # unreachable dead code: this `if not fill_ok:` branch is the ONLY path that
+                # actually observes a mid-wait rejection/cancellation/expiry (via
+                # wait_for_order_fill's own status polling), and it only logged
+                # logger.critical() - never called the GOVERNANCE-mandated notify() alert the
+                # dead code below it was supposed to send. A real live order rejected/cancelled/
+                # expired during the up-to-30s fill-wait window (a real scenario - e.g. Alpaca
+                # accepts then later rejects for insufficient buying power) reached the operator
+                # only as a log line, never an actual alert. Moved the notify() call here, the
+                # one path that's actually reachable.
                 logger.critical(
                     f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: Order failed to fill: {fill_error}. "
                     f"Will NOT create trade record (position does not exist at broker)."
                 )
+                try:
+                    # strict=True: without it, notify() never raises NotificationError at
+                    # all, making the except clause below dead code - see notify()'s docstring.
+                    notify(
+                        "critical",
+                        title=f"Order fill failed: {symbol}",
+                        message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} - {fill_error}",
+                        strict=True,
+                    )
+                except NotificationError as e:
+                    raise RuntimeError(
+                        f"CRITICAL: Failed to send fill-failure alert for {symbol} ({fill_error}): {e}. "
+                        f"Trader was NOT notified that the order failed to fill."
+                    ) from e
                 try:
                     self.context._cancel_bracket_orders(alpaca_order_id)
                 except (
@@ -945,35 +989,11 @@ class EntryHandler:
                 executed_price = Decimal(str(confirmed_fill_price))
                 logger.info(f"[ENTRY_HANDLER] {symbol}: Order confirmed filled @ ${executed_price}")
 
-            # Check for order rejection/cancellation
-            if order_status in ("rejected", "cancelled", "expired"):
-                try:
-                    # strict=True: without it, notify() never raises NotificationError at
-                    # all, making the except clause below dead code - see notify()'s docstring.
-                    notify(
-                        "critical",
-                        title=f"Order {order_status.upper()}: {symbol}",
-                        message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f}",
-                        strict=True,
-                    )
-                except NotificationError as e:
-                    raise RuntimeError(
-                        f"CRITICAL: Failed to send rejection alert for {symbol} (order {order_status}): {e}. "
-                        f"Trader was NOT notified that order was {order_status}."
-                    ) from e
-                return (
-                    False,
-                    f"Alpaca {order_status} order: {symbol}",
-                    order_status,
-                    "",
-                    None,
-                    rejection_reason,
-                    order_send_time,
-                )
-
         return True, "", order_status, alpaca_order_id, executed_price, rejection_reason, order_send_time
 
-    def _record_entry_phase(
+    def _record_entry_phase(  # noqa: C901 -- pre-existing complexity (position dedup/reopen/
+        # append-trade branching); revisit as a follow-up refactor rather than folding into
+        # this fill-failure-alert fix.
         self,
         cur: PsycopgCursor[Any],
         trade_id: str,
@@ -1238,14 +1258,13 @@ class EntryHandler:
                 if existing_position:
                     # Position exists - fetch current status to determine if reopening or adding
                     cur.execute(
-                        "SELECT trade_ids_arr, status FROM algo_positions WHERE position_id = %s",
-                        (position_id,)
+                        "SELECT trade_ids_arr, status FROM algo_positions WHERE position_id = %s", (position_id,)
                     )
                     fetch_result = cur.fetchone()
                     existing_trades_result = fetch_result
                     existing_status = fetch_result[1] if fetch_result and len(fetch_result) > 1 else None
 
-                    is_reopening_closed_position = existing_status == 'closed'
+                    is_reopening_closed_position = existing_status == "closed"
                     if is_reopening_closed_position:
                         logger.warning(
                             f"[POSITION REOPEN] {symbol}: Reopening CLOSED position "
@@ -1260,12 +1279,14 @@ class EntryHandler:
                         )
 
                     # Fetch existing trade_ids_arr to append new trade_id
-                    existing_trades_arr = existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
+                    existing_trades_arr = (
+                        existing_trades_result[0] if existing_trades_result and existing_trades_result[0] else []
+                    )
                     # Append new trade_id if not already present
                     updated_trades_arr = list(existing_trades_arr) if existing_trades_arr else []
                     if trade_id not in updated_trades_arr:
                         updated_trades_arr.append(trade_id)
-                    trade_ids_text = ','.join(updated_trades_arr) if updated_trades_arr else None
+                    trade_ids_text = ",".join(updated_trades_arr) if updated_trades_arr else None
 
                     if is_reopening_closed_position:
                         # Reopening closed position: reset current_stop_price to new stop_loss_price
@@ -1283,17 +1304,28 @@ class EntryHandler:
                             WHERE position_id = %s
                             """,
                             (
-                                actual_shares, executed_price, executed_price,
-                                executed_price, position_value,
-                                0, 0,
-                                position_status, entry_date, trade_ids_text,
-                                updated_trades_arr, stop_loss_price, stop_loss_price,
-                                target_1_price, target_2_price, target_3_price,
+                                actual_shares,
+                                executed_price,
+                                executed_price,
+                                executed_price,
+                                position_value,
+                                0,
+                                0,
+                                position_status,
+                                entry_date,
+                                trade_ids_text,
+                                updated_trades_arr,
+                                stop_loss_price,
+                                stop_loss_price,
+                                target_1_price,
+                                target_2_price,
+                                target_3_price,
                                 self.t1_target_r_multiple if target_1_price else None,
                                 self.t2_target_r_multiple if target_2_price else None,
                                 self.t3_target_r_multiple if target_3_price else None,
-                                r_multiple, risk_pct,
-                                position_id
+                                r_multiple,
+                                risk_pct,
+                                position_id,
                             ),
                         )
                     else:
@@ -1312,17 +1344,27 @@ class EntryHandler:
                             WHERE position_id = %s
                             """,
                             (
-                                actual_shares, executed_price, executed_price,
-                                executed_price, position_value,
-                                0, 0,
-                                position_status, entry_date, trade_ids_text,
-                                updated_trades_arr, stop_loss_price,
-                                target_1_price, target_2_price, target_3_price,
+                                actual_shares,
+                                executed_price,
+                                executed_price,
+                                executed_price,
+                                position_value,
+                                0,
+                                0,
+                                position_status,
+                                entry_date,
+                                trade_ids_text,
+                                updated_trades_arr,
+                                stop_loss_price,
+                                target_1_price,
+                                target_2_price,
+                                target_3_price,
                                 self.t1_target_r_multiple if target_1_price else None,
                                 self.t2_target_r_multiple if target_2_price else None,
                                 self.t3_target_r_multiple if target_3_price else None,
-                                r_multiple, risk_pct,
-                                position_id
+                                r_multiple,
+                                risk_pct,
+                                position_id,
                             ),
                         )
                     logger.info(
@@ -1401,7 +1443,7 @@ class EntryHandler:
                     f"{type(pos_err).__name__}: {pos_err} "
                     f"(position_id={position_id}, trade_id={trade_id}). "
                     f"Transaction will rollback - trade {trade_id} WILL NOT PERSIST",
-                    exc_info=True
+                    exc_info=True,
                 )
                 raise
 
