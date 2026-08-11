@@ -301,7 +301,11 @@ def run_pipeline(pipeline_name: str) -> int:
         "institutional": 15 * 60,  # 15 min - SEC Schedule 13G parsing
         "insider_holdings": 15 * 60,  # 15 min - SEC Form 4/5 parsing
         "short_interest": 10 * 60,  # 10 min - FINRA data
-        "insider_velocity": 15 * 60,  # 15 min - SEC Form 3/4/5 transaction analysis
+        # BUG FOUND 2026-08-11: 15 min was too short. Load_insider_transaction_velocity uses
+        # CachedForm345Aggregator with 1080s timeout (18 min) for bulk SEC Form 3/4/5 download.
+        # The scheduler was killing the process at 900s before it completed, causing every run
+        # to timeout. Bumped to 25 min to provide real margin for the download + symbol processing.
+        "insider_velocity": 25 * 60,  # 25 min - SEC Form 3/4/5 12-quarter bulk download (1080s aggregator timeout)
         # Earnings calendar & SEC data
         # VERIFIED 2026-08-10: live full-universe run measured 521.7s (~8.7 min, 4917/4917,
         # 0 failures) against the previous 20 min budget - comfortably within it. The 2
@@ -309,7 +313,10 @@ def run_pipeline(pipeline_name: str) -> int:
         # systemic undersized-budget bug like the other loaders in this dict), but bumped
         # to 30 min anyway for margin against normal yfinance latency variance.
         "earnings_calendar": 30 * 60,  # 30 min - yfinance earnings_dates window (measured ~9 min typical)
-        "earnings_sec": 15 * 60,  # 15 min - SEC filing date extraction
+        # BUG FOUND 2026-08-11: 15 min was too short. SEC EDGAR submissions API with rate
+        # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
+        # plus retry overhead and DB writes). Bumped to 60 min for real margin.
+        "earnings_sec": 60 * 60,  # 60 min - SEC EDGAR submissions filing date extraction (rate-limited API)
         "sec_reports": 10 * 60,  # 10 min - 8-K report scanning
         "segment_info": 15 * 60,  # 15 min - segment data extraction
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
