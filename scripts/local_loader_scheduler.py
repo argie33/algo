@@ -44,8 +44,7 @@ def _mark_loader_failed_after_crash(loader_filename: str, error_message: str) ->
             LoaderStatusManager(table).mark_failed(error_message)
     except Exception as mark_err:
         print(
-            f"[LOCAL_SCHEDULER] WARNING: could not mark {loader_filename} tables FAILED "
-            f"after crash: {mark_err}",
+            f"[LOCAL_SCHEDULER] WARNING: could not mark {loader_filename} tables FAILED after crash: {mark_err}",
             file=sys.stderr,
         )
 
@@ -56,8 +55,8 @@ PIPELINES = {
         "technical",
         "market_status",
         "earnings_calendar",  # FIXED 2026-08-05: Minervini/Weinstein earnings blackout window (Phase 3)
-        "trend_analysis",     # FIXED 2026-08-05: Setup/teardown detection for signal quality (Phase 7)
-        "sector_industry",    # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
+        "trend_analysis",  # FIXED 2026-08-05: Setup/teardown detection for signal quality (Phase 7)
+        "sector_industry",  # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
     ],
     "metrics": [
         # RE-ENABLED 2026-08-09: financial_statements with optimized per-symbol timeouts
@@ -207,21 +206,21 @@ def run_pipeline(pipeline_name: str) -> int:
     # Prevents hangs when loaders block on lock acquisition from crashed previous runs.
     # Timeout must exceed: lock acquisition retry budget (5-50 min) + actual loader runtime (10-30 min)
     # Set conservatively: price_daily can take 60+ min on large universe, so budget 90 min
-    LOADER_TIMEOUTS = {
+    LOADER_TIMEOUTS = {  # noqa: N806
         # Core pricing & market data (heaviest workloads)
-        "prices": 90 * 60,                       # 90 min - slowest (5000+ symbols @ ~1s each)
-        "technical": 30 * 60,                    # 30 min - vectorized in-database computation
-        "constituents": 10 * 60,                 # 10 min - light (static symbol list)
-        "economic": 10 * 60,                     # 10 min - light (FRED + DXY index)
+        "prices": 90 * 60,  # 90 min - slowest (5000+ symbols @ ~1s each)
+        "technical": 30 * 60,  # 30 min - vectorized in-database computation
+        "constituents": 10 * 60,  # 10 min - light (static symbol list)
+        "economic": 10 * 60,  # 10 min - light (FRED + DXY index)
         # Market status & sentiment (fast API calls)
-        "market_status": 15 * 60,                # 15 min - 3 tables (health/exposure/sentiment)
-        "naaim": 10 * 60,                        # 10 min - published weekly
-        "aaii": 10 * 60,                         # 10 min - published weekly
+        "market_status": 15 * 60,  # 15 min - 3 tables (health/exposure/sentiment)
+        "naaim": 10 * 60,  # 10 min - published weekly
+        "aaii": 10 * 60,  # 10 min - published weekly
         # Technical analysis
-        "trend_analysis": 15 * 60,               # 15 min - template pattern matching
-        "momentum": 30 * 60,                     # 30 min - risk metrics (momentum + stability)
-        "stability_metrics": 30 * 60,            # 30 min - alias for momentum
-        "valuations": 20 * 60,                   # 20 min - SEC API calls
+        "trend_analysis": 15 * 60,  # 15 min - template pattern matching
+        "momentum": 30 * 60,  # 30 min - risk metrics (momentum + stability)
+        "stability_metrics": 30 * 60,  # 30 min - alias for momentum
+        "valuations": 20 * 60,  # 20 min - SEC API calls
         # SEC/Financial data (batch API calls)
         # BUG FOUND 2026-08-10: 30 min was never enough for a genuine full-universe local
         # reload - live-reproduced twice this session, each run making comparable, real
@@ -236,10 +235,11 @@ def run_pipeline(pipeline_name: str) -> int:
         # (matches the ~3.5h whole-pipeline figure in memory, of which this loader is the
         # largest chunk), consistent with how "prices" already budgets 90 min for a
         # comparably-sized universe.
-        "financial_statements": 150 * 60,        # 150 min - SEC EDGAR batch queries (5500+ symbols, 6 statement/period combos each)
-        "sec_valuations": 30 * 60,               # 30 min - valuation computation from SEC data
+        "financial_statements": 150
+        * 60,  # 150 min - SEC EDGAR batch queries (5500+ symbols, 6 statement/period combos each)
+        "sec_valuations": 30 * 60,  # 30 min - valuation computation from SEC data
         # Fundamental metrics (API-heavy)
-        "value_quality_growth": 40 * 60,         # 40 min - multi-source aggregation
+        "value_quality_growth": 40 * 60,  # 40 min - multi-source aggregation
         # BUG FOUND 2026-08-10: 25 min was calibrated before a same-day fix
         # (loader_audit_and_fixes_20260810 memory) added a 0.3s inter-symbol pacing delay
         # plus longer yfinance retry/backoff (max_retries=4, backoff=3.0s) to survive
@@ -250,12 +250,29 @@ def run_pipeline(pipeline_name: str) -> int:
         # with value_quality_growth (which runs first and completes cleanly), calls its own
         # mark_running() on them at its own start, and a timeout here left them stuck
         # RUNNING despite value_quality_growth's real, fresh, healthy data underneath.
-        "enhanced_quality_growth": 150 * 60,     # 150 min - earnings surprise calcs w/ yfinance throttle pacing
-        "analyst_earnings_estimates": 20 * 60,   # 20 min - yfinance per-symbol calls
-        "analyst_sentiment": 20 * 60,            # 20 min - yfinance analyst data
-        "analyst_upgrades": 20 * 60,             # 20 min - yfinance recommendation data
+        # BUG FOUND 2026-08-10 (~23:00): the 150 min budget above was already flagged as
+        # possibly-optimistic (see enhanced_quality_growth_150min_cold_run_verification_
+        # still_open_20260810 memory - it traced back to a single contended 904-symbol/1500s
+        # sample). Got a second, larger real data point same day: a live run processed 1718
+        # unique symbols in 52.17 min (20:36:00-21:28:10, from
+        # .algo/logs/recovery_metrics_20260810_cont.log's [ENHANCED_METRICS] lines) before
+        # being torn down by the harness's own background-task duration cap (not a loader
+        # bug - see background_bash_task_duration_cap_kills_long_loader_runs_20260810 memory).
+        # Extrapolated to the ~4917-symbol universe: 4917/(1718/52.17) ~= 149.3 min - right at
+        # the existing budget's edge, ~1 min of margin. Both measurements were taken under
+        # heavy concurrent-session contention (not a clean isolated sample per
+        # feedback_local_throughput_measurements_skewed_by_concurrent_sessions), so neither is
+        # authoritative, but two independent contended samples landing in the same
+        # near-the-edge range is enough signal to not leave this at effectively zero margin.
+        # Bumped for real headroom, same reasoning already applied to financial_statements/
+        # company_info above - a bigger ceiling costs nothing on a run that finishes early.
+        "enhanced_quality_growth": 200
+        * 60,  # 200 min - earnings surprise calcs w/ yfinance throttle pacing (was 150 min, too little margin - see comment above)
+        "analyst_earnings_estimates": 20 * 60,  # 20 min - yfinance per-symbol calls
+        "analyst_sentiment": 20 * 60,  # 20 min - yfinance analyst data
+        "analyst_upgrades": 20 * 60,  # 20 min - yfinance recommendation data
         # Sector/industry
-        "sector_industry": 15 * 60,              # 15 min - daily aggregation (3 output tables)
+        "sector_industry": 15 * 60,  # 15 min - daily aggregation (3 output tables)
         # Company information (SEC API calls)
         # BUG FOUND 2026-08-10 (systematic follow-up on
         # local_scheduler_second_wave_orphaned_loaders_20260810's flagged-but-deferred item):
@@ -270,32 +287,32 @@ def run_pipeline(pipeline_name: str) -> int:
         # backoff overhead from occasional 429/503 responses easily pushes a full run past an
         # hour). Bumped to 120 min for real margin, matching how financial_statements
         # (150 min) was already sized for its own well-diagnosed real-world runtime.
-        "company_info": 120 * 60,                # 120 min - SEC EDGAR lookups, ~4900 symbols @ 2 req/sec floor
-        "profile": 10 * 60,                      # 10 min - uses cached company_info
-        "dividends": 15 * 60,                    # 15 min - yfinance dividend data
+        "company_info": 120 * 60,  # 120 min - SEC EDGAR lookups, ~4900 symbols @ 2 req/sec floor
+        "profile": 10 * 60,  # 10 min - uses cached company_info
+        "dividends": 15 * 60,  # 15 min - yfinance dividend data
         # Holdings & positioning
-        "positioning": 30 * 60,                  # 30 min - multi-source aggregation
-        "positioning_metrics": 30 * 60,          # 30 min - alias for positioning loader
-        "institutional": 15 * 60,                # 15 min - SEC Schedule 13G parsing
-        "insider_holdings": 15 * 60,             # 15 min - SEC Form 4/5 parsing
-        "short_interest": 10 * 60,               # 10 min - FINRA data
-        "insider_velocity": 15 * 60,             # 15 min - SEC Form 3/4/5 transaction analysis
+        "positioning": 30 * 60,  # 30 min - multi-source aggregation
+        "positioning_metrics": 30 * 60,  # 30 min - alias for positioning loader
+        "institutional": 15 * 60,  # 15 min - SEC Schedule 13G parsing
+        "insider_holdings": 15 * 60,  # 15 min - SEC Form 4/5 parsing
+        "short_interest": 10 * 60,  # 10 min - FINRA data
+        "insider_velocity": 15 * 60,  # 15 min - SEC Form 3/4/5 transaction analysis
         # Earnings calendar & SEC data
         # VERIFIED 2026-08-10: live full-universe run measured 521.7s (~8.7 min, 4917/4917,
         # 0 failures) against the previous 20 min budget - comfortably within it. The 2
         # consecutive real failures logged earlier the same day were transient (not a
         # systemic undersized-budget bug like the other loaders in this dict), but bumped
         # to 30 min anyway for margin against normal yfinance latency variance.
-        "earnings_calendar": 30 * 60,            # 30 min - yfinance earnings_dates window (measured ~9 min typical)
-        "earnings_sec": 15 * 60,                 # 15 min - SEC filing date extraction
-        "sec_reports": 10 * 60,                  # 10 min - 8-K report scanning
-        "segment_info": 15 * 60,                 # 15 min - segment data extraction
-        "segment_metrics": 15 * 60,              # 15 min - segment aggregation
+        "earnings_calendar": 30 * 60,  # 30 min - yfinance earnings_dates window (measured ~9 min typical)
+        "earnings_sec": 15 * 60,  # 15 min - SEC filing date extraction
+        "sec_reports": 10 * 60,  # 10 min - 8-K report scanning
+        "segment_info": 15 * 60,  # 15 min - segment data extraction
+        "segment_metrics": 15 * 60,  # 15 min - segment aggregation
         # Trading signals
-        "scores": 25 * 60,                       # 25 min - scoring algorithm
-        "signal_quality": 15 * 60,               # 15 min - signal quality metrics
-        "algo": 20 * 60,                         # 20 min - algo-specific metrics
-        "buy_sell": 15 * 60,                     # 15 min - buy/sell signal generation
+        "scores": 25 * 60,  # 25 min - scoring algorithm
+        "signal_quality": 15 * 60,  # 15 min - signal quality metrics
+        "algo": 20 * 60,  # 20 min - algo-specific metrics
+        "buy_sell": 15 * 60,  # 15 min - buy/sell signal generation
     }
 
     # BUG FOUND 2026-08-10 (live-reproduced): a single loader failure used to abort the
@@ -390,9 +407,7 @@ def run_pipeline(pipeline_name: str) -> int:
                 f"continuing with remaining independent loaders",
                 file=sys.stderr,
             )
-            _mark_loader_failed_after_crash(
-                loader_filename, f"local_loader_scheduler: timed out after {timeout}s"
-            )
+            _mark_loader_failed_after_crash(loader_filename, f"local_loader_scheduler: timed out after {timeout}s")
             any_failed = True
             continue
 

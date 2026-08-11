@@ -87,11 +87,22 @@ MAX_ABSOLUTE_DOLLAR_VALUE = 1_000_000_000_000.0  # $1 trillion - no real company
 # doesn't have), then mirrored into growth_dict in fetch_incremental - see that call site for
 # why quality_metrics and growth_metrics each carry their own copy of the same 11 values.
 _SHARED_TREND_FIELDS = (
-    "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
-    "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
-    "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
-    "consecutive_positive_quarters", "earnings_growth_4q_avg", "eps_growth_stability",
-    "earnings_surprise_avg", "earnings_beat_rate",
+    "net_income_growth_yoy",
+    "operating_income_growth_yoy",
+    "gross_margin_trend",
+    "operating_margin_trend",
+    "net_margin_trend",
+    "roe_trend",
+    "sustainable_growth_rate",
+    "quarterly_growth_momentum",
+    "fcf_growth_yoy",
+    "ocf_growth_yoy",
+    "asset_growth_yoy",
+    "consecutive_positive_quarters",
+    "earnings_growth_4q_avg",
+    "eps_growth_stability",
+    "earnings_surprise_avg",
+    "earnings_beat_rate",
 )
 
 
@@ -119,7 +130,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
     exclude_etfs_from_symbols = True
 
-    def run(self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None) -> dict[str, Any]:  # type: ignore[override]  # noqa: C901
+    def run(  # noqa: C901
+        self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None
+    ) -> dict[str, Any]:
         """Override run() to write to 3 tables instead of 1.
 
         backfill_days: accepted for interface parity with runner.py's generic --backfill-days/
@@ -289,13 +302,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.info(f"[VALUE_QUALITY_GROWTH VERIFIED] {table}: {today_count} rows with today's date")
 
             # Mark all 3 tables as ok via LoaderStatusManager (uses advisory locks)
+            # BUG FOUND 2026-08-10: actual_latest_date used to be computed here but never
+            # passed to mark_completed() below - data_loader_status.latest_date silently
+            # never refreshed for any of these 3 tables. Also, since it was a bare loop
+            # variable (not captured per-table), even wiring it up naively would have used
+            # whichever table's date was queried LAST for all 3 mark_completed() calls.
+            # Captured into a per-table dict instead, same pattern as per_table_counts below.
+            latest_dates: dict[str, Any] = {}
             with DatabaseContext("write") as cur:
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     # Query the actual MAX(date) from each table
                     safe_table = assert_safe_table(table)
                     cur.execute(f"SELECT MAX(updated_at)::date FROM {safe_table}")
                     result = cur.fetchone()
-                    actual_latest_date = result[0] if result and result[0] else None
+                    latest_dates[table] = result[0] if result and result[0] else None
 
             execution_duration = time.time() - start_time
             # FIXED 2026-08-10: this used to unconditionally write symbols_loaded=len(symbols)/
@@ -336,6 +356,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     execution_duration_sec=execution_duration,
                     symbols_failed=table_failed,
                     min_completion_pct=min_completion_pct,
+                    latest_date=latest_dates.get(table),
                 )
 
             logger.info(
@@ -382,7 +403,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 manager.mark_failed(error_msg)
             raise
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:  # type: ignore[override]
+    def fetch_incremental(
+        self, symbol: str, since: date | None
+    ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
         """Fetch all metrics from SEC financial statements + sec_valuations for one symbol.
 
         Returns: List with single tuple of (value_dict, quality_dict, growth_dict)
@@ -487,7 +510,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                                     THEN 0 ELSE 1 END), abs.fiscal_year DESC
                     LIMIT 1
                     """,
-                    (symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, symbol, MAX_FISCAL_YEAR_AGE_YEARS),
+                    (
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        symbol,
+                        MAX_FISCAL_YEAR_AGE_YEARS,
+                    ),
                 )
                 quality_row_db = cur.fetchone()
 
@@ -589,7 +626,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
             ]
 
-    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
+    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:  # noqa: C901
         """Build value_metrics from SEC valuations (yfinance-free, Session 271).
 
         All metrics from SEC-audited data. Dividend yield added 2026-07-20 (migration
@@ -748,8 +785,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # mislabeled "missing_sec_data" instead of "non_dividend_paying_stock".
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
-                    (symbol,)
+                    "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1", (symbol,)
                 )
                 has_dividend_history = cur.fetchone() is not None
 
@@ -783,7 +819,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             latest_eps = eps_row[0] if eps_row else None
             pe_ratio_reason = "unprofitable_stock" if latest_eps is not None and latest_eps <= 0 else "missing_sec_data"
 
-        peg_ratio_reason = pe_ratio_reason if peg is None and pe is None else ("missing_sec_data" if peg is None else None)
+        peg_ratio_reason = (
+            pe_ratio_reason if peg is None and pe is None else ("missing_sec_data" if peg is None else None)
+        )
 
         # Track which fields are unavailable (Session 389)
         # Session 346+: Mark data source as "mixed" if any field came from yfinance fallback
@@ -851,7 +889,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             logger.debug(f"[{symbol}] Failed to fetch analyst forward EPS: {type(e).__name__}")
         return None
 
-    def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:
+    def _compute_quarterly_metrics(self, symbol: str) -> dict[str, Any]:  # noqa: C901
         """Compute quarterly metrics: consecutive_positive_quarters, earnings_growth_4q_avg, quarterly_growth_momentum, eps_growth_stability, earnings_surprise_avg, earnings_beat_rate."""
         metrics: dict[str, Any] = {}
         try:
@@ -871,8 +909,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if len(quarters) < 4:
                 # Not enough quarterly data - set unavailable reasons for metrics that depend on quarters
                 for field in [
-                    "consecutive_positive_quarters", "quarterly_growth_momentum",
-                    "earnings_growth_4q_avg", "eps_growth_stability",
+                    "consecutive_positive_quarters",
+                    "quarterly_growth_momentum",
+                    "earnings_growth_4q_avg",
+                    "eps_growth_stability",
                 ]:
                     metrics[f"{field}_unavailable_reason"] = "insufficient_quarterly_history"
                 return metrics
@@ -1039,9 +1079,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
             )
-            pretax_income = self._nan_to_none(
-                safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True)
-            )
+            pretax_income = self._nan_to_none(safe_float(quality_row[23], f"{symbol}.pretax_income", allow_none=True))
             # FIXED 2026-08-03: quality_row above is ONE joined (balance_sheet, income_statement,
             # cash_flow) row for a SINGLE fiscal_year, chosen to prioritize free_cash_flow
             # availability (see the ORDER BY above) - a live audit found interest_expense
@@ -1104,14 +1142,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         safe_float(fallback_ie_row[0], f"{symbol}.interest_expense_fallback_year", allow_none=True)
                     )
                     interest_coverage_operating_income = self._nan_to_none(
-                        safe_float(
-                            fallback_ie_row[1], f"{symbol}.operating_income_fallback_year", allow_none=True
-                        )
+                        safe_float(fallback_ie_row[1], f"{symbol}.operating_income_fallback_year", allow_none=True)
                     )
                     interest_coverage_pretax_income = self._nan_to_none(
-                        safe_float(
-                            fallback_ie_row[2], f"{symbol}.pretax_income_fallback_year", allow_none=True
-                        )
+                        safe_float(fallback_ie_row[2], f"{symbol}.pretax_income_fallback_year", allow_none=True)
                     )
 
             if interest_coverage_operating_income is None and interest_coverage_pretax_income is not None:
@@ -1336,11 +1370,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # no interest_expense column until migration 1145. Only computed when
             # interest_expense > 0 (zero debt service is a real "not applicable" case, not
             # an infinite/undefined ratio to fake a max score for).
-            if (
-                interest_expense is not None
-                and interest_expense > 0
-                and interest_coverage_operating_income is not None
-            ):
+            if interest_expense is not None and interest_expense > 0 and interest_coverage_operating_income is not None:
                 computed_interest_coverage = interest_coverage_operating_income / interest_expense
                 # FIXED 2026-08-09: the ratio numerically explodes whenever
                 # interest_expense is negligibly small relative to the business -
@@ -1786,12 +1816,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # same |ratio| <= 1000 bound used for the base margin fields to each side of the
             # subtraction first - a trend computed from two implausible margins is itself
             # meaningless, not just its difference.
-            MAX_MARGIN_ABS_PCT = 1000.0
+            MAX_MARGIN_ABS_PCT = 1000.0  # noqa: N806
             if revenue is not None and prior_year_revenue is not None and revenue > 0 and prior_year_revenue > 0:
                 # Gross Margin Trend - now can compute with prior-year cost_of_revenue
                 if cost_of_revenue is not None and prior_year_cost_of_revenue is not None:
                     curr_gm = ((revenue - cost_of_revenue) / revenue) * 100 if revenue > 0 else None
-                    prior_gm = ((prior_year_revenue - prior_year_cost_of_revenue) / prior_year_revenue) * 100 if prior_year_revenue > 0 else None
+                    prior_gm = (
+                        ((prior_year_revenue - prior_year_cost_of_revenue) / prior_year_revenue) * 100
+                        if prior_year_revenue > 0
+                        else None
+                    )
                     if (
                         curr_gm is not None
                         and prior_gm is not None
@@ -1845,7 +1879,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # blocked SGR NULLs are confirmed non-payers via that same marker.
             sgr_reason = None
             sgr_dividends_paid = dividends_paid
-            if sgr_dividends_paid is None and stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
+            if (
+                sgr_dividends_paid is None
+                and stockholders_equity is not None
+                and net_income is not None
+                and stockholders_equity > 0
+            ):
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT 1 FROM dividend_data WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1",
@@ -1860,7 +1899,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             if stockholders_equity is not None and net_income is not None and stockholders_equity > 0:
                 if sgr_dividends_paid is not None and net_income != 0:
                     # Actual retention ratio = (earnings - dividends) / earnings
-                    roe_pct = (net_income / stockholders_equity)
+                    roe_pct = net_income / stockholders_equity
                     retention_ratio = 1.0 - (sgr_dividends_paid / abs(net_income)) if net_income != 0 else 0.0
                     try:
                         sgr = round(roe_pct * retention_ratio * 100, 2)
@@ -1884,8 +1923,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # prior-year equity base (the ORKA 8.3M% case this function's docstring already
             # describes) must be caught before the subtraction, not just via the looser
             # trend-level MAX_TREND_PERCENTAGE_POINTS check on the delta.
-            if (stockholders_equity is not None and net_income is not None and stockholders_equity > 0 and
-                prior_year_stockholders_equity is not None and prior_year_net_income is not None and prior_year_stockholders_equity > 0):
+            if (
+                stockholders_equity is not None
+                and net_income is not None
+                and stockholders_equity > 0
+                and prior_year_stockholders_equity is not None
+                and prior_year_net_income is not None
+                and prior_year_stockholders_equity > 0
+            ):
                 curr_roe = (net_income / stockholders_equity) * 100
                 prior_roe = (prior_year_net_income / prior_year_stockholders_equity) * 100
                 if abs(curr_roe) <= MAX_MARGIN_ABS_PCT and abs(prior_roe) <= MAX_MARGIN_ABS_PCT:
@@ -1908,9 +1953,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     pass
 
             # OCF Growth YoY - only if actual prior OCF available
-            if operating_cash_flow is not None and prior_year_operating_cash_flow is not None and prior_year_operating_cash_flow != 0:
+            if (
+                operating_cash_flow is not None
+                and prior_year_operating_cash_flow is not None
+                and prior_year_operating_cash_flow != 0
+            ):
                 try:
-                    ocf_growth = ((operating_cash_flow - prior_year_operating_cash_flow) / abs(prior_year_operating_cash_flow)) * 100
+                    ocf_growth = (
+                        (operating_cash_flow - prior_year_operating_cash_flow) / abs(prior_year_operating_cash_flow)
+                    ) * 100
                     if abs(ocf_growth) < MAX_TREND_PERCENTAGE_POINTS:
                         metrics["ocf_growth_yoy"] = float(round(ocf_growth, 2))
                 except (ValueError, TypeError, ZeroDivisionError):
@@ -1938,9 +1989,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # "insufficient_prior_year_data" reason already wired into the frontend's
             # reasonMap/tooltips for exactly this situation.
             for _trend_field in (
-                "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
-                "operating_margin_trend", "net_margin_trend", "roe_trend",
-                "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+                "net_income_growth_yoy",
+                "operating_income_growth_yoy",
+                "gross_margin_trend",
+                "operating_margin_trend",
+                "net_margin_trend",
+                "roe_trend",
+                "fcf_growth_yoy",
+                "ocf_growth_yoy",
+                "asset_growth_yoy",
             ):
                 if metrics.get(_trend_field) is None:
                     metrics[f"{_trend_field}_unavailable_reason"] = "insufficient_prior_year_data"
@@ -1951,12 +2008,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Initialize missing trend fields as None
             for field in [
-                "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
-                "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
-                "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
-                "earnings_surprise_avg", "eps_growth_stability", "earnings_beat_rate",
-                "consecutive_positive_quarters", "estimate_revision_direction", "revision_activity_30d",
-                "estimate_momentum_60d", "estimate_momentum_90d", "revision_trend_score", "earnings_growth_4q_avg"
+                "net_income_growth_yoy",
+                "operating_income_growth_yoy",
+                "gross_margin_trend",
+                "operating_margin_trend",
+                "net_margin_trend",
+                "roe_trend",
+                "sustainable_growth_rate",
+                "quarterly_growth_momentum",
+                "fcf_growth_yoy",
+                "ocf_growth_yoy",
+                "asset_growth_yoy",
+                "earnings_surprise_avg",
+                "eps_growth_stability",
+                "earnings_beat_rate",
+                "consecutive_positive_quarters",
+                "estimate_revision_direction",
+                "revision_activity_30d",
+                "estimate_momentum_60d",
+                "estimate_momentum_90d",
+                "revision_trend_score",
+                "earnings_growth_4q_avg",
             ]:
                 if field not in metrics:
                     metrics[field] = None
@@ -1979,9 +2051,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # computation above), so "insufficient_prior_year_data" was always a factually
             # wrong label for it. It gets its own explicit sgr_reason instead.
             for field in (
-                "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
-                "operating_margin_trend", "net_margin_trend", "roe_trend",
-                "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+                "net_income_growth_yoy",
+                "operating_income_growth_yoy",
+                "gross_margin_trend",
+                "operating_margin_trend",
+                "net_margin_trend",
+                "roe_trend",
+                "fcf_growth_yoy",
+                "ocf_growth_yoy",
+                "asset_growth_yoy",
             ):
                 if metrics.get(field) is None:
                     metrics[f"{field}_unavailable_reason"] = "insufficient_prior_year_data"
@@ -2079,8 +2157,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "missing_sec_data" if "debt_to_assets" in failed_metrics else None
             )
             # Phase 3 Expansion (Session 357+): New metrics - initialize their _unavailable_reason fields
-            metrics["gross_margin_unavailable_reason"] = "missing_sec_data" if "gross_margin" in failed_metrics else None
-            metrics["ebitda_margin_unavailable_reason"] = "missing_sec_data" if "ebitda_margin" in failed_metrics else None
+            metrics["gross_margin_unavailable_reason"] = (
+                "missing_sec_data" if "gross_margin" in failed_metrics else None
+            )
+            metrics["ebitda_margin_unavailable_reason"] = (
+                "missing_sec_data" if "ebitda_margin" in failed_metrics else None
+            )
             metrics["roic_pct_unavailable_reason"] = "missing_sec_data" if "roic_pct" in failed_metrics else None
             metrics["fcf_to_net_income_unavailable_reason"] = (
                 "missing_sec_data" if "fcf_to_net_income" in failed_metrics else None
@@ -2089,13 +2171,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "missing_sec_data" if "ocf_to_net_income" in failed_metrics else None
             )
             metrics["payout_ratio_unavailable_reason"] = payout_ratio_reason
-            metrics["free_cash_flow_unavailable_reason"] = "missing_sec_data" if "free_cash_flow" in failed_metrics else None
+            metrics["free_cash_flow_unavailable_reason"] = (
+                "missing_sec_data" if "free_cash_flow" in failed_metrics else None
+            )
             metrics["operating_cash_flow_unavailable_reason"] = (
                 "missing_sec_data" if "operating_cash_flow" in failed_metrics else None
             )
             metrics["total_debt_unavailable_reason"] = "missing_sec_data" if "total_debt" in failed_metrics else None
             metrics["total_cash_unavailable_reason"] = "missing_sec_data" if "total_cash" in failed_metrics else None
-            metrics["cash_per_share_unavailable_reason"] = "missing_sec_data" if "cash_per_share" in failed_metrics else None
+            metrics["cash_per_share_unavailable_reason"] = (
+                "missing_sec_data" if "cash_per_share" in failed_metrics else None
+            )
             metrics["ebitda_unavailable_reason"] = "missing_sec_data" if "ebitda" in failed_metrics else None
             metrics["earnings_growth_yoy_unavailable_reason"] = (
                 "missing_sec_data" if "earnings_growth_yoy" in failed_metrics else None
@@ -2115,9 +2201,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "consecutive_positive_quarters_unavailable_reason"
             ):
                 metrics["consecutive_positive_quarters_unavailable_reason"] = "insufficient_quarterly_data"
-            if metrics.get("earnings_growth_4q_avg") is None and not metrics.get("earnings_growth_4q_avg_unavailable_reason"):
+            if metrics.get("earnings_growth_4q_avg") is None and not metrics.get(
+                "earnings_growth_4q_avg_unavailable_reason"
+            ):
                 metrics["earnings_growth_4q_avg_unavailable_reason"] = "insufficient_quarterly_data"
-            if metrics.get("eps_growth_stability") is None and not metrics.get("eps_growth_stability_unavailable_reason"):
+            if metrics.get("eps_growth_stability") is None and not metrics.get(
+                "eps_growth_stability_unavailable_reason"
+            ):
                 metrics["eps_growth_stability_unavailable_reason"] = "insufficient_quarterly_data"
             if metrics.get("quarterly_growth_momentum") is None and not metrics.get(
                 "quarterly_growth_momentum_unavailable_reason"
@@ -2127,19 +2217,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Analyst metrics - not yet implemented. Guard all fields to avoid clobbering prior reasons.
             # _compute_quarterly_metrics() sets "insufficient_quarterly_history" for quarterly fields;
             # we must not override with "no_analyst_estimates" if that was already set.
-            if metrics.get("earnings_surprise_avg") is None and not metrics.get("earnings_surprise_avg_unavailable_reason"):
+            if metrics.get("earnings_surprise_avg") is None and not metrics.get(
+                "earnings_surprise_avg_unavailable_reason"
+            ):
                 metrics["earnings_surprise_avg_unavailable_reason"] = "no_analyst_estimates"
             if metrics.get("earnings_beat_rate") is None and not metrics.get("earnings_beat_rate_unavailable_reason"):
                 metrics["earnings_beat_rate_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("estimate_revision_direction") is None and not metrics.get("estimate_revision_direction_unavailable_reason"):
+            if metrics.get("estimate_revision_direction") is None and not metrics.get(
+                "estimate_revision_direction_unavailable_reason"
+            ):
                 metrics["estimate_revision_direction_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("revision_activity_30d") is None and not metrics.get("revision_activity_30d_unavailable_reason"):
+            if metrics.get("revision_activity_30d") is None and not metrics.get(
+                "revision_activity_30d_unavailable_reason"
+            ):
                 metrics["revision_activity_30d_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("estimate_momentum_60d") is None and not metrics.get("estimate_momentum_60d_unavailable_reason"):
+            if metrics.get("estimate_momentum_60d") is None and not metrics.get(
+                "estimate_momentum_60d_unavailable_reason"
+            ):
                 metrics["estimate_momentum_60d_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("estimate_momentum_90d") is None and not metrics.get("estimate_momentum_90d_unavailable_reason"):
+            if metrics.get("estimate_momentum_90d") is None and not metrics.get(
+                "estimate_momentum_90d_unavailable_reason"
+            ):
                 metrics["estimate_momentum_90d_unavailable_reason"] = "no_analyst_estimates"
-            if metrics.get("revision_trend_score") is None and not metrics.get("revision_trend_score_unavailable_reason"):
+            if metrics.get("revision_trend_score") is None and not metrics.get(
+                "revision_trend_score_unavailable_reason"
+            ):
                 metrics["revision_trend_score_unavailable_reason"] = "no_analyst_estimates"
 
             metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed
@@ -2309,9 +2411,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         # has access to balance sheet data. Initializing them here prevents database errors
         # from missing column values in the growth_metrics INSERT.
         for field in [
-            "net_income_growth_yoy", "operating_income_growth_yoy", "gross_margin_trend",
-            "operating_margin_trend", "net_margin_trend", "roe_trend", "sustainable_growth_rate",
-            "quarterly_growth_momentum", "fcf_growth_yoy", "ocf_growth_yoy", "asset_growth_yoy",
+            "net_income_growth_yoy",
+            "operating_income_growth_yoy",
+            "gross_margin_trend",
+            "operating_margin_trend",
+            "net_margin_trend",
+            "roe_trend",
+            "sustainable_growth_rate",
+            "quarterly_growth_momentum",
+            "fcf_growth_yoy",
+            "ocf_growth_yoy",
+            "asset_growth_yoy",
         ]:
             if field not in metrics:
                 metrics[field] = None
