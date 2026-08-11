@@ -163,6 +163,8 @@ DASHBOARD_ENDPOINTS = {
                 "new_highs_count",
                 "new_lows_count",
                 "put_call_ratio",
+                "put_call_ratio_stale_value",
+                "put_call_ratio_stale_date",
                 "breadth_momentum_10d",
                 "yield_curve_slope",
                 "fed_rate_environment",

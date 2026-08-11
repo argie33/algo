@@ -1440,6 +1440,30 @@ def _get_market(cur: cursor) -> Any:
         ycs_val = market_health.get("yield_curve_slope")
         spy_chg_val = market_health.get("spy_change_pct")
 
+        # When today's put/call ratio genuinely has no fresh value (common pre-market: SPY
+        # options open interest is a lagging figure and often reads 0 before the session
+        # gets going), surface the last day it WAS available instead of leaving the dashboard
+        # with nothing to show at all. Same lookback pattern already used for the same column
+        # in algo/risk/market_factor_calculator.py - only ever reads a row explicitly NOT
+        # flagged unavailable, so a failed-fetch value that was never cleared from the column
+        # can't leak through as if it were real (that's the specific bug this pattern guards
+        # against, per the comment on put_call_ratio_data_unavailable below). Does not change
+        # put_call_ratio/put_call_ratio_data_unavailable themselves - those keep truthfully
+        # reporting "no fresh value today" so any consumer trusting that flag is unaffected.
+        pcr_stale_val = None
+        pcr_stale_date = None
+        if pcr_val is None:
+            cur.execute("""
+                SELECT date, put_call_ratio FROM market_health_daily
+                WHERE put_call_ratio IS NOT NULL AND put_call_ratio_data_unavailable IS NOT TRUE
+                ORDER BY date DESC LIMIT 1
+            """)
+            stale_row = cur.fetchone()
+            if stale_row:
+                stale_row = safe_dict_convert(stale_row)
+                pcr_stale_val = stale_row.get("put_call_ratio")
+                pcr_stale_date = stale_row.get("date")
+
         # Convert to appropriate types, allowing None for optional/enrichment fields
         # Include data_unavailable markers so frontend knows which fields are truly unavailable
         data = {
@@ -1462,6 +1486,8 @@ def _get_market(cur: cursor) -> Any:
             # can diverge, and the same re-derive-from-NULL anti-pattern already caused a real
             # stale-value bug elsewhere in this codebase (see algo/risk/market_factor_calculator.py).
             "put_call_ratio_data_unavailable": market_health["put_call_ratio_data_unavailable"],
+            "put_call_ratio_stale_value": float(pcr_stale_val) if pcr_stale_val is not None else None,
+            "put_call_ratio_stale_date": str(pcr_stale_date) if pcr_stale_date is not None else None,
             "put_call_ratio_unavailable_reason": (
                 market_health.get("put_call_ratio_unavailable_reason")
                 if market_health["put_call_ratio_data_unavailable"]

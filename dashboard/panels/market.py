@@ -93,8 +93,7 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
     # safe_get_list returns either list or unavailability marker dict
     if isinstance(halts, dict) and halts.get("data_unavailable"):
         raise RuntimeError(
-            f"{panel_name}: halts data unavailable (reason: {halts.get('reason', 'unknown')}). "
-            f"Raw value: {halts_raw}"
+            f"{panel_name}: halts data unavailable (reason: {halts.get('reason', 'unknown')}). Raw value: {halts_raw}"
         )
     if not isinstance(halts, list):
         logger.error(
@@ -184,6 +183,11 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     nh = safe_int(mkt.get("nh"), field_name="nh", strict=True) if mkt.get("nh") is not None else None
     nl = safe_int(mkt.get("nl"), field_name="nl", strict=True) if mkt.get("nl") is not None else None
     pcr = safe_float(mkt.get("pcr"), field_name="pcr", strict=True) if mkt.get("pcr") is not None else None
+    pcr_stale = (
+        safe_float(mkt.get("pcr_stale"), field_name="pcr_stale", strict=True)
+        if pcr is None and mkt.get("pcr_stale") is not None
+        else None
+    )
     bmom = safe_float(mkt.get("bmom"), field_name="bmom", strict=True) if mkt.get("bmom") is not None else None
     fed = mkt.get("fed")
     # Exposure data may not be available in some market regimes (optional)
@@ -244,6 +248,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     bmom_pcr = []
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+    elif pcr_stale is not None:
+        bmom_pcr.append(f"[dim]Put/Call:[/][dim]~{pcr_stale:.3f} ({mkt.get('pcr_stale_date', '?')})[/]")
     else:
         logger.debug(
             "[MARKET_PANEL] Put/call ratio not available - optional enrichment incomplete (reason: %s)",
@@ -378,8 +384,17 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     nhnl_s = f"{sign(nhnl)}{nhnl}" if nhnl is not None else "--"
     bmc = DIM if bmom is None else (G if bmom >= 0.5 else (Y if bmom >= 0 else R))
     bmom_s = f"{bmom:.3f}" if bmom is not None else "--"
+    pcr_stale = (
+        safe_float(mkt.get("pcr_stale"), field_name="pcr_stale", strict=True)
+        if pcr is None and mkt.get("pcr_stale") is not None
+        else None
+    )
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
-    pcr_s = f"{pcr:.3f}" if pcr is not None else "⚠ N/A"
+    pcr_s = (
+        f"{pcr:.3f}"
+        if pcr is not None
+        else (f"~{pcr_stale:.3f} ({mkt.get('pcr_stale_date', '?')})" if pcr_stale is not None else "⚠ N/A")
+    )
 
     grid = Table.grid(padding=(0, 4), expand=True)
     grid.add_column("left", ratio=1)
@@ -546,6 +561,11 @@ def panel_header_market(  # noqa: C901
                 )
             )
         pcr = safe_float(mkt.get("pcr"), field_name="pcr") if mkt.get("pcr") is not None else None
+        pcr_stale = (
+            safe_float(mkt.get("pcr_stale"), field_name="pcr_stale")
+            if pcr is None and mkt.get("pcr_stale") is not None
+            else None
+        )
         bmom = safe_float(mkt.get("bmom"), field_name="bmom") if mkt.get("bmom") is not None else None
         ycs = safe_float(mkt.get("ycs"), field_name="ycs") if mkt.get("ycs") is not None else None
         fed = mkt.get("fed")
@@ -554,6 +574,8 @@ def panel_header_market(  # noqa: C901
         if pcr is not None:
             pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
             parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
+        elif pcr_stale is not None:
+            parts4.append(f"[dim]Put/Call:[/][dim]~{pcr_stale:.3f} ({mkt.get('pcr_stale_date', '?')})[/]")
         else:
             logger.debug(
                 "[MARKET_HEADER] Put/Call ratio not available - optional enrichment missing (reason: %s)",

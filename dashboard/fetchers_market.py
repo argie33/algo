@@ -127,7 +127,9 @@ def fetch_market(c: None) -> dict[str, Any]:
                     f"Fix upstream - do not work around at dashboard layer. VIX={vix_raw}"
                 )
                 logger.error(error_msg)
-                record_data_quality_issue("market", "critical_field", "invalid_vix_data_corruption", f"is_list:{len(vix_raw)}")
+                record_data_quality_issue(
+                    "market", "critical_field", "invalid_vix_data_corruption", f"is_list:{len(vix_raw)}"
+                )
                 return FetcherValidator.build_error_response(error_msg)
 
             vix = float(vix_raw)
@@ -316,6 +318,19 @@ def fetch_market(c: None) -> dict[str, Any]:
             pcr_reason = market_health.get("put_call_ratio_unavailable_reason")
             if pcr_reason:
                 result["pcr_unavailable_reason"] = pcr_reason
+            # No fresh value today (common pre-market) - fall back to the last day a real
+            # value was available so the dashboard has something to show instead of a bare
+            # N/A. Only trust this if the API actually supplied both halves of the pair.
+            pcr_stale_val = market_health.get("put_call_ratio_stale_value")
+            pcr_stale_date = market_health.get("put_call_ratio_stale_date")
+            if pcr_stale_val is not None and pcr_stale_date:
+                try:
+                    result["pcr_stale"] = safe_float(
+                        pcr_stale_val, field_name="market.put_call_ratio_stale_value", strict=True
+                    )
+                    result["pcr_stale_date"] = pcr_stale_date
+                except (StrictValidationError, ValueError, TypeError) as e:
+                    logger.warning(f"[MARKET] Stale put/call ratio conversion failed ({type(e).__name__}): {e}")
 
         # Yield curve slope is optional enrichment data
         ycs_val = market_health.get("yield_curve_slope")
