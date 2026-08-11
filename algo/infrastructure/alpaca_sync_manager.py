@@ -338,8 +338,16 @@ class AlpacaSyncManager:
         FIX (Session 2026-08-02): Graceful credential failure in paper mode.
         Paper mode can operate without Alpaca credentials (trades exist only in DB).
         Skip sync if credentials missing in paper/review mode, fail-hard only in live.
+
+        BUG FOUND 2026-08-11: this docstring always said "paper/review mode", but the check
+        below only ever tested `== "paper"` - "review" was never actually included, and
+        neither was "dry" (this system's default outside-market-hours mode, added to the
+        codebase's mode vocabulary after this check was written - same gap already fixed
+        tonight in executor.py/market_events.py's credential-fetch handling). Both fell
+        through to the fail-hard `else` branch, crashing position sync whenever real Alpaca
+        credentials happened to be unavailable in dry or review mode.
         """
-        is_paper_mode = self.config.get("execution_mode") == "paper"
+        is_paper_mode = self.config.get("execution_mode") in ("paper", "dry", "review")
 
         # Check if Alpaca credentials are available
         if not self._alpaca_key or not self._alpaca_secret:
@@ -496,9 +504,7 @@ class AlpacaSyncManager:
                             notify(
                                 severity="warning",
                                 title="Phase 9 Position Quantity Drift",
-                                message=(
-                                    f"{symbol}: qty corrected from {prior_qty} to {qty_float} to match Alpaca"
-                                ),
+                                message=(f"{symbol}: qty corrected from {prior_qty} to {qty_float} to match Alpaca"),
                                 symbol=symbol,
                                 details={"symbol": symbol, "db_quantity": prior_qty, "alpaca_quantity": qty_float},
                             )

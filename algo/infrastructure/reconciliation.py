@@ -2047,12 +2047,19 @@ class DailyReconciliation:
         In paper trading mode, reconciliation never happens (no real broker fills), so estimated
         prices are expected to remain unreconciled indefinitely. Skip audit in paper mode.
 
+        BUG FOUND 2026-08-11: "dry" mode is equally a no-real-broker-fills local mode (same
+        allowlist distinction already fixed elsewhere tonight, e.g. executor.py's
+        credential-fetch handling) - a bare `== "paper"` here missed it, so dry mode ran this
+        audit and could raise false ALERT/CRITICAL status for exit prices that will never
+        reconcile in dry mode either.
+
         Returns dict: {'status': 'OK'|'ALERT'|'CRITICAL', 'message': str, 'stale_trade_count': int,
         'stale_trades': list[dict]}.
         """
-        # Skip audit in paper trading mode - broker reconciliation never happens, so unreconciled
-        # estimated prices are expected and harmless. Only audit in live mode where real fills matter.
-        is_paper_mode = self.config.get("execution_mode") == "paper"
+        # Skip audit in paper/dry trading mode - broker reconciliation never happens, so
+        # unreconciled estimated prices are expected and harmless. Only audit in live mode
+        # where real fills matter.
+        is_paper_mode = self.config.get("execution_mode") in ("paper", "dry")
         if is_paper_mode:
             return {
                 "status": "OK",
