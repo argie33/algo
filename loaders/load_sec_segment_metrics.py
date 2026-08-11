@@ -103,7 +103,7 @@ class SecSegmentMetricsLoader(OptimalLoader):
                 # No segment information available - mark unavailable
                 return [_unavailable_marker(symbol, "no_segment_disclosure")]
 
-            segment_count, largest_segment_pct, hhi, has_data, unavailable, reason = segment_row
+            segment_count, largest_segment_pct, hhi, _has_data, unavailable, reason = segment_row
 
             # If upstream marked data unavailable with a legitimate reason, respect that
             # (e.g., "single_segment_only" is legitimate, but "data_not_yet_fetched" means retry)

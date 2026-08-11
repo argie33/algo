@@ -213,7 +213,7 @@ class CompanyProfileLoader(OptimalLoader):
             entity_name,
             sic_code,
             sic_description,
-            shares_outstanding,
+            _shares_outstanding,
             created_at,
             updated_at,
             data_unavailable,

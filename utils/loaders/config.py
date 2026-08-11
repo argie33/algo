@@ -322,7 +322,7 @@ class LoaderConfigManager:
         # Get base parallelism from cache or config
         # Default: use constraint maximum instead of 1, allows adaptive scaling to reach target parallelism
         constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
-        min_constraint, max_parallelism = constraints
+        _min_constraint, max_parallelism = constraints
         # LOCAL DEV OVERRIDE: Allow higher parallelism in local development (no shared NAT IP)
         if os.getenv("LOCAL_MODE") in ("true", "1"):
             max_parallelism = max(max_parallelism, 8)  # Allow up to 8 threads for local dev
