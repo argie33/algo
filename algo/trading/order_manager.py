@@ -82,8 +82,23 @@ class OrderManager:
         # price. The take_profit fallback below already used Decimal correctly; the entry
         # limit_price/stop_price literally two lines above it did not. Fixed 2026-07-21 for
         # consistency with position_sizer.py/executor_entry_handler.py, which are Decimal-only.
-        def _q2(v: float) -> str:
-            return str(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        #
+        # BUG FOUND 2026-08-11: this unconditionally quantized to 2 decimal places for every
+        # price, but SEC Rule 612 (the "sub-penny rule") requires securities priced under
+        # $1.00 to be quoted in $0.0001 increments, not $0.01 - Alpaca enforces this and can
+        # reject (or silently mis-price) an order for a sub-$1 symbol submitted with only 2
+        # decimals of precision. This codebase already treats sub-$1/low-priced symbols as a
+        # real, expected case elsewhere (buy_signal_generator.py computes buy/stop/target
+        # levels at 4-decimal precision throughout; executor_entry_handler.py normalizes
+        # entry_price/stop_loss_price to 4 decimals "for consistent duplicate detection";
+        # phase8_entry_execution.py explicitly lists "penny stocks" alongside ETFs as an
+        # anticipated high-volatility case) - this was the one place in the actual
+        # broker-submission path that silently threw that precision away right before hitting
+        # the API. No existing test/code path in this repo compensated for it.
+        def _quantize_price(v: float) -> str:
+            v_dec = Decimal(str(v))
+            places = Decimal("0.0001") if v_dec < 1 else Decimal("0.01")
+            return str(v_dec.quantize(places, rounding=ROUND_HALF_UP))
 
         # CRITICAL: Always build a bracket order - stop loss protection is mandatory
         order_data: dict[str, Any] = {
@@ -92,11 +107,11 @@ class OrderManager:
             "side": "buy",
             "type": "limit",
             "time_in_force": "day",
-            "limit_price": _q2(entry_price),
+            "limit_price": _quantize_price(entry_price),
             "extended_hours": False,
             "order_class": "bracket",
             "stop_loss": {
-                "stop_price": _q2(stop_loss_price),
+                "stop_price": _quantize_price(stop_loss_price),
             },
         }
         if client_order_id:
@@ -105,14 +120,14 @@ class OrderManager:
         # Add take-profit target (either explicit or computed from 1.5R)
         if take_profit_price is not None and take_profit_price > entry_price:
             order_data["take_profit"] = {
-                "limit_price": _q2(take_profit_price),
+                "limit_price": _quantize_price(take_profit_price),
             }
         else:
             risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             if risk_dec > 0:
                 tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
                 order_data["take_profit"] = {
-                    "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "limit_price": _quantize_price(float(tp_dec)),
                 }
 
         return order_data
@@ -163,7 +178,7 @@ class OrderManager:
         # ACTUAL real-order-to-the-broker submission path - had zero validation on
         # entry_price/shares, and the stop_loss_price check below didn't catch NaN (NaN
         # comparisons are always False in Python, so `stop_loss_price <= 0` silently passes
-        # for NaN). A NaN/Infinite price would then flow into `_q2()` below, which formats
+        # for NaN). A NaN/Infinite price would then flow into `_quantize_price()` below, which formats
         # via Decimal.quantize() - Decimal NaN doesn't raise, it silently produces the
         # literal string "NaN" - and that string would be sent to Alpaca as
         # order_data["stop_loss"]["stop_price"]/["limit_price"], a real order submission
