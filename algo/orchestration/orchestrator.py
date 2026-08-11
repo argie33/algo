@@ -2111,7 +2111,18 @@ class Orchestrator:
                 "skipped": True,
                 "reason": f"outside_market_hours: {now_et.strftime('%H:%M:%S')} ET",
             }
-        logger.info(f"[MARKET_HOURS_GUARD] OK: Current time {now_et} is within market hours")
+        if MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME:
+            logger.info(f"[MARKET_HOURS_GUARD] OK: Current time {now_et} is within market hours")
+        else:
+            # allow_outside_hours is the only reason we got here while actually outside hours.
+            # Previous message unconditionally claimed "within market hours" even on this path,
+            # which erased the only signal (besides re-deriving it from raw env vars) that a
+            # safety guard was bypassed rather than genuinely satisfied.
+            logger.warning(
+                f"[MARKET_HOURS_GUARD] BYPASSED via ALLOW_OUTSIDE_MARKET_HOURS=true: current time "
+                f"{now_et} is OUTSIDE market hours ({MARKET_OPEN_TIME}-{MARKET_CLOSE_TIME} ET). "
+                f"Proceeding anyway because the guard was explicitly overridden."
+            )
 
         logger.info("[CRITICAL] Running critical data checks...")
         try:

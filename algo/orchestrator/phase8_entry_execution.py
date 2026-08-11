@@ -1263,6 +1263,12 @@ def run(
 
     if test_mode:
         logger.warning("[PHASE 8 TEST MODE] Market hours guard BYPASSED for testing")
+    elif allow_outside_hours and not is_market_open:
+        logger.warning(
+            f"[PHASE 8 MARKET HOURS GUARD] BYPASSED via ALLOW_OUTSIDE_MARKET_HOURS=true: current time "
+            f"{now_et.strftime('%H:%M:%S')} ET is outside market hours. Proceeding anyway because "
+            f"the guard was explicitly overridden."
+        )
 
     # CRITICAL GUARD: Check for pending/recent orders that may still be filling
     # If orders from prior run are still pending, executing new entries risks duplicates
