@@ -838,7 +838,19 @@ def _run_symbol_pass(
             result = [False]  # mutable to capture result
             exception: list[Exception | None] = [None]  # mutable to capture exception
 
-            def run_with_timeout() -> None:
+            # Bind loader/symbol/result/exception as default args (evaluated now, not at
+            # call time) - otherwise every closure created across loop iterations shares
+            # the SAME enclosing-scope cells. An abandoned (timed-out but not actually
+            # dead - daemon threads can't be force-killed) thread that finishes later
+            # would then write result[0]/exception[0] into whatever iteration's result
+            # list is current *at that point*, silently corrupting a different symbol's
+            # processed/failed counters.
+            def run_with_timeout(
+                loader: "ConsolidatedFinancialStatementsLoader" = loader,
+                symbol: str = symbol,
+                result: list[bool] = result,
+                exception: list[Exception | None] = exception,
+            ) -> None:
                 try:
                     loader.load_symbol(symbol)
                     result[0] = True
