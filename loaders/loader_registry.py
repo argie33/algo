@@ -234,6 +234,23 @@ def get_table_names() -> frozenset[str]:
     return frozenset(tables[0] for tables in LOADER_TABLES.values())
 
 
+def table_to_loader_shorthand(table_name: str) -> str | None:
+    """Reverse mapping: table name → loader shorthand.
+
+    Args:
+        table_name: Table name (e.g., "sec_valuations", "price_daily")
+
+    Returns:
+        Loader shorthand (e.g., "valuations", "prices"), or None if table not found
+    """
+    for loader_filename, tables in LOADER_TABLES.items():
+        if table_name in tables:
+            for shorthand, filename in SHORTHAND_TO_FILENAME.items():
+                if filename == loader_filename:
+                    return shorthand
+    return None
+
+
 def normalize_loader_name(name: str) -> str:
     """Convert a shorthand or filename to the canonical filename format.
 

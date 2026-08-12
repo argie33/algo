@@ -492,18 +492,25 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (data error): {e}")
 
         # Combine FAILED loaders with stale loaders for retry
-        # Map table names to loader keys
+        # Map table names to loader keys - use registry for comprehensive mapping
+        from loaders.loader_registry import table_to_loader_shorthand
+
         table_to_loader_key = dict(loaders_to_refresh)
         all_loaders_to_retry = []
 
-        # Add FAILED loaders
+        # Add FAILED loaders - use registry to find ANY loader, not just hardcoded ones
         for table_name in failed_loaders_to_retry:
             key_for_failed: str | None = table_to_loader_key.get(table_name)
+            # If not in hardcoded dict, try dynamic lookup from registry
+            if not key_for_failed:
+                key_for_failed = table_to_loader_shorthand(table_name)
+
             if key_for_failed:
                 all_loaders_to_retry.append((table_name, key_for_failed, 0))  # age=0 for FAILED
+                logger.info(f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} → {key_for_failed}")
             else:
                 logger.warning(
-                    f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} not in loaders_to_refresh - cannot retry"
+                    f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} not found in registry - cannot retry"
                 )
 
         # Add stale loaders

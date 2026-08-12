@@ -253,7 +253,7 @@ def run_pipeline(pipeline_name: str) -> int:
     # Set conservatively: price_daily can take 60+ min on large universe, so budget 90 min
     LOADER_TIMEOUTS = {  # noqa: N806
         # Core pricing & market data (heaviest workloads)
-        "prices": 600 * 60,  # 600 min (10h) - SESSION 92: measured 761m actual runtime, need 600m+ with variance buffer
+        "prices": 900 * 60,  # 900 min (15h) - SESSION 93: measured 761m actual (Session 92 comment), 600m insufficient (NEGATIVE margin). 900m provides ~140m safety buffer
         "technical": 30 * 60,  # 30 min - vectorized in-database computation
         "constituents": 10 * 60,  # 10 min - light (static symbol list)
         "economic": 10 * 60,  # 10 min - light (FRED + DXY index)
@@ -283,7 +283,6 @@ def run_pipeline(pipeline_name: str) -> int:
         # comparably-sized universe.
         "financial_statements": 240
         * 60,  # 240 min (4h) - SESSION 92: ~4900 symbols @ 2 req/sec + retry overhead + concurrent load
-        "sec_valuations": 60 * 60,  # 60 min - SESSION 92+ fix: was failing at 45min (3 consecutive failures)
         # Fundamental metrics (API-heavy)
         "value_quality_growth": 40 * 60,  # 40 min - multi-source aggregation
         # BUG FOUND 2026-08-10: 25 min was calibrated before a same-day fix
@@ -316,8 +315,8 @@ def run_pipeline(pipeline_name: str) -> int:
         * 60,  # 300 min (5h) - SESSION 92: yfinance hangs 40+ min, earnings_dates network variance
         "analyst_earnings_estimates": 45
         * 60,  # 45 min - SESSION 92+ fix: yfinance rate limiting + exponential backoff needed more headroom (was failing at 30m)
-        "analyst_sentiment": 45
-        * 60,  # 45 min - SESSION 92+ fix: yfinance rate limiting + backoff recovery (was failing at 30m)
+        "analyst_sentiment": 60
+        * 60,  # 60 min - SESSION 93: audit found lowest safety margin (32%), max observed 20.3m. Increased for rate-limit variance (was 45m with insufficient margin)
         # SESSION 90 FIX: Increased from 20m to 30m for both sentiment/earnings loaders.
         # SESSION 92+ FIX: Further increased to 45m to handle sustained rate-limit recovery
         # With 5000 symbols, yfinance per-symbol calls @ ~1 req/s rate, plus circuit breaker
@@ -345,7 +344,6 @@ def run_pipeline(pipeline_name: str) -> int:
         "dividends": 40 * 60,  # 40 min - SESSION 92+ fix: yfinance rate limiting (was failing at 30m)
         # Holdings & positioning
         "positioning": 30 * 60,  # 30 min - multi-source aggregation
-        "positioning_metrics": 30 * 60,  # 30 min - alias for positioning loader
         "institutional": 15 * 60,  # 15 min - SEC Schedule 13G parsing
         "insider_holdings": 45
         * 60,  # 45 min - SESSION 92+ fix: SEC Form 4/5 bulk downloads + rate limit backoff (was failing at 30m)
@@ -367,7 +365,7 @@ def run_pipeline(pipeline_name: str) -> int:
         # 2026-08-12 suggest network variance or yfinance latency exceeded 30 min margin.
         # SESSION 92+ FIX (2026-08-12): Further increased to 60 min. 3 consecutive failures
         # show this loader is hitting rate limiting issues. Need margin for sustained backoff.
-        "earnings_calendar": 60 * 60,  # 60 min - SESSION 92+ fix: yfinance rate limiting (was failing 3x at 45m)
+        "earnings_calendar": 75 * 60,  # 75 min - SESSION 93: audit found actual measured 54.84m (9.8m shortfall at 45m, 15m at 60m). 75m provides real margin (CRITICAL FIX)
         # BUG FOUND 2026-08-11: 15 min was too short. SEC EDGAR submissions API with rate
         # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.
