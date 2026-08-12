@@ -351,7 +351,11 @@ def run_pipeline(pipeline_name: str) -> int:
         # consecutive real failures logged earlier the same day were transient (not a
         # systemic undersized-budget bug like the other loaders in this dict), but bumped
         # to 30 min anyway for margin against normal yfinance latency variance.
-        "earnings_calendar": 30 * 60,  # 30 min - yfinance earnings_dates window (measured ~9 min typical)
+        # SESSION 91 FIX (2026-08-12): Increased to 45 min. 2 consecutive failures on
+        # 2026-08-12 suggest network variance or yfinance latency exceeded 30 min margin.
+        # Bumped to 45 min for real headroom against measured worst-case ~15 min.
+        "earnings_calendar": 45
+        * 60,  # 45 min - yfinance earnings_dates window (measured ~9 min typical, worst ~15 min)
         # BUG FOUND 2026-08-11: 15 min was too short. SEC EDGAR submissions API with rate
         # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.
