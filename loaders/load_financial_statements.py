@@ -605,6 +605,12 @@ def load_all_statements() -> int:
     """
     import argparse
 
+    # CRITICAL FIX (Session 96): Use centralized timeout config at function start
+    # so it's available for lock_ttl calculation below, not just in _load_all_statements helper
+    from loaders.loader_timeout_config import get_loader_timeout
+
+    sla_timeout_seconds = get_loader_timeout("financial_statements", default_seconds=14400)
+
     from utils.db.local_file_lock import get_lock_manager
     from utils.db.pooled_connection_manager import PooledConnectionManager
     from utils.db.pooled_context_var import set_pooled_connection
@@ -674,7 +680,9 @@ def load_all_statements() -> int:
         # TTL tied to the loader SLA (matches OptimalLoader.run): this all-mode pass
         # legitimately runs 45+ min, so a 1800s TTL would expire mid-run and allow a
         # concurrent instance to double-write. Locks are still released in finally.
-        lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+        # Use centralized timeout config (now set at module top via get_loader_timeout)
+        # instead of hardcoded fallback
+        lock_ttl = sla_timeout_seconds
         try:
             lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
         except RuntimeError as ddb_err:
@@ -799,7 +807,13 @@ def _run_symbol_pass(
     """
     import threading
 
-    sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+    # CRITICAL FIX (Session 96): Use centralized timeout config instead of hardcoded 10800s (3h)
+    # Hardcoded 10800s was timing out financial_statements at 3h despite config allowing 4h (14400s)
+    # This 1-hour shortfall caused Friday cascades that persisted through Monday retries
+    # Get from centralized config, fallback to 14400s (4h) if not found
+    from loaders.loader_timeout_config import get_loader_timeout
+
+    sla_timeout_seconds = get_loader_timeout("financial_statements", default_seconds=14400)
     per_symbol_timeout_seconds = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "30"))
 
     for i, symbol in enumerate(symbols, 1):

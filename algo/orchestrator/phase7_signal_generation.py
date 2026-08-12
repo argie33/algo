@@ -1519,7 +1519,12 @@ def run(  # noqa: C901
                     # whose underlying data (buy_sell_daily signals, technical indicators) have changed
                     # since the last score update. This is tracked via updated_at watermark.
                     loader_start = time.time()
-                    loader_timeout_secs = 600  # 10 minutes (was 15 min with backfill_days=3 workaround)
+                    # CRITICAL FIX (Session 96): Use centralized timeout config instead of hardcoded 600s
+                    # Hardcoded 600s was timing out signal_quality at 10m despite config allowing 15m (900s)
+                    # This caused Phase 7 timeouts cascading from other loader delays
+                    from loaders.loader_timeout_config import get_loader_timeout
+
+                    loader_timeout_secs = get_loader_timeout("signal_quality", default_seconds=900)
                     score_result = loader.run(
                         symbols=signal_symbols,
                         parallelism=8,

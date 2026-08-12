@@ -550,10 +550,11 @@ class PriceLoader(OptimalLoader):
         Raises: RuntimeError if data cannot be verified (loader should abort)
         """
         if max_wait_sec is None:
-            # CRITICAL FIX: Read timeout from algo_config with strict validation
-            # Use context-aware defaults: EOD (1800s/30min) vs Morning (600s/10min)
-            # Increased from 1200s to 1800s to handle yfinance lag of 10-15 minutes
-            default_timeout_sec = 600 if self._is_eod_pipeline else 300
+            # CRITICAL FIX (Session 96): Use correct timeout per docstring (was hardcoded wrong)
+            # Docstring specifies: EOD 1800s (30 min), Morning 600s (10 min), Other 300s (5 min)
+            # Code was hardcoding 600 for EOD (wrong - too small) and 300 for others (correct)
+            # This mismatch caused market_close waits to timeout prematurely on EOD, cascading loader failures
+            default_timeout_sec = 1800 if self._is_eod_pipeline else 300
             config_key = (
                 "yfinance_market_close_timeout_eod_sec"
                 if self._is_eod_pipeline
