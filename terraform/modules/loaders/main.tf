@@ -578,14 +578,14 @@ locals {
 
     # PHASE 5: SEC Company Info & Earnings Calendar (Session 237+)
     # Phase 5a: Company Info from SEC EDGAR (SEC API @ 2 req/sec for ~4900 symbols = 2450s base + retry overhead)
-    # Timeout: 10800s (180 min) - Session 94 fix: was 600s, TIMEOUT every run after 10 min
+    # Timeout: 18000s (300 min) - Session 97 fix: was 10800s (180m), MISALIGNED with Python config at 300m
     # Parallelism: 1-2 (SEC API rate-limited to ~2 req/sec globally, keep under limit)
-    "company_info_sec" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 2 }
+    "company_info_sec" = { cpu = 256, memory = 512, timeout = 18000, parallelism = 2 }
 
     # Restored 2026-07-27: reads company_info_sec (already in RDS, no external API calls),
-    # but yfinance rate-limited on 4900 symbols, needs safety margin. Session 94 fix: was 300s
-    # Timeout: 2700s (45 min) to handle yfinance rate-limit retries
-    "company_profile" = { cpu = 128, memory = 256, timeout = 2700, parallelism = 2 }
+    # but yfinance rate-limited on 4900 symbols, needs safety margin. Session 97 fix: was 2700s (45m)
+    # Timeout: 7200s (120 min) to match Python config + buffer for yfinance rate-limit retries
+    "company_profile" = { cpu = 128, memory = 256, timeout = 7200, parallelism = 2 }
 
     # Phase 5b: SEC filing dates (SEC API @ 2 req/sec = ~40 min base + overhead)
     # Timeout: 5400s (90 min) - Session 94 fix: was 900s, TIMEOUT every run after 15 min
@@ -628,9 +628,9 @@ locals {
 
     # SEC Segment Info (XBRL parsing from 10-K/10-Q filings)
     # Parses SEC EDGAR companyfacts and raw XBRL for segment disclosure data
-    # Session 94 fix: was 120m, observed 0.40 sym/s on 4900 symbols = ~200min needed
-    # Timeout: 14400s (240 min) to accommodate XBRL parsing + SEC API rate limiting
-    "sec_segment_info" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 2 }
+    # Session 97 fix: was 14400s (240m), Python config requires 21600s (360m/6h) for full universe
+    # Timeout: 21600s (360 min / 6h) to match Python config for XBRL parsing + SEC API rate limiting
+    "sec_segment_info" = { cpu = 512, memory = 1024, timeout = 21600, parallelism = 2 }
 
     # Core Stock Scoring & Risk Metrics (ACTIVE)
     # Stock scores: 6-factor composite (quality/growth/value/momentum/positioning/stability)
