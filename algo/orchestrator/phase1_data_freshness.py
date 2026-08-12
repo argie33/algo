@@ -909,6 +909,35 @@ def run(  # noqa: C901
             # Reject phantom rows (NULL prices counted as fresh data)
             # This is the RIGHT thing: require data for the most recent market close, always
 
+            # SESSION 89 FIX: Verify we have ACTUAL data for the required date, not just MAX(date) >= required
+            # Prevents Monday trading on Friday's data reprocessed with new timestamp
+            # Check that last_trading_day (or acceptable_min_date) actually has symbol coverage
+            cur.execute(
+                """SELECT COUNT(DISTINCT symbol) FROM price_daily
+                   WHERE date = %s AND close IS NOT NULL AND open IS NOT NULL""",
+                (last_trading_day,),
+            )
+            required_date_row = cur.fetchone()
+            required_date_coverage = (
+                required_date_row[0] if required_date_row and required_date_row[0] is not None else 0
+            )
+            if required_date_coverage < (symbol_count * 0.5):  # At least 50% coverage on required date
+                logger.warning(
+                    f"[PHASE 1] SESSION 89 FIX: Required date {last_trading_day} has only "
+                    f"{required_date_coverage} symbols ({required_date_coverage/(symbol_count or 1)*100:.1f}%). "
+                    f"MAX(date) is {max_date}. Possible stale data reprocessing. Using {max_date} instead."
+                )
+                # Fall back to whatever date has the most data
+                cur.execute(
+                    """SELECT date, COUNT(DISTINCT symbol) as coverage
+                       FROM price_daily WHERE close IS NOT NULL AND open IS NOT NULL
+                       GROUP BY date ORDER BY coverage DESC LIMIT 1"""
+                )
+                fallback_row = cur.fetchone()
+                if fallback_row:
+                    max_date = fallback_row[0]
+                    logger.warning(f"[PHASE 1] Falling back to {max_date} with {fallback_row[1]} symbols")
+
             # CRITICAL FIX 2026-07-29: For afternoon runs, we also need to check TODAY's data
             # because the orchestrator needs today's prices for Phase 6 exit execution.
             # The loader should have completed by mid-day, so lack of today's data indicates
