@@ -345,7 +345,7 @@ class SignalsDailyLoader(OptimalLoader):
             # indefinitely if there's table contention or missing indexes.
             with DatabaseContext("read", timeout=120) as cur:  # 120s for large GROUP BY
                 # Set per-statement timeout as additional safety measure
-                cur.execute("SET statement_timeout = '120 seconds'")
+                cur.execute("SET statement_timeout = '120s'")
 
                 # Find most recent date with COMPLETE price_daily coverage (>= 3000 symbols)
                 # If today's price_daily is incomplete (partial load), fall back to yesterday

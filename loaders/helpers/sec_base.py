@@ -92,6 +92,35 @@ class SecLoaderBase(OptimalLoader):
         """
         return tuple(SecLoaderBase._clean_decimal(v) for v in row)
 
+    @staticmethod
+    def _validate_numeric_precision(value: Any, precision: int = 12, scale: int = 4) -> bool:
+        """Check if a numeric value fits within NUMERIC(precision, scale) constraints.
+
+        Args:
+            value: Value to validate (None is always valid)
+            precision: Total digits (default 12)
+            scale: Decimal places (default 4)
+
+        Returns:
+            True if value fits, False if it would overflow
+        """
+        if value is None:
+            return True
+        try:
+            if isinstance(value, str):
+                value = float(value)
+            elif isinstance(value, Decimal):
+                if value.is_nan() or value.is_infinite():
+                    return True
+                value = float(value)
+            elif not isinstance(value, (int, float)):
+                return True
+            max_integer_digits = precision - scale
+            max_value: float = float(10**max_integer_digits - 10 ** (-scale))
+            return abs(float(value)) <= max_value
+        except (ValueError, TypeError, OverflowError):
+            return True
+
     def _ensure_schema_ready(self) -> None:
         """Ensure all required columns exist, auto-creating if needed.
 
@@ -470,6 +499,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 row["symbol"] = r["symbol"]
             if "fiscal_year" in r:
                 row["fiscal_year"] = r["fiscal_year"]
+            row["data_unavailable"] = False
 
             field_mapping = self._field_mapping
             for sec_field, value in r.items():
@@ -503,7 +533,20 @@ class SecEdgarStatementLoader(SecLoaderBase):
                         f"maps to '{db_field}' but '{db_field}' not in target schema. "
                         f"Check field_mapping and schema definitions."
                     )
-                row[db_field] = value
+                if db_field == "data_unavailable":
+                    row["data_unavailable"] = value
+                elif db_field == "reason":
+                    row["reason"] = value
+                elif not self._validate_numeric_precision(value):
+                    symbol = r.get("symbol", "?")
+                    logger.error(
+                        f"[{self.table_name}] {symbol}: Numeric overflow in field '{db_field}' "
+                        f"(value={value}). Field expects NUMERIC(12,4). Marking data_unavailable."
+                    )
+                    row["data_unavailable"] = True
+                    row["reason"] = f"Numeric overflow in {db_field}"
+                else:
+                    row[db_field] = value
 
             # free_cash_flow has no direct XBRL concept (FCF is a non-GAAP measure SEC
             # filers don't tag) - derive it from operating_cash_flow - capex, the standard

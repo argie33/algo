@@ -64,6 +64,9 @@ PIPELINES = {
         "sector_industry",  # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
     ],
     "metrics": [
+        # FIXED 2026-08-11: company_info must run first - valuations depends on it for
+        # symbol lookups and metadata, preventing cascading failures when SEC rate limiting blocks company_info
+        "company_info",
         # RE-ENABLED 2026-08-09: financial_statements with optimized per-symbol timeouts
         # CRITICAL DEPENDENCY: Must run BEFORE value_quality_growth (needs annual_income_statement, annual_balance_sheet, annual_cash_flow)
         "financial_statements",
