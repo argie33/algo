@@ -535,48 +535,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
             logger.info(f"[PHASE 1 FAILSAFE LOCAL] DRY RUN: Would refresh {all_names}")
             return results
 
-        # CRITICAL: Define per-loader timeouts (same as local_loader_scheduler.py LOADER_TIMEOUTS)
-        # SESSION 92 FIX: phase1_failsafe_retry was using hardcoded 300s timeout for ALL loaders,
-        # killing loaders that need 30-200 min after just 5 min. This caused earnings_calendar (45m),
-        # company_info (120m), financial_statements (150m), enhanced_quality_growth (200m), etc.
-        # to timeout when run via failsafe retry (stale data refresh path).
-        LOADER_TIMEOUTS = {  # noqa: N806
-            "prices": 90 * 60,
-            "technical": 30 * 60,
-            "constituents": 10 * 60,
-            "economic": 10 * 60,
-            "market_status": 15 * 60,
-            "naaim": 10 * 60,
-            "aaii": 10 * 60,
-            "trend_analysis": 15 * 60,
-            "stability_metrics": 30 * 60,
-            "valuations": 20 * 60,
-            "financial_statements": 150 * 60,
-            "sec_valuations": 30 * 60,
-            "value_quality_growth": 40 * 60,
-            "enhanced_quality_growth": 200 * 60,
-            "analyst_earnings_estimates": 30 * 60,
-            "analyst_sentiment": 30 * 60,
-            "analyst_upgrades": 30 * 60,
-            "sector_industry": 15 * 60,
-            "company_info": 180 * 60,  # SESSION 92/93 FIX: 180m (3h) to handle SEC API 429 rate limiting backoff
-            "profile": 10 * 60,
-            "dividends": 30 * 60,
-            "positioning": 30 * 60,
-            "institutional": 15 * 60,
-            "insider_holdings": 30 * 60,
-            "insider_velocity": 30 * 60,
-            "short_interest": 10 * 60,
-            "earnings_calendar": 45 * 60,
-            "earnings_sec": 60 * 60,
-            "sec_reports": 60 * 60,
-            "segment_info": 30 * 60,
-            "segment_metrics": 15 * 60,
-            "scores": 25 * 60,
-            "signal_quality": 15 * 60,
-            "algo": 20 * 60,
-            "buy_sell": 15 * 60,
-        }
+        # CRITICAL FIX (SESSION 94): Import centralized timeout config to prevent mismatch-brittleness
+        # SESSION 93 root cause: local_loader_scheduler had 75m for earnings_calendar while
+        # phase1 retry had 45m, causing Friday timeouts to never recover by Monday. Now
+        # both import from single source of truth (loaders/loader_timeout_config.py)
+        from loaders.loader_timeout_config import get_loader_timeout
 
         # Run each loader (FAILED or stale) locally
         for table_name, loader_key, age_in_days in all_loaders_to_retry:
@@ -633,8 +596,8 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     # class constructor alone requires one specific combo to already be named.
                     env["LOADER_STATEMENT_TYPE"] = "all"
                 cmd = [sys.executable, f"loaders/{loader_filename}"]
-                # SESSION 92 FIX: Use per-loader timeout instead of hardcoded 300s
-                loader_timeout = LOADER_TIMEOUTS.get(loader_key, 60 * 60)  # Default to 60m if not in map
+                # SESSION 94 FIX: Use centralized timeout config instead of hardcoded dict
+                loader_timeout = get_loader_timeout(loader_key, default_seconds=60 * 60)
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
@@ -690,9 +653,15 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                         results["halt_required"] = True
 
             except subprocess.TimeoutExpired:
-                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Timeout refreshing {table_name}")
+                logger.error(
+                    f"[PHASE 1 FAILSAFE LOCAL] Timeout refreshing {table_name} after {loader_timeout}s "
+                    f"(loader_key={loader_key})"
+                )
                 results["still_failing"].append(table_name)
-                _mark_loader_failed_after_crash(loader_key, "failsafe retry subprocess timed out after 300s")
+                _mark_loader_failed_after_crash(
+                    loader_key,
+                    f"failsafe retry subprocess timed out after {loader_timeout}s (configured timeout for {loader_key})",
+                )
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                     results["halt_required"] = True
             except (OSError, RuntimeError) as e:
