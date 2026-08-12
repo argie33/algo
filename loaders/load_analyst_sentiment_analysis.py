@@ -64,7 +64,12 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
         if since is not None and since >= today:
             return []  # already have today's snapshot
 
-        summary = fetch_analyst_sentiment(symbol)
+        try:
+            summary = fetch_analyst_sentiment(symbol)
+        except RuntimeError as e:
+            logger.warning(f"[{symbol}] yfinance fetch failed: {e} - treating as data unavailable")
+            summary = None
+
         if summary is None:
             # No analyst coverage for this symbol (legitimate case)
             return [

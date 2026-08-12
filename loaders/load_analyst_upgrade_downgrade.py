@@ -70,7 +70,12 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
             List of new action rows (possibly empty if no recent activity), or
             data_unavailable marker if no analyst coverage. Never returns None (OptimalLoader contract).
         """
-        rows = fetch_analyst_actions(symbol)
+        try:
+            rows = fetch_analyst_actions(symbol)
+        except RuntimeError as e:
+            logger.warning(f"[{symbol}] yfinance fetch failed: {e} - treating as data unavailable")
+            rows = None
+
         if not rows:
             # No analyst coverage for this symbol (legitimate case, not a fetch failure)
             # None return from fetch_analyst_actions indicates no coverage
