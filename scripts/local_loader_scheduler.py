@@ -366,6 +366,27 @@ def run_pipeline(pipeline_name: str) -> int:
             any_failed = True
             continue
 
+        # FIX 2026-08-12: Skip loaders with 3+ consecutive failures (need manual intervention)
+        # Prevents broken loaders from cascading through the pipeline
+        try:
+            import psycopg2
+            from utils.db.connection import get_db_connection
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT consecutive_failures FROM data_loader_status WHERE table_name = %s", (loader,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row and isinstance(row[0], (int, float)) and int(row[0]) >= 3:
+                print(
+                    f"[LOCAL_SCHEDULER] SKIP {loader}: {int(row[0])} consecutive failures - needs fix",
+                    file=sys.stderr,
+                )
+                any_failed = True
+                continue
+        except Exception as e:
+            print(f"[LOCAL_SCHEDULER] WARNING: Could not check {loader} failures: {e}", file=sys.stderr)
+
         timeout = LOADER_TIMEOUTS.get(loader, 30 * 60)  # 30 min default
         print(f"[LOCAL_SCHEDULER] Running {loader} loader (timeout: {timeout}s)...")
         try:
