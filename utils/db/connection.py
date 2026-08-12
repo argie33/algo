@@ -171,6 +171,17 @@ class TrackedConnection:
             _on_disconnect()
         if self._pool:
             try:
+                # CRITICAL FIX (Session 95): Always rollback before returning to pool
+                # Connections may have failed transactions from previous operations.
+                # If returned to pool in "transaction aborted" state, the next user's
+                # ping (SELECT 1) will fail, contaminating the entire connection pool.
+                # Rollback is a no-op if the transaction succeeded, harmless either way.
+                try:
+                    self._conn.rollback()
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
+                    logger.warning(f"[DB_POOL] Rollback failed before returning connection: {rollback_err}, closing instead")
+                    self._pool.putconn(self._conn, close=True)
+                    return
                 self._pool.putconn(self._conn)
             except Exception as e:
                 logger.warning(f"[DB_POOL] Failed to return connection to pool: {e}, closing instead")
