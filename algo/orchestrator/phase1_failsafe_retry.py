@@ -559,7 +559,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
             "analyst_sentiment": 30 * 60,
             "analyst_upgrades": 30 * 60,
             "sector_industry": 15 * 60,
-            "company_info": 120 * 60,
+            "company_info": 180 * 60,  # SESSION 92/93 FIX: 180m (3h) to handle SEC API 429 rate limiting backoff
             "profile": 10 * 60,
             "dividends": 30 * 60,
             "positioning": 30 * 60,
