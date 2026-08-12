@@ -180,6 +180,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
     Checks actual data freshness (MAX(date) in tables), not loader status timestamps.
     This catches cases where the loader ran recently but produced stale data.
 
+    CRITICAL FIX 2026-08-12: Also checks for loaders marked FAILED and retries them,
+    matching AWS mode behavior (Session 92 fix). Previously LOCAL mode only checked data
+    freshness, so loaders that crashed (marked FAILED) but had recent data never got retried,
+    causing Monday brittleness when Friday failures persisted.
+
     Uses MARKET-AWARE freshness checks (same logic as phase1_data_freshness.py):
     - During intraday (before 4 PM ET): previous trading day's data is CORRECT
     - After market close (4 PM+ ET): same-day data is CORRECT
@@ -201,6 +206,35 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         "still_failing": [],
         "halt_required": False,
     }
+
+    # CRITICAL FIX 2026-08-12: First pass - check for FAILED loaders and retry them
+    # Loaders marked FAILED on Friday are ignored by Monday because they're not "stale" (data is recent)
+    # but they DO need retry to recover from the crash/timeout that caused the FAILED status
+    failed_loaders_to_retry = []
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("""
+                SELECT
+                    table_name,
+                    consecutive_failures,
+                    error_message
+                FROM data_loader_status
+                WHERE UPPER(status) IN ('ERROR', 'FAILED')
+                ORDER BY table_name
+            """)
+            failed_loaders = cur.fetchall()
+
+            for table_name, consecutive_failures, error_msg in failed_loaders:
+                logger.warning(
+                    f"[PHASE 1 FAILSAFE LOCAL] Found FAILED loader (will retry): {table_name} "
+                    f"(consecutive_failures={consecutive_failures}, error={error_msg[:60] if error_msg else 'none'})"
+                )
+                results["incomplete_loaders"].append(table_name)
+                failed_loaders_to_retry.append(table_name)
+    except Exception as e:
+        logger.warning(
+            f"[PHASE 1 FAILSAFE LOCAL] Could not check for FAILED loaders: {e}. Continuing with staleness checks."
+        )
 
     # Critical loaders to refresh in local mode (table_name: loader_script_key)
     # Only core trading data - enrichment metrics no longer critical (Session 221)
@@ -457,14 +491,35 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 except (KeyError, ValueError, TypeError, AttributeError) as e:
                     logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name} (data error): {e}")
 
-        if not stale_loaders:
-            logger.info("[PHASE 1 FAILSAFE LOCAL] All data current (market-aware check) - no refresh needed")
+        # Combine FAILED loaders with stale loaders for retry
+        # Map table names to loader keys
+        table_to_loader_key = dict(loaders_to_refresh)
+        all_loaders_to_retry = []
+
+        # Add FAILED loaders
+        for table_name in failed_loaders_to_retry:
+            key_for_failed: str | None = table_to_loader_key.get(table_name)
+            if key_for_failed:
+                all_loaders_to_retry.append((table_name, key_for_failed, 0))  # age=0 for FAILED
+            else:
+                logger.warning(
+                    f"[PHASE 1 FAILSAFE LOCAL] FAILED loader {table_name} not in loaders_to_refresh - cannot retry"
+                )
+
+        # Add stale loaders
+        all_loaders_to_retry.extend(stale_loaders)
+
+        if not all_loaders_to_retry:
+            logger.info("[PHASE 1 FAILSAFE LOCAL] All data current - no refresh needed")
             return results
 
-        logger.info(f"[PHASE 1 FAILSAFE LOCAL] Found {len(stale_loaders)} stale loaders to refresh")
+        logger.info(
+            f"[PHASE 1 FAILSAFE LOCAL] Found {len(failed_loaders_to_retry)} FAILED + {len(stale_loaders)} stale loaders to refresh"
+        )
 
         if dry_run:
-            logger.info(f"[PHASE 1 FAILSAFE LOCAL] DRY RUN: Would refresh {[t[0] for t in stale_loaders]}")
+            all_names = [t[0] for t in all_loaders_to_retry]
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] DRY RUN: Would refresh {all_names}")
             return results
 
         # CRITICAL: Define per-loader timeouts (same as local_loader_scheduler.py LOADER_TIMEOUTS)
@@ -510,10 +565,15 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
             "buy_sell": 15 * 60,
         }
 
-        # Run each stale loader locally
-        for table_name, loader_key, age_hours in stale_loaders:
+        # Run each loader (FAILED or stale) locally
+        for table_name, loader_key, age_in_days in all_loaders_to_retry:
             try:
-                logger.info(f"[PHASE 1 FAILSAFE LOCAL] Refreshing {table_name} ({age_hours:.1f}h old)")
+                if age_in_days == 0 and table_name in failed_loaders_to_retry:
+                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] Retrying FAILED loader: {table_name}")
+                else:
+                    logger.info(
+                        f"[PHASE 1 FAILSAFE LOCAL] Refreshing stale {table_name} ({age_in_days:.0f} day(s) old)"
+                    )
                 results["retried"].append(table_name)
 
                 # Run loader with force-refresh to bypass watermarks
@@ -719,7 +779,7 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                     last_updated
                 FROM data_loader_status
                 WHERE (
-                    UPPER(status) IN ('ERROR', 'FAILED')  -- FAILED loaders always retried
+                    UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT')  -- FAILED/TIMEOUT loaders always retried (CRITICAL FIX 2026-08-13)
                     OR (completion_pct < 98.0 AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour')  -- Incomplete only if recent
                 )
                 ORDER BY completion_pct ASC, table_name
