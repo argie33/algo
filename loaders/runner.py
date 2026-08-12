@@ -55,8 +55,20 @@ def _timeout_handler(_signum: int, _frame: object) -> None:
 
 
 def _force_exit_on_timeout() -> None:
-    """threading.Timer callback for the Windows fallback path - log then exit forcefully."""
-    logger.critical(f"[TIMEOUT] Loader exceeded {LOADER_TIMEOUT_SECONDS // 60} minute timeout. Exiting forcefully.")
+    """threading.Timer callback for the Windows fallback path - log then exit forcefully.
+
+    SESSION 89 FIX: Improved timeout enforcement for hung loaders
+    - Log all active threads for debugging
+    - Exit immediately without cleanup (may be stuck in DB transaction)
+    """
+    import threading as th
+
+    active_threads = th.enumerate()
+    thread_info = "; ".join(f"{t.name}(daemon={t.daemon})" for t in active_threads if not t.name.startswith("Timer"))
+    logger.critical(
+        f"[TIMEOUT] Loader exceeded {LOADER_TIMEOUT_SECONDS // 60} minute timeout. "
+        f"Exiting forcefully. Active threads: {thread_info}"
+    )
     os._exit(1)
 
 
@@ -65,16 +77,24 @@ def _setup_timeout() -> None:
 
     Falls back gracefully on Windows where signal.SIGALRM is unavailable.
     ECS tasks can still be terminated by AWS if they exceed overall task timeout (900s default).
+
+    SESSION 89 FIX: Improved timeout diagnostics for hung loaders
     """
+    timeout_min = LOADER_TIMEOUT_SECONDS // 60
+    timeout_sec = LOADER_TIMEOUT_SECONDS % 60
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
         signal.alarm(LOADER_TIMEOUT_SECONDS)  # type: ignore[attr-defined]  # guarded by hasattr above; SIGALRM/alarm are Unix-only
-        logger.info(f"[TIMEOUT] Loader timeout set to {LOADER_TIMEOUT_SECONDS // 60} minutes")
+        logger.info(f"[TIMEOUT] SIGALRM timeout set to {timeout_min}m {timeout_sec}s (env LOADER_TIMEOUT={LOADER_TIMEOUT_SECONDS}s)")
     else:
-        logger.warning("[TIMEOUT] signal.SIGALRM not available (Windows). Falling back to threading.Timer.")
+        logger.warning(
+            f"[TIMEOUT] SIGALRM not available (Windows). "
+            f"Using threading.Timer fallback for {timeout_min}m {timeout_sec}s (env LOADER_TIMEOUT={LOADER_TIMEOUT_SECONDS}s)"
+        )
         timer = threading.Timer(LOADER_TIMEOUT_SECONDS, _force_exit_on_timeout)
         timer.daemon = True
         timer.start()
+        logger.info(f"[TIMEOUT] threading.Timer started successfully")
 
 
 def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
