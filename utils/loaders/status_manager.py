@@ -823,7 +823,7 @@ class LoaderStatusManager:
             return None
 
 
-def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hours: float = 4.0) -> list[str]:
+def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hours: float | None = None) -> list[str]:
     """Mark any of the given tables' RUNNING status as FAILED if execution_started is older
     than max_age_hours.
 
@@ -848,13 +848,21 @@ def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hou
             data_loader_status (a stuck loader anywhere is worth correcting - this isn't
             scoped to a single pipeline run).
         max_age_hours: How old execution_started must be before a RUNNING row is considered
-            abandoned. Deliberately coarse (default 4h, comfortably above every entry in
-            local_loader_scheduler.py's LOADER_TIMEOUTS) so this never fires on a loader that
-            is still legitimately within its own configured budget.
+            abandoned. If None (default), computed from longest configured loader timeout
+            (Session 94 fix: was hardcoded 4h, but prices loader needs 15h) with 50% safety
+            margin to avoid premature kill on legitimately long-running loaders.
 
     Returns:
         Table names that were reaped (previously RUNNING, now marked FAILED).
     """
+    # SESSION 94 FIX: Compute max_age from longest loader timeout instead of hardcoded 4h
+    # prices loader is budgeted 900 min (15h), so 4h default would kill it prematurely
+    if max_age_hours is None:
+        from loaders.loader_timeout_config import get_loader_timeouts
+
+        longest_timeout_seconds = max(get_loader_timeouts().values())
+        # Convert to hours and add 50% safety margin to avoid killing legitimately slow loaders
+        max_age_hours = (longest_timeout_seconds / 3600) * 1.5
     reaped: list[str] = []
     try:
         with DatabaseContext("read") as cur:
