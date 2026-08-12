@@ -259,11 +259,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         "trend_template_data": "trend_analysis",
         # Earnings & calendar
         "earnings_calendar": "earnings_calendar",
-        # SEC/Financial data (SESSION 94 FIX: Added missing loaders)
+        # SEC/Financial data (SESSION 94+ FIX: Correct table-name mismatches)
         "company_info_sec": "company_info",
         "company_profile": "profile",
-        "valuations": "valuations",
-        "financial_statements": "financial_statements",  # All 6 statement tables handled by single loader
+        "sec_valuations": "valuations",
+        # Financial statements - individual tables from financial_statements loader
         "annual_income_statement": "financial_statements",
         "annual_balance_sheet": "financial_statements",
         "annual_cash_flow": "financial_statements",
@@ -271,19 +271,18 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         "quarterly_balance_sheet": "financial_statements",
         "quarterly_cash_flow": "financial_statements",
         # Earnings SEC
-        "earnings_sec": "earnings_sec",
-        # Segment data
-        "segment_info": "segment_info",
+        "earnings_calendar_sec": "earnings_sec",
+        # Segment data - use actual table names
         "sec_segment_info": "segment_info",
-        "segment_metrics": "segment_metrics",
-        # Dividends & fundamentals
+        "sec_segment_metrics": "segment_metrics",
+        # Dividends & fundamentals - use actual output table names
         "dividend_data": "dividends",
-        "value_quality_growth": "value_quality_growth",
-        "enhanced_quality_growth": "enhanced_quality_growth",
-        # Analyst data
+        "value_metrics": "value_quality_growth",
+        "quality_metrics": "enhanced_quality_growth",
+        # Analyst data - use actual table names
         "analyst_earnings_estimates": "analyst_earnings_estimates",
-        "analyst_sentiment": "analyst_sentiment",
-        "analyst_upgrades": "analyst_upgrades",
+        "analyst_sentiment_analysis": "analyst_sentiment",
+        "analyst_upgrade_downgrade": "analyst_upgrades",
         # Holdings & positioning
         "institutional_holdings_13f": "institutional",
         "insider_holdings_sec": "insider_holdings",
