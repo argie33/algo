@@ -277,8 +277,8 @@ def _validate_dependency_freshness(
                 latest_data_date, _last_completed, status = row
                 if latest_data_date < run_date:
                     failed_deps.append(f"{downstream}→{upstream}: last data {latest_data_date} < required {run_date}")
-                if status == "FAILED":
-                    failed_deps.append(f"{downstream}→{upstream}: marked FAILED")
+                if status in ("FAILED", "TIMEOUT"):
+                    failed_deps.append(f"{downstream}→{upstream}: marked {status}")
             except Exception as e:
                 logger.warning(f"[PHASE 1] Could not check dependency {upstream}: {e}")
 

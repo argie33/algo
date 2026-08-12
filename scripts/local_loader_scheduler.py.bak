@@ -265,8 +265,7 @@ def run_pipeline(pipeline_name: str) -> int:
         "trend_analysis": 15 * 60,  # 15 min - template pattern matching
         "momentum": 30 * 60,  # 30 min - risk metrics (momentum + stability)
         "stability_metrics": 30 * 60,  # 30 min - alias for momentum
-        "valuations": 60
-        * 60,  # 60 min - SESSION 92+ fix: SEC API @ 2 req/sec needs 41min base + retry backoff overhead
+        "valuations": 60 * 60,  # 60 min - SESSION 92+ fix: SEC API @ 2 req/sec needs 41min base + retry backoff overhead
         # SEC/Financial data (batch API calls)
         # BUG FOUND 2026-08-10: 30 min was never enough for a genuine full-universe local
         # reload - live-reproduced twice this session, each run making comparable, real
@@ -316,8 +315,7 @@ def run_pipeline(pipeline_name: str) -> int:
         * 60,  # 300 min (5h) - SESSION 92: yfinance hangs 40+ min, earnings_dates network variance
         "analyst_earnings_estimates": 45
         * 60,  # 45 min - SESSION 92+ fix: yfinance rate limiting + exponential backoff needed more headroom (was failing at 30m)
-        "analyst_sentiment": 45
-        * 60,  # 45 min - SESSION 92+ fix: yfinance rate limiting + backoff recovery (was failing at 30m)
+        "analyst_sentiment": 45 * 60,  # 45 min - SESSION 92+ fix: yfinance rate limiting + backoff recovery (was failing at 30m)
         # SESSION 90 FIX: Increased from 20m to 30m for both sentiment/earnings loaders.
         # SESSION 92+ FIX: Further increased to 45m to handle sustained rate-limit recovery
         # With 5000 symbols, yfinance per-symbol calls @ ~1 req/s rate, plus circuit breaker
@@ -347,16 +345,14 @@ def run_pipeline(pipeline_name: str) -> int:
         "positioning": 30 * 60,  # 30 min - multi-source aggregation
         "positioning_metrics": 30 * 60,  # 30 min - alias for positioning loader
         "institutional": 15 * 60,  # 15 min - SEC Schedule 13G parsing
-        "insider_holdings": 45
-        * 60,  # 45 min - SESSION 92+ fix: SEC Form 4/5 bulk downloads + rate limit backoff (was failing at 30m)
+        "insider_holdings": 45 * 60,  # 45 min - SESSION 92+ fix: SEC Form 4/5 bulk downloads + rate limit backoff (was failing at 30m)
         "short_interest": 10 * 60,  # 10 min - FINRA data
         # SESSION 90 FIX: Increased from 15m to 30m. CachedForm345Aggregator bulk-downloads
         # 12 quarters of SEC Form 3/4/5 zips sequentially (~60s per quarter = 12m base, plus
         # symbol processing and database writes).
         # SESSION 92+ FIX: Further increased to 45m - bulk downloads under rate limiting take
         # longer than static 12m base. Real runtime likely 35-40m with backoff overhead.
-        "insider_velocity": 45
-        * 60,  # 45 min - SESSION 92+ fix: depends on insider_holdings, needs same buffer (was 30m)
+        "insider_velocity": 45 * 60,  # 45 min - SESSION 92+ fix: depends on insider_holdings, needs same buffer (was 30m)
         # Earnings calendar & SEC data
         # VERIFIED 2026-08-10: live full-universe run measured 521.7s (~8.7 min, 4917/4917,
         # 0 failures) against the previous 20 min budget - comfortably within it. The 2
@@ -367,7 +363,8 @@ def run_pipeline(pipeline_name: str) -> int:
         # 2026-08-12 suggest network variance or yfinance latency exceeded 30 min margin.
         # SESSION 92+ FIX (2026-08-12): Further increased to 60 min. 3 consecutive failures
         # show this loader is hitting rate limiting issues. Need margin for sustained backoff.
-        "earnings_calendar": 60 * 60,  # 60 min - SESSION 92+ fix: yfinance rate limiting (was failing 3x at 45m)
+        "earnings_calendar": 60
+        * 60,  # 60 min - SESSION 92+ fix: yfinance rate limiting (was failing 3x at 45m)
         # BUG FOUND 2026-08-11: 15 min was too short. SEC EDGAR submissions API with rate
         # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.

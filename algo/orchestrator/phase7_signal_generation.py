@@ -1041,7 +1041,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 scores_is_live_running = (
                     scores_status == "RUNNING" and scores_age_secs is not None and scores_age_secs < 7200
                 )
-                if scores_status == "FAILED" or scores_is_live_running:
+                if scores_status in ("FAILED", "TIMEOUT") or scores_is_live_running:
                     msg = (
                         f"[PHASE 7 CRITICAL HALT] stock_scores loader's own status is "
                         f"'{scores_status}' (error: {scores_error or 'none'}). stock_scores is rebuilt "
@@ -1124,7 +1124,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             if loader_status_row:
                 loader_status, loader_error, loader_age_secs = loader_status_row
                 is_live_running = loader_status == "RUNNING" and loader_age_secs is not None and loader_age_secs < 7200
-                if loader_status == "FAILED" or is_live_running:
+                if loader_status in ("FAILED", "TIMEOUT") or is_live_running:
                     msg = (
                         f"[PHASE 7 CRITICAL HALT] buy_sell_daily loader's own status is "
                         f"'{loader_status}' (error: {loader_error or 'none'}). Signal data may be "
