@@ -42,6 +42,7 @@ import io
 import logging
 import threading
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 
@@ -158,16 +159,34 @@ class Form345BulkAggregator:
         loaded = 0
         most_recent_quarter_tag: str | None = None
 
+        quarters_to_download = candidate_quarters[: self._lookback_quarters + 2]
+        self._quarters_attempted = len(quarters_to_download)
+
+        downloads = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_quarter = {
+                executor.submit(self._download_quarter, quarter): quarter for quarter in quarters_to_download
+            }
+
+            for future in as_completed(future_to_quarter):
+                quarter = future_to_quarter[future]
+                try:
+                    zip_bytes = future.result()
+                    if zip_bytes is not None:
+                        downloads[quarter] = zip_bytes
+                except Exception as e:
+                    logger.warning(f"[FORM345_BULK] Error downloading {quarter}: {e}")
+
         for quarter in candidate_quarters:
             if loaded >= self._lookback_quarters:
                 break
-            self._quarters_attempted += 1
-            zip_bytes = self._download_quarter(quarter)
-            if zip_bytes is None:
+            if quarter not in downloads:
                 continue
             if most_recent_quarter_tag is None:
                 most_recent_quarter_tag = quarter
-            self._process_quarter(zip_bytes, quarter, accumulators, is_most_recent=(quarter == most_recent_quarter_tag))
+            self._process_quarter(
+                downloads[quarter], quarter, accumulators, is_most_recent=(quarter == most_recent_quarter_tag)
+            )
             self._quarters_loaded.append(quarter)
             loaded += 1
 

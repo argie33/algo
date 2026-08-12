@@ -16,6 +16,8 @@ from socketserver import ThreadingMixIn
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import psycopg2.pool
+
 os.environ["ENVIRONMENT"] = "development"
 
 # CRITICAL FIX (Session 281): Only auto-enable dev mode when dev_server.py is DIRECTLY EXECUTED.
@@ -178,10 +180,9 @@ root_dir = os.path.dirname(lambda_dir)
 sys.path.insert(0, api_dir)
 
 # Now import setup_imports which will fix the path ordering
-import setup_imports  # noqa: E402, F401
-
 # setup_imports already set up the correct paths, so we can now import lambda_function
 import lambda_function  # noqa: E402
+import setup_imports  # noqa: E402, F401
 
 # Validate and create log file directory
 log_dir = os.environ.get("TEMP", "/tmp")
@@ -306,8 +307,7 @@ class APIHandler(BaseHTTPRequestHandler):
             content_length_header = self.headers.get("Content-Length")
             if content_length_header is None:
                 logger.warning(
-                    f"[DEV_SERVER] Missing Content-Length header for {method} {path}. "
-                    f"Request body may be lost."
+                    f"[DEV_SERVER] Missing Content-Length header for {method} {path}. Request body may be lost."
                 )
                 content_length = 0
                 body_raw = b""
@@ -359,12 +359,27 @@ class APIHandler(BaseHTTPRequestHandler):
                 if isinstance(headers, dict):
                     headers["Authorization"] = auth_header
 
-            # Call Lambda handler with timing info
+            # Call Lambda handler with timing info and DB pool recovery
             logger.info(f"[REQ_START] {method} {path}")
             import time
 
             start = time.time()
-            response = lambda_function.lambda_handler(event, None)
+            try:
+                response = lambda_function.lambda_handler(event, None)
+            except psycopg2.pool.PoolError as pool_err:
+                logger.error(f"[DB_POOL_ERROR] Connection pool exhausted: {pool_err}")
+                raise RuntimeError(
+                    "Database connection pool exhausted - too many concurrent requests. Try again in a moment."
+                ) from pool_err
+            except psycopg2.OperationalError as op_err:
+                if "SSL connection has been closed" in str(op_err):
+                    logger.error(f"[DB_CONNECTION_LOST] SSL connection closed (RDS idle timeout?): {op_err}")
+                    raise RuntimeError(
+                        "Database connection lost - the server may have restarted. Please retry."
+                    ) from op_err
+                logger.error(f"[DB_OPERATIONAL_ERROR] Database operational error: {op_err}")
+                raise
+
             elapsed = time.time() - start
             logger.info(f"[REQ_END] {method} {path} in {elapsed:.2f}s")
 
@@ -424,9 +439,8 @@ class APIHandler(BaseHTTPRequestHandler):
             error_msg = str(e)[:500]
             print(f"[DEV_SERVER_EXCEPTION] {error_type} in {method} {path_str}: {error_msg}", flush=True)
             logger.error(
-                f"[DEV_SERVER_EXCEPTION] Exception handling {method} {path_str}: "
-                f"{error_type}: {error_msg}",
-                exc_info=True
+                f"[DEV_SERVER_EXCEPTION] Exception handling {method} {path_str}: {error_type}: {error_msg}",
+                exc_info=True,
             )
             try:
                 self.send_response(500)
@@ -446,12 +460,14 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     """Threaded HTTP server to handle multiple concurrent requests."""
 
     daemon_threads = False
+    allow_reuse_address = True  # Allow port reuse after restart
 
 
 def run_dev_server(port: int = 3001) -> None:
-    """Run the development server with graceful shutdown."""
+    """Run the development server with graceful shutdown and connection cleanup."""
     # Safeguard: Check if port is already in use before starting
     import socket as sock_module
+
     test_sock = sock_module.socket(sock_module.AF_INET, sock_module.SOCK_STREAM)
     test_sock.settimeout(0.5)
     port_in_use = test_sock.connect_ex(("127.0.0.1", port)) == 0
@@ -469,6 +485,7 @@ def run_dev_server(port: int = 3001) -> None:
             flush=True,
         )
         import sys
+
         sys.exit(1)
 
     server_address = ("", port)
@@ -476,15 +493,30 @@ def run_dev_server(port: int = 3001) -> None:
     httpd.timeout = 2  # Set timeout so shutdown() returns quickly
     logger.info(f"Starting API dev server on http://localhost:{port}")
     logger.info("Press Ctrl+C to stop")
+    print(f"[OK] API server started on http://127.0.0.1:{port}", flush=True)
 
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
+        print("[SHUTDOWN] Stopping server and cleaning up database connections...", flush=True)
         # Non-daemon threads require explicit shutdown to ensure cleanup
         httpd.shutdown()
         httpd.server_close()
+
+        # Close the database connection pool if it exists (prevents "broken pipe" warnings on exit)
+        try:
+            from utils.db.connection import _get_connection_pool
+
+            pool = _get_connection_pool()
+            if pool:
+                pool.closeall()
+                logger.info("[DB_POOL] Connection pool closed")
+        except Exception as e:
+            logger.debug(f"[DB_POOL] Could not close pool on shutdown: {e}")
+
         logger.info("Server closed and all threads cleaned up")
+        print("[OK] Server shutdown complete", flush=True)
 
 
 if __name__ == "__main__":
@@ -494,7 +526,7 @@ if __name__ == "__main__":
         from utils.dev_server_state import write_state
 
         write_state(Path(root_dir))
-    except Exception as e:  # noqa: BLE001 - staleness tracking must never block startup
+    except Exception as e:
         logger.warning(f"[DEV_SERVER] Could not record code fingerprint for staleness detection: {e}")
 
     port = int(os.getenv("API_PORT", 3001))

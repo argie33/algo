@@ -187,6 +187,11 @@ LOADER_DEPENDENCIES = {
     "valuations": ["company_info"],
     # earnings_sec requires company_info for CIK lookups (SESSION 89 FIX - missing dependency)
     "earnings_sec": ["company_info"],
+    # insider_holdings requires company_info for shares_outstanding lookups (SESSION 90 FIX)
+    # When company_info is stale/missing, insider holdings calculations use wrong denominators
+    "insider_holdings": ["company_info"],
+    # insider_velocity depends on insider_holdings for transaction history
+    "insider_velocity": ["insider_holdings"],
 }
 
 
@@ -303,14 +308,12 @@ def run_pipeline(pipeline_name: str) -> int:
         # company_info above - a bigger ceiling costs nothing on a run that finishes early.
         "enhanced_quality_growth": 200
         * 60,  # 200 min - earnings surprise calcs w/ yfinance throttle pacing (was 150 min, too little margin - see comment above)
-        "analyst_earnings_estimates": 20 * 60,  # 20 min - yfinance per-symbol calls
-        "analyst_sentiment": 20 * 60,  # 20 min - yfinance analyst data
-        # BUG FOUND 2026-08-11: 20 min was too short. analyst_upgrade_downgrade hits
-        # yfinance rate limiting (shared IP ban) on full universe, requiring 4-retry
-        # backoff cycles with 3.0s exponential backoff per retry. Live-reproduced:
-        # timed out at 945s (~15.75 min) despite 1200s budget. Bumped to 30 min for
-        # adequate retry margin, matching analyst_sentiment's also-yfinance-dependent
-        # workload and other analyst loaders already sized at 20 min with less contention.
+        "analyst_earnings_estimates": 30
+        * 60,  # 30 min - yfinance per-symbol calls (was 20m, insufficient with circuit breaker)
+        "analyst_sentiment": 30 * 60,  # 30 min - yfinance analyst data (was 20m, insufficient with circuit breaker)
+        # SESSION 90 FIX: Increased from 20m to 30m for both sentiment/earnings loaders.
+        # With 5000 symbols, yfinance per-symbol calls @ ~1 req/s rate, plus circuit breaker
+        # exponential backoff (3.0s, 4 retries), adequate runtime is 20-25m with safety margin.
         "analyst_upgrades": 30 * 60,  # 30 min - yfinance recommendation data (was 20 min, rate-limiting causes timeout)
         # Sector/industry
         "sector_industry": 15 * 60,  # 15 min - daily aggregation (3 output tables)
@@ -335,13 +338,13 @@ def run_pipeline(pipeline_name: str) -> int:
         "positioning": 30 * 60,  # 30 min - multi-source aggregation
         "positioning_metrics": 30 * 60,  # 30 min - alias for positioning loader
         "institutional": 15 * 60,  # 15 min - SEC Schedule 13G parsing
-        "insider_holdings": 15 * 60,  # 15 min - SEC Form 4/5 parsing
+        "insider_holdings": 30 * 60,  # 30 min - SEC Form 4/5 parsing (was 15m, insufficient for bulk downloads)
         "short_interest": 10 * 60,  # 10 min - FINRA data
-        # BUG FOUND 2026-08-11: 15 min was too short. Load_insider_transaction_velocity uses
-        # CachedForm345Aggregator with 1080s timeout (18 min) for bulk SEC Form 3/4/5 download.
-        # The scheduler was killing the process at 900s before it completed, causing every run
-        # to timeout. Bumped to 25 min to provide real margin for the download + symbol processing.
-        "insider_velocity": 25 * 60,  # 25 min - SEC Form 3/4/5 12-quarter bulk download (1080s aggregator timeout)
+        # SESSION 90 FIX: Increased from 15m to 30m. CachedForm345Aggregator bulk-downloads
+        # 12 quarters of SEC Form 3/4/5 zips sequentially (~60s per quarter = 12m base, plus
+        # symbol processing and database writes). With RateLimiter lock contention fixed,
+        # runtime should be ~20-25m with margin. Was timing out at 15m.
+        "insider_velocity": 30 * 60,  # 30 min - SEC Form 3/4/5 12-quarter bulk download + velocity calcs (was 25m)
         # Earnings calendar & SEC data
         # VERIFIED 2026-08-10: live full-universe run measured 521.7s (~8.7 min, 4917/4917,
         # 0 failures) against the previous 20 min budget - comfortably within it. The 2

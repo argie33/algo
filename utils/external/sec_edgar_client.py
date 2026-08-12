@@ -41,11 +41,14 @@ class RateLimiter:
         self._lock = threading.Lock()
 
     def wait(self) -> None:
+        sleep_time = 0.0
         with self._lock:
             elapsed = time.monotonic() - self._last_request
             if elapsed < self.min_interval:
-                time.sleep(self.min_interval - elapsed)
+                sleep_time = self.min_interval - elapsed
             self._last_request = time.monotonic()
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
 
 class SecEdgarClient:
