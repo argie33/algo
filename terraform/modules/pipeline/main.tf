@@ -1654,7 +1654,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
               Name = "algo-sec_valuations"
               Environment = [
                 { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
+                { Name = "LOADER_PARALLELISM", Value = "1" }
               ]
             }]
           }

@@ -264,7 +264,10 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                     f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: getting pooled connection (timeout={timeout}s)"
                 )
 
-            conn = pool.getconn()
+            # FIXED SESSION 91: Actually pass the timeout parameter to getconn()
+            # RC-8 found that timeout was defined but never used, allowing loaders to hang
+            # indefinitely on pool.getconn() when pool is exhausted.
+            conn = pool.getconn(timeout=timeout)
 
             if debug:
                 logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")

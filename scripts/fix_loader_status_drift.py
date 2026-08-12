@@ -26,8 +26,13 @@ from utils.db.connection import get_db_connection
 from utils.loaders.status_manager import LoaderStatusManager
 
 
-def fix_stuck_running_loaders(cur, stale_threshold_minutes: int = 30) -> list[str]:
+def fix_stuck_running_loaders(cur, stale_threshold_minutes: int = 5) -> list[str]:
     """Detect and fix loaders stuck RUNNING for >N minutes.
+
+    FIXED SESSION 91: Threshold reduced from 30 to 5 minutes to match Phase 1's
+    _detect_and_fail_stale_running_loaders(). 5 minutes is conservative (normal slow
+    loaders won't be affected) but aggressive enough to catch real crashes within the
+    window a human operator expects to wait before manually retrying.
 
     These are almost certainly crashed processes that never marked themselves FAILED.
     """

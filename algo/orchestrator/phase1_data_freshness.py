@@ -238,20 +238,24 @@ def _validate_dependency_freshness(
     yesterday's dependency data without detecting the problem until Phase 1 validation.
 
     CRITICAL DEPENDENCIES (must have run_date data):
-    - value_quality_growth requires: financial_statements, valuations, analyst_earnings_estimates
-    - enhanced_quality_growth requires: value_quality_growth
-    - segment_metrics requires: segment_info
+    - value_metrics requires: annual_income_statement, annual_balance_sheet, sec_valuations
+      (produced by: load_financial_statements.py, load_sec_valuations.py)
+    - sec_segment_metrics requires: sec_segment_info (loader: load_company_info_sec.py)
     - positioning_metrics requires: institutional_holdings_13f, insider_holdings_sec
+    - stock_scores requires: value_metrics, stability_metrics
 
     Returns: PhaseResult halt if a dependency is stale, None if all dependencies OK
     """
     dependencies = {
-        "value_quality_growth": ["financial_statements", "valuations", "analyst_earnings_estimates"],
-        "enhanced_quality_growth": ["value_quality_growth"],
-        "segment_metrics": ["segment_info"],
+        # value_metrics produced by load_value_quality_growth_metrics.py
+        # Requires financial statement data from load_financial_statements.py
+        "value_metrics": ["annual_income_statement", "annual_balance_sheet", "sec_valuations"],
+        # sec_segment_metrics produced by load_company_info_sec.py
+        "sec_segment_metrics": ["sec_segment_info"],
+        # positioning_metrics requires insider/institutional holdings
         "positioning_metrics": ["institutional_holdings_13f", "insider_holdings_sec"],
-        "stock_scores": ["value_quality_growth", "enhanced_quality_growth", "stability_metrics"],
-        "signal_quality": ["buy_sell_daily"],
+        # stock_scores requires computed metrics
+        "stock_scores": ["value_metrics", "stability_metrics"],
     }
 
     failed_deps = []

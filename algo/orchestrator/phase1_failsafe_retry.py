@@ -701,6 +701,12 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
             # CRITICAL FIX 2026-08-04: Changed hardcoded 95% to 98% to catch price_daily which
             # requires 98% completion (2% max_fail_rate). Other loaders with 95% min will be
             # selected here but filtered out at line 454-460 if they're above their own threshold.
+            #
+            # CRITICAL FIX 2026-08-12: Remove 1-hour window for explicitly FAILED loaders.
+            # Loaders that fail on Friday were ignored by Monday because last_updated was
+            # > 1 hour old. FAILED loaders should ALWAYS be retried regardless of age,
+            # because they represent explicit failures needing recovery. Only incomplete
+            # loaders (low completion_pct) are time-gated to avoid hammering ancient runs.
             cur.execute("""
                 SELECT
                     table_name,
@@ -712,8 +718,10 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                     execution_started,
                     last_updated
                 FROM data_loader_status
-                WHERE (completion_pct < 98.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
-                    AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
+                WHERE (
+                    UPPER(status) IN ('ERROR', 'FAILED')  -- FAILED loaders always retried
+                    OR (completion_pct < 98.0 AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour')  -- Incomplete only if recent
+                )
                 ORDER BY completion_pct ASC, table_name
             """)
 
