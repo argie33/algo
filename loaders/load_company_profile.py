@@ -181,6 +181,7 @@ class CompanyProfileLoader(OptimalLoader):
     primary_key = ("ticker",)
     watermark_field = "updated_at"
     is_symbol_based = True
+    max_fail_rate = 70.0  # Many symbols lack SEC SIC mapping (ETFs, funds, OTC, delisted); mark data_unavailable
 
     def fetch_incremental(self, symbol: str, since: Any) -> list[dict[str, Any]] | None:
         """Fetch company info from SEC source, map SIC to GICS."""
