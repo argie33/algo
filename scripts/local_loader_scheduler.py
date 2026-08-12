@@ -325,7 +325,7 @@ def run_pipeline(pipeline_name: str) -> int:
         # (150 min) was already sized for its own well-diagnosed real-world runtime.
         "company_info": 120 * 60,  # 120 min - SEC EDGAR lookups, ~4900 symbols @ 2 req/sec floor
         "profile": 10 * 60,  # 10 min - uses cached company_info
-        "dividends": 15 * 60,  # 15 min - yfinance dividend data
+        "dividends": 30 * 60,  # 30 min - yfinance dividend data (was timing out at 900s)
         # Holdings & positioning
         "positioning": 30 * 60,  # 30 min - multi-source aggregation
         "positioning_metrics": 30 * 60,  # 30 min - alias for positioning loader
@@ -348,7 +348,8 @@ def run_pipeline(pipeline_name: str) -> int:
         # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.
         "earnings_sec": 60 * 60,  # 60 min - SEC EDGAR submissions filing date extraction (rate-limited API)
-        "sec_reports": 10 * 60,  # 10 min - 8-K report scanning
+        "sec_reports": 60
+        * 60,  # 60 min - 8-K report scanning (SEC API rate-limited, ~4900 symbols @ 2 req/sec = 2450s+ base)
         # BUG FOUND 2026-08-11: 15 min was too short. sec_segment_info makes SEC EDGAR
         # companyfacts + XBRL parsing calls for 4900+ symbols, timing out at 900s exactly.
         # Full universe with retry overhead requires ~30 min, matching company_info's
