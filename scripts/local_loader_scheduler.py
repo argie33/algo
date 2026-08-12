@@ -253,7 +253,8 @@ def run_pipeline(pipeline_name: str) -> int:
     # Set conservatively: price_daily can take 60+ min on large universe, so budget 90 min
     LOADER_TIMEOUTS = {  # noqa: N806
         # Core pricing & market data (heaviest workloads)
-        "prices": 900 * 60,  # 900 min (15h) - SESSION 93: measured 761m actual (Session 92 comment), 600m insufficient (NEGATIVE margin). 900m provides ~140m safety buffer
+        "prices": 900
+        * 60,  # 900 min (15h) - SESSION 93: measured 761m actual (Session 92 comment), 600m insufficient (NEGATIVE margin). 900m provides ~140m safety buffer
         "technical": 30 * 60,  # 30 min - vectorized in-database computation
         "constituents": 10 * 60,  # 10 min - light (static symbol list)
         "economic": 10 * 60,  # 10 min - light (FRED + DXY index)
@@ -365,7 +366,8 @@ def run_pipeline(pipeline_name: str) -> int:
         # 2026-08-12 suggest network variance or yfinance latency exceeded 30 min margin.
         # SESSION 92+ FIX (2026-08-12): Further increased to 60 min. 3 consecutive failures
         # show this loader is hitting rate limiting issues. Need margin for sustained backoff.
-        "earnings_calendar": 75 * 60,  # 75 min - SESSION 93: audit found actual measured 54.84m (9.8m shortfall at 45m, 15m at 60m). 75m provides real margin (CRITICAL FIX)
+        "earnings_calendar": 75
+        * 60,  # 75 min - SESSION 93: audit found actual measured 54.84m (9.8m shortfall at 45m, 15m at 60m). 75m provides real margin (CRITICAL FIX)
         # BUG FOUND 2026-08-11: 15 min was too short. SEC EDGAR submissions API with rate
         # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.
