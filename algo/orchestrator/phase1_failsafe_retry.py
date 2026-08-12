@@ -110,10 +110,16 @@ RETRY_WAIT_SECONDS = 5
 # data. Multiple incomplete critical loaders are retried sequentially in the
 # calling loop, so keep this window reasonable but not so small it times out before
 # "quick" loaders (analyst_earnings: 20 min, small-to-medium loaders) have a chance.
-# Session 81 fix: increased from 45s (too aggressive) to 300s (5 min) to give
-# large loaders like prices (60-90 min), value_quality_growth (40 min), positioning_metrics (30 min)
-# a brief window to complete if they're already underway.
-RETRY_MONITOR_TIMEOUT_SECONDS = 300
+# SESSION 93 CRITICAL FIX: Increased from 300s (5 min) to 1800s (30 min).
+# The 5-minute timeout was causing a race condition in LOCAL_MODE:
+# - Phase 1 starts subprocess with 30-min timeout
+# - Monitors it for only 5 minutes, then gives up
+# - Subprocess keeps running in background (still marked RUNNING in DB)
+# - Phase 1's next data freshness check sees >5min RUNNING, marks as FAILED
+# - Loader never actually completes because Phase 1 keeps failing it
+# This affected: sec_valuations (20m), insider_holdings_sec (30m), sec_segment_info (30m).
+# 30 minutes accommodates company_info_sec (120m is AWS-only; local subprocess 30m is safe).
+RETRY_MONITOR_TIMEOUT_SECONDS = 1800
 
 
 def _get_expected_data_date(run_date: _date | None = None, pipeline_context: str | None = None) -> tuple[_date, str]:
