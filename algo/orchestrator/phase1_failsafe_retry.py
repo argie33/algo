@@ -38,6 +38,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from loaders.config import get_loader_max_fail_rate
 from loaders.loader_registry import all_tables, normalize_loader_name
+from loaders.loader_timeout_config import get_loader_timeouts
 from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -216,6 +217,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
     # CRITICAL FIX 2026-08-12: First pass - check for FAILED loaders and retry them
     # Loaders marked FAILED on Friday are ignored by Monday because they're not "stale" (data is recent)
     # but they DO need retry to recover from the crash/timeout that caused the FAILED status
+    # SESSION 93 FIX: Also check TIMEOUT status (AWS mode handles it at line 815)
     failed_loaders_to_retry = []
     try:
         with DatabaseContext("read") as cur:
@@ -225,7 +227,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     consecutive_failures,
                     error_message
                 FROM data_loader_status
-                WHERE UPPER(status) IN ('ERROR', 'FAILED')
+                WHERE UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT')
                 ORDER BY table_name
             """)
             failed_loaders = cur.fetchall()
@@ -560,7 +562,6 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # SESSION 93 root cause: local_loader_scheduler had 75m for earnings_calendar while
         # phase1 retry had 45m, causing Friday timeouts to never recover by Monday. Now
         # both import from single source of truth (loaders/loader_timeout_config.py)
-        from loaders.loader_timeout_config import get_loader_timeout
 
         # Run each loader (FAILED or stale) locally
         for table_name, loader_key, age_in_days in all_loaders_to_retry:
@@ -618,7 +619,17 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 # Previously, subprocess would fail acquiring locks within ~96s even with
                 # 120+ minute timeouts configured, causing cascading failures.
                 # Now runs directly, inheriting parent orchestrator's lock context.
-                loader_timeout = get_loader_timeout(loader_key, default_seconds=60 * 60)
+                # CRITICAL (SESSION 96): Use correct per-loader timeout from centralized config.
+                # Raise immediately if loader not registered - silent fallback to 60min default
+                # was truncating 180min loaders (company_info_sec).
+                timeouts = get_loader_timeouts()
+                if loader_key not in timeouts:
+                    raise RuntimeError(
+                        f"[PHASE 1 FAILSAFE] Loader {table_name} ({loader_key}) not registered in "
+                        f"loaders/loader_timeout_config.py. This is a configuration error. "
+                        f"Registered loaders: {sorted(timeouts.keys())}"
+                    )
+                loader_timeout = timeouts[loader_key]
                 env["LOADER_TIMEOUT"] = str(max(1, loader_timeout))
 
                 # Set environment for this loader run
