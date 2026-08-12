@@ -101,7 +101,7 @@ Monday 10 AM: Manual backfilling begins (patchwork)
 ### Before (Today's Behavior)
 ```
 Monday 9 AM:  [BROKEN] Dependencies not enforced
-              [BROKEN] analyst_sentiment hangs 5+ hours  
+              [BROKEN] analyst_sentiment hangs 5+ hours
               [BROKEN] buy_sell_daily GROUP BY hangs
               [BROKEN] Loaders ignore timeout config
               → Orchestrator halts, no trading
@@ -113,11 +113,11 @@ Monday 9 AM:  ✅ Dependencies enforced
               ✅ analyst_sentiment times out cleanly at 20 min
               ✅ buy_sell_daily GROUP BY times out at 2 min (safe)
               ✅ All loaders respect per-loader timeouts
-              
+
               Result: Loaders complete or fail cleanly
                       Phase 1 retries failed loaders
                       Orchestrator proceeds with fresh data
-                      
+
 Monday 3 PM:  Trading proceeds normally
 ```
 
@@ -174,7 +174,7 @@ Even if one loader fails:
 
 All 4 critical root causes have been identified and fixed:
 1. ✅ Dependency enforcement broken (FIXED Session 86)
-2. ✅ Timeout handling broken (FIXED Session 86)  
+2. ✅ Timeout handling broken (FIXED Session 86)
 3. ✅ Statement timeouts missing (FIXED Session 86)
 4. ✅ Environment variable mismatch (FIXED Session 87)
 
