@@ -537,7 +537,9 @@ locals {
     # Phase 1: SEC-derived valuations (replaces ~5,300 yfinance quoteSummary calls/day)
     # Computes PE/PB/PS/PEG/FCF from SEC audited data + prices
     # Lightweight: SEC data + price lookups + arithmetic (actual ~50MB)
-    "sec_valuations" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    # SEC valuations (PE, PB, PS, PEG, FCF) - SEC API @ 2 req/sec = ~40 min base + overhead
+    # Timeout: 3600s (60 min) for SEC rate-limited valuations fetches
+    "sec_valuations" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
 
     # Phase 2: Consolidated market status (merges 3 separate loaders → 1 atomic operation)
     # Replaces: market_health_daily (128/256) + market_exposure_daily (256/512) + market_sentiment (256/512)
@@ -557,8 +559,12 @@ locals {
     # loader_file_map comments above for why these were previously unscheduled. Sized like
     # analyst_upgrade_downgrade/analyst_sentiment_analysis below (same shape: per-symbol
     # yfinance call, no bulk endpoint) - live-tested locally at ~1-2s/symbol.
-    "analyst_earnings_estimates"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-    "enhanced_quality_growth_metrics" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    # Analyst earnings estimates (yfinance per-symbol) - need 45m min for rate-limit backoff
+    # Session 92+: increased from 30m to 45m due to yfinance circuit-breaker retries
+    "analyst_earnings_estimates"      = { cpu = 256, memory = 512, timeout = 2700, parallelism = 1 }
+    # Enhanced quality/growth metrics (yfinance variance high, need 5h for full variance)
+    # Session 92: yfinance variance high, requires long timeout buffer
+    "enhanced_quality_growth_metrics" = { cpu = 256, memory = 512, timeout = 18000, parallelism = 1 }
 
     # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
     # Replaces: old sector_performance + sector_ranking + industry_ranking loaders
