@@ -192,6 +192,11 @@ LOADER_DEPENDENCIES = {
     "insider_holdings": ["company_info"],
     # insider_velocity depends on insider_holdings for transaction history
     "insider_velocity": ["insider_holdings"],
+    # SESSION 92 FIX: positioning_metrics reads company_info_sec shares_outstanding
+    # Without this dependency, if company_info fails, positioning_metrics has missing data
+    "positioning": ["company_info"],
+    # SESSION 92 FIX: institutional_holdings_13f reads company_info_sec for symbol lookups
+    "institutional": ["company_info"],
 }
 
 
