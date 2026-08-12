@@ -1822,6 +1822,29 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 )
                 raise ValueError(f"VIX data invalid: {e}") from e
 
+            pcr_val = market_health.get("put_call_ratio")
+            pcr_stale_val = None
+            pcr_stale_date = None
+            if pcr_val is None and market_health.get("put_call_ratio_data_unavailable"):
+                cur.execute("""
+                    SELECT date, put_call_ratio FROM market_health_daily
+                    WHERE put_call_ratio IS NOT NULL AND put_call_ratio_data_unavailable IS NOT TRUE
+                    ORDER BY date DESC LIMIT 1
+                """)
+                stale_row = cur.fetchone()
+                if stale_row:
+                    stale_row = safe_dict_convert(stale_row)
+                    pcr_stale_val = stale_row.get("put_call_ratio")
+                    pcr_stale_date = stale_row.get("date")
+                    if pcr_stale_val is not None:
+                        try:
+                            pcr_stale_val = float(pcr_stale_val)
+                        except (ValueError, TypeError):
+                            pcr_stale_val = None
+                            pcr_stale_date = None
+            market_health["put_call_ratio_stale_value"] = pcr_stale_val
+            market_health["put_call_ratio_stale_date"] = str(pcr_stale_date) if pcr_stale_date else None
+
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
             return error_response(
