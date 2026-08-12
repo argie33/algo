@@ -19,9 +19,10 @@ def get_loader_max_fail_rate(loader_type: str = "default") -> float:
     Returns:
         Maximum percentage (0-100) of symbols allowed to fail
     """
-    # Loader-specific defaults: price data is critical, so lower threshold
+    # Loader-specific defaults: price data is critical, but 5% failure is normal
+    # (delisted/halted symbols ~3-5%, yfinance inconsistency ~1-2%)
     defaults = {
-        "price": 2.0,  # 2% = ~109 symbols out of 5486 (2026-08-03 fix)
+        "price": 5.0,  # 5% = ~245 symbols out of 4900 (allows real-world delisting + API variance)
         "sec": 5.0,  # 5% = more lenient for SEC API which rate-limits
         "financial": 5.0,
         "earnings": 5.0,

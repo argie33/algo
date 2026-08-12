@@ -1576,15 +1576,22 @@ class PriceLoader(OptimalLoader):
                         max_concurrent=max_concurrent,
                     )
                     if result.get("status") == "halted":
-                        # CRITICAL: Mark remaining futures as failed so per-symbol fallback can attempt them
+                        # CRITICAL SESSION 88 FIX: Cancel remaining futures immediately instead of waiting
+                        # Previously: halted=True but as_completed() continued awaiting all remaining futures
+                        # This caused the loader to wait 20+ more minutes for rate-limited/delayed batches
+                        # even though we'd already marked them for fallback retry, pushing past timeout
                         halted = True
                         unprocessed_futures = set(futures.keys()) - processed_futures
                         remaining_batches = [futures[f] for f in unprocessed_futures]
                         if remaining_batches:
                             logger.warning(
-                                f"[CIRCUIT_BREAKER] Halting early due to timeout. Adding {len(remaining_batches)} unprocessed batches "
-                                f"({sum(len(b) for b in remaining_batches)} symbols) to fallback queue."
+                                f"[CIRCUIT_BREAKER] Halting early due to timeout. Canceling {len(unprocessed_futures)} "
+                                f"unprocessed futures ({sum(len(b) for b in remaining_batches)} symbols) to prevent "
+                                f"extended wait times. Adding to fallback queue for per-symbol retry."
                             )
+                            # Cancel all unprocessed futures to prevent waiting for them
+                            for fut in unprocessed_futures:
+                                fut.cancel()  # Attempt immediate cancellation (may fail if already running)
                             failed_batches.extend((batch, "circuit_breaker_halt") for batch in remaining_batches)
 
                     # Track emergency mode state across iterations

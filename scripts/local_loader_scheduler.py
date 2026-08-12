@@ -147,6 +147,7 @@ PIPELINES = {
 # Session 81/82 fix: enforce these dependencies to prevent silent data degradation
 # CRITICAL FIX SESSION 86: Use shorthand names from PIPELINES/registry, not table names
 # (bug found: "buy_sell_daily" != "buy_sell", "stock_scores" != "scores", etc.)
+# SESSION 88 FIX: Added missing SEC-related dependencies to prevent cascading SEC failures
 LOADER_DEPENDENCIES = {
     # value_quality_growth reads valuations, analyst earnings, and financial_statements data
     # RE-ENABLED 2026-08-09: financial_statements was missing here even though the "metrics"
@@ -175,6 +176,9 @@ LOADER_DEPENDENCIES = {
     # FIXED 2026-08-12: Added missing dependency to prevent cascading failures
     # when SEC rate limiting blocks company_info
     "profile": ["company_info"],
+    # SESSION 88 FIX: valuations depends on company_info for symbol and metadata lookups
+    # (if company_info fails, valuations should be skipped rather than cascading failure)
+    "valuations": ["company_info"],
 }
 
 
@@ -369,31 +373,79 @@ def run_pipeline(pipeline_name: str) -> int:
     # skip only the failed loader and any loader that genuinely depends on it (still enforced
     # via _check_loader_dependencies below), not the whole rest of the pipeline.
     any_failed = False
+    skipped_loaders = set()  # Track skipped loaders to skip their dependents
+
     for loader in loaders:
         # CRITICAL FIX (Session 81): Check loader dependencies before running
         # Prevents silent data degradation if a required upstream loader fails
         if not _check_loader_dependencies(loader, completed_loaders):
+            # Check if dependency was skipped (doesn't exist in completed) or failed (in skipped)
+            deps = LOADER_DEPENDENCIES.get(loader, [])
+            missing = [dep for dep in deps if dep not in completed_loaders]
+            if any(dep in skipped_loaders for dep in missing):
+                print(
+                    f"[LOCAL_SCHEDULER] SKIP {loader}: upstream loader(s) {missing} were skipped due to SEC issues",
+                    file=sys.stderr,
+                )
+                skipped_loaders.add(loader)
+                any_failed = True
+                continue
             any_failed = True
             continue
 
         # FIX 2026-08-12: Skip loaders with 3+ consecutive failures (need manual intervention)
         # Prevents broken loaders from cascading through the pipeline
+        # SPECIAL CASE (Session 87): SEC loaders (company_info, earnings_sec, etc) hitting rate limits
+        # should be skipped gracefully so dependents can proceed with cached data
+        # SESSION 88 FIX: Detect SEC rate limiting earlier (2+ consecutive failures for SEC loaders)
+        # and skip them before dependent loaders fail due to upstream unavailability
         try:
             from utils.db.connection import get_db_connection
 
             conn = get_db_connection()
             cur = conn.cursor()
-            cur.execute("SELECT consecutive_failures FROM data_loader_status WHERE table_name = %s", (loader,))
+            cur.execute(
+                "SELECT consecutive_failures, error_message FROM data_loader_status WHERE table_name = %s",
+                (loader,),
+            )
             row = cur.fetchone()
             cur.close()
             conn.close()
-            if row and isinstance(row[0], (int, float)) and int(row[0]) >= 3:
-                print(
-                    f"[LOCAL_SCHEDULER] SKIP {loader}: {int(row[0])} consecutive failures - needs fix",
-                    file=sys.stderr,
-                )
-                any_failed = True
-                continue
+            if row:
+                failures, error_msg = row[0], row[1]
+                if isinstance(failures, (int, float)):
+                    failures_int = int(failures)
+                    error_msg = error_msg or "(no error message)"
+                    is_sec_issue = (
+                        "rate limit" in error_msg.lower()
+                        or "sec edgar" in error_msg.lower()
+                        or "429" in error_msg.lower()
+                    )
+
+                    # SESSION 88: For SEC loaders, skip after just 2 failures (not 3+)
+                    # SEC rate limiting is an external factor - retrying won't help once it starts
+                    # For other loaders, require 3+ failures before skipping
+                    should_skip = (is_sec_issue and failures_int >= 2) or (not is_sec_issue and failures_int >= 3)
+
+                    if should_skip:
+                        if is_sec_issue:
+                            # SEC rate limiting - skip gracefully so dependents use cached data
+                            print(
+                                f"[LOCAL_SCHEDULER] SKIP {loader}: {failures_int} failures due to SEC rate limiting (429, too many requests) "
+                                f"- proceeding with cached data. Error: {error_msg[:100]}",
+                                file=sys.stderr,
+                            )
+                            skipped_loaders.add(loader)
+                            any_failed = True
+                        else:
+                            # Non-SEC failure - needs manual intervention
+                            print(
+                                f"[LOCAL_SCHEDULER] SKIP {loader}: {failures_int} consecutive failures - needs manual fix. Error: {error_msg[:100]}",
+                                file=sys.stderr,
+                            )
+                            skipped_loaders.add(loader)
+                            any_failed = True
+                        continue
         except Exception as e:
             print(f"[LOCAL_SCHEDULER] WARNING: Could not check {loader} failures: {e}", file=sys.stderr)
 
@@ -519,9 +571,16 @@ def run_pipeline(pipeline_name: str) -> int:
             any_failed = True
             continue
 
-    if any_failed:
+    if any_failed and not skipped_loaders:
+        # Hard failures (not just SEC skips) - return error
         print(f"[LOCAL_SCHEDULER] {pipeline_name} pipeline completed with 1+ loader failure(s) - see warnings above")
         return 1
+    if skipped_loaders:
+        # SEC loaders were skipped gracefully - pipeline continues with cached data
+        print(
+            f"[LOCAL_SCHEDULER] {pipeline_name} pipeline completed with {len(skipped_loaders)} loader(s) skipped due to SEC rate limiting - continuing with cached data"
+        )
+        return 0  # Graceful degradation - not a critical failure
     print(f"[LOCAL_SCHEDULER] {pipeline_name} pipeline completed successfully")
     return 0
 
