@@ -623,6 +623,12 @@ locals {
     # (sec_cash_flow_metrics removed 2026-07-27 - see all_loaders map comment above)
     "sec_segment_metrics" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
 
+    # SEC Segment Info (XBRL parsing from 10-K/10-Q filings)
+    # Parses SEC EDGAR companyfacts and raw XBRL for segment disclosure data
+    # Session 94 fix: was 120m, observed 0.40 sym/s on 4900 symbols = ~200min needed
+    # Timeout: 14400s (240 min) to accommodate XBRL parsing + SEC API rate limiting
+    "sec_segment_info" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 2 }
+
     # Core Stock Scoring & Risk Metrics (ACTIVE)
     # Stock scores: 6-factor composite (quality/growth/value/momentum/positioning/stability)
     # Timeout: 1500s (25 min) - aggregation + scoring from upstream tables

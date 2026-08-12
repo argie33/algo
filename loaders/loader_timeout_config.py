@@ -90,9 +90,9 @@ def get_loader_timeouts() -> dict[str, int]:
         "earnings_calendar_sec": 90 * 60,  # 90 min - SEC-specific version needs more time
         "earnings_sec": 90 * 60,  # 90 min - Session 92: still failing at 60m (41m base + overhead)
         "sec_reports": 60 * 60,  # 60 min - 8-K report scanning (SEC API rate-limited)
-        "segment_info": 120
-        * 60,  # 120 min - SESSION 94+ FIX: SEC API rate limiting @ 2 req/sec. 4900 symbols = 2450s base + 429/503 retry overhead requires 120min minimum
-        "sec_segment_info": 120 * 60,  # 120 min - Alias for segment_info
+        "segment_info": 240
+        * 60,  # 240 min (4h) - SESSION 94+ FIX: SEC API rate limiting @ 2 req/sec. 4900 symbols @ 0.40 sym/s observed = ~200 min base + overhead
+        "sec_segment_info": 240 * 60,  # 240 min - Alias for segment_info (XBRL parsing is heavyweight)
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
         "dividends": 60
         * 60,  # 60 min - SESSION 94+ FIX: yfinance-based, 4900 symbols. Was 40m, increased due to rate-limit backoff overhead
