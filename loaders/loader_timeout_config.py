@@ -53,7 +53,7 @@ def get_loader_timeouts() -> dict[str, int]:
         "stability_metrics": 30 * 60,  # 30 min - alias for momentum
         # SEC/Financial data (batch API calls with rate limiting)
         "valuations": 60 * 60,  # 60 min - Session 92+ fix: SEC API @ 2 req/sec (41m base + overhead)
-        "financial_statements": 240 * 60,  # 240 min (4h) - Session 92: per-symbol incremental loading
+        "financial_statements": 360 * 60,  # 360 min (6h) - Session 96+: Increased from 240m; SEC rate limiting requires additional safety margin
         # Individual financial statement tables (SESSION 94 FIX: prevent registry mismatch)
         # These are output tables from financial_statements loader, need same timeout as parent
         "annual_income_statement": 120 * 60,  # 120 min - One of 6 statement types from financial_statements
@@ -71,11 +71,11 @@ def get_loader_timeouts() -> dict[str, int]:
         # Sector/industry
         "sector_industry": 15 * 60,  # 15 min - daily aggregation (3 output tables)
         # Company information (SEC API calls)
-        "company_info": 180 * 60,  # 180 min (3h) - Session 92: ~4900 symbols @ 2 req/sec SEC API
-        "company_info_sec": 180 * 60,  # 180 min - Alias for company_info (table name in database)
-        "profile": 45
-        * 60,  # 45 min - SESSION 94+ FIX: yfinance-based loader, 4900 symbols with rate-limit retries. Was 10m but failing at 26.4% completion
-        "company_profile": 45 * 60,  # 45 min - Alias for profile
+        "company_info": 300 * 60,  # 300 min (5h) - Session 96+: Increased from 180m to account for rate-limiting variance and retry overhead; observed failures at 60m indicate undersized margin
+        "company_info_sec": 300 * 60,  # 300 min - Alias for company_info (table name in database)
+        "profile": 120
+        * 60,  # 120 min - SESSION 96+: Increased from 45m; yfinance rate-limiting requires more robust timeout to prevent Monday cascades
+        "company_profile": 120 * 60,  # 120 min - Alias for profile
         # Holdings & positioning
         "positioning": 30 * 60,  # 30 min - multi-source aggregation
         "positioning_metrics": 30 * 60,  # 30 min - Alias for positioning (table name in database)
@@ -90,9 +90,9 @@ def get_loader_timeouts() -> dict[str, int]:
         "earnings_calendar_sec": 90 * 60,  # 90 min - SEC-specific version needs more time
         "earnings_sec": 90 * 60,  # 90 min - Session 92: still failing at 60m (41m base + overhead)
         "sec_reports": 60 * 60,  # 60 min - 8-K report scanning (SEC API rate-limited)
-        "segment_info": 240
-        * 60,  # 240 min (4h) - SESSION 94+ FIX: SEC API rate limiting @ 2 req/sec. 4900 symbols @ 0.40 sym/s observed = ~200 min base + overhead
-        "sec_segment_info": 240 * 60,  # 240 min - Alias for segment_info (XBRL parsing is heavyweight)
+        "segment_info": 360
+        * 60,  # 360 min (6h) - SESSION 96+: Increased from 240m; SEC API rate limiting very tight; observed failures suggest need for additional buffer
+        "sec_segment_info": 360 * 60,  # 360 min - Alias for segment_info (XBRL parsing is heavyweight)
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
         "dividends": 60
         * 60,  # 60 min - SESSION 94+ FIX: yfinance-based, 4900 symbols. Was 40m, increased due to rate-limit backoff overhead
