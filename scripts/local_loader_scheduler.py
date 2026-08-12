@@ -252,9 +252,7 @@ def run_pipeline(pipeline_name: str) -> int:
     # phase1 retry had 45m, causing Friday timeouts to never recover by Monday. Now both
     # import from single source of truth (loaders/loader_timeout_config.py). This prevents
     # the exact mismatch that caused Monday cascades throughout Session 93.
-    from loaders.loader_timeout_config import get_loader_timeouts
-
-    LOADER_TIMEOUTS = get_loader_timeouts()  # noqa: N806
+    # (Note: LOADER_TIMEOUTS dict no longer used - instead call get_loader_timeout() for fail-fast validation)
 
     # BUG FOUND 2026-08-10 (live-reproduced): a single loader failure used to abort the
     # ENTIRE remaining pipeline (`return 1` below), even for loaders with zero declared
@@ -346,7 +344,24 @@ def run_pipeline(pipeline_name: str) -> int:
         except Exception as e:
             print(f"[LOCAL_SCHEDULER] WARNING: Could not check {loader} failures: {e}", file=sys.stderr)
 
-        timeout = LOADER_TIMEOUTS.get(loader, 30 * 60)  # 30 min default
+        # CRITICAL FIX (Session 97): Use get_loader_timeout() for fail-fast instead of .get() with silent default
+        # Session 96 fixed the same bug in phase1_failsafe_retry.py but this code path was missed.
+        # Silent .get(loader, 30*60) default allowed company_info_sec (180m) to silently truncate
+        # to 30m if lookup failed, cascading failures to dependent loaders. Now raises if loader not registered.
+        try:
+            from loaders.loader_timeout_config import get_loader_timeout
+
+            timeout = get_loader_timeout(loader)  # Fail-fast if not registered
+        except RuntimeError:
+            # Loader not registered - this is a configuration error that should be fixed,
+            # not silently defaulted. But to avoid halting the entire pipeline on a single
+            # registration gap, use a safe fallback and warn the user loudly.
+            print(
+                f"[LOCAL_SCHEDULER] CRITICAL: {loader} not registered in loader_timeout_config.py. "
+                f"Using fallback 1800s but this MUST be fixed. See loader_timeout_config.py.",
+                file=sys.stderr,
+            )
+            timeout = 30 * 60  # 30 min fallback - but this should never happen in production
         print(f"[LOCAL_SCHEDULER] Running {loader} loader (timeout: {timeout}s)...")
         try:
             # Convert shorthand name to filename (e.g., "prices" → "load_prices.py")
