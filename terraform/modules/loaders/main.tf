@@ -568,25 +568,25 @@ locals {
     "sector_industry_daily" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
 
     # PHASE 5: SEC Company Info & Earnings Calendar (Session 237+)
-    # Phase 5a: Company Info from SEC EDGAR (lightweight: SEC API calls + metadata parsing, <100MB)
-    # Timeout: 600s (typical run <5 min for 5k symbols, 2x headroom)
-    # Parallelism: 1-2 (SEC API rate-limited to ~10 req/sec globally, keep under limit)
-    "company_info_sec" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    # Phase 5a: Company Info from SEC EDGAR (SEC API @ 2 req/sec for ~4900 symbols = 2450s base + retry overhead)
+    # Timeout: 10800s (180 min) - Session 94 fix: was 600s, TIMEOUT every run after 10 min
+    # Parallelism: 1-2 (SEC API rate-limited to ~2 req/sec globally, keep under limit)
+    "company_info_sec" = { cpu = 256, memory = 512, timeout = 10800, parallelism = 2 }
 
     # Restored 2026-07-27: reads company_info_sec (already in RDS, no external API calls),
-    # so it's lighter and faster than company_info_sec itself.
-    "company_profile" = { cpu = 128, memory = 256, timeout = 300, parallelism = 2 }
+    # but yfinance rate-limited on 4900 symbols, needs safety margin. Session 94 fix: was 300s
+    # Timeout: 2700s (45 min) to handle yfinance rate-limit retries
+    "company_profile" = { cpu = 128, memory = 256, timeout = 2700, parallelism = 2 }
 
-    # Phase 5b: SEC filing dates (lightweight: submission parsing, <100MB)
-    # Timeout: 900s (typical run ~5-15 min for 5k symbols + 10-K/10-Q extraction, 2x headroom)
+    # Phase 5b: SEC filing dates (SEC API @ 2 req/sec = ~40 min base + overhead)
+    # Timeout: 5400s (90 min) - Session 94 fix: was 900s, TIMEOUT every run after 15 min
     # Parallelism: 1-2 (SEC API rate-limited, keep under global limit)
-    "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+    "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 5400, parallelism = 2 }
 
-    # Restored 2026-08-04 - see loader_file_map comment above. Sized like
-    # analyst_earnings_estimates/analyst_upgrade_downgrade (same shape: per-symbol yfinance
-    # call, no bulk endpoint) - live-tested locally at ~5s/symbol for the earnings_dates
-    # window fetch.
-    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    # Restored 2026-08-04 - per-symbol yfinance calls (4900 symbols @ ~0.75s/symbol = 60+ min)
+    # Session 93 audit: measured 54.84 min actual, was 45m configured (9.8m shortfall)
+    # Timeout: 4500s (75 min) to accommodate variance and retry overhead
+    "earnings_calendar" = { cpu = 256, memory = 512, timeout = 4500, parallelism = 1 }
 
     # ============================================================
     # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)
@@ -594,9 +594,10 @@ locals {
     # Replaces yfinance held_percent_institutions/held_percent_insiders
     # Data source: SEC SCHEDULE 13G (institutional) + SEC Form 4/5 (insider)
     # Quality: SEC-published data > yfinance estimates; quarterly updates acceptable for scoring
-    # Lightweight: SEC API calls + aggregation (actual ~100MB each)
-    "institutional_holdings_13f" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
-    "insider_holdings_sec"       = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    # Session 92+: increased from 30m to 45m due to bulk download + rate limiting
+    # Timeout: 2700s (45 min) for bulk SEC downloads with rate-limit backoff
+    "institutional_holdings_13f" = { cpu = 256, memory = 512, timeout = 2700, parallelism = 2 }
+    "insider_holdings_sec"       = { cpu = 256, memory = 512, timeout = 2700, parallelism = 2 }
 
     # ============================================================
     # NEW: Insider Transaction Velocity (Session 444+)
@@ -604,46 +605,59 @@ locals {
     # Insider confidence scoring from SEC Form 3/4/5 transaction counts
     # Data source: Same as insider_holdings_sec (Form 3/4/5 bulk datasets)
     # Detects insider buying sprees, executive departures, lockup periods
-    # Lightweight: SEC API calls + aggregation (actual ~100MB, same as insider_holdings_sec)
-    "insider_transaction_velocity" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    # Timeout: 2700s (45 min) - same as insider_holdings_sec (shared SEC Form 3/4/5 workload)
+    "insider_transaction_velocity" = { cpu = 256, memory = 512, timeout = 2700, parallelism = 2 }
 
     # ============================================================
     # NEW: SEC-Derived Segment Metrics (Session 274+)
     # ============================================================
     # Segment revenue/income concentration for diversification scoring
     # Lightweight: DB joins + arithmetic calculations (actual ~50MB each)
+    # Timeout: 900s (15 min) - lightweight aggregation, no external API
     # (sec_cash_flow_metrics removed 2026-07-27 - see all_loaders map comment above)
-    "sec_segment_metrics" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
+    "sec_segment_metrics" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
 
     # Core Stock Scoring & Risk Metrics (ACTIVE)
     # Stock scores: 6-factor composite (quality/growth/value/momentum/positioning/stability)
-    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    # Timeout: 1500s (25 min) - aggregation + scoring from upstream tables
+    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 1500, parallelism = 2 }
 
     # Risk metrics: volatility, beta, momentum for position monitoring (Session 275: consolidated from separate loaders)
     # Single loader computes BOTH momentum and stability metrics in one pass
     # Writes to momentum_metrics table (primary) and stability_metrics table (side effect)
-    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 4200, parallelism = 2 }
+    # Timeout: 1800s (30 min) - lightweight statistical calculations
+    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Positioning metrics: short interest (FINRA) + institutional/insider holdings (SEC)
+    # Timeout: 1800s (30 min) - aggregation of FINRA short interest + SEC data
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
 
-    # FINRA short interest (bi-weekly regulatory data)
-    "short_interest_finra" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # FINRA short interest (bi-weekly regulatory data) - simple HTTP GET + parsing
+    # Timeout: 600s (10 min) - simple regulatory data, margin for network variance
+    "short_interest_finra" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Market-exposure factor inputs (Session 301 restoration, see loader_file_map comment)
-    # NAAIM: plain HTTP GET + pandas.read_html, no browser needed - lightweight like short_interest_finra
-    "naaim" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # NAAIM: plain HTTP GET + pandas.read_html, no browser needed - lightweight
+    # Timeout: 600s (10 min) - simple HTTP + HTML parsing, margin for network variance
+    "naaim" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     # AAII: needs Playwright/Chromium to bypass Incapsula bot protection (image already has
     # `playwright install chromium` — see repo root Dockerfile). Live-tested locally at ~23s
     # end-to-end including browser launch; sized with headroom for a cold Fargate start.
-    "aaii_sentiment" = { cpu = 512, memory = 1024, timeout = 300, parallelism = 1 }
+    # Timeout: 600s (10 min) - browser + HTTP + parsing with startup overhead
+    "aaii_sentiment" = { cpu = 512, memory = 1024, timeout = 600, parallelism = 1 }
 
     # Core Market Data
-    "market_constituents" = { cpu = 128, memory = 256, timeout = 120, parallelism = 1 }
-    "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+    # Market constituents: simple symbol list refresh - lightweight, fast
+    # Timeout: 600s (10 min) - static symbol list from exchange data, margin for variance
+    "market_constituents" = { cpu = 128, memory = 256, timeout = 600, parallelism = 1 }
+    # Economic data: FRED API + DXY index - straightforward data fetch
+    # Timeout: 600s (10 min) - simple time-series fetch, no volume computation
+    "economic_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Financial statements (SEC EDGAR, all 8 statement/period combos in single task)
-    "financials_all" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    # Session 92: per-symbol incremental loading @ 2 req/sec SEC API = ~40 min base + overhead
+    # Timeout: 14400s (240 min / 4 hours) for full financial_statements workload
+    "financials_all" = { cpu = 512, memory = 1024, timeout = 14400, parallelism = 1 }
 
     # Signals & algo metrics
     "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
