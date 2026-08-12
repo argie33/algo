@@ -157,6 +157,14 @@ LOADER_DEPENDENCIES = {
     # sec_segment_metrics computes Herfindahl index / diversification from sec_segment_info -
     # terraform/modules/pipeline/main.tf documents this as a CRITICAL DEPENDENCY.
     "segment_metrics": ["segment_info"],
+    # FIXED 2026-08-12: buy_sell_daily requires fresh price and technical data for signals
+    "buy_sell_daily": ["prices", "technical"],
+    # stock_scores requires value metrics to be available (for scoring algorithm)
+    "stock_scores": ["value_quality_growth", "enhanced_quality_growth", "stability_metrics"],
+    # signal_quality_scores requires buy_sell_daily signals to exist before quality scoring
+    "signal_quality": ["buy_sell_daily"],
+    # algo metrics depend on signals being generated first
+    "algo": ["signal_quality", "stock_scores"],
 }
 
 
