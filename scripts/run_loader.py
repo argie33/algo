@@ -331,7 +331,9 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
             kwargs["backfill_days"] = backfill_days
 
         # Get parallelism from environment or loader config
-        parallelism = int(os.environ.get("LOADER_PARALLELISM", "4"))
+        # CRITICAL: Default to "1" to match LOADER_PARALLELISM env default (line 49)
+        # Parallelism=4 causes yfinance rate limiting on shared NAT IP (verified broken in session 82)
+        parallelism = int(os.environ.get("LOADER_PARALLELISM", "1"))
         kwargs["parallelism"] = parallelism
 
         result = loader.run(**kwargs)
