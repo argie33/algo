@@ -222,19 +222,13 @@ class TriggerLoadersHandler(LambdaHandler):
         use_fargate = loader_name in critical_loaders
 
         # Set environment variables for ECS task
-        sec_and_metric_loaders = {
-            # Consolidated financial statements loader (Phase 5 - 2026-07-13)
-            "financials_all",
-            # Metric loaders that depend on financials_all
-            "quality_metrics",
-            "growth_metrics",
-            "value_metrics",
-            "positioning_metrics",
-            "stability_metrics",
-        }
+        # Use centralized loader-specific timeout config (in seconds, matching loaders/runner.py expectation)
+        # ENV VAR CRITICAL FIX: Changed from LOADER_TIMEOUT_SEC to LOADER_TIMEOUT for consistency
+        # with loaders/runner.py which reads LOADER_TIMEOUT (without _SEC suffix)
+        loader_timeout_sec = self._get_loader_timeout(loader_name)
         environment_overrides = {
-            # SEC loaders + metric loaders need extended timeout (600s = 10 min for SEC EDGAR + yfinance)
-            "LOADER_TIMEOUT_SEC": "600" if loader_name in sec_and_metric_loaders else "300",
+            # Use centralized loader-specific timeout config
+            "LOADER_TIMEOUT": str(loader_timeout_sec),
             # Reduce batch size in AWS to avoid yfinance rate limiting
             "LOADER_CHUNK_SIZE": "100",
             # Increase memory limit flag for batch processing
