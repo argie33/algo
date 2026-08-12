@@ -598,6 +598,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 cmd = [sys.executable, f"loaders/{loader_filename}"]
                 # SESSION 94 FIX: Use centralized timeout config instead of hardcoded dict
                 loader_timeout = get_loader_timeout(loader_key, default_seconds=60 * 60)
+                # CRITICAL FIX: Pass LOADER_TIMEOUT to subprocess so loaders/runner.py can set up
+                # its own watchdog timer (threading.Timer fallback on Windows, SIGALRM on Linux).
+                # Matches local_loader_scheduler.py line 368. Without this, the loader subprocess
+                # doesn't know its per-loader timeout and can hang indefinitely.
+                env["LOADER_TIMEOUT"] = str(max(1, loader_timeout))
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
