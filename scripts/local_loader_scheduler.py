@@ -318,7 +318,11 @@ def run_pipeline(pipeline_name: str) -> int:
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.
         "earnings_sec": 60 * 60,  # 60 min - SEC EDGAR submissions filing date extraction (rate-limited API)
         "sec_reports": 10 * 60,  # 10 min - 8-K report scanning
-        "segment_info": 15 * 60,  # 15 min - segment data extraction
+        # BUG FOUND 2026-08-11: 15 min was too short. sec_segment_info makes SEC EDGAR
+        # companyfacts + XBRL parsing calls for 4900+ symbols, timing out at 900s exactly.
+        # Full universe with retry overhead requires ~30 min, matching company_info's
+        # similarly-sized SEC API workload and other slow SEC loaders like earnings_sec.
+        "segment_info": 30 * 60,  # 30 min - SEC XBRL segment data extraction (was 15 min, too short)
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
         # Trading signals
         "scores": 25 * 60,  # 25 min - scoring algorithm
