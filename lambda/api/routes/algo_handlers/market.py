@@ -321,10 +321,14 @@ def _classify_loader_state_issue(
     # Running: loader is in progress
     if status_lower == "running":
         if exec_started and not exec_completed:
-            elapsed_seconds = (datetime.now(timezone.utc) - normalize_to_utc_datetime(exec_started, timezone.utc)).total_seconds() if isinstance(normalize_to_utc_datetime(exec_started, timezone.utc), datetime) else 0
+            exec_start_utc = normalize_to_utc_datetime(exec_started, None)
+            if isinstance(exec_start_utc, datetime):
+                elapsed_seconds = (datetime.now(timezone.utc) - exec_start_utc).total_seconds()
+            else:
+                elapsed_seconds = 0
             completion_float = float(completion_pct) if isinstance(completion_pct, (int, float, str)) else 0
             if elapsed_seconds > 1800 and completion_float < 5:  # >30 min, <5% complete
-                return f"TIMEOUT: running {elapsed_seconds/3600:.1f}h at {completion_float:.0f}%"
+                return f"TIMEOUT: running {elapsed_seconds / 3600:.1f}h at {completion_float:.0f}%"
             return f"RUNNING: {completion_float:.0f}% complete"
         return "RUNNING"
 
@@ -732,8 +736,14 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     completion_pct_raw = row.get("completion_pct")
                     if exec_started_raw and completion_pct_raw is not None:
                         try:
-                            elapsed_seconds = (datetime.now(timezone.utc) - normalize_to_utc_datetime(exec_started_raw, naive_tz)).total_seconds() if isinstance(normalize_to_utc_datetime(exec_started_raw, naive_tz), datetime) else 0
-                            completion_float = float(completion_pct_raw) if isinstance(completion_pct_raw, (int, float, str)) else 0
+                            exec_start_utc = normalize_to_utc_datetime(exec_started_raw, naive_tz)
+                            if isinstance(exec_start_utc, datetime):
+                                elapsed_seconds = (datetime.now(timezone.utc) - exec_start_utc).total_seconds()
+                            else:
+                                elapsed_seconds = 0
+                            completion_float = (
+                                float(completion_pct_raw) if isinstance(completion_pct_raw, (int, float, str)) else 0
+                            )
                             if elapsed_seconds > 1800 and completion_float < 5:  # >30 min, <5% done
                                 status = "error"  # Treat stuck runners as error
                         except (ValueError, TypeError, AttributeError):

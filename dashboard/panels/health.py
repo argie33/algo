@@ -370,9 +370,9 @@ def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[
 
     # Collect loader state issues (distinct from error_message which is last error)
     loader_state_issues = [
-        (r.get("tbl") or r.get("name") or "unknown", r.get("loader_state_issue"))
+        (r.get("tbl") or r.get("name") or "unknown", issue)
         for r in hlth_items
-        if isinstance(r, dict) and r.get("loader_state_issue")
+        if isinstance(r, dict) and (issue := r.get("loader_state_issue"))
     ]
 
     loader_errors = [
@@ -385,7 +385,9 @@ def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[
         if isinstance(r, dict):
             n_fail_raw = r.get("consecutive_failures")
             if isinstance(n_fail_raw, (int, float)) and n_fail_raw >= 2:
-                repeated_failures.append((r.get("tbl") or r.get("name") or "unknown", int(n_fail_raw), r.get("last_success_at")))
+                repeated_failures.append(
+                    (r.get("tbl") or r.get("name") or "unknown", int(n_fail_raw), r.get("last_success_at"))
+                )
     never_started = [
         r.get("tbl") or r.get("name") or "unknown"
         for r in hlth_items
