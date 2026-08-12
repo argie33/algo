@@ -496,10 +496,10 @@ class OptimalLoader:
             # observed 2385s max with margin while still being friendlier than production's
             # full 2h for an accidental infinite loop.
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
-            # CRITICAL FIX: Use loader-specific SLA timeout (can be 90+ min for price_loader)
-            from loaders.config import get_loader_sla_timeout
+            # CRITICAL FIX: Use centralized loader timeout config (Session 95: unify all timeout sources)
+            from loaders.loader_timeout_config import get_loader_timeout
 
-            sla_timeout = get_loader_sla_timeout(self.table_name)
+            sla_timeout = get_loader_timeout(self.table_name)
             # Lock TTL should be at least as long as SLA timeout (add 10% margin for safety)
             lock_ttl = int(sla_timeout * 1.1)
             try:
@@ -682,9 +682,9 @@ class OptimalLoader:
 
             # CRITICAL FIX: Use loader-specific SLA timeout instead of hardcoded 2h
             # price_daily needs 90+ min (5000+ symbols), signal_quality_scores needs 60+ min
-            from loaders.config import get_loader_sla_timeout
+            from loaders.loader_timeout_config import get_loader_timeout
 
-            sla_timeout_seconds = get_loader_sla_timeout(self.table_name)
+            sla_timeout_seconds = get_loader_timeout(self.table_name)
 
             try:
                 if parallelism == 1:
@@ -807,10 +807,10 @@ class OptimalLoader:
             # observed 2385s max with margin while still being friendlier than production's
             # full 2h for an accidental infinite loop.
             # PRODUCTION: Use 7200s (2h) for slow loaders like price_daily that legitimately run 60+ min
-            # CRITICAL FIX: Use loader-specific SLA timeout (can be 90+ min for price_loader)
-            from loaders.config import get_loader_sla_timeout
+            # CRITICAL FIX: Use centralized loader timeout config (Session 95: unify all timeout sources)
+            from loaders.loader_timeout_config import get_loader_timeout
 
-            sla_timeout = get_loader_sla_timeout(self.table_name)
+            sla_timeout = get_loader_timeout(self.table_name)
             # Lock TTL should be at least as long as SLA timeout (add 10% margin for safety)
             lock_ttl = int(sla_timeout * 1.1)
             try:
@@ -1027,9 +1027,9 @@ class OptimalLoader:
         failed_symbols: list[str] = []
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
         # CRITICAL FIX: Use loader-specific SLA timeout
-        from loaders.config import get_loader_sla_timeout
+        from loaders.loader_timeout_config import get_loader_timeout
 
-        max_batch_time = get_loader_sla_timeout(self.table_name)
+        max_batch_time = get_loader_timeout(self.table_name)
         batch_start = time.time()
 
         for i, symbol in enumerate(symbols, 1):
@@ -1094,9 +1094,9 @@ class OptimalLoader:
         # Increase to 600s (10 min) to match serial timeout. Environment can override.
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
         # CRITICAL FIX: Use loader-specific SLA timeout instead of hardcoded value
-        from loaders.config import get_loader_sla_timeout
+        from loaders.loader_timeout_config import get_loader_timeout
 
-        max_batch_time = get_loader_sla_timeout(self.table_name)
+        max_batch_time = get_loader_timeout(self.table_name)
         batch_start = time.time()
 
         # Track when each symbol ACTUALLY STARTS executing (not when it's dispatched/queued).

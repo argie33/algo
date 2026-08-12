@@ -243,7 +243,7 @@ def _validate_dependency_freshness(
     CRITICAL DEPENDENCIES (must have run_date data):
     - value_metrics requires: annual_income_statement, annual_balance_sheet, sec_valuations
       (produced by: load_financial_statements.py, load_sec_valuations.py)
-    - sec_segment_metrics requires: sec_segment_info (loader: load_company_info_sec.py)
+    - sec_segment_metrics requires: sec_segment_info (loader: load_sec_segment_info.py)
     - positioning_metrics requires: institutional_holdings_13f, insider_holdings_sec
     - stock_scores requires: value_metrics, stability_metrics
 
@@ -253,7 +253,7 @@ def _validate_dependency_freshness(
         # value_metrics produced by load_value_quality_growth_metrics.py
         # Requires financial statement data from load_financial_statements.py
         "value_metrics": ["annual_income_statement", "annual_balance_sheet", "sec_valuations"],
-        # sec_segment_metrics produced by load_company_info_sec.py
+        # sec_segment_metrics produced by load_sec_segment_metrics.py
         "sec_segment_metrics": ["sec_segment_info"],
         # positioning_metrics requires insider/institutional holdings
         "positioning_metrics": ["institutional_holdings_13f", "insider_holdings_sec"],

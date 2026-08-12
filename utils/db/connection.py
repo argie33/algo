@@ -179,7 +179,9 @@ class TrackedConnection:
                 try:
                     self._conn.rollback()
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
-                    logger.warning(f"[DB_POOL] Rollback failed before returning connection: {rollback_err}, closing instead")
+                    logger.warning(
+                        f"[DB_POOL] Rollback failed before returning connection: {rollback_err}, closing instead"
+                    )
                     self._pool.putconn(self._conn, close=True)
                     return
                 self._pool.putconn(self._conn)
