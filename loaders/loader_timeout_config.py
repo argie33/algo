@@ -108,15 +108,29 @@ def get_loader_timeouts() -> dict[str, int]:
     }
 
 
-def get_loader_timeout(loader_name: str, default_seconds: int = 3600) -> int:
+def get_loader_timeout(loader_name: str, default_seconds: int | None = None) -> int:
     """Get timeout for a specific loader.
+
+    CRITICAL (Session 96): Fail-fast instead of silently defaulting to 3600s.
+    Silent 3600s default was truncating long loaders (company_info_sec: 180m config → 60m timeout),
+    causing cascading Monday brittleness. All loaders must be explicitly registered.
 
     Args:
         loader_name: Loader shorthand name (e.g., "prices", "valuations")
-        default_seconds: Default if loader not found (default 1 hour)
+        default_seconds: Default if loader not found. If None, raises error (fail-fast).
 
     Returns:
         Timeout in seconds
+
+    Raises:
+        RuntimeError: If loader not found and default_seconds is None
     """
     timeouts = get_loader_timeouts()
-    return timeouts.get(loader_name, default_seconds)
+    if loader_name in timeouts:
+        return timeouts[loader_name]
+    if default_seconds is not None:
+        return default_seconds
+    raise RuntimeError(
+        f"[LOADER_TIMEOUT] Loader '{loader_name}' not found. "
+        f"Register in loaders/loader_timeout_config.py or pass explicit default_seconds."
+    )
