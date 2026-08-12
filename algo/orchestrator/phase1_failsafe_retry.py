@@ -575,13 +575,10 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 results["retried"].append(table_name)
 
                 # Run loader with force-refresh to bypass watermarks
-                import subprocess
-                import sys
 
                 env = os.environ.copy()
                 env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters (read by technical_data_daily)
 
-                repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
                 # CRITICAL FIX (Session 54): Pass run_date to loader so it respects orchestrator's date, not system date
                 # When orchestrator runs for 2026-08-12 but system date is 2026-08-08 (Saturday),
                 # loader needs run_date to know which trading day data to expect
@@ -637,13 +634,20 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
 
                     # Main loader class is typically the CamelCase version of the filename
                     # e.g., load_prices.py → PriceLoader, load_company_info_sec.py → CompanyInfoSECLoader
-                    class_name = ''.join(word.capitalize() for word in loader_filename.replace('load_', '').replace('.py', '').split('_')) + 'Loader'
+                    class_name = (
+                        "".join(
+                            word.capitalize()
+                            for word in loader_filename.replace("load_", "").replace(".py", "").split("_")
+                        )
+                        + "Loader"
+                    )
                     loader_class = getattr(loader_module, class_name, None)
 
                     if loader_class is None:
                         # Fallback: if CamelCase doesn't match, try OptimalLoader which auto-detects
                         from utils.optimal_loader import OptimalLoader
-                        loader = OptimalLoader(loader_key)
+
+                        loader = OptimalLoader()
                         result_status = loader.run([])  # Empty symbols list for full universe
                         returncode = 0 if result_status else 1
                     else:
@@ -655,7 +659,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 except Exception as e:
                     logger.error(
                         f"[PHASE 1 FAILSAFE LOCAL] {table_name} in-process run FAILED: {type(e).__name__}: {e}",
-                        exc_info=True
+                        exc_info=True,
                     )
                     returncode = 1
                 finally:
@@ -663,6 +667,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     os.environ.clear()
                     os.environ.update(old_env)
 
+                # Now check the results (after environment restored)
                 if returncode == 0:
                     # BUG FOUND 2026-08-10: exit code 0 only means the subprocess didn't
                     # crash - it says nothing about whether THIS SPECIFIC table's own load
@@ -701,6 +706,19 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     )
                     if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                         results["halt_required"] = True
+
+            except (OSError, RuntimeError) as e:
+                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
+                results["still_failing"].append(table_name)
+                _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    results["halt_required"] = True
+            except Exception as e:
+                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
+                results["still_failing"].append(table_name)
+                _mark_loader_failed_after_crash(loader_key, f"failsafe retry unexpected error: {type(e).__name__}: {e}")
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    results["halt_required"] = True
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal database error in local refresh: {e}", exc_info=True)
