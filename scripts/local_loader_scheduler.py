@@ -145,6 +145,8 @@ PIPELINES = {
 
 # CRITICAL: Loader dependencies - some loaders must run before others
 # Session 81/82 fix: enforce these dependencies to prevent silent data degradation
+# CRITICAL FIX SESSION 86: Use shorthand names from PIPELINES/registry, not table names
+# (bug found: "buy_sell_daily" != "buy_sell", "stock_scores" != "scores", etc.)
 LOADER_DEPENDENCIES = {
     # value_quality_growth reads valuations, analyst earnings, and financial_statements data
     # RE-ENABLED 2026-08-09: financial_statements was missing here even though the "metrics"
@@ -157,14 +159,18 @@ LOADER_DEPENDENCIES = {
     # sec_segment_metrics computes Herfindahl index / diversification from sec_segment_info -
     # terraform/modules/pipeline/main.tf documents this as a CRITICAL DEPENDENCY.
     "segment_metrics": ["segment_info"],
-    # FIXED 2026-08-12: buy_sell_daily requires fresh price and technical data for signals
-    "buy_sell_daily": ["prices", "technical"],
-    # stock_scores requires value metrics to be available (for scoring algorithm)
-    "stock_scores": ["value_quality_growth", "enhanced_quality_growth", "stability_metrics"],
-    # signal_quality_scores requires buy_sell_daily signals to exist before quality scoring
-    "signal_quality": ["buy_sell_daily"],
+    # FIXED 2026-08-12: buy_sell requires fresh price and technical data for signals
+    # FIX SESSION 86: Changed from "buy_sell_daily" (wrong) to "buy_sell" (correct shorthand)
+    "buy_sell": ["prices", "technical"],
+    # scores requires value metrics to be available (for scoring algorithm)
+    # FIX SESSION 86: Changed from "stock_scores" (wrong) to "scores" (correct shorthand)
+    "scores": ["value_quality_growth", "enhanced_quality_growth", "stability_metrics"],
+    # signal_quality requires buy_sell signals to exist before quality scoring
+    # FIX SESSION 86: Changed from "buy_sell_daily" (wrong) to "buy_sell" (correct shorthand)
+    "signal_quality": ["buy_sell"],
     # algo metrics depend on signals being generated first
-    "algo": ["signal_quality", "stock_scores"],
+    # FIX SESSION 86: Changed from "stock_scores" (wrong) to "scores" (correct shorthand)
+    "algo": ["signal_quality", "scores"],
 }
 
 
@@ -369,8 +375,8 @@ def run_pipeline(pipeline_name: str) -> int:
         # FIX 2026-08-12: Skip loaders with 3+ consecutive failures (need manual intervention)
         # Prevents broken loaders from cascading through the pipeline
         try:
-            import psycopg2
             from utils.db.connection import get_db_connection
+
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute("SELECT consecutive_failures FROM data_loader_status WHERE table_name = %s", (loader,))
