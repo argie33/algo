@@ -44,7 +44,6 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 from typing import Any
 
@@ -66,7 +65,7 @@ from utils.loaders.status_manager import LoaderStatusManager
 logger = logging.getLogger(__name__)
 
 
-def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 30) -> list[str]:
+def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 5) -> list[str]:
     """Detect RUNNING loaders stuck for >N minutes and auto-fail them.
 
     CRITICAL FIX (Session 82): Fixes the "stuck RUNNING for days" Monday failure sequence:
@@ -75,12 +74,16 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 30) ->
     - Monday: Phase 1 hangs waiting for RUNNING loader
     - Result: orchestrator halt, manual operator backfill
 
+    IMPROVED (Session 89): Reduced timeout from 30 min to 5 min to prevent Monday morning
+    orchestrator hangs on crashed loaders from Friday. 5 minutes is conservative (normal
+    slow loaders won't be affected) but aggressive enough to catch real crashes.
+
     This function runs at Phase 1 startup to detect crashed loaders that were never
-    properly marked FAILED. A loader stuck RUNNING for >30 min with no recent
+    properly marked FAILED. A loader stuck RUNNING for >5 min with no recent
     status update almost certainly crashed (no active process checking in on it).
 
     Args:
-        stale_threshold_minutes: Mark RUNNING if last_updated is older than this (default 30)
+        stale_threshold_minutes: Mark RUNNING if last_updated is older than this (default 5, Session 89)
 
     Returns:
         List of table names that were recovered (marked FAILED)
@@ -108,9 +111,7 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 30) ->
                     LoaderStatusManager(table_name).mark_failed(error_msg)
                     recovered.append(table_name)
                 except Exception as mark_err:
-                    logger.error(
-                        f"[PHASE 1 STARTUP] Could not mark {table_name} as FAILED: {mark_err}"
-                    )
+                    logger.error(f"[PHASE 1 STARTUP] Could not mark {table_name} as FAILED: {mark_err}")
 
             if recovered:
                 logger.info(
@@ -538,11 +539,12 @@ def run(  # noqa: C901
         phase1_halt_table_max_tolerance_days,
     ) = _validate_config(config)
 
-    # CRITICAL FIX (Session 82): Detect and fail stale RUNNING loaders at phase startup
+    # CRITICAL FIX (Session 82, improved Session 89): Detect and fail stale RUNNING loaders at phase startup
     # Prevents the "stuck RUNNING for days" Monday failure sequence where a Friday timeout
     # causes Phase 1 Monday to hang, triggering orchestrator halt. Now detects crashed loaders
-    # immediately (>30 min RUNNING = likely crash) and marks them FAILED so failsafe can retry.
-    _detect_and_fail_stale_running_loaders(stale_threshold_minutes=30)
+    # aggressively (>5 min RUNNING = likely crash, Session 89) and marks them FAILED so failsafe can retry.
+    # Timeout reduced from 30 min (Session 82) to 5 min (Session 89) to prevent Monday hangs.
+    _detect_and_fail_stale_running_loaders()  # Now 5 min timeout (Session 89 fix)
 
     from datetime import datetime as dt
 
