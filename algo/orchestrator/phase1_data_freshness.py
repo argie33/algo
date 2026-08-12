@@ -265,23 +265,43 @@ def _validate_dependency_freshness(
     for downstream, upstreams in dependencies.items():
         for upstream in upstreams:
             try:
-                cur.execute(
-                    """SELECT latest_date, execution_completed, status
-                       FROM data_loader_status
-                       WHERE table_name = %s
-                       ORDER BY execution_completed DESC LIMIT 1""",
-                    (upstream,),
-                )
-                row = cur.fetchone()
-                if not row or not row[0]:
+                # CRITICAL FIX (Session 96): Check actual data MAX(date) instead of
+                # data_loader_status.latest_date which is a stale cache field
+                # Session 96 verified: sec_valuations had latest_date=2026-08-11 but actual
+                # data MAX(computed_at)=2026-08-12, causing false "stale" halts despite fresh data
+                actual_data_date = None
+                if upstream == "sec_valuations":
+                    # sec_valuations uses computed_at, not date
+                    cur.execute("SELECT MAX(computed_at)::date FROM sec_valuations")
+                elif upstream == "earnings_calendar":
+                    # earnings_calendar uses updated_at, not date
+                    cur.execute("SELECT MAX(updated_at)::date FROM earnings_calendar")
+                elif upstream == "stock_scores":
+                    # stock_scores uses updated_at, not date
+                    cur.execute("SELECT MAX(updated_at)::date FROM stock_scores")
+                else:
+                    # Most tables use date column
+                    cur.execute(f"SELECT MAX(date) FROM {upstream}")
+
+                result = cur.fetchone()
+                if not result or not result[0]:
                     failed_deps.append(f"{downstream}→{upstream}: never loaded")
                     continue
 
-                latest_data_date, _last_completed, status = row
-                if latest_data_date < run_date:
-                    failed_deps.append(f"{downstream}→{upstream}: last data {latest_data_date} < required {run_date}")
-                if status in ("FAILED", "TIMEOUT"):
-                    failed_deps.append(f"{downstream}→{upstream}: marked {status}")
+                actual_data_date = result[0]
+                if actual_data_date < run_date:
+                    failed_deps.append(f"{downstream}→{upstream}: last data {actual_data_date} < required {run_date}")
+
+                # Also check loader status for failures
+                cur.execute(
+                    "SELECT status FROM data_loader_status WHERE table_name = %s",
+                    (upstream,),
+                )
+                status_row = cur.fetchone()
+                if status_row:
+                    status = status_row[0]
+                    if status in ("FAILED", "TIMEOUT"):
+                        failed_deps.append(f"{downstream}→{upstream}: marked {status}")
             except Exception as e:
                 logger.warning(f"[PHASE 1] Could not check dependency {upstream}: {e}")
 
