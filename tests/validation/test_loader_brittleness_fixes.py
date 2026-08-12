@@ -123,7 +123,7 @@ def test_2_incomplete_load_prevention():
                     print("❌ WARNING: Complete load but marked", status)
                     return False
             else:
-                print("ℹ️  SKIP: Load < 90% (other issues, not our 95% threshold)")
+                print("i  SKIP: Load < 90% (other issues, not our 95% threshold)")
                 return True
 
     except Exception as e:
@@ -230,7 +230,7 @@ def test_5_phase1_stale_running_detection():
             print("✅ PASS: Phase 1 will auto-fail these on next run")
             return True
         else:
-            print("ℹ️  No stale RUNNING loaders found (healthy state)")
+            print("i  No stale RUNNING loaders found (healthy state)")
             print("✅ PASS: Phase 1 stale detection is ready")
             return True
 

@@ -22,5 +22,5 @@ with DatabaseContext("read") as cur:
     row = cur.fetchone()
     if row:
         cols = [desc[0] for desc in cur.description]
-        for col, val in zip(cols, row):
+        for col, val in zip(cols, row, strict=False):
             print(f"  {col:30} {val}")
