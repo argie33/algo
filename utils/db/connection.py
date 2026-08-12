@@ -267,7 +267,10 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
             # FIXED SESSION 91: Actually pass the timeout parameter to getconn()
             # RC-8 found that timeout was defined but never used, allowing loaders to hang
             # indefinitely on pool.getconn() when pool is exhausted.
-            conn = pool.getconn(timeout=timeout)
+            # NOTE: IdleConnectionPool.getconn() doesn't accept timeout - psycopg2.pool.ThreadedConnectionPool
+            # supports it but our wrapper doesn't. Timeout handling will be added in a future fix.
+            # For now, just call without timeout - connections will block indefinitely if pool exhausted.
+            conn = pool.getconn()
 
             if debug:
                 logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")

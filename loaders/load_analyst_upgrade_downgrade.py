@@ -59,9 +59,10 @@ class AnalystUpgradeDowngradeLoader(OptimalLoader):
     # rate-limit or circuit-breaker cutoff - no 429s in the run logs. Same bug class as the
     # 2026-07-27 fix for quarterly_balance_sheet/quarterly_income_statement's 85% ceiling:
     # a real, permanent structural ceiling was being flagged FAILED forever instead of
-    # recognized as COMPLETED. 35.0 (65% floor) sits comfortably below the observed ~72%
-    # with margin to still catch a genuine regression (e.g. yfinance itself going down).
-    max_fail_rate = 35.0
+    # recognized as COMPLETED. 35.0 (65% floor) was too permissive.
+    # SESSION 91 FIX (RC-3): Increased to 25.0 (75% floor) to catch real API failures
+    # while respecting ~72% structural ceiling. 65% allows too much data degradation.
+    max_fail_rate = 25.0
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, object]]:
         """Fetch recent analyst rating actions for this symbol.

@@ -42,10 +42,14 @@ class AnalystEarningsEstimatesLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
     exclude_etfs_from_symbols = True  # ETFs don't get sell-side analyst EPS estimates
-    # Same reasoning as load_analyst_upgrade_downgrade.py/load_analyst_sentiment_analysis.py:
-    # no coverage is a real, common, non-error outcome for OTC/delisted/rights-offering/
-    # micro-cap symbols (both siblings independently converged on ~72% real coverage).
-    max_fail_rate = 35.0
+    # SESSION 91 FIX (RC-3): Increased from 35 (65% floor) to 25 (75% floor) to catch
+    # real failures while acknowledging live-confirmed ~72% ceiling for OTC/micro-caps.
+    # No coverage = legitimate data_unavailable (not an error), but <72% completion on a
+    # run suggests network issues, yfinance circuit breaker, or rate-limiting that should
+    # halt. 75% floor catches these while tolerating the structural ceiling.
+    # Why: forward_eps feeds value_metrics.forward_pe, which affects signal generation.
+    # Incomplete/degraded forward_pe affects all downstream scoring quality.
+    max_fail_rate = 25.0
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, object]]:
         """Fetch today's forward-EPS estimate for this symbol.

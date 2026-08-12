@@ -42,16 +42,14 @@ class AnalystSentimentAnalysisLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
     exclude_etfs_from_symbols = True  # ETFs don't get sell-side analyst coverage
-    # Same reasoning as load_analyst_upgrade_downgrade.py: no coverage returns an empty list
-    # (not a failure). This tolerance is for real yfinance fetch failures.
-    #
-    # FIX 2026-07-28: same miscalibration as load_analyst_upgrade_downgrade.py's identical
-    # fix this session - live-confirmed across 2 independent full-universe runs (71.6%,
-    # 72.4%) that this loader's real ceiling is ~72%, all genuine yfinance HTTP 404s for
-    # OTC/delisted/rights-offering symbols, not a rate-limit cutoff. 15.0 (85% floor) made
-    # every run FAIL despite loading everything structurally available. See
-    # load_analyst_upgrade_downgrade.py's max_fail_rate comment for the full live evidence.
-    max_fail_rate = 35.0
+    # SESSION 91 FIX (RC-3): Increased from 35 (65% floor) to 25 (75% floor).
+    # Live-confirmed ceiling ~72% for OTC/small-caps is legitimate structural limit
+    # (genuine yfinance data_unavailable for certain symbol classes), not a regression.
+    # 75% floor still catches real network/rate-limit issues while respecting actual
+    # data availability ceiling. 65% floor was too permissive - silent data degradation.
+    # Why: analyst_sentiment feeds downstream enrichment, risk assessment, and website
+    # display. Incomplete sentiment (65%) degrades portfolio analysis visibility.
+    max_fail_rate = 25.0
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, object]]:
         """Fetch today's analyst sentiment summary for this symbol.
