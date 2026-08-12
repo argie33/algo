@@ -45,6 +45,11 @@ def get_loader_timeouts() -> dict[str, int]:
         "economic": 10 * 60,  # 10 min - FRED + DXY index
         # Market status & sentiment
         "market_status": 15 * 60,  # 15 min - 3 tables (health/exposure/sentiment)
+        # Individual market status output tables (Session 275+ consolidation)
+        # load_market_status_daily.py writes to these three, may look up timeout by table_name
+        "market_health_daily": 15 * 60,  # 15 min - Part of consolidated market_status
+        "market_exposure_daily": 15 * 60,  # 15 min - Part of consolidated market_status
+        "market_sentiment": 15 * 60,  # 15 min - Part of consolidated market_status
         "naaim": 10 * 60,  # 10 min - published weekly
         "aaii": 10 * 60,  # 10 min - published weekly
         # Technical analysis
@@ -102,9 +107,38 @@ def get_loader_timeouts() -> dict[str, int]:
         "scores": 25 * 60,  # 25 min - scoring algorithm
         "stock_scores": 25 * 60,  # 25 min - Alias for scores
         "signal_quality": 15 * 60,  # 15 min - signal quality metrics
+        "signal_quality_scores": 15 * 60,  # 15 min - Alias (actual table name)
         "algo": 20 * 60,  # 20 min - algo-specific metrics
+        "algo_metrics_daily": 20 * 60,  # 20 min - Alias (actual table name)
         "buy_sell": 15 * 60,  # 15 min - buy/sell signal generation
         "buy_sell_daily": 15 * 60,  # 15 min - Alias for buy_sell
+        # SESSION 98 FIX: Add all missing table-name aliases
+        # These are actual output table names from loaders that may look up by table_name
+        "price_daily": 900 * 60,  # Alias for prices
+        "price_weekly": 900 * 60,  # Alias for prices
+        "price_monthly": 900 * 60,  # Alias for prices
+        "etf_price_daily": 900 * 60,  # Alias for prices
+        "etf_price_weekly": 900 * 60,  # Alias for prices
+        "etf_price_monthly": 900 * 60,  # Alias for prices
+        "technical_data_daily": 30 * 60,  # Alias for technical
+        "trend_template_data": 90 * 60,  # Alias for trend_analysis
+        "stock_symbols": 10 * 60,  # Alias for constituents
+        "etf_symbols": 10 * 60,  # Alias for constituents
+        "economic_data": 10 * 60,  # Alias for economic
+        "aaii_sentiment": 10 * 60,  # Alias for aaii
+        "analyst_upgrade_downgrade": 45 * 60,  # Alias for analyst_upgrades
+        "analyst_sentiment_analysis": 60 * 60,  # Alias for analyst_sentiment
+        "quality_metrics": 40 * 60,  # Output of value_quality_growth loader
+        "growth_metrics": 40 * 60,  # Output of value_quality_growth loader
+        "value_metrics": 40 * 60,  # Output of value_quality_growth loader
+        "momentum_metrics": 30 * 60,  # Alias for stability_metrics
+        "institutional_holdings_13f": 45 * 60,  # Alias for institutional
+        "short_interest_finra": 10 * 60,  # Alias for short_interest
+        "sec_segment_metrics": 15 * 60,  # Alias for segment_metrics
+        "sector_ranking": 15 * 60,  # Output of sector_industry loader
+        "industry_ranking": 15 * 60,  # Output of sector_industry loader
+        "sector_performance": 15 * 60,  # Output of sector_industry loader
+        "current_reports_8k": 20 * 60,  # Alias for sec_reports
     }
 
 
