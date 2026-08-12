@@ -453,8 +453,13 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 )
                 return False, f"Completeness check failed (data error): {e}"
 
-        with DatabaseContext("read") as cur:
-            for table_name, loader_key in loaders_to_refresh.items():
+        for table_name, loader_key in loaders_to_refresh.items():
+            # CRITICAL FIX (Session 96): Create new DatabaseContext for EACH table
+            # Bug: Single context for entire loop caused transaction abort cascade
+            # When one table's query failed (e.g., company_info_sec), ALL subsequent
+            # queries in same transaction failed with "InFailedSqlTransaction"
+            # Fix: Isolate each table's check in its own transaction
+            with DatabaseContext("read") as cur:
                 try:
                     if table_name in ("stock_scores", "earnings_calendar"):
                         # stock_scores and earnings_calendar have no `date` column - stock_scores
@@ -640,7 +645,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 try:
                     # Import and instantiate the loader class dynamically
                     # Matches the production invocation in terraform/modules/loaders/main.tf
-                    loader_module = __import__(f"loaders.{loader_filename}", fromlist=[loader_filename])
+                    # Strip .py suffix if present (normalize_loader_name() adds it, but __import__ doesn't expect it)
+                    module_name = (
+                        loader_filename.replace(".py", "") if loader_filename.endswith(".py") else loader_filename
+                    )
+                    loader_module = __import__(f"loaders.{module_name}", fromlist=[module_name])
 
                     # Main loader class is typically the CamelCase version of the filename
                     # e.g., load_prices.py → PriceLoader, load_company_info_sec.py → CompanyInfoSECLoader
