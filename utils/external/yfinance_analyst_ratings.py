@@ -218,12 +218,22 @@ def fetch_analyst_sentiment(symbol: str) -> dict[str, Any] | None:
     if analyst_count == 0:
         return None
 
-    targets = _fetch_with_circuit_breaker(symbol, "analyst_price_targets") or {}
-    target_price = targets.get("mean")
-    current_price = targets.get("current")
+    # CRITICAL FIX SESSION 86: Wrap second yfinance call in error handling to prevent
+    # timeouts/hangs from crashing the loader. Previously only the first call had
+    # RuntimeError handling, leaving the second call unguarded. If analyst_price_targets
+    # times out or fails, treat it as missing target_price data (legitimate case).
+    target_price = None
+    current_price = None
     upside_downside_percent = None
-    if target_price is not None and current_price:
-        upside_downside_percent = round((float(target_price) - float(current_price)) / float(current_price) * 100, 2)
+    try:
+        targets = _fetch_with_circuit_breaker(symbol, "analyst_price_targets") or {}
+        target_price = targets.get("mean")
+        current_price = targets.get("current")
+        if target_price is not None and current_price:
+            upside_downside_percent = round((float(target_price) - float(current_price)) / float(current_price) * 100, 2)
+    except RuntimeError as e:
+        # analyst_price_targets fetch failed - this is optional data, proceed without it
+        logger.debug(f"[{symbol}] analyst_price_targets fetch failed: {e} - proceeding without target price")
 
     return {
         "symbol": symbol,
