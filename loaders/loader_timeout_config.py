@@ -125,12 +125,30 @@ def get_loader_timeout(loader_name: str, default_seconds: int | None = None) -> 
     Raises:
         RuntimeError: If loader not found and default_seconds is None
     """
+    import logging
+    import os
+
+    logger = logging.getLogger(__name__)
     timeouts = get_loader_timeouts()
+
     if loader_name in timeouts:
-        return timeouts[loader_name]
+        timeout_value = timeouts[loader_name]
+        # Log the timeout for visibility
+        if os.getenv("LOADER_TIMEOUT_DEBUG", "").lower() in ("1", "true", "yes"):
+            logger.info(
+                f"[LOADER_TIMEOUT] Using configured timeout for '{loader_name}': {timeout_value}s ({timeout_value // 60}m)"
+            )
+        return timeout_value
+
     if default_seconds is not None:
+        logger.warning(
+            f"[LOADER_TIMEOUT] Loader '{loader_name}' not in config, using provided default: {default_seconds}s ({default_seconds // 60}m). "
+            f"Should register in loaders/loader_timeout_config.py."
+        )
         return default_seconds
+
     raise RuntimeError(
-        f"[LOADER_TIMEOUT] Loader '{loader_name}' not found. "
-        f"Register in loaders/loader_timeout_config.py or pass explicit default_seconds."
+        f"[LOADER_TIMEOUT] Loader '{loader_name}' not found in config. "
+        f"Register in loaders/loader_timeout_config.py or pass explicit default_seconds. "
+        f"Available loaders: {sorted(timeouts.keys())}"
     )

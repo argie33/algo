@@ -42,9 +42,16 @@ try:
     if timeout_seconds <= 0:
         raise ValueError(f"LOADER_TIMEOUT must be positive, got {timeout_seconds}")
     LOADER_TIMEOUT_SECONDS = timeout_seconds
+    # Log the timeout for visibility when debugging
+    debug_val = os.environ.get("LOADER_TIMEOUT_DEBUG")
+    if debug_val and debug_val.lower() in ("1", "true", "yes"):
+        logger.info(
+            f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) from env var LOADER_TIMEOUT={timeout_seconds_env}"
+        )
 except ValueError as e:
     logger.warning(f"[CONFIG] Invalid LOADER_TIMEOUT: {e}. Using default 7200 seconds (2 hours).")
     LOADER_TIMEOUT_SECONDS = 7200
+    logger.info(f"[CONFIG] Final LOADER_TIMEOUT_SECONDS = {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m)")
 
 
 def _timeout_handler(_signum: int, _frame: object) -> None:
@@ -85,7 +92,9 @@ def _setup_timeout() -> None:
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
         signal.alarm(LOADER_TIMEOUT_SECONDS)  # type: ignore[attr-defined]  # guarded by hasattr above; SIGALRM/alarm are Unix-only
-        logger.info(f"[TIMEOUT] SIGALRM timeout set to {timeout_min}m {timeout_sec}s (env LOADER_TIMEOUT={LOADER_TIMEOUT_SECONDS}s)")
+        logger.info(
+            f"[TIMEOUT] SIGALRM timeout set to {timeout_min}m {timeout_sec}s (env LOADER_TIMEOUT={LOADER_TIMEOUT_SECONDS}s)"
+        )
     else:
         logger.warning(
             f"[TIMEOUT] SIGALRM not available (Windows). "
@@ -94,7 +103,7 @@ def _setup_timeout() -> None:
         timer = threading.Timer(LOADER_TIMEOUT_SECONDS, _force_exit_on_timeout)
         timer.daemon = True
         timer.start()
-        logger.info(f"[TIMEOUT] threading.Timer started successfully")
+        logger.info("[TIMEOUT] threading.Timer started successfully")
 
 
 def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by this change; CI ruff-gate cleanup pass 2026-08-11
