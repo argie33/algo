@@ -243,33 +243,55 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         )
 
     # Critical loaders to refresh in local mode (table_name: loader_script_key)
-    # Only core trading data - enrichment metrics no longer critical (Session 221)
+    # SESSION 94 CRITICAL FIX: Add ALL Phase 1 critical loaders, not just hardcoded subset
+    # Previously missed loaders: company_info_sec, dividend_data, sec_segment_info, company_profile, etc.
+    # These weren't being checked at all → stayed FAILED indefinitely → cascaded Monday failures
     loaders_to_refresh = {
+        # Core pricing
         "price_daily": "prices",
+        "etf_price_daily": "prices",
+        # Technical & signals
         "technical_data_daily": "technical",
         "stock_scores": "scores",
-        "buy_sell_daily": "buy_sell",  # CRITICAL FIX 2026-08-02: Was missing, causing 3+ day staleness
+        "buy_sell_daily": "buy_sell",
+        # Market data
         "market_health_daily": "market_status",
-        "trend_template_data": "trend_analysis",  # CRITICAL FIX 2026-08-05: Was missing, caused 5d staleness when EventBridge stopped
-        "earnings_calendar": "earnings_calendar",  # Session 81: Missing from failsafe retry despite being halt-critical for earnings_blackout
-        # BUG FOUND 2026-08-10: etf_price_daily is PHASE_1_CRITICAL in utils/loader_priority.py
-        # ("Must complete before Phase 1") but was entirely absent here, so nothing in the
-        # local dev path ever checks or refreshes it - live-confirmed: sat 5 calendar days
-        # stale (2026-08-05 vs today 2026-08-10) while price_daily (same "prices" loader_key,
-        # refreshed by the SAME load_prices.py run - see PriceLoader's per
-        # asset_class x interval loop in loaders/load_prices.py's main()) stayed fresh the
-        # whole time, because the trigger for a "prices" refresh here only ever depended on
-        # price_daily's own staleness - etf_price_daily going stale independently (e.g. its
-        # own sub-run within the same "prices" invocation hanging/crashing while price_daily's
-        # sub-run already succeeded) had no detection path of its own. Reuses "prices" - the
-        # same loader_key already used for price_daily, since both are output tables of the
-        # same load_prices.py run. price_weekly/price_monthly/etf_price_weekly/
-        # etf_price_monthly are also PHASE_1_CRITICAL but deliberately NOT added here: this
-        # dict's staleness check assumes daily cadence (_get_expected_data_date() expects
-        # "previous trading day" data every run), which would false-positive-flag weekly/
-        # monthly tables as stale on every single intraday run - needs its own cadence-aware
-        # check, not a copy-paste of the daily assumption.
-        "etf_price_daily": "prices",
+        "trend_template_data": "trend_analysis",
+        # Earnings & calendar
+        "earnings_calendar": "earnings_calendar",
+        # SEC/Financial data (SESSION 94 FIX: Added missing loaders)
+        "company_info_sec": "company_info",
+        "company_profile": "profile",
+        "valuations": "valuations",
+        "financial_statements": "financial_statements",  # All 6 statement tables handled by single loader
+        "annual_income_statement": "financial_statements",
+        "annual_balance_sheet": "financial_statements",
+        "annual_cash_flow": "financial_statements",
+        "quarterly_income_statement": "financial_statements",
+        "quarterly_balance_sheet": "financial_statements",
+        "quarterly_cash_flow": "financial_statements",
+        # Earnings SEC
+        "earnings_sec": "earnings_sec",
+        # Segment data
+        "segment_info": "segment_info",
+        "sec_segment_info": "segment_info",
+        "segment_metrics": "segment_metrics",
+        # Dividends & fundamentals
+        "dividend_data": "dividends",
+        "value_quality_growth": "value_quality_growth",
+        "enhanced_quality_growth": "enhanced_quality_growth",
+        # Analyst data
+        "analyst_earnings_estimates": "analyst_earnings_estimates",
+        "analyst_sentiment": "analyst_sentiment",
+        "analyst_upgrades": "analyst_upgrades",
+        # Holdings & positioning
+        "institutional_holdings_13f": "institutional",
+        "insider_holdings_sec": "insider_holdings",
+        "insider_transaction_velocity": "insider_velocity",
+        "short_interest_finra": "short_interest",
+        "positioning_metrics": "positioning",
+        # Other critical tables
+        "industry_ranking": "sector_industry",
     }
 
     try:
@@ -595,24 +617,53 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     # LOADER_STATEMENT_TYPE="all" out to all 6 statement/period combos; the
                     # class constructor alone requires one specific combo to already be named.
                     env["LOADER_STATEMENT_TYPE"] = "all"
-                cmd = [sys.executable, f"loaders/{loader_filename}"]
-                # SESSION 94 FIX: Use centralized timeout config instead of hardcoded dict
+                # SESSION 94 CRITICAL FIX: Run loader IN-PROCESS instead of subprocess
+                # to eliminate file lock contention from concurrent execution.
+                # Previously, subprocess would fail acquiring locks within ~96s even with
+                # 120+ minute timeouts configured, causing cascading failures.
+                # Now runs directly, inheriting parent orchestrator's lock context.
                 loader_timeout = get_loader_timeout(loader_key, default_seconds=60 * 60)
-                # CRITICAL FIX: Pass LOADER_TIMEOUT to subprocess so loaders/runner.py can set up
-                # its own watchdog timer (threading.Timer fallback on Windows, SIGALRM on Linux).
-                # Matches local_loader_scheduler.py line 368. Without this, the loader subprocess
-                # doesn't know its per-loader timeout and can hang indefinitely.
                 env["LOADER_TIMEOUT"] = str(max(1, loader_timeout))
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=loader_timeout,
-                    env=env,
-                    cwd=repo_root,
-                )
 
-                if result.returncode == 0:
+                # Set environment for this loader run
+                old_env = os.environ.copy()
+                for key, value in env.items():
+                    os.environ[key] = value
+
+                try:
+                    # Import and instantiate the loader class dynamically
+                    # Matches the production invocation in terraform/modules/loaders/main.tf
+                    loader_module = __import__(f"loaders.{loader_filename}", fromlist=[loader_filename])
+
+                    # Main loader class is typically the CamelCase version of the filename
+                    # e.g., load_prices.py → PriceLoader, load_company_info_sec.py → CompanyInfoSECLoader
+                    class_name = ''.join(word.capitalize() for word in loader_filename.replace('load_', '').replace('.py', '').split('_')) + 'Loader'
+                    loader_class = getattr(loader_module, class_name, None)
+
+                    if loader_class is None:
+                        # Fallback: if CamelCase doesn't match, try OptimalLoader which auto-detects
+                        from utils.optimal_loader import OptimalLoader
+                        loader = OptimalLoader(loader_key)
+                        result_status = loader.run([])  # Empty symbols list for full universe
+                        returncode = 0 if result_status else 1
+                    else:
+                        # Direct instantiation - some loaders have custom constructors
+                        loader = loader_class()
+                        result_status = loader.run([])  # Run for full universe
+                        returncode = 0 if result_status else 1
+
+                except Exception as e:
+                    logger.error(
+                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} in-process run FAILED: {type(e).__name__}: {e}",
+                        exc_info=True
+                    )
+                    returncode = 1
+                finally:
+                    # Restore environment
+                    os.environ.clear()
+                    os.environ.update(old_env)
+
+                if returncode == 0:
                     # BUG FOUND 2026-08-10: exit code 0 only means the subprocess didn't
                     # crash - it says nothing about whether THIS SPECIFIC table's own load
                     # actually succeeded. Live-reproduced: a "prices" refresh exited 0 (the
@@ -630,7 +681,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     else:
                         actual_status = post_status.get("status") if post_status else "MISSING"
                         logger.error(
-                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh subprocess exited 0 but the "
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh in-process returned success but the "
                             f"table's own status is '{actual_status}', not COMPLETED (completion_pct="
                             f"{post_status.get('completion_pct') if post_status else 'N/A'}, error="
                             f"{post_status.get('error_message') if post_status else 'N/A'}). Not "
@@ -640,47 +691,16 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                         if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                             results["halt_required"] = True
                 else:
-                    stderr_msg = result.stderr if result.stderr else "(no stderr output)"
-                    stdout_msg = result.stdout if result.stdout else "(no stdout output)"
                     logger.error(
-                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh FAILED (exit code {result.returncode}). "
-                        f"Command: python loaders/{loader_filename}\n"
-                        f"Working directory: {repo_root}\n"
-                        f"Python executable: {sys.executable}\n"
-                        f"STDOUT: {stdout_msg}\n"
-                        f"STDERR: {stderr_msg}"
+                        f"[PHASE 1 FAILSAFE LOCAL] {table_name} refresh FAILED (in-process execution returned non-zero). "
+                        f"Loader: {loader_filename} ({loader_key}). Check logs above for details."
                     )
                     results["still_failing"].append(table_name)
                     _mark_loader_failed_after_crash(
-                        loader_key, f"failsafe retry subprocess exited with code {result.returncode}"
+                        loader_key, f"failsafe retry in-process execution failed (returncode={returncode})"
                     )
                     if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
                         results["halt_required"] = True
-
-            except subprocess.TimeoutExpired:
-                logger.error(
-                    f"[PHASE 1 FAILSAFE LOCAL] Timeout refreshing {table_name} after {loader_timeout}s "
-                    f"(loader_key={loader_key})"
-                )
-                results["still_failing"].append(table_name)
-                _mark_loader_failed_after_crash(
-                    loader_key,
-                    f"failsafe retry subprocess timed out after {loader_timeout}s (configured timeout for {loader_key})",
-                )
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
-                    results["halt_required"] = True
-            except (OSError, RuntimeError) as e:
-                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
-                results["still_failing"].append(table_name)
-                _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
-                    results["halt_required"] = True
-            except Exception as e:
-                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
-                results["still_failing"].append(table_name)
-                _mark_loader_failed_after_crash(loader_key, f"failsafe retry unexpected error: {type(e).__name__}: {e}")
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
-                    results["halt_required"] = True
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal database error in local refresh: {e}", exc_info=True)
