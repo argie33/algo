@@ -152,6 +152,9 @@ PIPELINES = {
 # (bug found: "buy_sell_daily" != "buy_sell", "stock_scores" != "scores", etc.)
 # SESSION 88 FIX: Added missing SEC-related dependencies to prevent cascading SEC failures
 LOADER_DEPENDENCIES = {
+    # financial_statements requires company_info first (SEC lookups need symbol CIK mapping)
+    # FIX SESSION 89: Missing dependency was allowing cascades when SEC rate limits company_info
+    "financial_statements": ["company_info"],
     # value_quality_growth reads valuations, analyst earnings, and financial_statements data
     # RE-ENABLED 2026-08-09: financial_statements was missing here even though the "metrics"
     # pipeline's own comment calls it a CRITICAL DEPENDENCY of value_quality_growth - the
@@ -182,6 +185,8 @@ LOADER_DEPENDENCIES = {
     # SESSION 88 FIX: valuations depends on company_info for symbol and metadata lookups
     # (if company_info fails, valuations should be skipped rather than cascading failure)
     "valuations": ["company_info"],
+    # earnings_sec requires company_info for CIK lookups (SESSION 89 FIX - missing dependency)
+    "earnings_sec": ["company_info"],
 }
 
 
