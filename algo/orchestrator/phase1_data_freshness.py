@@ -44,6 +44,7 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import date as _date
+from datetime import datetime as _datetime
 from datetime import timedelta as _timedelta
 from typing import Any
 
@@ -60,8 +61,69 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.status_manager import LoaderStatusManager
 
 logger = logging.getLogger(__name__)
+
+
+def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 30) -> list[str]:
+    """Detect RUNNING loaders stuck for >N minutes and auto-fail them.
+
+    CRITICAL FIX (Session 82): Fixes the "stuck RUNNING for days" Monday failure sequence:
+    - Friday: Loader times out → marked RUNNING, process dies
+    - Saturday/Sunday: Stuck RUNNING, no monitoring
+    - Monday: Phase 1 hangs waiting for RUNNING loader
+    - Result: orchestrator halt, manual operator backfill
+
+    This function runs at Phase 1 startup to detect crashed loaders that were never
+    properly marked FAILED. A loader stuck RUNNING for >30 min with no recent
+    status update almost certainly crashed (no active process checking in on it).
+
+    Args:
+        stale_threshold_minutes: Mark RUNNING if last_updated is older than this (default 30)
+
+    Returns:
+        List of table names that were recovered (marked FAILED)
+    """
+    recovered = []
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(f"""
+                SELECT table_name, last_updated
+                FROM data_loader_status
+                WHERE status = 'RUNNING'
+                  AND last_updated < CURRENT_TIMESTAMP - INTERVAL '{stale_threshold_minutes} minutes'
+                ORDER BY last_updated ASC
+            """)
+            stale_loaders = cur.fetchall()
+
+            for table_name, last_updated in stale_loaders:
+                error_msg = (
+                    f"[PHASE 1 STARTUP] Auto-failed stale RUNNING loader "
+                    f"(stuck for {stale_threshold_minutes}+ min since {last_updated}). "
+                    f"Likely crashed with no process alive. Will retry via failsafe."
+                )
+                logger.warning(f"[PHASE 1 STARTUP] {table_name}: {error_msg}")
+                try:
+                    LoaderStatusManager(table_name).mark_failed(error_msg)
+                    recovered.append(table_name)
+                except Exception as mark_err:
+                    logger.error(
+                        f"[PHASE 1 STARTUP] Could not mark {table_name} as FAILED: {mark_err}"
+                    )
+
+            if recovered:
+                logger.info(
+                    f"[PHASE 1 STARTUP] Recovered {len(recovered)} stale RUNNING loader(s): {', '.join(set(recovered))}. "
+                    f"Will retry via failsafe mechanism."
+                )
+    except Exception as e:
+        logger.warning(
+            f"[PHASE 1 STARTUP] Could not detect stale RUNNING loaders (non-fatal): {e}. "
+            "Proceeding with normal Phase 1 flow."
+        )
+
+    return recovered
 
 
 def _fetch_health_distinctness_window(
@@ -475,6 +537,12 @@ def run(  # noqa: C901
         _phase1_prior_cutoff_days,
         phase1_halt_table_max_tolerance_days,
     ) = _validate_config(config)
+
+    # CRITICAL FIX (Session 82): Detect and fail stale RUNNING loaders at phase startup
+    # Prevents the "stuck RUNNING for days" Monday failure sequence where a Friday timeout
+    # causes Phase 1 Monday to hang, triggering orchestrator halt. Now detects crashed loaders
+    # immediately (>30 min RUNNING = likely crash) and marks them FAILED so failsafe can retry.
+    _detect_and_fail_stale_running_loaders(stale_threshold_minutes=30)
 
     from datetime import datetime as dt
 

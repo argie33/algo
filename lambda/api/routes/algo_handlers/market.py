@@ -297,6 +297,50 @@ def _rollback_after_error(cur: cursor) -> None:
         logger.debug(f"[DATA_STATUS] Failed to rollback after query error: {rollback_err}")
 
 
+def _classify_loader_state_issue(
+    loader_run_status: str | None,
+    consecutive_failures: int | float | None,
+    exec_started: datetime | None,
+    exec_completed: datetime | None,
+    completion_pct: float | int | None,
+) -> str | None:
+    """Classify what the actual loader state issue is (distinct from data staleness).
+
+    Returns a short description of the loader's operational issue, or None if healthy.
+    Used by dashboard to show "Loader: PENDING (waiting to run)" vs "Data: STALE (4h old)"
+    """
+    if not isinstance(loader_run_status, str):
+        return None
+
+    status_lower = loader_run_status.lower()
+
+    # Pending: loader is queued but hasn't started
+    if status_lower == "pending":
+        return "PENDING: waiting to run"
+
+    # Running: loader is in progress
+    if status_lower == "running":
+        if exec_started and not exec_completed:
+            elapsed_seconds = (datetime.now(timezone.utc) - normalize_to_utc_datetime(exec_started, timezone.utc)).total_seconds() if isinstance(normalize_to_utc_datetime(exec_started, timezone.utc), datetime) else 0
+            completion_float = float(completion_pct) if isinstance(completion_pct, (int, float, str)) else 0
+            if elapsed_seconds > 1800 and completion_float < 5:  # >30 min, <5% complete
+                return f"TIMEOUT: running {elapsed_seconds/3600:.1f}h at {completion_float:.0f}%"
+            return f"RUNNING: {completion_float:.0f}% complete"
+        return "RUNNING"
+
+    # Failed: loader failed
+    if status_lower == "failed":
+        if isinstance(consecutive_failures, (int, float)) and consecutive_failures >= 2:
+            return f"FAILED: {int(consecutive_failures)}x consecutive failures"
+        return "FAILED: will retry on next scheduled run"
+
+    # Repeated failures even if not currently failed
+    if isinstance(consecutive_failures, (int, float)) and consecutive_failures >= 2:
+        return f"HIGH RISK: {int(consecutive_failures)}x consecutive failures before recovery"
+
+    return None
+
+
 @db_route_handler("fetch data status")
 @validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
@@ -666,8 +710,43 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # no equivalent check, so the exact same incident that script would have flagged
             # showed a plain green "ok" here instead.
             loader_run_status_raw = row.get("status")
-            if isinstance(loader_run_status_raw, str) and loader_run_status_raw.lower() == "failed":
-                status = "error"
+            consecutive_failures = row.get("consecutive_failures")
+
+            # FIX 2026-08-12: Flag loaders in problematic states, not just stale data
+            # PENDING loaders haven't run yet - they should show as "blocked" if their data is about to age
+            if isinstance(loader_run_status_raw, str):
+                status_lower = loader_run_status_raw.lower()
+                if status_lower == "failed":
+                    status = "error"
+                elif status_lower == "pending":
+                    # Loader is queued but not started - will show as warning if data is aging
+                    # Mark as blocked (intermediate severity between ok and error)
+                    if status == "ok":
+                        # Only override if data still looks fresh - pending + aging data = critical
+                        status = "blocked"
+                    elif status == "stale":
+                        status = "error"  # Stale data + pending loader = critical
+                elif status_lower == "running":
+                    # RUNNING for >30 min with <5% completion is stuck/timeout
+                    exec_started_raw = row.get("execution_started")
+                    completion_pct_raw = row.get("completion_pct")
+                    if exec_started_raw and completion_pct_raw is not None:
+                        try:
+                            elapsed_seconds = (datetime.now(timezone.utc) - normalize_to_utc_datetime(exec_started_raw, naive_tz)).total_seconds() if isinstance(normalize_to_utc_datetime(exec_started_raw, naive_tz), datetime) else 0
+                            completion_float = float(completion_pct_raw) if isinstance(completion_pct_raw, (int, float, str)) else 0
+                            if elapsed_seconds > 1800 and completion_float < 5:  # >30 min, <5% done
+                                status = "error"  # Treat stuck runners as error
+                        except (ValueError, TypeError, AttributeError):
+                            pass  # If we can't calculate, don't override status
+
+            # Flag loaders with repeated failures - they need fixing, not just retrying
+            if isinstance(consecutive_failures, (int, float)) and consecutive_failures >= 2:
+                # Loaders with 2+ consecutive failures will likely fail again
+                # Mark as high-risk: "warning" if they haven't fully failed yet
+                if status == "ok" and table_name not in critical_tables:
+                    status = "warning"  # Non-critical loader with repeated failures
+                elif status == "ok" and table_name in critical_tables:
+                    status = "error"  # Critical loader with repeated failures = error
 
             # Calculate age in hours for display - same last-genuine-success reference as
             # status above, so the displayed "Age" can't disagree with the ok/stale verdict.
@@ -686,13 +765,17 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             else:
                 role = "NORM"
 
+            # Bump role to CRIT if loader has repeated failures (will fail again)
+            if isinstance(consecutive_failures, (int, float)) and consecutive_failures >= 2:
+                role = "CRIT"
+
             current_count = summary.get(status)
             if current_count is None:
                 current_count = 0
             elif not isinstance(current_count, int):
                 raise ValueError(f"Expected int for status count '{status}', got {type(current_count).__name__}")
             summary[status] = current_count + 1
-            if status in ("stale", "empty", "error") and row["table_name"] in critical_tables:
+            if status in ("stale", "empty", "error", "blocked", "warning") and row["table_name"] in critical_tables:
                 critical_stale.append(row["table_name"])
             # Only loader_rows entries carry these (populated by LoaderStatusManager); algo_rows
             # (orchestrator-written tables like algo_positions) don't have a loader run to report on.
@@ -738,6 +821,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "retry_count": retry_count,
                     "http_status_code": http_status_code,
                     "rate_limit_quota_raw": rate_limit_quota_raw,
+                    # FIX 2026-08-12: Explicit loader state issues (not just data staleness)
+                    "loader_state_issue": _classify_loader_state_issue(
+                        loader_run_status_raw, consecutive_failures, exec_started, exec_completed, completion_pct
+                    ),
                 }
             )
 

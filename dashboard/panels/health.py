@@ -358,18 +358,25 @@ def _get_most_critical_issues(hlth_items: list[Any]) -> list[str]:
 
 
 def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[Text | Rule]:
-    """Loader errors, repeated failures, and never-started loaders.
+    """Loader errors, repeated failures, pending loaders, and stuck runners.
 
-    Moved here (into PHASE EXECUTION DETAILS' right column) from the DATA FRESHNESS
-    panel: narrowing the phase list into its own left column freed room on the right
-    for this operational detail instead of it living in a fully separate panel.
+    FIX 2026-08-12: Now includes PENDING loaders (waiting to run) and RUNNING loaders
+    (stuck >30min). These are distinct from data staleness - they are operational issues
+    with the loader pipeline itself, not just aged data.
     """
     rows: list[Text | Rule] = []
     if not hlth_items:
         return rows
 
+    # Collect loader state issues (distinct from error_message which is last error)
+    loader_state_issues = [
+        (r.get("tbl") or r.get("name") or "unknown", r.get("loader_state_issue"))
+        for r in hlth_items
+        if isinstance(r, dict) and r.get("loader_state_issue")
+    ]
+
     loader_errors = [
-        (r.get("tbl") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
+        (r.get("tbl") or r.get("name") or "unknown", r.get("loader_error"), r.get("loader_run_status"))
         for r in hlth_items
         if isinstance(r, dict) and r.get("loader_error")
     ]
@@ -378,21 +385,32 @@ def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[
         if isinstance(r, dict):
             n_fail_raw = r.get("consecutive_failures")
             if isinstance(n_fail_raw, (int, float)) and n_fail_raw >= 2:
-                repeated_failures.append((r.get("tbl") or "unknown", int(n_fail_raw), r.get("last_success_at")))
+                repeated_failures.append((r.get("tbl") or r.get("name") or "unknown", int(n_fail_raw), r.get("last_success_at")))
     never_started = [
-        r.get("tbl") or "unknown"
+        r.get("tbl") or r.get("name") or "unknown"
         for r in hlth_items
         if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
     ]
 
-    if not (loader_errors or repeated_failures or never_started):
+    if not (loader_state_issues or loader_errors or repeated_failures or never_started):
         return rows
 
-    rows.append(Text.from_markup("[bold cyan]Loader Health[/]"))
+    rows.append(Text.from_markup("[bold cyan]Loader Operational Health[/]"))
+
+    # FIX 2026-08-12: Show loader state issues (PENDING, RUNNING/stuck, repeated failures)
+    # These are distinct from fetch errors - they indicate pipeline flow problems
+    if loader_state_issues:
+        rows.append(Rule(style="dim"))
+        rows.append(Text.from_markup(f"[bold {R}]Loader Pipeline Issues:[/]"))
+        for tbl_name, issue in loader_state_issues[:8]:
+            icon = "⏳" if "PENDING" in issue else "⏱️ " if "TIMEOUT" in issue else "⚠️"
+            rows.append(Text.from_markup(f"  {icon} [{R}]{tbl_name}:[/] [dim]{issue}[/]"))
+        if len(loader_state_issues) > 8:
+            rows.append(Text.from_markup(f"  [dim]...and {len(loader_state_issues) - 8} more[/]"))
 
     if loader_errors:
         rows.append(Rule(style="dim"))
-        rows.append(Text.from_markup(f"[bold {R}]Loader errors:[/]"))
+        rows.append(Text.from_markup(f"[bold {R}]Loader Fetch Errors:[/]"))
         for tbl_name, err, lrs in loader_errors[:5]:
             tag = f"[{lrs}] " if lrs in ("TIMEOUT", "FAILED") else ""
             rows.append(Text.from_markup(f"  [{R}]{tbl_name}:[/] [dim]{tag}{str(err)[:50]}[/]"))
