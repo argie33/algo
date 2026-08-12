@@ -515,7 +515,10 @@ locals {
     # loading far more into memory per batch than this config assumed.
     # Restoring 1024/2048 as a safety margin; batch_size=20 fix should let this
     # run comfortably once deploys are unblocked and AWS_REGION is confirmed live.
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    # CRITICAL FIX (Session 97): Timeout was 5400s (90m) but prices actually needs 900m (54000s)
+    # Session 92-93 measured actual runtime 761m; Session 93 fix set Python config to 54000s
+    # but Terraform was never updated. This caused prices to timeout at 90m every run.
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 54000, parallelism = 1 }
     # FIXED (2026-07-12): Reduced from 4096 to 1024 (actual peak ~300MB, 3-4x headroom sufficient)
     # FIXED (2026-07-13): memory=1024 is not a valid Fargate combo for cpu=1024 (min is 2048) -
     # ECS RegisterTaskDefinition rejected this outright, blocking every terraform apply.
@@ -673,7 +676,9 @@ locals {
 
     # Signals & algo metrics
     "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
-    "signal_quality_scores" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # CRITICAL FIX (Session 97): Timeout was 600s (10m) but needs 1500s (25m)
+    # Signal quality scoring requires full symbol universe
+    "signal_quality_scores" = { cpu = 256, memory = 512, timeout = 1500, parallelism = 1 }
     "algo_metrics_daily"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # SEC Current Reports & Dividend Data (Session 444: XBRL expansion)
@@ -683,14 +688,20 @@ locals {
 
     # Dividends: Ex-dates, payment dates, yields (XBRL + 8-K extraction)
     # Typical run ~5-10 min for 5k symbols, lightweight (~100MB)
-    "dividend_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+    # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 3600s (60m)
+    # yfinance rate-limiting for full symbol universe
+    "dividend_data" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
 
     # Analyst upgrade/downgrade ratings: per-symbol yfinance call across the universe,
     # same shape/sizing as dividend_data (per-symbol external API, not bulk).
-    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+    # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 2700s (45m)
+    # yfinance rate-limiting + retry backoff requires longer timeout
+    "analyst_upgrade_downgrade" = { cpu = 256, memory = 512, timeout = 2700, parallelism = 1 }
     # Analyst sentiment analysis: two per-symbol yfinance calls (recommendations_summary +
     # analyst_price_targets) - same shape/sizing as analyst_upgrade_downgrade.
-    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+    # CRITICAL FIX (Session 97): Timeout was 900s (15m) but needs 3600s (60m)
+    # yfinance rate-limiting requires longer timeout
+    "analyst_sentiment_analysis" = { cpu = 256, memory = 512, timeout = 3600, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
