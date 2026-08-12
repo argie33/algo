@@ -468,6 +468,13 @@ class OptimalLoader:
 
         from algo.exceptions import LockAcquisitionError
 
+        # CRITICAL FIX (Session 95): Initialize status_already_finalized BEFORE any code that might
+        # raise an exception. Previously it was only set at line 658, so if exceptions happened during
+        # lock acquisition (lines ~625-634), mark_failed() was never called, leaving loaders stuck RUNNING
+        # forever with no way to recover. Now initialized at function entry so it's ALWAYS in locals()
+        # when the outer except handler checks it at line 749.
+        status_already_finalized = False
+
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
