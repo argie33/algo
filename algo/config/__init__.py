@@ -31,13 +31,15 @@ PHASE_EVENT_HISTORY_MAX: Final[int] = int(os.environ.get("PHASE_EVENT_HISTORY_MA
 # LOADER CONFIGURATION
 # ============================================================================
 
-# Loader execution timeout in minutes
-# Used by: loaders/runner.py:39-46
+# Loader execution timeout in seconds (set by Terraform per-loader)
+# Used by: loaders/runner.py
 # Purpose: Prevent hung loaders from blocking orchestrator indefinitely
 # Typical scenario: SEC API slow/unresponsive, loader waits forever without timeout
 # Must be > 0 (validated at load time)
-LOADER_TIMEOUT_MINUTES: Final[int] = int(os.environ.get("LOADER_TIMEOUT_MINUTES", "120"))
-LOADER_TIMEOUT_SECONDS: Final[int] = LOADER_TIMEOUT_MINUTES * 60
+# CRITICAL FIX 2026-08-13: Read LOADER_TIMEOUT (set by Terraform in seconds)
+# not LOADER_TIMEOUT_MINUTES (a different env var that was never set by Terraform)
+LOADER_TIMEOUT_SECONDS: Final[int] = int(os.environ.get("LOADER_TIMEOUT", "7200"))
+LOADER_TIMEOUT_MINUTES: Final[int] = LOADER_TIMEOUT_SECONDS // 60  # For logging/display only
 
 # Maximum days of historical data to backfill per load
 # Used by: loaders/optimal_loader.py
@@ -126,8 +128,8 @@ def validate_config() -> None:
     if PHASE_EVENT_HISTORY_MAX <= 0:
         errors.append(f"PHASE_EVENT_HISTORY_MAX must be > 0, got {PHASE_EVENT_HISTORY_MAX}")
 
-    if LOADER_TIMEOUT_MINUTES <= 0:
-        errors.append(f"LOADER_TIMEOUT_MINUTES must be > 0, got {LOADER_TIMEOUT_MINUTES}")
+    if LOADER_TIMEOUT_SECONDS <= 0:
+        errors.append(f"LOADER_TIMEOUT must be > 0, got {LOADER_TIMEOUT_SECONDS}")
 
     if MAX_BACKFILL_DAYS < 0 or MAX_BACKFILL_DAYS > MAX_BACKFILL_DAYS_LIMIT:
         errors.append(f"MAX_BACKFILL_DAYS must be 0-{MAX_BACKFILL_DAYS_LIMIT}, got {MAX_BACKFILL_DAYS}")
@@ -166,7 +168,7 @@ def validate_config() -> None:
     logger.info(
         "[CONFIG] Configuration validated: "
         f"event_history={PHASE_EVENT_HISTORY_MAX}, "
-        f"loader_timeout={LOADER_TIMEOUT_MINUTES}m, "
+        f"loader_timeout={LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_MINUTES}m), "
         f"db_pool={DB_POOL_MIN_CONNECTIONS}-{DB_POOL_MAX_CONNECTIONS}, "
         f"keepalives_idle={DB_KEEPALIVES_IDLE_SECONDS}s"
     )
@@ -180,8 +182,8 @@ if __name__ == "__main__":
 
     logger.info("Current Configuration:")
     logger.info(f"  PHASE_EVENT_HISTORY_MAX = {PHASE_EVENT_HISTORY_MAX}")
-    logger.info(f"  LOADER_TIMEOUT_MINUTES = {LOADER_TIMEOUT_MINUTES}")
     logger.info(f"  LOADER_TIMEOUT_SECONDS = {LOADER_TIMEOUT_SECONDS}")
+    logger.info(f"  LOADER_TIMEOUT_MINUTES = {LOADER_TIMEOUT_MINUTES} (derived from LOADER_TIMEOUT_SECONDS)")
     logger.info(f"  MAX_BACKFILL_DAYS = {MAX_BACKFILL_DAYS}")
     logger.info(f"  DB_POOL_MIN_CONNECTIONS = {DB_POOL_MIN_CONNECTIONS}")
     logger.info(f"  DB_POOL_MAX_CONNECTIONS = {DB_POOL_MAX_CONNECTIONS}")

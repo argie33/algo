@@ -149,16 +149,17 @@ class TestRunPipelineMarksFailedOnCrash:
 
 
 class TestChildLoaderTimeoutMatchesScheduler:
-    """FIX 2026-08-10: loaders/runner.py enforces its own process-level watchdog
-    (LOADER_TIMEOUT_MINUTES env var, default 120 min) completely independent of this
+    """FIX 2026-08-10/13: loaders/runner.py enforces its own process-level watchdog
+    (LOADER_TIMEOUT env var in seconds, default 7200s) completely independent of this
     scheduler's own per-loader subprocess.run(timeout=...) budget. A same-day fix bumped
     LOADER_TIMEOUTS["enhanced_quality_growth"] to 150 min, but that never mattered - live-
     reproduced: the loader's own inner watchdog fired first at the stale 120 min default,
     silently making the outer-timeout fix a no-op. The scheduler must propagate its own
-    per-loader budget into the child's LOADER_TIMEOUT_MINUTES env var so the two can never
-    drift apart again."""
+    per-loader budget into the child's LOADER_TIMEOUT env var (in seconds) so the two can never
+    drift apart again. CRITICAL FIX 2026-08-13: Changed from LOADER_TIMEOUT_MINUTES to LOADER_TIMEOUT
+    to match Terraform's environment variable naming."""
 
-    def test_env_carries_matching_timeout_minutes(self):
+    def test_env_carries_matching_timeout_seconds(self):
         module = _load_scheduler_module()
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
@@ -172,7 +173,7 @@ class TestChildLoaderTimeoutMatchesScheduler:
             module.run_pipeline("test_pipeline")
 
         assert mock_proc.wait.call_args.kwargs["timeout"] == 900
-        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "15"
+        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT"] == "900"
 
     def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self):
         """Direct regression for the live-reproduced case: enhanced_quality_growth's
@@ -180,7 +181,7 @@ class TestChildLoaderTimeoutMatchesScheduler:
         LOADER_TIMEOUTS is local to run_pipeline(), not importable, so this value must be
         kept in sync with that dict by hand) must reach its child process instead of the
         runner's stale 120 min default, because nothing used to propagate the real budget
-        through."""
+        through. CRITICAL FIX 2026-08-13: Now passes LOADER_TIMEOUT in seconds (12000s = 200m)."""
         module = _load_scheduler_module()
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
@@ -194,4 +195,4 @@ class TestChildLoaderTimeoutMatchesScheduler:
             module.run_pipeline("test_pipeline")
 
         assert mock_proc.wait.call_args.kwargs["timeout"] == 200 * 60
-        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT_MINUTES"] == "200"
+        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT"] == "12000"

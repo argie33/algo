@@ -33,17 +33,18 @@ logger = logging.getLogger(__name__)
 # CRITICAL: Loader timeout enforcement (prevents hung processes from blocking orchestrator)
 # Session 278 audit found 2 hung loaders (4.6h, 2.0h stuck) that prevented orchestrator from proceeding
 # CRITICAL FIX 2026-08-02: Make timeout configurable instead of hardcoded
-# Default 120 minutes to accommodate slow SEC API fetches like earnings_calendar_sec
-# Set LOADER_TIMEOUT_MINUTES environment variable to override (must be positive integer)
+# CRITICAL FIX 2026-08-13: Read LOADER_TIMEOUT (set by Terraform in seconds) not LOADER_TIMEOUT_MINUTES
+# Default 7200s (2 hours) to accommodate slow SEC API fetches like earnings_calendar_sec
+# Terraform task definitions set per-loader timeout (300s-5400s range); this is the safety ceiling
 try:
-    timeout_minutes_env = os.environ.get("LOADER_TIMEOUT_MINUTES", "120")
-    timeout_minutes = int(timeout_minutes_env)
-    if timeout_minutes <= 0:
-        raise ValueError(f"LOADER_TIMEOUT_MINUTES must be positive, got {timeout_minutes}")
-    LOADER_TIMEOUT_SECONDS = timeout_minutes * 60
+    timeout_seconds_env = os.environ.get("LOADER_TIMEOUT", "7200")
+    timeout_seconds = int(timeout_seconds_env)
+    if timeout_seconds <= 0:
+        raise ValueError(f"LOADER_TIMEOUT must be positive, got {timeout_seconds}")
+    LOADER_TIMEOUT_SECONDS = timeout_seconds
 except ValueError as e:
-    logger.warning(f"[CONFIG] Invalid LOADER_TIMEOUT_MINUTES: {e}. Using default 120 minutes.")
-    LOADER_TIMEOUT_SECONDS = 120 * 60
+    logger.warning(f"[CONFIG] Invalid LOADER_TIMEOUT: {e}. Using default 7200 seconds (2 hours).")
+    LOADER_TIMEOUT_SECONDS = 7200
 
 
 def _timeout_handler(_signum: int, _frame: object) -> None:
