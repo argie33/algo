@@ -275,7 +275,13 @@ def run_pipeline(pipeline_name: str) -> int:
         * 60,  # 200 min - earnings surprise calcs w/ yfinance throttle pacing (was 150 min, too little margin - see comment above)
         "analyst_earnings_estimates": 20 * 60,  # 20 min - yfinance per-symbol calls
         "analyst_sentiment": 20 * 60,  # 20 min - yfinance analyst data
-        "analyst_upgrades": 20 * 60,  # 20 min - yfinance recommendation data
+        # BUG FOUND 2026-08-11: 20 min was too short. analyst_upgrade_downgrade hits
+        # yfinance rate limiting (shared IP ban) on full universe, requiring 4-retry
+        # backoff cycles with 3.0s exponential backoff per retry. Live-reproduced:
+        # timed out at 945s (~15.75 min) despite 1200s budget. Bumped to 30 min for
+        # adequate retry margin, matching analyst_sentiment's also-yfinance-dependent
+        # workload and other analyst loaders already sized at 20 min with less contention.
+        "analyst_upgrades": 30 * 60,  # 30 min - yfinance recommendation data (was 20 min, rate-limiting causes timeout)
         # Sector/industry
         "sector_industry": 15 * 60,  # 15 min - daily aggregation (3 output tables)
         # Company information (SEC API calls)
