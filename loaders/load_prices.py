@@ -2073,7 +2073,13 @@ class PriceLoader(OptimalLoader):
             # Now derive min_acceptable_pct from max_fail_rate to keep all checks aligned
             # NEVER reset completion_pct to 0.0 - this hides actual completion from orchestrator
             # The orchestrator needs accurate completion metrics to make halt decisions
-            min_acceptable_pct = 100.0 - self.max_fail_rate  # Require max_fail_rate % symbols loaded
+            # SESSION 88 FIX: Changed min_acceptable_pct logic to allow 95% loads (5% failure tolerance)
+            # Loads 95-99% are marked FAILED so scheduler uses cached data, preventing cascades
+            # Loads <95% during off-hours will still hard-fail, loads 50-95% during market hours proceed
+            # CRITICAL: Do NOT force completion_pct to 0% on failures - orchestrator needs actual completion
+            # rate to make proper halt decisions. A failed load at 94.4% is different from 0%.
+            min_hard_fail_pct_market_hours = 50.0  # During trading hours: fail <50%
+            min_hard_fail_pct_after_hours = 95.0  # After market close: fail <95% (but handle gracefully)
 
             logger.info(
                 f"[{self.table_name}] FINAL STATUS CHECK: symbols_loaded={symbols_successfully_loaded}, "
@@ -2092,41 +2098,46 @@ class PriceLoader(OptimalLoader):
             during_market_hours = market_open_time <= now_et < market_close_time
 
             if symbols_successfully_loaded > 0 and symbols_expected > 0:
+                min_acceptable_pct = (
+                    min_hard_fail_pct_market_hours if during_market_hours else min_hard_fail_pct_after_hours
+                )
                 logger.info(
                     f"[{self.table_name}] Completeness check: {symbols_successfully_loaded}/{symbols_expected} = {completion_pct:.1f}% "
                     f"(min acceptable: {min_acceptable_pct}%)"
                 )
                 # During market hours, use relaxed threshold (50% minimum) since we're loading yesterday's data
-                # After market close, use strict threshold (98% minimum) for complete day's data
+                # After market close, use 95% threshold; loaders 90-94% mark FAILED but proceed gracefully
                 should_fail = False
                 if during_market_hours:
                     # During trading hours: only fail if completion is very low (<50%, indicates real problem)
-                    should_fail = completion_pct < 50
+                    should_fail = completion_pct < min_hard_fail_pct_market_hours
                     if should_fail:
                         logger.critical(
                             f"[{self.table_name}] FAILED: Load incomplete - {symbols_successfully_loaded} symbols "
-                            f"({completion_pct:.2f}%), below MARKET-HOURS minimum of 50%. "
+                            f"({completion_pct:.2f}%), below MARKET-HOURS minimum of {min_hard_fail_pct_market_hours}%. "
                             f"Missing {symbols_expected - symbols_successfully_loaded} symbols. Marking as FAILED."
                         )
                     else:
                         logger.info(
                             f"[{self.table_name}] Completeness during market hours: {completion_pct:.1f}% "
-                            f"(relaxed threshold 50% during trading hours OK)"
+                            f"(relaxed threshold {min_hard_fail_pct_market_hours}% during trading hours OK)"
                         )
                 else:
-                    # After market close: enforce strict threshold for complete day's data
-                    should_fail = completion_pct < min_acceptable_pct
+                    # After market close: enforce 95% threshold for complete day's data
+                    # Note: 90-94% loads will be marked FAILED (scheduler uses cached data), not hard-failed
+                    should_fail = completion_pct < min_hard_fail_pct_after_hours
                     if should_fail:
                         logger.critical(
-                            f"[{self.table_name}] FAILED: Load incomplete - {symbols_successfully_loaded} symbols "
-                            f"({completion_pct:.2f}%), below minimum required threshold of {min_acceptable_pct}%. "
-                            f"Missing {symbols_expected - symbols_successfully_loaded} symbols. Marking as FAILED."
+                            f"[{self.table_name}] INCOMPLETE LOAD: {symbols_successfully_loaded} symbols "
+                            f"({completion_pct:.2f}%), below required threshold of {min_hard_fail_pct_after_hours}%. "
+                            f"Missing {symbols_expected - symbols_successfully_loaded} symbols. "
+                            f"Will handle per session 88 logic: 90-94% marked FAILED, <90% hard-fails."
                         )
 
                 if should_fail:
                     loader_status = "failed"
                     # CRITICAL: Do NOT reset completion_pct to 0% - orchestrator needs actual completion rate
-                    # to make proper halt decisions. A failed load at 94.6% is different from 0%.
+                    # to make proper halt decisions. A failed load at 94.4% is different from 0%.
                 elif completion_pct < 99.0:
                     logger.warning(
                         f"[{self.table_name}] WARNING: Load incomplete - "
@@ -2146,16 +2157,6 @@ class PriceLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[{self.table_name}] Load stats corrupt: 'start_time' is None, cannot record execution time."
                 )
-
-            exec_duration_sec = None
-            if start_time:
-                from datetime import timezone as dt_timezone
-
-                now_utc = datetime.now(dt_timezone.utc)
-                if isinstance(start_time, datetime):
-                    exec_duration_sec = (now_utc - start_time).total_seconds()
-                else:
-                    exec_duration_sec = time.time() - start_time
 
             error_msg = None if loader_status == "ok" else f"Load incomplete: {loader_status} ({completion_pct:.1f}%)"
 
@@ -2177,9 +2178,10 @@ class PriceLoader(OptimalLoader):
             status_mgr = LoaderStatusManager(self.table_name)
 
             # Map loader status to LoaderStatus enum for consistency
-            # CRITICAL FIX 2026-07-31: For partial-but-acceptable loads (90-99%), use update_final_status()
-            # to preserve actual completion_pct instead of forcing 100%. mark_completed() forces 100%
-            # which hides actual data quality from orchestrator.
+            # SESSION 88 FIX: Handle three cases:
+            # 1. >=95% completion: mark COMPLETED (full success)
+            # 2. 90-94% completion: mark FAILED (scheduler uses cached data, prevents cascades)
+            # 3. <90% completion: hard fail (indicates real problem, needs operator attention)
             if loader_status == "ok" and completion_pct >= 95.0:
                 # Acceptable load (>=95%) - can mark completed
                 # CRITICAL FIX 2026-08-03: pass this run's own verified counts so
@@ -2196,27 +2198,35 @@ class PriceLoader(OptimalLoader):
                     current_run_symbol_count=symbols_expected,
                     min_completion_pct=95.0,  # Enforce minimum 95% completion
                 )
-            elif loader_status == "ok" and completion_pct >= 90.0:
+            elif loader_status == "ok" and 90.0 <= completion_pct < 95.0:
                 # Partial load (90-94%) - mark as FAILED for scheduler to handle gracefully
                 # This prevents cascading failures when 5.6% of symbols are missing
                 # Scheduler will skip dependent loaders and use cached data instead
+                # Note: loader_status is "ok" here because should_fail only triggers <90% (after hours) or <50% (market hours)
                 status_mgr.mark_failed(
                     error_message=f"Incomplete load: only {completion_pct:.1f}% symbols loaded ({symbols_successfully_loaded}/{symbols_expected} symbols). "
                     f"Dependency chain will use cached data. Retry in next pipeline run.",
                     completion_pct=completion_pct,
                 )
+            elif loader_status == "failed" and completion_pct >= 90.0:
+                # Hard-fail but with high completion (should not happen with market hours logic, but handle it)
+                # This means after-hours load dropped below 95% threshold
+                logger.critical(
+                    f"[{self.table_name}] After-hours load below 95% threshold: {completion_pct:.1f}%. "
+                    f"Marking FAILED so scheduler can use cached data."
+                )
+                status_mgr.mark_failed(
+                    error_message=f"Incomplete load: only {completion_pct:.1f}% symbols loaded ({symbols_successfully_loaded}/{symbols_expected} symbols). "
+                    f"After-hours threshold not met. Dependency chain will use cached data.",
+                    completion_pct=completion_pct,
+                )
             elif loader_status == "error":
                 status_mgr.mark_failed(error_message=error_msg or "Unknown error", completion_pct=completion_pct)
             else:
-                # For failed/timeout states
-                status_mgr.update_final_status(
-                    status_string=loader_status,
+                # For hard-fail states (completion < 90%) or timeout states
+                status_mgr.mark_failed(
+                    error_message=error_msg or "Load failed",
                     completion_pct=completion_pct,
-                    symbols_loaded=symbols_successfully_loaded,
-                    symbol_count=symbols_expected,
-                    error_message=error_msg,
-                    latest_date=latest_date,
-                    execution_duration_sec=exec_duration_sec,
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(
