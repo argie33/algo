@@ -171,6 +171,10 @@ LOADER_DEPENDENCIES = {
     # algo metrics depend on signals being generated first
     # FIX SESSION 86: Changed from "stock_scores" (wrong) to "scores" (correct shorthand)
     "algo": ["signal_quality", "scores"],
+    # company_profile uses company metadata populated by company_info loader
+    # FIXED 2026-08-12: Added missing dependency to prevent cascading failures
+    # when SEC rate limiting blocks company_info
+    "profile": ["company_info"],
 }
 
 
