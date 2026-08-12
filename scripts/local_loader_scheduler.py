@@ -248,7 +248,7 @@ def run_pipeline(pipeline_name: str) -> int:
     # Set conservatively: price_daily can take 60+ min on large universe, so budget 90 min
     LOADER_TIMEOUTS = {  # noqa: N806
         # Core pricing & market data (heaviest workloads)
-        "prices": 90 * 60,  # 90 min - slowest (5000+ symbols @ ~1s each)
+        "prices": 600 * 60,  # 600 min (10h) - SESSION 92: measured 761m actual runtime, need 600m+ with variance buffer
         "technical": 30 * 60,  # 30 min - vectorized in-database computation
         "constituents": 10 * 60,  # 10 min - light (static symbol list)
         "economic": 10 * 60,  # 10 min - light (FRED + DXY index)
@@ -260,7 +260,7 @@ def run_pipeline(pipeline_name: str) -> int:
         "trend_analysis": 15 * 60,  # 15 min - template pattern matching
         "momentum": 30 * 60,  # 30 min - risk metrics (momentum + stability)
         "stability_metrics": 30 * 60,  # 30 min - alias for momentum
-        "valuations": 20 * 60,  # 20 min - SEC API calls
+        "valuations": 45 * 60,  # 45 min - SESSION 92: SEC API calls, was failing at 20m (no margin)
         # SEC/Financial data (batch API calls)
         # BUG FOUND 2026-08-10: 30 min was never enough for a genuine full-universe local
         # reload - live-reproduced twice this session, each run making comparable, real
@@ -275,9 +275,9 @@ def run_pipeline(pipeline_name: str) -> int:
         # (matches the ~3.5h whole-pipeline figure in memory, of which this loader is the
         # largest chunk), consistent with how "prices" already budgets 90 min for a
         # comparably-sized universe.
-        "financial_statements": 150
-        * 60,  # 150 min - SEC EDGAR batch queries (5500+ symbols, 6 statement/period combos each)
-        "sec_valuations": 30 * 60,  # 30 min - valuation computation from SEC data
+        "financial_statements": 240
+        * 60,  # 240 min (4h) - SESSION 92: ~4900 symbols @ 2 req/sec + retry overhead + concurrent load
+        "sec_valuations": 45 * 60,  # 45 min - SESSION 92: valuation computation, was failing at 30m
         # Fundamental metrics (API-heavy)
         "value_quality_growth": 40 * 60,  # 40 min - multi-source aggregation
         # BUG FOUND 2026-08-10: 25 min was calibrated before a same-day fix
@@ -306,15 +306,15 @@ def run_pipeline(pipeline_name: str) -> int:
         # near-the-edge range is enough signal to not leave this at effectively zero margin.
         # Bumped for real headroom, same reasoning already applied to financial_statements/
         # company_info above - a bigger ceiling costs nothing on a run that finishes early.
-        "enhanced_quality_growth": 200
-        * 60,  # 200 min - earnings surprise calcs w/ yfinance throttle pacing (was 150 min, too little margin - see comment above)
+        "enhanced_quality_growth": 300
+        * 60,  # 300 min (5h) - SESSION 92: yfinance hangs 40+ min, earnings_dates network variance
         "analyst_earnings_estimates": 30
         * 60,  # 30 min - yfinance per-symbol calls (was 20m, insufficient with circuit breaker)
         "analyst_sentiment": 30 * 60,  # 30 min - yfinance analyst data (was 20m, insufficient with circuit breaker)
         # SESSION 90 FIX: Increased from 20m to 30m for both sentiment/earnings loaders.
         # With 5000 symbols, yfinance per-symbol calls @ ~1 req/s rate, plus circuit breaker
         # exponential backoff (3.0s, 4 retries), adequate runtime is 20-25m with safety margin.
-        "analyst_upgrades": 30 * 60,  # 30 min - yfinance recommendation data (was 20 min, rate-limiting causes timeout)
+        "analyst_upgrades": 40 * 60,  # 40 min - SESSION 92: yfinance IP ban recovery exponential backoff buffer
         # Sector/industry
         "sector_industry": 15 * 60,  # 15 min - daily aggregation (3 output tables)
         # Company information (SEC API calls)
@@ -331,7 +331,8 @@ def run_pipeline(pipeline_name: str) -> int:
         # backoff overhead from occasional 429/503 responses easily pushes a full run past an
         # hour). Bumped to 120 min for real margin, matching how financial_statements
         # (150 min) was already sized for its own well-diagnosed real-world runtime.
-        "company_info": 120 * 60,  # 120 min - SEC EDGAR lookups, ~4900 symbols @ 2 req/sec floor
+        "company_info": 180
+        * 60,  # 180 min (3h) - SESSION 92: ~4900 symbols @ 2 req/sec SEC API, 429/503 backoff overhead
         "profile": 10 * 60,  # 10 min - uses cached company_info
         "dividends": 30 * 60,  # 30 min - yfinance dividend data (was timing out at 900s)
         # Holdings & positioning
@@ -359,14 +360,15 @@ def run_pipeline(pipeline_name: str) -> int:
         # BUG FOUND 2026-08-11: 15 min was too short. SEC EDGAR submissions API with rate
         # limiter (2 req/sec) needs ~41+ min for full 4900+ symbol universe (4900 symbols / 2 req/sec = 2450s base,
         # plus retry overhead and DB writes). Bumped to 60 min for real margin.
-        "earnings_sec": 60 * 60,  # 60 min - SEC EDGAR submissions filing date extraction (rate-limited API)
+        "earnings_sec": 90
+        * 60,  # 90 min - SESSION 92: SEC EDGAR submissions, still failing at 60m (41m base + overhead)
         "sec_reports": 60
         * 60,  # 60 min - 8-K report scanning (SEC API rate-limited, ~4900 symbols @ 2 req/sec = 2450s+ base)
         # BUG FOUND 2026-08-11: 15 min was too short. sec_segment_info makes SEC EDGAR
         # companyfacts + XBRL parsing calls for 4900+ symbols, timing out at 900s exactly.
         # Full universe with retry overhead requires ~30 min, matching company_info's
         # similarly-sized SEC API workload and other slow SEC loaders like earnings_sec.
-        "segment_info": 30 * 60,  # 30 min - SEC XBRL segment data extraction (was 15 min, too short)
+        "segment_info": 45 * 60,  # 45 min - SESSION 92: Session 91 failures at 30m, add variance buffer
         "segment_metrics": 15 * 60,  # 15 min - segment aggregation
         # Trading signals
         "scores": 25 * 60,  # 25 min - scoring algorithm

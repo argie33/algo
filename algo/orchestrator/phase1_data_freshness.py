@@ -259,7 +259,7 @@ def _validate_dependency_freshness(
         for upstream in upstreams:
             try:
                 cur.execute(
-                    """SELECT MAX(latest_date), MAX(execution_completed), status
+                    """SELECT latest_date, execution_completed, status
                        FROM data_loader_status
                        WHERE table_name = %s
                        ORDER BY execution_completed DESC LIMIT 1""",
@@ -924,7 +924,7 @@ def run(  # noqa: C901
             if required_date_coverage < (symbol_count * 0.5):  # At least 50% coverage on required date
                 logger.warning(
                     f"[PHASE 1] SESSION 89 FIX: Required date {last_trading_day} has only "
-                    f"{required_date_coverage} symbols ({required_date_coverage/(symbol_count or 1)*100:.1f}%). "
+                    f"{required_date_coverage} symbols ({required_date_coverage / (symbol_count or 1) * 100:.1f}%). "
                     f"MAX(date) is {max_date}. Possible stale data reprocessing. Using {max_date} instead."
                 )
                 # Fall back to whatever date has the most data
