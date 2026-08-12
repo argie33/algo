@@ -340,7 +340,13 @@ class SignalsDailyLoader(OptimalLoader):
                 end = end - timedelta(days=1)
                 iterations += 1
 
-            with DatabaseContext("read") as cur:
+            # CRITICAL FIX SESSION 86: Add explicit statement timeout for large GROUP BY queries
+            # to prevent hangs on slow/locked tables. Without timeout, queries could hang
+            # indefinitely if there's table contention or missing indexes.
+            with DatabaseContext("read", timeout=120) as cur:  # 120s for large GROUP BY
+                # Set per-statement timeout as additional safety measure
+                cur.execute("SET statement_timeout = '120 seconds'")
+
                 # Find most recent date with COMPLETE price_daily coverage (>= 3000 symbols)
                 # If today's price_daily is incomplete (partial load), fall back to yesterday
                 # This allows buy_sell_daily to run with the most recent complete data set
