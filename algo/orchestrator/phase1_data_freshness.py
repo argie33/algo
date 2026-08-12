@@ -165,6 +165,77 @@ def _check_health_column_coverage(
         )
 
 
+def _validate_dependency_freshness(
+    cur: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]
+) -> PhaseResult | None:
+    """Verify that critical loader dependencies have today's data before downstream loaders run.
+
+    This prevents silent data degradation where a slow/timeout upstream loader marks
+    COMPLETED but with stale/empty data, allowing downstream loaders to run with
+    yesterday's dependency data without detecting the problem until Phase 1 validation.
+
+    CRITICAL DEPENDENCIES (must have run_date data):
+    - value_quality_growth requires: financial_statements, valuations, analyst_earnings_estimates
+    - enhanced_quality_growth requires: value_quality_growth
+    - segment_metrics requires: segment_info
+    - positioning_metrics requires: institutional_holdings_13f, insider_holdings_sec
+
+    Returns: PhaseResult halt if a dependency is stale, None if all dependencies OK
+    """
+    dependencies = {
+        "value_quality_growth": ["financial_statements", "valuations", "analyst_earnings_estimates"],
+        "enhanced_quality_growth": ["value_quality_growth"],
+        "segment_metrics": ["segment_info"],
+        "positioning_metrics": ["institutional_holdings_13f", "insider_holdings_sec"],
+        "stock_scores": ["value_quality_growth", "enhanced_quality_growth", "stability_metrics"],
+        "signal_quality": ["buy_sell_daily"],
+    }
+
+    failed_deps = []
+    for downstream, upstreams in dependencies.items():
+        for upstream in upstreams:
+            try:
+                cur.execute(
+                    """SELECT MAX(latest_date), MAX(execution_completed), status
+                       FROM data_loader_status
+                       WHERE table_name = %s
+                       ORDER BY execution_completed DESC LIMIT 1""",
+                    (upstream,),
+                )
+                row = cur.fetchone()
+                if not row or not row[0]:
+                    failed_deps.append(f"{downstream}→{upstream}: never loaded")
+                    continue
+
+                latest_data_date, _last_completed, status = row
+                if latest_data_date < run_date:
+                    failed_deps.append(f"{downstream}→{upstream}: last data {latest_data_date} < required {run_date}")
+                if status == "FAILED":
+                    failed_deps.append(f"{downstream}→{upstream}: marked FAILED")
+            except Exception as e:
+                logger.warning(f"[PHASE 1] Could not check dependency {upstream}: {e}")
+
+    if failed_deps:
+        error_msg = (
+            "[PHASE 1] DEPENDENCY FRESHNESS FAILURE:\n"
+            + "\n".join(f"  {dep}" for dep in failed_deps[:5])
+            + (f"\n  ... and {len(failed_deps) - 5} more" if len(failed_deps) > 5 else "")
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "dependency_freshness", "halt", f"Upstream dependencies stale: {failed_deps[0]}")
+        return PhaseResult(
+            1,
+            "dependency_freshness",
+            "halted",
+            {"failed_dependencies": failed_deps},
+            True,
+            f"Upstream dependencies stale: {failed_deps[0]}",
+        )
+
+    logger.info("[PHASE 1] Dependency freshness check: OK")
+    return None
+
+
 def _check_failsafe_retry_result(
     failsafe_result: dict[str, Any],
     log_phase_result_fn: Callable[..., Any],
@@ -425,6 +496,18 @@ def run(  # noqa: C901
     failsafe_halt = _check_failsafe_retry_result(failsafe_result, log_phase_result_fn)
     if failsafe_halt:
         return failsafe_halt
+
+    # PHASE 1 DEPENDENCY VALIDATION: Verify upstream dependencies have today's data
+    # CRITICAL FIX 2026-08-12: Check that value_quality_growth, enhanced_quality_growth, etc.
+    # have fresh dependencies before allowing downstream loaders to proceed.
+    # Prevents silent data degradation where a timeout loader marks COMPLETED with stale/empty data.
+    try:
+        with DatabaseContext("read") as dep_check_cur:
+            dep_halt = _validate_dependency_freshness(dep_check_cur, run_date, log_phase_result_fn)
+            if dep_halt:
+                return dep_halt
+    except Exception as e:
+        logger.warning(f"[PHASE 1] Dependency validation check failed (non-fatal): {e}")
 
     # CRITICAL FIX: Pre-validate stock_symbols table is populated
     # If symbols loader failed, all downstream phases will fail
