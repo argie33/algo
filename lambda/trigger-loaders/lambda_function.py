@@ -45,6 +45,20 @@ class TriggerLoadersHandler(LambdaHandler):
     """Triggers ECS loader tasks."""
 
     @staticmethod
+    def _get_loader_timeout(loader_name: str) -> int:
+        """Get timeout in seconds for a loader using centralized config.
+
+        Args:
+            loader_name: Loader shorthand name (e.g., "prices", "company_info")
+
+        Returns:
+            Timeout in seconds
+        """
+        from loaders.loader_timeout_config import get_loader_timeout
+
+        return get_loader_timeout(loader_name)
+
+    @staticmethod
     def _check_loader_dependencies(loader_name: str) -> tuple[bool, str | None]:
         """Check if a loader's dependencies have been completed.
 
