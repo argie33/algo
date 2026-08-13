@@ -2032,6 +2032,14 @@ class Orchestrator:
         skip_lock_check = self.dry_run
 
         if not skip_lock_check:
+            # SESSION 105 FIX: Clean up stale orchestrator run locks BEFORE acquisition attempt.
+            # Previous implementation cleaned loader locks AFTER lock acquisition,
+            # but stale orchestrator-run-lock blocks acquisition entirely.
+            # Example: Friday orchestrator crashed, lock file never deleted, Saturday/Monday
+            # runs fail immediately with "Could not acquire run lock" even though no process is running.
+            # Fix: Cleanup stale run locks (>30 min old) before attempting acquisition.
+            self._cleanup_stale_orchestrator_run_locks()
+
             lock_acquired = self._acquire_run_lock()
             if not lock_acquired:
                 if self.lock_manager.is_available:
@@ -2166,6 +2174,17 @@ class Orchestrator:
             )
 
         logger.info("[CRITICAL] Running critical data checks...")
+
+        # SESSION 105 FIX: Clean up idle-in-transaction connections before preflight
+        # These connections poison the pool and cause all subsequent queries to timeout
+        # with "canceling statement due to statement timeout" errors. This happens when:
+        # 1. A transaction aborts on a connection
+        # 2. Connection returned to pool WITHOUT proper rollback()
+        # 3. Next query on that connection gets InFailedSqlTransaction
+        # While Session 95 fixed the rollback on close, we also need to clean up
+        # Idle-in-transaction sessions cleanup moved to Phase 1 startup
+        # (see phase1_data_freshness._cleanup_stuck_database_sessions)
+
         try:
             logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
             with DatabaseContext("read", timeout=10) as cur:
@@ -2252,6 +2271,38 @@ class Orchestrator:
             )
 
         return None
+
+    def _cleanup_stale_orchestrator_run_locks(self) -> None:
+        """Clean up stale orchestrator run locks BEFORE acquisition attempt.
+
+        SESSION 105 FIX: Orchestrator locks that persist >30 minutes indicate:
+        1. Previous orchestrator process crashed without cleanup
+        2. Or lock file was manually deleted but DB still has stale row
+        3. Either way: No active process holds the lock
+
+        This cleanup runs BEFORE lock acquisition (in _handle_concurrency_lock).
+        If a lock file is >30 min old, it's safe to delete and retry acquisition.
+        """
+        try:
+            from utils.db.local_file_lock import get_lock_manager
+
+            lock_manager = get_lock_manager()
+            if lock_manager and hasattr(lock_manager, "cleanup_expired_locks"):
+                # max_age_seconds=1800 (30 min) for orchestrator locks
+                # These are long-running operations, so 30 min is conservatively safe:
+                # - Typical orchestrator run takes 5-20 min
+                # - 30 min gives 1.5-6x buffer before cleanup
+                # - If a lock is >30 min old, orchestrator almost certainly crashed
+                cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=1800)
+                if cleaned > 0:
+                    logger.warning(
+                        f"[LOCK_CLEANUP] Removed {cleaned} stale orchestrator run lock(s) (older than 1800s/30min). "
+                        f"Previous orchestrator run likely crashed without cleanup."
+                    )
+        except Exception as cleanup_err:
+            logger.warning(
+                f"[LOCK_CLEANUP_RUN] Failed to cleanup stale orchestrator locks: {cleanup_err}. Proceeding anyway."
+            )
 
     def _cleanup_stale_loader_locks(self) -> None:
         """Clean up any stale loader locks from crashed processes.

@@ -65,6 +65,66 @@ from utils.loaders.status_manager import LoaderStatusManager
 logger = logging.getLogger(__name__)
 
 
+def _cleanup_stuck_database_sessions(max_idle_hours: int = 1) -> int:
+    """Kill idle-in-transaction sessions stuck for >N hours.
+
+    SESSION 105 ROOT CAUSE: Stuck idle-in-transaction sessions hold locks on
+    data_loader_status table, causing all loader INSERTs to timeout after 30s.
+    This cascades to Monday brittleness: Friday timeout → idle session holds lock →
+    Saturday/Sunday session accumulates → Monday all loaders fail to INSERT progress.
+
+    Solution: At Phase 1 startup, kill any idle-in-transaction session older than
+    1 hour. These are almost certainly from crashed code paths that never returned
+    the connection to the pool.
+
+    Args:
+        max_idle_hours: Kill sessions idle-in-transaction for longer than this (default 1h)
+
+    Returns:
+        Number of sessions killed
+    """
+    killed_count = 0
+    try:
+        with DatabaseContext("write") as cur:
+            # Find stuck idle-in-transaction sessions
+            cur.execute(f"""
+                SELECT pid, usename, query_start
+                FROM pg_stat_activity
+                WHERE state = 'idle in transaction'
+                    AND query_start IS NOT NULL
+                    AND AGE(NOW(), query_start) > INTERVAL '{max_idle_hours} hours'
+                    AND pid != pg_backend_pid()
+                ORDER BY query_start ASC
+            """)
+
+            stuck_pids = cur.fetchall()
+            if stuck_pids:
+                logger.warning(
+                    f"[PHASE 1 STARTUP] Found {len(stuck_pids)} idle-in-transaction sessions stuck for >{max_idle_hours}h. "
+                    f"These are likely from crashed loaders. Terminating to clear data_loader_status locks..."
+                )
+
+            for row in stuck_pids:
+                pid, user, query_start = row
+                age = time.time() - query_start.timestamp() if query_start else 0
+                hours_old = age / 3600
+                try:
+                    cur.execute(f"SELECT pg_terminate_backend({pid})")
+                    result = cur.fetchone()
+                    if result and result[0]:
+                        logger.info(f"[PHASE 1 STARTUP] Killed PID {pid} (idle {hours_old:.1f}h, user={user})")
+                        killed_count += 1
+                    else:
+                        logger.warning(f"[PHASE 1 STARTUP] Could not kill PID {pid} (not running?)")
+                except Exception as term_err:
+                    logger.warning(f"[PHASE 1 STARTUP] Error killing PID {pid}: {term_err}")
+
+    except Exception as cleanup_err:
+        logger.warning(f"[PHASE 1 STARTUP] Could not query/clean stuck sessions: {cleanup_err}")
+
+    return killed_count
+
+
 def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> list[str]:
     """Detect RUNNING loaders stuck for >N minutes and auto-fail them.
 
@@ -526,6 +586,18 @@ def run(  # noqa: C901
     Excludes stock_scores (orchestrator-generated output, not pipeline input).
     """
     validate_phase_config(config, "phase_1_data_freshness")
+
+    # SESSION 105 FIX: Clean up stuck idle-in-transaction sessions before anything else
+    # These sessions hold locks on data_loader_status, causing all loader INSERTs to timeout
+    # This is THE ROOT CAUSE of Monday brittleness (Friday stuck session → locks persist → Monday cascade)
+    killed = _cleanup_stuck_database_sessions(max_idle_hours=1)
+    if killed > 0:
+        logger.critical(
+            f"[PHASE 1 STARTUP] CRITICAL: Cleaned up {killed} stuck database sessions "
+            f"that were blocking loader progress. This indicates a resource leak - "
+            f"connections are not being returned to the pool properly. "
+            f"Investigate code paths that open connections without proper cleanup."
+        )
 
     # STARTUP: Clean up orphaned positions from previous failed runs
     # This prevents orphaned positions from blocking Phase 2/7 risk calculations
