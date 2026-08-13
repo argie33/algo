@@ -27,6 +27,8 @@ Completion thresholds (configured per loader via loaders/config.py):
 import json
 import logging
 import os
+import subprocess
+import sys
 import time
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
@@ -1236,13 +1238,35 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
         f"(priority={'critical' if is_critical else 'auxiliary'}) via algo-trigger-loaders"
     )
 
-    # In local mode, skip Lambda invocation (no AWS credentials available)
+    # In local mode, invoke loader directly via subprocess instead of Lambda/ECS
     if os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes"):
         logger.info(
-            f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - skipping Lambda invocation for {loader_name}. "
-            f"Loader retry would normally happen on AWS ECS. In local dev, data updates must be triggered manually."
+            f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - invoking {loader_name} directly via subprocess"
         )
-        return False
+        try:
+            result = subprocess.run(
+                [sys.executable, "scripts/run_loader.py", loader_name, "--force-refresh"],
+                capture_output=True,
+                text=True,
+                timeout=900,  # 15 minute timeout for loader invocation
+            )
+            if result.returncode == 0:
+                logger.info(f"[PHASE 1 FAILSAFE] Local loader {loader_name} invoked successfully")
+                return True
+            else:
+                error_msg = result.stderr if result.stderr else result.stdout
+                logger.error(
+                    f"[PHASE 1 FAILSAFE] Local loader {loader_name} invocation failed: {error_msg[:500]}"
+                )
+                raise RuntimeError(
+                    f"[PHASE 1 FAILSAFE] Local loader {loader_name} failed with return code {result.returncode}"
+                )
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"[PHASE 1 FAILSAFE] Local loader {loader_name} timed out after 900s")
+            raise RuntimeError(f"[PHASE 1 FAILSAFE] Local loader {loader_name} timeout") from e
+        except Exception as e:
+            logger.error(f"[PHASE 1 FAILSAFE] Failed to invoke local loader {loader_name}: {e}")
+            raise RuntimeError(f"[PHASE 1 FAILSAFE] Failed to invoke local loader {loader_name}: {e}") from e
 
     trigger_function_name = os.getenv("TRIGGER_LOADERS_FUNCTION_NAME", "algo-trigger-loaders")
 

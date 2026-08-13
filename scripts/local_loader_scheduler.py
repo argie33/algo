@@ -43,6 +43,11 @@ def _mark_loader_failed_after_crash(loader_filename: str, error_message: str) ->
     growth_metrics (via enhanced_quality_growth) died mid-run with no process alive and
     no status transition. Deliberately swallows its own errors - a failure to record the
     failure must never mask the original crash/timeout being reported by the caller.
+
+    CRITICAL FIX SESSION 102: Also handle NOT_STARTED status (subprocess crashed before mark_running).
+    Subprocess may die before runner.py calls mark_running(), leaving status=NOT_STARTED but execution_started/
+    execution_completed set. The previous check only marked tables with status==RUNNING, leaving these stuck forever.
+    Now unconditionally calls mark_failed() regardless of current status.
     """
     try:
         for table in all_tables(loader_filename):
@@ -380,7 +385,16 @@ def run_pipeline(pipeline_name: str) -> int:
             # truth instead of two independently-maintained numbers.
             # CRITICAL FIX 2026-08-13: Pass LOADER_TIMEOUT in seconds (matching Terraform/runner.py)
             # not LOADER_TIMEOUT_MINUTES in minutes. This aligns local and production behavior.
-            env["LOADER_TIMEOUT"] = str(max(1, timeout))
+            # CRITICAL FIX SESSION 102: Ensure LOADER_TIMEOUT is always set (never None/empty)
+            # Empty or missing LOADER_TIMEOUT causes runner.py to fall back to 7200s (2h) default,
+            # creating a timeout mismatch race condition. Always set it explicitly.
+            loader_timeout_str = str(max(1, timeout))
+            env["LOADER_TIMEOUT"] = loader_timeout_str
+            if int(loader_timeout_str) != timeout:
+                print(
+                    f"[LOCAL_SCHEDULER] WARNING: LOADER_TIMEOUT str({timeout}) != int({loader_timeout_str})",
+                    file=sys.stderr,
+                )
             # ROOT-CAUSE FIX 2026-08-10: always invoke the loader module directly
             # (`python loaders/{file}.py`, exactly what terraform/modules/loaders/main.tf
             # runs in production), never scripts/run_loader.py's generic path.
@@ -408,6 +422,23 @@ def run_pipeline(pipeline_name: str) -> int:
                 # constructor alone requires one specific combo to already be named.
                 env["LOADER_STATEMENT_TYPE"] = "all"
             cmd = [sys.executable, f"loaders/{loader_filename}"]
+
+            # CRITICAL FIX SESSION 102: Mark all output tables RUNNING BEFORE subprocess starts
+            # Prevents NOT_STARTED stuck status when subprocess crashes before runner.py calls mark_running()
+            # See root_cause_analysis: NOT_STARTED status never transitions if subprocess dies before mark_running()
+            try:
+                for table in all_tables(loader_filename):
+                    LoaderStatusManager(table).mark_running()
+                print(
+                    f"[LOCAL_SCHEDULER] Pre-marked {loader} output tables as RUNNING (guard against early subprocess crash)"
+                )
+            except Exception as pre_mark_err:
+                print(
+                    f"[LOCAL_SCHEDULER] WARNING: could not pre-mark {loader_filename} tables as RUNNING: {pre_mark_err}. "
+                    f"If subprocess crashes before runner.py, status may get stuck. Proceeding anyway.",
+                    file=sys.stderr,
+                )
+
             # BUG FOUND 2026-08-11: subprocess.run() with no stdout/stderr capture meant a
             # crash only ever recorded a bare "exit code N" in data_loader_status.error_message
             # - the real traceback only existed in whatever terminal/log redirect happened to
