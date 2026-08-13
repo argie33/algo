@@ -45,6 +45,15 @@ def _set_timeout_for_loader(loader_class: type) -> None:
     This runs once in run_loader() after loader_class is known (at line 110).
     Reads from loaders/loader_timeout_config.py instead of using hardcoded 7200s default.
 
+    CRITICAL (Session 108 FIX): Add 20% safety margin to timeout to prevent race condition
+    where runner.py's SIGALRM timeout is shorter than the scheduler's subprocess timeout.
+    Example: company_info_sec configured for 540m → scheduler uses 540m * 1.1 = 594m,
+    but runner.py used 540m, so SIGALRM fired BEFORE scheduler detected timeout.
+
+    Now runner.py uses: configured_timeout * 1.2 (20% margin) to exceed scheduler's
+    subprocess.run(timeout) which uses only 10% margin. This ensures scheduler timeouts
+    before runner.py, so both mechanisms stay synchronized.
+
     CRITICAL: Prevents race where env var missing → 2h default, but config specifies 24h (prices).
     Session 93+ has repeatedly proven that timeout mismatches cause Monday cascades.
     """
@@ -60,11 +69,13 @@ def _set_timeout_for_loader(loader_class: type) -> None:
             timeout_seconds = int(timeout_seconds_env)
             if timeout_seconds <= 0:
                 raise ValueError(f"LOADER_TIMEOUT must be positive, got {timeout_seconds}")
-            LOADER_TIMEOUT_SECONDS = timeout_seconds
+            # SESSION 108 FIX: Apply 20% safety margin to env var too (for consistency with config path)
+            LOADER_TIMEOUT_SECONDS = int(timeout_seconds * 1.2)
             debug_val = os.environ.get("LOADER_TIMEOUT_DEBUG")
             if debug_val and debug_val.lower() in ("1", "true", "yes"):
                 logger.info(
-                    f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) from env var LOADER_TIMEOUT={timeout_seconds_env}"
+                    f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) "
+                    f"from env var LOADER_TIMEOUT={timeout_seconds_env}s (+20% safety margin)"
                 )
             return
         except ValueError as e:
@@ -76,18 +87,22 @@ def _set_timeout_for_loader(loader_class: type) -> None:
         from loaders.loader_timeout_config import get_loader_timeout
 
         loader_table_name = getattr(loader_class, "table_name", "unknown")
-        LOADER_TIMEOUT_SECONDS = get_loader_timeout(loader_table_name)
+        configured_timeout = get_loader_timeout(loader_table_name)
+        # SESSION 108 FIX: Add 20% safety margin to prevent timeout race with scheduler
+        # Scheduler uses subprocess.run(timeout=configured * 1.1), so we use 1.2 to exceed it
+        LOADER_TIMEOUT_SECONDS = int(configured_timeout * 1.2)
         debug_val = os.environ.get("LOADER_TIMEOUT_DEBUG")
         if debug_val and debug_val.lower() in ("1", "true", "yes"):
             logger.info(
-                f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) from loader_timeout_config.py for {loader_table_name}"
+                f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) "
+                f"from loader_timeout_config.py for {loader_table_name} (configured={configured_timeout}s, +20% margin)"
             )
     except Exception as config_err:
         logger.warning(
             f"[CONFIG] Could not load timeout from loader_timeout_config.py for {loader_class}: {config_err}. "
-            f"Using safe conservative default of 3600s (1 hour)."
+            f"Using safe conservative default of 4320s (1.2 hour = 3600s * 1.2 for consistency)."
         )
-        LOADER_TIMEOUT_SECONDS = 3600  # 1 hour as fallback (safe for most loaders)
+        LOADER_TIMEOUT_SECONDS = 4320  # 1.2 hours as fallback (safe for most loaders, includes 20% margin)
 
 
 def _timeout_handler(_signum: int, _frame: object) -> None:
