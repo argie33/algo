@@ -253,13 +253,23 @@ PHASE_DATA_KEYS = (
 )
 
 
+def _get_item_status(item: dict[str, Any] | None) -> str | None:
+    """Get status from health item, checking both 'st' and 'status' fields.
+
+    API returns 'status' field, but code often uses 'st' shorthand. This handles both.
+    """
+    if not isinstance(item, dict):
+        return None
+    return item.get("st") or item.get("status")
+
+
 def _calc_critical_tables_status(hlth_items: list[Any]) -> tuple[int, int]:
     """Calculate how many critical tables are ready vs stale.
 
     Returns: (ready_count, stale_count)
     """
     critical_items = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
-    ready = sum(1 for r in critical_items if r.get("st") == "ok")
+    ready = sum(1 for r in critical_items if _get_item_status(r) == "ok")
     stale = len(critical_items) - ready
     return ready, stale
 
@@ -274,7 +284,7 @@ def _calc_data_completeness(hlth_items: list[Any]) -> dict[str, tuple[int, int]]
         if not isinstance(r, dict):
             continue
         role = r.get("role", "NORM")
-        st = r.get("st")
+        st = _get_item_status(r)
         if role not in by_role:
             by_role[role] = {"ready": 0, "total": 0}
         by_role[role]["total"] += 1
@@ -336,7 +346,7 @@ def _get_most_critical_issues(hlth_items: list[Any]) -> list[str]:
         role = r.get("role")
         if role != "CRIT":
             continue
-        st = r.get("st")
+        st = _get_item_status(r)
         if st != "ok":
             tbl_name = r.get("tbl", "unknown")
             if st == "stale":
@@ -391,7 +401,7 @@ def _build_loader_operational_detail_rows(hlth_items: list[Any] | None) -> list[
     never_started = [
         r.get("tbl") or r.get("name") or "unknown"
         for r in hlth_items
-        if isinstance(r, dict) and r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
+        if isinstance(r, dict) and _get_item_status(r) != "ok" and r.get("loader_run_status") == "NOT_STARTED"
     ]
 
     if not (loader_state_issues or loader_errors or repeated_failures or never_started):
@@ -1292,7 +1302,7 @@ def _build_freshness_panel(
         left_rows.append(Text(msg, style="dim"))
         return Group(*left_rows)
 
-    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
+    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and _get_item_status(r) != "ok")
     # BUG FIX: This used to flag ANY non-"ok" table (role CRIT/IMP/NORM alike) under the
     # "CRIT STALE" banner, even though the API already computes and attaches a "role" field
     # per table (see dashboard/fetchers_config.py). That meant known-non-critical,
@@ -1300,7 +1310,9 @@ def _build_freshness_panel(
     # - see lambda/api/routes/algo_handlers/market.py's own comments on those two) triggered the
     # same red "CRIT STALE" alarm as an actually-critical table like price_daily, producing false
     # TRIGGERED/NOT READY-looking alarms. Filter to role == "CRIT" so the banner matches its label.
-    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok" and r.get("role") == "CRIT"]
+    crit_stale = [
+        r for r in hlth_items if isinstance(r, dict) and _get_item_status(r) != "ok" and r.get("role") == "CRIT"
+    ]
 
     if crit_stale:
         # CRITICAL: Explicit None check instead of OR fallback
@@ -1540,7 +1552,7 @@ def _build_freshness_panel(
     never_started = [
         r.get("tbl") or "unknown"
         for r in sorted_items
-        if r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED"
+        if _get_item_status(r) != "ok" and r.get("loader_run_status") == "NOT_STARTED"
     ]
     if never_started:
         left_rows.append(Rule(style="dim"))
@@ -1590,7 +1602,7 @@ def _build_freshness_panel(
     stale_detail = [
         (r.get("tbl") or "unknown", r.get("age"), r.get("stale_threshold_days"))
         for r in sorted_items
-        if r.get("st") == "stale" and r.get("age") is not None and r.get("stale_threshold_days") is not None
+        if _get_item_status(r) == "stale" and r.get("age") is not None and r.get("stale_threshold_days") is not None
     ]
     if stale_detail:
         left_rows.append(Rule(style="dim"))
@@ -2583,7 +2595,7 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
         )
         return rows
 
-    stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
+    stale = [r for r in hlth_items if isinstance(r, dict) and _get_item_status(r) != "ok"]
     if not stale:
         rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
     else:
@@ -2797,7 +2809,7 @@ def _format_comprehensive_table_loader_health(hlth_items: list[Any] | None, load
         )
 
         # Determine primary status from health data
-        status = hlth.get("st", "unknown")
+        status = _get_item_status(hlth) or "unknown"
         if status == "critical":
             categories["critical"].append((tbl, hlth, load))
         elif status == "empty":
@@ -4126,7 +4138,7 @@ def panel_algo_health(
     if hlth_items:
         loading_count, _ = _calc_loader_queue_depth(hlth_items)
         total_loaders = len(hlth_items)
-        failed_loaders = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") in ("error", "stale"))
+        failed_loaders = sum(1 for r in hlth_items if isinstance(r, dict) and _get_item_status(r) in ("error", "stale"))
         succeeded_loaders = total_loaders - failed_loaders
         if loading_count > 0:
             rows.append(
@@ -4332,7 +4344,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         )
 
     # Summary status line: overall readiness indicator
-    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
+    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and _get_item_status(r) != "ok")
     total_count = len([r for r in hlth_items if isinstance(r, dict)])
 
     ready_color = G if ready_to_trade else R
@@ -4441,7 +4453,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         (r.get("tbl") or "unknown", r.get("age"), r.get("stale_threshold_days"))
         for r in hlth_items
         if isinstance(r, dict)
-        and r.get("st") == "stale"
+        and _get_item_status(r) == "stale"
         and r.get("age") is not None
         and r.get("stale_threshold_days") is not None
     ]
@@ -4464,7 +4476,7 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
         n_fail = r.get("consecutive_failures")
         if isinstance(n_fail, (int, float)) and n_fail >= 2:
             return True
-        return bool(r.get("st") != "ok" and r.get("loader_run_status") == "NOT_STARTED")
+        return bool(_get_item_status(r) != "ok" and r.get("loader_run_status") == "NOT_STARTED")
 
     has_loader_detail = any(_has_loader_detail(r) for r in hlth_items)
     if has_loader_detail:
