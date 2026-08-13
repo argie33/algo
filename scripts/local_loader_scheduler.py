@@ -182,10 +182,19 @@ LOADER_DEPENDENCIES = {
     "segment_metrics": ["segment_info"],
     # FIXED 2026-08-12: buy_sell requires fresh price and technical data for signals
     # FIX SESSION 86: Changed from "buy_sell_daily" (wrong) to "buy_sell" (correct shorthand)
-    "buy_sell": ["prices", "technical"],
+    # SESSION 103 FIX: Also requires scores - buy_sell filters universe to only scored symbols
+    "buy_sell": ["prices", "technical", "scores"],
     # scores requires value metrics to be available (for scoring algorithm)
     # FIX SESSION 86: Changed from "stock_scores" (wrong) to "scores" (correct shorthand)
-    "scores": ["value_quality_growth", "enhanced_quality_growth", "stability_metrics"],
+    # SESSION 103 FIX: Also requires positioning and technical dependencies
+    "scores": [
+        "prices",
+        "technical",
+        "value_quality_growth",
+        "enhanced_quality_growth",
+        "positioning",
+        "stability_metrics",
+    ],
     # signal_quality requires buy_sell signals to exist before quality scoring
     # FIX SESSION 86: Changed from "buy_sell_daily" (wrong) to "buy_sell" (correct shorthand)
     "signal_quality": ["buy_sell"],
