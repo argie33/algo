@@ -1527,8 +1527,18 @@ class PriceLoader(OptimalLoader):
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         from algo.infrastructure import get_config
+        from loaders.loader_timeout_config import get_loader_timeout
 
-        task_timeout_sec = 10800  # 3 hours (EOD max observed: 143 min, safety buffer 2x)
+        # SESSION 99 CRITICAL FIX: Use centralized config instead of hardcoded 10800s (3 hours)
+        # Previously: hardcoded 10800s meant loader would halt after 3 hours even if configured for 900m (15h)
+        # This was the REAL bug causing price_daily to fail at 92% - batch processing stopped at 3h mark
+        # (This fix was claimed in commit 7dd40e491 but not actually implemented - fixing now)
+        try:
+            task_timeout_sec = get_loader_timeout("prices")  # Should be 54000s (900m = 15h)
+        except RuntimeError as e:
+            logger.error(f"[TIMEOUT_CONFIG] CRITICAL: {e}")
+            raise
+
         emergency_multiplier = float(get_config().get("loader_emergency_mode_threshold_multiplier"))
         emergency_mode_threshold = task_timeout_sec * emergency_multiplier
         completion_threshold_pct = 0.10
@@ -2320,8 +2330,22 @@ class PriceLoader(OptimalLoader):
         # SESSION 382 FIX: Add overall timeout to prevent loader from hanging on large batches
         # Confirmed issue: loader hangs when fetching 5000+ symbols via yfinance batch API
         # Symptom: only VIX loads (~1.3s), stocks never complete. Timeout after 60s with no progress.
-        # Mitigation: Set 30min hard timeout, log progress every batch, fail-closed on timeout
-        overall_timeout_sec = 1800  # 30 minutes - more than enough for ~5000 symbols at 0.7s per symbol
+        # SESSION 99 CRITICAL FIX: Use centralized config timeout instead of hardcoded 1800s (30 min)
+        # Previously: hardcoded 30m timeout could fire before main configured timeout (54000s = 15h),
+        # causing loader to bail out after 30m even though it was configured for 15h
+        # (This fix was claimed in commit 7dd40e491 but not actually implemented - fixing now)
+        from loaders.loader_timeout_config import get_loader_timeout as _get_timeout
+
+        try:
+            overall_timeout_sec = _get_timeout("prices")  # Should be 54000s (900m = 15h)
+        except RuntimeError as e:
+            logger.error(f"[TIMEOUT_CONFIG] CRITICAL: Cannot get prices timeout: {e}")
+            raise
+        # Add 10% safety buffer so graceful shutdown can complete before ECS force-kill
+        overall_timeout_sec = int(overall_timeout_sec * 0.9)
+        logger.info(
+            f"[TIMEOUT] Price loader signal.alarm() timeout: {overall_timeout_sec}s ({overall_timeout_sec // 60}m)"
+        )
 
         def timeout_handler(_signum: int, _frame: Any) -> None:
             elapsed = time.time() - start
