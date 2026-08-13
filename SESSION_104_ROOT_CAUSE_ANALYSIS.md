@@ -168,7 +168,122 @@ Check:
 
 ---
 
+## FIXES APPLIED (SESSION 104)
+
+### ✅ FIX 1: invoke_loader_retry() Table Name vs Loader Key (COMMITTED)
+- **Commit**: 4791f9035
+- **File**: `algo/orchestrator/phase1_failsafe_retry.py` lines 1255-1295
+- **Change**: Added `table_to_loader_shorthand()` to convert table_name → loader_key before calling scripts/run_loader.py
+- **Impact**: Phase 1 failsafe can now successfully invoke loaders by their correct key names
+- **Verified**: Subprocess no longer fails with "Unknown loader name" error
+
+### ✅ FIX 2: buy_sell_daily NOT_STARTED Status Bug (COMMITTED)
+- **Commit**: 939dfb6a0
+- **File**: `loaders/load_buy_sell_daily.py` lines 1055-1069, 1112-1125, 1159-1173
+- **Change**: Added `LoaderStatusManager.mark_failed()` calls before returning on dependency check failures
+- **Impact**: Status no longer stays at NOT_STARTED when dependencies are missing
+- **Result**: Phase 1 can now detect and retry buy_sell_daily when upstream loaders fail
+
+### 🔍 ISSUE 3: Database Query Timeout on Status Updates (FOUND, NOT YET FIXED)
+- **Discovery**: Price loader ran successfully and updated all watermarks (all 6 price tables) but failed to mark status as COMPLETED
+- **Cause**: Database timeout when inserting into data_loader_status during mark_completed()
+- **Evidence**:
+  ```
+  psycopg2.errors.QueryCanceled: canceling statement due to statement timeout
+  CONTEXT: while inserting index tuple (2,26) in relation "data_loader_status"
+  ```
+- **Impact**: Loader returns exit code 1 (failure) even though data was successfully loaded
+- **Next**: Investigate data_loader_status table locking/contention
+
+---
+
+## TEST RESULTS (2026-08-13 13:42+)
+
+### Price Loader Test (background task be9y3tyle)
+- **Status**: ✅ DATA LOAD SUCCESSFUL, ❌ STATUS UPDATE TIMEOUT
+- **Duration**: ~2 hours
+- **Data Loaded**: 4923 symbols across all 6 price tables
+- **Watermarks Updated**: All 6 price tables (price_daily, price_weekly, price_monthly, etf_price_daily, etf_price_weekly, etf_price_monthly)
+- **Failure**: Database timeout while marking status COMPLETED (not a loader logic issue)
+- **Exit Code**: 1 (returned as failure even though data is fresh)
+
+### Root Cause Analysis
+The database query timeout suggests:
+1. **High Lock Contention**: Multiple orchestrator runs accessing data_loader_status
+2. **Concurrent Sessions**: The main orchestrator run at 13:38 locked the table
+3. **Missing Timeout Config**: STATUS MANAGER queries hitting default PostgreSQL statement_timeout
+
+---
+
+## OUTSTANDING ISSUES
+
+### 1. Database Lock Contention on data_loader_status
+**Severity**: CRITICAL (blocks all Phase 1 status updates)
+
+**Symptoms**:
+- Price loader completes successfully but can't mark status COMPLETED
+- Database returns "statement timeout" on INSERT/UPDATE to data_loader_status
+- Timestamps suggest timestamp conflicts due to concurrent sessions
+
+**Investigation Needed**:
+- [ ] Check data_loader_status table size and indexes
+- [ ] Review PostgreSQL statement_timeout configuration
+- [ ] Check for long-running locks from concurrent orchestrator runs
+- [ ] Consider using advisory locks or SKIP LOCKED for status updates
+
+**Temporary Workaround**:
+- Ensure only ONE orchestrator instance runs at a time
+- Clean up stale orchestrator locks (already done at start of session)
+
+---
+
+### 2. Pipeline Ordering: Signals Depends on Metrics
+**Severity**: HIGH (cascading failure scenario)
+
+**Current Order**:
+```
+morning → metrics (slow, 2-3h) → signals
+```
+
+**Problem**: If any metrics loader fails, signals pipeline never runs
+
+**Solution Options** (from earlier analysis):
+- Option A: Move signals to run in parallel with metrics (requires dependency gating)
+- Option B: Decouple signals from metrics entirely (signals only need prices+technical)
+
+---
+
+### 3. buy_sell_daily Should Validate Its Own Status
+**Severity**: MEDIUM (defensive programming)
+
+**Issue**: buy_sell_daily can fail with exit code 1 without calling mark_failed()
+
+**Recommendation**: Add wrapper logic to ensure mark_failed() is always called on error paths
+
+---
+
+## NEXT STEPS (PRIORITY ORDER)
+
+1. **IMMEDIATE**: Fix database lock contention issue
+   - Run orchestrator with only 1 concurrent instance
+   - Verify price loader can mark status COMPLETED
+   - Confirm all 6 price tables reach COMPLETED status
+
+2. **TODAY**: Run full orchestrator pipeline test
+   - morning → metrics → signals chain
+   - Verify buy_sell_daily completes successfully
+   - Check that no stale data persists
+
+3. **FOLLOW-UP**: Investigate pipeline ordering optimization
+   - Consider running signals in parallel with (or ahead of) metrics
+   - Reduces risk of cascading failures from metrics delays
+
+---
+
 ## TIMELINE
-- **Session 103**: Attempted fixes but missed the table_name/loader_key conversion bug
-- **Session 104 (Now)**: Identified and fixed root cause #1, identified root causes #2 and #3
-- **Next**: Apply remaining fixes and test
+- **Session 103**: Attempted fixes but missed invoke_loader_retry table_name bug (2026-08-13 ~12:00)
+- **Session 104 (Now)**:
+  - Identified and fixed root causes #1 #2 (2026-08-13 13:39+)
+  - Discovered root cause #3: database timeout (2026-08-13 ~16:00)
+  - Price loader data is fresh and watermarks updated despite status timeout
+- **Next Session**: Fix database lock issue and run full orchestrator test
