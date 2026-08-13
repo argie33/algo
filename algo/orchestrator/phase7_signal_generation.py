@@ -97,6 +97,7 @@ from algo.orchestrator.validation_thresholds import (
 )
 from algo.risk import LiquidityChecks
 from utils.db.context import DatabaseContext
+from utils.loaders.timeout_enforcement import cancel_loader_timeout, setup_loader_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -1525,10 +1526,19 @@ def run(  # noqa: C901
                     from loaders.loader_timeout_config import get_loader_timeout
 
                     loader_timeout_secs = get_loader_timeout("signal_quality")
-                    score_result = loader.run(
-                        symbols=signal_symbols,
-                        parallelism=8,
-                    )
+
+                    # SESSION 111 FIX: Set up timeout enforcement for in-process loader
+                    # This prevents hung signal_quality_scores from blocking entire orchestrator
+                    setup_loader_timeout("signal_quality_scores", loader_timeout_secs)
+                    try:
+                        score_result = loader.run(
+                            symbols=signal_symbols,
+                            parallelism=8,
+                        )
+                    finally:
+                        # SESSION 111 FIX: Cancel timeout to prevent it firing on unrelated code
+                        cancel_loader_timeout()
+
                     loader_elapsed = time.time() - loader_start
                     if loader_elapsed > loader_timeout_secs:
                         logger.warning(
