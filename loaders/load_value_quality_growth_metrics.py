@@ -35,7 +35,7 @@ Run: python3 loaders/load_value_quality_growth_metrics.py [--symbols AAPL,MSFT]
 import logging
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from math import isnan, sqrt
 from typing import Any
 
@@ -47,6 +47,26 @@ from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
+
+# SESSION 114+ FIX: Use full timestamp (with time component) instead of just date.
+# Previously date.today().isoformat() produced "2026-08-12" which casts to "2026-08-12 00:00:00",
+# making data always appear to be from midnight even when loader runs in afternoon.
+# This caused freshness monitor to report stale data 16+ hours after actual load time.
+# Now captures current time at module load (when run() is invoked) - all rows get same timestamp.
+_LOADER_RUN_TIMESTAMP = None
+
+
+def get_loader_timestamp() -> str:
+    """Get the current run timestamp (ISO format with time component).
+
+    Initialized on first call to capture when the loader run() started.
+    All rows written in this run will have the same timestamp for consistency.
+    """
+    global _LOADER_RUN_TIMESTAMP
+    if _LOADER_RUN_TIMESTAMP is None:
+        _LOADER_RUN_TIMESTAMP = datetime.now(timezone.utc).isoformat()
+    return _LOADER_RUN_TIMESTAMP
+
 
 # GOVERNANCE: quality/growth metrics previously stamped updated_at=today() regardless of
 # how old the underlying SEC fiscal-year data was - verified live examples scoring stocks
@@ -122,9 +142,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     # per-symbol outcome, wrong here: this loader tracks value/quality/growth failures
     # independently (see per_table_counts below, and the quality_succeeded/growth_succeeded
     # comment near their declaration) specifically because they fail independently in real
-    # data (216 symbols: value ok, growth unavailable). run() already marks all 3 tables'
-    # true independent status directly - output_tables would overwrite that with a false
-    # coupling to value_metrics's outcome on every run.
+    # data (216 symbols: value ok, growth unavailable).
+    #
+    # CRITICAL: This loader's run() method handles marking ALL THREE tables independently
+    # with their own per-table success/failure counts (lines 347-360). It queries each table's
+    # MAX(updated_at) independently and calls mark_completed() separately for each.
+    # runner.py's output_tables mechanism would force all 3 to the same verdict, losing
+    # the independent tracking. Do NOT add output_tables or runner.py will break this.
     primary_key = ("symbol",)
     watermark_field = "updated_at"
     max_fail_rate = 20.0  # CRITICAL: Fail-fast if >20% of liquid stocks lack SEC data (data source issue). Foreign/OTC/microcaps expected to fail.
@@ -857,7 +881,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "held_percent_institutions_unavailable_reason": None,  # In positioning_metrics, not here
             "data_unavailable": False,
             "data_source": overall_data_source,
-            "updated_at": date.today().isoformat(),
+            "updated_at": get_loader_timestamp(),
         }
 
     @staticmethod
@@ -1249,7 +1273,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "quality_score": None,
                 "data_unavailable": False,
                 "data_source": "sec_audited",
-                "updated_at": date.today().isoformat(),
+                "updated_at": get_loader_timestamp(),
             }
 
             failed_metrics: list[str] = []
@@ -2335,7 +2359,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "eps_growth_1y": None,
             "eps_growth_3y": None,
             "eps_growth_5y": None,
-            "updated_at": date.today().isoformat(),
+            "updated_at": get_loader_timestamp(),
             "data_unavailable": False,
             "data_source": "sec_audited",
         }
@@ -2863,7 +2887,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient SEC valuation data",
-                "updated_at": date.today().isoformat(),
+                "updated_at": get_loader_timestamp(),
             }
         elif table == "quality_metrics":
             return {
@@ -2930,7 +2954,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient SEC financial data",
-                "updated_at": date.today().isoformat(),
+                "updated_at": get_loader_timestamp(),
             }
         else:  # growth_metrics
             return {
@@ -2958,7 +2982,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient historical data",
-                "updated_at": date.today().isoformat(),
+                "updated_at": get_loader_timestamp(),
             }
 
 
