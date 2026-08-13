@@ -47,6 +47,100 @@ from utils.loaders.status_manager import LoaderStatusManager
 logger = logging.getLogger(__name__)
 
 
+def _get_table_date_column(table_name: str) -> str | None:
+    """Get the date/timestamp column name for a table.
+
+    Different tables have different column naming conventions:
+    - Most: 'date' (price_daily, technical_data_daily, etc.)
+    - Symbol-based without date: no date column (use None)
+    - Static reference tables: 'created_at' or 'updated_at'
+    - SEC/Financial: 'report_date', 'filed_date', 'fiscal_date', or 'updated_at'
+
+    CRITICAL SESSION 99 FIX: Many tables don't have a 'date' column, causing
+    "column 'date' does not exist" errors in Phase 1. This mapping ensures
+    each table's freshness is checked via its actual date column.
+
+    Args:
+        table_name: Name of the table
+
+    Returns:
+        Column name to use for freshness checks, or None if table doesn't track date
+    """
+    # Mapping of table names to their date/timestamp column names
+    # Session 98 identified 14 tables failing with "column date does not exist"
+    date_column_map = {
+        # Price & market data (have 'date' column)
+        "price_daily": "date",
+        "price_weekly": "date",
+        "price_monthly": "date",
+        "etf_price_daily": "date",
+        "etf_price_weekly": "date",
+        "etf_price_monthly": "date",
+        # Technical & signals (have 'date' column)
+        "technical_data_daily": "date",
+        "trend_template_data": "date",
+        "buy_sell_daily": "date",
+        "stock_scores": "updated_at",  # orchestrator output, updated via Phase 5
+        "signal_quality_scores": "date",
+        # Market metrics (have 'date' column)
+        "market_health_daily": "date",
+        "market_exposure_daily": "date",
+        "market_sentiment": "date",
+        "sector_ranking": "date",
+        "sector_performance": "date",
+        "industry_ranking": "date",
+        "naaim": "date",
+        "aaii": "date",
+        "aaii_sentiment": "date",
+        # These don't have 'date' or 'updated_at' - no temporal freshness check
+        "earnings_calendar": "created_at",  # forward-looking announcements
+        "earnings_calendar_sec": "created_at",  # SEC version
+        # Company info & SEC data (use 'updated_at' for load recency)
+        "company_info_sec": "updated_at",  # Session 98: fixed from 'date'
+        "company_profile": "updated_at",  # yfinance-sourced, no date column
+        "sec_valuations": "updated_at",  # SEC API queries, use update time
+        "sec_segment_info": "updated_at",  # XBRL data, use update time
+        "sec_segment_metrics": "updated_at",  # Computed metrics
+        "sec_reports": "filed_date",  # 8-K/10-K/10-Q filing dates
+        # Financial statements (no 'date' - multiple period types)
+        "annual_income_statement": "updated_at",  # multi-year, one row per symbol
+        "annual_balance_sheet": "updated_at",
+        "annual_cash_flow": "updated_at",
+        "quarterly_income_statement": "updated_at",
+        "quarterly_balance_sheet": "updated_at",
+        "quarterly_cash_flow": "updated_at",
+        "ttm_income_statement": "updated_at",
+        "ttm_cash_flow": "updated_at",
+        # Dividend & fundamental data
+        "dividend_data": "updated_at",  # yfinance-sourced, may be historical
+        "sec_dividends": "updated_at",  # SEC filing data
+        # Analyst data (use 'updated_at' for load recency)
+        "analyst_sentiment_analysis": "updated_at",
+        "analyst_upgrade_downgrade": "updated_at",  # yfinance-sourced
+        "analyst_earnings_estimates": "updated_at",
+        # Metrics & rankings (computed daily or updated on schedule)
+        "value_metrics": "date",
+        "quality_metrics": "date",
+        "growth_metrics": "date",
+        "momentum_metrics": "date",
+        "positioning_metrics": "updated_at",  # 13F/short interest data
+        "institutional_holdings_13f": "updated_at",
+        "insider_holdings_sec": "updated_at",  # Form 4/5 filings
+        "insider_transaction_velocity": "updated_at",
+        "insider_velocity": "updated_at",
+        "short_interest_finra": "updated_at",
+        # Economic data
+        "economic_data": "date",
+        # Symbols/reference (use created_at for existence check)
+        "stock_symbols": "created_at",
+        "etf_symbols": "created_at",
+        # Current reports
+        "current_reports_8k": "filed_date",
+    }
+
+    return date_column_map.get(table_name)
+
+
 def _mark_loader_failed_after_crash(loader_key: str, error_message: str) -> None:
     """Best-effort: mark every table a crashed/timed-out force-refresh subprocess owns as
     FAILED, matching scripts/local_loader_scheduler.py's identical fix for the same bug
@@ -461,14 +555,17 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
             # Fix: Isolate each table's check in its own transaction
             with DatabaseContext("read") as cur:
                 try:
-                    if table_name in ("stock_scores", "earnings_calendar"):
-                        # stock_scores and earnings_calendar have no `date` column - stock_scores
-                        # tracks freshness via updated_at; earnings_calendar's `earnings_date` is
-                        # forward-looking (future announcement dates), not a load timestamp, so it
-                        # also uses updated_at (matches the completeness-check special case below).
-                        cur.execute(f"SELECT MAX(updated_at) FROM {table_name}")
-                    else:
-                        cur.execute(f"SELECT MAX(date) FROM {table_name}")
+                    # SESSION 99 FIX: Use proper date column for each table (14 tables had "column date does not exist")
+                    date_col = _get_table_date_column(table_name)
+                    if date_col is None:
+                        # Table has no date column - skip freshness check
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no date column - skipping freshness check"
+                        )
+                        continue
+
+                    # Type guard: date_col is now guaranteed str (not None)
+                    cur.execute(f"SELECT MAX({date_col}) FROM {table_name}")
 
                     row = cur.fetchone()
                     if row and row[0]:

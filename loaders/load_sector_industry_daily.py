@@ -70,7 +70,9 @@ class SectorIndustryDailyLoader(OptimalLoader):
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            from loaders.loader_timeout_config import get_loader_timeout
+
+            lock_ttl = get_loader_timeout("sector_industry")
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:

@@ -832,7 +832,6 @@ class Orchestrator:
         a threshold disconnected from the TTL loaders actually request.
         """
         try:
-            is_local_mode = os.getenv("LOCAL_MODE", "False").lower() == "true"
             # UPDATED (2026-07-28): optimal_loader.py's LOCAL_MODE lock_ttl changed from a flat
             # 600s to 3600s (real local dev runs regularly exceed 600s - e.g.
             # institutional_holdings_13f held its lock 926.6s on an ordinary run, and cash-flow
@@ -841,14 +840,14 @@ class Orchestrator:
             # exact bug its own 2026-07-27 fix removed, just in LOCAL_MODE: force-deleting a
             # still-legitimately-running local loader's lock out from under it.
             #
-            # CRITICAL FIX (Session 429): In LOCAL_MODE, match optimal_loader.py's lock_ttl
-            # value (3600s) to prevent force-deleting still-running loaders' locks.
-            # LOCAL_MODE loaders can run 60-90+ min (observed max 2385s) so use the same
-            # threshold to maintain parity with per-loader TTL expectations.
-            if is_local_mode:
-                stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "3600"))
-            else:
-                stuck_threshold_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))
+            # SESSION 98 FIX: Use maximum configured loader timeout instead of hardcoded defaults.
+            # Prices timeout is 900 minutes (54000s), so detecting stuck loaders at 1-2 hours
+            # would force-delete legitimate long-running loader locks mid-execution.
+            from loaders.loader_timeout_config import get_loader_timeouts
+
+            all_timeouts = get_loader_timeouts().values()
+            max_loader_timeout = max(all_timeouts) if all_timeouts else 54000  # prices default fallback
+            stuck_threshold_seconds = max_loader_timeout + 300  # Add 5 min grace period for cleanup
 
             with DatabaseContext("write") as cur:
                 # First: Alert on stuck locks BEFORE deleting them (for debugging)
