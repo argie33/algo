@@ -310,7 +310,12 @@ def run_loader_generic(loader_class, loader_filename: str, symbols=None, backfil
         if not symbols:
             # Check if loader has exclude_etfs attribute (some loaders need real stocks only)
             exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
-            symbols = get_active_symbols(timeout_secs=60, exclude_etfs=exclude_etfs)
+            # CRITICAL FIX: Increase timeout from 60s to 300s (5 min) to handle database lock contention
+            # Session 105: Under concurrent orchestrator load, get_active_symbols() with 60s timeout
+            # was timing out frequently, causing failsafe retries to run with 0 symbols.
+            # This resulted in "only X/0 symbols loaded" errors. Increasing to 300s matches
+            # the timeout used in load_prices.py's main() function (line 3597).
+            symbols = get_active_symbols(timeout_secs=300, exclude_etfs=exclude_etfs)
             logger.info(f"[LOADER] {table_name}: loaded {len(symbols)} symbols")
 
         # BUG FOUND 2026-08-10: this used to pass limit through as kwargs["limit"] straight
