@@ -2224,6 +2224,36 @@ class PriceLoader(OptimalLoader):
                     current_run_symbol_count=symbols_expected,
                     min_completion_pct=95.0,  # Enforce minimum 95% completion
                 )
+
+                # SESSION 112 FIX: Mark ALL auxiliary output tables as COMPLETED
+                # Prices loader has 6 output tables (price_daily, price_weekly, price_monthly,
+                # etf_price_daily, etf_price_weekly, etf_price_monthly). Previously only marked
+                # primary table, leaving auxiliary tables stuck in FAILED status forever, causing
+                # Monday brittleness where Phase 1 halts on stale auxiliary tables even though
+                # primary data was fresh. Now mark all auxiliary tables too.
+                if self.table_name == "price_daily":
+                    auxiliary_tables = [
+                        "price_weekly",
+                        "price_monthly",
+                        "etf_price_daily",
+                        "etf_price_weekly",
+                        "etf_price_monthly",
+                    ]
+                    for aux_table in auxiliary_tables:
+                        try:
+                            aux_mgr = LoaderStatusManager(aux_table)
+                            aux_mgr.mark_completed(
+                                execution_duration_sec=(time.time() - start_time)
+                                if hasattr(self, "_start_time")
+                                else None,
+                                latest_date=latest_date,
+                                current_run_symbols_loaded=symbols_successfully_loaded,
+                                current_run_symbol_count=symbols_expected,
+                                min_completion_pct=95.0,
+                            )
+                            logger.info(f"[{aux_table}] SESSION 112 FIX: Marked auxiliary output table as COMPLETED")
+                        except Exception as aux_err:
+                            logger.error(f"[{aux_table}] Failed to mark auxiliary table COMPLETED: {aux_err}")
             elif loader_status == "ok" and 90.0 <= completion_pct < 95.0:
                 # Partial load (90-94%) - mark as FAILED for scheduler to handle gracefully
                 # This prevents cascading failures when 5.6% of symbols are missing
