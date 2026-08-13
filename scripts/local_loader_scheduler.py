@@ -607,7 +607,18 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             reader_thread.start()
             scheduler_timeout = int(timeout * 1.1)
             scheduler_timeout_str = f"{scheduler_timeout}s ({scheduler_timeout // 60}m {scheduler_timeout % 60}s)"
-            stall_timeout = 300  # Kill if stuck at 0% for 5 minutes (SESSION 106 FIX)
+            # SESSION 117 CRITICAL FIX: Stall timeout must be PER-LOADER, not hardcoded
+            # Reason: Loaders with long initialization periods (symbol fetch, DB setup, request prep)
+            # take 10-30+ minutes to reach >0% completion BEFORE any progress is made.
+            # Previous hardcoded 300s (5 min) threshold was killing loaders like:
+            # - analyst_sentiment (120m configured) during initialization - killed after 5+ min at 0%
+            # - company_info_sec (540m configured) during initialization - killed after 5+ min at 0%
+            # This caused cascading Monday failures: Friday killed loader → Sat-Sun status FAILED → Monday retry fails immediately
+            # Fix: Scale stall timeout to loader's configured timeout
+            # Formula: min(1800, max(900, timeout / 5)) = allow 20% of configured timeout for initialization
+            # Examples: 30m loader gets 6min, 120m gets 24min, 540m gets capped at 30min (1800s)
+            # Rationale: Even yfinance/SEC rate-limited loaders shouldn't take >30min of pure initialization
+            stall_timeout = min(1800, max(900, int(timeout / 5)))  # Allow 20% of timeout, clamped 15-30 min
             progress_check_interval = 30  # Poll progress every 30 seconds
 
             # CRITICAL SESSION 106 FIX: Poll the subprocess and monitor progress
