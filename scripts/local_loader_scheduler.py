@@ -551,6 +551,8 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             # CRITICAL FIX SESSION 102: Mark all output tables RUNNING BEFORE subprocess starts
             # Prevents NOT_STARTED stuck status when subprocess crashes before runner.py calls mark_running()
             # See root_cause_analysis: NOT_STARTED status never transitions if subprocess dies before mark_running()
+            # SESSION 108 FIX: Fail-fast on pre-mark errors (don't proceed if DB update fails)
+            # If we can't update the database, the subprocess shouldn't start either
             try:
                 for table in all_tables(loader_filename):
                     LoaderStatusManager(table).mark_running()
@@ -558,11 +560,20 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                     f"[LOCAL_SCHEDULER] Pre-marked {loader} output tables as RUNNING (guard against early subprocess crash)"
                 )
             except Exception as pre_mark_err:
+                # SESSION 108 FIX: Don't silently proceed if pre-marking fails
+                # A database issue here means the loader can't update status anyway
                 print(
-                    f"[LOCAL_SCHEDULER] WARNING: could not pre-mark {loader_filename} tables as RUNNING: {pre_mark_err}. "
-                    f"If subprocess crashes before runner.py, status may get stuck. Proceeding anyway.",
+                    f"[LOCAL_SCHEDULER] CRITICAL: Could not pre-mark {loader_filename} tables as RUNNING: {pre_mark_err}. "
+                    f"Database may be unavailable or tables missing. Aborting this loader. "
+                    f"Status may need manual repair (run: python scripts/fix_loader_status_drift.py)",
                     file=sys.stderr,
                 )
+                _mark_loader_failed_after_crash(
+                    loader_filename,
+                    f"local_loader_scheduler: Failed to pre-mark RUNNING: {pre_mark_err}. Database issue or missing status row.",
+                )
+                any_failed = True
+                continue
 
             # BUG FOUND 2026-08-11: subprocess.run() with no stdout/stderr capture meant a
             # crash only ever recorded a bare "exit code N" in data_loader_status.error_message
