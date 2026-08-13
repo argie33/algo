@@ -835,16 +835,32 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     )
                     loader_module = importlib.import_module(f"loaders.{module_name}")
 
-                    # SESSION 107 FIX: Special case for financial_statements loader
-                    # This loader has LOADER_STATEMENT_TYPE="all" which fans out to multiple periods
-                    # (annual, quarterly, ttm). The class constructor requires specific periods,
-                    # so we must call the module's main() function instead of instantiating directly
-                    if loader_key == "financial_statements":
-                        # Call main() which handles LOADER_STATEMENT_TYPE="all" properly
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using special main() path for financial_statements LOADER_STATEMENT_TYPE=all"
-                        )
-                        returncode = loader_module.main()
+                    # SESSION 107 FIX: Special case for loaders that need main() instead of Loader class
+                    # - financial_statements: has LOADER_STATEMENT_TYPE="all" which needs special fanout logic
+                    # - trend_analysis: vectorized without Loader class (was load_trend_criteria_data.py)
+                    # Check if this loader has a main() function and no OptimalLoader class
+                    from utils.optimal_loader import OptimalLoader
+
+                    has_main_func = hasattr(loader_module, "main") and callable(loader_module.main)
+                    has_loader_class = any(
+                        isinstance(getattr(loader_module, attr), type)
+                        and issubclass(getattr(loader_module, attr), OptimalLoader)
+                        and getattr(loader_module, attr) is not OptimalLoader
+                        for attr in dir(loader_module)
+                    )
+
+                    if has_main_func and not has_loader_class:
+                        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using main() path (no Loader class found)")
+                        # CRITICAL FIX: Save/restore sys.argv to prevent argparse from seeing orchestrator arguments
+                        # The loader's run_loader() calls argparse.parse_args() which reads sys.argv[1:].
+                        # If we don't protect sys.argv, the loader sees --morning --force from orchestrator
+                        # and fails with "unrecognized arguments" error.
+                        old_argv = sys.argv
+                        try:
+                            sys.argv = [sys.argv[0]]  # Keep program name, clear arguments
+                            returncode = loader_module.main()
+                        finally:
+                            sys.argv = old_argv
                     else:
                         # Find the loader class in the module (handles edge cases like CurrentReports8KLoader)
                         # First try to find any OptimalLoader subclass (primary pattern)
