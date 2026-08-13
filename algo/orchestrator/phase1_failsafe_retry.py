@@ -882,7 +882,11 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                         exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
                         from utils.loaders.helpers import get_active_symbols
 
-                        symbols_to_load = get_active_symbols(timeout_secs=300, exclude_etfs=exclude_etfs)
+                        # SESSION 109 FIX: Increase timeout from 300s to 1800s (30 min)
+                        # Problem: yfinance rate limiting can slow symbol fetch to 30+ min for 4900 symbols
+                        # Previous 300s timeout caused "0% stall" failures, loader hung on symbol fetch
+                        # Now matches other loaders' tolerance for network slowdown under rate limiting
+                        symbols_to_load = get_active_symbols(timeout_secs=1800, exclude_etfs=exclude_etfs)
                         logger.info(
                             f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Fetched {len(symbols_to_load)} active symbols for in-process retry"
                         )

@@ -125,7 +125,9 @@ def _cleanup_stuck_database_sessions(max_idle_hours: int = 1) -> int:
     return killed_count
 
 
-def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 10) -> list[str]:
+def _detect_and_fail_stale_running_loaders(
+    stale_threshold_minutes: int = 60, progress_threshold_pct: float = 0.1
+) -> list[str]:
     """Detect RUNNING or NOT_STARTED loaders stuck for >N minutes and auto-fail them.
 
     CRITICAL FIX (Session 82): Fixes the "stuck RUNNING for days" Monday failure sequence:
@@ -141,11 +143,17 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 10) ->
     just initializing (fetching symbol lists, starting parallel workers). Legitimate loaders
     would be wrongly marked FAILED before they started work.
 
-    SESSION 108 FIX: Increased to 10 minutes. This allows:
-    - All loaders time to initialize and start calling update_progress()
-    - Faster detection than 36-hour reaper timeout
-    - Yet doesn't false-positive on slow-initializing loaders (company_info, financial_statements)
-    Value chosen: (min loader timeout 30min) / 3, gives ~10min before assuming hung.
+    SESSION 108 FIX: Increased to 10 minutes, but this was STILL TOO AGGRESSIVE for
+    long-running loaders like company_info_sec (540 min), financial_statements (540 min).
+    These can take 30-60+ minutes in initialization before first progress update.
+
+    SESSION 109 FIX: Changed from time-only to progress-aware detection:
+    - Increased baseline timeout to 60 minutes
+    - Only fail loaders if BOTH conditions met:
+      (1) last_updated > 60 min ago (no status update for 60 min)
+      (2) completion_pct <= 0.1% (no progress being made)
+    - Loaders making progress (>0.1%) are working, never fail them
+    This allows slow-initializing loaders to start before being marked failed.
 
     SESSION 106 FIX: Also detect loaders stuck NOT_STARTED after >N minutes. If a subprocess
     crashes before calling mark_running(), status stays NOT_STARTED. Failsafe retry won't retry
@@ -153,11 +161,12 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 10) ->
     get marked for retry unless detected here.
 
     This function runs at Phase 1 startup to detect crashed loaders that were never
-    properly marked FAILED. A loader stuck RUNNING or NOT_STARTED for >10 min with no recent
-    status update almost certainly crashed (no active process checking in on it).
+    properly marked FAILED. A loader stuck RUNNING or NOT_STARTED for >N min with zero
+    progress almost certainly crashed (no active process checking in on it or making progress).
 
     Args:
-        stale_threshold_minutes: Mark as FAILED if last_updated is older than this (default 10, Session 108)
+        stale_threshold_minutes: Mark as FAILED if last_updated is older than this (default 60)
+        progress_threshold_pct: Only fail if completion_pct <= this (default 0.1%, Session 109)
 
     Returns:
         List of table names that were recovered (marked FAILED)
@@ -165,20 +174,28 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 10) ->
     recovered = []
     try:
         with DatabaseContext("read") as cur:
-            # Check for both RUNNING and NOT_STARTED loaders stuck for >threshold_minutes
-            cur.execute(f"""
-                SELECT table_name, last_updated, status
+            # SESSION 109: Check for both RUNNING and NOT_STARTED loaders stuck for >threshold_minutes
+            # BUT ONLY if completion_pct is still at 0% (no progress made at all)
+            # Loaders making progress (>0.1%) are working, don't fail them even if initialization takes time
+            cur.execute(
+                f"""
+                SELECT table_name, last_updated, status, completion_pct
                 FROM data_loader_status
                 WHERE (status = 'RUNNING' OR status = 'NOT_STARTED')
                   AND last_updated < CURRENT_TIMESTAMP - INTERVAL '{stale_threshold_minutes} minutes'
+                  AND (completion_pct IS NULL OR completion_pct <= %s)
                 ORDER BY last_updated ASC
-            """)
+            """,
+                (progress_threshold_pct,),
+            )
             stale_loaders = cur.fetchall()
 
-            for table_name, last_updated, status in stale_loaders:
+            for row in stale_loaders:
+                table_name, last_updated, status, completion_pct = row
+                progress_info = f"completion={completion_pct}%" if completion_pct else "completion=unknown"
                 error_msg = (
                     f"[PHASE 1 STARTUP] Auto-failed stale {status} loader "
-                    f"(stuck for {stale_threshold_minutes}+ min since {last_updated}). "
+                    f"({progress_info}, stuck for {stale_threshold_minutes}+ min since {last_updated}). "
                     f"Likely crashed with no process alive. Will retry via failsafe."
                 )
                 logger.warning(f"[PHASE 1 STARTUP] {table_name}: {error_msg}")
@@ -650,13 +667,13 @@ def run(  # noqa: C901
         phase1_halt_table_max_tolerance_days,
     ) = _validate_config(config)
 
-    # CRITICAL FIX (Session 82, improved Session 89/94): Detect and fail stale RUNNING loaders at phase startup
+    # CRITICAL FIX (Session 82, improved Session 89/94/109): Detect and fail stale RUNNING loaders at phase startup
     # Prevents the "stuck RUNNING for days" Monday failure sequence where a Friday timeout
-    # causes Phase 1 Monday to hang, triggering orchestrator halt. Now detects crashed loaders
-    # aggressively and marks them FAILED so failsafe can retry.
-    # SESSION 94 FIX: Timeout reduced from 5 min (Session 89) to 2 min to allow failsafe retry
-    # more time (~30-90min) before orchestrator timeout. Hung loaders detected faster = faster recovery.
-    _detect_and_fail_stale_running_loaders(stale_threshold_minutes=2)  # 2 min timeout (SESSION 94)
+    # causes Phase 1 Monday to hang, triggering orchestrator halt.
+    # SESSION 109 FIX: Changed from time-only (10 min) to progress-aware detection.
+    # 60-minute baseline allows slow-initializing loaders (company_info_sec, financial_statements)
+    # to start making progress. Only fail if still at 0% after 60 min = truly crashed.
+    _detect_and_fail_stale_running_loaders(stale_threshold_minutes=60, progress_threshold_pct=0.1)  # Session 109
 
     from datetime import datetime as dt
 
