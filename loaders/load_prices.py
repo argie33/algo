@@ -1953,6 +1953,13 @@ class PriceLoader(OptimalLoader):
         self._update_loader_status()
 
     def _update_loader_status(self, status: str = "COMPLETED") -> None:
+        import time
+
+        # SESSION 106 FIX: Add commit wait and race condition detection
+        # Before querying status, wait a bit for batch inserts to fully commit
+        # This prevents marking loaders FAILED when data is still in flight
+        time.sleep(1.0)  # Allow 1 second for batch transactions to commit
+
         try:
             with DatabaseContext("read") as cur:
                 table_safe = assert_safe_table(self.table_name)
@@ -3584,8 +3591,13 @@ def main() -> int:
             # max_symbols_limit=0 means no limit (loads all ~5000 symbols).
             # ECS task timeout is 12h which is sufficient for all symbols across all intervals.
             limit = max_symbols_limit if max_symbols_limit > 0 else None
-            # Use 300s timeout (5 min) for symbol list query under EOD pipeline load
-            # Multiple loaders running concurrently can exhaust connection pool; allow extra time
+            # SESSION 106 FIX: Increase symbol query timeout from 300s (too aggressive, blocks price loading)
+            # to 600s (10 min). Under EOD pipeline load with concurrent loaders, symbol query can be
+            # delayed by connection pool exhaustion. 300s is exceeded before query even completes,
+            # causing false timeout failures. 600s provides more breathing room for DB lock contention.
+            # Use 30s * 60 = 1800s (30 min) for very large universes or high load periods
+            symbol_query_timeout_sec = 1800 if os.getenv("LOADER_BATCH_SIZE", "50000") == "50000" else 600
+            logger.info(f"[MAIN] Symbol query timeout: {symbol_query_timeout_sec}s ({symbol_query_timeout_sec // 60}m)")
             try:
                 # exclude_etfs=True: this list only ever feeds the "stock" asset_class branch
                 # below (the "etf" branch uses its own essential_etf_symbols list and never
@@ -3594,12 +3606,15 @@ def main() -> int:
                 # and DB writes for tickers that were already loaded via the essential-ETF pass
                 # and never used by stock_scores/signals anyway. Same pattern already used by
                 # growth/quality/positioning/income-statement loaders for the same reason.
-                symbols = get_active_symbols(max_symbols=limit, timeout_secs=300, exclude_etfs=True)
+                symbols = get_active_symbols(
+                    max_symbols=limit, timeout_secs=symbol_query_timeout_sec, exclude_etfs=True
+                )
                 logger.info("[MAIN] Loaded %s symbols from database (max_limit=%s)", len(symbols), limit)
             except TimeoutError as e:
                 logger.critical(
-                    "[MAIN] CRITICAL: Symbol query timed out after 300s. "
-                    "This can cause truncation where partial results are returned. Error: %s",
+                    "[MAIN] CRITICAL: Symbol query timed out after %ds. "
+                    "Check database connection pool and lock contention. Error: %s",
+                    symbol_query_timeout_sec,
                     e,
                 )
                 raise

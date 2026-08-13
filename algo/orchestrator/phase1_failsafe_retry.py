@@ -821,7 +821,8 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                             f"reporting as recovered."
                         )
                         results["still_failing"].append(table_name)
-                        if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                        # SESSION 106 FIX: Add buy_sell_daily to critical deps - Phase 1 halts on stale buy_sell_daily
+                        if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
                             results["halt_required"] = True
                 else:
                     logger.error(
@@ -832,20 +833,23 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     _mark_loader_failed_after_crash(
                         loader_key, f"failsafe retry in-process execution failed (returncode={returncode})"
                     )
-                    if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    # SESSION 106 FIX: Add buy_sell_daily to critical deps
+                    if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
                         results["halt_required"] = True
 
             except (OSError, RuntimeError) as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name} (execution error): {e}")
                 results["still_failing"].append(table_name)
                 _mark_loader_failed_after_crash(loader_key, f"failsafe retry execution error: {type(e).__name__}: {e}")
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                # SESSION 106 FIX: Add buy_sell_daily to critical deps
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
                     results["halt_required"] = True
             except Exception as e:
                 logger.error(f"[PHASE 1 FAILSAFE LOCAL] Unexpected error refreshing {table_name}: {e}")
                 results["still_failing"].append(table_name)
                 _mark_loader_failed_after_crash(loader_key, f"failsafe retry unexpected error: {type(e).__name__}: {e}")
-                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                # SESSION 106 FIX: Add buy_sell_daily to critical deps
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
                     results["halt_required"] = True
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
