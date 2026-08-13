@@ -609,7 +609,7 @@ def load_all_statements() -> int:
     # so it's available for lock_ttl calculation below, not just in _load_all_statements helper
     from loaders.loader_timeout_config import get_loader_timeout
 
-    sla_timeout_seconds = get_loader_timeout("financial_statements", default_seconds=14400)
+    sla_timeout_seconds = get_loader_timeout("financial_statements")
 
     from utils.db.local_file_lock import get_lock_manager
     from utils.db.pooled_connection_manager import PooledConnectionManager
@@ -812,7 +812,7 @@ def _run_symbol_pass(
     # Get from centralized config, fallback to 14400s (4h) if not found
     from loaders.loader_timeout_config import get_loader_timeout
 
-    sla_timeout_seconds = get_loader_timeout("financial_statements", default_seconds=14400)
+    sla_timeout_seconds = get_loader_timeout("financial_statements")
     per_symbol_timeout_seconds = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "30"))
 
     for i, symbol in enumerate(symbols, 1):

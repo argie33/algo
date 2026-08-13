@@ -126,44 +126,30 @@ def get_loader_max_backfill_days() -> int:
 
 
 def get_loader_sla_timeout(loader_type: str = "default") -> int:
-    """Get SLA timeout for a loader type (in seconds).
+    """DEPRECATED - Use loaders/loader_timeout_config.py::get_loader_timeout instead.
 
-    CRITICAL FIX: Some loaders (price_daily, signal_quality_scores) are inherently slow:
-    - price_daily: 5000+ symbols @ 1-2s per symbol network latency = 90+ minutes
-    - signal_quality_scores: documented 5-45+ minutes per run
-    - Default 2 hours (7200s) is too tight for these, causing premature timeouts
+    This function is dead code from Session 102 cleanup. All loader timeouts must be
+    configured centrally in loaders/loader_timeout_config.py via get_loader_timeout().
+
+    The hardcoded defaults (3600s, 5400s, 4200s) were causing timeout mismatches and
+    brittleness when the centralized config had different values.
+
+    SESSION 102 FIX: This function now raises an error to force migration to the
+    centralized timeout configuration.
 
     Args:
         loader_type: Type of loader (e.g., "price", "signals", "default")
 
     Returns:
         Timeout in seconds
+
+    Raises:
+        RuntimeError: Always - use get_loader_timeout() instead
     """
-    # Per-loader timeouts based on observed execution patterns
-    defaults = {
-        "price": 5400,  # 90 minutes - price_daily with 5000+ symbols @ network delays
-        "signal_quality_scores": 4200,  # 70 minutes - documented 5-45+ min, observed up to 50+ min
-        "signals": 3600,  # 60 minutes - buy_sell_daily, technical_data_daily
-        "financial": 3600,  # 60 minutes - SEC API can be slow
-        "default": 3600,  # 60 minutes
-    }
-
-    env_key = f"LOADER_SLA_TIMEOUT_SECONDS_{loader_type.upper()}"
-    env_value = os.getenv(env_key)
-    if env_value is not None:
-        try:
-            return int(env_value)
-        except ValueError as e:
-            raise ValueError(
-                f"CRITICAL: {env_key} value is invalid: {env_value!r}. Must be a valid integer > 0. {e}"
-            ) from e
-
-    # Fallback to old global env var for backwards compatibility
-    global_timeout = os.getenv("LOADER_SLA_TIMEOUT_SECONDS")
-    if global_timeout is not None:
-        try:
-            return int(global_timeout)
-        except ValueError:
-            pass  # Fall through to defaults
-
-    return defaults.get(loader_type, defaults["default"])
+    raise RuntimeError(
+        "[DEPRECATED] get_loader_sla_timeout() is dead code (Session 102). "
+        "Use loaders/loader_timeout_config.py::get_loader_timeout() instead. "
+        "All timeouts must be centralized to prevent configuration drift. "
+        "Migrate to: from loaders.loader_timeout_config import get_loader_timeout; "
+        "timeout = get_loader_timeout(loader_name)"
+    )

@@ -1524,7 +1524,7 @@ def run(  # noqa: C901
                     # This caused Phase 7 timeouts cascading from other loader delays
                     from loaders.loader_timeout_config import get_loader_timeout
 
-                    loader_timeout_secs = get_loader_timeout("signal_quality", default_seconds=900)
+                    loader_timeout_secs = get_loader_timeout("signal_quality")
                     score_result = loader.run(
                         symbols=signal_symbols,
                         parallelism=8,

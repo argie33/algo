@@ -67,6 +67,8 @@ PIPELINES = {
         "earnings_calendar",  # FIXED 2026-08-05: Minervini/Weinstein earnings blackout window (Phase 3)
         "trend_analysis",  # FIXED 2026-08-05: Setup/teardown detection for signal quality (Phase 7)
         "sector_industry",  # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
+        "scores",  # CRITICAL FIX SESSION 102: Generate stock scores before buy_sell signals
+        "buy_sell",  # CRITICAL FIX SESSION 102: CRITICAL for Phase 7 signal generation
     ],
     "metrics": [
         # FIXED 2026-08-11: company_info must run first - valuations depends on it for
@@ -290,6 +292,16 @@ def run_pipeline(pipeline_name: str) -> int:
                 skipped_loaders.add(loader)
                 any_failed = True
                 continue
+            # CRITICAL FIX SESSION 102 #5: Track this skipped loader too
+            # Previously we just did `continue` without adding to skipped_loaders,
+            # causing cascading failures for downstream loaders that couldn't determine
+            # WHY the upstream loader was missing (SEC rate limit vs crash).
+            # Now we track it so downstream loaders know it was skipped intentionally.
+            print(
+                f"[LOCAL_SCHEDULER] SKIP {loader}: required upstream loader(s) {missing} did not complete",
+                file=sys.stderr,
+            )
+            skipped_loaders.add(loader)
             any_failed = True
             continue
 
@@ -467,15 +479,24 @@ def run_pipeline(pipeline_name: str) -> int:
             assert proc.stdout is not None
             reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=True)
             reader_thread.start()
+
+            # CRITICAL FIX SESSION 102 #6: Add safety margin to scheduler timeout
+            # The loader's internal SIGALRM/Timer uses LOADER_TIMEOUT env var (set above).
+            # The scheduler's proc.wait(timeout) is the ultimate safety net.
+            # Ensure scheduler timeout > loader timeout so loader's internal timeout fires FIRST.
+            scheduler_timeout = timeout * 1.1  # 10% safety margin
+            scheduler_timeout_str = f"{int(scheduler_timeout)}s"
+
             try:
-                returncode = proc.wait(timeout=timeout)
+                returncode = proc.wait(timeout=scheduler_timeout)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
                 reader_thread.join(timeout=5)
                 lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
                 print(
-                    f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {timeout}s. "
+                    f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {scheduler_timeout_str} "
+                    f"(configured {timeout}s + 10% safety margin). "
                     f"Likely blocked by stale lock. Clean with: rm {lock_dir}/*.lock - "
                     f"continuing with remaining independent loaders",
                     file=sys.stderr,
@@ -483,7 +504,7 @@ def run_pipeline(pipeline_name: str) -> int:
                 tail = "\n".join(tail_lines)
                 _mark_loader_failed_after_crash(
                     loader_filename,
-                    f"local_loader_scheduler: timed out after {timeout}s. Last output:\n{tail}",
+                    f"local_loader_scheduler: timed out after {scheduler_timeout_str}. Last output:\n{tail}",
                 )
                 any_failed = True
                 continue
