@@ -1046,6 +1046,21 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
     This eliminates redundant ECS task definitions and reduces scheduler complexity.
     """
 
+    # SESSION 113 FIX: Declare all output tables so runner.py marks them all COMPLETED/FAILED
+    # When running with LOADER_STATEMENT_TYPE="all", all 9 tables are processed.
+    # runner.py will mark all 9 tables based on this class-level attribute.
+    output_tables = [
+        "annual_income_statement",
+        "quarterly_income_statement",
+        "ttm_income_statement",
+        "annual_balance_sheet",
+        "quarterly_balance_sheet",
+        "ttm_balance_sheet",
+        "annual_cash_flow",
+        "quarterly_cash_flow",
+        "ttm_cash_flow",
+    ]
+
     max_fail_rate = 15.0  # Some stocks (foreign, delisted, recently-IPO'd) lack annual reports
 
     def __init__(

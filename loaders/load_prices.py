@@ -78,6 +78,20 @@ class PriceLoader(OptimalLoader):
     with DataImportance.CRITICAL and freshness validation to prevent silent stale data.
     """
 
+    # SESSION 113 FIX: Declare all output tables so runner.py marks them all COMPLETED/FAILED
+    # Previously Session 112 only marked auxiliary tables when price_daily ran, causing etf
+    # tables to stay FAILED if etf loaders ran first. Now runner.py handles all 6 tables atomically.
+    # Each loader instance (stock/1d, etf/1d, stock/1wk, etc) will mark ALL 6 tables in runner.py
+    # based on this class-level attribute, not instance-level table_name.
+    output_tables = [
+        "price_daily",
+        "price_weekly",
+        "price_monthly",
+        "etf_price_daily",
+        "etf_price_weekly",
+        "etf_price_monthly",
+    ]
+
     @property
     def max_fail_rate(self) -> float:
         # Allow test overrides (for mypy type safety with parent class read-write property)
@@ -2225,12 +2239,12 @@ class PriceLoader(OptimalLoader):
                     min_completion_pct=95.0,  # Enforce minimum 95% completion
                 )
 
-                # SESSION 112 FIX: Mark ALL auxiliary output tables as COMPLETED
-                # Prices loader has 6 output tables (price_daily, price_weekly, price_monthly,
-                # etf_price_daily, etf_price_weekly, etf_price_monthly). Previously only marked
-                # primary table, leaving auxiliary tables stuck in FAILED status forever, causing
-                # Monday brittleness where Phase 1 halts on stale auxiliary tables even though
-                # primary data was fresh. Now mark all auxiliary tables too.
+                # SESSION 112/113 FIX: Mark auxiliary output tables as COMPLETED
+                # Secondary layer: runner.py is now the primary mechanism for marking all 6 output
+                # tables via the class-level output_tables attribute. This secondary layer acts as
+                # a defensive safety measure in case loaders invoke mark_completed() before runner.py
+                # gets a chance to mark secondary tables. Only marks auxiliary tables (not primary)
+                # to avoid duplicate status updates on the primary table.
                 if self.table_name == "price_daily":
                     auxiliary_tables = [
                         "price_weekly",
@@ -2251,9 +2265,13 @@ class PriceLoader(OptimalLoader):
                                 current_run_symbol_count=symbols_expected,
                                 min_completion_pct=95.0,
                             )
-                            logger.info(f"[{aux_table}] SESSION 112 FIX: Marked auxiliary output table as COMPLETED")
+                            logger.info(
+                                f"[{aux_table}] SESSION 113 FIX: Secondary layer marked auxiliary output table as COMPLETED (primary layer via runner.py)"
+                            )
                         except Exception as aux_err:
-                            logger.error(f"[{aux_table}] Failed to mark auxiliary table COMPLETED: {aux_err}")
+                            logger.error(
+                                f"[{aux_table}] Secondary layer failed to mark auxiliary table COMPLETED: {aux_err}"
+                            )
             elif loader_status == "ok" and 90.0 <= completion_pct < 95.0:
                 # Partial load (90-94%) - mark as FAILED for scheduler to handle gracefully
                 # This prevents cascading failures when 5.6% of symbols are missing
