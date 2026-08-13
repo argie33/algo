@@ -3494,7 +3494,11 @@ def main() -> int:
     # lock without ever reaching its own release path.
     _lock_conn = None
     _lock_token = str(uuid.uuid4())
-    _lock_expiry_sec = max(execution_timeout_sec + 300, 600)
+    # SESSION 109 FIX: Separate lock expiry (10 min) from loader timeout (24h for yfinance).
+    # execution_timeout_sec can be 86400+ (24h), so old code made lock expire after 24h.
+    # A crashed loader would hold the lock for 24 hours, blocking ALL subsequent runs.
+    # Solution: Fixed 10-minute expiry recovers from crashes fast, independent of timeout.
+    _lock_expiry_sec = 600  # 10 minutes - recovers from crashes, allows normal runs
     try:
         from utils.db.connection import get_db_connection
 

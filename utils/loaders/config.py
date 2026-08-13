@@ -338,9 +338,11 @@ class LoaderConfigManager:
         # Default: use constraint maximum instead of 1, allows adaptive scaling to reach target parallelism
         constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
         _min_constraint, max_parallelism = constraints
-        # LOCAL DEV OVERRIDE: Allow higher parallelism in local development (no shared NAT IP)
-        if os.getenv("LOCAL_MODE") in ("true", "1"):
-            max_parallelism = max(max_parallelism, 8)  # Allow up to 8 threads for local dev
+        # SESSION 109 FIX: Remove misleading LOCAL_MODE parallelism override.
+        # ISSUE: Comment claimed "no shared NAT IP" justifies higher parallelism in local dev,
+        # but yfinance rate limiting is per-IP regardless of whether the IP is shared.
+        # CONFIRMED: parallelism=2+ triggers yfinance rate limiting even on single local machine.
+        # Per-loader constraints (e.g., stock_prices_daily max=2) are appropriate for all environments.
         base_parallelism = max_parallelism  # Start with max from constraints
 
         # Check in-memory cache first
