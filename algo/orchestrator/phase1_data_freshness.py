@@ -125,7 +125,7 @@ def _cleanup_stuck_database_sessions(max_idle_hours: int = 1) -> int:
     return killed_count
 
 
-def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> list[str]:
+def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 10) -> list[str]:
     """Detect RUNNING or NOT_STARTED loaders stuck for >N minutes and auto-fail them.
 
     CRITICAL FIX (Session 82): Fixes the "stuck RUNNING for days" Monday failure sequence:
@@ -137,9 +137,15 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> 
     IMPROVED (Session 89): Reduced timeout from 30 min to 5 min to prevent Monday morning
     orchestrator hangs on crashed loaders from Friday.
 
-    SESSION 94 FIX: Further reduced to 2 min. With failsafe retry having ~30-90min total
-    timeout budget, detecting stuck loaders faster allows more time for actual recovery
-    attempts instead of false negatives (hung but still marked RUNNING blocking Phase 1).
+    SESSION 94 FIX: Used 2 min, but this was too aggressive - many loaders take 2+ minutes
+    just initializing (fetching symbol lists, starting parallel workers). Legitimate loaders
+    would be wrongly marked FAILED before they started work.
+
+    SESSION 108 FIX: Increased to 10 minutes. This allows:
+    - All loaders time to initialize and start calling update_progress()
+    - Faster detection than 36-hour reaper timeout
+    - Yet doesn't false-positive on slow-initializing loaders (company_info, financial_statements)
+    Value chosen: (min loader timeout 30min) / 3, gives ~10min before assuming hung.
 
     SESSION 106 FIX: Also detect loaders stuck NOT_STARTED after >N minutes. If a subprocess
     crashes before calling mark_running(), status stays NOT_STARTED. Failsafe retry won't retry
@@ -147,11 +153,11 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> 
     get marked for retry unless detected here.
 
     This function runs at Phase 1 startup to detect crashed loaders that were never
-    properly marked FAILED. A loader stuck RUNNING or NOT_STARTED for >2 min with no recent
+    properly marked FAILED. A loader stuck RUNNING or NOT_STARTED for >10 min with no recent
     status update almost certainly crashed (no active process checking in on it).
 
     Args:
-        stale_threshold_minutes: Mark as FAILED if last_updated is older than this (default 2, Session 94)
+        stale_threshold_minutes: Mark as FAILED if last_updated is older than this (default 10, Session 108)
 
     Returns:
         List of table names that were recovered (marked FAILED)
