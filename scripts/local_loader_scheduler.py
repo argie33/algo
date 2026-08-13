@@ -341,13 +341,14 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
 
     # SESSION 103 FIX: Auto-cleanup stale lock files before running loaders
     # Hung/crashed loaders don't delete their locks, causing subsequent invocations to block
-    # indefinitely. Clean locks older than 30 minutes before starting this pipeline.
+    # indefinitely. SESSION 108 FIX: Reduce threshold from 30 min to 5 min - most loaders
+    # complete in <5 min, so any lock older than 5 min is from a crashed/stuck process.
     try:
         import time as time_module
 
         lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
         if lock_dir.exists():
-            stale_lock_threshold_seconds = 30 * 60  # 30 minutes
+            stale_lock_threshold_seconds = 5 * 60  # SESSION 108: 5 minutes (was 30)
             now = time_module.time()
             cleaned_locks = []
             for lock_file in lock_dir.glob("*.lock"):
@@ -358,7 +359,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             if cleaned_locks:
                 print(
                     f"[LOCAL_SCHEDULER] Cleaned {len(cleaned_locks)} stale lock file(s): {', '.join(cleaned_locks)} "
-                    f"(older than 30 min)"
+                    f"(older than 5 min)"
                 )
     except Exception as e:
         print(f"[LOCAL_SCHEDULER] WARNING: Could not clean stale locks: {e}", file=sys.stderr)
@@ -589,7 +590,9 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 pipe.close()
 
             assert proc.stdout is not None
-            reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=True)
+            # SESSION 108 FIX: Non-daemon thread ensures we capture all output before using tail_lines
+            # Daemon threads may be killed before reader finishes, losing diagnostic info
+            reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=False)
             reader_thread.start()
             scheduler_timeout = int(timeout * 1.1)
             scheduler_timeout_str = f"{scheduler_timeout}s ({scheduler_timeout // 60}m {scheduler_timeout % 60}s)"
@@ -635,7 +638,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             except subprocess.TimeoutExpired:
                 proc.kill()
                 returncode = proc.wait()
-                reader_thread.join(timeout=5)
+                reader_thread.join(timeout=30)  # SESSION 108: Wait up to 30s for output capture
                 lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
                 print(
                     f"[LOCAL_SCHEDULER] ERROR: {loader} loader timed out after {scheduler_timeout_str} "
@@ -654,7 +657,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
 
             if stalled:
                 proc.wait()
-                reader_thread.join(timeout=5)
+                reader_thread.join(timeout=30)  # SESSION 108: Wait up to 30s for output capture
                 tail = "\n".join(tail_lines)
                 _mark_loader_failed_after_crash(
                     loader_filename,
@@ -663,7 +666,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 any_failed = True
                 continue
 
-            reader_thread.join(timeout=5)
+            reader_thread.join(timeout=30)  # SESSION 108: Wait up to 30s for output capture to complete
             if returncode != 0:
                 print(
                     f"[LOCAL_SCHEDULER] WARNING: {loader} loader failed (exit code {returncode}) - "
