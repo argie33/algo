@@ -90,6 +90,15 @@ THRESHOLDS = {
         "stale": 2880,
         "critical": 4320,
     },
+    "market_health_daily": {
+        # Market breadth/regime data (VIX, advance/decline ratio) - halt-critical for Phase 1
+        # Loaded once per trading day by market_health loader. Same freshness requirement
+        # as price_daily since it's used for regime detection and risk management.
+        "fresh": 1440,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
+    },
     "algo_signals": {
         # Signals are generated once per trading day (with the orchestrator's morning
         # run), not continuously - a 1-trading-day-old row is the expected steady state
@@ -117,6 +126,18 @@ THRESHOLDS = {
         "critical": 4320,
     },
     "value_metrics": {
+        "fresh": 1440,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
+    },
+    "stability_metrics": {
+        # Stability metrics (volatility, beta) - same once-per-trading-day cadence as
+        # other metric enrichments. Used by stock_scores as a dependency, but if
+        # missing, stock_scores generation gracefully handles it (marks data_unavailable).
+        # Phase 1 checks this but only warns if stale (not halt-critical). However,
+        # if marked FAILED entirely (0% completion), that indicates the loader crashed,
+        # not just staleness.
         "fresh": 1440,
         "unconfirmed": 2160,
         "stale": 2880,
@@ -206,6 +227,23 @@ THRESHOLDS = {
         "stale": 2880,
         "critical": 4320,
     },
+    "positioning_metrics": {
+        # Ownership and short interest metrics - warn table for Phase 1 (enrichment only)
+        # Same once-per-trading-day cadence as other metrics, but with more lenient thresholds
+        # since this is used for portfolio analysis, not core trading decisions.
+        "fresh": 1440,
+        "unconfirmed": 5040,
+        "stale": 10080,
+        "critical": 14400,
+    },
+    "sector_ranking": {
+        # Sector ranking data - warn table for Phase 1 (enrichment only)
+        # Once-per-trading-day cadence, lenient thresholds for auxiliary enrichment.
+        "fresh": 1440,
+        "unconfirmed": 5040,
+        "stale": 10080,
+        "critical": 14400,
+    },
 }
 
 
@@ -247,6 +285,7 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "growth_metrics": "updated_at",
                 "quality_metrics": "updated_at",
                 "value_metrics": "updated_at",
+                "stability_metrics": "updated_at",
                 "algo_trades": "updated_at",
                 "algo_positions": "updated_at",
                 "algo_reconciliation_log": "created_at",
@@ -256,6 +295,9 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "buy_sell_daily": "updated_at",
                 "algo_performance_daily": "updated_at",
                 "earnings_calendar": "updated_at",
+                "market_health_daily": "updated_at",
+                "positioning_metrics": "updated_at",
+                "sector_ranking": "updated_at",
             }
 
             if table_name not in timestamp_cols:
@@ -421,6 +463,7 @@ def check_all_tables() -> dict:
                     "price_daily",
                     "technical_data_daily",
                     "market_exposure_daily",
+                    "market_health_daily",
                     "sector_rotation_signal",
                     "trend_template_data",
                     "algo_signals",
@@ -429,6 +472,9 @@ def check_all_tables() -> dict:
                     "growth_metrics",
                     "quality_metrics",
                     "value_metrics",
+                    "stability_metrics",
+                    "positioning_metrics",
+                    "sector_ranking",
                     "buy_sell_daily",
                     # stock_scores/algo_trades/algo_positions share the identical once-
                     # per-trading-day cadence as the tables above (stock_scores via the
