@@ -30,14 +30,14 @@ class FileLockManager:
     def __init__(
         self,
         table_name: str | None = None,
-        lock_duration_seconds: int = 600,
+        lock_duration_seconds: int = 300,
         enable_auto_cleanup: bool = True,
     ):
         """Initialize file-based lock manager.
 
         Args:
             table_name: Unused (for compatibility with DynamoDBLockManager)
-            lock_duration_seconds: Lock expiration time (default 10 minutes)
+            lock_duration_seconds: Lock expiration time (SESSION 107 FIX: changed from 600s to 300s/5min)
             enable_auto_cleanup: Automatically clean expired locks on startup
         """
         self.lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
@@ -47,7 +47,7 @@ class FileLockManager:
         self.current_lock_file: Path | None = None
         self.is_available = True
 
-        logger.info(f"[FILE_LOCK] Using filesystem locks at {self.lock_dir}")
+        logger.info(f"[FILE_LOCK] Using filesystem locks at {self.lock_dir} (duration={lock_duration_seconds}s)")
 
         if self.enable_auto_cleanup:
             self._cleanup_expired_locks()
@@ -314,7 +314,7 @@ class FileLockManager:
 
 def get_lock_manager(
     table_name: str | None = None,
-    lock_duration_seconds: int = 600,
+    lock_duration_seconds: int = 300,
     enable_auto_cleanup: bool = True,
 ) -> "FileLockManager | DynamoDBLockManager | RDSLockManager":
     """Factory function that returns a distributed lock manager.
@@ -329,6 +329,11 @@ def get_lock_manager(
     Production/shared environments: Try DynamoDB first, fall back to RDS
     - DynamoDB: Fastest, distributed-safe, production Lambda
     - RDS: When AWS credentials unavailable (e.g., local without env var)
+
+    SESSION 107 FIX: Changed lock_duration_seconds default from 600s (10m) to 300s (5m).
+    This makes crash-lock cleanup more aggressive. With 2x stale threshold, crashed
+    locks now expire after ~10 min instead of ~20 min, preventing them from blocking
+    subsequent loaders for as long.
     """
 
     from utils.db.dynamo_lock import DynamoDBLockManager
