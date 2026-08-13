@@ -395,9 +395,11 @@ class LoaderStatusManager:
                     if status_row:
                         symbols_per_sec = status_row[1] / execution_duration_sec
 
-                # Use actual completion percentage instead of hardcoding 100.0
-                # (If we reach here, actual_completion_pct >= threshold, so it's valid to complete)
-                final_completion_pct = actual_completion_pct if actual_completion_pct >= completion_threshold else 100.0
+                # Use actual completion percentage for COMPLETED status
+                # SESSION 108 FIX: Simplified confusing ternary - if we reach here, we already passed
+                # the completion check at line 361, so actual_completion_pct >= threshold is always true.
+                # The "else 100.0" was dead code and confusing. Just use the actual value.
+                final_completion_pct = actual_completion_pct
 
                 # CRITICAL FIX (2026-08-03): symbol_count/symbols_loaded were never written by
                 # either branch below - callers that never call update_progress() during a run
