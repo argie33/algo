@@ -27,10 +27,8 @@ Completion thresholds (configured per loader via loaders/config.py):
 import json
 import logging
 import os
-import signal
 import subprocess
 import sys
-import threading
 import time
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
@@ -47,93 +45,9 @@ from utils.data_tiers import is_critical
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.status_manager import LoaderStatusManager
+from utils.loaders.timeout_enforcement import cancel_loader_timeout, setup_loader_timeout
 
 logger = logging.getLogger(__name__)
-
-
-# Timeout enforcement for in-process loader execution (SESSION 111 FIX)
-# Prevents hung loaders from blocking entire orchestrator
-_LOADER_TIMEOUT_SECONDS: int | None = None
-_TIMEOUT_TIMER: threading.Timer | None = None
-
-
-def _timeout_handler(_signum: int, _frame: object) -> None:
-    """Signal handler for SIGALRM timeout. Raises RuntimeError to interrupt hung loader."""
-    if _LOADER_TIMEOUT_SECONDS is None:
-        timeout_msg = "Loader execution exceeded timeout (timeout value unknown)"
-    else:
-        timeout_min = _LOADER_TIMEOUT_SECONDS // 60
-        timeout_sec = _LOADER_TIMEOUT_SECONDS % 60
-        timeout_msg = f"Loader execution exceeded timeout of {_LOADER_TIMEOUT_SECONDS}s ({timeout_min}m {timeout_sec}s)"
-    raise RuntimeError(timeout_msg)
-
-
-def _force_exit_on_timeout() -> None:
-    """threading.Timer callback for Windows fallback - log then exit forcefully.
-
-    Used when signal.SIGALRM is unavailable (Windows). Exits immediately without
-    cleanup since loader may be stuck in DB transaction.
-    """
-    active_threads = threading.enumerate()
-    thread_info = "; ".join(f"{t.name}(daemon={t.daemon})" for t in active_threads if not t.name.startswith("Timer"))
-    timeout_str = f"{_LOADER_TIMEOUT_SECONDS // 60}m" if _LOADER_TIMEOUT_SECONDS else "N/A"
-    logger.critical(
-        f"[PHASE 1 FAILSAFE TIMEOUT] Loader exceeded {timeout_str} timeout. Exiting forcefully. "
-        f"Active threads: {thread_info}"
-    )
-    os._exit(1)
-
-
-def _setup_loader_timeout(loader_key: str, timeout_seconds: int) -> None:
-    """Set up process-level timeout using signal.SIGALRM or threading.Timer.
-
-    SESSION 111 FIX: Enforce timeout for in-process loader execution in phase1_failsafe_retry.
-    This matches the timeout mechanism used in loaders/runner.py but adapted for
-    sequential loader execution (need to reset timeout for each loader).
-
-    Args:
-        loader_key: Name of loader for logging
-        timeout_seconds: Timeout in seconds
-    """
-    global _LOADER_TIMEOUT_SECONDS, _TIMEOUT_TIMER
-
-    _LOADER_TIMEOUT_SECONDS = timeout_seconds
-    timeout_min = timeout_seconds // 60
-    timeout_sec = timeout_seconds % 60
-
-    if hasattr(signal, "SIGALRM"):
-        # Unix-like systems: use SIGALRM
-        signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(timeout_seconds)  # type: ignore[attr-defined]
-        logger.info(f"[PHASE 1 FAILSAFE TIMEOUT] {loader_key}: SIGALRM timeout set to {timeout_min}m {timeout_sec}s")
-    else:
-        # Windows fallback: use threading.Timer
-        logger.warning(
-            f"[PHASE 1 FAILSAFE TIMEOUT] {loader_key}: SIGALRM not available (Windows). "
-            f"Using threading.Timer fallback for {timeout_min}m {timeout_sec}s"
-        )
-        _TIMEOUT_TIMER = threading.Timer(timeout_seconds, _force_exit_on_timeout)
-        _TIMEOUT_TIMER.daemon = True
-        _TIMEOUT_TIMER.start()
-
-
-def _cancel_loader_timeout() -> None:
-    """Cancel any active timeout (SIGALRM or threading.Timer).
-
-    Called after loader completes to prevent timeout from firing on unrelated code.
-    """
-    global _LOADER_TIMEOUT_SECONDS, _TIMEOUT_TIMER
-
-    if hasattr(signal, "SIGALRM"):
-        # Unix: cancel SIGALRM
-        signal.alarm(0)  # type: ignore[attr-defined]
-
-    if _TIMEOUT_TIMER is not None:
-        # Windows: cancel threading.Timer
-        _TIMEOUT_TIMER.cancel()
-        _TIMEOUT_TIMER = None
-
-    _LOADER_TIMEOUT_SECONDS = None
 
 
 def _get_table_date_column(table_name: str) -> str | None:
@@ -908,7 +822,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
 
                 # SESSION 111 CRITICAL FIX: Set up timeout enforcement for in-process loader
                 # This prevents hung loaders from blocking entire orchestrator
-                _setup_loader_timeout(loader_key, loader_timeout)
+                setup_loader_timeout(loader_key, loader_timeout)
 
                 try:
                     # Import and instantiate the loader class dynamically
@@ -1005,7 +919,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     returncode = 1
                 finally:
                     # SESSION 111 FIX: Cancel timeout to prevent it firing on unrelated code
-                    _cancel_loader_timeout()
+                    cancel_loader_timeout()
                     # Restore environment
                     os.environ.clear()
                     os.environ.update(old_env)
