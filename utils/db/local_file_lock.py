@@ -106,33 +106,55 @@ class FileLockManager:
             max_age_seconds: Delete locks older than this many seconds from creation
 
         Returns: Number of locks deleted
+
+        CRITICAL FIX (Session 107): Use file modification time as fallback.
+        Previous: relied entirely on expiry timestamp in file content. If parsing failed or
+        expiry was in the future, lock would never be deleted even if stale (e.g., lock >1h old
+        from crashed run). Now: delete if file modification time is older than max_age_seconds,
+        providing reliable cleanup for stale locks from crashed processes.
         """
         try:
             now = datetime.now(timezone.utc)
-            cleanup_threshold = now - timedelta(seconds=max_age_seconds)
+            file_age_stale_threshold = now - timedelta(seconds=max_age_seconds)
             deleted_count = 0
 
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
-                    # Read creation/expiry time from file
-                    with open(lock_file, encoding="utf-8") as f:
-                        content = f.read().strip()
-                        # Format: "lock_id|expiry_timestamp"
-                        expiry_str = content.split("|")[1] if "|" in content else None
-                        if expiry_str:
-                            expiry = datetime.fromisoformat(expiry_str)
-                            if expiry.tzinfo is None:
-                                expiry = expiry.replace(tzinfo=timezone.utc)
-                            # Delete if expired OR if created more than max_age_seconds ago
-                            # (even if TTL hasn't hit expiration yet)
-                            created_time = expiry - timedelta(seconds=self.lock_duration_seconds)
-                            if now > expiry or created_time < cleanup_threshold:
-                                lock_file.unlink()
-                                deleted_count += 1
-                                logger.debug(
-                                    f"[FILE_LOCK] Cleaned stale lock: {lock_file.name} "
-                                    f"(age={int((now - created_time).total_seconds())}s, ttl={self.lock_duration_seconds}s)"
-                                )
+                    # Check file modification time as primary indicator of staleness
+                    file_mtime = datetime.fromtimestamp(lock_file.stat().st_mtime, tz=timezone.utc)
+
+                    # Use file age as the primary deletion criterion (Session 107 fix)
+                    # This handles crashed processes where the lock file persists indefinitely
+                    if file_mtime < file_age_stale_threshold:
+                        lock_file.unlink()
+                        deleted_count += 1
+                        logger.debug(
+                            f"[FILE_LOCK] Cleaned stale lock by file age: {lock_file.name} "
+                            f"(age={int((now - file_mtime).total_seconds())}s > {max_age_seconds}s)"
+                        )
+                        continue
+
+                    # Secondary check: if lock content has expiry timestamp, delete if expired
+                    try:
+                        with open(lock_file, encoding="utf-8") as f:
+                            content = f.read().strip()
+                            # Format: "lock_id|expiry_timestamp"
+                            expiry_str = content.split("|")[1] if "|" in content else None
+                            if expiry_str:
+                                expiry = datetime.fromisoformat(expiry_str)
+                                if expiry.tzinfo is None:
+                                    expiry = expiry.replace(tzinfo=timezone.utc)
+                                # Delete if lock TTL has already expired
+                                if now > expiry:
+                                    lock_file.unlink()
+                                    deleted_count += 1
+                                    logger.debug(
+                                        f"[FILE_LOCK] Cleaned expired-TTL lock: {lock_file.name} "
+                                        f"(expiry={expiry.isoformat()} < now={now.isoformat()})"
+                                    )
+                    except Exception as parse_err:
+                        logger.debug(f"[FILE_LOCK] Could not parse lock content for {lock_file.name}: {parse_err}")
+
                 except Exception as e:
                     logger.warning(f"[FILE_LOCK] Error cleaning lock {lock_file.name}: {e}")
 

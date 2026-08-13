@@ -42,6 +42,13 @@ _alert_history: dict[str, dict[str, Any]] = {}
 # Freshness thresholds (max age before each status)
 # For price/technical tables: thresholds differ on trading vs non-trading days
 # On non-trading days (weekends/holidays), data from last trading day is fresh
+#
+# Tier progression (SESSION 107 - UNCONFIRMED tier added):
+# - FRESH: < fresh_threshold (recently loaded, verified good)
+# - UNCONFIRMED: < unconfirmed_threshold (aging, no longer fresh but not bad)
+# - STALE: < stale_threshold (getting old, should be refreshed soon)
+# - CRITICAL: < critical_threshold (very stale, must fix immediately)
+# - DEAD: >= critical_threshold (extremely stale, data unusable)
 THRESHOLDS = {
     # price_daily/technical_data_daily/market_exposure_daily were previously tuned
     # for continuous intraday polling ("fresh: 30 min during trading hours") - a
@@ -55,13 +62,15 @@ THRESHOLDS = {
     # for algo_signals/growth_metrics/quality_metrics/value_metrics below.
     "price_daily": {
         "fresh": 1440,  # 24 hours - one trading day's normal loader lag
-        "stale": 2160,  # 36 hours
-        "critical": 2880,  # 48 hours
+        "unconfirmed": 2160,  # 36 hours - data aging, confidence declining
+        "stale": 2880,  # 48 hours
+        "critical": 4320,  # 72 hours
     },
     "technical_data_daily": {
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "stock_scores": {
         # Computed once per trading day by the signals pipeline (4:05 PM ET, after market
@@ -71,13 +80,15 @@ THRESHOLDS = {
         # 2026-07-28: 10.9h age reported "[OK]" by check_system_health.py's own already-
         # fixed 24h gap-aware bar, but "CRITICAL" here for the identical real age).
         "fresh": 1440,  # 24 hours
-        "stale": 2160,  # 36 hours
-        "critical": 2880,  # 48 hours
+        "unconfirmed": 2160,  # 36 hours
+        "stale": 2880,  # 48 hours
+        "critical": 4320,  # 72 hours
     },
     "market_exposure_daily": {
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "algo_signals": {
         # Signals are generated once per trading day (with the orchestrator's morning
@@ -86,57 +97,67 @@ THRESHOLDS = {
         # previous 8h/24h thresholds guaranteed a false CRITICAL every single weekday
         # (1 calendar day = 1440min already exceeds the old 1440min "stale" cutoff).
         "fresh": 1440,  # 24 hours - one full trading day is the normal cadence
-        "stale": 2160,  # 36 hours
-        "critical": 2880,  # 48 hours
+        "unconfirmed": 2160,  # 36 hours
+        "stale": 2880,  # 48 hours
+        "critical": 4320,  # 72 hours
     },
     "growth_metrics": {
         # Same once-per-trading-day cadence mismatch as algo_signals above: these are
         # computed by the EOD metrics pipeline once daily, so the old 4h/24h thresholds
         # falsely reported CRITICAL every single morning regardless of actual health.
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "quality_metrics": {
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "value_metrics": {
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "algo_trades": {
         "fresh": 1440,
-        "stale": 2880,
-        "critical": 5760,
+        "unconfirmed": 2880,
+        "stale": 5760,
+        "critical": 7200,
     },
     "algo_positions": {
         "fresh": 480,
-        "stale": 1440,
-        "critical": 2880,
+        "unconfirmed": 1440,
+        "stale": 2880,
+        "critical": 4320,
     },
     "algo_reconciliation_log": {
         # Same once-per-trading-day cadence mismatch as algo_signals above.
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "industry_ranking": {
         "fresh": 1440,
-        "stale": 5040,
-        "critical": 10080,
+        "unconfirmed": 5040,
+        "stale": 10080,
+        "critical": 14400,
     },
     "sector_rotation_signal": {
         "fresh": 1440,
-        "stale": 5040,
-        "critical": 10080,
+        "unconfirmed": 5040,
+        "stale": 10080,
+        "critical": 14400,
     },
     "trend_template_data": {
         "fresh": 1440,
-        "stale": 5040,
-        "critical": 10080,
+        "unconfirmed": 5040,
+        "stale": 10080,
+        "critical": 14400,
     },
     "buy_sell_daily": {
         # Same once-per-trading-day cadence as algo_signals - and the same table
@@ -145,8 +166,9 @@ THRESHOLDS = {
         # was never added here, so the one dedicated staleness tool operators are
         # told to run (CLAUDE.md) would never have caught it going stale.
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
     "earnings_calendar": {
         # ADDED 2026-08-04: was entirely absent from this script despite being halt-critical
@@ -164,8 +186,9 @@ THRESHOLDS = {
         # loader's own execution-status timestamp (a valid, coarser "is the loader
         # scheduled at all" signal), whereas this script diagnoses actual row content.
         "fresh": 1440,  # 24 hours
-        "stale": 2160,  # 36 hours
-        "critical": 2880,  # 48 hours
+        "unconfirmed": 2160,  # 36 hours
+        "stale": 2880,  # 48 hours
+        "critical": 4320,  # 72 hours
     },
     "algo_performance_daily": {
         # CRITICAL FIX 2026-08-03: this used to watch algo_performance_metrics, a table
@@ -179,8 +202,9 @@ THRESHOLDS = {
         # minutes of the current run). Same "monitoring script still watches a deprecated
         # table" bug class already fixed once for sec_cash_flow_metrics's scheduling.
         "fresh": 1440,
-        "stale": 2160,
-        "critical": 2880,
+        "unconfirmed": 2160,
+        "stale": 2880,
+        "critical": 4320,
     },
 }
 
@@ -429,17 +453,21 @@ def check_all_tables() -> dict:
             ):
                 gap_minutes = (today - prev_trading_day).days * 1440
                 fresh_threshold = thresholds["fresh"] + gap_minutes
+                unconfirmed_threshold = thresholds["unconfirmed"] + gap_minutes
                 stale_threshold = thresholds["stale"] + gap_minutes
                 critical_threshold = thresholds["critical"] + gap_minutes
             else:
                 fresh_threshold = thresholds["fresh"]
+                unconfirmed_threshold = thresholds["unconfirmed"]
                 stale_threshold = thresholds["stale"]
                 critical_threshold = thresholds["critical"]
 
             emoji = (
                 "✅"
                 if age < fresh_threshold
-                else "⚠️ "
+                else "❓"
+                if age < unconfirmed_threshold
+                else "🟡"
                 if age < stale_threshold
                 else "🔴"
                 if age < critical_threshold
@@ -449,6 +477,9 @@ def check_all_tables() -> dict:
             if age < fresh_threshold:
                 status = f"{emoji} FRESH ({formatted})"
                 level = "ok"
+            elif age < unconfirmed_threshold:
+                status = f"{emoji} UNCONFIRMED ({formatted})"
+                level = "unconfirmed"
             elif age < stale_threshold:
                 status = f"{emoji} STALE ({formatted})"
                 level = "warning"
@@ -522,20 +553,23 @@ def print_report(results: dict) -> None:
 
     print("\n" + "-" * 70)
     print("SUMMARY:")
-    print(f"  ✅ OK:       {levels.get('ok', 0)}")
-    print(f"  ⚠️  WARNING: {levels.get('warning', 0)}")
-    print(f"  🔴 CRITICAL:{levels.get('critical', 0)}")
-    print(f"  💀 DEAD:    {levels.get('dead', 0)}")
-    print(f"  ❓ NO DATA:  {levels.get('unknown', 0)}")
+    print(f"  ✅ FRESH:       {levels.get('ok', 0)}")
+    print(f"  ❓ UNCONFIRMED: {levels.get('unconfirmed', 0)}")
+    print(f"  🟡 STALE:       {levels.get('warning', 0)}")
+    print(f"  🔴 CRITICAL:    {levels.get('critical', 0)}")
+    print(f"  💀 DEAD:        {levels.get('dead', 0)}")
+    print(f"  ❌ NO DATA:     {levels.get('unknown', 0)}")
 
     # Recommendations
     print("\n" + "-" * 70)
     print("ACTIONS:")
 
     critical_tables = [t for t, d in results.items() if d["level"] in ("critical", "dead", "unknown")]
-    warning_tables = [t for t, d in results.items() if d["level"] == "warning"]
+    stale_tables = [t for t, d in results.items() if d["level"] == "warning"]
+    unconfirmed_tables = [t for t, d in results.items() if d["level"] == "unconfirmed"]
+
     if critical_tables:
-        print(f"\n🚨 STALE DATA DETECTED: {', '.join(critical_tables)}")
+        print(f"\n🚨 CRITICAL: {', '.join(critical_tables)}")
         print("\nFIX IMMEDIATELY:")
         print("  1. Check if EventBridge Scheduler is running:")
         print("     aws events list-rules --query 'Rules[?contains(Name, `pipeline`)]' --region us-east-1")
@@ -545,14 +579,23 @@ def print_report(results: dict) -> None:
         print("       --name 'manual-refresh-$(date +%s)'")
         print("\n  3. Local dev - run orchestrator:")
         print("     python scripts/run_local_orchestrator.py --morning")
-        if warning_tables:
-            print(f"\n⚠️  Also approaching staleness (not yet critical): {', '.join(warning_tables)}")
-    elif warning_tables:
-        print(f"\n⚠️  STALE (WARNING) DATA: {', '.join(warning_tables)}")
-        print("\nNot yet critical, but past the fresh threshold - check soon:")
+        if stale_tables or unconfirmed_tables:
+            tables_to_watch = stale_tables + unconfirmed_tables
+            print(f"\n⚠️  Also watch (aging data): {', '.join(tables_to_watch)}")
+    elif stale_tables:
+        print(f"\n🟡 STALE DATA: {', '.join(stale_tables)}")
+        print("\nGetting old - plan a refresh soon:")
         print("  1. Local dev - run orchestrator/loaders to refresh:")
         print("     python scripts/run_local_orchestrator.py --morning")
-        print("  2. If this persists across checks, treat it like critical staleness above.")
+        print("  2. If this persists, escalate to critical (FIX IMMEDIATELY above).")
+        if unconfirmed_tables:
+            print(f"\n❓ Also aging (unconfirmed): {', '.join(unconfirmed_tables)}")
+    elif unconfirmed_tables:
+        print(f"\n❓ UNCONFIRMED DATA: {', '.join(unconfirmed_tables)}")
+        print("\nData is aging and no longer fresh. Monitor closely:")
+        print("  1. Not yet critical, but losing confidence in freshness.")
+        print("  2. Plan to run orchestrator/loaders soon:")
+        print("     python scripts/run_local_orchestrator.py --morning")
     else:
         print("\n✅ All data is fresh. No action needed.")
 
