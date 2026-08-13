@@ -898,42 +898,49 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
         results = _check_and_refresh_local(run_date=run_date, pipeline_context=pipeline_context, dry_run=dry_run)
 
         # SESSION 104 CRITICAL FIX: Add stall detection monitoring for LOCAL_MODE loaders
+        # SESSION 106 ENHANCED: Now catches loaders stuck at ANY point, not just <5min old
         # _check_and_refresh_local() runs loaders and returns immediately, bypassing monitor_loader_retry()
         # which contains stall detection. Without this post-execution check, loaders stuck at 0% for 26+ hours
-        # are never detected as stalled. Check for incomplete RUNNING loaders (0% for >5 min) and mark them as stalled.
+        # are never detected as stalled. Check for incomplete RUNNING loaders (0% for ANY duration) and mark them.
         try:
             with DatabaseContext("read") as cur:
+                # SESSION 106 CRITICAL FIX: Detect RUNNING loaders at 0% regardless of last_updated age
+                # Changed from "last_updated < 5min ago" to "execution_started exists" (has been running)
+                # This catches loaders stuck at 0% for 5min, 30min, or even if somehow not updated since start
                 cur.execute("""
-                    SELECT table_name, completion_pct, last_updated
+                    SELECT table_name, completion_pct, execution_started, last_updated
                     FROM data_loader_status
                     WHERE UPPER(status) = 'RUNNING' AND completion_pct <= 0.0
-                    AND last_updated < CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+                    AND execution_started IS NOT NULL
                 """)
                 stalled_loaders = cur.fetchall()
 
-                for table_name, _completion_pct, last_updated in stalled_loaders:
+                for table_name, _completion_pct, execution_started, _last_updated in stalled_loaders:
                     stalled_duration = (
-                        (datetime.now(timezone.utc) - last_updated.replace(tzinfo=timezone.utc)).total_seconds()
-                        if last_updated
+                        (datetime.now(timezone.utc) - execution_started.replace(tzinfo=timezone.utc)).total_seconds()
+                        if execution_started
                         else 0
                     )
-                    logger.critical(
-                        f"[PHASE 1 FAILSAFE LOCAL] Loader stalled post-execution: {table_name} at 0% for {int(stalled_duration)}s. "
-                        f"Marking FAILED to prevent Monday cascade."
-                    )
-                    try:
-                        LoaderStatusManager(table_name).mark_failed(
-                            f"[PHASE 1 FAILSAFE LOCAL] Loader stalled at 0% completion for {int(stalled_duration)}s. "
-                            f"Subprocess likely hung or deadlocked."
+                    # SESSION 106 FIX: Only fail if stuck for >2 minutes (allow brief startup time)
+                    # Loaders may take 1-2 min to initialize before first completion update
+                    if stalled_duration > 120:
+                        logger.critical(
+                            f"[PHASE 1 FAILSAFE LOCAL] Loader stalled post-execution: {table_name} at 0% for {int(stalled_duration)}s. "
+                            f"Marking FAILED to prevent Monday cascade."
                         )
-                    except Exception as e:
-                        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Could not mark {table_name} FAILED: {e}")
+                        try:
+                            LoaderStatusManager(table_name).mark_failed(
+                                f"[PHASE 1 FAILSAFE LOCAL] Loader stalled at 0% completion for {int(stalled_duration)}s (started {execution_started}). "
+                                f"Subprocess likely hung or deadlocked."
+                            )
+                        except Exception as e:
+                            logger.error(f"[PHASE 1 FAILSAFE LOCAL] Could not mark {table_name} FAILED: {e}")
 
-                    # Mark as still failing in results  so Phase 1 can halt if critical
-                    if table_name not in results.get("still_failing", []):
-                        results["still_failing"].append(table_name)
-                        if is_critical(table_name):
-                            results["halt_required"] = True
+                        # Mark as still failing in results so Phase 1 can halt if critical
+                        if table_name not in results.get("still_failing", []):
+                            results["still_failing"].append(table_name)
+                            if is_critical(table_name):
+                                results["halt_required"] = True
         except Exception as e:
             logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check for stalled loaders post-execution: {e}")
 

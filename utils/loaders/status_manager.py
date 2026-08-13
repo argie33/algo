@@ -847,82 +847,65 @@ def reap_stale_running_loaders(table_names: list[str] | None = None, max_age_hou
         table_names: Tables to check, or None to check every table currently in
             data_loader_status (a stuck loader anywhere is worth correcting - this isn't
             scoped to a single pipeline run).
-        max_age_hours: How old execution_started must be before a RUNNING row is considered
-            abandoned. If None (default), computed from longest configured loader timeout
-            (Session 94 fix: was hardcoded 4h, but prices loader needs 15h) with 50% safety
-            margin to avoid premature kill on legitimately long-running loaders.
+        max_age_hours: Ignored if table_names provided. Reaper now uses per-loader timeout.
+            CRITICAL SESSION 106 FIX: Changed from longest_timeout * 1.5 (36h for prices)
+            to per-loader timeout + 25% safety margin. This prevents short-timeout loaders
+            (30m) from waiting 36h before reaper runs.
 
     Returns:
         Table names that were reaped (previously RUNNING, now marked FAILED).
     """
-    # SESSION 94 FIX: Compute max_age from longest loader timeout instead of hardcoded 4h
-    # prices loader is budgeted 900 min (15h), so 4h default would kill it prematurely
-    if max_age_hours is None:
-        from loaders.loader_timeout_config import get_loader_timeouts
+    from loaders.loader_timeout_config import get_loader_timeout
 
-        longest_timeout_seconds = max(get_loader_timeouts().values())
-        # Convert to hours and add 50% safety margin to avoid killing legitimately slow loaders
-        max_age_hours = (longest_timeout_seconds / 3600) * 1.5
     reaped: list[str] = []
     try:
         with DatabaseContext("read") as cur:
-            if table_names:
-                cur.execute(
-                    """
-                    SELECT table_name, execution_started
-                    FROM data_loader_status
-                    WHERE table_name = ANY(%s)
-                      AND status = %s
-                      AND execution_started IS NOT NULL
-                      AND execution_started < NOW() - (%s || ' hours')::interval
-                    """,
-                    (table_names, LoaderStatus.RUNNING.value, max_age_hours),
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT table_name, execution_started
-                    FROM data_loader_status
-                    WHERE status = %s
-                      AND execution_started IS NOT NULL
-                      AND execution_started < NOW() - (%s || ' hours')::interval
-                    """,
-                    (LoaderStatus.RUNNING.value, max_age_hours),
-                )
-            stale = cur.fetchall()
+            # Query all stuck loaders
+            cur.execute(
+                """
+                SELECT table_name, execution_started
+                FROM data_loader_status
+                WHERE status = %s
+                  AND execution_started IS NOT NULL
+                """,
+                (LoaderStatus.RUNNING.value,),
+            )
+            all_stuck = cur.fetchall()
     except Exception as e:
-        # BUG FOUND 2026-08-10 (fail-fast governance sweep): returning [] here is
-        # indistinguishable from "queried successfully, found zero stale loaders" - a caller
-        # (or a human skimming logs) can't tell "all clear" from "the check itself never ran".
-        # Not escalated to raise: this reaper is explicitly best-effort bookkeeping called once
-        # at the start of run_pipeline() (scripts/local_loader_scheduler.py), and crashing the
-        # whole pipeline over a transient reaper-query failure would be worse than skipping one
-        # reap cycle - a genuinely stuck loader still gets caught on the next invocation. Made
-        # the log line itself unambiguous instead, so this doesn't read as a routine "0 stale
-        # loaders" result.
-        logger.error(
+        error_msg = (
             f"[STATUS_MANAGER] Stale-loader reap check FAILED (not '0 stale loaders found' - "
             f"the query itself errored, so any genuinely stuck loader is NOT being detected "
             f"this cycle): {e}"
         )
-        # No work to do this cycle without a successful query - best-effort bookkeeping, not
-        # critical-path data; a genuinely stuck loader is still caught on the next invocation.
-        return []
+        logger.error(error_msg)
+        raise RuntimeError(error_msg) from e
 
-    for table_name, execution_started in stale:
+    from datetime import datetime, timezone
+
+    for table_name, execution_started in all_stuck:
         try:
-            LoaderStatusManager(table_name).mark_failed(
-                error_message=(
-                    f"[REAPED] Stuck in RUNNING since {execution_started} (>{max_age_hours:.0f}h ago) "
-                    "with no owning process confirmed alive - auto-marked FAILED so stale data isn't "
-                    "trusted and proactive-wait/health checks don't report a phantom in-progress run."
+            # CRITICAL SESSION 106 FIX: Use per-loader timeout, not longest_timeout * 1.5
+            loader_timeout_sec = get_loader_timeout(table_name, default_seconds=3600)
+            max_age_sec = loader_timeout_sec * 1.25
+            now_utc = datetime.now(timezone.utc)
+            if execution_started.tzinfo is None:
+                execution_started = execution_started.replace(tzinfo=timezone.utc)
+            age_sec = (now_utc - execution_started).total_seconds()
+
+            if age_sec > max_age_sec:
+                max_age_hours_for_log = max_age_sec / 3600
+                LoaderStatusManager(table_name).mark_failed(
+                    error_message=(
+                        f"[REAPED] Stuck in RUNNING since {execution_started} (>{max_age_hours_for_log:.1f}h ago, "
+                        f"exceeds {loader_timeout_sec}s timeout + 25% margin). "
+                        "No owning process alive - auto-marked FAILED."
+                    )
                 )
-            )
-            logger.warning(
-                f"[STATUS_MANAGER] Reaped stale RUNNING loader: {table_name} "
-                f"(started {execution_started}, >{max_age_hours:.0f}h ago)"
-            )
-            reaped.append(table_name)
+                logger.warning(
+                    f"[STATUS_MANAGER] Reaped stale RUNNING loader: {table_name} "
+                    f"(started {execution_started}, {age_sec:.0f}s > {max_age_sec:.0f}s threshold)"
+                )
+                reaped.append(table_name)
         except Exception as e:
             logger.error(f"[STATUS_MANAGER] Failed to reap stale RUNNING loader {table_name}: {e}")
 

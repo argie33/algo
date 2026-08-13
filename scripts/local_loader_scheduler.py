@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 import collections
+import logging
 import os
 import subprocess
 import sys
@@ -17,6 +18,12 @@ import threading
 import time
 from pathlib import Path
 from typing import IO
+
+from loaders.loader_registry import all_tables, normalize_loader_name
+from utils.db.context import DatabaseContext
+from utils.loaders.status_manager import LoaderStatusManager, reap_stale_running_loaders
+
+logger = logging.getLogger(__name__)
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
@@ -28,9 +35,74 @@ os.environ["ENVIRONMENT"] = "development"
 if "LOADER_PARALLELISM" not in os.environ:
     os.environ["LOADER_PARALLELISM"] = "1"
 
-# Import registry mapping to convert shorthand names to filenames
-from loaders.loader_registry import all_tables, normalize_loader_name
-from utils.loaders.status_manager import LoaderStatusManager, reap_stale_running_loaders
+
+def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, max_stall_sec: int = 300) -> bool:
+    """Monitor loader progress while subprocess is running. Kill if stuck at 0% for too long.
+
+    CRITICAL SESSION 106 FIX: Detect hung loaders during execution, not just after failure.
+    Previously, a loader could hang at 0% for 27+ minutes while the orchestrator waited,
+    and only the reaper (36-hour timeout) would eventually catch it. This function polls
+    every poll_interval_sec and kills the process if completion_pct hasn't changed in
+    max_stall_sec seconds.
+
+    Args:
+        loader_filename: e.g., "load_prices.py"
+        poll_interval_sec: How often to check progress (default 30s)
+        max_stall_sec: Kill if stuck >N seconds without progress (default 300s = 5 min)
+
+    Returns:
+        True if loader made progress / is still healthy, False if hung
+    """
+    try:
+        tables = all_tables(loader_filename)
+        if not tables:
+            return True  # No tables to monitor, assume healthy
+
+        primary_table = tables[0]
+        last_pct = None
+        last_pct_time = time.time()
+
+        while True:
+            time.sleep(poll_interval_sec)
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT completion_pct, last_updated FROM data_loader_status WHERE table_name = %s",
+                        (primary_table,),
+                    )
+                    row = cur.fetchone()
+                    if not row:
+                        return True  # Table doesn't exist yet, assume OK
+
+                    current_pct, _last_updated = row
+                    now = time.time()
+
+                    # Check if progress has changed
+                    if current_pct is not None and current_pct != last_pct:
+                        last_pct = current_pct
+                        last_pct_time = now
+                        if current_pct > 0:
+                            # Making progress, reset stall timer
+                            continue
+
+                    # Check stall condition
+                    stall_duration = now - last_pct_time
+                    if stall_duration > max_stall_sec and (last_pct is None or last_pct <= 0.0):
+                        print(
+                            f"[PROGRESS_MONITOR] {loader_filename}: STALLED at {last_pct or 0}% "
+                            f"for {stall_duration:.0f}s (>{max_stall_sec}s threshold). "
+                            f"Will signal process termination.",
+                            file=sys.stderr,
+                        )
+                        return False  # Indicate hung
+
+            except Exception as monitor_err:
+                # Monitor errors shouldn't kill the loader, just log and continue
+                logger.debug(f"[PROGRESS_MONITOR] Error checking {loader_filename}: {monitor_err}")
+                continue
+    except Exception as outer_err:
+        logger.debug(f"[PROGRESS_MONITOR] Outer error: {outer_err}")
+        return True  # Don't kill on monitor errors
 
 
 def _mark_loader_failed_after_crash(loader_filename: str, error_message: str) -> None:
@@ -519,13 +591,50 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             assert proc.stdout is not None
             reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=True)
             reader_thread.start()
-            scheduler_timeout = int(timeout * 1.1)  # 10% safety margin so loader's SIGALRM fires first
+            scheduler_timeout = int(timeout * 1.1)
             scheduler_timeout_str = f"{scheduler_timeout}s ({scheduler_timeout // 60}m {scheduler_timeout % 60}s)"
+            stall_timeout = 300  # Kill if stuck at 0% for 5 minutes (SESSION 106 FIX)
+            progress_check_interval = 30  # Poll progress every 30 seconds
+
+            # CRITICAL SESSION 106 FIX: Poll the subprocess and monitor progress
+            # instead of blocking on wait(). This detects hung loaders at 0% within 5 min,
+            # vs waiting 36 hours for the reaper.
+            start_time = time.time()
+            returncode = None
+            stalled = False
+
             try:
-                returncode = proc.wait(timeout=scheduler_timeout)
+                while True:
+                    try:
+                        returncode = proc.poll()  # Non-blocking check
+                        if returncode is not None:
+                            break  # Process finished
+
+                        elapsed = time.time() - start_time
+                        if elapsed > scheduler_timeout:
+                            raise subprocess.TimeoutExpired(cmd, scheduler_timeout)
+
+                        # Check progress periodically
+                        if elapsed > 0 and int(elapsed) % progress_check_interval == 0:
+                            if not _monitor_loader_progress(
+                                loader_filename, poll_interval_sec=1, max_stall_sec=stall_timeout
+                            ):
+                                print(
+                                    f"[LOCAL_SCHEDULER] {loader}: Process appears hung at 0% for {stall_timeout}s. Killing.",
+                                    file=sys.stderr,
+                                )
+                                proc.kill()
+                                stalled = True
+                                break
+
+                        time.sleep(1)
+                    except (KeyboardInterrupt, SystemExit):
+                        proc.kill()
+                        raise
+
             except subprocess.TimeoutExpired:
                 proc.kill()
-                proc.wait()
+                returncode = proc.wait()
                 reader_thread.join(timeout=5)
                 lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
                 print(
@@ -542,6 +651,18 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 )
                 any_failed = True
                 continue
+
+            if stalled:
+                proc.wait()
+                reader_thread.join(timeout=5)
+                tail = "\n".join(tail_lines)
+                _mark_loader_failed_after_crash(
+                    loader_filename,
+                    f"local_loader_scheduler: killed due to 0%% stall for >{stall_timeout}s. Last output:\n{tail}",
+                )
+                any_failed = True
+                continue
+
             reader_thread.join(timeout=5)
             if returncode != 0:
                 print(
