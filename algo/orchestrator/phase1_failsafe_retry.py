@@ -90,7 +90,7 @@ def _get_table_date_column(table_name: str) -> str | None:
         "market_sentiment": "date",
         "sector_ranking": "date",
         "sector_performance": "date",
-        "industry_ranking": "date",
+        "industry_ranking": "date_recorded",
         "naaim": "date",
         "aaii": "date",
         "aaii_sentiment": "date",
@@ -121,9 +121,9 @@ def _get_table_date_column(table_name: str) -> str | None:
         "analyst_upgrade_downgrade": "updated_at",  # yfinance-sourced
         "analyst_earnings_estimates": "updated_at",
         # Metrics & rankings (computed daily or updated on schedule)
-        "value_metrics": "date",
-        "quality_metrics": "date",
-        "growth_metrics": "date",
+        "value_metrics": "updated_at",  # No date column - use updated_at for freshness
+        "quality_metrics": "updated_at",  # No date column - use updated_at for freshness
+        "growth_metrics": "date",  # Has date column for data load date
         "momentum_metrics": "date",
         "positioning_metrics": "updated_at",  # 13F/short interest data
         "institutional_holdings_13f": "updated_at",
@@ -649,6 +649,39 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # Add stale loaders
         all_loaders_to_retry.extend(stale_loaders)
 
+        # SESSION 106 FIX: Check for upstream dependency failures before retrying downstream loaders
+        # If upstream loaders (prices, technical_data) are still failing, don't retry downstream
+        # (buy_sell_daily, stock_scores) because they'll just fail again - wait for upstream to fix first
+        upstream_failed = {t for t in failed_loaders_to_retry}
+        dependency_map = {
+            "buy_sell_daily": {"price_daily", "technical_data_daily"},
+            "stock_scores": {"price_daily", "technical_data_daily"},
+            "trend_template_data": {"price_daily"},
+            "value_metrics": {"price_daily"},
+            "quality_metrics": {"price_daily"},
+            "growth_metrics": {"price_daily"},
+            "momentum_metrics": {"price_daily"},
+            "positioning_metrics": {"price_daily"},
+        }
+
+        # Filter out downstream loaders whose upstream dependencies are still failing
+        filtered_loaders_to_retry = []
+        for table_name, loader_key, age_in_days in all_loaders_to_retry:
+            deps = dependency_map.get(table_name, set())
+            if deps and deps & upstream_failed:
+                # Upstream dependency is still failing - skip this loader for now
+                skipped_deps = deps & upstream_failed
+                logger.info(
+                    f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: upstream dependency "
+                    f"{skipped_deps} still failing. Will retry after upstream recovers."
+                )
+                results["incomplete_loaders"].append(table_name)
+                continue
+
+            filtered_loaders_to_retry.append((table_name, loader_key, age_in_days))
+
+        all_loaders_to_retry = filtered_loaders_to_retry
+
         if not all_loaders_to_retry:
             logger.info("[PHASE 1 FAILSAFE LOCAL] All data current - no refresh needed")
             return results
@@ -666,6 +699,21 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # SESSION 93 root cause: local_loader_scheduler had 75m for earnings_calendar while
         # phase1 retry had 45m, causing Friday timeouts to never recover by Monday. Now
         # both import from single source of truth (loaders/loader_timeout_config.py)
+
+        # SESSION 106 FIX: Reap stuck loaders before retry loop
+        # Previous behavior: reaper only ran once at orchestrator startup, not between retry attempts
+        # If a loader gets stuck RUNNING during previous phase, it would persist through entire retry loop
+        # Now reap before starting retries to handle any leftover stuck loaders from prior runs
+        try:
+            from utils.loaders.status_manager import reap_stale_running_loaders
+
+            reaped_count = reap_stale_running_loaders()
+            if reaped_count > 0:
+                logger.info(f"[PHASE 1 FAILSAFE LOCAL] Reaped {reaped_count} stale running loader(s) before retry loop")
+        except Exception as reap_err:
+            logger.warning(
+                f"[PHASE 1 FAILSAFE LOCAL] Failed to reap stale loaders: {reap_err}. Proceeding with retries anyway."
+            )
 
         # Run each loader (FAILED or stale) locally
         for table_name, loader_key, age_in_days in all_loaders_to_retry:
@@ -851,6 +899,21 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                 # SESSION 106 FIX: Add buy_sell_daily to critical deps
                 if table_name in {"price_daily", "technical_data_daily", "stock_scores", "buy_sell_daily"}:
                     results["halt_required"] = True
+
+            # SESSION 106 FIX: Reap stuck loaders between retry attempts
+            # If a loader gets stuck RUNNING during this attempt, reap it before trying the next loader
+            # to prevent cascading failures where one stuck loader blocks all subsequent retries.
+            # Only reap after attempting to refresh (don't waste time on fast completions).
+            try:
+                from utils.loaders.status_manager import reap_stale_running_loaders
+
+                reaped_count = reap_stale_running_loaders()
+                if reaped_count > 0:
+                    logger.info(
+                        f"[PHASE 1 FAILSAFE LOCAL] Reaped {reaped_count} stale running loader(s) after {table_name} retry"
+                    )
+            except Exception as reap_err:
+                logger.debug(f"[PHASE 1 FAILSAFE LOCAL] Reaper check between retries failed (non-fatal): {reap_err}")
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal database error in local refresh: {e}", exc_info=True)

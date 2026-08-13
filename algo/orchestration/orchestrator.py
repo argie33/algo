@@ -2275,29 +2275,29 @@ class Orchestrator:
     def _cleanup_stale_orchestrator_run_locks(self) -> None:
         """Clean up stale orchestrator run locks BEFORE acquisition attempt.
 
-        SESSION 105 FIX: Orchestrator locks that persist >30 minutes indicate:
-        1. Previous orchestrator process crashed without cleanup
-        2. Or lock file was manually deleted but DB still has stale row
-        3. Either way: No active process holds the lock
+        SESSION 106 FIX: Aggressive cleanup to prevent hung loaders from blocking runs.
+        - Orchestrator locks older than 20 min (was 30 min) = likely crashed
+        - Loader locks older than 5 min (was 10 min via reaper) = certainly hung + killed
 
-        This cleanup runs BEFORE lock acquisition (in _handle_concurrency_lock).
-        If a lock file is >30 min old, it's safe to delete and retry acquisition.
+        Why aggressive: Hung loader monitor kills processes after 5min stall,
+        but lock files may persist. Without cleanup, Friday hung loader blocks
+        Saturday/Monday runs indefinitely.
         """
         try:
             from utils.db.local_file_lock import get_lock_manager
 
             lock_manager = get_lock_manager()
             if lock_manager and hasattr(lock_manager, "cleanup_expired_locks"):
-                # max_age_seconds=1800 (30 min) for orchestrator locks
-                # These are long-running operations, so 30 min is conservatively safe:
-                # - Typical orchestrator run takes 5-20 min
-                # - 30 min gives 1.5-6x buffer before cleanup
-                # - If a lock is >30 min old, orchestrator almost certainly crashed
-                cleaned = lock_manager.cleanup_expired_locks(max_age_seconds=1800)
-                if cleaned > 0:
+                # Clean orchestrator locks >20 min old (typical run is 5-20 min)
+                cleaned_orch = lock_manager.cleanup_expired_locks(
+                    lock_key="orchestrator-run-lock", max_age_seconds=1200
+                )
+                # Clean ALL other locks >5 min old (hung loaders are killed after 5min stall)
+                cleaned_loaders = lock_manager.cleanup_expired_locks(lock_key=None, max_age_seconds=300)
+                if cleaned_orch > 0 or cleaned_loaders > 0:
                     logger.warning(
-                        f"[LOCK_CLEANUP] Removed {cleaned} stale orchestrator run lock(s) (older than 1800s/30min). "
-                        f"Previous orchestrator run likely crashed without cleanup."
+                        f"[LOCK_CLEANUP] Removed {cleaned_orch} orchestrator + {cleaned_loaders} loader locks. "
+                        f"Likely stale from killed hung processes."
                     )
         except Exception as cleanup_err:
             logger.warning(
@@ -2305,17 +2305,16 @@ class Orchestrator:
             )
 
     def _cleanup_stale_loader_locks(self) -> None:
-        """Clean up any stale loader locks from crashed processes.
+        """Clean up any stale loader locks from crashed or hung processes.
 
-        Stale locks from crashed loaders can persist, blocking Phase 7 and other critical
-        path components. This cleanup runs at orchestrator startup to prevent lock-induced halts.
+        SESSION 106 FIX: More aggressive cleanup for hung loaders.
+        Local loader monitor kills hung processes after 5min stall + kills them.
+        Any loader lock >5 min old indicates a process that was killed/hung.
 
-        Uses aggressive cleanup: deletes locks older than 600 seconds (10 minutes) to recover
-        quickly from crashed loader processes. This is safe because:
-        1. Legitimate loader runs timeout at LOADER_SLA_TIMEOUT_SECONDS (3600s+)
-        2. A lock older than 10 minutes with no activity indicates a crash/stall
-        3. The orchestrator runs frequently (15-60 min intervals), so we detect crashes quickly
-        4. Cleanup happens at orchestrator STARTUP, not mid-phase, so legitimate locks won't be affected
+        This is safe because:
+        1. Legitimate loader runs take 10+ minutes minimum
+        2. A lock older than 5 minutes with no active process = hung + killed
+        3. Cleanup at orchestrator STARTUP, before phases run
         """
         try:
             from utils.db.local_file_lock import get_lock_manager

@@ -2402,13 +2402,22 @@ class PriceLoader(OptimalLoader):
         batches = [symbols[i : i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
         self._stats["symbols_total"] = len(symbols)
 
-        circuit_breaker_result = self._execute_batch_jobs(batches, parallelism, start, len(symbols))
-        if circuit_breaker_result.get("status") != "success":
-            logger.debug("[BATCH_JOBS] Early halt triggered, returning circuit breaker result")
-            return circuit_breaker_result
+        circuit_breaker_result = {"status": "success"}  # Default if execution completes normally
+        try:
+            circuit_breaker_result = self._execute_batch_jobs(batches, parallelism, start, len(symbols))
+        except Exception as e:
+            # CRITICAL SESSION 105 FIX: If circuit breaker or any error in batch processing raises,
+            # ensure _finalize_execution_metrics() is still called to mark loader status FAILED
+            # and update database. Previously: exception would bypass finalization, leaving status RUNNING.
+            logger.error(f"[BATCH_JOBS] Exception during batch processing: {type(e).__name__}: {str(e)[:200]}")
+            circuit_breaker_result = {"status": "halted", "error": str(e)}
 
         self._stats["duration_sec"] = round(time.time() - start, 2)
         self._finalize_execution_metrics()
+
+        if circuit_breaker_result.get("status") != "success":
+            logger.debug("[BATCH_JOBS] Early halt triggered, returning circuit breaker result")
+            return circuit_breaker_result
 
         logger.info(
             "[%s] [%s] Done. fetched=%d dedup_skip=%d quality_drop=%d inserted=%d "
