@@ -1058,6 +1058,17 @@ def main() -> int:  # noqa: C901
                     f"completion_pct is {prices_completion_pct}. "
                     f"Cannot generate signals without complete price data."
                 )
+                # CRITICAL FIX SESSION 104: Mark FAILED before returning, don't leave status stuck at NOT_STARTED
+                # Without this, status stays NOT_STARTED forever and Phase 1 failsafe doesn't retry
+                try:
+                    status_manager = LoaderStatusManager(table_name="buy_sell_daily")
+                    status_manager.mark_failed(
+                        error_message=f"[DEPENDENCY] Cannot generate signals: price_daily is not ready "
+                        f"(status={prices_status}, completion_pct={prices_completion_pct}). "
+                        f"Will retry when price_daily recovers."
+                    )
+                except Exception as e:
+                    logger.error(f"[STATUS] Could not mark buy_sell_daily FAILED: {e}")
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
         logger.error(
@@ -1103,6 +1114,16 @@ def main() -> int:  # noqa: C901
                     f"[DEPENDENCY] technical_data_daily is {tech_data_age}+ days old (data: {tech_data_date}, "
                     f"last trading day: {last_trading_day}) - too stale for signal generation"
                 )
+                # CRITICAL FIX SESSION 104: Mark FAILED before returning
+                try:
+                    status_manager = LoaderStatusManager(table_name="buy_sell_daily")
+                    status_manager.mark_failed(
+                        error_message=f"[DEPENDENCY] Cannot generate signals: technical_data_daily is stale "
+                        f"(data from {tech_data_date}, {tech_data_age}+ days old). "
+                        f"Will retry when technical_data_daily recovers."
+                    )
+                except Exception as e:
+                    logger.error(f"[STATUS] Could not mark buy_sell_daily FAILED: {e}")
                 return 1
 
             if not symbols:
@@ -1151,6 +1172,15 @@ def main() -> int:  # noqa: C901
                     f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% "
                     f"({tech_symbol_count}/{denominator} price-covered symbols) - below 73% threshold"
                 )
+                # CRITICAL FIX SESSION 104: Mark FAILED before returning
+                try:
+                    status_manager = LoaderStatusManager(table_name="buy_sell_daily")
+                    status_manager.mark_failed(
+                        error_message=f"[DEPENDENCY] Cannot generate signals: technical_data_daily coverage is insufficient "
+                        f"({coverage_pct}%, need >=73%). Will retry when technical_data_daily coverage improves."
+                    )
+                except Exception as e:
+                    logger.error(f"[STATUS] Could not mark buy_sell_daily FAILED: {e}")
                 return 1
 
             logger.info(
