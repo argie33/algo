@@ -479,14 +479,7 @@ def run_pipeline(pipeline_name: str) -> int:
             assert proc.stdout is not None
             reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=True)
             reader_thread.start()
-
-            # CRITICAL FIX SESSION 102 #6: Add safety margin to scheduler timeout
-            # The loader's internal SIGALRM/Timer uses LOADER_TIMEOUT env var (set above).
-            # The scheduler's proc.wait(timeout) is the ultimate safety net.
-            # Ensure scheduler timeout > loader timeout so loader's internal timeout fires FIRST.
-            scheduler_timeout = timeout * 1.1  # 10% safety margin
-            scheduler_timeout_str = f"{int(scheduler_timeout)}s"
-
+            scheduler_timeout = int(timeout * 1.1)  # 10% safety margin so loader's SIGALRM fires first
             try:
                 returncode = proc.wait(timeout=scheduler_timeout)
             except subprocess.TimeoutExpired:
