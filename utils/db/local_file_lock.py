@@ -58,11 +58,17 @@ class FileLockManager:
         CRITICAL FIX: Windows file deletion can fail (WinError 32) during __del__ of crashed runs,
         leaving stale locks. Auto-cleanup needs to handle both:
         1. Content-based expiry: Lock has explicit expiry timestamp in content
-        2. File-age fallback: If lock file is > 2x lock_duration old, assume it's stale (process crashed)
+        2. File-age fallback: If lock file is > 30min old, assume it's stale (process crashed)
+
+        SESSION 113 FIX: Changed stale threshold from 2x lock_duration (10min) to 30min.
+        Reason: Friday night crashes need to be cleaned up by Saturday morning to prevent
+        cascading 2-3 day data staleness (momentum → stability → quality → growth metrics).
+        Lock file persisting >10min indicates process is definitely dead (normal runtime <5min).
         """
         try:
             now = datetime.now(timezone.utc)
-            stale_threshold = now - timedelta(seconds=self.lock_duration_seconds * 2)
+            # Use 30-minute timeout for stale detection (not 2x lock_duration)
+            stale_threshold = now - timedelta(seconds=1800)
 
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:

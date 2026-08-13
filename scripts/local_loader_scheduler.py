@@ -718,15 +718,72 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
     return 0
 
 
+def _clean_all_locks() -> int:
+    """Clean all stale lock files (SESSION 113 FIX: emergency manual override).
+
+    Used when loaders are cascading FAILED due to stale locks from crashed processes.
+    Removes all lock files older than 30 seconds (most loaders complete in <5min).
+    """
+    try:
+        import time as time_module
+
+        lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
+        if not lock_dir.exists():
+            print("[LOCAL_SCHEDULER] No lock directory found - nothing to clean")
+            return 0
+
+        stale_threshold_seconds = 30  # Any lock >30s old is suspicious for normal operation
+        now = time_module.time()
+        cleaned_locks = []
+
+        for lock_file in lock_dir.glob("*.lock"):
+            lock_age_seconds = now - lock_file.stat().st_mtime
+            if lock_age_seconds > stale_threshold_seconds:
+                try:
+                    lock_file.unlink()
+                    cleaned_locks.append(lock_file.name)
+                except Exception as e:
+                    print(
+                        f"[LOCAL_SCHEDULER] WARNING: Could not delete {lock_file.name}: {e}",
+                        file=sys.stderr,
+                    )
+
+        if cleaned_locks:
+            print(
+                f"[LOCAL_SCHEDULER] Cleaned {len(cleaned_locks)} lock file(s) "
+                f"(older than 30s): {', '.join(cleaned_locks)}"
+            )
+            return 0
+        else:
+            print("[LOCAL_SCHEDULER] No stale locks found (all <30s old)")
+            return 0
+    except Exception as e:
+        print(f"[LOCAL_SCHEDULER] ERROR during lock cleanup: {e}", file=sys.stderr)
+        return 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="Local loader scheduler")
     parser.add_argument(
         "--now",
         type=str,
-        required=True,
         help="Run this pipeline immediately (morning|metrics|signals)",
     )
+    parser.add_argument(
+        "--clean-locks",
+        action="store_true",
+        help="SESSION 113 FIX: Remove all stale lock files (emergency override for cascading failures)",
+    )
     args = parser.parse_args()
+
+    # Handle --clean-locks flag
+    if args.clean_locks:
+        return _clean_all_locks()
+
+    # Require --now if not cleaning locks
+    if not args.now:
+        parser.error("Either --now or --clean-locks is required")
+        return 1
 
     # CRITICAL: Prevent concurrent scheduler invocations to avoid redundant loader runs
     # A single global scheduler lock ensures only one instance can run at a time
