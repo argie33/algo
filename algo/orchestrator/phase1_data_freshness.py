@@ -126,7 +126,7 @@ def _cleanup_stuck_database_sessions(max_idle_hours: int = 1) -> int:
 
 
 def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> list[str]:
-    """Detect RUNNING loaders stuck for >N minutes and auto-fail them.
+    """Detect RUNNING or NOT_STARTED loaders stuck for >N minutes and auto-fail them.
 
     CRITICAL FIX (Session 82): Fixes the "stuck RUNNING for days" Monday failure sequence:
     - Friday: Loader times out → marked RUNNING, process dies
@@ -141,12 +141,17 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> 
     timeout budget, detecting stuck loaders faster allows more time for actual recovery
     attempts instead of false negatives (hung but still marked RUNNING blocking Phase 1).
 
+    SESSION 106 FIX: Also detect loaders stuck NOT_STARTED after >N minutes. If a subprocess
+    crashes before calling mark_running(), status stays NOT_STARTED. Failsafe retry won't retry
+    loaders in NOT_STARTED (only retries FAILED/INCOMPLETE), so stuck NOT_STARTED loaders never
+    get marked for retry unless detected here.
+
     This function runs at Phase 1 startup to detect crashed loaders that were never
-    properly marked FAILED. A loader stuck RUNNING for >2 min with no recent
+    properly marked FAILED. A loader stuck RUNNING or NOT_STARTED for >2 min with no recent
     status update almost certainly crashed (no active process checking in on it).
 
     Args:
-        stale_threshold_minutes: Mark RUNNING if last_updated is older than this (default 2, Session 94)
+        stale_threshold_minutes: Mark as FAILED if last_updated is older than this (default 2, Session 94)
 
     Returns:
         List of table names that were recovered (marked FAILED)
@@ -154,18 +159,19 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> 
     recovered = []
     try:
         with DatabaseContext("read") as cur:
+            # Check for both RUNNING and NOT_STARTED loaders stuck for >threshold_minutes
             cur.execute(f"""
-                SELECT table_name, last_updated
+                SELECT table_name, last_updated, status
                 FROM data_loader_status
-                WHERE status = 'RUNNING'
+                WHERE (status = 'RUNNING' OR status = 'NOT_STARTED')
                   AND last_updated < CURRENT_TIMESTAMP - INTERVAL '{stale_threshold_minutes} minutes'
                 ORDER BY last_updated ASC
             """)
             stale_loaders = cur.fetchall()
 
-            for table_name, last_updated in stale_loaders:
+            for table_name, last_updated, status in stale_loaders:
                 error_msg = (
-                    f"[PHASE 1 STARTUP] Auto-failed stale RUNNING loader "
+                    f"[PHASE 1 STARTUP] Auto-failed stale {status} loader "
                     f"(stuck for {stale_threshold_minutes}+ min since {last_updated}). "
                     f"Likely crashed with no process alive. Will retry via failsafe."
                 )
@@ -178,12 +184,12 @@ def _detect_and_fail_stale_running_loaders(stale_threshold_minutes: int = 2) -> 
 
             if recovered:
                 logger.info(
-                    f"[PHASE 1 STARTUP] Recovered {len(recovered)} stale RUNNING loader(s): {', '.join(set(recovered))}. "
+                    f"[PHASE 1 STARTUP] Recovered {len(recovered)} stale RUNNING/NOT_STARTED loader(s): {', '.join(set(recovered))}. "
                     f"Will retry via failsafe mechanism."
                 )
     except Exception as e:
         logger.warning(
-            f"[PHASE 1 STARTUP] Could not detect stale RUNNING loaders (non-fatal): {e}. "
+            f"[PHASE 1 STARTUP] Could not detect stale RUNNING/NOT_STARTED loaders (non-fatal): {e}. "
             "Proceeding with normal Phase 1 flow."
         )
 

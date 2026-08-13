@@ -652,7 +652,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # SESSION 106 FIX: Check for upstream dependency failures before retrying downstream loaders
         # If upstream loaders (prices, technical_data) are still failing, don't retry downstream
         # (buy_sell_daily, stock_scores) because they'll just fail again - wait for upstream to fix first
-        upstream_failed = {t for t in failed_loaders_to_retry}
+        upstream_failed = set(failed_loaders_to_retry)
         dependency_map = {
             "buy_sell_daily": {"price_daily", "technical_data_daily"},
             "stock_scores": {"price_daily", "technical_data_daily"},
@@ -707,13 +707,43 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         try:
             from utils.loaders.status_manager import reap_stale_running_loaders
 
-            reaped_count = reap_stale_running_loaders()
-            if reaped_count > 0:
-                logger.info(f"[PHASE 1 FAILSAFE LOCAL] Reaped {reaped_count} stale running loader(s) before retry loop")
+            reaped_tables = reap_stale_running_loaders()
+            if len(reaped_tables) > 0:
+                logger.info(
+                    f"[PHASE 1 FAILSAFE LOCAL] Reaped {len(reaped_tables)} stale running loader(s) before retry loop"
+                )
         except Exception as reap_err:
             logger.warning(
                 f"[PHASE 1 FAILSAFE LOCAL] Failed to reap stale loaders: {reap_err}. Proceeding with retries anyway."
             )
+
+        # SESSION 106 FIX #7: Check dependencies before retry - avoid cascading failures
+        # When price_daily fails, don't retry buy_sell_daily (depends on price_daily)
+        # Filter out downstream loaders if their upstream dependencies are still failing
+        upstream_failed = {t for t in failed_loaders_to_retry}
+        dependency_map = {
+            "buy_sell_daily": {"price_daily", "technical_data_daily"},
+            "stock_scores": {"price_daily", "technical_data_daily"},
+            "trend_template_data": {"price_daily"},
+            "signal_quality_scores": {"buy_sell_daily", "stock_scores"},
+        }
+        filtered_loaders = []
+        for table_name, loader_key, age_in_days in all_loaders_to_retry:
+            deps = dependency_map.get(table_name, set())
+            if deps and deps & upstream_failed:
+                skipped_deps = deps & upstream_failed
+                logger.info(
+                    f"[PHASE 1 FAILSAFE LOCAL] Skipping {table_name}: upstream dependency "
+                    f"{skipped_deps} still failing. Will retry after upstream recovers."
+                )
+                results["incomplete_loaders"].append(table_name)
+                continue
+            filtered_loaders.append((table_name, loader_key, age_in_days))
+
+        all_loaders_to_retry = filtered_loaders
+        if not all_loaders_to_retry:
+            logger.info("[PHASE 1 FAILSAFE LOCAL] No independent loaders to retry (all blocked by dependencies)")
+            return results
 
         # Run each loader (FAILED or stale) locally
         for table_name, loader_key, age_in_days in all_loaders_to_retry:
@@ -907,10 +937,10 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
             try:
                 from utils.loaders.status_manager import reap_stale_running_loaders
 
-                reaped_count = reap_stale_running_loaders()
-                if reaped_count > 0:
+                reaped_tables = reap_stale_running_loaders()
+                if len(reaped_tables) > 0:
                     logger.info(
-                        f"[PHASE 1 FAILSAFE LOCAL] Reaped {reaped_count} stale running loader(s) after {table_name} retry"
+                        f"[PHASE 1 FAILSAFE LOCAL] Reaped {len(reaped_tables)} stale running loader(s) after {table_name} retry"
                     )
             except Exception as reap_err:
                 logger.debug(f"[PHASE 1 FAILSAFE LOCAL] Reaper check between retries failed (non-fatal): {reap_err}")
