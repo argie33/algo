@@ -44,6 +44,11 @@ class RiskMetricsLoader(OptimalLoader):
     Uses OptimalLoader's parallelism but processes all metrics per symbol.
     """
 
+    # SESSION 113 FIX: Declare all output tables so runner.py marks them all COMPLETED/FAILED
+    # This loader writes to both momentum_metrics (primary) and stability_metrics (secondary).
+    # Without this, runner.py would only mark momentum_metrics, leaving stability_metrics stuck FAILED.
+    output_tables = ["momentum_metrics", "stability_metrics"]
+
     table_name = "momentum_metrics"  # Primary table for watermark tracking
     primary_key = ("symbol",)
     watermark_field = "created_at"
