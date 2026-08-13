@@ -695,9 +695,28 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 status = "empty"
             else:
                 data_date = freshness_reference.date() if hasattr(freshness_reference, "date") else freshness_reference
+
+                # Calculate elapsed time for all tables (used below for both daily and weekly/biweekly)
+                utc_result_for_age = normalize_to_utc_datetime(freshness_reference, naive_tz)
+                age_hours = None
+                if isinstance(utc_result_for_age, datetime):
+                    age_hours = (datetime.now(timezone.utc) - utc_result_for_age).total_seconds() / 3600
+
                 if max_age <= 1:
-                    # Daily tables: use trading-day-aware comparison
-                    status = "stale" if data_date < expected_date else "ok"
+                    # Daily tables: use elapsed-time thresholds to match monitor_data_staleness.py
+                    # This fixes false-positive "OK" for data from yesterday that's 40+ hours old.
+                    # Thresholds: fresh <24h, stale 24-48h, critical >48h (see CLAUDE.md)
+                    if age_hours is not None:
+                        # Use elapsed time for accurate freshness
+                        if age_hours > 48:
+                            status = "critical"  # Will be override to "error" below if critical table
+                        elif age_hours > 24:
+                            status = "stale"
+                        else:
+                            status = "ok"
+                    else:
+                        # Fallback to date-only comparison if elapsed time unavailable
+                        status = "stale" if data_date < expected_date else "ok"
                 else:
                     # Weekly/biweekly tables: use simple calendar-day age threshold
                     status = "stale" if (today - data_date).days > max_age else "ok"
@@ -758,14 +777,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 elif status == "ok" and table_name in critical_tables:
                     status = "error"  # Critical loader with repeated failures = error
 
-            # Calculate age in hours for display - same last-genuine-success reference as
-            # status above, so the displayed "Age" can't disagree with the ok/stale verdict.
-            utc_result = normalize_to_utc_datetime(freshness_reference, naive_tz)
-            if isinstance(utc_result, datetime):
-                age_h = (datetime.now(timezone.utc) - utc_result).total_seconds() / 3600
-            else:
-                # data_unavailable marker returned
-                age_h = None
+            # age_hours already calculated above in status determination
+            # Reuse it for display to ensure consistency between freshness verdict and displayed age
+            age_h = age_hours
 
             # Determine role based on criticality and freshness requirement
             if rule is not None and rule.get("critical"):
@@ -778,6 +792,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # Bump role to CRIT if loader has repeated failures (will fail again)
             if isinstance(consecutive_failures, (int, float)) and consecutive_failures >= 2:
                 role = "CRIT"
+
+            # Map "critical" status (>48h old) to "error" for API consistency
+            # Dashboard may not expect "critical" as a distinct status value
+            if status == "critical":
+                status = "error"
 
             current_count = summary.get(status)
             if current_count is None:
