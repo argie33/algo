@@ -841,16 +841,18 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     # Check if this loader has a main() function and no OptimalLoader class
                     from utils.optimal_loader import OptimalLoader
 
-                    has_main_func = hasattr(loader_module, "main") and callable(loader_module.main)
-                    has_loader_class = any(
-                        isinstance(getattr(loader_module, attr), type)
-                        and issubclass(getattr(loader_module, attr), OptimalLoader)
-                        and getattr(loader_module, attr) is not OptimalLoader
-                        for attr in dir(loader_module)
-                    )
-
-                    if has_main_func and not has_loader_class:
-                        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using main() path (no Loader class found)")
+                    # Force main() path for financial_statements even though it also has Loader class
+                    if loader_key == "financial_statements" or (
+                        hasattr(loader_module, "main")
+                        and callable(loader_module.main)
+                        and not any(
+                            isinstance(getattr(loader_module, attr), type)
+                            and issubclass(getattr(loader_module, attr), OptimalLoader)
+                            and getattr(loader_module, attr) is not OptimalLoader
+                            for attr in dir(loader_module)
+                        )
+                    ):
+                        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using main() path")
                         # CRITICAL FIX: Save/restore sys.argv to prevent argparse from seeing orchestrator arguments
                         # The loader's run_loader() calls argparse.parse_args() which reads sys.argv[1:].
                         # If we don't protect sys.argv, the loader sees --morning --force from orchestrator

@@ -1308,10 +1308,15 @@ def run(  # noqa: C901
             # Moved market_exposure_daily here (Session 239): loaded by separate EOD loader at 4:05 PM,
             # not orchestrator. Phase 5 reads via read_market_regime(date <= eval_date) so 1-day-old
             # data works fine. Morning orchestrator runs would false-halt without this move.
+            # SESSION 116 FIX: Added financial_statements and company_info_sec for visibility.
+            # Previously: Only checked as indirect dependencies (via value_metrics/metrics).
+            # Now: Direct freshness check warns if stale, allowing early detection.
             warn_tables = {
                 "market_exposure_daily": "Market exposure limits (EOD loader)",
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "sector_ranking": "Sector rankings",
+                "financial_statements": "Financial statement data (SESSION 116 FIX: for visibility)",
+                "company_info_sec": "Company SEC information (SESSION 116 FIX: for visibility)",
                 "growth_metrics": "Growth metrics (enrichment only)",
                 "quality_metrics": "Quality metrics (enrichment only)",
                 "value_metrics": "Value metrics (enrichment only)",
@@ -1347,6 +1352,11 @@ def run(  # noqa: C901
                 "value_metrics": "updated_at",
                 "positioning_metrics": "updated_at",
                 "stability_metrics": "updated_at",
+                # SESSION 116 FIX: Add financial_statements & company_info_sec for visibility
+                # These are SEC/financial data without daily "date" columns; use "updated_at"
+                # to track when loaders last ran. Allows early detection of stale financial data.
+                "financial_statements": "updated_at",
+                "company_info_sec": "updated_at",
                 # CRITICAL FIX (2026-08-05): Add explicit date column for technical_data_daily
                 # (was being skipped entirely from freshness checks). Uses standard "date" column
                 # like price_daily, matching when technical indicators were computed/loaded.
