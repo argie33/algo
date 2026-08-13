@@ -720,7 +720,7 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
         # SESSION 106 FIX #7: Check dependencies before retry - avoid cascading failures
         # When price_daily fails, don't retry buy_sell_daily (depends on price_daily)
         # Filter out downstream loaders if their upstream dependencies are still failing
-        upstream_failed = {t for t in failed_loaders_to_retry}
+        upstream_failed = set(failed_loaders_to_retry)
         dependency_map = {
             "buy_sell_daily": {"price_daily", "technical_data_daily"},
             "stock_scores": {"price_daily", "technical_data_daily"},
@@ -830,37 +830,65 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
                     )
                     loader_module = importlib.import_module(f"loaders.{module_name}")
 
-                    # Find the loader class in the module (handles edge cases like CurrentReports8KLoader)
-                    # First try to find any OptimalLoader subclass (primary pattern)
-                    from utils.optimal_loader import OptimalLoader
+                    # SESSION 107 FIX: Special case for financial_statements loader
+                    # This loader has LOADER_STATEMENT_TYPE="all" which fans out to multiple periods
+                    # (annual, quarterly, ttm). The class constructor requires specific periods,
+                    # so we must call the module's main() function instead of instantiating directly
+                    if loader_key == "financial_statements":
+                        # Call main() which handles LOADER_STATEMENT_TYPE="all" properly
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Using special main() path for financial_statements LOADER_STATEMENT_TYPE=all"
+                        )
+                        returncode = loader_module.main()
+                    else:
+                        # Find the loader class in the module (handles edge cases like CurrentReports8KLoader)
+                        # First try to find any OptimalLoader subclass (primary pattern)
+                        from utils.optimal_loader import OptimalLoader
 
-                    loader_class = None
-                    for attr_name in dir(loader_module):
-                        obj = getattr(loader_module, attr_name)
-                        if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
-                            loader_class = obj
-                            break
-
-                    # Fallback: if no OptimalLoader found, look for any class that looks like a loader
-                    # (e.g., VectorizedTechnicalLoader, legacy loaders that predate OptimalLoader, SecLoaderBase subclasses)
-                    if loader_class is None:
+                        loader_class = None
                         for attr_name in dir(loader_module):
                             obj = getattr(loader_module, attr_name)
-                            if isinstance(obj, type) and "Loader" in attr_name and obj.__module__.startswith("loaders"):
+                            if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
                                 loader_class = obj
-                                logger.info(f"[PHASE 1 FAILSAFE LOCAL] Using fallback loader class: {attr_name}")
                                 break
 
-                    if loader_class is None:
-                        raise RuntimeError(
-                            f"Could not find any Loader subclass in loaders.{module_name}. "
-                            f"Check that the loader file contains a proper Loader class."
+                        # Fallback: if no OptimalLoader found, look for any class that looks like a loader
+                        # (e.g., VectorizedTechnicalLoader, legacy loaders that predate OptimalLoader, SecLoaderBase subclasses)
+                        if loader_class is None:
+                            for attr_name in dir(loader_module):
+                                obj = getattr(loader_module, attr_name)
+                                if (
+                                    isinstance(obj, type)
+                                    and "Loader" in attr_name
+                                    and obj.__module__.startswith("loaders")
+                                ):
+                                    loader_class = obj
+                                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] Using fallback loader class: {attr_name}")
+                                    break
+
+                        if loader_class is None:
+                            raise RuntimeError(
+                                f"Could not find any Loader subclass in loaders.{module_name}. "
+                                f"Check that the loader file contains a proper Loader class."
+                            )
+
+                        # Direct instantiation
+                        loader = loader_class()
+
+                        # CRITICAL SESSION 107 FIX: Fetch active symbols instead of passing empty list
+                        # Previously: loader.run([]) loaded 0 symbols, completed "successfully" with no data
+                        # This caused stock_scores, buy_sell_daily, metrics to silently stay stale for 1-2 days
+                        # Now: fetch full symbol list so loader actually has data to process
+                        exclude_etfs = getattr(loader, "exclude_etfs_from_symbols", False)
+                        from utils.loaders.helpers import get_active_symbols
+
+                        symbols_to_load = get_active_symbols(timeout_secs=300, exclude_etfs=exclude_etfs)
+                        logger.info(
+                            f"[PHASE 1 FAILSAFE LOCAL] {table_name}: Fetched {len(symbols_to_load)} active symbols for in-process retry"
                         )
 
-                    # Direct instantiation
-                    loader = loader_class()
-                    result_status = loader.run([])  # Run for full universe
-                    returncode = 0 if result_status else 1
+                        result_status = loader.run(symbols_to_load)
+                        returncode = 0 if result_status else 1
 
                 except Exception as e:
                     logger.error(
