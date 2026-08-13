@@ -100,9 +100,12 @@ def _set_timeout_for_loader(loader_class: type) -> None:
     except Exception as config_err:
         logger.warning(
             f"[CONFIG] Could not load timeout from loader_timeout_config.py for {loader_class}: {config_err}. "
-            f"Using safe conservative default of 4320s (1.2 hour = 3600s * 1.2 for consistency)."
+            f"Using fallback timeout of 86400s (24 hours). This is a catch-all for any loader that couldn't be configured."
         )
-        LOADER_TIMEOUT_SECONDS = 4320  # 1.2 hours as fallback (safe for most loaders, includes 20% margin)
+        # SESSION 108 FIX: Use 24-hour (86400s) fallback instead of 72-minute
+        # The old 4320s default was too short and caused premature timeouts on slow loaders
+        # 24 hours is safe for all real-world loaders (longest is prices at 1440m = 24h anyway)
+        LOADER_TIMEOUT_SECONDS = 86400
 
 
 def _timeout_handler(_signum: int, _frame: object) -> None:
