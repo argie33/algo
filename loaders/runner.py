@@ -34,31 +34,71 @@ logger = logging.getLogger(__name__)
 # Session 278 audit found 2 hung loaders (4.6h, 2.0h stuck) that prevented orchestrator from proceeding
 # CRITICAL FIX 2026-08-02: Make timeout configurable instead of hardcoded
 # CRITICAL FIX 2026-08-13: Read LOADER_TIMEOUT (set by Terraform in seconds) not LOADER_TIMEOUT_MINUTES
-# Default 7200s (2 hours) to accommodate slow SEC API fetches like earnings_calendar_sec
-# Terraform task definitions set per-loader timeout (300s-5400s range); this is the safety ceiling
-try:
-    timeout_seconds_env = os.environ.get("LOADER_TIMEOUT", "7200")
-    timeout_seconds = int(timeout_seconds_env)
-    if timeout_seconds <= 0:
-        raise ValueError(f"LOADER_TIMEOUT must be positive, got {timeout_seconds}")
-    LOADER_TIMEOUT_SECONDS = timeout_seconds
-    # Log the timeout for visibility when debugging
-    debug_val = os.environ.get("LOADER_TIMEOUT_DEBUG")
-    if debug_val and debug_val.lower() in ("1", "true", "yes"):
-        logger.info(
-            f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) from env var LOADER_TIMEOUT={timeout_seconds_env}"
+# SESSION 107 FIX: Default now comes from loader_timeout_config.py, not hardcoded 7200s
+# This prevents timeout race conditions where env var not set uses 2h while config specifies 24h (prices)
+LOADER_TIMEOUT_SECONDS = None  # Will be set per-loader by run_loader() after instantiating loader_class
+
+
+def _set_timeout_for_loader(loader_class: type) -> None:
+    """Set LOADER_TIMEOUT_SECONDS based on actual loader's configured timeout.
+
+    This runs once in run_loader() after loader_class is known (at line 110).
+    Reads from loaders/loader_timeout_config.py instead of using hardcoded 7200s default.
+
+    CRITICAL: Prevents race where env var missing → 2h default, but config specifies 24h (prices).
+    Session 93+ has repeatedly proven that timeout mismatches cause Monday cascades.
+    """
+    global LOADER_TIMEOUT_SECONDS
+    if LOADER_TIMEOUT_SECONDS is not None:
+        return  # Already set (shouldn't happen, but guard against double-call)
+
+    # CRITICAL FIX SESSION 107: Check LOADER_TIMEOUT env var first (for Terraform override),
+    # then fall back to per-loader config, not hardcoded 7200s default
+    timeout_seconds_env = os.environ.get("LOADER_TIMEOUT")
+    if timeout_seconds_env:
+        try:
+            timeout_seconds = int(timeout_seconds_env)
+            if timeout_seconds <= 0:
+                raise ValueError(f"LOADER_TIMEOUT must be positive, got {timeout_seconds}")
+            LOADER_TIMEOUT_SECONDS = timeout_seconds
+            debug_val = os.environ.get("LOADER_TIMEOUT_DEBUG")
+            if debug_val and debug_val.lower() in ("1", "true", "yes"):
+                logger.info(
+                    f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) from env var LOADER_TIMEOUT={timeout_seconds_env}"
+                )
+            return
+        except ValueError as e:
+            logger.warning(f"[CONFIG] Invalid LOADER_TIMEOUT env var: {e}. Falling back to per-loader config.")
+
+    # CRITICAL FIX SESSION 107: Fall back to loader_timeout_config.py, not hardcoded 7200s
+    # This respects the actual timeouts configured for each loader (prices: 1440m, company_info: 540m, etc.)
+    try:
+        from loaders.loader_timeout_config import get_loader_timeout
+
+        loader_table_name = getattr(loader_class, "table_name", "unknown")
+        LOADER_TIMEOUT_SECONDS = get_loader_timeout(loader_table_name)
+        debug_val = os.environ.get("LOADER_TIMEOUT_DEBUG")
+        if debug_val and debug_val.lower() in ("1", "true", "yes"):
+            logger.info(
+                f"[CONFIG] LOADER_TIMEOUT set to {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m) from loader_timeout_config.py for {loader_table_name}"
+            )
+    except Exception as config_err:
+        logger.warning(
+            f"[CONFIG] Could not load timeout from loader_timeout_config.py for {loader_class}: {config_err}. "
+            f"Using safe conservative default of 3600s (1 hour)."
         )
-except ValueError as e:
-    logger.warning(f"[CONFIG] Invalid LOADER_TIMEOUT: {e}. Using default 7200 seconds (2 hours).")
-    LOADER_TIMEOUT_SECONDS = 7200
-    logger.info(f"[CONFIG] Final LOADER_TIMEOUT_SECONDS = {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60}m)")
+        LOADER_TIMEOUT_SECONDS = 3600  # 1 hour as fallback (safe for most loaders)
 
 
 def _timeout_handler(_signum: int, _frame: object) -> None:
     """Signal handler for SIGALRM timeout. Raises RuntimeError to interrupt hung loader."""
-    raise RuntimeError(
-        f"Loader execution exceeded timeout of {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60} minutes)"
-    )
+    # LOADER_TIMEOUT_SECONDS must be non-None here (set by _setup_timeout before signal handler installed)
+    if LOADER_TIMEOUT_SECONDS is None:
+        timeout_msg = "Loader execution exceeded timeout (timeout value unknown)"
+    else:
+        timeout_str = f"{LOADER_TIMEOUT_SECONDS // 60} minutes"
+        timeout_msg = f"Loader execution exceeded timeout of {LOADER_TIMEOUT_SECONDS}s ({timeout_str})"
+    raise RuntimeError(timeout_msg)
 
 
 def _force_exit_on_timeout() -> None:
@@ -72,9 +112,9 @@ def _force_exit_on_timeout() -> None:
 
     active_threads = th.enumerate()
     thread_info = "; ".join(f"{t.name}(daemon={t.daemon})" for t in active_threads if not t.name.startswith("Timer"))
+    timeout_str = f"{LOADER_TIMEOUT_SECONDS // 60} minute" if LOADER_TIMEOUT_SECONDS else "N/A"
     logger.critical(
-        f"[TIMEOUT] Loader exceeded {LOADER_TIMEOUT_SECONDS // 60} minute timeout. "
-        f"Exiting forcefully. Active threads: {thread_info}"
+        f"[TIMEOUT] Loader exceeded {timeout_str} timeout. Exiting forcefully. Active threads: {thread_info}"
     )
     os._exit(1)
 
@@ -87,6 +127,11 @@ def _setup_timeout() -> None:
 
     SESSION 89 FIX: Improved timeout diagnostics for hung loaders
     """
+    # LOADER_TIMEOUT_SECONDS must be set by _set_timeout_for_loader() before this is called
+    if LOADER_TIMEOUT_SECONDS is None:
+        raise RuntimeError(
+            "[TIMEOUT] LOADER_TIMEOUT_SECONDS not set. Call _set_timeout_for_loader(loader_class) first."
+        )
     timeout_min = LOADER_TIMEOUT_SECONDS // 60
     timeout_sec = LOADER_TIMEOUT_SECONDS % 60
     if hasattr(signal, "SIGALRM"):
@@ -122,6 +167,8 @@ def run_loader(  # noqa: C901 -- pre-existing complexity debt, not introduced by
     Returns:
         Exit code: 0 on success, 1 if fail_rate > 5%.
     """
+    # SESSION 107 FIX: Set timeout based on loader's actual config, not hardcoded default
+    _set_timeout_for_loader(loader_class)
     _setup_timeout()
     socket.setdefaulttimeout(30.0)
 

@@ -57,6 +57,70 @@ from lambda_function import (  # noqa: E402
 )
 
 
+def _check_loader_freshness(run_type: str, now) -> None:
+    """Check if required loaders have run today and warn if not.
+
+    SESSION 107 FIX: Extracted from main() to reduce complexity (C901).
+    """
+    if run_type != "morning":
+        return
+
+    try:
+        from utils.db.context import DatabaseContext
+
+        with DatabaseContext("read") as cur:
+            # Check if morning pipeline loaders have run today (prices, technical, market_status, etc.)
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM data_loader_status
+                WHERE table_name IN ('price_daily', 'technical_data_daily', 'market_health_daily')
+                  AND DATE(last_updated) = %s
+                  AND status = 'COMPLETED'
+                """,
+                (now.date(),),
+            )
+            morning_loaders_count = cur.fetchone()[0]
+
+            # Check if metrics pipeline has run today (value_metrics, quality_metrics, etc.)
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM data_loader_status
+                WHERE table_name IN ('value_metrics', 'quality_metrics', 'growth_metrics', 'stability_metrics')
+                  AND DATE(last_updated) = %s
+                  AND status = 'COMPLETED'
+                """,
+                (now.date(),),
+            )
+            metrics_loaders_count = cur.fetchone()[0]
+
+            # Check if signals pipeline has run today (stock_scores, buy_sell_daily)
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM data_loader_status
+                WHERE table_name IN ('stock_scores', 'buy_sell_daily')
+                  AND DATE(last_updated) = %s
+                  AND status = 'COMPLETED'
+                """,
+                (now.date(),),
+            )
+            signals_loaders_count = cur.fetchone()[0]
+
+        if morning_loaders_count < 3:
+            print(f"  ⚠️  WARNING: MORNING pipeline incomplete ({morning_loaders_count}/3 loaders ran today)")
+            print("     Run before orchestrator: python scripts/local_loader_scheduler.py --now morning")
+        if metrics_loaders_count < 4:
+            print(f"  ⚠️  WARNING: METRICS pipeline incomplete ({metrics_loaders_count}/4 loaders ran today)")
+            print("     Run before orchestrator: python scripts/local_loader_scheduler.py --now metrics")
+        if signals_loaders_count < 2:
+            print(f"  ⚠️  WARNING: SIGNALS pipeline incomplete ({signals_loaders_count}/2 loaders ran today)")
+            print("     Run before orchestrator: python scripts/local_loader_scheduler.py --now signals")
+    except Exception as loader_check_err:
+        # Non-critical check - don't block orchestrator on check failure
+        print(
+            f"  Note: Could not check loader freshness ({type(loader_check_err).__name__}). Proceeding with orchestrator."
+        )
+
+
 def _find_todays_run(run_type: str, run_date) -> dict | None:
     """Return the most recent orchestrator_execution_log row for this run_type/run_date, if any.
 
@@ -209,6 +273,7 @@ def main() -> None:
                 continue
 
         print(f"Starting {run_type.upper()} orchestrator run...")
+        _check_loader_freshness(run_type, now)
 
         # Import and run orchestrator module
         try:

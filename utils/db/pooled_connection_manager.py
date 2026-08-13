@@ -285,6 +285,14 @@ class PooledConnectionManager:
     def release(self) -> None:
         """Release the connection back to the pool.
 
+        CRITICAL FIX (Session 108): Always rollback before returning to pool.
+        A loader failure left the connection in an aborted transaction state.
+        Returning it directly to the pool without rollback() poisons every
+        subsequent loader that gets that connection - they fail with
+        "transaction is aborted" even for simple read-only queries.
+        Friday failure → aborted conn returned to pool → Saturday/Sunday/Monday
+        cascading failures (root cause of Monday brittleness documented in memory).
+
         Safe to call multiple times (idempotent).
         """
         with self._lock:
@@ -297,6 +305,24 @@ class PooledConnectionManager:
 
                 pool = _get_connection_pool()
                 held_time = time.time() - self._acquired_at
+
+                # CRITICAL: Rollback any pending transaction before returning to pool
+                # This prevents "transaction is aborted" errors from poisoning the pool
+                try:
+                    self._conn.rollback()
+                    logger.debug(f"[{self.loader_name}] Rolled back transaction before pool return")
+                except Exception as rollback_err:
+                    logger.warning(
+                        f"[{self.loader_name}] Rollback before pool return failed: {rollback_err}. "
+                        "Closing connection instead to prevent poison."
+                    )
+                    try:
+                        self._conn.close()
+                    except Exception as close_err:
+                        logger.error(f"[{self.loader_name}] Failed to close connection: {close_err}")
+                    finally:
+                        self._conn = None
+                    return
 
                 try:
                     pool.putconn(self._conn)
