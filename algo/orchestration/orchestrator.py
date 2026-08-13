@@ -2281,6 +2281,23 @@ class Orchestrator:
         except Exception as cleanup_err:
             logger.warning(f"[LOCK_CLEANUP] Failed to cleanup stale locks: {cleanup_err}. Proceeding anyway.")
 
+        # CRITICAL SESSION 105 FIX: Also reap loaders stuck RUNNING at 0% for hours
+        # Lock files and status rows are separate - a crashed loader leaves both stuck.
+        # This marks them FAILED so Phase 1 doesn't wait for ghosts and failsafe can retry.
+        # Session 104 found: price_daily RUNNING 0% for 9min, etf_price_monthly RUNNING 0% for 130min,
+        # company_info_sec RUNNING 0% for 162min. These were never reaped, blocking retry.
+        logger.info("[STALE_LOADER_REAPER] Checking for loaders stuck RUNNING at 0%...")
+        try:
+            from utils.loaders.status_manager import reap_stale_running_loaders
+
+            reaped = reap_stale_running_loaders()
+            if reaped:
+                logger.warning(f"[STALE_LOADER_REAPER] Reaped {len(reaped)} stuck loaders: {reaped}")
+            else:
+                logger.info("[STALE_LOADER_REAPER] No stale RUNNING loaders found (good)")
+        except Exception as reaper_err:
+            logger.warning(f"[STALE_LOADER_REAPER] Failed to reap stale loaders: {reaper_err}. Proceeding anyway.")
+
     def _wait_for_loaders_before_execution(self) -> None:
         """Wait for critical loaders to complete before executor runs."""
         logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")

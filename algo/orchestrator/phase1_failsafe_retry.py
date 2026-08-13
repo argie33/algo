@@ -964,6 +964,11 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
             # > 1 hour old. FAILED loaders should ALWAYS be retried regardless of age,
             # because they represent explicit failures needing recovery. Only incomplete
             # loaders (low completion_pct) are time-gated to avoid hammering ancient runs.
+            #
+            # CRITICAL FIX 2026-08-13: Include NOT_STARTED status in retry list.
+            # NOT_STARTED status with an old execution_started timestamp indicates the
+            # subprocess crashed before mark_running() was called (e.g., buy_sell_daily
+            # stuck at NOT_STARTED for 34 hours). Must be retried immediately like FAILED.
             cur.execute("""
                 SELECT
                     table_name,
@@ -976,7 +981,7 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                     last_updated
                 FROM data_loader_status
                 WHERE (
-                    UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT')  -- FAILED/TIMEOUT loaders always retried (CRITICAL FIX 2026-08-13)
+                    UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT', 'NOT_STARTED')  -- NOT_STARTED indicates crashed subprocess before mark_running()
                     OR (completion_pct < 85.0 AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour')  -- Incomplete only if recent
                 )
                 ORDER BY completion_pct ASC, table_name
@@ -995,6 +1000,17 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                 _last_updated,
             ) in incomplete_rows:
                 is_crit = is_critical(table_name)
+
+                # CRITICAL FIX 2026-08-13: Log NOT_STARTED loaders with high completion_pct
+                # This is a smoking gun for subprocess crash before mark_running() was called.
+                # Completion_pct may show high value (from previous run) but status is NOT_STARTED
+                # indicating this run's process never initialized. Must retry immediately.
+                if _status and _status.upper() == "NOT_STARTED" and completion_pct and completion_pct > 50:
+                    logger.warning(
+                        f"[PHASE 1 FAILSAFE] CRITICAL SYMPTOM: {table_name} status=NOT_STARTED "
+                        f"but completion_pct={completion_pct:.1f}% (subprocess likely crashed before mark_running). "
+                        f"Forcing retry to recover."
+                    )
 
                 # Fail-fast if symbol counts are invalid for CRITICAL loaders only.
                 # Non-critical loaders (aaii_sentiment, analyst_sentiment, etc.) may not track
@@ -1313,15 +1329,20 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
             # Prices needs 1440m (24h), not 15m. The configured timeout prevents premature
             # subprocess timeout that makes retry impossible for long loaders.
             # Use the loader_key (not table_name) to look up timeout.
+            # SESSION 96 CRITICAL FIX: Fail-fast if loader not found - silent fallback to 3600s
+            # was truncating 180min loaders (company_info_sec), causing cascading Monday failures.
             timeouts = get_loader_timeouts()
             if loader_key not in timeouts:
                 # Fallback to trying the table name directly in case registry has both
                 if loader_name in timeouts:
                     loader_timeout_seconds = timeouts[loader_name]
                 else:
-                    # Table not registered - use conservative fallback
-                    logger.warning(f"[PHASE 1 FAILSAFE] {loader_key} not in timeout config, using 3600s fallback")
-                    loader_timeout_seconds = 3600
+                    # Loader not registered - this is a configuration error, raise rather than silently default
+                    raise RuntimeError(
+                        f"[PHASE 1 FAILSAFE] Loader {loader_key} (table {loader_name}) not found in timeout config. "
+                        f"Must be registered in loaders/loader_timeout_config.py. "
+                        f"Registered loaders: {sorted(timeouts.keys())}"
+                    )
             else:
                 loader_timeout_seconds = timeouts[loader_key]
 
