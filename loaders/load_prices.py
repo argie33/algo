@@ -1818,7 +1818,15 @@ class PriceLoader(OptimalLoader):
         # above (total_estimated_sec > task_timeout_sec) as the actual "will miss deadline"
         # gate, instead of treating batch_size < 100 - AWS's own conservative starting
         # point (see __init__) - as an automatic halt trigger regardless of pace.
-        will_miss_deadline = batch_size_shrunk and projected_total_sec > task_timeout_sec
+
+        # SESSION 100 FIX: For completion >90%, use much higher safety margin before halting.
+        # At 92% with 5000 symbols, projection can be pessimistic (batch shrinking causes
+        # per-symbol time to increase). Requiring 1.5x timeout buffer prevents premature
+        # halt when we're nearly done (only 400 symbols remaining).
+        if completion_pct > 0.90:
+            will_miss_deadline = batch_size_shrunk and projected_total_sec > (task_timeout_sec * 1.5)
+        else:
+            will_miss_deadline = batch_size_shrunk and projected_total_sec > task_timeout_sec
 
         if batch_size_shrunk and not will_miss_deadline:
             pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"

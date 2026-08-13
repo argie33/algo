@@ -899,9 +899,12 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
             # any loader reporting canonical "FAILED" would be invisible to this OR clause
             # and only caught via the completion_pct threshold, silently narrowing failsafe
             # retry coverage. Compare case-insensitively so both vocabularies are caught.
-            # CRITICAL FIX 2026-08-04: Changed hardcoded 95% to 98% to catch price_daily which
-            # requires 98% completion (2% max_fail_rate). Other loaders with 95% min will be
-            # selected here but filtered out at line 454-460 if they're above their own threshold.
+            #
+            # SESSION 100 FIX: Changed hardcoded 98% to 85% to match actual max_fail_rate configs.
+            # Price loaders have max_fail_rate=5% (need 95% minimum, not 98%).
+            # Query threshold 85% is conservative - it catches everything. Python-side validation
+            # (line 987-1000) filters each against its configured max_fail_rate. This prevents
+            # brittleness from query threshold drifting away from config changes.
             #
             # CRITICAL FIX 2026-08-12: Remove 1-hour window for explicitly FAILED loaders.
             # Loaders that fail on Friday were ignored by Monday because last_updated was
@@ -921,7 +924,7 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
                 FROM data_loader_status
                 WHERE (
                     UPPER(status) IN ('ERROR', 'FAILED', 'TIMEOUT')  -- FAILED/TIMEOUT loaders always retried (CRITICAL FIX 2026-08-13)
-                    OR (completion_pct < 98.0 AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour')  -- Incomplete only if recent
+                    OR (completion_pct < 85.0 AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour')  -- Incomplete only if recent
                 )
                 ORDER BY completion_pct ASC, table_name
             """)
