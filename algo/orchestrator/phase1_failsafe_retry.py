@@ -1240,29 +1240,39 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
 
     # In local mode, invoke loader directly via subprocess instead of Lambda/ECS
     if os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes"):
-        logger.info(
-            f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - invoking {loader_name} directly via subprocess"
-        )
+        logger.info(f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - invoking {loader_name} directly via subprocess")
         try:
+            # SESSION 103 FIX: Use configured loader timeout instead of hardcoded 900s.
+            # Prices needs 1440m (24h), not 15m. The configured timeout prevents premature
+            # subprocess timeout that makes retry impossible for long loaders.
+            loader_timeout_seconds = get_loader_timeouts().get(loader_name, 3600)
+            subprocess_timeout = int(loader_timeout_seconds * 1.25)  # 25% safety margin
+            logger.info(
+                f"[PHASE 1 FAILSAFE] Using configured timeout for {loader_name}: "
+                f"{loader_timeout_seconds}s ({loader_timeout_seconds // 60}m), "
+                f"subprocess timeout: {subprocess_timeout}s"
+            )
+
             result = subprocess.run(
                 [sys.executable, "scripts/run_loader.py", loader_name, "--force-refresh"],
                 capture_output=True,
                 text=True,
-                timeout=900,  # 15 minute timeout for loader invocation
+                timeout=subprocess_timeout,
             )
             if result.returncode == 0:
                 logger.info(f"[PHASE 1 FAILSAFE] Local loader {loader_name} invoked successfully")
                 return True
             else:
                 error_msg = result.stderr if result.stderr else result.stdout
-                logger.error(
-                    f"[PHASE 1 FAILSAFE] Local loader {loader_name} invocation failed: {error_msg[:500]}"
-                )
+                logger.error(f"[PHASE 1 FAILSAFE] Local loader {loader_name} invocation failed: {error_msg[:500]}")
                 raise RuntimeError(
                     f"[PHASE 1 FAILSAFE] Local loader {loader_name} failed with return code {result.returncode}"
                 )
         except subprocess.TimeoutExpired as e:
-            logger.error(f"[PHASE 1 FAILSAFE] Local loader {loader_name} timed out after 900s")
+            logger.error(
+                f"[PHASE 1 FAILSAFE] Local loader {loader_name} timed out after {subprocess_timeout}s "
+                f"(configured {loader_timeout_seconds}s + 25% margin)"
+            )
             raise RuntimeError(f"[PHASE 1 FAILSAFE] Local loader {loader_name} timeout") from e
         except Exception as e:
             logger.error(f"[PHASE 1 FAILSAFE] Failed to invoke local loader {loader_name}: {e}")
@@ -1322,7 +1332,7 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
         (recovered, final_completion_pct, status_reason):
         - recovered: True if loader reached its configured min completion threshold
         - final_completion_pct: Latest completion percentage, or None if status unknown
-        - status_reason: 'success', 'timeout' (still running), or 'failed' (completed low)
+        - status_reason: 'success', 'timeout' (still running), 'stalled' (0% for 5+ min), or 'failed' (completed low)
 
     Raises:
         RuntimeError: If database error occurs during monitoring
@@ -1332,6 +1342,10 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
     min_completion_pct = 100.0 - max_fail_rate
 
     deadline = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
+
+    # SESSION 103 FIX: Detect stalled progress (0% for >5 min indicates subprocess hung)
+    stalled_start_time: datetime | None = None
+    stalled_threshold_seconds = 300  # 5 minutes of no progress at 0%
 
     while datetime.now(timezone.utc) < deadline:
         try:
@@ -1347,24 +1361,44 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
 
                     if completion_pct is None:
                         # Status unknown, likely still running - wait before checking again
+                        stalled_start_time = None  # Reset stall tracker
                         logger.debug(
                             f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
                         )
-                    elif completion_pct >= min_completion_pct:
-                        # Loader reached its configured minimum completion threshold
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}% (need >={min_completion_pct:.0f}%)"
-                        )
-                        return True, completion_pct, "success"
+                    elif completion_pct > 0:
+                        # Loader is progressing - reset stall tracker
+                        stalled_start_time = None
+                        if completion_pct >= min_completion_pct:
+                            # Loader reached its configured minimum completion threshold
+                            logger.info(
+                                f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}% (need >={min_completion_pct:.0f}%)"
+                            )
+                            return True, completion_pct, "success"
+                    elif completion_pct == 0:
+                        # SESSION 103 FIX: Detect subprocess hung at 0% completion
+                        if stalled_start_time is None:
+                            stalled_start_time = datetime.now(timezone.utc)
+                            logger.warning(
+                                f"[PHASE 1 FAILSAFE] {loader_name} at 0% completion, monitoring for stall..."
+                            )
+                        else:
+                            stalled_duration = (datetime.now(timezone.utc) - stalled_start_time).total_seconds()
+                            if stalled_duration >= stalled_threshold_seconds:
+                                logger.critical(
+                                    f"[PHASE 1 FAILSAFE] Subprocess stalled: {loader_name} at 0% for {int(stalled_duration)}s. "
+                                    f"Subprocess likely hung or deadlocked. Treating as failed."
+                                )
+                                return False, 0.0, "stalled"
 
-                    elif status == "COMPLETED":
+                    if status == "COMPLETED":
                         # Completed but still below minimum required completion
-                        logger.critical(
-                            f"[PHASE 1 FAILSAFE] Loader completed but dangerously incomplete: {loader_name} {completion_pct:.1f}%. "
-                            f"Missing {100.0 - completion_pct:.1f}% of expected data (need >={min_completion_pct:.0f}%). "
-                            f"This threshold prevents trading on incomplete market data (fail-fast)."
-                        )
-                        return False, completion_pct, "failed"
+                        if completion_pct < min_completion_pct:
+                            logger.critical(
+                                f"[PHASE 1 FAILSAFE] Loader completed but dangerously incomplete: {loader_name} {completion_pct:.1f}%. "
+                                f"Missing {100.0 - completion_pct:.1f}% of expected data (need >={min_completion_pct:.0f}%). "
+                                f"This threshold prevents trading on incomplete market data (fail-fast)."
+                            )
+                            return False, completion_pct, "failed"
 
             # Check again in 10 seconds
             time.sleep(10)

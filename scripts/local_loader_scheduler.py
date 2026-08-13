@@ -67,8 +67,15 @@ PIPELINES = {
         "earnings_calendar",  # FIXED 2026-08-05: Minervini/Weinstein earnings blackout window (Phase 3)
         "trend_analysis",  # FIXED 2026-08-05: Setup/teardown detection for signal quality (Phase 7)
         "sector_industry",  # FIXED 2026-08-05: Sector rotation signals and industry rankings (Phase 5/7)
-        "scores",  # CRITICAL FIX SESSION 102: Generate stock scores before buy_sell signals
-        "buy_sell",  # CRITICAL FIX SESSION 102: CRITICAL for Phase 7 signal generation
+        # SESSION 103 FIX: Removed scores/buy_sell from morning - they depend on metrics
+        # (value_quality_growth, enhanced_quality_growth, stability_metrics) which are only
+        # in the metrics pipeline. Keeping them here caused scores/buy_sell to fail with
+        # "validation failed: [metric table] is EMPTY". Result: buy_sell_daily never ran,
+        # stayed stale forever, Monday halt on missing signals.
+        # CORRECT PIPELINE ORDER: morning → metrics → signals
+        # This allows morning to complete fast (prices+technical+reference data),
+        # metrics to populate dimension tables, then signals to generate scores/buy_sell
+        # with complete upstream data.
     ],
     "metrics": [
         # FIXED 2026-08-11: company_info must run first - valuations depends on it for
@@ -229,7 +236,7 @@ def _check_loader_dependencies(loader: str, completed_loaders: set[str]) -> bool
     return True
 
 
-def run_pipeline(pipeline_name: str) -> int:
+def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
     """Run all loaders for a given pipeline."""
     loaders = PIPELINES.get(pipeline_name)
     if not loaders:
@@ -250,6 +257,30 @@ def run_pipeline(pipeline_name: str) -> int:
     reaped = reap_stale_running_loaders()
     if reaped:
         print(f"[LOCAL_SCHEDULER] Reaped {len(reaped)} stale RUNNING loader(s): {', '.join(reaped)}")
+
+    # SESSION 103 FIX: Auto-cleanup stale lock files before running loaders
+    # Hung/crashed loaders don't delete their locks, causing subsequent invocations to block
+    # indefinitely. Clean locks older than 30 minutes before starting this pipeline.
+    try:
+        import time as time_module
+
+        lock_dir = Path(tempfile.gettempdir()) / "algo-locks"
+        if lock_dir.exists():
+            stale_lock_threshold_seconds = 30 * 60  # 30 minutes
+            now = time_module.time()
+            cleaned_locks = []
+            for lock_file in lock_dir.glob("*.lock"):
+                lock_age_seconds = now - lock_file.stat().st_mtime
+                if lock_age_seconds > stale_lock_threshold_seconds:
+                    lock_file.unlink()
+                    cleaned_locks.append(lock_file.name)
+            if cleaned_locks:
+                print(
+                    f"[LOCAL_SCHEDULER] Cleaned {len(cleaned_locks)} stale lock file(s): {', '.join(cleaned_locks)} "
+                    f"(older than 30 min)"
+                )
+    except Exception as e:
+        print(f"[LOCAL_SCHEDULER] WARNING: Could not clean stale locks: {e}", file=sys.stderr)
 
     repo_root = Path(__file__).parent.parent
     completed_loaders = set()  # Track completed loaders for dependency checking
@@ -480,6 +511,7 @@ def run_pipeline(pipeline_name: str) -> int:
             reader_thread = threading.Thread(target=_stream_and_capture, args=(proc.stdout, tail_lines), daemon=True)
             reader_thread.start()
             scheduler_timeout = int(timeout * 1.1)  # 10% safety margin so loader's SIGALRM fires first
+            scheduler_timeout_str = f"{scheduler_timeout}s ({scheduler_timeout // 60}m {scheduler_timeout % 60}s)"
             try:
                 returncode = proc.wait(timeout=scheduler_timeout)
             except subprocess.TimeoutExpired:

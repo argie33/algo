@@ -1347,9 +1347,36 @@ def main() -> int:  # noqa: C901
                 return 1
         else:
             logger.info(
-                f"[STATUS] Skipping watermark advance: zero signals loaded on {today_et} (likely weekend/holiday). "
-                f"Watermark will NOT advance, next run will retry this date."
+                f"[STATUS] Zero signals loaded on {today_et} (likely weekend/holiday). "
+                f"Watermark will NOT advance, next run will retry this date. "
+                f"Marking status as COMPLETED to prevent NOT_STARTED persistence."
             )
+            # CRITICAL FIX SESSION 103: Still mark completed even on zero-data days
+            # to prevent status from staying stuck at NOT_STARTED or RUNNING forever.
+            # The watermark won't advance (as documented above), so next run retries the same date.
+            # But the status must transition to allow proper monitoring and next-run visibility.
+            try:
+                with DatabaseContext("read") as cur:
+                    # Get the latest date we currently have in the table
+                    cur.execute("SELECT COALESCE(MAX(date), %s) FROM buy_sell_daily", (today_et,))
+                    date_result = cur.fetchone()
+                    if not date_result:
+                        raise RuntimeError("CRITICAL: Failed to query max date from buy_sell_daily")
+                    current_latest_date = date_result[0]
+
+                status_manager = LoaderStatusManager(table_name="buy_sell_daily")
+                # Mark COMPLETED with current latest_date (no watermark advance on zero-data day)
+                # This is intentional: zero data on a Saturday means "status OK, no new data today"
+                # not "status FAILED, retry required". The watermark naturally doesn't advance.
+                status_manager.mark_completed(
+                    latest_date=current_latest_date,
+                    min_completion_pct=0,  # 0% threshold OK since we're not generating signals
+                    symbols_failed=0,
+                )
+                logger.info("[STATUS] Marked buy_sell_daily as COMPLETED (zero-data day, no watermark advance)")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
+                logger.error(f"[STATUS] Could not mark zero-data status: {status_err}")
+                # Don't return 1 here - zero-data days are not errors, just return 0
 
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
