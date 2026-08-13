@@ -896,6 +896,47 @@ def check_and_retry_incomplete_loaders(  # noqa: C901
     if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
         logger.info("[PHASE 1 FAILSAFE] LOCAL_MODE enabled - triggering local loader refresh for stale data")
         results = _check_and_refresh_local(run_date=run_date, pipeline_context=pipeline_context, dry_run=dry_run)
+
+        # SESSION 104 CRITICAL FIX: Add stall detection monitoring for LOCAL_MODE loaders
+        # _check_and_refresh_local() runs loaders and returns immediately, bypassing monitor_loader_retry()
+        # which contains stall detection. Without this post-execution check, loaders stuck at 0% for 26+ hours
+        # are never detected as stalled. Check for incomplete RUNNING loaders (0% for >5 min) and mark them as stalled.
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("""
+                    SELECT table_name, completion_pct, last_updated
+                    FROM data_loader_status
+                    WHERE UPPER(status) = 'RUNNING' AND completion_pct <= 0.0
+                    AND last_updated < CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+                """)
+                stalled_loaders = cur.fetchall()
+
+                for table_name, _completion_pct, last_updated in stalled_loaders:
+                    stalled_duration = (
+                        (datetime.now(timezone.utc) - last_updated.replace(tzinfo=timezone.utc)).total_seconds()
+                        if last_updated
+                        else 0
+                    )
+                    logger.critical(
+                        f"[PHASE 1 FAILSAFE LOCAL] Loader stalled post-execution: {table_name} at 0% for {int(stalled_duration)}s. "
+                        f"Marking FAILED to prevent Monday cascade."
+                    )
+                    try:
+                        LoaderStatusManager(table_name).mark_failed(
+                            f"[PHASE 1 FAILSAFE LOCAL] Loader stalled at 0% completion for {int(stalled_duration)}s. "
+                            f"Subprocess likely hung or deadlocked."
+                        )
+                    except Exception as e:
+                        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Could not mark {table_name} FAILED: {e}")
+
+                    # Mark as still failing in results  so Phase 1 can halt if critical
+                    if table_name not in results.get("still_failing", []):
+                        results["still_failing"].append(table_name)
+                        if is_critical(table_name):
+                            results["halt_required"] = True
+        except Exception as e:
+            logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check for stalled loaders post-execution: {e}")
+
         return results
 
     try:
