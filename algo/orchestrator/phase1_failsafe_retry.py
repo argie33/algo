@@ -743,36 +743,46 @@ def _check_and_refresh_local(  # noqa: C901 -- pre-existing complexity debt, not
 
                 try:
                     # Import and instantiate the loader class dynamically
-                    # Matches the production invocation in terraform/modules/loaders/main.tf
-                    # Strip .py suffix if present (normalize_loader_name() adds it, but __import__ doesn't expect it)
+                    # Use importlib to dynamically load the module and find the loader class
+                    # This approach (from run_loader.py) is more robust than CamelCase guessing
+                    import importlib
+
                     module_name = (
                         loader_filename.replace(".py", "") if loader_filename.endswith(".py") else loader_filename
                     )
-                    loader_module = __import__(f"loaders.{module_name}", fromlist=[module_name])
+                    loader_module = importlib.import_module(f"loaders.{module_name}")
 
-                    # Main loader class is typically the CamelCase version of the filename
-                    # e.g., load_prices.py → PriceLoader, load_company_info_sec.py → CompanyInfoSECLoader
-                    class_name = (
-                        "".join(
-                            word.capitalize()
-                            for word in loader_filename.replace("load_", "").replace(".py", "").split("_")
-                        )
-                        + "Loader"
-                    )
-                    loader_class = getattr(loader_module, class_name, None)
+                    # Find the loader class in the module (handles edge cases like CurrentReports8KLoader)
+                    # First try to find any OptimalLoader subclass (primary pattern)
+                    from utils.optimal_loader import OptimalLoader
+
+                    loader_class = None
+                    for attr_name in dir(loader_module):
+                        obj = getattr(loader_module, attr_name)
+                        if isinstance(obj, type) and issubclass(obj, OptimalLoader) and obj is not OptimalLoader:
+                            loader_class = obj
+                            break
+
+                    # Fallback: if no OptimalLoader found, look for any class that looks like a loader
+                    # (e.g., VectorizedTechnicalLoader, legacy loaders that predate OptimalLoader, SecLoaderBase subclasses)
+                    if loader_class is None:
+                        for attr_name in dir(loader_module):
+                            obj = getattr(loader_module, attr_name)
+                            if isinstance(obj, type) and "Loader" in attr_name and obj.__module__.startswith("loaders"):
+                                loader_class = obj
+                                logger.info(f"[PHASE 1 FAILSAFE LOCAL] Using fallback loader class: {attr_name}")
+                                break
 
                     if loader_class is None:
-                        # Fallback: if CamelCase doesn't match, try OptimalLoader which auto-detects
-                        from utils.optimal_loader import OptimalLoader
+                        raise RuntimeError(
+                            f"Could not find any Loader subclass in loaders.{module_name}. "
+                            f"Check that the loader file contains a proper Loader class."
+                        )
 
-                        loader = OptimalLoader()
-                        result_status = loader.run([])  # Empty symbols list for full universe
-                        returncode = 0 if result_status else 1
-                    else:
-                        # Direct instantiation - some loaders have custom constructors
-                        loader = loader_class()
-                        result_status = loader.run([])  # Run for full universe
-                        returncode = 0 if result_status else 1
+                    # Direct instantiation
+                    loader = loader_class()
+                    result_status = loader.run([])  # Run for full universe
+                    returncode = 0 if result_status else 1
 
                 except Exception as e:
                     logger.error(
@@ -1242,19 +1252,47 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
     if os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes"):
         logger.info(f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - invoking {loader_name} directly via subprocess")
         try:
+            # CRITICAL FIX SESSION 104: loader_name is a TABLE NAME (e.g., "price_daily")
+            # but scripts/run_loader.py expects LOADER KEYS (e.g., "prices"). Convert first.
+            from loaders.loader_registry import table_to_loader_shorthand
+
+            try:
+                loader_key_or_none = table_to_loader_shorthand(loader_name)
+                if loader_key_or_none is None:
+                    raise ValueError(f"Table {loader_name} not found in loader registry")
+                loader_key: str = loader_key_or_none
+            except ValueError as e:
+                logger.error(
+                    f"[PHASE 1 FAILSAFE] Cannot convert table {loader_name} to loader key: {e}. "
+                    f"This table may not be registered in the loader registry."
+                )
+                raise RuntimeError(f"[PHASE 1 FAILSAFE] Table {loader_name} not registered") from e
+
             # SESSION 103 FIX: Use configured loader timeout instead of hardcoded 900s.
             # Prices needs 1440m (24h), not 15m. The configured timeout prevents premature
             # subprocess timeout that makes retry impossible for long loaders.
-            loader_timeout_seconds = get_loader_timeouts().get(loader_name, 3600)
+            # Use the loader_key (not table_name) to look up timeout.
+            timeouts = get_loader_timeouts()
+            if loader_key not in timeouts:
+                # Fallback to trying the table name directly in case registry has both
+                if loader_name in timeouts:
+                    loader_timeout_seconds = timeouts[loader_name]
+                else:
+                    # Table not registered - use conservative fallback
+                    logger.warning(f"[PHASE 1 FAILSAFE] {loader_key} not in timeout config, using 3600s fallback")
+                    loader_timeout_seconds = 3600
+            else:
+                loader_timeout_seconds = timeouts[loader_key]
+
             subprocess_timeout = int(loader_timeout_seconds * 1.25)  # 25% safety margin
             logger.info(
-                f"[PHASE 1 FAILSAFE] Using configured timeout for {loader_name}: "
+                f"[PHASE 1 FAILSAFE] Using configured timeout for {loader_name} (loader_key={loader_key}): "
                 f"{loader_timeout_seconds}s ({loader_timeout_seconds // 60}m), "
                 f"subprocess timeout: {subprocess_timeout}s"
             )
 
             result = subprocess.run(
-                [sys.executable, "scripts/run_loader.py", loader_name, "--force-refresh"],
+                [sys.executable, "scripts/run_loader.py", loader_key, "--force-refresh"],
                 capture_output=True,
                 text=True,
                 timeout=subprocess_timeout,
