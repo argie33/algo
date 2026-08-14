@@ -68,8 +68,10 @@ PIPELINE_REMOVED_TABLES = {
     # the data status report (dashboard & monitor) while keeping them separate from
     # critical_tables (Phase 1/9 dependencies). Phase 1 may not halt on stale metrics,
     # but visible staleness = faster issue detection vs. silent rot behind an "everything OK" UI.
-    # "positioning_metrics" (NOT repositioned_metrics) retained in exclusion as it's actually
-    # rarely-updated institutional holdings data, not computed daily metrics like the others.
+    "positioning_metrics",  # Re-added: institutional holdings data (daily). Was temporarily
+    # removed with growth/quality/value metrics above but is different - it's computed from
+    # 13F filings (quarterly updates), not daily SEC data like the metrics we restored.
+    # Keep visible but acknowledge lower update cadence than growth/quality/value_metrics.
     # Economic data (not used in trading logic)
     "economic_data",
     # System/user tables
