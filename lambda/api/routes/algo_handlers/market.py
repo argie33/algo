@@ -62,6 +62,14 @@ PIPELINE_REMOVED_TABLES = {
     "buy_sell_monthly",
     "buy_sell_monthly_etf",
     "signal_quality_scores",  # Enrichment; quality tracked via avg_strength in buy_sell_daily
+    # SESSION 118 FIX: Restored visibility of metrics tables
+    # These were hidden from health panel by Session 114 with rationale "enrichment-only",
+    # but stakeholders need to know when optional data is 2+ days stale. Restored them to
+    # the data status report (dashboard & monitor) while keeping them separate from
+    # critical_tables (Phase 1/9 dependencies). Phase 1 may not halt on stale metrics,
+    # but visible staleness = faster issue detection vs. silent rot behind an "everything OK" UI.
+    # "positioning_metrics" (NOT repositioned_metrics) retained in exclusion as it's actually
+    # rarely-updated institutional holdings data, not computed daily metrics like the others.
     # Economic data (not used in trading logic)
     "economic_data",
     # System/user tables
