@@ -294,6 +294,30 @@ def _calc_data_completeness(hlth_items: list[Any]) -> dict[str, tuple[int, int]]
     return {role: (data["ready"], data["total"]) for role, data in by_role.items()}
 
 
+def _format_halt_age(trading_halt_at: Any) -> str:
+    """Format how long ago a trading-halt record was written, e.g. '(2h 15m ago)'.
+
+    The halt reason shown on the dashboard is always the *latest* orchestrator run record,
+    which stays displayed as-is until a newer run supersedes it - including after the bug
+    that caused it has already been fixed in code. Without an age, an operator can't tell a
+    live blocker from an hours-old stale one (confirmed live 2026-08-16).
+    """
+    if not trading_halt_at or not isinstance(trading_halt_at, str):
+        return ""
+    try:
+        halt_dt = datetime.fromisoformat(trading_halt_at)
+        if halt_dt.tzinfo is None:
+            halt_dt = halt_dt.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - halt_dt
+    except ValueError:
+        return ""
+    total_minutes = int(age.total_seconds() // 60)
+    if total_minutes < 0:
+        return ""
+    hours, minutes = divmod(total_minutes, 60)
+    return f" ({hours}h {minutes}m ago)" if hours else f" ({minutes}m ago)"
+
+
 def _calc_loader_success_rate(hlth_items: list[Any]) -> tuple[int, int, float | None]:
     """Calculate loader success rate from failures.
 
@@ -1290,7 +1314,8 @@ def _build_freshness_panel(
     trading_halted = hlth_dict.get("trading_halted")
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
     if trading_halted and trading_halt_reason:
-        left_rows.append(Text.from_markup(f"[{Y}]→ Trading halted:[/] {trading_halt_reason}"))
+        halt_age = _format_halt_age(hlth_dict.get("trading_halt_at"))
+        left_rows.append(Text.from_markup(f"[{Y}]→ Trading halted:[/] {trading_halt_reason}[dim]{halt_age}[/]"))
 
     expected_date = hlth_dict.get("expected_date")
     if expected_date:
@@ -2374,9 +2399,22 @@ def _format_execution_stats(exec_stats: dict[str, Any] | None) -> Text | None:
     error_count = by_status.get("error", 0)
     halt_count = by_status.get("halted", 0)
     ok_count = by_status.get("ok", 0) + by_status.get("success", 0)
+    # "skipped"/"degraded"/"running" are legitimate statuses (e.g. every run today was
+    # skipped for non_trading_day on a weekend) - they must be tallied before deciding
+    # data is actually missing, or every quiet weekend spams this warning on every
+    # refresh tick even though by_status correctly reflects reality.
+    skipped_count = by_status.get("skipped", 0)
+    degraded_count = by_status.get("degraded", 0)
+    running_count = by_status.get("running", 0)
+    accounted = error_count + halt_count + ok_count + skipped_count + degraded_count + running_count
 
-    if error_count == 0 and halt_count == 0 and ok_count == 0:
+    if accounted == 0 and total:
         logger.warning("[STATUS SUMMARY] All status counts are 0 or missing - data may be incomplete")
+    elif accounted != total:
+        logger.warning(
+            f"[STATUS SUMMARY] by_status counts ({accounted}) don't sum to total_runs ({total}) - "
+            f"unrecognized status value present: {by_status}"
+        )
 
     # Determine alert level
     try:
@@ -2397,11 +2435,13 @@ def _format_execution_stats(exec_stats: dict[str, Any] | None) -> Text | None:
         alert_color = G
         alert_icon = "✓"
 
+    skipped_str = f" [{DIM}]{skipped_count} skipped[/]" if skipped_count else ""
     return Text.from_markup(
         f"[bold {alert_color}]{alert_icon} Last 24h:[/] "
         f"[{G}]{ok_count} ok[/] "
         f"[{Y if halt_count else DIM}]{halt_count} halted[/] "
-        f"[{R if error_count else DIM}]{error_count} error[/] "
+        f"[{R if error_count else DIM}]{error_count} error[/]"
+        f"{skipped_str} "
         f"({total} total) "
         f"[{alert_color}]{error_rate_str or '0%'} failure rate[/]"
     )
@@ -4357,7 +4397,8 @@ def panel_data_freshness(hlth: dict[str, Any] | list[Any] | None) -> Panel:
     trading_halted = hlth_dict.get("trading_halted")
     trading_halt_reason = hlth_dict.get("trading_halt_reason")
     if trading_halted and trading_halt_reason:
-        rows.append(Text.from_markup(f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}"))
+        halt_age = _format_halt_age(hlth_dict.get("trading_halt_at"))
+        rows.append(Text.from_markup(f"  [{Y}]→ Trading halted:[/] {str(trading_halt_reason)[:70]}[dim]{halt_age}[/]"))
 
     # ── Loader success rate (NEW) ────────────────────────────────────────────
     if hlth_items:

@@ -10,11 +10,9 @@ Each function returns enriched health item dict with new fields suitable for dis
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from utils.db import DatabaseContext
-from dashboard.data_validation import safe_int, safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -621,6 +619,34 @@ def _check_row_count_stall(table_name: str, cur: Any) -> dict[str, Any]:
             # runs within the same hour (e.g. rapid retries) isn't evidence of a stall,
             # just a tight retry loop.
             if span_hours >= 24:
+                # UPSERT-TABLE FALSE-POSITIVE FIX (2026-08-16): row_count is a dead signal for
+                # any symbol-keyed table that's already fully populated (e.g. company_info_sec,
+                # PRIMARY KEY (symbol)) - every write is an UPDATE, so COUNT(*) never moves again
+                # even on a perfectly healthy run. Live-confirmed: company_info_sec's row_count
+                # sat at 5529 across 6 straight successful runs spanning 2026-08-14 to
+                # 2026-08-16, which would false-flag it here. Same root cause/fix pattern as
+                # scripts/local_loader_scheduler.py's _monitor_loader_progress stall watchdog -
+                # check the table's own MAX(updated_at) as a secondary liveness signal (now
+                # reliably stamped on every upsert - see utils/bulk_insert_manager.py) and only
+                # report a stall if that ALSO hasn't advanced since the unchanged streak began.
+                updated_at_moved = None
+                try:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = 'updated_at'",
+                        (table_name,),
+                    )
+                    if cur.fetchone() is not None:
+                        cur.execute(f"SELECT MAX(updated_at) FROM {table_name}")
+                        max_updated_row = cur.fetchone()
+                        max_updated = max_updated_row[0] if max_updated_row else None
+                        if max_updated is not None:
+                            updated_at_moved = max_updated > unchanged_run
+                except Exception:
+                    updated_at_moved = None  # Can't confirm - fall back to row_count-only check
+
+                if updated_at_moved:
+                    return result
+
                 result["row_count_stalled"] = True
                 result["row_count_stalled_since"] = (
                     unchanged_run.isoformat() if hasattr(unchanged_run, "isoformat") else str(unchanged_run)

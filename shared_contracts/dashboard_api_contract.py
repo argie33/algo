@@ -460,6 +460,7 @@ DASHBOARD_ENDPOINTS = {
                 "execution_health",
                 "trading_halt_reason",
                 "trading_halted",
+                "trading_halt_at",
             ],
             field_types={
                 "ready_to_trade": bool,
@@ -470,6 +471,7 @@ DASHBOARD_ENDPOINTS = {
                 "critical_stale": list,
                 "expected_date": str,
                 "as_of": str,
+                "trading_halt_at": str,
                 "api_route_imports": dict,
                 "freshness": dict,
                 "status": str,

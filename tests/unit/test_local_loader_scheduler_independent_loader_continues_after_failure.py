@@ -39,6 +39,7 @@ def _mock_proc(returncode=0):
     proc = MagicMock()
     proc.stdout = MagicMock()
     proc.stdout.__iter__.return_value = iter([])
+    proc.poll.return_value = returncode
     proc.wait.return_value = returncode
     return proc
 

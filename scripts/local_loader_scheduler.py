@@ -51,8 +51,32 @@ if "LOADER_PARALLELISM" not in os.environ:
     os.environ["LOADER_PARALLELISM"] = "1"
 
 
-def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, max_stall_sec: int = 300) -> bool:
+def _monitor_loader_progress(
+    loader_filename: str,
+    proc: "subprocess.Popen[str]",
+    deadline: float,
+    poll_interval_sec: int = 30,
+    max_stall_sec: int = 300,
+) -> bool:
     """Monitor loader progress while subprocess is running. Kill if stuck at 0% for too long.
+
+    ROOT-CAUSE FIX 2026-08-16: this function used to take only `loader_filename` and never
+    checked the actual subprocess at all - its own `while True` loop only ever returned via
+    the stall-detected `return False` (or the rare "table doesn't exist yet" early-outs), with
+    no path for "the loader actually finished". Since the caller's outer poll loop only
+    re-checks `proc.poll()`/its own scheduler_timeout AFTER this call returns, that outer
+    supervision was effectively dead code for the entire runtime of any loader past the first
+    30s tick - this function silently became the only thing deciding when the loader run
+    ended, and it could only ever decide "stalled", never "done". Live-confirmed 2026-08-16:
+    company_info_sec's log shows its last write at 11:19:55 (11.5 min into the run) but
+    data_loader_status wasn't marked FAILED until 16:19:56 - 5 hours later, not the intended
+    30-minute stall_timeout - because something (most likely DB pool contention inside this
+    loop's own polling queries) kept the inner loop from ever reaching its stall check cleanly,
+    and there was no independent process-exit or deadline check to bound the damage. Now checks
+    `proc.poll()` every tick (returns True immediately so the caller's own loop reads the real
+    exit code) and bails past `deadline` (returns True so the caller's own scheduler_timeout
+    enforcement can fire), so a genuinely finished or genuinely runaway process is never
+    mistaken for - or masked by - a stall.
 
     CRITICAL SESSION 106 FIX: Detect hung loaders during execution, not just after failure.
     Previously, a loader could hang at 0% for 27+ minutes while the orchestrator waited,
@@ -91,11 +115,16 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
 
     Args:
         loader_filename: e.g., "load_prices.py"
+        proc: the running subprocess.Popen - polled every tick so a real process exit is
+            never mistaken for a stall
+        deadline: time.time() value past which this call gives up and returns True, handing
+            control back to the caller's own scheduler_timeout enforcement
         poll_interval_sec: How often to check progress (default 30s)
         max_stall_sec: Kill if stuck >N seconds without progress (default 300s = 5 min)
 
     Returns:
-        True if loader made progress / is still healthy, False if hung
+        True if the process exited, the deadline passed, or the loader is still healthy;
+        False only when a genuine stall was detected and the caller should kill the process
     """
     try:
         tables = all_tables(loader_filename)
@@ -124,6 +153,20 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
         while True:
             time.sleep(poll_interval_sec)
             try:
+                # Real process exit / deadline checks come before anything DB-related so they
+                # can't be starved by DB pool contention or a slow query - see ROOT-CAUSE FIX
+                # note above. Returning True here just hands control back to the caller's own
+                # `while True` loop, which re-checks proc.poll()/elapsed on its very next
+                # iteration. Kept inside this try/except like every other check in this loop -
+                # a transient error here should be tolerated, not treated as "definitely done",
+                # same "monitor errors shouldn't kill the loader" policy as the rest of the loop.
+                if proc.poll() is not None:
+                    return True
+
+                now = time.time()
+                if now >= deadline:
+                    return True
+
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT completion_pct, last_updated FROM data_loader_status WHERE table_name = %s",
@@ -134,7 +177,6 @@ def _monitor_loader_progress(loader_filename: str, poll_interval_sec: int = 30, 
                         return True  # Table doesn't exist yet, assume OK
 
                     current_pct, _last_updated = row
-                    now = time.time()
 
                     # Check if progress has changed
                     if current_pct is not None and current_pct != last_pct:
@@ -484,8 +526,19 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
     # same symptom from the data side without finding this scheduler-side cause). Fixed to
     # skip only the failed loader and any loader that genuinely depends on it (still enforced
     # via _check_loader_dependencies below), not the whole rest of the pipeline.
-    any_failed = False
     skipped_loaders = set()  # Track skipped loaders to skip their dependents
+    # ROOT-CAUSE FIX 2026-08-16: `skipped_loaders` was used for BOTH true graceful SEC-rate-
+    # limit skips AND every hard failure that has a downstream dependent (crashes, stalls,
+    # timeouts, non-SEC 3+-failure skips all land a dependent in `skipped_loaders` too via the
+    # cascade branch below). The final return-code check below only tested "is skipped_loaders
+    # non-empty", so ANY real crash with so much as one dependent silently returned 0 - live-
+    # reproduced: a synthetic non-SEC failure on a loader with a dependent produced
+    # "pipeline completed with 1 loader(s) skipped due to SEC rate limiting" and exit code 0,
+    # even though nothing was actually SEC-related. `graceful_skips` now tracks ONLY loaders
+    # confirmed skipped for a real SEC/rate-limit reason (or cascaded purely from one), so the
+    # exit code can't be laundered through an unrelated downstream skip.
+    graceful_skips = set()
+    hard_failure = False
 
     for loader in loaders:
         # CRITICAL FIX (Session 81): Check loader dependencies before running
@@ -494,25 +547,40 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
             # Check if dependency was skipped (doesn't exist in completed) or failed (in skipped)
             deps = LOADER_DEPENDENCIES.get(loader, [])
             missing = [dep for dep in deps if dep not in completed_loaders]
-            if any(dep in skipped_loaders for dep in missing):
-                print(
-                    f"[LOCAL_SCHEDULER] SKIP {loader}: upstream loader(s) {missing} were skipped due to SEC issues",
-                    file=sys.stderr,
-                )
-                skipped_loaders.add(loader)
-                any_failed = True
+            missing_skipped = [dep for dep in missing if dep in skipped_loaders]
+            if missing_skipped:
+                # Only a graceful cascade if EVERY missing-and-skipped dependency was itself
+                # a graceful (SEC) skip - one hard-failed dependency makes this a hard cascade.
+                if all(dep in graceful_skips for dep in missing_skipped):
+                    print(
+                        f"[LOCAL_SCHEDULER] SKIP {loader}: upstream loader(s) {missing} were skipped due to SEC issues",
+                        file=sys.stderr,
+                    )
+                    skipped_loaders.add(loader)
+                    graceful_skips.add(loader)
+                else:
+                    print(
+                        f"[LOCAL_SCHEDULER] SKIP {loader}: upstream loader(s) {missing} were skipped due to a "
+                        f"non-SEC failure",
+                        file=sys.stderr,
+                    )
+                    skipped_loaders.add(loader)
+                    hard_failure = True
                 continue
             # CRITICAL FIX SESSION 102 #5: Track this skipped loader too
             # Previously we just did `continue` without adding to skipped_loaders,
             # causing cascading failures for downstream loaders that couldn't determine
             # WHY the upstream loader was missing (SEC rate limit vs crash).
             # Now we track it so downstream loaders know it was skipped intentionally.
+            # A dependency that neither completed nor was ever marked skipped means it flat-out
+            # failed (crashed/timed out/stalled) without going through the skip bookkeeping -
+            # treat conservatively as a hard failure rather than assume graceful degradation.
             print(
                 f"[LOCAL_SCHEDULER] SKIP {loader}: required upstream loader(s) {missing} did not complete",
                 file=sys.stderr,
             )
             skipped_loaders.add(loader)
-            any_failed = True
+            hard_failure = True
             continue
 
         # FIX 2026-08-12: Skip loaders with 3+ consecutive failures (need manual intervention)
@@ -558,7 +626,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                                 file=sys.stderr,
                             )
                             skipped_loaders.add(loader)
-                            any_failed = True
+                            graceful_skips.add(loader)
                         else:
                             # Non-SEC failure - needs manual intervention
                             print(
@@ -566,7 +634,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                                 file=sys.stderr,
                             )
                             skipped_loaders.add(loader)
-                            any_failed = True
+                            hard_failure = True
                         continue
         except Exception as e:
             print(f"[LOCAL_SCHEDULER] WARNING: Could not check {loader} failures: {e}", file=sys.stderr)
@@ -699,7 +767,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                     loader_filename,
                     f"local_loader_scheduler: Failed to pre-mark RUNNING: {pre_mark_err}. Database issue or missing status row.",
                 )
-                any_failed = True
+                hard_failure = True
                 continue
 
             # BUG FOUND 2026-08-11: subprocess.run() with no stdout/stderr capture meant a
@@ -807,7 +875,11 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                         # Check progress periodically
                         if elapsed > 0 and int(elapsed) % progress_check_interval == 0:
                             if not _monitor_loader_progress(
-                                loader_filename, poll_interval_sec=1, max_stall_sec=stall_timeout
+                                loader_filename,
+                                proc,
+                                start_time + scheduler_timeout,
+                                poll_interval_sec=1,
+                                max_stall_sec=stall_timeout,
                             ):
                                 print(
                                     f"[LOCAL_SCHEDULER] {loader}: Process appears hung at 0% for {stall_timeout}s. Killing.",
@@ -840,7 +912,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                     f"local_loader_scheduler: timed out after {scheduler_timeout_str}. "
                     f"Full log: {full_log_path}. Last output:\n{tail}",
                 )
-                any_failed = True
+                hard_failure = True
                 continue
 
             if stalled:
@@ -852,7 +924,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                     f"local_loader_scheduler: killed due to 0%% stall for >{stall_timeout}s. "
                     f"Full log: {full_log_path}. Last output:\n{tail}",
                 )
-                any_failed = True
+                hard_failure = True
                 continue
 
             reader_thread.join(timeout=30)  # SESSION 108: Wait up to 30s for output capture to complete
@@ -868,7 +940,7 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                     f"local_loader_scheduler: subprocess exited with code {returncode}. "
                     f"Full log: {full_log_path}. Last output:\n{tail}",
                 )
-                any_failed = True
+                hard_failure = True
                 continue
             # Mark loader as completed for dependency checking of subsequent loaders
             completed_loaders.add(loader)
@@ -880,11 +952,14 @@ def run_pipeline(pipeline_name: str) -> int:  # noqa: C901
                 file=sys.stderr,
             )
             _mark_loader_failed_after_crash(loader_filename, f"local_loader_scheduler: timed out after {timeout}s")
-            any_failed = True
+            hard_failure = True
             continue
 
-    if any_failed and not skipped_loaders:
-        # Hard failures (not just SEC skips) - return error
+    if hard_failure:
+        # ROOT-CAUSE FIX 2026-08-16: was `if any_failed and not skipped_loaders`, which
+        # incorrectly returned 0 (success) for a real crash/timeout/stall as soon as it had
+        # any downstream dependent, since that dependent also landed in `skipped_loaders`.
+        # See the `graceful_skips`/`hard_failure` bookkeeping added above.
         print(f"[LOCAL_SCHEDULER] {pipeline_name} pipeline completed with 1+ loader failure(s) - see warnings above")
         return 1
     if skipped_loaders:

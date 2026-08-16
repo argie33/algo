@@ -44,10 +44,19 @@ def _mock_proc(returncode=0):
     """Build a mock subprocess.Popen() process: run_pipeline() switched from subprocess.run()
     to subprocess.Popen() (2026-08-11, tail-capture fix) so a crash's real output can be
     attached to the failure message. Its reader thread does `for line in proc.stdout` then
-    `proc.stdout.close()`, so the mock's .stdout must support both."""
+    `proc.stdout.close()`, so the mock's .stdout must support both.
+
+    SESSION 106 switched the main loop from a blocking proc.wait() to a non-blocking
+    proc.poll() poll loop. .poll() must be configured too - an unconfigured MagicMock's
+    .poll() returns a truthy mock object (never None), which the real loop reads as "process
+    already finished" with that mock object AS the returncode, immediately treating every
+    loader as crashed and writing a real "subprocess exited with code <MagicMock ...>" FAILED
+    row via the real (unmocked) LoaderStatusManager. Live-confirmed 2026-08-16: this exact bug
+    corrupted data_loader_status for price_daily/earnings_calendar in the real dev DB."""
     proc = MagicMock()
     proc.stdout = MagicMock()
     proc.stdout.__iter__.return_value = iter([])
+    proc.poll.return_value = returncode
     proc.wait.return_value = returncode
     return proc
 

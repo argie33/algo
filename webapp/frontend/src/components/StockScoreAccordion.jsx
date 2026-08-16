@@ -306,8 +306,11 @@ function InputRow({ row }) {
   );
 }
 
-// ─── factor inputs card — always shows every field, grouped by tier ───────
+// ─── factor inputs card — scored fields always shown, unscored "tracked"
+// fields collapsed by default (still real, DB-verified populated data - just
+// not visually competing with the fields that actually move the score) ────
 function InputsCard({ title, stock, schema, inputsKey = null }) {
+  const [showTracked, setShowTracked] = useState(false);
   const inputsObj = inputsKey ? stock?.[inputsKey] : stock;
 
   // DIAGNOSTIC: Log if inputsObj is missing (helps debug "No data" issues)
@@ -359,15 +362,17 @@ function InputsCard({ title, stock, schema, inputsKey = null }) {
                 <td
                   colSpan={2}
                   className="t-2xs muted"
-                  style={{ background: "var(--surface-2)", fontWeight: "var(--w-semibold)" }}
+                  style={{ background: "var(--surface-2)", fontWeight: "var(--w-semibold)", cursor: "pointer" }}
+                  onClick={() => setShowTracked((v) => !v)}
                 >
-                  Tracked (Not Scored)
+                  {showTracked ? "▾" : "▸"} Tracked (Not Scored) — {tracked.length}
                 </td>
               </tr>
             )}
-            {tracked.map((r) => (
-              <InputRow key={r.key} row={r} />
-            ))}
+            {showTracked &&
+              tracked.map((r) => (
+                <InputRow key={r.key} row={r} />
+              ))}
           </tbody>
         </table>
       </div>
@@ -526,36 +531,44 @@ export default StockScoreAccordion;
 const QUALITY_SCHEMA = [
   { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1), used: true, weight: '~17%' },
-  { key: 'return_on_invested_capital_pct', label: 'ROIC',                     fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
   { key: 'profit_margin_pct',              label: 'Profit Margin',            fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'operating_margin_pct',           label: 'Operating Margin',         fmt: v => pct(v, 1), used: true, weight: '~17%' },
-  { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2) },
   { key: 'gross_margin_pct',               label: 'Gross Margin',             fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
   { key: 'ebitda_margin_pct',              label: 'EBITDA Margin',            fmt: v => pct(v, 1), used: true, weight: '±3 adj' },
   { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
   { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2), used: true, weight: '±2 adj' },
-  { key: 'current_ratio',                  label: 'Current Ratio',            fmt: v => num(v, 2) },
-  { key: 'quick_ratio',                    label: 'Quick Ratio',              fmt: v => num(v, 2) },
   { key: 'interest_coverage',              label: 'Interest Coverage',        fmt: v => num(v, 2), used: true, weight: '~17%' },
+  // debt_to_assets legitimately feeds both quality_score (~17%, here) and
+  // _score_financial_stability (part of Stability's 20%, also shown on the Stability
+  // tab) - real dual-tab input, not a duplicate. debt_to_equity/current_ratio/
+  // quick_ratio/cash_per_share used to be listed here too but only do real weighted
+  // work on the Stability tab; showing them here was unweighted decoration duplicating
+  // that tab, so they were removed from Quality (20260816 field audit).
   { key: 'debt_to_assets',                 label: 'Debt to Assets',           fmt: v => pct(v, 1), used: true, weight: '~17%' },
   { key: 'earnings_surprise_avg',          label: 'Earnings Surprise (4Q)',   fmt: v => pct(v, 2) },
   { key: 'eps_growth_stability',           label: 'EPS Growth Stability',     fmt: v => num(v, 2) },
   { key: 'earnings_beat_rate',             label: 'Earnings Beat Rate',       fmt: v => pct(v, 1) },
   { key: 'consecutive_positive_quarters',  label: 'Consecutive +Q',           fmt: v => num(v, 0) },
-  // collected:false 2026-08-10: live-DB audit found only 3/5701 rows populated system-wide
-  // (estimate_revision_direction/revision_activity_30d/estimate_momentum_60d/revision_trend_score:
-  // 3, estimate_momentum_90d: 3) - genuinely unbuilt analyst-estimates pipeline, not a per-stock gap.
-  { key: 'estimate_revision_direction',    label: 'Revision Direction',       fmt: v => num(v, 1), collected: false },
-  { key: 'revision_activity_30d',          label: 'Revision Activity 30d',    fmt: v => num(v, 1), collected: false },
-  { key: 'estimate_momentum_60d',          label: 'Estimate Momentum 60d',    fmt: v => pct(v, 2), collected: false },
-  { key: 'estimate_momentum_90d',          label: 'Estimate Momentum 90d',    fmt: v => pct(v, 2), collected: false },
-  { key: 'revision_trend_score',           label: 'Revision Trend',           fmt: v => num(v, 1), collected: false },
-  { key: 'payout_ratio',                   label: 'Payout Ratio',             fmt: v => pct(v, 1) },
+  // Removed 20260816: estimate_revision_direction/revision_activity_30d/
+  // estimate_momentum_60d/estimate_momentum_90d/revision_trend_score - all marked
+  // collected:false (live-DB audit 2026-08-10 found only 3/5701 rows populated
+  // system-wide, genuinely unbuilt analyst-estimates pipeline). They rendered a
+  // permanent "No data" row for virtually every stock; re-add once that pipeline
+  // ships real data.
+  // roic_pct (was here, ±3 adj weight) and payout_ratio (just below) removed 20260816:
+  // DB-population audit found 2.5% and 0.8% non-null system-wide respectively (4,924-symbol
+  // universe) - not collected:false/dead like the 5 analyst-estimate fields above, but close
+  // enough in practice to render "No data" for nearly every stock. Both still feed
+  // quality_score when present (roic_pct in _enhance_quality_score's ±10 adjustment); this
+  // only removes the display row, not the scoring usage. Re-add once SEC backfill coverage
+  // (see MEMORY.md company_info_sec/financial-statements entries) raises this materially.
   { key: 'free_cashflow',                  label: 'Free Cash Flow',           fmt: money },
   { key: 'operating_cashflow',             label: 'Operating Cash Flow',      fmt: money },
   { key: 'total_debt',                     label: 'Total Debt',               fmt: money },
   { key: 'total_cash',                     label: 'Total Cash',               fmt: money },
-  { key: 'cash_per_share',                 label: 'Cash / Share',             fmt: v => `$${num(v, 2)}` },
+  // earnings_growth_4q_avg's canonical home is here (Quality) - the Growth tab's copy
+  // was removed as a duplicate (20260816 field audit); unweighted in both, feeds
+  // neither quality_score nor growth_score.
   { key: 'earnings_growth_4q_avg',         label: 'Earnings Growth 4Q Avg',   fmt: v => pct(v, 2) },
 ];
 
@@ -622,7 +635,8 @@ const GROWTH_SCHEMA = [
   { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '6%' },
   { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2), used: true, weight: '4%' },
   { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2), used: true, weight: '5%' },
-  { key: 'earnings_growth_4q_avg',     label: 'Earnings Growth 4Q Avg',  fmt: v => pct(v, 2) },
+  // earnings_growth_4q_avg removed 20260816 - duplicate of the Quality tab's copy,
+  // unweighted in both (feeds neither growth_score nor quality_score).
 ];
 
 // FIXED 2026-08-04: positioning_score (load_stock_scores.py::_score_positioning) weight
@@ -636,7 +650,10 @@ const POSITIONING_SCHEMA = [
   { key: 'short_interest_pct',          label: 'Short Interest %',    fmt: v => pct(v, 2), used: true, weight: '25%' },
   { key: 'top_10_institutions_pct',     label: 'Top 10 Institutions %', fmt: v => pct(v, 1) },
   { key: 'institutional_holders_count', label: 'Institutional Holders', fmt: v => num(v, 0) },
-  { key: 'short_percent_of_float',      label: 'Short % of Shares O/S', fmt: v => pct(v, 1) },
+  // short_percent_of_float removed 20260816: loaders/load_positioning_metrics.py computes
+  // it as short_shares / shares_outstanding, the same FINRA short_shares numerator and
+  // (per that loader's own comment) "same denominator" short_interest_pct already uses -
+  // a near-duplicate restatement of the field above it, not an independent signal.
   { key: 'short_interest_trend',        label: 'Short Interest Trend', fmt: v => v == null ? '—' : v.charAt(0).toUpperCase() + v.slice(1), used: true, weight: '10%' },
   { key: 'shares_short_prior_month',    label: 'Shares Short (Prior Month)', fmt: v => num(v, 0) },
   { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },

@@ -163,6 +163,7 @@ class TestChildLoaderTimeoutMatchesScheduler:
         module = _load_scheduler_module()
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
+        mock_proc.poll.return_value = 0
         mock_proc.wait.return_value = 0
         # "trend_analysis" -> 15 * 60 = 900s in LOADER_TIMEOUTS
         with (
@@ -172,19 +173,33 @@ class TestChildLoaderTimeoutMatchesScheduler:
         ):
             module.run_pipeline("test_pipeline")
 
-        assert mock_proc.wait.call_args.kwargs["timeout"] == 900
+        # NOTE 2026-08-16: run_pipeline() no longer blocks on proc.wait(timeout=...) - Session
+        # 106's poll-loop refactor replaced that with a non-blocking proc.poll() loop that
+        # enforces scheduler_timeout via elapsed-time comparison instead, so there is no
+        # wait(timeout=...) call left to assert on here. What still matters (and is still a
+        # live regression risk) is that the per-loader budget reaches the child process.
         assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT"] == "900"
 
     def test_env_carries_matching_timeout_for_the_loader_that_hit_this_bug(self):
         """Direct regression for the live-reproduced case: enhanced_quality_growth's
-        scheduler budget (200 min as of 2026-08-10's margin bump over the original 150 min -
-        LOADER_TIMEOUTS is local to run_pipeline(), not importable, so this value must be
-        kept in sync with that dict by hand) must reach its child process instead of the
-        runner's stale 120 min default, because nothing used to propagate the real budget
-        through. CRITICAL FIX 2026-08-13: Now passes LOADER_TIMEOUT in seconds (12000s = 200m)."""
+        scheduler budget must reach its child process instead of the runner's stale 120 min
+        default, because nothing used to propagate the real budget through. CRITICAL FIX
+        2026-08-13: Now passes LOADER_TIMEOUT in seconds.
+
+        STALE-ASSERTION FIX (2026-08-16): this used to hardcode the expected seconds
+        ("12000" = 200m, from a 2026-08-10 margin bump), duplicating the authoritative value
+        in loaders/loader_timeout_config.py by hand - exactly the kind of drift its own
+        docstring warned about. It silently went stale when that config was later bumped to
+        300m (18000s) and started failing for real. Now derives the expectation from the
+        authoritative source instead of a second hardcoded literal, so it can't drift again."""
+        from loaders.loader_timeout_config import get_loader_timeout
+
+        expected_timeout_seconds = get_loader_timeout("enhanced_quality_growth")
+
         module = _load_scheduler_module()
         mock_proc = MagicMock()
         mock_proc.stdout = _stdout_mock([])
+        mock_proc.poll.return_value = 0
         mock_proc.wait.return_value = 0
         with (
             patch.object(module, "PIPELINES", {"test_pipeline": ["enhanced_quality_growth"]}),
@@ -194,5 +209,6 @@ class TestChildLoaderTimeoutMatchesScheduler:
         ):
             module.run_pipeline("test_pipeline")
 
-        assert mock_proc.wait.call_args.kwargs["timeout"] == 200 * 60
-        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT"] == "12000"
+        # See test_env_carries_matching_timeout_seconds above: no wait(timeout=...) call
+        # exists to assert on under the current poll-loop architecture.
+        assert mock_popen.call_args.kwargs["env"]["LOADER_TIMEOUT"] == str(expected_timeout_seconds)

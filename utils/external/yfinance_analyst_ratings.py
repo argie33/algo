@@ -230,7 +230,9 @@ def fetch_analyst_sentiment(symbol: str) -> dict[str, Any] | None:
         target_price = targets.get("mean")
         current_price = targets.get("current")
         if target_price is not None and current_price:
-            upside_downside_percent = round((float(target_price) - float(current_price)) / float(current_price) * 100, 2)
+            upside_downside_percent = round(
+                (float(target_price) - float(current_price)) / float(current_price) * 100, 2
+            )
     except RuntimeError as e:
         # analyst_price_targets fetch failed - this is optional data, proceed without it
         logger.debug(f"[{symbol}] analyst_price_targets fetch failed: {e} - proceeding without target price")

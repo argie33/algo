@@ -26,7 +26,7 @@ from utils.db.context import DatabaseContext
 from utils.loaders.status_manager import LoaderStatusManager
 
 
-def test_scenario_sec_rate_limit_with_incomplete_load():
+def test_scenario_sec_rate_limit_with_incomplete_load():  # noqa: C901
     """
     Scenario: Monday morning, SEC rate-limits hit Friday afternoon, price load hit at 94%.
 

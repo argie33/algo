@@ -970,9 +970,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # halt state as the authoritative "is trading currently permitted" signal.
         trading_halted = False
         trading_halt_reason = None
+        trading_halt_at = None
         try:
             cur.execute("""
-                SELECT overall_status, halt_reason
+                SELECT overall_status, halt_reason, started_at
                 FROM algo_orchestrator_runs
                 ORDER BY started_at DESC
                 LIMIT 1
@@ -991,6 +992,14 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 if run_status in ("halted", "error"):
                     trading_halted = True
                     trading_halt_reason = latest_run_dict.get("halt_reason")
+                    # Surfaced so the dashboard can show how old this halt record is - a halt
+                    # reason from a bug that's since been fixed in code still shows as the
+                    # "current" halt until a newer run record supersedes it, and without a
+                    # timestamp there's no way for an operator to tell a live blocker from a
+                    # stale one (confirmed live 2026-08-16: a halt reason for an already-fixed
+                    # bug sat as the latest row for hours with no fresher run to replace it).
+                    started_at_val = latest_run_dict.get("started_at")
+                    trading_halt_at = started_at_val.isoformat() if hasattr(started_at_val, "isoformat") else None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             _rollback_after_error(cur)
             logger.warning(f"[DATA_STATUS] Could not determine orchestrator halt state: {e}")
@@ -1339,6 +1348,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         response["data"]["ready_to_trade"] = ready_to_trade
         response["data"]["trading_halted"] = trading_halted
         response["data"]["trading_halt_reason"] = trading_halt_reason
+        response["data"]["trading_halt_at"] = trading_halt_at
         response["data"]["summary"] = summary
         response["data"]["critical_stale"] = critical_stale
         response["data"]["expected_date"] = str(expected_date)

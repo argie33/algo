@@ -821,6 +821,7 @@ def fetch_health(c: None) -> dict[str, Any]:
         # of its own (only per-table ages).
         trading_halted = inner.get("trading_halted")
         trading_halt_reason = inner.get("trading_halt_reason")
+        trading_halt_at = inner.get("trading_halt_at")
         expected_date = inner.get("expected_date")
         as_of = inner.get("as_of")
 
@@ -832,6 +833,7 @@ def fetch_health(c: None) -> dict[str, Any]:
             "execution_health": execution_health,
             "trading_halted": trading_halted,
             "trading_halt_reason": trading_halt_reason,
+            "trading_halt_at": trading_halt_at,
             "expected_date": expected_date,
             "as_of": as_of,
         }
